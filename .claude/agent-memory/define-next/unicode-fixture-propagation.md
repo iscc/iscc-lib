@@ -23,9 +23,17 @@ measured facts below instead of re-probing.
     `crates/iscc-rb/test/test_conformance.rb`.
 - **Vendored-copy surfaces** (need a byte-identical `cp` next to their `data.json`):
     `packages/go/testdata/`, `packages/dotnet/Iscc.Lib.Tests/testdata/`,
-    `packages/swift/Tests/IsccLibTests/`, `packages/kotlin/src/test/resources/`. JNI/Java reads
-    `data.json` from `crates/iscc-jni/java/src/test/.../IsccLibTest.java` — check its path shape
-    before assuming.
+    `packages/swift/Tests/IsccLibTests/`, `packages/kotlin/src/test/resources/`.
+- **JNI/Java is a canonical-path reader** (verified iter 153): `IsccLibTest.java` does
+    `Files.readString(Path.of("../../iscc-lib/tests/data.json"))` — maven's basedir is
+    `crates/iscc-jni/java`, so the same relative shape reaches the boundary fixture. No copy needed.
+
+**Cost has two axes, not one** (the single "already calls text functions" axis misled iters
+151-152): fixture-reading plumbing *and* text-function coverage. C FFI (`tests/test_iscc.c`) and C++
+have **neither a JSON parser nor a vector file** — most expensive, and C++ cannot be built here
+(`cmake` missing). Kotlin/Swift/C# have plumbing but add a *tracked copy* (→ `VENDORED_COPIES`
+registration).
+
 - Go is a hybrid: its **per-function `*_test.go` conformance tests read
     `../../crates/iscc-lib/tests/data.json` by relative path**, while `testdata/data.json` exists
     only so the *public* `ConformanceSelftest()` can `//go:embed` it. Either shape is defensible;
@@ -41,6 +49,9 @@ measured facts below instead of re-probing.
     `bundle exec rake compile` (~1.5 min, cached cargo) flipped `text_clean("a"+U+A7F1+"b")` from
     `"aSb"` to `"ab"`. The `.so` is gitignored (`crates/iscc-rb/.gitignore:3`) → rebuilding leaves
     no tree diff. Baseline suite: **111 runs / 299 assertions / 0 failures**, `standardrb` clean.
+- **JNI `target/debug/libiscc_jni.so`: STALE (measured iter 153)** — dated Jul 25, older than the
+    sentinel commit `7acf0fa` (2026-07-26). Rebuild with `cargo build -p iscc-jni`; surefire's
+    `argLine` already points `-Djava.library.path` at `target/debug`.
 - **WASM has no artifact age** — `wasm-pack test --node` recompiles the core every run.
 - Probe rule: U+0378 rows do **not** discriminate a stale artifact (U+0378 is `Cn` in every Unicode
     version, so even a no-freeze-rule build gets them right). Only **U+A7F1** rows do.
@@ -82,18 +93,22 @@ measured facts below instead of re-probing.
 
 1. **iter 150 ✅** — Python (canonical path) + Go (vendored copy + 3 skips). Establishes both
     plumbing patterns in one step; both runnable in-container with no artifact rebuild.
-2. **iter 151 scoped** — WASM + Ruby, both canonical-path readers, both measured runnable
-    in-container (~2 min each). No skips: both execute the Rust core, so all 12 vectors must pass.
-3. napi (rebuild the addon first) + C FFI and/or JNI/Java — note **C FFI, JNI-Java, Kotlin and Swift
-    have no text-function tests at all**, so those are new plumbing, not a copied loop; the C FFI
-    fixture needs a JSON reader or a generated C table (scope deliberately). Maven is present,
-    gradle is not.
-4. dotnet + Kotlin + Swift (**no Swift toolchain and no gradle here** — CI-only checks, so scope
-    with static verification plus a CI-green criterion, and keep them last). **Land the
-    vendored-copy byte-identity drift gate immediately before this slice** — it is the only
-    remaining slice that adds vendored copies (3 of them), so that is where the gate first protects
-    something new. Slices 1-3 are canonical-path readers except Go, which was `cmp`-verified
-    in-step.
+2. **iter 151 ✅** — WASM + Ruby, both canonical-path readers, both runnable in-container (~2 min
+    each). No skips: both execute the Rust core, so all 12 vectors must pass.
+3. **iter 152 ✅** (interleaved) — the vendored-copy byte-identity drift gate
+    (`tests/test_vendored_fixtures.py`), landed before the first slice that adds new copies.
+4. **iter 153 scoped** — napi + JNI/Java, both canonical-path readers, both runnable offline
+    in-container, no new vendored copy. Both need a native rebuild first
+    (`npx napi build --platform` from `crates/iscc-napi`; `cargo build -p iscc-jni`). JNI/Java has
+    **zero** text-function tests, so its loop is new plumbing — but gson + the canonical-path
+    `readString` already exist in `IsccLibTest`. `mvn` resolves **fully offline**
+    (`mvn -o -B test-compile` = BUILD SUCCESS in 2.4 s against a 54 MB `~/.m2`);
+    `crates/iscc-jni/java/target/` is gitignored.
+5. dotnet + Kotlin + Swift (**no Swift toolchain and no gradle here** — CI-only checks, so scope
+    with static verification plus a CI-green criterion). This slice adds 3 tracked copies, each of
+    which MUST be registered in `VENDORED_COPIES` and keep the canonical basename.
+6. C FFI + C++ last: each needs a JSON reader or a generated C table, and C++ has no local
+    toolchain.
 
 ## Standing hazards
 
@@ -104,10 +119,11 @@ measured facts below instead of re-probing.
     `SEQUENCE_VECTORS` const and the issues.md table; equality against `outputs.result` already
     catches a delete-filter regression, and copying oracles 11× re-opens the iter-149 mislabel
     hazard. See [[unicode-freeze-facts]] for the corrected row-3 value.
-- **Vendored-copy drift gate — scoped iter 152** as `tests/test_vendored_fixtures.py` (explicit
-    `(canonical, copy)` table, count floor, plus a "no unregistered tracked copy" test). Tracked
-    fixture files at HEAD: **7 = 2 canonical + 5 copies** (4 × `data.json` + 1 ×
-    `unicode_boundary.json`). Until it lands, per-slice `cmp` is the interim guard.
+- **Vendored-copy drift gate — LANDED iter 152** (`tests/test_vendored_fixtures.py`: explicit
+    `(canonical, copy)` table, count floor, `git ls-files` set-equality catching an unregistered *or
+    deleted* copy, ASCII guard). Tracked fixture files: **7 = 2 canonical + 5 copies**. It keys on
+    the two **basenames**, so a copy renamed to anything else is invisible — keep canonical
+    basenames. A canonical-path slice must leave the table untouched; say so in next.md.
 - **Discovery must use `git ls-files`, never `Path.rglob`**: untracked build outputs exist in this
     container (`packages/dotnet/Iscc.Lib.Tests/bin/Debug/net8.0/testdata/data.json`,
     `packages/kotlin/build/resources/test/data.json`) and `.venv/…/iscc_core/data.json` is a

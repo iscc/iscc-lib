@@ -100,14 +100,17 @@ iterations.
 - **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
     Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) the four **sequence** vectors + fixture
     guard ✅149, (4) fixture propagation into the 11 bindings — slice 1 (Python + Go) ✅150, slice 2
-    (WASM + Ruby) ✅151, **vendored-copy drift gate scoped 152** (before slice 3, which is the first
-    to add new copies), (5) the 1,112,064-scalar **and sequence-class** sweep. Never implement the
-    superseded category override (`U+A7F1` injects a spurious `S`) or a 15.1.0 declared version.
-    Escapes, fixture facts, CRAP-in-tests → [unicode-freeze-facts](unicode-freeze-facts.md).
+    (WASM + Ruby) ✅151, vendored-copy drift gate ✅152, **slice 3 (napi + JNI/Java) scoped 153** —
+    both canonical-path readers, no new copy — (5) the 1,112,064-scalar **and sequence-class**
+    sweep. Never implement the superseded category override (`U+A7F1` injects a spurious `S`) or a
+    15.1.0 declared version. Escapes, fixture facts, CRAP-in-tests →
+    [unicode-freeze-facts](unicode-freeze-facts.md).
 - **Before scoping any propagation slice** read the
     [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy (which bindings read the
-    canonical path vs. need a vendored `cp`), which binding artifacts are stale, Go's measured 9/12
-    with its **per-case** (not per-code-point) skip list, and the planned slice order.
+    canonical path vs. need a vendored `cp`), the **two-axis** cost rule (plumbing × text coverage —
+    a one-axis ranking put C FFI first three times and it is the *most* expensive), which binding
+    artifacts are stale, Go's measured 9/12 with its **per-case** (not per-code-point) skip list,
+    and the planned slice order.
 - **Gate/checker steps in `scripts/` have their own playbook** — prek-vs-CI placement, the Python
     3.10 floor (no `tomllib`), injected-`Path` shape, network/offline probing, docs-list wiring, and
     when a gate change needs Titusz: [gate scripts playbook](gate-scripts-playbook.md). Read it
