@@ -62,7 +62,8 @@ slice recipes), `gha-workflow-reviews.md` (release.yml gates + action-major bump
 - **Unicode 16.0.0 freeze rule = a `U+FFFF` SENTINEL MAP since iter 148** (delete-filter iters
     133–147; adjacency divergence RULED/CLOSED). Rust fixture COMPLETE since iter 149 (4 single code
     points + 4 sequence vectors, guarded in `test_unicode_boundary.rs`); **Python + pure-Go
-    propagated iter 150** (Go runs 9/12, 3 ruled skips). Remaining: 9 binding surfaces + 4 sibling
+    propagated iter 150** (Go runs 9/12, 3 ruled skips), **WASM + Ruby iter 151** (12/12, no skips,
+    canonical fixture read in place — no new copy). Remaining: 7 binding surfaces + 4 sibling
     `data.json` → criterion-4 sweep. Never "fix" one binding to match another; single-cp vectors are
     deletion-agnostic, only the 4 sequence vectors discriminate sentinel-vs-delete
 - **A binding can pass a boundary vector for the WRONG reason — check the MECHANISM** (iter 150): Go
@@ -105,6 +106,8 @@ slice recipes), `gha-workflow-reviews.md` (release.yml gates + action-major bump
     `dep-refresh-   reviews.md` slice 8
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
     `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go` (empty)
+- **WASM+Ruby boundary slice (iter 151, ~10 min)**: commands, the `cargo test -p iscc-wasm` =
+    0-tests trap, and the one-fixture-edit mutation probe that covers both → `binding-reviews.md`
 - **Binding fixture PROPAGATION slice (iter 150, ~10 min)**: per-language shortcut + `cmp` the
     vendored copy + `isascii()`. Then probe in a `cp -r` of the package under `/tmp` (never the work
     tree): corrupt a **non-skipped** expected output, **rename** a skipped case (must fire BOTH the

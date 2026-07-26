@@ -342,11 +342,22 @@ table-dependent cases via a `"<section>/<case>"` skip map whose keys are guarded
 renames. Neither suite carries a `delete_filter_output` oracle and neither needs one — the four
 sequence vectors' expected outputs are the decomposed sentinel-design values (`0065 0301`,
 `1100 1161`, `03B1 03C2 03B2`), already unequal to the delete-filter results, so plain equality
-against `outputs.result` reds on a delete-filter regression (mutation-verified in review). **9
-surfaces left:** napi (its checked-in `crates/iscc-napi/iscc-lib.linux-x64-gnu.node` artifact is
+against `outputs.result` reds on a delete-filter regression (mutation-verified in review). ✅
+**Propagation slice 2 done (iter 151): WASM + Ruby.** Both read the **canonical** fixture with no
+vendored copy — `crates/iscc-wasm/tests/unicode_boundary.rs` via `include_str!` (3
+`#[wasm_bindgen_test]` fns: metadata guard + one loop per section, ungated by the `conformance`
+feature; on the host target it compiles to 0 tests, `wasm-pack test --node` is the only runner) and
+`crates/iscc-rb/test/test_unicode_boundary.rb` via `File.expand_path` + `define_method` per case
+(fresh `BOUNDARY_JSON`/`BOUNDARY_DATA` constants — `rake test` loads all test files into one
+process). All 12 vectors green on both with **zero skips**; CI runs both jobs and compiles the Ruby
+extension first, so the local stale-`.so` hazard cannot reach CI. Review mutation-probed both: a
+delete-filter-shaped expected value reds the named vector, a deleted case reds the metadata guard.
+**7 surfaces left:** napi (its checked-in `crates/iscc-napi/iscc-lib.linux-x64-gnu.node` artifact is
 **stale** — still returns `aSb` for `text_clean("a" U+A7F1 "b")` — so that slice must rebuild it
-first), WASM, Ruby, C FFI, JNI/Java, UniFFI, Kotlin, Swift, C#, C++, plus the four sibling
-`data.json` copies.
+first), C FFI, JNI/Java, Kotlin, Swift, C#, C++, plus the four sibling `data.json` copies. (The
+running tally counts the 11 native bindings named in `docs/unicode.md`; `packages/go` is the
+separate pure-Go port and UniFFI is the shared mechanism behind Kotlin and Swift, not an independent
+surface.)
 
 **Go — RULED by Titusz 2026-07-26: skip, do not vendor the delta.** `packages/go` skips the Unicode
 16.0 boundary vectors with an explicit tracking note (and an issue filed here) rather than vendoring

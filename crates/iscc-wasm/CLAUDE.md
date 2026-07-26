@@ -20,9 +20,9 @@ crates/iscc-wasm/
   src/
     lib.rs            # All #[wasm_bindgen] exports (single file, flat)
   tests/
-    conformance.rs    # 9 gen_*_v0 functions vs vendored data.json vectors
+    conformance.rs       # 9 gen_*_v0 functions vs canonical data.json vectors
     unicode_boundary.rs  # text_clean/text_collapse vs canonical Unicode 16.0.0 boundary vectors
-    unit.rs           # gen_sum_code_v0, text utils, encoding, codec, algorithm primitives, hashers
+    unit.rs              # gen_sum_code_v0, text utils, encoding, codec, algorithm primitives, hashers
 ```
 
 - `src/lib.rs` contains every exported function. No submodules -- keep it flat until the file

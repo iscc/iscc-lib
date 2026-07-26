@@ -21,13 +21,13 @@ fully-met target sections to `learnings-archive.md`.
 - When porting from Python reference, verify against Rust `crates/iscc-lib/src/` first — the Rust
     implementation is the authoritative source for this project
 - **`iscc-core` output is not stable across CPython versions** (5,185 code points differ 3.13 vs
-    3.14 — `text_clean`/`text_collapse` strip category `C` incl. unassigned `Cn`, so the result
-    tracks `unicodedata.unidata_version`). Always name the interpreter, and check both via
-    `uv run --python 3.13 --no-project --with iscc-core python -c …`. Upstream: iscc-core#137
+    3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so the result tracks
+    `unicodedata.unidata_version`; upstream iscc-core#137). Always name the interpreter:
+    `uv run --python 3.13 --no-project --with iscc-core python -c …`
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) must be proven output-neutral by a
     **differential sweep** over all 1,112,032 code points (~2 min; recipe → `learnings-archive.md`),
     never by a green vector suite — every `data.json` vector predates Unicode 16 (only the separate
-    `unicode_boundary.json` fixture probes the 16.0 boundary, and only in Rust/Python/Go so far)
+    `unicode_boundary.json` fixture probes the 16.0 boundary)
 
 ## Tooling
 
@@ -61,20 +61,18 @@ fully-met target sections to `learnings-archive.md`.
     tables (Go 15.0, Python 3.13 15.1, Rust crates 16.0/17.0) — never "fix" one binding to match
     another
 - **Deleting a `Cn` code point before normalization changes ADJACENCY; mapping it does not** — why
-    the iter-133 pre-filter was real non-conformance (deletion unblocks canonical composition, jamo
-    composition, `Final_Sigma`, diaeresis). **Any Unicode differential MUST include multi-code-point
-    sequences**: a per-code-point sweep scores the broken design 0 failures, while the iter-148
-    sequence probe (127 unassigned code points × 10 contexts) scored it 504/1270 and the sentinel
-    0/1270. Recipe → `.claude/agent-memory/review/review-patterns.md`
+    the iter-133 pre-filter was real non-conformance (deletion unblocks canonical/jamo composition,
+    `Final_Sigma`, diaeresis). **Any Unicode differential MUST include multi-code-point sequences**:
+    a per-code-point sweep scores the broken design 0 failures; the iter-148 sequence probe (127
+    code points × 10 contexts) scored it 504/1270, the sentinel 0/1270 (recipe → review memory)
 - **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141, +4
     **sequence** vectors iter 149; ASCII `\uXXXX`, `data.json`-shaped) + loader
     `tests/test_unicode_boundary.rs` — propagation source for every binding, deliberately NOT merged
-    into `data.json` (rationale → `decisions.md`). Two single-code-point cases are **live** guards:
-    `unicode-normalization` 0.1.25 ships **Unicode 17.0** tables where U+A7F1 is `Lm` `<super> 0053`
-    (NFKC → `S`) and U+20C1 is `Sc`. All 4 wrap their code point in ASCII, so they are
-    **deletion-vs-sentinel agnostic** — only the sequence vectors gate that distinction. Propagated
-    to Python + pure-Go iter 150; a binding suite needs **no oracle column** — the sequence vectors'
-    expected values already differ from the delete-filter ones, so equality vs `outputs.result` reds
+    into `data.json` (rationale → `decisions.md`). Two single-code-point cases are **live** 17.0-
+    table guards (U+A7F1 `Lm <super> 0053`, U+20C1 `Sc`), but all 4 wrap their code point in ASCII
+    and are **deletion-vs-sentinel agnostic** — only the sequence vectors gate that distinction, and
+    their expected values already differ from the delete-filter ones, so a binding suite needs **no
+    oracle column**. Gated so far: Rust, Python, Go (3 ruled skips), WASM, Ruby
 - **A binding can pass a boundary vector for the WRONG reason** (iter 150): `packages/go` has no
     freeze rule; its Unicode 15.0 tables make U+20C1/U+A7F1 `Cn`, so the category-`C` filter drops
     them and coincidentally matches the sentinel output. Under go1.27 both become assigned and 5
@@ -97,9 +95,12 @@ fully-met target sections to `learnings-archive.md`.
 
 ## CI/CD
 
-- Windows GHA runners default to `pwsh`. Steps using bash syntax (`$(...)`, `$GITHUB_OUTPUT`,
-    `grep`, `sed`) MUST specify `shell: bash` — per-matrix version steps (e.g. `build-ffi`) hit
-    Windows. Always check `shell:` when adding `run:` steps to cross-platform matrices
+- Windows GHA runners default to `pwsh` — any `run:` step using bash syntax (`$(...)`,
+    `$GITHUB_OUTPUT`, `grep`, `sed`) in a cross-platform matrix MUST set `shell: bash`
+- **A binding suite's runner is not `cargo test`** (iter 151): `cargo test -p iscc-wasm` reports
+    `0 passed` — only `wasm-pack test --node …` runs `#[wasm_bindgen_test]`, so clippy
+    `--all-targets` proves compilation, never coverage. Ruby's gitignored `.so` needs `rake compile`
+    first, else the suite tests a stale core (pre-sentinel → `aSb` for `a`+U+A7F1+`b`)
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** All
     its invariants are executable gates since iters 142/144: `scripts/check_release_workflow.py`
@@ -133,8 +134,8 @@ fully-met target sections to `learnings-archive.md`.
     reach: `cargo tree -i <crate> -e no-dev` = empty), NOT a `deny.toml` ignore
 - **v0.6.0 dep refresh + ruff 0.16 adoption are CLOSED** (iters 124–140 → archive). Live rules: ruff
     **0.16.0**; preview a major with `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); rules go in
-    `[tool.ruff.lint] extend-select`, **never `select`**; **never `ruff check --fix .`** without
-    `--select` — it deletes load-bearing `# noqa: S603/S607`
+    `[tool.ruff.lint] extend-select`, never `select`; **never `ruff check --fix .`** without
+    `--select` (deletes load-bearing `# noqa: S603/S607`)
 - **A prek `types:` tag is not a file-extension guess — probe it** (`.pyi` is tagged `pyi`, not
     `python`; that hole silently skipped the published `_lowlevel.pyi`, closed iter 139). Prove a
     hook's surface with a **staged, deliberately dirty** probe: `uv run prek run <hook> --files <p>`

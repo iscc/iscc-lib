@@ -94,3 +94,21 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     Published consumer floor is **Kotlin 2.3 or newer**, documented in 4 places that move together.
 - **A published `.pyi` needs mypy + pyright, not just `ty`** (iter 131; the wheel ships `py.typed`):
     `uvx mypy@1.18.2 --strict` + `uvx pyright@1.1.407` ≈ 30s; prefer `ast.parse` over greps.
+
+## Unicode boundary-fixture propagation slices (iters 150–151)
+
+- **WASM slice** (~4 min): `wasm-pack test --node crates/iscc-wasm --features conformance`. **Pipe
+    to a FILE, never `| tail`** — the per-target `test result:` lines you must read are mid-log.
+    Targets at iter 151: lib 0, conformance 9, unicode_boundary 3, unit 78, doctests 0. On the host
+    target **all 5 report `0 passed`** — `#[wasm_bindgen_test]` does not register there, so host
+    `cargo test`/`clippy --all-targets` prove compilation only. That is expected and is the reason
+    CI has a separate `WASM (wasm-pack test)` job (ci.yml ~line 113).
+- **Ruby slice** (~2 min): `bundle exec rake compile` (mandatory — the `.so` is gitignored and a
+    pre-sentinel build returns `aSb` for `text_clean("a"+U+A7F1+"b")`) then `rake test` +
+    `standardrb`. CI compiles fresh before testing, so a local red is usually staleness.
+- **Mutation probe for both at once** — both read the **canonical**
+    `crates/iscc-lib/tests/unicode_boundary.json` in place, so ONE fixture edit probes both
+    surfaces. Rewrite it with Python (`json.dumps(..., ensure_ascii=True, indent=2)` + `\n`), run,
+    then `git checkout` and `cmp` against a saved copy. Two mutations worth doing: (1) set a U+A7F1
+    expected value to the pre-freeze `aSb` → each suite must red and NAME the vector; (2) delete one
+    case → the metadata guard (counts 7/5) must red. Verified iter 151 on both.
