@@ -97,8 +97,9 @@ the sentinel composes the following acute accent onto it and yields `e U+015A`.
 
 Both vector families are checked into the repository as
 `crates/iscc-lib/tests/unicode_boundary.json` and exercised by the Rust test suite, by the Python,
-Node.js, WASM, Java, and Ruby binding suites (which all read the canonical fixture directly), and by
-the pure-Go package via the vendored copy at `packages/go/testdata/unicode_boundary.json`.
+Node.js, WASM, Java, Ruby, C#, and Kotlin binding suites (which all read the canonical fixture
+directly), and by the pure-Go package via the vendored copy at
+`packages/go/testdata/unicode_boundary.json`.
 
 ## Cross-implementation consistency
 

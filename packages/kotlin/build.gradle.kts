@@ -34,6 +34,7 @@ tasks.withType<Test> {
     val nativeLibDir = "${rootProject.rootDir}/../../target/debug"
     jvmArgs("-Djava.library.path=$nativeLibDir", "-Djna.library.path=$nativeLibDir")
     environment("LD_LIBRARY_PATH", nativeLibDir)
+    systemProperty("iscc.fixtureDir", "${rootProject.rootDir}/../../crates/iscc-lib/tests")
 }
 
 publishing {

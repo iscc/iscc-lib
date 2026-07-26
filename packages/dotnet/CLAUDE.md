@@ -34,6 +34,7 @@ packages/dotnet/
     Iscc.Lib.Tests.csproj                # References Iscc.Lib, xunit 2.x, Microsoft.NET.Test.Sdk
     SmokeTests.cs                        # End-to-end P/Invoke validation for every public method
     ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions
+    UnicodeBoundaryTests.cs              # Unicode 16.0.0 boundary vectors (canonical fixture linked via csproj)
     testdata/data.json                   # Vendored ISCC conformance test vectors
 ```
 

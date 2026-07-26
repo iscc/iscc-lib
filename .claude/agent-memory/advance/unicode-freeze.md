@@ -55,11 +55,23 @@ metadata:
     crates/iscc-napi; `cargo build -p iscc-jni`) and probe freshness with
     `text_clean("a"+U+A7F1+"b") == "ab"` (a stale build returns `aSb`; U+0378 never discriminates).
     `mvn -o -B test` works fully offline against cached `~/.m2`.
-- Pending: 5 binding surfaces (C FFI — needs a JSON reader or generated table, `tests/test_iscc.c`
-    has no text coverage; C++ — no `cmake` in container; dotnet/kotlin/swift — the slice that adds
-    tracked vendored copies, MUST register each in `VENDORED_COPIES` of
-    `tests/test_vendored_fixtures.py` or the drift gate reds); full-code-space + sequence-class
-    differential sweep (spec requirement 4).
+- Propagation slice 4 (iter 154): C# `packages/dotnet/Iscc.Lib.Tests/UnicodeBoundaryTests.cs`
+    (`Lazy<JsonElement>` + `[Fact]` guard + 2 `[Theory]`/`[MemberData]`; fixture reaches the test
+    output dir via a csproj
+    `<Content Include="..\..\..\crates\iscc-lib\tests\unicode_boundary.json"   Link="testdata\unicode_boundary.json">`
+    item — NO tracked copy, `bin/` gitignored) and Kotlin
+    `packages/kotlin/src/test/.../UnicodeBoundaryTest.kt` (gson lazy load from
+    `System.getProperty("iscc.fixtureDir")`, set via one `systemProperty(...)` line in
+    `build.gradle.kts`'s `tasks.withType<Test>` block — also NO tracked copy). Both 13/13 green.
+    Neither surface needed `VENDORED_COPIES` changes. Kotlin GOTCHA: a plain `@Test` loop shows only
+    3 tests in the Gradle XML — use `@TestFactory`/`DynamicTest` so each vector is a `testcase` and
+    `tests="13"` is checkable; run `./gradlew cleanTest test --offline` locally (bare `test` can be
+    UP-TO-DATE and not execute).
+- Pending: 3 binding surfaces (C FFI — needs a JSON reader or generated table, `tests/test_iscc.c`
+    has no text coverage; C++ — no `cmake` in container; Swift — no `swift` toolchain in container,
+    would add a tracked vendored copy that MUST be registered in `VENDORED_COPIES` of
+    `tests/test_vendored_fixtures.py`); full-code-space + sequence-class differential sweep (spec
+    requirement 4).
 - GOTCHA (iter 149): writing `\uXXXX` escape text into the ASCII-escaped fixture via the Edit tool
     decodes it into literal UTF-8 chars. Write fixture JSON with Python
     (`json.dumps(..., ensure_ascii=True, indent=2)` + trailing newline round-trips the file
