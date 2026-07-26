@@ -87,5 +87,27 @@ stripping enables composition).
     hand-written code, and so `uv run --script <gen>` + `git status --porcelain <file>` is a clean
     determinism check.
 
+## Sentinel conversion (`filter` → `map` onto `U+FFFF`) — scoped iteration 148
+
+- The single-code-point expectations in the two tables above are **unchanged** by the sentinel
+    design: `a<cp>b` deletes vs. maps-then-strips to the same string. Only *sequences* change, which
+    is why `tests/unicode_boundary.json` and the 25 `utils.rs` tests needed no edit.
+- Sequence expectations are mechanically derivable, no probe needed: `U+FFFF` has `ccc = 0` (blocks
+    canonical + Hangul jamo composition of its neighbours) and is neither `Cased` nor
+    `Case_Ignorable` (so a preceding `Σ` still lowercases to final `ς`). That reproduces all four
+    spec **Verified when** sequence values exactly.
+- Stale-wording sites to sweep whenever the freeze-rule mechanism changes (grep
+    `before any normalization` / `stripped before`): `utils.rs` ×3 docs + 2 inline comments,
+    `crates/iscc-lib/CLAUDE.md` "Text normalization order matters", `tests/test_unicode_boundary.rs`
+    module docs, `scripts/gen_unicode16_unassigned.py` docstring, `docs/unicode.md`.
+- CRAP baseline values before the conversion (from `.crap-baseline.json`): `text_clean` cyclomatic
+    9.0 / crap 9.0, `text_collapse` 1.0 / 1.0, both 100% covered → with coverage at 100%,
+    `CRAP == cyclomatic`, so each rises by ~1 and the CI-only `--fail-regression` gate REQUIRES a
+    same-commit `mise run crap:baseline`.
+- `valgrind` (`/usr/bin/valgrind`) and `~/.cargo/bin/iai-callgrind-runner` ARE present in this
+    container despite learnings.md calling the perf tooling install-on-demand — the
+    `bench:iai:check` mise task is runnable locally; the only real risk is a local-vs-CI rustc Ir
+    offset, so scope it as "run before editing too".
+
 See [[define-next-ty-generator-scripts]] for the `ty check` trap that generator scripts with
 external pins hit.

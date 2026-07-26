@@ -202,3 +202,18 @@ learnings.md.
     `git update-index --chmod=+x <path>` is also required, run *after* `git add`, verified with
     `git diff --cached --summary`. The `+x`/`-x` round-trip is safe to probe while scoping. (Also
     recorded in the session-level `devcontainer-exec-bit.md` memory.)
+
+## Parked-work scoping lessons (archived iter 148 — no issue is parked on Titusz right now)
+
+- **A parked HUMAN REVIEW issue does not stall the loop — it re-prioritises it** (iters 134–139: the
+    Unicode ruling parked 2 criteria, so steps went to ruff slices, then hook parity, then
+    release.yml). If a blocked slice's only consumer is the parked propagation, take other backlog.
+- **When a propagation step is parked, its source artifact can usually still land** (iter 141: the
+    12-binding Unicode vector rollout was blocked on a human ruling + a Go decision, but the
+    Rust-core fixture + loader was ruling-independent as long as the vectors avoided the disputed
+    construct). Scope the artifact, name the parked half in `Not In Scope`, don't tick the spec box.
+- **A parked behaviour ruling does not block *documenting* the behaviour that already shipped** —
+    but the docs step must forbid the disputed claims by name in `Not In Scope` (iter 143: no
+    output-equivalence claim, no multi-code-point/sequence statements).
+- **A multi-part spec criterion slices along its own checkboxes** — `specs/rust-core.md`'s Unicode
+    contract → separate steps (core change / sweep proof / binding propagation), not one.

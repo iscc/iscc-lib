@@ -1,149 +1,164 @@
 # Next Work Package
 
-## Step: Fix the `packages/go` `Final_Sigma` case-mapping defect
+## Step: Convert the Unicode freeze rule from a pre-filter to a `U+FFFF` sentinel map
 
 ## Goal
 
-Close the only `critical` issue — "`packages/go` lowercases without `Final_Sigma` context — Greek
-text non-conformant" — so `TextCollapse` and every code derived from it (Text-Code, Meta-Code) agree
-with the reference on ordinary Greek text. Titusz sequenced this explicitly ahead of the freeze-rule
-work, and it unblocks the `Final_Sigma` boundary vector for Go.
-
-The handoff's "no unblocked `normal` work / write `## Step: NONE`" instruction is **stale** — it
-predates the `human(decide)` commit `9aa25ad`, which cleared the human backlog and filed this
-critical bug. This is a user-facing correctness fix, so the tooling-cadence rule does not bite.
+Make `text_clean` / `text_collapse` conformant with the reference on sequences containing
+Unicode-16.0.0-unassigned code points by replacing such code points with the noncharacter sentinel
+`U+FFFF` instead of deleting them (issues.md: "Convert the freeze rule from a pre-filter to a
+sentinel map (RULED)", `specs/rust-core.md` requirement 1). This closes the largest open correctness
+item — the iteration-133 pre-filter fails 42 of 140 sequence cases — and lands the two
+`docs/unicode.md` rewrites in the same commit so the public page never documents a rejected
+mechanism.
 
 ## Scope
 
-- **Modify** (1 non-test/non-doc file — well inside the standard budget):
-    - `packages/go/utils.go`
-- **Modify** (tests, excluded from the budget):
-    - `packages/go/utils_test.go`
-    - optionally `packages/go/code_content_text_test.go` and/or `packages/go/code_meta_test.go` for
-        the two end-to-end assertions below
-- **Reference**:
-    - `.claude/context/issues.md` — the `critical` issue at the top of the file
-    - `crates/iscc-lib/src/utils.rs` — `text_collapse` (~line 176): NFD → `to_lowercase()` → C/M/P
-        filter → NFKC. The Go port must keep exactly this order.
-    - `~/go/pkg/mod/golang.org/x/text@v0.40.0/cases/cases.go` — the `Caser` doc comment (read it; see
-        the concurrency trap below)
+- **Modify**:
+    - `crates/iscc-lib/src/utils.rs` — sentinel `const`, both call sites (lines ~103 and ~181), three
+        doc comments (`is_unassigned_in_unicode16` ~line 26, `text_clean` ~92, `text_collapse` ~171),
+        the two inline step-1 comments, plus the new regression tests in the existing `mod tests`
+    - `scripts/gen_unicode16_unassigned.py` — docstring wording only (lines ~6–8 say the core "strips"
+        the code points "before any normalization"); **the generated output must not change**
+    - `crates/iscc-lib/tests/test_unicode_boundary.rs` — stale "stripped before normalization" wording
+        in the module/const docs (test file; no assertion changes needed)
+    - `docs/unicode.md` — work-package items 5 and 6 (see Implementation Notes)
+    - `crates/iscc-lib/CLAUDE.md` — the "Text normalization order matters" bullet (~lines 158–163)
+    - `.crap-baseline.json` — regenerate with `mise run crap:baseline` (generated artifact)
+- **Reference**: `.claude/context/specs/rust-core.md` (requirement 1 + the **Verified when** list,
+    lines ~55–195 — the authority); `.claude/context/issues.md` ("Convert the freeze rule …" work
+    package, 6 points); `.claude/context/decisions.md` 2026-07-26 entries;
+    `crates/iscc-lib/src/utils/unicode16.rs` (data only — do not edit);
+    `crates/iscc-lib/tests/unicode_boundary.json`
+
+**File budget:** 2 non-test, non-doc source files (`utils.rs`, the generator docstring) plus one
+regenerated baseline artifact — inside the 3-file limit.
 
 ## Not In Scope
 
-- **Do not touch `crates/iscc-lib/src/utils.rs` or the freeze rule.** The sentinel conversion
-    (`filter` → `map` onto `U+FFFF`) is the *next* step and trips two hot-path gates. This step must
-    leave `crates/` byte-unchanged.
-- **Do not add Unicode boundary vectors to the Go suite**, and do not add the `Final_Sigma` boundary
-    vector anywhere. That propagation waits for the sentinel conversion, which changes expected
-    sequence outputs.
-- **Do not change `decodeBase32` in `packages/go/codec.go:398`.** Its `strings.ToUpper` operates on
-    base32-alphabet input and any non-ASCII input fails the decode immediately — audited during
-    scoping, it is the only other case-mapping call site and it is correct. Note the audit result in
-    the commit message; do not "fix" it.
-- **Do not add a new Go dependency.** `golang.org/x/text v0.40.0` is already a direct require and
-    ships `cases` + `language`; `go.mod`/`go.sum` must not change.
-- **Do not edit `docs/howto/go.md`.** Its "Unicode tables" note (lines 292–298) is about table-
-    version drift, not case mapping, and stays true. `docs/unicode.md` is parked for the sentinel
-    step.
-- No `strings.ToLower` sweep of other packages, no perf refactor of `TextCollapse` beyond this fix.
+- **The superseded designs.** Do not implement the category override (`U+A7F1` decomposes to `S`
+    under Unicode 17 and injects a spurious letter — 1 single-code-point and 10 sequence failures)
+    and do not lower the declared version to 15.1.0 (rejected: collapses documents in the 6 living
+    scripts added in 16.0 to `""`).
+- **No change to the category filters or the vendored table.** `is_c_category` / `is_cmp_category`
+    stay exactly as the reference defines them (`U+FFFF` is `Cn`, so they already remove it), and
+    `crates/iscc-lib/src/utils/unicode16.rs` plus the generator's *output* stay byte-identical.
+- **No sequence vectors in `crates/iscc-lib/tests/unicode_boundary.json`** and no propagation of the
+    boundary fixture to the 11 bindings or the 4 sibling `data.json` copies — that is the next step.
+- **The criterion-4 differential sweep** (1,112,064 scalar values + sequence classes as a runnable
+    check) is a separate step. A throwaway probe to satisfy yourself is fine; do not wire a new
+    gate.
+- **Do not touch `packages/go`** (the `Final_Sigma` fix landed in iteration 147; the per-call
+    `cases.Caser` must not be hoisted) and do not touch any binding crate — they inherit the core.
+- **Do not refresh `.iai-baseline.json`.** Ir is expected flat; a real move means the implementation
+    is not the specified one.
+- Do not tick checkboxes in `.claude/context/specs/`.
 
 ## Implementation Notes
 
-### The fix
+**The code change (issues.md item 1).** Name the sentinel once, e.g.
 
-In `packages/go/utils.go`, `TextCollapse` (line 117) currently does:
-
-```go
-nfdLower := strings.ToLower(norm.NFD.String(text))
+```rust
+/// Replacement for code points unassigned in Unicode 16.0.0.
+///
+/// `U+FFFF` is a *noncharacter*: under Unicode's Noncharacter stability policy it is
+/// permanently category `Cn`, `ccc = 0` and has no decomposition, so it can never gain
+/// an assignment or a decomposition in a future table version.
+const UNASSIGNED_SENTINEL: char = '\u{FFFF}';
 ```
 
-`strings.ToLower` applies **unconditional simple** case mapping. Replace it with
-`golang.org/x/text/cases`, which implements the conditional `Final_Sigma` special case:
+then, at both call sites, inside the same fused iterator chain:
 
-```go
-nfdLower := cases.Lower(language.Und).String(norm.NFD.String(text))
+```text
+// from:
+.filter(|&c| !is_unassigned_in_unicode16(c))
+// to:
+.map(|c| if is_unassigned_in_unicode16(c) { UNASSIGNED_SENTINEL } else { c })
 ```
 
-Keep the NFD-then-lowercase order (the Rust core lowercases *after* NFD). Add
-`"golang.org/x/text/cases"` and `"golang.org/x/text/language"` to the imports; `strings` is still
-used elsewhere in the file. Update the `TextCollapse` doc comment: say the lowercasing is
-context-sensitive full Unicode case mapping (`Σ` → `ς` word-finally), matching the reference.
+**Docstrings (item 2).** All three current doc comments give *pre-normalization removal* as the
+reason for invariance — wrong on both counts. New wording: unassigned code points are **replaced
+by** the noncharacter `U+FFFF` before normalization; the function's own category-`C` filter
+(unchanged from the reference) then removes the sentinel, so *removal happens exactly where the
+reference does it* — which is what preserves composition-blocking and `Final_Sigma` context — while
+*mapping into a permanent noncharacter* is what severs dependence on the tables a dependency ships.
+Apply the same correction to `crates/iscc-lib/CLAUDE.md` and the two test-file doc lines.
 
-### Trap: do NOT hoist the `Caser` to a package-level `var`
+**Verified facts — do not re-derive.** Expected values come from `specs/rust-core.md` **Verified
+when** and are mechanically consistent with the implementation: `U+FFFF` has `ccc = 0`, so it blocks
+canonical composition and Hangul jamo composition of its neighbours; it is neither `Cased` nor
+`Case_Ignorable`, so a preceding `Σ` still lowercases to final `ς`. The existing 25 `utils.rs` tests
+and the 4 single-code-point vectors in `tests/unicode_boundary.json` are **unaffected** (they wrap
+the code point in plain ASCII `a`/`b`, where deletion and sentinel-then-strip agree).
 
-The issue text recommends "a package-level `cases.Caser` (construct once)". **That recommendation is
-wrong and must not be followed** — `cases.go` line 35 states: *"A Caser may be stateful and should
-therefore not be shared between goroutines."* Only `cases.Fold` is documented as concurrency-safe.
-`TextCollapse` is exported and callable concurrently, so a shared `Caser` is a data race.
+**Tests (item 3)** — add to `utils.rs`'s `mod tests`, feature-gated like the neighbouring
+freeze-rule tests:
 
-Measured while scoping (x/text 0.40.0, 20 000 iterations over a ~1 KB Greek string):
+- `text_clean("e\u{0378}\u{0301}") == "e\u{0301}"` (no `U+00E9`)
+- `text_clean("\u{1100}\u{0378}\u{1161}") == "\u{1100}\u{1161}"` (no `U+AC00`)
+- `text_collapse("\u{0391}\u{03A3}\u{0378}\u{0392}") == "\u{03B1}\u{03C2}\u{03B2}"` (final sigma)
+- `text_clean("e\u{A7F1}\u{0301}") == "e\u{0301}"` (**not** `"e\u{015A}"` — the case the superseded
+    category override gets wrong)
+- normalizer pass-through: `"\u{FFFF}".nfkc().collect::<String>() == "\u{FFFF}"` and the same for
+    `.nfd()` — the one assumption the design rests on
+- no-ambiguity: a literal `U+FFFF` in the input is itself unassigned in 16.0, so
+    `text_clean("a\u{FFFF}b") == "ab"` and `text_collapse("a\u{FFFF}b") == "ab"`
 
-| variant                                   | time   |
-| ----------------------------------------- | ------ |
-| `strings.ToLower` (shipped)               | 235 ms |
-| `cases.Lower(language.Und)` **per call**  | 386 ms |
-| shared package-level `Caser`              | 397 ms |
-| construction alone (20 000 `Lower` calls) | 2.8 ms |
+**Gates (item 4).** The `map` adds a branch to two covered functions, so the **CI-only** CRAP
+`--fail-regression` check reds unless `.crap-baseline.json` is refreshed in this same commit
+(baseline today: `text_clean` cyclomatic/crap 9.0, `text_collapse` 1.0, both 100% covered — expect
+each to rise by ~1 with coverage still 100%). Refresh with `mise run crap:baseline` (depends on
+`mise run coverage`, several minutes). For perf, run `mise run bench:iai:check` **before** editing
+as a baseline sanity probe (valgrind and `iai-callgrind-runner` are both installed in this
+container), then again after; Ir must be flat.
 
-Construction is ~138 ns and hoisting it is **not faster** (it was marginally slower here). So
-construct per call: correct, race-free, and free. Add a short comment saying why, so a future reader
-does not "optimize" it into a shared var.
+**Docs (items 5 and 6) — `docs/unicode.md`:**
 
-### Reference values (measured at HEAD against the Rust core, `iscc_lib.text_collapse`)
+1. Rewrite the "Declared version and freeze rule" section (lines ~29–40): the mechanism is a
+    *sentinel map*, not pre-normalization removal. Keep the 731-range / 819,533-code-point table
+    and generator sentence. Replace "Because removal happens first…" with the two load-bearing
+    properties: removal stays where the reference performs it (conformance, including sequences),
+    and mapping into a permanent noncharacter makes output invariant under table upgrades.
+2. Widen the CPython-3.14 sentence (line ~74) back to unqualified agreement — drop "on the
+    single-code-point behaviour described on this page".
+3. State accepted divergence class (b): characters assigned between 15.1 and 16.0 hash differently
+    than `iscc-core` on CPython ≤ 3.13 produced historically — accepted by decision — and why
+    lowering to 15.1.0 was rejected (the 6 living scripts added in 16.0 would collapse to `""`).
+4. Add a short **"How much does this matter?"** section near the top: Data-Code and Instance-Code
+    unaffected (raw bytes); Meta-Code and Text-Code are similarity-preserving so affected codes
+    stay Hamming-close and similarity matching keeps working; newly assigned code points are rare
+    in real text; residual exposure is exact-match lookups on short inputs and the exact `name` /
+    `description` fields.
 
-Add these as Go regression tests. Every input below is table-independent (no code point unassigned
-in Unicode 15.0/16.0), so Go's older Unicode tables do not affect them and the pending sentinel
-conversion will not change them.
-
-| input            | Rust core / reference | Go today (wrong) |
-| ---------------- | --------------------- | ---------------- |
-| `ΛΟΓΟΣ`          | `λογος`               | `λογοσ`          |
-| `ΑΣ`             | `ας`                  | `ασ`             |
-| `ΣΣ`             | `σς`                  | `σσ`             |
-| `ὈΔΥΣΣΕΎΣ`       | `οδυσσευς`            | `οδυσσευσ`       |
-| `ΑΣΒ`            | `ασβ`                 | `ασβ` (agrees)   |
-| `ΓΕΙΑ ΣΟΥ ΚΟΣΜΕ` | `γειασουκοσμε`        | agrees           |
-| `İstanbul`       | `istanbul`            | agrees           |
-
-Include the three agreeing cases too — they guard against over-correcting (a `Σ` followed by a cased
-letter must stay `σ`).
-
-### End-to-end assertions (the strongest available proof)
-
-With `s = "ΤΟ ΓΡΗΓΟΡΟ ΚΑΦΕ ΑΛΕΠΟΥ ΠΗΔΑΕΙ ΠΑΝΩ ΑΠΟ ΤΟΝ ΤΕΜΠΕΛΗ ΣΚΥΛΟΣ"`:
-
-- `GenTextCodeV0(s, 64)` → reference `ISCC:EAA36O3AT3YMFRFU`, `Characters: 48` (Go today returns
-    `ISCC:EAA36O3IR2YMFRFU`)
-- `GenMetaCodeV0("ΛΟΓΟΣ", nil, nil, 64)` → reference `ISCC:AAAXNTFLFFVJ2QUN` (Go today returns
-    `ISCC:AAAX3SNL5HR3OSYB`; the `Name` and `Metahash` fields are unchanged either way, since
-    `TextClean` does not lowercase)
-
-Both reference values were produced today by the Rust core, which matches `iscc-core`. Assert them
-literally.
+Do **not** add a new docs page (the 23-page nav/`ORDERED_PAGES`/`llms.txt` triple stays as is) and
+do not restate the parked-vs-settled history — the page describes current behaviour only.
 
 ## Verification
 
-- `CGO_ENABLED=0 go test -count=1 ./...` in `packages/go` passes with **≥ 171** `func Test`
-    functions (165 today: `grep -c '^func Test' packages/go/*_test.go`), zero failures — all
-    vendored `data.json` conformance vectors still green
-- `go vet ./...` in `packages/go` exits 0
-- `gofmt -l packages/go` prints nothing
-- `git diff --stat -- packages/go/go.mod packages/go/go.sum` is empty (no dependency change)
-- `git status --porcelain crates/ docs/ .claude/context/specs/` is empty (no core, docs or spec
-    changes in this step)
-- `grep -n 'strings.ToLower' packages/go/utils.go` returns **no match** (asserted directly on the
-    working tree)
-- `grep -n 'cases.Lower' packages/go/utils.go` returns a match, and
-    `grep -c '^var .*cases\.Caser\|= cases\.Lower(' packages/go/utils.go` shows the `Caser` is
-    **not** a package-level `var` (construction happens inside `TextCollapse`)
-- A named test asserts `TextCollapse("ΛΟΓΟΣ") == "λογος"` and `TextCollapse("ΑΣΒ") == "ασβ"`
-- A named test asserts
-    `GenTextCodeV0("ΤΟ ΓΡΗΓΟΡΟ ΚΑΦΕ ΑΛΕΠΟΥ ΠΗΔΑΕΙ ΠΑΝΩ ΑΠΟ ΤΟΝ ΤΕΜΠΕΛΗ ΣΚΥΛΟΣ", 64)` yields
-    `ISCC:EAA36O3AT3YMFRFU`
+- `grep -n 'filter(|&c| !is_unassigned_in_unicode16' crates/iscc-lib/src/utils.rs` finds **no
+    match** (exit 1), and `grep -c 'UNASSIGNED_SENTINEL' crates/iscc-lib/src/utils.rs` is ≥ 3 (const
+    \+ two call sites)
+- `git diff --stat crates/iscc-lib/src/utils/unicode16.rs` is empty (vendored table untouched)
+- `cargo test -p iscc-lib` passes — ≥ 332 tests (328 today + the new ones), zero failures, all
+    `gen_*_v0` conformance vectors green
+- `cargo test -p iscc-lib --lib utils::` passes and includes the six new assertions listed above
+- `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean
+- `mise run crap:baseline` is run and then
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above 30.0`
+    exits 0 on the working tree
+- `mise run bench:iai:check` exits 0 and `git diff --stat .iai-baseline.json` is empty. (If the
+    check already fails on the unedited tree for a local-vs-CI toolchain offset, the handoff must
+    instead record the `text_clean` / `text_collapse` Ir from the pre-edit and post-edit runs
+    showing a change under 10%, with the baseline still untouched.)
+- `grep -c 'U+FFFF' docs/unicode.md` ≥ 2, while
+    `grep -n 'Because removal happens first\|removed from the input\|single-code-point behaviour described on this page' docs/unicode.md`
+    finds **no match**, and `grep -n 'How much does this matter' docs/unicode.md` matches
+- `uv run zensical build` exits 0 and reports "No issues found"; `uv run scripts/check_docs_nav.py`
+    exits 0 (still 23 pages)
 - `mise run check` — all hooks Passed
 
 ## Done When
 
-`packages/go` lowercases with context-sensitive full Unicode case mapping, the Greek regression and
-end-to-end tests assert the reference values above, `go test`/`go vet`/`gofmt` are clean, and
-neither `go.mod`/`go.sum` nor anything under `crates/` or `docs/` changed.
+The sentinel map, the corrected docstrings, the six regression assertions, the refreshed CRAP
+baseline and both `docs/unicode.md` rewrites are in one commit and every verification check above
+passes.

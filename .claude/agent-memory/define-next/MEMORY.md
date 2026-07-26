@@ -18,6 +18,11 @@ iterations.
     hoist a package-level `cases.Caser`; x/text documents `Caser` as *not* goroutine-safe and the
     hoist measured no faster). Cheap throwaway probes (a `zz_probe_test.go` you delete, a `/tmp`
     module) settle these in a minute and turn `## Implementation Notes` into measured facts.
+- **A crashed review role means the previous step has NO verdict** — `iterations.jsonl` showing
+    `"role":"review","status":"FAIL","turns":1` with no `cid(review)` commit (iter 147) means
+    handoff.md holds only the advance section and resolved issues were never deleted from issues.md.
+    Re-verify the prior step's claims from the tree (update-state usually did) before building on
+    it.
 - **Generated/tool-output files (Cargo.lock, bindings) don't count toward the 3-file limit**; doc
     files are also excluded — can batch all howto guides in one step.
 - Batch related small changes (version sync + docs; several fixes in the same crate/2 files).
@@ -102,14 +107,11 @@ iterations.
 - **Open Unicode backlog — all blockers cleared 2026-07-26** (`human(decide)` `9aa25ad`;
     `specs/rust-core.md` is the authority). Ordered: (1) Go `Final_Sigma` fix [iter 147], (2) the
     **sentinel conversion** — `filter(!unassigned)` → `map(→ U+FFFF)` in `iscc-lib`'s `utils.rs`
-    lines ~103/~181, landing both `docs/unicode.md` rewrites in the same commit, (3) the
-    1,112,064-scalar + sequence-class differential sweep, (4) boundary vectors into 11 bindings + 4
-    sibling `data.json` copies (Go **skips** the two table-dependent ones until go1.27 — ruled).
-    Superseded, never implement: the **category override** (`U+A7F1` injects a spurious `S`) and
-    lowering the declared version to 15.1.0. Denominator is 1,112,064, not 1,114,112.
-- **A parked HUMAN REVIEW issue does not stall the loop — it re-prioritises it** (iters 134–139: the
-    Unicode ruling parked 2 criteria, so steps went to ruff slices, then hook parity, then
-    release.yml). If a blocked slice's only consumer is the parked propagation, take other backlog.
+    lines ~103/~181, landing both `docs/unicode.md` rewrites in the same commit [scoped iter 148],
+    (3) the 1,112,064-scalar + sequence-class differential sweep, (4) boundary vectors into 11
+    bindings + 4 sibling `data.json` copies (Go **skips** the two table-dependent ones until go1.27
+    — ruled). Superseded, never implement: the **category override** (`U+A7F1` injects a spurious
+    `S`) and lowering the declared version to 15.1.0. Denominator is 1,112,064, not 1,114,112.
 - **Gate/checker steps in `scripts/` have their own playbook** — prek-vs-CI placement, the Python
     3.10 floor (no `tomllib`), injected-`Path` shape, network/offline probing, docs-list wiring, and
     when a gate change needs Titusz: [gate scripts playbook](gate-scripts-playbook.md). Read it
@@ -119,17 +121,11 @@ iterations.
     Recipe, job inventory, evidence rules for un-runnable workflow bumps (check `ci.yml` first;
     verify each floating tag via `gh api repos/<r>/git/ref/tags/<vN>`):
     [release.yml static gates](release-yml-static-gates.md).
-- **A multi-part spec criterion slices along its own checkboxes** — `specs/rust-core.md`'s Unicode
-    contract → 3 steps (filter / 1.1M-code-point proof / 12-binding propagation), not one.
 - **Any step touching the text hot path trips two gates at once**: the CI-only CRAP
     `--fail-regression` baseline and the `.iai-baseline.json` 10% Ir gate. Measured constants,
     expected boundary values and the independent Unicode-16 derivation recipe:
     [unicode-freeze-facts](unicode-freeze-facts.md). A `tests/`-only step trips **neither** gate
     (coverage can only improve) — say so in next.md so advance doesn't refresh a baseline.
-- **When a propagation step is parked, its source artifact can usually still land** (iter 141: the
-    12-binding Unicode vector rollout is blocked on a human ruling + a Go decision, but the
-    Rust-core fixture + loader is ruling-independent as long as the vectors avoid the disputed
-    construct). Scope the artifact, name the parked half in `Not In Scope`, don't tick the spec box.
 - Generator scripts needing an external pin: PEP 723 + `uv run --script`, never a dev-dep —
     [ty gate trap](define-next-ty-generator-scripts.md).
 - `uv run zensical build` (exits 0, "No issues found", ~8s) verifies any docs-only step.
@@ -140,9 +136,8 @@ iterations.
     but deferring is a **one-iteration** move, not a veto: count the window explicitly in `## Goal`
     (144/145 were at 2 of 4). **At the threshold with zero unblocked user-facing candidates (iter
     146\) the rule does not fire** — but enumerate each blocked candidate + its blocker in `## Goal`.
-- **A parked behaviour ruling does not block *documenting* the behaviour that already shipped** —
-    but the docs step must forbid the disputed claims by name in `Not In Scope` (iter 143: no
-    output-equivalence claim, no multi-code-point/sequence statements).
+- Parked-work scoping lessons (parked-issue prioritisation, artifact-vs-propagation splits,
+    documenting under a parked ruling) → `MEMORY-archive.md`; nothing is parked on Titusz today.
 - **The installed Python binding is a cheap probe — but the venv wheel LAGS the source** (iter 141:
     it still showed pre-iter-133 `text_clean` behaviour). Cross-check anything the last few
     iterations could have touched with `cargo test -p iscc-lib --lib <mod>::` (~seconds when built).
