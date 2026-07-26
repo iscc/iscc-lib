@@ -13,7 +13,10 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 
 - Rust core: `crates/iscc-lib/src/` — lib.rs (crate root, Tier 1 re-exports), codec.rs, cdc.rs,
     minhash.rs, simhash.rs, dct.rs, wtahash.rs, utils.rs, streaming.rs, conformance.rs
-- Conformance vectors: `crates/iscc-lib/tests/data.json` (50 total: 20+5+3+5+3+2+4+3+5, v1.3.0)
+- Conformance vectors: `crates/iscc-lib/tests/data.json` (50 total: 20+5+3+5+3+2+4+3+5, v1.3.0).
+    Vendored copies (packages/{dotnet,go,kotlin,swift}) gated by `tests/test_vendored_fixtures.py` —
+    any NEW tracked `data.json`/`unicode_boundary.json` copy must be registered in its
+    `VENDORED_COPIES` table or the no-unregistered-copy test reds
 - Unicode 16.0.0 freeze rule (iter 148, RULED): `text_clean`/`text_collapse` MAP 16.0-unassigned
     code points to `UNASSIGNED_SENTINEL` (`U+FFFF`) before normalization; unchanged category-`C`
     filter removes it where the reference does. NOT a delete-filter, NOT a category override.

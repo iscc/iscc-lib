@@ -101,6 +101,8 @@ new() -> update(&[u8]) -> ... -> update(&[u8]) -> finalize(bits) -> IsccResult<*
 - Second vector file: `tests/unicode_boundary.json` gates the declared Unicode data version (16.0.0
     freeze rule for `text_clean`/`text_collapse`) and is the propagation source for every binding's
     boundary conformance tests
+- Vendored copies of both vector files in per-language test trees are gated for byte-identity by
+    `tests/test_vendored_fixtures.py` (repo root) — every new tracked copy must be registered there
 - 9 of 10 `gen_*_v0` functions must match `iscc-core` output for every test vector
     (`gen_sum_code_v0` has no conformance vectors — it composes Data-Code + Instance-Code
     internally)
