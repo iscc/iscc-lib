@@ -99,11 +99,11 @@ iterations.
     139 predicted 153, review measured 155); make the exit code the criterion.
 - **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
     Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) the four **sequence** vectors + fixture
-    guard ✅149, (4) fixture propagation into the 11 bindings — slice 1 (Python + Go) ✅150, **slice 2
-    (WASM + Ruby) scoped 151**, (5) the 1,112,064-scalar **and sequence-class** sweep. Never
-    implement the superseded category override (`U+A7F1` injects a spurious `S`) or a 15.1.0
-    declared version. Escapes, fixture facts, CRAP-in-tests →
-    [unicode-freeze-facts](unicode-freeze-facts.md).
+    guard ✅149, (4) fixture propagation into the 11 bindings — slice 1 (Python + Go) ✅150, slice 2
+    (WASM + Ruby) ✅151, **vendored-copy drift gate scoped 152** (before slice 3, which is the first
+    to add new copies), (5) the 1,112,064-scalar **and sequence-class** sweep. Never implement the
+    superseded category override (`U+A7F1` injects a spurious `S`) or a 15.1.0 declared version.
+    Escapes, fixture facts, CRAP-in-tests → [unicode-freeze-facts](unicode-freeze-facts.md).
 - **Before scoping any propagation slice** read the
     [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy (which bindings read the
     canonical path vs. need a vendored `cp`), which binding artifacts are stale, Go's measured 9/12

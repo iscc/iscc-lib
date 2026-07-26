@@ -104,5 +104,14 @@ measured facts below instead of re-probing.
     `SEQUENCE_VECTORS` const and the issues.md table; equality against `outputs.result` already
     catches a delete-filter regression, and copying oracles 11× re-opens the iter-149 mislabel
     hazard. See [[unicode-freeze-facts]] for the corrected row-3 value.
-- No vendored-copy drift gate exists (not for the five `data.json` copies either). Adding one is a
-    separate step; per-slice `cmp` is the interim guard.
+- **Vendored-copy drift gate — scoped iter 152** as `tests/test_vendored_fixtures.py` (explicit
+    `(canonical, copy)` table, count floor, plus a "no unregistered tracked copy" test). Tracked
+    fixture files at HEAD: **7 = 2 canonical + 5 copies** (4 × `data.json` + 1 ×
+    `unicode_boundary.json`). Until it lands, per-slice `cmp` is the interim guard.
+- **Discovery must use `git ls-files`, never `Path.rglob`**: untracked build outputs exist in this
+    container (`packages/dotnet/Iscc.Lib.Tests/bin/Debug/net8.0/testdata/data.json`,
+    `packages/kotlin/build/resources/test/data.json`) and `.venv/…/iscc_core/data.json` is a
+    *different* file (`md5 3690f853…` vs the canonical `4f17639ab1dd…`).
+- **Only `unicode_boundary.json` is pure ASCII** (2,344 B, `\uXXXX` escapes — so an `isascii()`
+    assertion is a valid corruption guard for it). `data.json` is 84,478 B and legitimately contains
+    raw non-ASCII: never assert ASCII on it.
