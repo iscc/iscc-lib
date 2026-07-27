@@ -95,22 +95,29 @@ is stripped, which is what the reference does).
     `:test UP-TO-DATE` and silently skipped all 13 Kotlin boundary tests after a fixture edit until
     `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)` was added; a green run does not
     prove the suite ran.
-4. **Differential sweep — UNMET (no harness in `scripts/`), but IT WOULD NOW LAND GREEN** since the
-    `Final_Sigma` fix at 156. Re-measured independently at **157**: all **1,112,064** scalars ×
-    `text_clean`/`text_collapse` = **0 divergences**, and **1,854** sequence cases covering the
-    four mandated classes × both fns = **0 divergences**. Review's 17,793,024-comparison run at 156
-    agrees. Every one of these probes was **ad hoc and NOT checked in**
-    (`git ls-files | grep -i  sweep` → nothing; `scripts/unicode_sweep.py` was deliberately left
-    uncommitted) — initial proof, not the criterion. **Fastest way to re-run one**: both
-    `iscc_core` and `iscc_lib` are importable from the project venv, so a plain `uv run python`
-    loop needs no build — but **check the `.so` mtime against `src/utils.rs` first**; a stale
-    `_lowlevel.abi3.so` silently measures the previous commit (bit review at 156). Full 1.1M×2
-    sweep runs in well under 560 s. Demands **ZERO** divergence (not "enumerate a residual" — that
-    earlier entry at decisions.md L552 predates the sentinel) over the **1,112,064 Unicode scalar
-    values** — NOT 1,114,112: `&str` cannot carry the 2,048 surrogates, so they are excluded and
-    need no separate check. Must ALSO cover sequence classes (base+Cn+mark, jamo+Cn+jamo, Σ+Cn+cased,
-    Cn-between-marks) because **a per-code-point sweep is provably insufficient** — the pre-filter
-    scored 0 there while failing 42 sequence cases. Mandatory on every future table bump.
+4. **Differential sweep — MET at iteration 157.** `scripts/unicode_sweep.py` (committed),
+    `mise run unicode:sweep` (rebuilds the extension first), and CI job key `unicode-sweep` / check
+    name **`Unicode sweep (16.0.0 differential)`** — unconditional, green twice on `9f80a32`.
+    Shape: **1,112,064 scalars × 8 contexts × 2 functions = 17,793,024** comparisons, 0
+    divergences, ~60 s. The scalar count is **NOT 1,114,112** — `&str` cannot carry the 2,048
+    surrogates. `CONTEXTS` covers all four spec-mandated sequence classes (`base_mark`, `jamo`,
+    `sigma`, `marks`) plus `bare`/`ascii`/`space`/`upper`, and **sweeps every scalar in every
+    context**, satisfying "a per-code-point-only sweep does not satisfy this criterion" (the
+    pre-filter scored 0 per-code-point while failing 42 sequence cases). Oracle = the *installed*
+    `iscc-core` 1.3.0 on CPython 3.14; only `unidata_version` is asserted, not the iscc-core
+    version. Fail-closed machinery: oracle version, scalar count, comparison total (a shrunken
+    context set reds), stale-`.so` mtime guard. 10 pytest cases in `tests/test_unicode_sweep.py`
+    pin it, incl. one proving the 8 contexts **discriminate the superseded delete-filter design**
+    (the arithmetic pin alone cannot catch a *swapped* context set). **Do NOT wire the full sweep
+    into pytest / `mise run test` / pre-push.** **Two confirmed blind spots (filed `normal`
+    [review], reproduced by direct probe at 158):** (a) `check_extension_fresh` watches only `*.rs`
+    mtimes → a `cargo update`/rustc bump gives a false green from a bare
+    `uv run scripts/unicode_sweep.py`; a missing source dir passes vacuously
+    (`max(..., default=0.0)`). Operating rule (`decisions.md` 2026-07-27): **always go through
+    `mise run unicode:sweep`.** (b) `sweep()` retains EVERY divergence though only 20 print
+    (probed: 800 comparisons → 800 tuples) → OOM before diagnostics on a broad regression; fixing
+    it must also update `test_sweep_reports_divergence_with_wrong_oracle`, which asserts
+    `len(divergences) == count`. Mandatory on every future table bump.
 
 ## The `Final_Sigma` case-table defect — FIXED at iter 156, re-verified at 157
 
@@ -146,10 +153,10 @@ ranges, and compare against the ranges parsed out of the `.rs`. At 157 both tabl
 against CPython *category* data (`Lu∪Ll∪Lt ⊆ CASED`, `Mn∪Me∪Cf∪Lm∪Sk ⊆ CASE_IGNORABLE`, residuals
 exactly `Other_Uppercase`/`Other_Lowercase` and the 17 UAX #29 MidLetter/MidNumLet/Single_Quote).
 
-**ACCEPTED RESIDUAL — the reason criterion 4 is now top priority.** Only the *conditional*
-`Final_Sigma` mapping is frozen; every *unconditional* lowercase mapping still comes from rustc's
-tables. Measured at zero divergence today, but **its only possible guard is the sweep**. A future
-rustc that changes a non-sigma mapping would silently change output and nothing would notice.
+**ACCEPTED RESIDUAL — now guarded.** Only the *conditional* `Final_Sigma` mapping is frozen; every
+*unconditional* lowercase mapping (and all normalization tables) still comes from rustc's
+dependencies. Its only possible guard is the criterion-4 sweep, which landed at 157 and is green in
+CI — so a future rustc that changes a non-sigma mapping now reds the `unicode-sweep` job.
 
 **Go is unaffected but still on the checklist.** `packages/go` was already correct on `U+0295`
 (x/text `cases.Lower` on 15.0 tables), i.e. right for an accidental reason. **go1.27 brings 17.0
