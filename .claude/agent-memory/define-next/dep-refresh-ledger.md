@@ -197,6 +197,28 @@ Measured while scoping, all read-only:
 - Kotlin suite size for count assertions: `build/test-results/test/TEST-…ConformanceTest.xml`
     `tests="9"` + `…UnicodeBoundaryTest.xml` `tests="13"`.
 
+## Major bump C — JUnit 5.14.4 → 6.1.2, both JVM manifests (scoped iter 166)
+
+Measured while scoping, all read-only (`repo1.maven.org` metadata + the 6.0.0 release notes at
+`docs.junit.org/6.0.0/release-notes/`, dumped with a regex tag-stripper):
+
+- **JUnit 6 gives Platform, Jupiter and Vintage one shared version number**, so
+    `junit-platform-launcher` jumps 1.14.4 → **6.1.2** alongside `junit-jupiter` 5.14.4 → **6.1.2**.
+    Filter `maven-metadata.xml` by `^[0-9]+(\.[0-9]+)*$` — the `<latest>` field includes milestones.
+- **Read the release notes' "removed support for" line instead of bumping the build plugin**: JUnit
+    6 drops Maven Surefire/Failsafe < 3.0.0 only, so surefire 3.5.6 (already latest) stays put.
+    Baselines are Java 17 + Kotlin 2.2 → no floor move against JDK 17 / KGP 2.4.10.
+- `.module` JSON on Maven Central carries `"org.gradle.jvm.version"` — the cheapest proof of a JVM
+    floor. `junit-jupiter-api` 6.1.2 = 17, and its pom pulls no `kotlin-stdlib`.
+- Removed in 6.0: `junit-platform-runner`, `junit-platform-jfr`, ConsoleLauncher shorthands — none
+    used here. `@Test`/`@TestFactory`/`DynamicTest`/`@BeforeAll`/`Assertions.*` all survive.
+- Doc sync surface is exactly two files (`crates/iscc-jni/CLAUDE.md` lines 30/80/86/87,
+    `packages/kotlin/CLAUDE.md` line 62); `specs/java-bindings.md` also says "JUnit 5" but is
+    human-owned — leave it.
+- Count assertions: Kotlin `tests="9"` + `tests="13"`; Maven's total is **dynamic**
+    (`@TestFactory`), so the honest baseline is a `mvn test` run on the unmodified tree *before* the
+    edit.
+
 ## Remaining after slice 8
 
 `release.yml` GHA refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` move as a pair;
