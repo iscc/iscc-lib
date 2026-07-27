@@ -86,8 +86,9 @@ iterations.
 - v0.5.0 released; all 12 bindings meet core criteria; the 4 spec'd v0.6.0 feature issues are DONE;
     the **Unicode chain is CLOSED at iter 161** (11 of 11 surfaces). Backlog: rubygems `@v2.1.0` pin
     (162), ci-cd job-table gate (163), then the authorized majors one per step — xunit v3 (164),
-    Gradle wrapper 9.6.1 (165), JUnit 6.1.2 both JVM manifests (**scoped 166**), then `jni` 0.22 /
-    `magnus` 0.8 (API rewrites; park rather than guess) — facts → [ledger](dep-refresh-ledger.md).
+    Gradle wrapper 9.6.1 (165), JUnit 6.1.2 both JVM manifests (166), magnus 0.8 (**scoped 167** —
+    the *small* major first, so the two source rewrites stay separable), then `jni` 0.22 (budget a
+    scoping pass for its 778-line migration doc) — facts → [ledger](dep-refresh-ledger.md).
     Trigger-only: go1.27 + the Go freeze table (~Aug 2026). HELD `low` by Titusz: v1.0.0 +
     Semver-enforcing, npm OIDC (token good to 2026-09-16).
 - **iters 115–123 DONE (detail in MEMORY-archive.md)**. **Root lesson: the CRAP regression gate is

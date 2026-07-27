@@ -219,13 +219,36 @@ Measured while scoping, all read-only (`repo1.maven.org` metadata + the 6.0.0 re
     (`@TestFactory`), so the honest baseline is a `mvn test` run on the unmodified tree *before* the
     edit.
 
-## Remaining after slice 8
+## Major bump D — magnus 0.7 → 0.8, Ruby binding (scoped iter 167)
+
+Measured while scoping, all read-only (`cargo search`, then
+`curl -sL https://static.crates.io/crates/magnus/magnus-0.8.2.crate | tar xz` — the crate ships its
+own `CHANGELOG.md`, which is the cheapest breaking-change list there is):
+
+- **A `#[cfg_attr(not(feature = "old-api"), deprecated(note = …))]` bump is a grep-able migration,
+    not a rewrite**: the symbols still exist, and each carries its replacement in the note. magnus
+    0.8.2 has 340 such attributes; only two families reach `crates/iscc-rb/src/lib.rs` —
+    `magnus::exception::runtime_error()` → `Ruby::exception_runtime_error()` and
+    `RString::from_slice` → `Ruby::str_from_slice` (5 sites each). `RString::as_slice` is NOT
+    deprecated. Confirm each replacement really lives in an `impl Ruby` block before writing it.
+- No floor moves: magnus 0.8 MSRV 1.65, "Ruby 3.0-3.4 fully supported" (README), and its
+    `rb-sys >= 0.9.113` requirement is already met by `Cargo.lock`'s 0.9.128 — so the exact-pinned
+    `rb_sys` **gem** 0.9.123 (cross-gem Docker tag lockstep) does not enter the step.
+- Doc surface is one line: `crates/iscc-rb/CLAUDE.md:7` ("Magnus 0.7.1"). No README/howto/spec names
+    the version.
+- `crates/iscc-rb/test/test_conformance.rb` has **zero** `def test_` (cases are defined dynamically
+    from the vectors), so the suite total is not greppable — the honest baseline is a `rake test`
+    run on the unmodified tree, same pattern as Maven's `@TestFactory` total at 166.
+
+## Remaining after major bump D
 
 `release.yml` GHA refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` move as a pair;
-nothing in it is exercised by a CID push → human-timed), the magnus 0.8 / jni 0.22 / uniffi 0.32
-migrations (each its own step with a source rewrite), and JUnit 6.x (both JVM manifests, platform
-artifacts renumbered 1.x→6.x — take it *after* the wrapper is on 9.x so the two failure modes stay
-separable).
+nothing in it is exercised by a CID push → human-timed), `uniffi` 0.32 (Swift+Kotlin regen — the "no
+Swift toolchain" veto died at 161, so re-scope it on evidence), and **`jni` 0.22**: rust-version
+1.85.0 = exactly our MSRV, 41 `JNIEnv` sites in a 1,065-line file, and a 778-line upstream
+`docs/0.22-MIGRATION.md` inside the `.crate` tarball. Budget a scoping pass for that doc: the step
+has to choose an `ErrorPolicy` and a `with_env` closure shape for ~40 `extern "system"` natives,
+which is design work, not a rename sweep.
 
 ## Handy version-lookup commands
 

@@ -1,91 +1,79 @@
 # Next Work Package
 
-## Step: Migrate both JVM test suites from JUnit 5.14.4 to JUnit 6.1.2
+## Step: Migrate the Ruby binding from magnus 0.7 to magnus 0.8
 
 ## Goal
 
-Close the last manifest-level item of the authorized dependency-majors refresh: move JUnit to 6.1.2
-in both JVM build systems, where the platform artifacts renumber 1.x -> 6.x. Cites the `normal`
-issue "Dependency review and refresh across the project".
+Close the `magnus` 0.8 major of the authorized dependency refresh (issues.md → "Dependency review
+and refresh across the project"): bump the workspace pin and migrate the two `old-api` symbol
+families that 0.8 deprecates, leaving `jni` 0.22 as the last CID-schedulable major.
 
 ## Alternatives Considered
 
-- **Chosen:** JUnit 6.x across both JVM manifests — one dependency major, 2 non-doc files, fully
-    verifiable here (JDK 17, Gradle 9.6.1 wrapper, Maven 3.8.7), and with the wrapper now on a
-    supported base any launcher/discovery failure is attributable to JUnit alone. Splitting Gradle
-    and Maven into two steps was rejected: identical bump, both locally gated, serialising doubles
-    the cost for no added safety.
-- **Rejected:** the `jni` 0.22 migration — a wholesale `JNIEnv` -> `Env`/`EnvUnowned` rewrite of
-    `crates/iscc-jni/src/lib.rs`. Changing that crate's Java test framework and its Rust bridge in
-    overlapping steps makes a JVM-side failure un-bisectable; take it once this lands.
+- **Chosen:** magnus 0.8 — one source file, two mechanical symbol families (10 call sites), fully
+    verifiable by the local Ruby gates, and it retires one of the two remaining `# held:` majors.
+- **Rejected:** `jni` 0.22 (the handoff's first suggestion) — a wholesale rework (778-line upstream
+    migration doc, 41 `JNIEnv` sites, closure-based `with_env` plus a per-function `ErrorPolicy`
+    choice across ~40 exported natives). It carries real design decisions and deserves its own
+    scoping pass; taking the small major first keeps each red attributable to one ecosystem.
 
 ## Scope
 
-- **Modify**: `packages/kotlin/build.gradle.kts`, `crates/iscc-jni/java/pom.xml`,
-    `packages/kotlin/CLAUDE.md` (line 62 "JUnit 5"), `crates/iscc-jni/CLAUDE.md` (lines 30/80/86/87)
-- **Reference**: `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`,
-    `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt`,
-    `.github/workflows/ci.yml` (`java` and `kotlin` jobs)
+- **Modify**: `Cargo.toml` (the `magnus` pin + delete the 4-line `# held: magnus` comment above it),
+    `crates/iscc-rb/src/lib.rs`, `crates/iscc-rb/CLAUDE.md` (line 7 says "Magnus 0.7.1"),
+    `Cargo.lock` (generated)
+- **Reference**: `crates/iscc-rb/Gemfile` (the `rb_sys` lockstep comment),
+    `.github/workflows/ci.yml` → the `ruby:` job (lines 187-212 — copy the gate invocations from
+    there)
 
 ## Not In Scope
 
-- Bumping any other JVM pin: `maven-surefire-plugin` 3.5.6 is already latest and JUnit 6 only drops
-    support for Surefire < 3.0.0; KGP, JNA, gson and the held `central-publishing-maven-plugin`
-    0.7.0 all stay.
-- `.claude/context/specs/java-bindings.md` (human-owned spec) and `issues.md` (review owns it).
-- Adopting new JUnit 6 features (CancellationToken, `suspend` test methods, `kotlin-test`,
-    `@CsvSource`) or restructuring any test class — this is a version bump, not a rewrite.
-- `jni` 0.22 / `magnus` 0.8 migrations, Gradle configuration cache, `distributionSha256Sum`.
+- `jni` 0.22, `uniffi` 0.32, `criterion` 0.8 — one major per step, no bundling.
+- Re-enabling magnus's `old-api` feature: that silences the deprecations instead of migrating.
+- The `rb_sys` **gem** pin (`Gemfile`/`Gemfile.lock` at `0.9.123`) and the `oxidize-rb/cross-gem`
+    `tag:` in `release.yml` — they move together or not at all, and magnus 0.8 needs neither.
+- Restructuring the binding (e.g. giving the module functions a `ruby: &Ruby` first parameter) —
+    keep the file's existing `Ruby::get()` idiom.
+- Editing `issues.md` (review owns issue resolution).
 
 ## Implementation Notes
 
-- Latest stable, verified from `repo1.maven.org` metadata while scoping:
-    `org.junit.jupiter:junit-jupiter` **6.1.2** and `org.junit.platform:junit-platform-launcher`
-    **6.1.2** — JUnit 6 gives Platform, Jupiter and Vintage a single version number, so the launcher
-    is no longer a 1.x number.
-- Update the launcher comment in `build.gradle.kts` accordingly (it currently says "keep the 1.x.y
-    version in lockstep with 5.x.y") and delete the `// held: JUnit 6.x deferred ...` comment above
-    the jupiter dependency.
-- **No floor moves.** JUnit 6 baselines are Java 17 and Kotlin 2.2 (6.0.0 release notes); local JDK
-    is 17.0.19, CI is temurin 17, KGP is 2.4.10. Both artifacts are test-scoped — Gradle publishes
-    from `components["java"]` (no `testImplementation`/`testRuntimeOnly`) and the pom entries carry
-    `<scope>test</scope>` — so nothing consumer-visible changes.
-- Maven: Surefire auto-adds a launcher aligned to the platform version it finds on the test
-    classpath. If provider selection or discovery fails, the fallback is an explicit
-    `org.junit.platform:junit-platform-launcher:6.1.2` test-scoped dependency in the same pom — not
-    a plugin bump. `~/.m2` is empty, so the first `mvn` run downloads (network works).
-- **Record the pre-bump Maven total first**: run `mvn test -f crates/iscc-jni/java/pom.xml` on the
-    unmodified tree, note the `Tests run: N` summary, then edit. `IsccLibTest` builds its
-    conformance cases with `@TestFactory`/`DynamicTest`, and a silent collapse to one case per
-    factory method is the failure mode a bare "green" hides. Put N (before and after) in the handoff
-    Notes.
-- Removed-in-6 modules (`junit-platform-runner`, `junit-platform-jfr`) and the ConsoleLauncher
-    changes are unused here; the suites only use `@Test`, `@TestFactory`, `DynamicTest`,
-    `@BeforeAll` and `org.junit.jupiter.api.Assertions.*`, all still present. Expect no test-source
-    change beyond the "Uses JUnit 5 ..." javadoc line in `IsccLibTest.java` (test file, free of the
-    file budget).
-- Gradle on this bind mount: if `clean` fails with "Unable to delete directory ... New files were
-    found", a concurrent build wrote `build/reports/problems` — re-run sequentially before believing
-    it. Run `mise run format` before `git add` (the two `CLAUDE.md` edits go through mdformat).
-- No Rust source, public API or benchmarked path is touched: the CRAP and iai baselines must stay
-    byte-untouched.
+Measured read-only from the `magnus-0.8.2` crate source while scoping:
+
+- Pin `magnus = { version = "0.8", features = ["rb-sys"] }`. MSRV is 1.65 and Ruby 3.0-3.4 stay
+    supported, so **no consumer floor moves** (gemspec `required_ruby_version`, CI
+    `ruby-version: '3.1'`, workspace `rust-version` all unchanged). magnus 0.8 requires
+    `rb-sys >= 0.9.113` and `Cargo.lock` already holds 0.9.128, so the lock delta should be magnus +
+    magnus-macros only.
+- 0.8 drops `old-api` from the default features, which turns two families into `#[deprecated]` (i.e.
+    `clippy -D warnings` failures); each has a replacement on the `Ruby` handle:
+    - `magnus::exception::runtime_error()` → `ruby.exception_runtime_error()` — 5 sites
+    - `RString::from_slice(&b)` → `ruby.str_from_slice(&b)` — 5 sites
+- Obtain the handle with the file's existing idiom, `Ruby::get().expect("called from Ruby")`.
+    `to_magnus_err` (`src/lib.rs:25`) has no handle in scope — add one there.
+- `RString::as_slice` is **not** deprecated: leave the `unsafe { … .as_slice() }` blocks alone. 0.8
+    removes `FString` and `RString::as_interned_str`; this crate uses neither.
+- Clippy is the authority on the deprecation set — if it flags a symbol not listed above, fix it the
+    same way (grab a `Ruby` handle), never by re-enabling `old-api`.
+- Ruby-visible behaviour must not change: the suites assert `assert_raises(RuntimeError)` at six
+    places and `exception_runtime_error()` is that same class.
+- The compiled `.so` is gitignored and goes stale silently — `bundle exec rake compile` before
+    `rake test`. Bundler has no `-C`; use a subshell, `(cd crates/iscc-rb && bundle exec …)`.
+- `test_conformance.rb` defines its cases dynamically, so the suite total is not greppable: run
+    `rake test` on the unmodified tree first, and put its "N runs, M assertions" line in the handoff
+    Notes so review can check the totals did not move.
 
 ## Verification
 
-- `grep -rn "5\.14\.4\|1\.14\.4\|held: JUnit" packages/kotlin/build.gradle.kts crates/iscc-jni/java/pom.xml`
-    → no match, and both files pin `6.1.2`.
-- `cargo build -p iscc-uniffi` then `./gradlew -p packages/kotlin clean test` exit 0, with
-    `TEST-...ConformanceTest.xml` reporting `tests="9"` and `TEST-...UnicodeBoundaryTest.xml`
-    `tests="13"`, each `skipped="0" failures="0" errors="0"`.
-- `cargo build -p iscc-jni` then `mvn test -f crates/iscc-jni/java/pom.xml` exit 0, with a
-    `Tests run: N, Failures: 0, Errors: 0, Skipped: 0` summary whose N equals the total recorded
-    from the unmodified tree before the edit.
-- `grep -rn "JUnit 5\|5\.14\.4\|1\.14\.4" crates/iscc-jni/CLAUDE.md packages/kotlin/CLAUDE.md` → no
-    match.
-- `git status --porcelain -- .crap-baseline.json .iai-baseline.json` is empty.
-- `mise run check` exits 0 and modifies no tracked file.
+- `grep -n magnus Cargo.toml` shows `version = "0.8"` and no `# held: magnus` block remains
+- `grep -rn 'magnus::exception::\|RString::from_slice' crates/iscc-rb/src/lib.rs` → no match
+- `cargo clippy -p iscc-rb --all-targets -- -D warnings` exits 0
+- `(cd crates/iscc-rb && bundle exec rake compile && bundle exec rake test)` exits 0 reporting
+    `0 failures, 0 errors, 0 skips` at the same runs/assertions totals as the pre-edit run
+- `mise run audit` exits 0 (Cargo.lock moved)
+- `mise run check` exits 0 and leaves no tracked file modified
 
 ## Done When
 
-Both JVM manifests pin JUnit 6.1.2, both suites pass at their unchanged case totals, the docs no
-longer say JUnit 5, and `mise run check` is clean.
+magnus 0.8 is the workspace pin, `crates/iscc-rb` compiles deprecation-free against it, and every
+Ruby gate is green at unchanged test totals.
