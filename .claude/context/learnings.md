@@ -39,8 +39,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `uv run --with cmake cmake …` (configure into a fresh gitignored `build-*/`, never the stale
     `packages/cpp/build/`), `swift` via swift.org's Debian 12 tarball (`packages/swift/CLAUDE.md`)
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
-    dies until `sudo apt-get install -y valgrind` +
-    `cargo binstall -y iai-callgrind-runner --version 0.16.1` (pin-matched); CI mirrors this
+    dies until `apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner@0.16.1`
+    (pin-matched to the dep); CI mirrors this
 - **A docs page lives in FOUR places — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
     `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`**
     (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
@@ -73,25 +73,23 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `TOTAL 17793024 comparisons, 0 divergences`. **Re-run it for every Unicode-table or toolchain
     bump.** A bare `uv run scripts/unicode_sweep.py` REFUSES (only those two rebuild-first paths
     supply `--rebuilt`); `sweep()` retains at most 20 samples
-- **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141, +4
-    **sequence** vectors 149; ASCII `\uXXXX`, `data.json`-shaped) + loader
-    `tests/test_unicode_boundary.rs` — propagation source, deliberately NOT merged into `data.json`.
-    **All 11 native surfaces + pure-Go are gated as of iter 161**, so adding a vector now costs 12
-    suites: 8 read the canonical fixture directly, Go/Swift keep byte-identity-gated vendored
-    copies, and C/C++ share ONE generated header (`crates/iscc-ffi/tests/unicode_boundary_vectors.h`
-    from a PEP 723 renderer, drift-gated by a pytest `render(fixture) == tracked` anchor, NOT
-    `VENDORED_COPIES`). Only the 4 **sequence** vectors discriminate sentinel from delete-filter, so
-    a binding suite needs **no oracle column**
-- **A binding can pass a boundary vector for the WRONG reason** (iters 150/161): `packages/go` has
-    no freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn` so its category-`C` filter
-    coincidentally matches (go1.27 flips five cases red — see issues.md); and Swift's `String ==`
-    folds canonical equivalence (`"e"+U+0301 == U+00E9`), so a string-comparing suite passes even on
-    delete-filter values — compare `unicodeScalars.map { $0.value }` arrays
+- **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (141, +4 **sequence**
+    vectors 149; ASCII `\uXXXX`, `data.json`-shaped) + loader `tests/test_unicode_boundary.rs` —
+    propagation source, deliberately NOT merged into `data.json`. **All 11 native surfaces + pure-Go
+    are gated as of iter 161**, so a new vector costs 12 suites: 8 read the canonical fixture, Go/
+    Swift keep byte-identity-gated vendored copies, C/C++ share ONE generated header
+    (`crates/iscc-ffi/tests/unicode_boundary_vectors.h`, PEP 723 renderer, gated by a pytest
+    `render(fixture) == tracked` anchor, NOT `VENDORED_COPIES`). Only the 4 **sequence** vectors
+    discriminate sentinel from delete-filter, so a binding suite needs **no oracle column**
+- **A binding can pass a boundary vector for the WRONG reason** (150/161): `packages/go` has no
+    freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn`, so its category-`C` filter
+    coincidentally matches (go1.27 flips five cases red — see issues.md); Swift's `String ==` folds
+    canonical equivalence, so compare `unicodeScalars.map { $0.value }` arrays instead
 - **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (152):
     discovery is by basename, so keep the canonical filenames and register every tracked copy
-- **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (iter 141):
+- **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (141):
     cases swapped for ASCII no-ops stay green forever, hence the **ungated** guards on version, case
-    counts and code points; mutation-probe each one, and give any skip list a *stale-key* guard
+    counts and code points; probe each, and give any skip list a *stale-key* guard
 - **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"** (143): 3,995 Egyptian
     Hieroglyphs, 7 scripts, **32 LATIN-named** incl. U+A7CB — never write "Latin text is unaffected"
 - **Per-algorithm internals**, normalization order, `data.json` shape/counts, API-parameter facts,
@@ -106,16 +104,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `.so` (`cargo build -p iscc-jni`); rebuild, then probe `text_clean("a"+U+A7F1+"b") == "ab"`
     (stale → `aSb`). CI rebuilds all three first, so this is local-only; `mvn -o -B test -f <pom>`
     works offline and surefire's cwd is the pom's basedir
-- **A suite reading a fixture OUTSIDE its own build tree must declare it as a build input** (iter
-    154): Gradle's `Test` task tracks only its project tree, so after one green run an edit to
-    `crates/iscc-lib/tests/unicode_boundary.json` left `./gradlew test` `UP-TO-DATE` — a silent
-    stale green (fixed with `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`; NONE hashes
-    contents only, so the varying absolute path never forces a re-run). MSBuild `<Content Link=…>`
-    is safe by construction, and so are SwiftPM `.copy(...)` resources (probed 161: a fixture edit
-    reds an *incremental* `swift test`). C/C++ dodge the class entirely — the fixture is a
-    *compile-time* include and CMake's depfiles re-trigger the compile on a bare `cmake --build`
-    (160). All 12 suites are now probed and Gradle was the only offender; CI is immune either way
-    (fresh checkout, no build-dir cache)
+- **A suite reading a fixture OUTSIDE its own build tree must declare it as a build input** (154):
+    Gradle's `Test` task tracks only its project tree, so a `unicode_boundary.json` edit left
+    `./gradlew test` `UP-TO-DATE` — a silent stale green (fixed with
+    `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`; NONE hashes contents only, so the
+    varying absolute path never forces a re-run). All 12 suites are probed and Gradle was the only
+    offender: MSBuild `<Content Link=…>`, SwiftPM `.copy(...)` and the C/C++ *compile-time* include
+    (CMake depfiles) are safe by construction; CI is immune either way (fresh checkout)
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
@@ -163,12 +158,17 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `outputs` diff is automated (`--check-action-inputs`); what stays manual is every intervening
     major's *default* changes (recipe + the two silent biters → `learnings-archive.md`)
 - **Prove a new gate with a REAL regression in a THROWAWAY repo, not a synthetic typo** (iters
-    144/152): `git archive HEAD | tar -x -C /tmp/x && git init` gives a probe tree where `git add`/
-    `git rm` are free. A **set-equality** gate passes vacuously on equal *empty* sets — count floor
+    144/152/163): `git archive HEAD | tar -x -C /tmp/x && git init` gives a probe tree where
+    `git add`/`git rm` are free; the cheapest *real* regression is the guarded file's own previous
+    version (`git show HEAD~1:<path>`) — that is the drift the gate was built for. A
+    **set-equality** gate is blind twice: equal *empty* sets pass (hence a count floor) and a
+    **duplicated** row passes (keep row order long enough to count repeats — iter 163)
+- **A markdown-table parity gate must anchor to its own section, and the real file is what proves
+    the anchor load-bearing** (163): `specs/ci-cd.md` carries 14 backticked first-column rows under
+    `## Version Management` (paths, mise tasks) that a whole-file scan would read as bogus job rows
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the
-    in-flight run of the previous sha (`cancelled`, not `failure`); let it conclude when a Done-When
-    needs green CI on a sha. Each develop commit triggers TWO runs (push + the open develop→main
-    PR), so totals are ~2× the job count
+    previous sha's in-flight run (`cancelled`, not `failure`); let it conclude when a Done-When
+    needs green CI on a sha. Each develop commit triggers TWO runs (push + the open develop→main PR)
 
 ## CID Process
 

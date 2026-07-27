@@ -106,20 +106,6 @@ not happened yet — CID must not act on them unprompted:
     reported undeclared. No such action exists among the 18 refs. **Trigger:** the false positive
     is actually observed.
 
-## Make the CI job table in `specs/ci-cd.md` exhaustive `normal` [human]
-
-The CI job table in `.claude/context/specs/ci-cd.md` has **14 rows against 21 real jobs** in
-`.github/workflows/ci.yml` (22 check names, verified against the check-runs API at iteration 145).
-The review agent carried this as a note for three iterations because the review protocol forbids
-spec edits without a `[human]`-sourced issue — this entry is that authorization.
-
-**Titusz 2026-07-26: make it exhaustive.** The table should list every job, so a reader can use it
-to verify CI coverage instead of guessing whether an omission is deliberate. Add the missing rows
-and, if the drift is likely to recur, consider whether `scripts/check_docs_nav.py`-style gating is
-warranted — but that is a judgment call for the step, not a requirement.
-
-**Spec:** `.claude/context/specs/ci-cd.md` → CI job table
-
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 
 Human-driven release: cut **v1.0.0** as the first stability-committed release of the lockstep

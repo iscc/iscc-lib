@@ -5,7 +5,8 @@ drifted as jobs were added to `.github/workflows/ci.yml`. This gate parses the
 `jobs:` keys from `ci.yml` and the backticked job keys from the first column of the
 spec table (scanning only the table's own section, so no other table can feed it
 rows) and asserts the two sets are equal. It reports every mismatch — job keys with
-no table row and rows naming a job that does not exist — before exiting non-zero.
+no table row, rows naming a job that does not exist, and rows duplicating a key —
+before exiting non-zero.
 
 A count floor guards against a vacuous pass: two empty (or near-empty) sets compare
 equal, so either side yielding fewer than 10 keys is an error in itself. The exact
@@ -56,19 +57,32 @@ def ci_jobs(ci_yml: Path) -> set[str]:
     return set(data["jobs"])
 
 
-def spec_jobs(spec_md: Path) -> set[str]:
-    """Return the backticked job keys from the spec's quality-gates job table."""
+def spec_job_rows(spec_md: Path) -> list[str]:
+    """Return the backticked job keys of the spec's job table, in row order."""
     match = SECTION_RE.search(spec_md.read_text(encoding="utf-8"))
     if match is None:
         sys.exit(f"error: no `## CI Workflow — Quality Gates` section in {spec_md}")
-    return set(JOB_ROW_RE.findall(match.group("body")))
+    return JOB_ROW_RE.findall(match.group("body"))
+
+
+def spec_jobs(spec_md: Path) -> set[str]:
+    """Return the backticked job keys from the spec's quality-gates job table."""
+    return set(spec_job_rows(spec_md))
 
 
 def run_checks(ci_yml: Path, spec_md: Path) -> list[str]:
     """Compare the spec job table against the workflow jobs; return all errors."""
     workflow = ci_jobs(ci_yml)
-    table = spec_jobs(spec_md)
+    rows = spec_job_rows(spec_md)
+    table = set(rows)
     errors = []
+    # Set parity alone cannot see a duplicated row: the table's invariant is
+    # exactly one row per job key, so report repeats explicitly.
+    duplicates = sorted({key for key in table if rows.count(key) > 1})
+    if duplicates:
+        errors.append(
+            f"spec table: {len(duplicates)} duplicated job row(s): {duplicates}"
+        )
     if len(workflow) < COUNT_FLOOR:
         errors.append(
             f"ci.yml: only {len(workflow)} job key(s) parsed "

@@ -92,6 +92,13 @@ def test_nonexistent_job_row_fires(tmp_path):
     assert errors == ["spec table: 1 row(s) naming nonexistent job(s): ['ghost']"]
 
 
+def test_duplicate_row_fires(tmp_path):
+    # A key listed twice keeps both sets equal, so only row-order inspection can
+    # see it — the table's invariant is exactly one row per job key.
+    errors = cjt.run_checks(*_write_fixtures(tmp_path, table_jobs=[*JOBS, "wasm"]))
+    assert errors == ["spec table: 1 duplicated job row(s): ['wasm']"]
+
+
 def test_count_floor_fires_on_both_sides(tmp_path):
     # Two equal but near-empty sets must not pass vacuously: both floors trip
     # even though the set-equality comparison itself finds no mismatch.

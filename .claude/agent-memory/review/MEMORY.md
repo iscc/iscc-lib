@@ -82,7 +82,15 @@ finding). Stale in `MEMORY-archive.md`.
 - **New gate script or gate HARDENING (142–146, ~8 min)**: never accept "it exits 0 at HEAD" — write
     your OWN mutations, prefer a **real** regression to a synthetic typo, work the blind-spot list →
     `review-patterns.md`. A `files:`-scoped prek hook needs a **staged** fire/skip probe; it never
-    sees deletions
+    sees deletions. **Cheapest real regression: the guarded file's own previous version** —
+    `git show HEAD~1:<path> > /tmp/old && run_checks(real, Path('/tmp/old'))` (163: the drifted
+    14-row table yields 0 rows → floor + 21 missing, so the gate provably catches its own motive)
+- **Spec↔config PARITY gate (163, ~10 min)**: run the checker against `HEAD~1`'s spec (above), then
+    probe the two set-equality blind spots — vacuous pass (count floor) and a **duplicated** row
+    (sets dedupe silently; Codex caught this one). Verify section anchoring against the **real**
+    file, not the fixture: `specs/ci-cd.md` has 14 backticked rows under `## Version Management`, so
+    a green unanchored run is impossible — baseline exit 0 is itself the anchoring proof. Re-derive
+    every table cell from the source (all 21 `ci.yml` job descriptions were accurate at 163)
 - **DIFFERENTIAL gate (157/158) / vendored DERIVED-property table (156), ~25 min each**: a case-
     count pin catches a shrunken case set, never a swapped one; a behavioural generator is not its
     own oracle; drive `main()` in-process to test the reporting path → `unicode-reviews.md`
