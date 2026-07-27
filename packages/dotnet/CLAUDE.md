@@ -31,7 +31,7 @@ packages/dotnet/
       osx-x64/native/libiscc_ffi.dylib
       win-x64/native/iscc_ffi.dll
   Iscc.Lib.Tests/                        # xUnit test project
-    Iscc.Lib.Tests.csproj                # References Iscc.Lib, xunit 2.x, Microsoft.NET.Test.Sdk
+    Iscc.Lib.Tests.csproj                # References Iscc.Lib, xunit.v3 3.x, Microsoft.NET.Test.Sdk 18.x
     SmokeTests.cs                        # End-to-end P/Invoke validation for every public method
     ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions
     UnicodeBoundaryTests.cs              # Unicode 16.0.0 boundary vectors (canonical fixture linked via csproj)

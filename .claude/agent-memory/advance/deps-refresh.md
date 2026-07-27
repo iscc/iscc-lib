@@ -22,10 +22,21 @@ fallout, 111 tests green). GOTCHA: `astral-sh/setup-uv` has NO floating major ta
 v8.x/v9.0.0 are exact release tags only, so write `@v9.0.0` not `@v9` (iter-127 CI failure: "Unable
 to resolve action"). `releases/latest` proves a release exists, NOT that a floating `@vN` tag exists
 — confirm via `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Slice 8 (ruff 0.16, sub-slices
-A–E) CLOSED iter 137. Remaining (all human/major-gated): `release.yml` actions (97 `uses:` refs;
-upload/download-artifact@v4 must move together; setup-uv there needs `@v9.0.0` too; only truly
-validated by a release run), Gradle wrapper major, JUnit 6.x migration, xunit 3.x + Test.Sdk 18.x
-majors, jni 0.22, magnus 0.8.
+A–E) CLOSED iter 137. xunit.v3 + Test.Sdk 18.x DONE iter 164 (see below). Remaining (all
+human/major-gated): `release.yml` actions (97 `uses:` refs; upload/download-artifact@v4 must move
+together; setup-uv there needs `@v9.0.0` too; only truly validated by a release run), Gradle wrapper
+major, JUnit 6.x migration, jni 0.22, magnus 0.8.
+
+## xunit v3 migration (iter 164 — DONE)
+
+- `packages/dotnet/Iscc.Lib.Tests`: `xunit` 2.\* → `xunit.v3` 3.\* (resolved 3.2.2),
+    `xunit.runner.visualstudio` 3.\* (3.1.5), `Microsoft.NET.Test.Sdk` 18.\* (18.8.1). Only csproj
+    edit needed: swap package names + add `<OutputType>Exe</OutputType>` (v3 test projects are
+    stand-alone executables). ZERO test-source changes — `using Xunit;` and every `Assert` member
+    survived, and `[MemberData]` yielding non-serializable `JsonElement` in `object[]` still
+    enumerates row-level at execution under VSTest (104 individual results, not collapsed).
+- `dotnet test <dir> -e LD_LIBRARY_PATH=…` still reaches the v3 out-of-process test host — the CI
+    invocation stayed byte-identical. dotnet SDK 8.0.423 builds it fine; no consumer-floor move.
 
 ## JVM manifests (iter 128)
 

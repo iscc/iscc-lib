@@ -1,56 +1,48 @@
 # Handoff
 
-## 2026-07-27 — Review of: make the `specs/ci-cd.md` CI job table exhaustive and gate it
+## 2026-07-27 — Migrate the .NET test project to xunit v3 and Microsoft.NET.Test.Sdk 18.x
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Moved `packages/dotnet/Iscc.Lib.Tests` from `xunit` 2.\* / `Microsoft.NET.Test.Sdk` 17.\*
+to `xunit.v3` 3.\* (resolved 3.2.2) / `xunit.runner.visualstudio` 3.\* (3.1.5) / Test.Sdk 18.\*
+(18.8.1), keeping the floating-wildcard style. Added `<OutputType>Exe</OutputType>` (v3 test
+projects are stand-alone executables). No test-source changes were needed — the whole suite is green
+under the byte-identical CI invocation.
 
-**Summary:** The job table now carries one backticked row per `ci.yml` job key — all 21 — and every
-description was re-derived from that job's steps (I checked all 21 against `ci.yml`; all accurate,
-the unverified "49 tests" java claim is gone). `scripts/check_ci_job_table.py` is a real gate: it
-reds on the pre-change table, on a deleted row, and on a job added to `ci.yml` without a row. Scope
-was exactly 2 non-test non-doc files; `ci.yml` and `issues.md` untouched as required.
+**Files changed:**
 
-**Verification:**
+- `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj`: package swap (`xunit` → `xunit.v3` 3.\*,
+    runner → 3.\*, Test.Sdk 17.\* → 18.\*) + `<OutputType>Exe</OutputType>`;
+    `<TargetFramework>net8.0</TargetFramework>` unchanged
+- `packages/dotnet/CLAUDE.md`: file-layout comment now says "xunit.v3 3.x, Microsoft.NET.Test.Sdk
+    18.x" (was "xunit 2.x")
 
-- [x] `uv run scripts/check_ci_job_table.py` exits 0 —
-    `OK: 21 CI jobs consistent between ci.yml and specs/ci-cd.md.`
-- [x] Gate fires on a real break — throwaway tree (`git archive HEAD | tar -x`): deleting the
-    `kotlin` row → exit 1, `missing 1 job row(s): ['kotlin']`; restored → exit 0. Also probed:
-    adding a job to `ci.yml` with no row → exit 1 naming it; and the **pre-change** spec
-    (`git show HEAD~1:…`) → floor error + all 21 missing, i.e. the gate catches the drift it exists
-    for
-- [x] `uv run pytest -q tests/test_check_ci_job_table.py` — 9 passed (8 + 1 I added)
-- [x] `prek run check-ci-job-table --files .github/workflows/ci.yml` and
-    `--files .claude/context/specs/ci-cd.md` both `Passed`; an unrelated file `Skipped` (scoping
-    correct)
-- [x] `mise run check` — 18 hooks Passed, no file modified. Pre-push preflight
-    (`prek run --hook-stage pre-push --all-files`) exit 0, 441 tests
+**Verification:** (all criteria from next.md)
 
-**Issues found:**
+- `cargo build -p iscc-ffi` exit 0, then
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug` →
+    `Passed! - Failed: 0, Passed: 104, Skipped: 0, Total: 104` (floor was 85; row-level theory
+    enumeration survived — 50 conformance + 12 boundary vectors report as individual results)
+- `dotnet list … package`: Test.Sdk 18.8.1, xunit.runner.visualstudio 3.1.5, xunit.v3 3.2.2
+- `grep -c 'Include="xunit"' …csproj` prints `0`; same file matches `Include="xunit.v3"` and
+    `Include="Microsoft.NET.Test.Sdk" Version="18` and still `<TargetFramework>net8.0`
+- `grep -ri 'xunit 2' packages/dotnet/` returns nothing
+- `mise run check` exit 0, working tree unchanged after (18 hooks Passed)
+- `.github/workflows/ci.yml` NOT touched, so the `check_ci_job_table.py` criterion is N/A (the
+    always-on `CI job table parity` prek hook passed regardless)
 
-- **Fixed in review:** set parity silently deduplicated rows, so a job listed twice passed while the
-    table's "exactly one row per key" invariant was violated (Codex P2). `spec_job_rows()` now keeps
-    row order and `run_checks` reports duplicates; test added, probed on a real duplicated `kotlin`
-    row → exit 1.
-- Nit (not filed): `main()` re-parses `ci.yml` to print the count on success.
-- Resolved and deleted from issues.md: `[human]` "Make the CI job table in `specs/ci-cd.md`
-    exhaustive". Its `**Spec:**` target is the table itself, which this step rewrote.
-
-**Codex review:** one finding, the duplicate-row hole above — accepted and fixed. No others.
-
-**Next:** The authorized dependency majors, **one per step**: start with `xunit` 3.x +
-`Microsoft.NET.Test.Sdk` 18.x in `packages/dotnet/*/*.csproj` (xunit 3 is a real behaviour change —
-new runner model, tightened `Assert` API — so expect the test project to need edits, and verify the
-`dotnet` CI job's exact invocation still works). Then Gradle wrapper 8.12.1 / JUnit 6.x, then the
-`jni` 0.22 and `magnus` 0.8 API migrations, one crate per step.
+**Next:** The next authorized major per the sequence: the JVM slice — Gradle wrapper + JUnit 6.x
+across `packages/kotlin` and `crates/iscc-jni/java/pom.xml` (mind the renumbered platform artifacts
+1.x→6.x and the Kotlin consumer-floor hazard), then `jni` 0.22, then `magnus` 0.8, one per step.
 
 **Notes:**
 
-- The spec prose hardcodes "21 job keys → 22 check names"; the gate deliberately pins no count (only
-    a ≥10 floor). A future job addition reds the gate via the missing row, and the prose number must
-    be corrected by hand in that same edit.
-- Section anchoring is load-bearing on the real file, not just the fixture: `ci-cd.md` has 14
-    backticked first-column rows under `## Version Management`, which an unanchored scan would read
-    as bogus job rows. The baseline exit 0 is itself the proof the anchor works.
-- No quality-gate weakening anywhere in the unpushed range (the only `continue-on-error` match is
-    the table accurately describing the pre-existing informational `semver` job).
+- Neither hazard from next.md materialized. (1) `JsonElement` inside `[MemberData]` `object[]` rows
+    still executes as one test case per vector under xunit v3 + VSTest — the 104 total proves it
+    (fallback key-string refactor not needed, zero source edits). (2) `-e LD_LIBRARY_PATH` still
+    reaches the v3 out-of-process test host — same 104 pass with only that env source, no
+    `DllNotFoundException`.
+- `dotnet build` reported 0 warnings — no new xunit.analyzers findings.
+- No Rust source touched; CRAP baseline and `.iai-baseline.json` untouched as instructed.
+- Ledger for review (I do not edit issues.md): under "Dependency review and refresh across the
+    project" the xunit 3.x + Test.Sdk 18.x major is now done (this step). Still open: Gradle wrapper
+    / JUnit 6.x, `jni` 0.22, `magnus` 0.8, `release.yml` action majors (release-run-gated).
