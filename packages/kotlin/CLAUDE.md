@@ -35,7 +35,7 @@ packages/kotlin/
 ## Build Commands
 
 ```bash
-# Prerequisites: cargo (for iscc-uniffi), JDK 17+, Gradle 8.x
+# Prerequisites: cargo (for iscc-uniffi), JDK 17+, Gradle 9.x (wrapper checked in)
 
 # Build the Rust UniFFI library (required before Gradle build/test)
 cargo build -p iscc-uniffi

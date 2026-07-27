@@ -48,7 +48,7 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     gate is CI-ONLY — refresh baseline (`mise run crap:baseline`) in the SAME step as any
     branch-adding change. Full mechanics + gotchas → ci-gates.md
 - Audit rule: advisory with patched release → `cargo update -p <crate>`, never `deny.toml` `ignore`
-- Dependency refresh (iters 124-140; xunit.v3 iter 164): lockfiles/manifests current; held majors
+- Dependency refresh (iters 124-140; xunit.v3 164, Gradle 9.6.1 165): manifests current; held majors
     (criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:` in root Cargo.toml; ruff 0.16
     (`ruff format` covers Markdown fences); prek ruff hooks carry `pyi` in `types_or` (CI parity —
     prek types `.pyi` as `pyi`, NOT `python`); NEVER blanket `--fix` (deletes 13

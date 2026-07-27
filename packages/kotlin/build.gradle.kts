@@ -22,9 +22,9 @@ dependencies {
     // held: JUnit 6.x deferred - it renumbers the platform artifacts and removes
     // deprecated Platform APIs; migrating off the 5.x line is its own step.
     testImplementation("org.junit.jupiter:junit-jupiter:5.14.4")
-    // Explicit launcher keeps the platform jars aligned with junit-jupiter; the
-    // launcher Gradle 8.12.1 injects predates platform 1.12 (OutputDirectoryCreator).
-    // Keep the 1.x.y version in lockstep with junit-jupiter 5.x.y.
+    // Gradle 9 no longer auto-injects a launcher — an explicit junit-platform-launcher
+    // on the test runtime classpath is required, and pinning it here keeps the platform
+    // jars aligned with junit-jupiter. Keep the 1.x.y version in lockstep with 5.x.y.
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
     testImplementation("com.google.code.gson:gson:2.14.0")
 }
