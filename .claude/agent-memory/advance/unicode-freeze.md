@@ -105,8 +105,16 @@ metadata:
     (derived, not byte-identical — the no-op gate is its equivalent). GOTCHA: compare
     `ISCC_UNICODE_DATA_VERSION` through a `const char *` local so `-Waddress` never sees a literal
     vs NULL.
-- Pending: 2 binding surfaces (C++ — no `cmake` in container; Swift — no `swift` toolchain in
-    container, would add a tracked vendored copy that MUST be registered in `VENDORED_COPIES` of
+- Propagation slice 6 (iter 160): C++ — `packages/cpp/tests/test_iscc.cpp` reuses the SAME generated
+    header (no second artifact): `#include "unicode_boundary_vectors.h"` + section 36 (3 metadata
+    guards + 12 vectors) → 69 passed. Include dir set on the `test_iscc` target ONLY in
+    `packages/cpp/tests/CMakeLists.txt` — NEVER on the public `iscc` INTERFACE target (would leak
+    into every vcpkg/conan consumer). C++ needs no `-Waddress` local (assert_str_eq takes
+    `const std::string&`). No system `cmake` in container but the PyPI wheel works:
+    `uv run --with cmake cmake ...` (4.4.0); build into gitignored `build-uv/` (`.gitignore`
+    `build-*/`), NOT the stale `packages/cpp/build/` (cmake 3.25 cache).
+- Pending: 1 binding surface (Swift — no `swift` toolchain in container; would add a tracked
+    vendored copy that MUST be registered in `VENDORED_COPIES` of
     `tests/test_vendored_fixtures.py`).
 - GOTCHA (iter 149): writing `\uXXXX` escape text into the ASCII-escaped fixture via the Edit tool
     decodes it into literal UTF-8 chars. Write fixture JSON with Python

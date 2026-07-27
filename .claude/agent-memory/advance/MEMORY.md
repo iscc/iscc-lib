@@ -141,7 +141,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 ## Other Bindings — pointers
 
 - .NET: `packages/dotnet/` — P/Invoke over `iscc_ffi`, 32/32 Tier 1 symbols, `dotnet-version: 8.0`.
-    C++: `packages/cpp/` — header-only C++17, depends on `iscc-ffi`, CMake + ASAN tests. Full detail
-    → MEMORY-archive.md
+    C++: `packages/cpp/` — header-only C++17, depends on `iscc-ffi`, CMake + ASAN tests; no system
+    `cmake` but `uv run --with cmake cmake ...` works (build into gitignored `build-uv/`, not stale
+    `build/`). Full detail → MEMORY-archive.md
 - UniFFI scaffolding, Swift package (two Package.swift, XCFramework script), Kotlin/JVM (Gradle +
     JNA) → uniffi-swift-kotlin.md

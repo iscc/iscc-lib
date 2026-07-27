@@ -1,113 +1,69 @@
 # Handoff
 
-## 2026-07-27 — Review of: Propagation slice 5 — Unicode boundary vectors in the C FFI test
+## 2026-07-27 — Propagation slice 6 — Unicode boundary vectors in the C++ test
 
-**Verdict:** PASS
+**Done:** Gated the `packages/cpp` C++17 wrapper on the 12 Unicode 16.0.0 boundary vectors by
+reusing the existing generated header `crates/iscc-ffi/tests/unicode_boundary_vectors.h` (no second
+artifact). Section 36 of `test_iscc.cpp` runs 3 metadata guards + 7 `text_clean` + 5 `text_collapse`
+vectors through `iscc::text_clean` / `iscc::text_collapse`; the header's include directory is set on
+the `test_iscc` target only, keeping the public `iscc` INTERFACE target untouched. Criterion 3 of
+the Unicode issue is now at **10 of 11** binding surfaces (only Swift left).
 
-**Summary:** The C FFI surface is now gated on all 12 Unicode 16.0.0 boundary vectors — the 9th of
-11 binding surfaces for criterion 3 of the Unicode issue. A PEP 723 generator renders the canonical
-fixture into a tracked, pure-ASCII C header that `test_iscc.c` includes with a quoted `#include`
-(the CI gcc line is untouched), and a 6-case pytest anchor proves the header is a byte-exact
-regeneration of the fixture. Every next.md criterion passes, the scope is exactly one non-test/
-non-doc file, and I independently decoded the header's octal escapes back to code points and
-mutation-probed the gate five ways — all five red.
+**Files changed:**
 
-**Verification:**
+- `packages/cpp/tests/test_iscc.cpp`: added `#include "unicode_boundary_vectors.h"`, the
+    `run_unicode_boundary_section` helper (function-pointer loop mirroring C section 29), and test
+    block 36 (metadata guards + both vector sections) before the summary
+- `packages/cpp/tests/CMakeLists.txt`: one test-only
+    `target_include_directories(test_iscc PRIVATE …/crates/iscc-ffi/tests)` with a comment naming
+    the header and forbidding promotion to the public INTERFACE target
+- `docs/unicode.md`: propagation paragraph now names the C++ wrapper test as the second consumer of
+    the same generated header (doc)
+- `packages/cpp/CLAUDE.md`: Test Patterns bullet — header is generated
+    (`uv run --script scripts/gen_ffi_boundary_vectors.py`), never hand-edit, include dir on the
+    test target only (doc)
 
-- [x] `cargo build -p iscc-ffi` exit 0, then the **verbatim** CI gcc line compiles with no new `-I`;
-    `LD_LIBRARY_PATH=target/debug /tmp/test_iscc` → `80 passed, 0 failed`, exit 0
-- [x] `grep -c '^PASS: unicode_boundary/'` → **12**, plus the 3 metadata guard lines (version
-    16.0.0, counts 7 and 5)
-- [x] `gcc -Wall -Wextra -fsyntax-only …` — zero warnings
-- [x] `uv run --script scripts/gen_ffi_boundary_vectors.py` exit 0 and
-    `git status --porcelain -- <header>` empty afterwards — regeneration is a no-op
-- [x] `git ls-files --error-unmatch <header>` exit 0 — tracked, not gitignored
-- [x] Header is pure ASCII, no `\x`, LF-only, exactly one trailing newline (checked on the raw
-    bytes). *Note: next.md's one-liner form of this criterion is not runnable as written — in a bash
-    double-quoted string `'\\x'` collapses to `'\x'` and Python raises `SyntaxError`. Ran it from a
-    quoted heredoc instead; the substance passes and the new pytest case
-    `test_tracked_header_is_ascii_lf_only_no_hex_escapes` pins it permanently.*
-- [x] `uv run pytest -q tests/test_gen_ffi_boundary_vectors.py` → 6 passed, including the
-    mutated-fixture case that proves the gate fires
-- [x] `uv run pytest -q` → **399 passed** (393 + 6, none removed)
-- [x] `tests/test_vendored_fixtures.py` → 8 passed, file untouched by the diff
-- [x] `uv run ruff check`, `ruff format --check` (exit 0), `ruff check --select S,C901`,
-    `uv run ty check` — all clean. `cargo clippy --workspace --all-targets -- -D warnings` clean
-    (only the known dev-only `proc-macro-error2` future-incompat note)
-- [x] `mise run check` — all 17 hooks Passed, no file modified (only runner-owned `iterations.jsonl`
-    dirty)
-- [x] Protected paths empty in both the working tree and the advance diff: `crates/iscc-ffi/src`,
-    `crates/iscc-ffi/include`, `crates/iscc-lib`, `.crap-baseline.json`, `.iai-baseline.json`,
-    `.claude/context/specs/`, `.github/workflows/`
-- [x] `uv run zensical build` → "No issues found"; `check_docs_nav.py` →
-    `OK: 23 documentation   pages consistent`; `grep -c 'C FFI' docs/unicode.md` → 2
+**Verification:** (all criteria from next.md, each backed by a command run this session)
 
-**Independent probes beyond next.md** (a green generator is not a correct one):
+- `cargo build -p iscc-ffi` exit 0;
+    `uv run --with cmake cmake -S packages/cpp -B   packages/cpp/build-uv -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=$PWD/target/debug   -DSANITIZE_ADDRESS=ON`
+    exit 0; `cmake --build` exit 0 with **no compiler warning** from `test_iscc.cpp` (only uv's
+    benign `VIRTUAL_ENV` notice in the log)
+- `LD_LIBRARY_PATH=$PWD/target/debug packages/cpp/build-uv/tests/test_iscc` →
+    **`69 passed, 0   failed`**, exit 0 (54 before + 3 metadata guards + 12 vectors), ASAN/LSan
+    clean
+- `grep -c '^PASS: unicode_boundary/'` on the run output → **12**; all 3 metadata guard lines PASS
+    (version 16.0.0, counts 7 and 5)
+- `grep -c 'iscc-ffi/tests' packages/cpp/CMakeLists.txt` → **0** (public target untouched);
+    `grep -c 'unicode_boundary_vectors.h' packages/cpp/tests/CMakeLists.txt` → **1**
+- `uv run pytest -q tests/test_gen_ffi_boundary_vectors.py tests/test_vendored_fixtures.py` → **14
+    passed** (6 + 8); `git status --porcelain` empty for the header, the canonical fixture, and
+    `tests/test_vendored_fixtures.py`
+- `git status --porcelain -- .github/workflows/ .crap-baseline.json .iai-baseline.json crates/   packages/cpp/CMakeLists.txt`
+    → empty (no workflow, baseline, Rust-source, or public-CMake change)
+- `grep -c 'C++' docs/unicode.md` → **2**; `uv run zensical build` → "No issues found";
+    `uv run scripts/check_docs_nav.py` → `OK: 23 documentation pages consistent`
+- `mise run check` → all hooks Passed; afterwards only the runner-owned
+    `.claude/context/iterations.jsonl` plus my 4 in-scope files are dirty (no hook modified
+    anything)
 
-- Decoded every octal escape in the tracked header back to code points with a standalone parser and
-    diffed name/input/expected against the fixture — all 12 rows exact, both `_COUNT` macros and the
-    version macro match the fixture. The `Final_Sigma` row is the sentinel value
-    (`0391 03A3 0378 0392` → `03B1 03C2 03B2`), not the delete-filter `03C3`.
-- Five mutations, each red: (1) delete-filter-shaped expected value → names the vector; (2) case
-    dropped with its count macro → the 7/5 metadata guard reds; (3) version macro → `17.0.0` → guard
-    reds; (4) one octal digit hand-edited in the tracked header → pytest drift anchor reds; (5) a
-    fixture vector added without regenerating → same anchor reds. Work tree restored and verified
-    clean after (4)/(5).
-- `iscc-ffi` declares no `[features]` and no CI job builds it `--no-default-features`, so the two
-    text symbols cannot vanish from a variant build. `iscc_free_string(NULL)` is a documented no-op,
-    so the `ASSERT_STR_EQ` NULL branch is safe. CI's `python-test` job runs the drift gate on both
-    3.10 and 3.14 (`testpaths = ["tests"]`).
-- Gate-circumvention scan over all unpushed commits (`@{upstream}..HEAD`, 4 commits, no
-    `cid(meta):`): no suppressions, no skips, no threshold or hook changes; no config/workflow file
-    touched at all.
-
-**Issues found:** (none blocking)
-
-- Two blind spots worth *stating* rather than fixing, both class-wide rather than introduced here:
-    the generator's `SECTIONS` dict silently ignores a hypothetical *new* fixture section, and
-    deleting block 29 of `test_iscc.c` outright would red nothing. Every other boundary suite has
-    the same two holes; gating only this one would be asymmetric machinery. No issue filed.
-- The advance handoff justifies the `const char *unicode_version` local as avoiding a `-Waddress`
-    warning. I compiled the un-localised form: gcc 12.2 in this container emits nothing either way.
-    Harmless defensiveness, but the stated rationale is unverified — recorded in agent memory so it
-    is not repeated as fact.
-- One accepted deviation from next.md's sketch: octal escaping uses `f"\\{byte:03o}"` instead of the
-    suggested `"\\%03o" % byte`, because ruff `UP031` rejects percent-format. Output is byte-
-    identical; this is the correct call.
-
-**Codex review:** ran to completion, no findings — "The generated header accurately represents the
-canonical fixture, the drift tests cover regeneration and failure guards, and the C test compiles
-and passes all 12 new vectors without affecting existing behavior."
-
-**Next:** Criterion 3 is at **9 of 11**. The two remaining surfaces are blocked on absent toolchains
-(C++ needs `cmake`, Swift needs `swift`), so pick a different self-contained step. Recommended, in
-order:
-
-1. **Pin `rubygems/configure-rubygems-credentials` to `@v2.1.0`** with an inline `# exact tag:`
-    comment (`normal` `[human]`, already RULED — option (a), rationale in `decisions.md`
-    2026-07-26). A one-line edit to `.github/workflows/release.yml` line 895. Verification is
-    entirely static: `uv run scripts/check_release_workflow.py` and `… --check-action-inputs` (zero
-    `warning: skipped` lines is part of the pass), plus confirming the tag still resolves
-    (`gh api repos/rubygems/configure-rubygems-credentials/git/matching-refs/tags/v2.1.0`) and that
-    the step passes no `with:` keys. Smallest remaining `normal` item by a wide margin.
-2. **Make the CI job table in `specs/ci-cd.md` exhaustive** (`normal` `[human]`, 14 rows vs 21 real
-    jobs). This one carries a `**Spec:**` field and human authorization, so the *review* agent may
-    land the spec edit when resolving it — define-next should scope it as a spec-file step and say
-    so explicitly. Note the job count moved to 21 when the `unicode-sweep` job landed in iter 157;
-    re-derive it from `ci.yml` rather than trusting the issue text.
+**Next:** Per the previous review's recommendation (and since only the toolchain-blocked Swift slice
+remains for criterion 3): (1) pin `rubygems/configure-rubygems-credentials` to `@v2.1.0` in
+`release.yml` (RULED, one-line, statically verifiable), or (2) make the CI job table in
+`specs/ci-cd.md` exhaustive (21 jobs — re-derive from `ci.yml`, spec-file step with human
+authorization on record).
 
 **Notes:**
 
-- The generated-header mechanism is directly reusable for the C++ slice whenever `cmake` becomes
-    available — the header is plain C and `packages/cpp` wraps the same FFI. Design rationale (why
-    not a C JSON parser, why not `VENDORED_COPIES`) is recorded in `decisions.md` 2026-07-27 so that
-    slice does not have to re-litigate it.
-- Two rules now travel with any future generated test artifact: pure ASCII + LF + exactly one
-    trailing newline (otherwise the prek hygiene hooks rewrite it and red the no-op gate), and
-    3-digit octal escapes rather than `\x` (C hex escapes are greedy and unbounded). Both are in
-    `learnings.md`.
-- `learnings.md` was at its 200-line budget; the closed "v0.6.0 dep refresh + ruff 0.16 adoption"
-    entry moved to `learnings-archive.md` (its live "never `ruff check --fix .`" rule is preserved
-    in the `issues.md` dependency entry).
-- Nothing was pushed to a benchmarked hot path and no Rust source moved, so no CRAP or iai baseline
-    refresh was required or performed.
+- next.md's implementation notes were accurate as measured: the exact helper signature and block 36
+    compiled clean under `-Wall -Wextra -fsanitize=address` on the first build, and taking the
+    address of the inline `iscc::text_clean` / `iscc::text_collapse` needed no workaround (no
+    `-Waddress` local required — `assert_str_eq` takes `const std::string&`).
+- The comment I added in `tests/CMakeLists.txt` names `unicode_boundary_vectors.h` explicitly —
+    next.md's suggested comment text did not contain the filename, but its verification criterion
+    (`grep -c 'unicode_boundary_vectors.h' …` → 1) requires it, so the comment satisfies both.
+- The stale `packages/cpp/build/` directory (cmake 3.25 cache) was left untouched as instructed; the
+    fresh `build-uv/` output is gitignored by `.gitignore`'s `build-*/` pattern and leaves no tree
+    diff.
+- No Rust source, workflow, baseline, or fixture moved; no hot path touched, so no bench run was
+    required.
