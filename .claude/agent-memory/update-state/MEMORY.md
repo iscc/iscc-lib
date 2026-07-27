@@ -13,12 +13,11 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
 - **Unpushed check**: `git log --oneline origin/develop..HEAD`, then
     `git diff --stat origin/develop..HEAD -- . ':!.claude'`. Empty = green CI covers HEAD.
     **NON-empty = it does NOT** — report the gap (bit at 148; fired for real at 162).
-- **ALWAYS `tail -5 .claude/context/iterations.jsonl`** — the ONLY place a crashed role shows up
+- **ALWAYS `tail -6 .claude/context/iterations.jsonl`** — the ONLY place a crashed role shows up
     (also the `audit` role, every 10th iteration). **A non-OK status does NOT mean no work:
-    corroborate with `git log` for the `cid(<role>):` commit** — infra crash vs benign overrun and
-    the crashed-review fingerprint → `MEMORY-archive.md`. Conversely **`git log` can show work with
-    NO jsonl entry**: out-of-loop `cid(loop):` commits (human/interactive sessions, authored as "CID
-    Agent") land between iterations and may carry uncovered tracked code — always diff them.
+    corroborate with `git log`** (fingerprints → `MEMORY-archive.md`). Conversely **`git log` shows
+    work with NO jsonl entry**: out-of-loop `cid(loop):` commits land between iterations and may
+    carry uncovered tracked code — always diff them.
 - **ALWAYS `git status --porcelain` too.** A TIMEOUT role dies before committing but **leaves its
     written file dirty** — at 155 define-next timed out with 0 turns yet left a 440-line `next.md`
     carrying the iteration's most important finding. Treat as an unverified lead, not fact.
@@ -28,8 +27,11 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     `docs/includes/abbreviations.md`, a snippet); `docs/howto/*.md` 11; speedups 1.3x-158x; ffi
     extern **47** (`'#\[unsafe(no_mangle)\]'`; bare `no_mangle` gives 48); iscc-lib `#[test]`
     **342** (glob `git ls-files 'crates/iscc-lib/**/*.rs'`; `src/` alone gives 288); `packages/go`
-    `^func Test` **177**; CRAP `entries` **105**; pytest **432**
+    `^func Test` **177**; CRAP `entries` **105**; pytest **441** at 164
     (`uv run pytest --collect-only -q`).
+- **YAML probes need `uv run python`** — the bare system `python3` has NO `yaml` module. Job-table
+    parity in one shot: PyYAML `['jobs']` keys vs a regex for first-column backticked cells in
+    `ci-cd.md`; both sets were 21 with no diffs at 164.
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` are both
     importable under `uv run python`, so any reference-vs-core probe needs **no build** — but check
     `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` mtime first (stale `.so` silently measures
@@ -45,12 +47,14 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
 
 - **ENFORCING:** iai perf (>10% Ir, 16 baseline entries); coverage + CRAP (105 entries —
     `--fail-regression` is **CI-ONLY**, so a green `mise run check` proves nothing); cargo-deny;
-    docs page-list parity (prek hook + a pytest in `python-test`); the `unicode-sweep` job (157).
+    docs page-list parity (prek hook + a pytest in `python-test`); the `unicode-sweep` job (157);
+    **CI job-table parity** (163: `scripts/check_ci_job_table.py`, same two-place pattern — a prek
+    hook scoped to `ci.yml`+`ci-cd.md` PLUS `test_real_repo_passes`, which is what makes it a CI
+    gate; the hook alone misses row-only deletions because prek `files:` sees only changed paths).
 - **Red with NO code change:** cargo-deny (live advisory DB). **Fails open:** the release.yml static
     gate (job log must show zero `warning: skipped`). **Informational:** cargo-semver-checks.
-- Candidate NOT to report as a gap: a "no floating branch ref" assertion in
-    `check_release_workflow.py` (now enforceable — zero `@main` refs) is a NEW policy needing
-    Titusz's sign-off, since it must allow deliberate pointers like `@stable`.
+- NOT a gap to report: a "no floating branch ref" assertion in `check_release_workflow.py` is a NEW
+    policy needing Titusz's sign-off (must still allow deliberate pointers like `@stable`).
 
 ## Codebase Landmarks
 
@@ -61,13 +65,13 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     `unicode-sweep`): `python-test` = 3.10/3.14 matrix, `python` (L72) is an `if: always()`
     AGGREGATOR; `push:` under `on:` is NOT a job. Enumerate with a PyYAML one-liner over
     `d['jobs']`. `release.yml` — 8 registry toggles; Swift XCFramework is a `prepare-release` step,
-    NOT a toggle. **`specs/ci-cd.md`'s job table is DRIFTED** (14 rows vs 21 keys) — owned by an
-    authorized issue.
+    NOT a toggle. **`specs/ci-cd.md`'s job table is EXHAUSTIVE since 163** (21 rows == 21 keys,
+    gated); its prose hardcodes "21 job keys → 22 check names" and the gate pins NO count (≥10
+    floor), so a job addition reds the gate but the prose number needs a HAND edit.
 - **Unicode = 16.0.0 + TWO freeze layers + the sweep gate → read `unicode-contract.md` before ANY
-    Unicode call** (SENTINEL for category/normalization, the `Final_Sigma` CASE freeze from 156, the
-    criterion-4 gate from 157; criterion status, fixture-plumbing table, 2 SUPERSEDED designs that
-    must NOT be implemented). Inline landmark: **surefire's default CWD is the pom basedir**, NOT
-    the `mvn -f` dir — why the Java suites' `../../iscc-lib/tests/…` resolve.
+    Unicode call** (fixture-plumbing table, 2 SUPERSEDED designs that must NOT be implemented).
+    Inline landmark: **surefire's default CWD is the pom basedir**, NOT the `mvn -f` dir — why the
+    Java suites' `../../iscc-lib/tests/…` resolve.
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`), now
     gated. `streaming.rs`: `DataHasher`/`InstanceHasher` at crate root, `SumHasher` only via
     `streaming::`. iscc-wasm's `blake3 wasm32_simd` dep is feature-unification — **don't prune**.
@@ -106,17 +110,15 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     cmake (PyPI wheel), Kotlin (`./gradlew --offline`), C++ (bare `g++`) and Swift (`/tmp`
     toolchain) each fell to a second look after the docs said otherwise → `env-gotchas.md`.
 
-## Current State (assessed-at: 47a87bc, iter 163)
+## Current State (assessed-at: c331d4b, iter 164)
 
-- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `82b559d` (162 review): **45
-    check-runs, 23 names, 0 non-success**. HEAD `47a87bc` is one `cid(log)` commit ahead with an
-    EMPTY non-`.claude` diff — the 785-line runner rewrite flagged at 162 got pushed and passed, so
-    no tracked code is outside CI. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped; **0.5.0**).
-- **THE UNICODE WORK IS FINISHED.** 161 gated Swift (PASS) = surface **11 of 11**; all four
-    rust-core Unicode criteria MET and the umbrella issue is **gone from issues.md**. Rust core is
-    now met except `>= 1.0.0` (human-HELD). Everything met except CI/CD (partial).
-- **The backlog is now purely the authorized `[human]` items** — no CID-schedulable gap remains in
-    any target section. Expect define-next to pick the `specs/ci-cd.md` job table or a dep major.
+- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `95740f4` (163 review): **45
+    check-runs, 23 names, 0 non-success**. HEAD `c331d4b` is one `cid(log)` commit ahead with an
+    EMPTY non-`.claude` diff. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped; **0.5.0**).
+- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces) and **163 closed the ci-cd job-table
+    drift**. Rust core met except `>= 1.0.0` (human-HELD); everything met except CI/CD (partial).
+- **Only ONE CID-schedulable item left: the dependency-majors refresh, one per step.** Everything
+    else is human-held or a tripwire. Expect define-next to start with xunit 3.x + Test.Sdk 18.x.
 - **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** paths,
     matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
     `python-test`). Register new copies; keep canonical basenames (the gate discovers by basename).
@@ -127,14 +129,14 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     rulings**); context arrives via `.claude/skills/cid-ctx-<role>/SKILL.md` packs.
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
     wrong twice over); criterion boxes unchecked though all four hold. Human-owned — don't edit.
-- **Issues: 8** (3 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`; 156 lines — count
+- **Issues: 7** (2 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`; 142 lines — count
     headers, NOT priority tags: lines 3-4 are a legend that inflates a naive `grep -c`). AUTHORIZED
-    for CID: exhaustive `specs/ci-cd.md` job table; major dep bumps **one per step** (magnus 0.8 /
-    jni 0.22 = source rewrites; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x). The go1.27
-    entry is a standing tripwire, not schedulable. DEFERRED: npm OIDC. `iscc-core#137` human-only.
-- **Don't re-flag as DONE**: rubygems `@v2.1.0` pin 162, Swift vectors 161, C++ 160, C FFI 159,
-    sweep-gate hardening 158, sweep gate 157, `Final_Sigma` 156, C#+Kotlin 154, napi+Java 153, drift
-    gate 152, WASM+Ruby 151, Python+Go 150 (≤149 → `MEMORY-archive.md`).
+    for CID: major dep bumps **one per step** (magnus 0.8 / jni 0.22 = source rewrites; xunit 3.x,
+    Test.Sdk 18.x, Gradle wrapper, JUnit 6.x). The go1.27 entry is a standing tripwire, not
+    schedulable. DEFERRED: npm OIDC. `iscc-core#137` human-only.
+- **Don't re-flag as DONE**: ci-cd job table + parity gate 163, rubygems `@v2.1.0` pin 162, Swift
+    vectors 161, C++ 160, C FFI 159, sweep-gate hardening 158, sweep gate 157, `Final_Sigma` 156,
+    C#+Kotlin 154, napi+Java 153, drift gate 152, WASM+Ruby 151, Python+Go 150 (≤149 → archive).
 
 ## Gotchas
 
