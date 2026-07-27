@@ -80,16 +80,21 @@ metadata:
     `Case_Ignorable` (unobservable — scan skips ignorables first). Table placement: lowercase runs
     AFTER sentinel map + NFD, so context is scanned on the NFD'd string. Sweep evidence: 17,793,024
     comparisons (8 contexts × 2 fns × 1,112,064 scalars) — 3 divergences before, **0 after**.
-- Sweep gate (iter 157, spec criterion 4 CLOSED): `scripts/unicode_sweep.py` — permanent fail-closed
-    differential gate, oracle = installed `iscc_core` on CPython 3.14 (uniform 16.0.0 tables).
-    1,112,064 scalars × 8 `CONTEXTS` × 2 `FUNCTION_PAIRS` = 17,793,024 comparisons, ~60 s with a
-    --release extension. Guards: `check_oracle` (unidata must be 16.0.0), `check_extension_fresh`
-    (`.so` mtime vs newest `*.rs` under iscc-lib/src + iscc-py/src — safe because maturin always
-    rewrites the `.so`), scalar/comparison count asserts BEFORE the success line
-    `TOTAL 17793024 comparisons, 0 divergences`. Run via `mise run unicode:sweep` (rebuilds first)
-    or CI job `unicode-sweep` (21st job, CPython 3.14 + `--release`, standalone because the 3.10
-    matrix leg could only skip). Tests `tests/test_unicode_sweep.py` load it via importlib;
-    `sweep()` reads module globals at call time so the oracle is monkeypatchable.
+- Sweep gate (iter 157, hardened iter 158, spec criterion 4 CLOSED): `scripts/unicode_sweep.py` —
+    permanent fail-closed differential gate, oracle = installed `iscc_core` on CPython 3.14 (uniform
+    16.0.0 tables). 1,112,064 scalars × 8 `CONTEXTS` × 2 `FUNCTION_PAIRS` = 17,793,024 comparisons,
+    ~60 s with a --release extension. Guards: `check_rebuilt` (`--rebuilt` caller assertion — a bare
+    `uv run scripts/unicode_sweep.py` fails closed; only the mise task and CI job pass the flag,
+    right after their unconditional release build), `check_oracle` (unidata must be 16.0.0),
+    `check_extension_fresh` (`.so` mtime vs newest `*.rs` under iscc-lib/src + iscc-py/src; empty or
+    missing source dirs also fail closed), scalar/comparison count asserts BEFORE the success line
+    `TOTAL 17793024 comparisons, 0 divergences` (byte-frozen format — do not change). `sweep()`
+    returns `SweepResult(comparisons, divergences, samples)` — counts every divergence, retains at
+    most `MAX_REPORTED_DIVERGENCES` (20) samples so a broad regression can't OOM CI. Run via
+    `mise run unicode:sweep` (rebuilds first) or CI job `unicode-sweep` (21st job, CPython 3.14 +
+    `--release`, standalone because the 3.10 matrix leg could only skip). Tests
+    `tests/test_unicode_sweep.py` (14) load it via importlib; `sweep()` reads module globals at call
+    time so the oracle is monkeypatchable.
 - Pending: 3 binding surfaces (C FFI — needs a JSON reader or generated table, `tests/test_iscc.c`
     has no text coverage; C++ — no `cmake` in container; Swift — no `swift` toolchain in container,
     would add a tracked vendored copy that MUST be registered in `VENDORED_COPIES` of

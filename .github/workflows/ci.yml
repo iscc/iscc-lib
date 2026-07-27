@@ -452,4 +452,4 @@ jobs:
       - name: Build Python bindings (release)
         run: uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml
       - name: Run Unicode 16.0.0 differential sweep
-        run: uv run scripts/unicode_sweep.py
+        run: uv run scripts/unicode_sweep.py --rebuilt

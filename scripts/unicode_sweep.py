@@ -18,10 +18,12 @@ before success is reported, so a run that generated zero cases cannot read green
 CI-only (its own `unicode-sweep` job) plus the `mise run unicode:sweep` escape hatch:
 the sweep needs a --release extension build (~60 s even then) and CPython 3.14
 specifically — an older interpreter carries pre-16.0 Unicode tables and could only
-skip, which is exactly the fail-open shape this gate exists to avoid.
+skip, which is exactly the fail-open shape this gate exists to avoid. A bare
+invocation fails closed: the script requires the --rebuilt caller assertion that
+only those two paths supply, right after their unconditional release build.
 
 Usage:
-    uv run scripts/unicode_sweep.py
+    mise run unicode:sweep
 """
 
 from __future__ import annotations
@@ -43,6 +45,7 @@ EXPECTED_UNIDATA_VERSION = "16.0.0"
 EXPECTED_SCALAR_COUNT = 1_112_064
 EXPECTED_COMPARISONS = 17_793_024
 MAX_REPORTED_DIVERGENCES = 20
+REBUILD_FLAG = "--rebuilt"
 
 ROOT = Path(__file__).resolve().parent.parent
 # Rust sources whose edits invalidate the built extension module.
@@ -93,14 +96,25 @@ def scalar_values() -> Iterator[int]:
         yield code_point
 
 
-def sweep(scalars: Iterable[int]) -> tuple[int, list[Divergence]]:
+class SweepResult(NamedTuple):
+    """Outcome of a sweep: exact counts plus a bounded sample of divergences."""
+
+    comparisons: int
+    divergences: int  # every divergence, counted
+    samples: list[Divergence]  # at most MAX_REPORTED_DIVERGENCES, in sweep order
+
+
+def sweep(scalars: Iterable[int]) -> SweepResult:
     """Compare oracle and subject output for every scalar in every context.
 
-    Returns ``(comparison_count, divergences)``. Performs no printing; callers own
-    reporting and the fail-closed count assertions.
+    Every divergence is counted, but at most ``MAX_REPORTED_DIVERGENCES``
+    ``Divergence`` samples are retained (in sweep order), so a broad regression
+    cannot exhaust memory before any diagnostic is printed. Performs no printing;
+    callers own reporting and the fail-closed count assertions.
     """
     comparisons = 0
-    divergences: list[Divergence] = []
+    divergences = 0
+    samples: list[Divergence] = []
     for code_point in scalars:
         char = chr(code_point)
         for context, prefix, suffix in CONTEXTS:
@@ -110,10 +124,33 @@ def sweep(scalars: Iterable[int]) -> tuple[int, list[Divergence]]:
                 expected = oracle(case)
                 actual = subject(case)
                 if actual != expected:
-                    divergences.append(
-                        Divergence(function, context, code_point, expected, actual)
-                    )
-    return comparisons, divergences
+                    divergences += 1
+                    if len(samples) < MAX_REPORTED_DIVERGENCES:
+                        samples.append(
+                            Divergence(function, context, code_point, expected, actual)
+                        )
+    return SweepResult(comparisons, divergences, samples)
+
+
+def check_rebuilt(argv: Sequence[str]) -> None:
+    """Fail closed unless the caller rebuilt the extension in this invocation.
+
+    The mtime guard below cannot see a dependency-only (`cargo update`) or
+    toolchain-only (rustc bump) change — exactly the upgrades this gate exists to
+    validate — so a bare invocation could report a false green from a stale
+    extension. This flag hardens the decisions.md 2026-07-27 operating rule
+    (always run the sweep through `mise run unicode:sweep`, never the script
+    directly) into a refusal rather than reversing it: only the mise task and the
+    CI job pass the flag, both right after an unconditional release build.
+    Residual: the flag is a caller *assertion*, so a human who passes it without
+    rebuilding is trusted.
+    """
+    if REBUILD_FLAG not in argv:
+        raise SystemExit(
+            f"refusing to sweep without {REBUILD_FLAG}: a bare invocation can "
+            "measure an extension that predates a dependency or toolchain "
+            "change; run `mise run unicode:sweep` instead"
+        )
 
 
 def check_oracle(unidata_version: str) -> None:
@@ -130,13 +167,17 @@ def check_extension_fresh(extension: Path, source_dirs: Sequence[Path]) -> None:
     """Fail closed when any Rust source is newer than the built extension module.
 
     A stale gitignored extension silently measures the previous commit, so the sweep
-    refuses to run against one.
+    refuses to run against one. An empty source set also fails: a guard that found
+    nothing to compare against has observed nothing.
     """
+    sources = [path for src in source_dirs for path in src.rglob("*.rs")]
+    if not sources:
+        searched = ", ".join(str(src) for src in source_dirs)
+        raise SystemExit(
+            f"no *.rs sources found under {searched}; cannot check freshness"
+        )
     extension_mtime = extension.stat().st_mtime
-    newest_source = max(
-        (path.stat().st_mtime for src in source_dirs for path in src.rglob("*.rs")),
-        default=0.0,
-    )
+    newest_source = max(path.stat().st_mtime for path in sources)
     if newest_source > extension_mtime:
         raise SystemExit(
             f"{extension} is older than the Rust sources; rebuild and rerun via "
@@ -144,8 +185,9 @@ def check_extension_fresh(extension: Path, source_dirs: Sequence[Path]) -> None:
         )
 
 
-def main() -> int:
+def main(argv: Sequence[str]) -> int:
     """Run the fail-closed differential sweep over the full scalar space."""
+    check_rebuilt(argv)
     check_oracle(unicodedata.unidata_version)
     extension_file = _lowlevel.__file__
     if extension_file is None:
@@ -156,24 +198,28 @@ def main() -> int:
         raise SystemExit(
             f"expected {EXPECTED_SCALAR_COUNT} scalar values, got {len(scalars)}"
         )
-    comparisons, divergences = sweep(scalars)
-    if comparisons != EXPECTED_COMPARISONS:
+    result = sweep(scalars)
+    if result.comparisons != EXPECTED_COMPARISONS:
         raise SystemExit(
-            f"expected {EXPECTED_COMPARISONS} comparisons, got {comparisons}"
+            f"expected {EXPECTED_COMPARISONS} comparisons, got {result.comparisons}"
         )
     print(
         f"oracle: iscc-core {iscc_core.__version__}, "
         f"unidata {unicodedata.unidata_version}, "
         f"python {platform.python_version()}"
     )
-    for div in divergences[:MAX_REPORTED_DIVERGENCES]:
+    for div in result.samples:
         print(
             f"DIVERGENCE {div.function} [{div.context}] U+{div.code_point:04X}: "
             f"expected {div.expected!r}, got {div.actual!r}"
         )
-    print(f"TOTAL {comparisons} comparisons, {len(divergences)} divergences")
-    return 1 if divergences else 0
+    if result.divergences > len(result.samples):
+        print(
+            f"showing first {len(result.samples)} of {result.divergences} divergences"
+        )
+    print(f"TOTAL {result.comparisons} comparisons, {result.divergences} divergences")
+    return 1 if result.divergences else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

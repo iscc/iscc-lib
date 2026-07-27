@@ -160,7 +160,7 @@ description = "Differential sweep of text_clean/text_collapse against iscc-core 
 # and a stale one silently measures the previous commit.
 run = """
 uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml &&
-uv run scripts/unicode_sweep.py
+uv run scripts/unicode_sweep.py --rebuilt
 """
 
 # --- Supply-chain audit ---

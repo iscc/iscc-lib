@@ -41,7 +41,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver, coverage, audit,
     release-workflow, unicode-sweep). `bench` = `cargo bench --no-run`; `swift` on macos-14;
     `kotlin` ubuntu JDK 17 + gradlew test; `unicode-sweep` = CPython 3.14 + release extension,
-    `mise run unicode:sweep` locally (→ unicode-freeze.md)
+    `mise run unicode:sweep` locally — bare `uv run scripts/unicode_sweep.py` fails closed without
+    `--rebuilt` (→ unicode-freeze.md)
 - Enforcing gates: `coverage` (CRAP baseline `.crap-baseline.json`), `audit` (cargo-deny,
     `deny.toml`), `perf` (iai vs `.iai-baseline.json`); `semver` informational until v1.0.0. CRAP
     gate is CI-ONLY — refresh baseline (`mise run crap:baseline`) in the SAME step as any

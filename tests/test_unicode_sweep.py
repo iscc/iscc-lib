@@ -2,9 +2,10 @@
 
 The full 17.8M-comparison sweep is CI-only (its own job on CPython 3.14); this suite
 pins the gate's fail-closed machinery fast and portably: the scalar denominator, the
-comparisons-per-scalar arithmetic, the oracle-version and stale-extension guards, and
-— by monkeypatching the oracle to a wrong answer — that the comparison itself is
-load-bearing rather than always-equal. Zero-divergence checks are guarded by the
+comparisons-per-scalar arithmetic, the rebuild-assertion, oracle-version and
+stale-extension guards, the bounded divergence retention, and — by monkeypatching
+the oracle to a wrong answer — that the comparison itself is load-bearing rather
+than always-equal. Zero-divergence checks are guarded by the
 interpreter's Unicode data version, since the oracle is only uniform 16.0.0 on
 CPython 3.14.
 """
@@ -57,8 +58,8 @@ def test_expected_comparisons_arithmetic():
 
 def test_sweep_comparison_count():
     """sweep() performs contexts x functions comparisons per scalar."""
-    count, _divergences = us.sweep(SMALL_SCALARS)
-    assert count == len(SMALL_SCALARS) * len(us.CONTEXTS) * 2
+    result = us.sweep(SMALL_SCALARS)
+    assert result.comparisons == len(SMALL_SCALARS) * len(us.CONTEXTS) * 2
 
 
 @pytest.mark.skipif(
@@ -67,8 +68,9 @@ def test_sweep_comparison_count():
 )
 def test_sweep_zero_divergences_on_boundary_scalars():
     """The boundary-heavy sample diverges nowhere when the oracle is uniform 16.0.0."""
-    _count, divergences = us.sweep(SMALL_SCALARS)
-    assert divergences == []
+    result = us.sweep(SMALL_SCALARS)
+    assert result.divergences == 0
+    assert result.samples == []
 
 
 def test_sweep_reports_divergence_with_wrong_oracle(monkeypatch):
@@ -78,13 +80,29 @@ def test_sweep_reports_divergence_with_wrong_oracle(monkeypatch):
         for name, _oracle, subject in us.FUNCTION_PAIRS
     )
     monkeypatch.setattr(us, "FUNCTION_PAIRS", patched)
-    count, divergences = us.sweep([0x0041])
-    assert count == len(us.CONTEXTS) * 2
-    assert len(divergences) == count
-    sample = divergences[0]
+    result = us.sweep([0x0041])
+    assert result.comparisons == len(us.CONTEXTS) * 2
+    assert result.divergences == result.comparisons
+    assert len(result.samples) == result.divergences  # 16 < the 20-sample cap
+    sample = result.samples[0]
     assert sample.code_point == 0x0041
     assert sample.expected == "wrong-oracle"
     assert sample.actual != sample.expected
+
+
+def test_sweep_caps_retained_samples_with_wrong_oracle(monkeypatch):
+    """Every divergence is counted exactly, but retention stops at the sample cap."""
+    patched = tuple(
+        (name, lambda _text: "wrong-oracle", subject)
+        for name, _oracle, subject in us.FUNCTION_PAIRS
+    )
+    monkeypatch.setattr(us, "FUNCTION_PAIRS", patched)
+    scalars = list(range(0x0041, 0x0041 + 30))
+    result = us.sweep(scalars)
+    assert result.comparisons == 480
+    assert result.divergences == 480
+    assert len(result.samples) == us.MAX_REPORTED_DIVERGENCES
+    assert result.samples[0].code_point == scalars[0]  # retained in sweep order
 
 
 def _delete_unassigned(text):
@@ -116,11 +134,23 @@ def test_contexts_discriminate_the_delete_filter_design(monkeypatch):
         ("text_collapse", iscc_core.text_collapse, _delete_filter_collapse),
     )
     monkeypatch.setattr(us, "FUNCTION_PAIRS", patched)
-    _count, divergences = us.sweep([0x0378])  # unassigned in every Unicode version
-    exposed = {(div.function, div.context) for div in divergences}
+    result = us.sweep([0x0378])  # unassigned in every Unicode version
+    exposed = {(div.function, div.context) for div in result.samples}
     assert ("text_clean", "base_mark") in exposed  # base + Cn + mark
     assert ("text_clean", "jamo") in exposed  # jamo + Cn + jamo
     assert ("text_collapse", "sigma") in exposed  # Sigma + Cn + cased
+
+
+def test_check_rebuilt_missing_flag_fails_closed():
+    """A bare invocation is refused, naming the authoritative mise task."""
+    with pytest.raises(SystemExit) as exc:
+        us.check_rebuilt([])
+    assert "mise run unicode:sweep" in str(exc.value)
+
+
+def test_check_rebuilt_accepts_flag():
+    """The caller assertion passes the guard."""
+    assert us.check_rebuilt([us.REBUILD_FLAG]) is None
 
 
 def test_check_oracle_rejects_pre_16_tables():
@@ -151,6 +181,19 @@ def test_check_extension_fresh_current_passes(tmp_path):
     os.utime(extension, (2_000_000, 2_000_000))
     os.utime(rust_source, (1_000_000, 1_000_000))
     us.check_extension_fresh(extension, [source_dir])
+
+
+def test_check_extension_fresh_rejects_missing_sources(tmp_path):
+    """Empty and missing source directories both fail closed, naming the paths."""
+    extension = tmp_path / "_lowlevel.abi3.so"
+    extension.write_bytes(b"")
+    empty_dir = tmp_path / "empty-src"
+    empty_dir.mkdir()
+    missing_dir = tmp_path / "missing-src"
+    for source_dir in (empty_dir, missing_dir):
+        with pytest.raises(SystemExit) as exc:
+            us.check_extension_fresh(extension, [source_dir])
+        assert str(source_dir) in str(exc.value)
 
 
 def _freshness_fixture(tmp_path):
