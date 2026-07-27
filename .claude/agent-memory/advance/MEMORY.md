@@ -37,10 +37,11 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 ## Build and Tooling
 
 - `cargo build -p iscc-jni` before `mvn test -f crates/iscc-jni/java/pom.xml` (native lib prereq)
-- CI `.github/workflows/ci.yml`: 20 jobs (version-check, rust, python-test, python, nodejs, wasm,
+- CI `.github/workflows/ci.yml`: 21 jobs (version-check, rust, python-test, python, nodejs, wasm,
     c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver, coverage, audit,
-    release-workflow). `bench` = `cargo bench --no-run`; `swift` on macos-14; `kotlin` ubuntu JDK 17
-    \+ gradlew test
+    release-workflow, unicode-sweep). `bench` = `cargo bench --no-run`; `swift` on macos-14;
+    `kotlin` ubuntu JDK 17 + gradlew test; `unicode-sweep` = CPython 3.14 + release extension,
+    `mise run unicode:sweep` locally (→ unicode-freeze.md)
 - Enforcing gates: `coverage` (CRAP baseline `.crap-baseline.json`), `audit` (cargo-deny,
     `deny.toml`), `perf` (iai vs `.iai-baseline.json`); `semver` informational until v1.0.0. CRAP
     gate is CI-ONLY — refresh baseline (`mise run crap:baseline`) in the SAME step as any

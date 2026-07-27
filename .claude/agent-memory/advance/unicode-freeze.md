@@ -80,13 +80,20 @@ metadata:
     `Case_Ignorable` (unobservable — scan skips ignorables first). Table placement: lowercase runs
     AFTER sentinel map + NFD, so context is scanned on the NFD'd string. Sweep evidence: 17,793,024
     comparisons (8 contexts × 2 fns × 1,112,064 scalars) — 3 divergences before, **0 after**.
+- Sweep gate (iter 157, spec criterion 4 CLOSED): `scripts/unicode_sweep.py` — permanent fail-closed
+    differential gate, oracle = installed `iscc_core` on CPython 3.14 (uniform 16.0.0 tables).
+    1,112,064 scalars × 8 `CONTEXTS` × 2 `FUNCTION_PAIRS` = 17,793,024 comparisons, ~60 s with a
+    --release extension. Guards: `check_oracle` (unidata must be 16.0.0), `check_extension_fresh`
+    (`.so` mtime vs newest `*.rs` under iscc-lib/src + iscc-py/src — safe because maturin always
+    rewrites the `.so`), scalar/comparison count asserts BEFORE the success line
+    `TOTAL 17793024 comparisons, 0 divergences`. Run via `mise run unicode:sweep` (rebuilds first)
+    or CI job `unicode-sweep` (21st job, CPython 3.14 + `--release`, standalone because the 3.10
+    matrix leg could only skip). Tests `tests/test_unicode_sweep.py` load it via importlib;
+    `sweep()` reads module globals at call time so the oracle is monkeypatchable.
 - Pending: 3 binding surfaces (C FFI — needs a JSON reader or generated table, `tests/test_iscc.c`
     has no text coverage; C++ — no `cmake` in container; Swift — no `swift` toolchain in container,
     would add a tracked vendored copy that MUST be registered in `VENDORED_COPIES` of
-    `tests/test_vendored_fixtures.py`); full-code-space + sequence-class differential sweep wired in
-    as a permanent gate (spec requirement 4 — probe script shape in next.md iter 156 /
-    `/tmp/unicode_sweep_probe.py`; must be fail-closed, assert `unidata_version == "16.0.0"` and
-    `total == 17_793_024`).
+    `tests/test_vendored_fixtures.py`).
 - GOTCHA (iter 149): writing `\uXXXX` escape text into the ASCII-escaped fixture via the Edit tool
     decodes it into literal UTF-8 chars. Write fixture JSON with Python
     (`json.dumps(..., ensure_ascii=True, indent=2)` + trailing newline round-trips the file
