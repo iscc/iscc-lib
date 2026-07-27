@@ -903,3 +903,12 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
 
 `advance` runs on Claude Fable 5 (`model: fable`, `effort: xhigh`, timeout 3600 s); every other role
 runs on `opus`. Deliberate — do not "unify" them.
+
+## v0.6.0 dependency refresh + ruff 0.16 adoption (archived iter 159 — all nine slices CLOSED)
+
+- **CLOSED** (iters 124–140; per-slice detail already in this archive and in `issues.md`). Live
+    rules that were carried in `learnings.md`: ruff is pinned at **0.16.0**; preview a major with
+    `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); new rules go in
+    `[tool.ruff.lint]   extend-select`, never `select`; **never run `ruff check --fix .`** without
+    an explicit `--select` — it deletes load-bearing `# noqa` directives (this last rule is also
+    recorded in the `issues.md` dependency entry, which remains open for the human-gated majors).

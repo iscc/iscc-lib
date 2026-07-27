@@ -49,7 +49,9 @@ strengths / blind spots / how to weigh a finding). Stale in `MEMORY-archive.md`.
 - **Writing `\uXXXX` through Edit/Write decodes it to literal UTF-8** (iter 149, bit both advance
     and review) — edit ASCII-escaped files via Python and assert `isascii()` + numeric `ord()` →
     `review-patterns.md` "Escape-decoding trap". `tests/test_vendored_fixtures.py` gates the
-    canonical `unicode_boundary.json` for this
+    canonical `unicode_boundary.json` for this. Same trap in **bash**: a next.md criterion of the
+    form `python -c "… '\\x' not in t …"` dies with a `SyntaxError` because double quotes eat one
+    backslash — run it from a quoted heredoc before calling the criterion failed (159)
 - **`mise run check` mdformat on context files** (intermittent): define-next may write `next.md` /
     `MEMORY.md` non-conforming, so `prek --all-files` reformats them (NOT an advance regression) and
     pre-push mdformat WILL reject the batch — `git status --porcelain` right after `mise run check`
@@ -64,10 +66,10 @@ strengths / blind spots / how to weigh a finding). Stale in `MEMORY-archive.md`.
     contract (delete-filter and category-override both RULED OUT), the ban on a bare
     `.to_lowercase()` in `text_collapse`, the `mise run unicode:sweep` gate (a bare script run
     REFUSES since 158 — `--rebuilt` is a *trusted* caller assertion), boundary-vector propagation
-    (**8 of 11** bindings gated; C FFI / C++ / Swift left — the C FFI does export
-    `iscc_text_clean`/`iscc_text_collapse`, so slice 5 is feasible), and "a binding can pass for the
-    WRONG reason — check the MECHANISM". Read it before reviewing any diff under `utils/unicode16*`,
-    `unicode_boundary.json` or `scripts/gen_unicode16_*`
+    (**9 of 11** bindings gated since 159; only C++ and Swift left, neither toolchain in this
+    container), and "a binding can pass for the WRONG reason — check the MECHANISM". Read it before
+    reviewing any diff under `utils/unicode16*`, `unicode_boundary.json` or
+    `scripts/gen_unicode16_*`
 - **Concurrent CID loops (iter 97, detail → `MEMORY-archive.md`)**: spurious `mise run check` "files
     modified" on an untouched file + a mid-review working-tree change = a SECOND loop racing.
     Confirm with `ps aux`; flag HUMAN REVIEW REQUESTED, do NOT push or kill processes
@@ -106,9 +108,14 @@ strengths / blind spots / how to weigh a finding). Stale in `MEMORY-archive.md`.
     check, pytest; `# noqa` and hook-mode probes → `dep-refresh-reviews.md` slice 8
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
     `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go` (empty)
-- **Binding boundary-fixture slices** (150/151/153/154) → `binding-reviews.md`, incl. the
+- **Binding boundary-fixture slices** (150/151/153/154/159) → `binding-reviews.md`, incl. the
     `cargo test -p iscc-wasm` = 0-tests trap and the **Gradle UP-TO-DATE stale-green trap** — always
-    ask "is the fixture a declared build input?" for SwiftPM / CMake / C-FFI next
+    ask "is the fixture a declared build input?" for SwiftPM / CMake next
+- **GENERATED tracked artifact for a JSON-less surface (159, C FFI; C++ will reuse it)**: verify by
+    **decoding the artifact back** and diffing against the fixture — `render() == tracked` proves
+    self-consistency, not correctness — then five mutations (expected value, dropped case + macro,
+    version macro, hand-edited artifact, fixture vector added without regen) → `binding-reviews.md`
+    "C FFI slice". Do NOT expect it in `VENDORED_COPIES`
 - **Ruby-only / Kotlin-only / published-`.pyi`** command sets → `binding-reviews.md` "Per-binding
     review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if

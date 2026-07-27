@@ -34,14 +34,16 @@ fully-met target sections to `learnings-archive.md`.
     in CI — call tools directly. Pre-push-**only** gates: clippy `-D warnings`, cargo test, pytest,
     `ty check` (the ruff `S`/`C901` scans also run pre-commit since iter 134)
 - **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (iter 133):
-    inline `# /// script` metadata, `uv run --script <path>`, path in `[tool.ty.src] exclude` —
-    keeps `uv.lock` hold-back-free. A dep a *pytest* test imports in-process cannot be PEP 723 and
-    must be a dev-group dep (iter 142, `pyyaml`). Generated Rust must be data-only + rustfmt-stable
+    inline `# /// script` metadata, `uv run --script <path>`, and `[tool.ty.src] exclude` **only if
+    it imports a non-project dep** (a stdlib-only generator needs no exclusion — iter 159). A dep a
+    *pytest* test imports in-process cannot be PEP 723 and must be a dev-group dep (142, `pyyaml`).
+    Generated Rust must be data-only + rustfmt-stable; generated C must be ASCII + LF + one trailing
+    newline, or the prek hygiene hooks rewrite it and break the regeneration-no-op gate
 - **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** (`benches/`
     import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally, E0432) — drop `--all-targets`
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
     dies until `sudo apt-get install -y valgrind` +
-    `cargo binstall -y iai-callgrind-runner --version 0.16.1` (MUST match the pin); CI mirrors this
+    `cargo binstall -y iai-callgrind-runner --version 0.16.1` (pin-matched); CI mirrors this
 - **A docs page lives in FOUR places — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
     `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`**
     (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
@@ -73,16 +75,21 @@ fully-met target sections to `learnings-archive.md`.
     `mise run unicode:sweep` + the `unicode-sweep` CI job — 1,112,064 scalars × 8 contexts × 2 fns
     vs installed `iscc-core` on CPython 3.14, must print the byte-frozen
     `TOTAL 17793024 comparisons, 0 divergences`. **Re-run it for every Unicode-table or toolchain
-    bump.** A bare `uv run scripts/unicode_sweep.py` now REFUSES — `--rebuilt` is a caller
-    *assertion* supplied only by those two rebuild-first paths, because the mtime guard is blind to
-    a `cargo update` / rustc bump. `sweep()` counts every divergence but retains only 20 samples, so
-    any test reading `result.samples` silently inherits that cap
+    bump.** A bare `uv run scripts/unicode_sweep.py` REFUSES (`--rebuilt` is a *caller assertion*,
+    only those two rebuild-first paths supply it); `sweep()` retains at most 20 samples, so any test
+    reading `result.samples` inherits that cap
 - **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141, +4
     **sequence** vectors iter 149; ASCII `\uXXXX`, `data.json`-shaped) + loader
     `tests/test_unicode_boundary.rs` — propagation source for every binding, deliberately NOT merged
     into `data.json`. The 4 single-code-point cases are **deletion-vs-sentinel agnostic**; only the
     sequence vectors gate that, and their expected values already differ from the delete-filter
-    ones, so a binding suite needs **no oracle column**. Live tally → `issues.md` (8 of 11)
+    ones, so a binding suite needs **no oracle column**. Live tally → `issues.md` (9 of 11)
+- **A surface with no JSON reader takes the fixture as a GENERATED, tracked artifact** (iter 159, C
+    FFI): a PEP 723 renderer writes `crates/iscc-ffi/tests/unicode_boundary_vectors.h` beside
+    `test_iscc.c` (quoted `#include` ⇒ no new `-I` in the CI gcc line); its drift gate is a pytest
+    `render(fixture) == tracked_header` anchor, **not** `VENDORED_COPIES` (byte-identical copies
+    only). Escape non-ASCII UTF-8 as **3-digit octal** (`\360`), never `\x` — C hex escapes are
+    greedy and unbounded
 - **A binding can pass a boundary vector for the WRONG reason** (iter 150): `packages/go` has no
     freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn`, so its category-`C` filter
     coincidentally matches. Under go1.27 five green cases flip red — never version-gate a skip list
@@ -112,8 +119,9 @@ fully-met target sections to `learnings-archive.md`.
     `crates/iscc-lib/tests/unicode_boundary.json` left `./gradlew test` `UP-TO-DATE` — a silent
     stale green (fixed with `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`; NONE hashes
     contents only, so the varying absolute path never forces a re-run). MSBuild `<Content Link=…>`
-    is safe by construction. Re-probe this for the Swift/C++/C-FFI slices; CI is immune either way
-    (fresh checkout, no build-dir cache)
+    is safe by construction. Re-probe this for the Swift/C++ slices; CI is immune either way (fresh
+    checkout, no build-dir cache). The C FFI dodges the class entirely — the fixture is a
+    *compile-time* include, and gcc is re-run unconditionally
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
@@ -139,10 +147,6 @@ fully-met target sections to `learnings-archive.md`.
     reads Cargo.lock, so green locally is authoritative. A yanked crate or fresh RustSec advisory
     reds it on ANY push with no code change — fix with `cargo update -p <crate>` (confirm dev-only
     reach: `cargo tree -i <crate> -e no-dev` = empty), NOT a `deny.toml` ignore
-- **v0.6.0 dep refresh + ruff 0.16 adoption are CLOSED** (iters 124–140 → archive). Live rules: ruff
-    **0.16.0**; preview a major with `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); rules go in
-    `[tool.ruff.lint] extend-select`, never `select`; **never `ruff check --fix .`** without
-    `--select`
 - **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
     dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = the tag misses). `.pyi` is
     tagged `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed iter 139).
@@ -160,15 +164,14 @@ fully-met target sections to `learnings-archive.md`.
     tags. Majors → `.claude/agent-memory/advance/deps-refresh.md`
 - **An action-major bump is statically verifiable far past "the tag exists"** — the `inputs`/
     `outputs` diff is automated (`--check-action-inputs`); what stays manual is every intervening
-    major's *default* changes. Recipe + the two silent biters (`setup-node@v5+` caching,
-    `checkout@v6+` token location) → `learnings-archive.md`
+    major's *default* changes (recipe + the two silent biters → `learnings-archive.md`)
 - **Prove a new gate with a REAL regression in a THROWAWAY repo, not a synthetic typo** (iters
     144/152): `git archive HEAD | tar -x -C /tmp/x && git init` gives a probe tree where `git add`/
     `git rm` are free. A **set-equality** gate passes vacuously on equal *empty* sets — count floor
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the
-    in-flight run of the previous sha (check-runs conclude `cancelled`, not `failure`); let it
-    conclude when a Done-When needs green CI on a specific sha. Each develop commit triggers TWO
-    runs (push + `pull_request` from the open develop→main PR), so totals are ~2× the job count
+    in-flight run of the previous sha (`cancelled`, not `failure`); let it conclude when a Done-When
+    needs green CI on a sha. Each develop commit triggers TWO runs (push + the open develop→main
+    PR), so totals are ~2× the job count
 
 ## CID Process
 

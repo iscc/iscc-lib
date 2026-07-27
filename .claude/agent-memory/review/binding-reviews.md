@@ -174,3 +174,33 @@ iter 152 every new tracked copy must also be registered in `VENDORED_COPIES` of
     slices never reach `git ls-files` or the drift gate.
 - Kotlin emits a pre-existing "Deprecated Gradle Version" warning (wrapper 8.12.1 vs Kotlin plugin
     2.4.10) — the wrapper bump is a separate authorized major, not this slice's regression.
+
+### C FFI slice (iter 159, ~15 min) — generated tracked artifact, NOT a vendored copy
+
+The C program has no JSON reader, so the fixture arrives as a **generated, tracked** pure-ASCII
+header `crates/iscc-ffi/tests/unicode_boundary_vectors.h` (renderer
+`scripts/gen_ffi_boundary_vectors.py`, PEP 723 stdlib-only). It is deliberately **absent** from
+`VENDORED_COPIES` — that gate is byte-identity only. Rationale → `decisions.md` 2026-07-27.
+
+- Commands: `cargo build -p iscc-ffi`; then the **verbatim ci.yml `c-ffi` gcc line** (proves no new
+    `-I`); `LD_LIBRARY_PATH=target/debug /tmp/test_iscc` → `80 passed, 0 failed`;
+    `gcc -Wall -Wextra -fsyntax-only …`; `uv run --script scripts/gen_ffi_boundary_vectors.py` then
+    `git status --porcelain -- <header>` empty. `iscc-ffi` has **no `[features]`**, so there is no
+    feature matrix to sweep and no risk the text symbols vanish from a non-default build.
+- **Decode the header independently — do not trust `render() == header`.** Parse the two arrays,
+    unescape the 3-digit octal (`\360`) back to code points, and diff every name/input/expected
+    against the fixture, plus both `#define …_COUNT` macros and the version macro. A self-consistent
+    generator and a *correct* one are different claims; the octal escaping is where a bug would
+    hide.
+- **Five mutations, all verified to red** (probe in `/tmp` — copy `test_iscc.c` + the header there,
+    a quoted `#include` still resolves): (1) delete-filter-shaped expected value (Final Sigma
+    `03C2`→`03C3`) → names the vector; (2) drop a case *and* its count macro → the hard-coded 7/5
+    metadata guard reds; (3) version macro → `17.0.0` → guard reds; (4) hand-edit one octal digit in
+    the tracked header → pytest drift anchor reds; (5) add a fixture vector without regenerating →
+    same anchor reds. (4)/(5) touch the work tree — wrap in a `trap … EXIT` `git checkout`.
+- Blind spots to state, not to fail on: the generator's `SECTIONS` dict silently ignores a *new*
+    fixture section (class-wide — no binding suite gates that), and deleting block 29 of
+    `test_iscc.c` outright reds nothing (also class-wide).
+- gcc 12.2 (this container) does **not** warn on `strcmp`-macro literal-vs-`NULL`, so the
+    `const char *` local advance added "for `-Waddress`" is harmless defensiveness, not a fix —
+    probe such a claim by compiling the un-localised form before repeating it.

@@ -880,3 +880,32 @@ iteration-157 review and independently reported by that iteration's Codex review
 by a bare-invocation probe (exit 1, empty stdout), two near-miss flag forms, a full green sweep, and
 an in-process `main()` run over 30 scalars with a wrong oracle (20 sample lines +
 `showing first 20 of 480 divergences` + the exact TOTAL line, return code 1).
+
+## 2026-07-27 — A vector fixture reaches a JSON-less surface as a generated, tracked source file
+
+**Decision:** the C FFI conformance surface consumes the canonical
+`crates/iscc-lib/tests/unicode_boundary.json` through a checked-in, generated C header
+(`crates/iscc-ffi/tests/unicode_boundary_vectors.h`, rendered by the PEP 723
+`scripts/gen_ffi_boundary_vectors.py`) rather than by parsing the fixture at test time. The header
+is deliberately **not** registered in the `VENDORED_COPIES` table of
+`tests/test_vendored_fixtures.py`; its equivalent guarantee is a pytest anchor asserting
+`render(fixture) == tracked_header` byte for byte. **Why:** `test_iscc.c` links only libc and the
+FFI `cdylib` — adding a JSON reader means either a new third-party C dependency in the CI gcc line
+(`gcc … -liscc_ffi -lpthread -ldl -lm`, which the C FFI job runs verbatim) or a hand-rolled parser
+whose bugs would be indistinguishable from conformance failures. Generation moves the parsing to
+Python, where it is already exercised, and leaves C with a plain `static const` array. Placing the
+header beside its includer makes a quoted `#include` resolve with no new `-I`, so the CI job is
+untouched. **Alternatives:** hand-pin the 12 expected strings in `test_iscc.c` — rejected, it is the
+silent-drift failure mode the whole propagation effort exists to prevent (the fixture is the single
+source of truth for 9 surfaces); hand-roll a JSON parser in C — rejected, more untested code than
+the thing under test; register the header in `VENDORED_COPIES` — rejected, that gate asserts
+*byte-identity with the fixture* and discovers copies by basename, so a derived artifact cannot
+satisfy it; generate the header at build time instead of tracking it — rejected, it would put a
+Python dependency in the C job and remove the reviewable diff. **Consequence:** two rules now travel
+with any future JSON-less surface (C++ is the next candidate): the generated file must be pure
+ASCII, LF-only, one trailing newline — otherwise the prek hygiene hooks rewrite it and red the no-op
+gate — and non-ASCII UTF-8 must be escaped as 3-digit octal, never `\x`, because C hex escapes are
+greedy and unbounded. **Context:** iteration 159 (`ea69169`), criterion 3 of the Unicode issue, 9 of
+11 surfaces. Verified at review by decoding the tracked header's octal escapes back to code points
+and diffing against the fixture, and by five mutations (expected value, dropped case, version macro,
+hand-edited header, fixture vector added without regeneration) — every one reds.

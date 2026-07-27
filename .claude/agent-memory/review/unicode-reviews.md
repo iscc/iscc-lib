@@ -83,8 +83,9 @@ context files assert it.
 
 `crates/iscc-lib/tests/unicode_boundary.json` (12 vectors: 4 single code points × 2 functions + 4
 sequences). Gated in Rust (141/149), Python + pure-Go (150), WASM + Ruby (151), napi + Java (153),
-C# + Kotlin (154) = **8 of 11**; C FFI, C++, Swift left. `git ls-files | grep unicode_boundary`
-under-counts — the Java/C#/Kotlin suites are `UnicodeBoundaryTest*.{java,cs,kt}`.
+C# + Kotlin (154), C FFI (159) = **9 of 11**; C++ and Swift left (neither toolchain is in this
+container). `git ls-files | grep unicode_boundary` under-counts — the Java/C#/Kotlin suites are
+`UnicodeBoundaryTest*.{java,cs,kt}`.
 
 - Single-code-point vectors are **deletion-agnostic**; only the 4 sequence vectors discriminate
     sentinel-vs-delete, and their expected values already differ from the delete-filter results, so
@@ -96,6 +97,9 @@ under-counts — the Java/C#/Kotlin suites are `UnicodeBoundaryTest*.{java,cs,kt
 - Fixtures are ASCII-escaped: writing `\uXXXX` through Edit/Write decodes it to literal UTF-8. Edit
     via Python and assert `isascii()` + numeric `ord()`. `tests/test_vendored_fixtures.py` gates
     byte-identity of the canonical file and every registered copy.
+- **A JSON-less surface gets a GENERATED tracked artifact, not a vendored copy** (159, C FFI; reuse
+    for C++). Do not look for it in `VENDORED_COPIES` — that table is byte-identical copies only,
+    and a derived file cannot satisfy it. Review recipe → `binding-reviews.md` "C FFI".
 
 ## Vendored DERIVED-property tables (iter 156)
 

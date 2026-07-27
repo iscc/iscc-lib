@@ -394,15 +394,27 @@ own `testcase` in the Gradle XML). 13 tests each, all 12 vectors, **zero skips**
 existing CI jobs unchanged. Review mutation-probed both the same two ways as slices 2/3. Review also
 added `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)` to the Kotlin `Test` task — without
 it a post-run fixture edit left `./gradlew test` `UP-TO-DATE` and silently skipped all 13 boundary
-tests (CI was never affected: fresh checkout, no build-dir cache). **3 surfaces left:** C FFI
-(`tests/test_iscc.c` has no JSON reader and no text-function coverage at all — needs a generated
-vector table or a hand-rolled reader), C++ (not buildable in this container — no `cmake`), Swift (no
-toolchain in this container; it is the one that would add a tracked vendored copy, which **must** be
-registered in `VENDORED_COPIES`), plus the four sibling `data.json` copies. (The running tally
-counts the 11 native bindings named in `docs/unicode.md`; `packages/go` is the separate pure-Go port
-and UniFFI is the shared mechanism behind Kotlin and Swift, not an independent surface. Note that
-`git ls-files | grep unicode_boundary` under-counts the tally — the Java/C#/Kotlin suites are named
-`UnicodeBoundaryTest.java`, `UnicodeBoundaryTests.cs` and `UnicodeBoundaryTest.kt`.)
+tests (CI was never affected: fresh checkout, no build-dir cache). ✅ **Propagation slice 5 done
+(iter 159): C FFI.** `crates/iscc-ffi/tests/test_iscc.c` has no JSON reader, so the fixture reaches
+it as a **generated, tracked** pure-ASCII header — `scripts/gen_ffi_boundary_vectors.py` (PEP 723,
+stdlib-only) renders `crates/iscc-ffi/tests/unicode_boundary_vectors.h`, which sits beside its
+includer so a quoted `#include` resolves with **no new `-I`** and `.github/workflows/ci.yml` is
+untouched. Block 29 of the C program runs a 3-assertion metadata guard (version, 7, 5) plus both
+sections through `iscc_text_clean`/`iscc_text_collapse`: **80 passed, 0 failed**, zero skips, and
+`gcc -Wall -Wextra` clean. The header is deliberately **not** in `VENDORED_COPIES` (it is derived,
+not byte-identical); its equivalent guarantee is the pytest anchor
+`tests/test_gen_ffi_boundary_vectors.py` (6 cases) asserting `render(fixture) == tracked_header`.
+Review decoded the header's octal escapes back to code points and diffed against the fixture, then
+mutation-probed five ways — wrong expected value, dropped case, drifted version macro, hand-edited
+header, and a fixture vector added without regenerating — each one reds. Design rationale (why not a
+C JSON parser, why not `VENDORED_COPIES`) → `decisions.md` 2026-07-27. **2 surfaces left:** C++ (not
+buildable in this container — no `cmake`; the generated-header mechanism is directly reusable) and
+Swift (no toolchain in this container; it is the one that would add a tracked vendored copy, which
+**must** be registered in `VENDORED_COPIES`), plus the four sibling `data.json` copies. (The running
+tally counts the 11 native bindings named in `docs/unicode.md`; `packages/go` is the separate
+pure-Go port and UniFFI is the shared mechanism behind Kotlin and Swift, not an independent surface.
+Note that `git ls-files | grep unicode_boundary` under-counts the tally — the Java/C#/Kotlin suites
+are named `UnicodeBoundaryTest.java`, `UnicodeBoundaryTests.cs` and `UnicodeBoundaryTest.kt`.)
 
 **Go — RULED by Titusz 2026-07-26: skip, do not vendor the delta.** `packages/go` skips the Unicode
 16.0 boundary vectors with an explicit tracking note (and an issue filed here) rather than vendoring
