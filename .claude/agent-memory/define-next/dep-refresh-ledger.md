@@ -169,12 +169,41 @@ budget → sliced by *decision content*, not by file count:
 
 Reproduce baselines with `uvx ruff@0.16.0 …` — it needs no lockfile change and the cache is warm.
 
+## Major bump B — Gradle wrapper 8.12.1 → 9.6.1 (scoped iter 165)
+
+Measured while scoping, all read-only:
+
+- Latest stable Gradle from `curl -s https://services.gradle.org/versions/current` = **9.6.1** (the
+    `/versions/all` list needs `not snapshot/nightly/rcFor/milestoneFor` filtering).
+- **A plugin's Gradle compatibility window is readable from its jar** — much better evidence than a
+    docs table: fetch the highest `-gradleNN` variant
+    (`repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugin/<v>/…-gradle88.jar`), unzip,
+    `strings org/jetbrains/kotlin/gradle/internal/diagnostics/GradleCompatibilityCheck.class`. KGP
+    2.4.10 holds exactly two versions: `minSupportedGradleVersion` 7.6.3 and
+    `nextMinimumSupportedGradleVersion` 8.14.4 — **no upper bound**, so the older memory claim "KGP
+    2.4.x supports 7.6.3–9.5.0" was a docs-table ceiling, not an enforced one, and 8.12.1 < 8.14.4
+    is why the tree already emits KGP's "Deprecated Gradle Version" warning.
+- Gradle 9 raises the **daemon** JVM floor to 17 (local 17.0.19, CI temurin 17 → no floor move) and
+    **removes the auto-injected `junit-platform-launcher`**, which makes the existing explicit
+    `testRuntimeOnly(...:1.14.4)` load-bearing for a new reason. Configuration cache is NOT on by
+    default in 9.x (the 9.x upgrade guide's deprecations are all conditioned on it being enabled).
+- Wrapper = 4 tracked tool-generated files (`gradle-wrapper.{properties,jar}`, `gradlew`,
+    `gradlew.bat`); jar 43 KB < the 256 KB `check-added-large-files` cap. Gradle writes
+    `gradlew.bat` CRLF but the repo stores it **LF** (`.gitattributes` `* text=auto eol=lf` +
+    `mixed-line-ending --fix=lf`) — `mise run format` before `git add`.
+- Only two places name the wrapper version: the launcher comment in
+    `packages/kotlin/build.gradle.kts` and `packages/kotlin/CLAUDE.md` ("Gradle 8.x" prerequisite).
+    No workflow, README, howto or mise pin does (`mise.toml` has no gradle/java entry at all).
+- Kotlin suite size for count assertions: `build/test-results/test/TEST-…ConformanceTest.xml`
+    `tests="9"` + `…UnicodeBoundaryTest.xml` `tests="13"`.
+
 ## Remaining after slice 8
 
 `release.yml` GHA refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` move as a pair;
 nothing in it is exercised by a CID push → human-timed), the magnus 0.8 / jni 0.22 / uniffi 0.32
-migrations (each its own step with a source rewrite), and the Gradle wrapper 8.12.1 + JUnit 6.x
-majors.
+migrations (each its own step with a source rewrite), and JUnit 6.x (both JVM manifests, platform
+artifacts renumbered 1.x→6.x — take it *after* the wrapper is on 9.x so the two failure modes stay
+separable).
 
 ## Handy version-lookup commands
 

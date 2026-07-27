@@ -27,9 +27,11 @@ iterations.
     than starting blank, but **re-derive every numeric invariant it asserts** (they become
     hard-coded `EXPECTED_*`). A timeout is **not** a bounce — no advance/review ran; say so in
     `## Goal`.
+- **A remembered "supported versions" range is a docs ceiling, not an enforced one — read the
+    constant out of the tool's own artifact** (165: KGP's `GradleCompatibilityCheck.class` has a min
+    and a deprecation threshold, no max; recipe → [ledger](dep-refresh-ledger.md)).
 - **Run the expensive probe while scoping when it can invert the plan** — the ~60 s sweep reordered
-    the milestones at 155/157; the 5-min Swift toolchain fetch at 161 killed a 10-iteration-old
-    veto.
+    the milestones at 155/157; the 5-min Swift fetch at 161 killed a 10-iteration-old veto.
 - **Generated/tool-output files (Cargo.lock, bindings) don't count toward the 3-file limit**; doc
     files are also excluded — can batch all howto guides in one step.
 - Batch related small changes (version sync + docs; several fixes in one crate). **IDLE is valid**
@@ -82,12 +84,12 @@ iterations.
 ## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
 
 - v0.5.0 released; all 12 bindings meet core criteria; the 4 spec'd v0.6.0 feature issues are DONE;
-    the **Unicode chain is CLOSED at iter 161** (11 of 11 surfaces). Backlog order: the rubygems
-    `@v2.1.0` pin (162), the `specs/ci-cd.md` job table + parity gate (163), then the authorized
-    major bumps one per step — xunit v3 + Test.Sdk 18.x (**scoped 164**), Gradle wrapper, JUnit 6.x,
-    then `jni` 0.22 / `magnus` 0.8 (API rewrites; park rather than guess); per-major facts →
-    [dep-refresh ledger](dep-refresh-ledger.md). Trigger-only: go1.27 + the Go freeze table (~Aug
-    2026). HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm OIDC (token good to 2026-09-16).
+    the **Unicode chain is CLOSED at iter 161** (11 of 11 surfaces). Backlog: rubygems `@v2.1.0` pin
+    (162), ci-cd job-table gate (163), then the authorized majors one per step — xunit v3 (164),
+    Gradle wrapper 9.6.1 (**scoped 165**), JUnit 6.x, then `jni` 0.22 / `magnus` 0.8 (API rewrites;
+    park rather than guess); per-major facts → [dep-refresh ledger](dep-refresh-ledger.md).
+    Trigger-only: go1.27 + the Go freeze table (~Aug 2026). HELD `low` by Titusz: v1.0.0 +
+    Semver-enforcing, npm OIDC (token good to 2026-09-16).
 - **iters 115–123 DONE (detail in MEMORY-archive.md)**. **Root lesson: the CRAP regression gate is
     CI-ONLY** — a step adding a branch to a covered fn MUST refresh the baseline in it.
 - **iters 124–137 = the dependency-refresh slices, all 8 CLOSED** → ledger, gotchas, hold-backs,
