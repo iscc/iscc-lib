@@ -3,7 +3,7 @@
 Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-archive.md` (gate
 internals, release internals, closed milestones), `dep-refresh-survey.md` (pin inventory),
 `unicode-contract.md`, `quality-gates.md`, `lint-tooling.md`, `env-gotchas.md`. **Size budget: under
-140 lines** — archive detail eagerly; the hard cap from the agent prompt is 200.
+150 lines** — archive detail eagerly; the hard cap from the agent prompt is 200.
 
 ## Exploration Shortcuts
 
@@ -27,11 +27,11 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     `docs/includes/abbreviations.md`, a snippet); `docs/howto/*.md` 11; speedups 1.3x-158x; ffi
     extern **47** (`'#\[unsafe(no_mangle)\]'`; bare `no_mangle` gives 48); iscc-lib `#[test]`
     **342** (glob `git ls-files 'crates/iscc-lib/**/*.rs'`; `src/` alone gives 288); `packages/go`
-    `^func Test` **177**; CRAP `entries` **105**; pytest **441** at 164
+    `^func Test` **177**; Kotlin `@Test` **9 + 3** source annotations → **9 + 13** reported cases
+    (the boundary suite is parameterized); CRAP `entries` **105**; pytest **441** at 164
     (`uv run pytest --collect-only -q`).
 - **YAML probes need `uv run python`** — the bare system `python3` has NO `yaml` module. Job-table
-    parity in one shot: PyYAML `['jobs']` keys vs a regex for first-column backticked cells in
-    `ci-cd.md`; both sets were 21 with no diffs at 164.
+    parity is gated since 163; probe by hand only if the gate itself is suspect.
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` are both
     importable under `uv run python`, so any reference-vs-core probe needs **no build** — but check
     `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` mtime first (stale `.so` silently measures
@@ -108,37 +108,36 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     cmake (PyPI wheel), Kotlin (`./gradlew --offline`), C++ (bare `g++`) and Swift (`/tmp`
     toolchain) each fell to a second look after the docs said otherwise → `env-gotchas.md`.
 
-## Current State (assessed-at: 0d9ac0f, iter 165)
+## Current State (assessed-at: f2a0f3e, iter 166)
 
-- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `75b8810` (164 review): **45
-    check-runs, 23 names, 0 non-success**. HEAD `0d9ac0f` is one `cid(log)` commit ahead with an
+- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `7e1a8b7` (165 review): **45
+    check-runs, 23 names, 0 non-success**. HEAD `f2a0f3e` is one `cid(log)` commit ahead with an
     EMPTY non-`.claude` diff. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped; **0.5.0**).
-- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces); 163 closed the ci-cd job-table drift;
-    **164 closed the dotnet dep major** (`xunit.v3` 3.\* / Test.Sdk 18.\* + `<OutputType>Exe</…>`;
-    104 results both before and after). Rust core met except `>= 1.0.0` (human-HELD); everything met
-    except CI/CD (partial).
+- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces); 163 closed the ci-cd job-table drift,
+    164 the dotnet dep major, **165 the Kotlin Gradle wrapper 8.12.1 → 9.6.1** (only
+    `packages/kotlin/`; 9 + 13 test cases unmoved). Rust core met except `>= 1.0.0` (human-HELD);
+    everything met except CI/CD (partial).
 - **Only ONE CID-schedulable item left: the dependency-majors refresh, one per step.** Everything
-    else is human-held or a tripwire. Next up is the JVM slice (Gradle wrapper, JUnit 6.x — two
-    build systems, splittable), then `jni` 0.22 / `magnus` 0.8.
+    else is human-held or a tripwire. Next up is **JUnit 6.x** (5.14.4 in BOTH
+    `packages/kotlin/build.gradle.kts` and `crates/iscc-jni/java/pom.xml`; the launcher renumbers
+    1.14.x → 6.x), then `jni` 0.22 / `magnus` 0.8.
 - **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** paths,
     matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
     `python-test`). Register new copies; keep canonical basenames (the gate discovers by basename).
     Generated artifacts are derived and must stay OUT. A 13th vector now costs **12 suites**.
-- **Loop infra (162):** `ARTIFACT_BUDGETS` in `tools/cid.py` caps next 120 / **state 200** / handoff
-    100 / issues 300 / learnings 200 / decisions 400; `decisions.md` rotates into
-    `decisions-archive.md` (**grep BOTH**); context = `.claude/skills/cid-ctx-<role>/SKILL.md`
-    packs.
+- **Loop infra (162):** `ARTIFACT_BUDGETS` in `tools/cid.py` caps **state 200** (next 120, handoff
+    100, issues 300); `decisions.md` rotates into `decisions-archive.md` (**grep BOTH**); role
+    context = `.claude/skills/cid-ctx-<role>/SKILL.md` packs.
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
     wrong twice over); criterion boxes unchecked though all four hold. Human-owned — don't edit.
-- **Issues: 7** (2 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`; 141 lines — count
+- **Issues: 7** (2 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`; 142 lines — count
     headers, NOT priority tags: lines 3-4 are a legend that inflates a naive `grep -c`). AUTHORIZED
-    for CID: major dep bumps **one per step** (Gradle wrapper, JUnit 6.x, then magnus 0.8 / jni 0.22
-    = source rewrites; `release.yml` actions). The go1.27 entry is a standing tripwire, not
-    schedulable. DEFERRED: npm OIDC. `iscc-core#137` human-only.
-- **Don't re-flag as DONE**: dotnet xunit v3 164, ci-cd job table + parity gate 163, rubygems
-    `@v2.1.0` pin 162, Swift vectors 161, C++ 160, C FFI 159, sweep-gate hardening 158, sweep gate
-    157, `Final_Sigma` 156, C#+Kotlin 154, napi+Java 153, drift gate 152, WASM+Ruby 151, Python+Go
-    150 (≤149 → archive).
+    for CID: major dep bumps **one per step** (JUnit 6.x, then magnus 0.8 / jni 0.22 = source
+    rewrites). The `release.yml` actions slice CLOSED at 140 — don't re-list it. The go1.27 entry is
+    a standing tripwire, not schedulable. DEFERRED: npm OIDC. `iscc-core#137` human-only.
+- **Don't re-flag as DONE**: Kotlin Gradle wrapper 9.6.1 165, dotnet xunit v3 164, ci-cd job table +
+    parity gate 163, rubygems `@v2.1.0` pin 162, Swift vectors 161, C++ 160, C FFI 159 (≤158 →
+    archive).
 
 ## Gotchas
 
@@ -146,7 +145,9 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
 - **mdformat** aborts commits on rewrap edge cases (list → `lint-tooling.md`). Run it yourself right
     after writing, then **grep the result for `` `…  …` `` (2+ spaces inside backticks)** — a code
     span straddling a line break gets joined with the indent whitespace and silently corrupts the
-    path. It bit again at 161; reword so each span fits on one line, then re-run once.
+    path. It bit again at 161; reword so each span fits on one line, then re-run once. **Bare
+    `uv run mdformat` is NOT the hook** — it flattens ordered lists to `1.` and the pinned hook
+    reverts it, so the commit still fails once; use `uv run prek run mdformat --files <f>`.
 - **Toolchain presence (and the `$PATH`-is-not-the-whole-story fallbacks), invisible exec bits,
     case-sensitive binding-API greps, csbindgen/UniFFI/JNA side effects, the Go probe recipe →
     `env-gotchas.md`.**

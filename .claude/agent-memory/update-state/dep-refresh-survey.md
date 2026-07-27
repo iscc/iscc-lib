@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-# Dependency-refresh survey (10 slices closed; last updated iteration 165)
+# Dependency-refresh survey (11 slices closed; last updated iteration 166)
 
 Backing detail for the sliced `normal` `[human]` issue "Dependency review and refresh across the
 project" (spec: `.claude/context/specs/ci-cd.md` → Dependency Freshness). MEMORY.md keeps only a
@@ -93,10 +93,20 @@ purpose: `dotnet test -e` (VSTest-only) carries `LD_LIBRARY_PATH` for the P/Invo
 Closed as **verified current, no edit needed** (iter 129): napi `package.json` (`@napi-rs/cli: ^3`
 covers 3.7.4) — editing it is churn.
 
-**All 9 original slices plus the dotnet major are CLOSED.** Remaining under the parent issue,
-authorized for CID one per step: Gradle wrapper 8.12.1 + JUnit 6.x (two build systems — Gradle in
-`packages/kotlin`, Maven in `crates/iscc-jni/java/pom.xml`; independently verifiable, sequence the
-wrapper first), then `jni` 0.22 and `magnus` 0.8 (source rewrites, riskiest).
+**Slice 11 — Kotlin Gradle wrapper major (iter 165):** 8.12.1 → **9.6.1**. Only `packages/kotlin/`
+moved: the four `wrapper`-task outputs (`gradle-wrapper.jar` + `.properties` + `gradlew` +
+`gradlew.bat`), a comment block in `build.gradle.kts`, one `CLAUDE.md` prerequisite line. The
+`.properties` gains `retries=0` / `retryBackOffMs=500` — tool-generated defaults, not hand-added.
+**Gradle 9 no longer auto-injects a JUnit platform launcher**, so the existing
+`testRuntimeOnly junit-platform-launcher` is now load-bearing rather than merely version-aligning.
+Test totals unmoved (9 + 13 cases). The CI `kotlin` job downloads 9.6.1 on a fresh checkout — the
+green run on the review sha is the proof.
+
+**All 9 original slices plus the dotnet and Gradle-wrapper majors are CLOSED.** Remaining under the
+parent issue, authorized for CID one per step: **JUnit 6.x** (still 5.14.4 in BOTH
+`packages/kotlin/build.gradle.kts` and `crates/iscc-jni/java/pom.xml`; the platform artifacts
+renumber 1.14.x → 6.x, so the launcher pin stops being a 1.x number — two build systems,
+splittable), then `jni` 0.22 and `magnus` 0.8 (source rewrites, riskiest).
 
 ## Per-binding manifests
 
@@ -107,13 +117,13 @@ wrapper first), then `jni` 0.22 and `magnus` 0.8 (source rewrites, riskiest).
     nothing local or in CI can validate a bump. `mvn -Prelease package` exercises source+javadoc but
     **not** gpg or central-publishing.
 - `packages/kotlin/build.gradle.kts` — **refreshed iter 128**: `kotlin("jvm") 2.4.10`, JNA 5.19.1,
-    junit-jupiter 5.14.4 + required `testRuntimeOnly junit-platform-launcher:1.14.4`, gson 2.14.0;
-    JUnit 6.x `held:`. **Consumer-floor trap**: the KGP bump stamps jar metadata `mv=[2,4,0]` and
-    publishes `kotlin-stdlib:2.4.10` → Kotlin < 2.3 consumers fail to compile (2.1.10 and 2.2.21
-    fail, 2.3.21 passes). `java-version: '17'`, the jvmToolchain, `required_ruby_version`, the `go`
-    directive and `net8.0` are all support-policy decisions, not dependency pins — never move them
-    in a refresh step. Detect this class with `javap -v -p <class> | grep mv=` plus a throwaway
-    consumer project.
+    junit-jupiter 5.14.4 + required `testRuntimeOnly junit-platform-launcher:1.14.4` (mandatory
+    under the Gradle 9.6.1 wrapper from iter 165), gson 2.14.0; JUnit 6.x `held:`. **Consumer-floor
+    trap**: the KGP bump stamps jar metadata `mv=[2,4,0]` and publishes `kotlin-stdlib:2.4.10` →
+    Kotlin < 2.3 consumers fail to compile (2.1.10 and 2.2.21 fail, 2.3.21 passes).
+    `java-version: '17'`, the jvmToolchain, `required_ruby_version`, the `go` directive and `net8.0`
+    are all support-policy decisions, not dependency pins — never move them in a refresh step.
+    Detect this class with `javap -v -p <class> | grep mv=` plus a throwaway consumer project.
 - `crates/iscc-rb/Gemfile` — pessimistic constraints only (minitest `~> 5.0`, rake `~> 13.0`,
     rake-compiler `~> 1.2`, rb_sys `~> 0.9`, standard `~> 1.0`, rubocop-minitest `~> 0.36`); gemspec
     declares `required_ruby_version >= 3.1.0`. rb_sys must match the `oxidize-rb/actions/cross-gem`

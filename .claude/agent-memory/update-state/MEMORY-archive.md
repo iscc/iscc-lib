@@ -140,3 +140,9 @@ does NOT mean no work — corroborate with `git log` for the `cid(<role>):` comm
     as `recovered`.
 - A genuine *review* crash leaves three marks together: no verdict in handoff.md, a handoff
     containing only the advance section, and issues the review had resolved still in issues.md.
+
+## Closed work archived from MEMORY.md at iteration 166 — do not re-flag as new
+
+Iterations 150-157, all PASSed and verified in their own review: 150 Python+Go Unicode boundary
+vectors, 151 WASM+Ruby, 152 the vendored-fixture drift gate, 153 napi+Java, 154 C#+Kotlin, 156 the
+`Final_Sigma` case freeze, 157 the fail-closed `unicode-sweep` CI job, 158 sweep-gate hardening.
