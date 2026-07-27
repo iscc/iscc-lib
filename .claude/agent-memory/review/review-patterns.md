@@ -380,3 +380,57 @@ detection if next.md scoped that out). Does the runner see the gate on an unrela
 prek hook is `always_run: true` + `pass_filenames: false`, else a deletion-only push skips it.) Does
 checkout normalization break byte-identity cross-platform? (`.gitattributes` `*.json eol=lf` here;
 also check whether the CI job is Linux-only.)
+
+## Reviewing a vendored DERIVED-property table + a core case change (iter 156, ~25 min)
+
+`crates/iscc-lib/src/utils/unicode16_case.rs` + `to_lowercase_unicode16`. A generated data table
+plus a hot-path core edit. Run, in this order:
+
+1. **Independent table derivation — do NOT settle for "the generator is deterministic".** A
+    generator that derives a property *behaviourally* validates itself against itself. Audit the
+    output against bounds computable from a **different** source. For UCD derived properties,
+    `unicodedata.category` gives them free:
+    - `Lu ∪ Ll ∪ Lt ⊆ Cased` (no letter is `Case_Ignorable`)
+    - `Mn ∪ Me ∪ Cf ∪ Lm ∪ Sk ⊆ Case_Ignorable`
+    - residual `Cased ∖ (Lu∪Ll∪Lt)` must be exactly `Other_Uppercase`/`Other_Lowercase` — at 16.0.0
+        that is 130 `So` + 32 `Nl` + 2 `Lo` (U+00AA, U+00BA)
+    - residual `Case_Ignorable ∖ (Mn∪Me∪Cf∪Lm∪Sk)` must be exactly the **17** UAX #29 MidLetter +
+        MidNumLet + Single_Quote code points
+        (`0027 002E 003A 00B7 0387 055F 05F4 2018 2019 2024   2027 FE13 FE52 FE55 FF07 FF0E FF1A`)
+    - also assert the two tables are **disjoint** and that a both-properties code point (U+0345) is
+        in the ignorable table only
+2. **Generator determinism, properly.** Re-run it on the **committed** file and compare md5 +
+    `git status --porcelain <file>` (empty). advance may only be able to show the untracked-file
+    state pre-commit; review can show the real thing.
+3. **Fail-closed, three ways** — not just the one next.md names: a range count, a code-point count,
+    and the `unidata_version` guard. Each must exit non-zero **and** leave the output md5
+    unchanged.
+4. **Mutation probes must be SEMANTIC, not just truncation.** A truncation reds the shape/invariant
+    test and proves nothing about the behavioural tests. Mutate one code point while **keeping the
+    range count constant** (`(0x0295, 0x02AF)` → `(0x0296, 0x02AF)`) and confirm the named
+    behavioural tests red, e.g.:
+    - drop U+0295 from `Cased` → `test_final_sigma_{following,preceding}_context_cased_in_16` red
+    - drop U+0027 from `Case_Ignorable` → `test_final_sigma_apostrophe_is_case_ignorable` red
+5. **Re-run the differential sweep yourself** — it is only ~4 min of wall clock and it is the whole
+    claim. `uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml` FIRST (the
+    `.so` is gitignored, so a stale one silently measures the previous commit; check its mtime
+    against `src/utils.rs`), then the 8-context × 2-fn × 1,112,064-scalar probe. Expect
+    `TOTAL 17793024 comparisons, 0 divergences` and exit 0.
+6. **Corroborate the *pre-fix* defect without reverting.** A 6-line throwaway crate
+    (`cargo new --lib /tmp/sigmaprobe`) that prints `"\u{0295}\u{03A3}".to_lowercase()` shows what
+    bare std does under the *current* rustc — "ʕσ" vs the oracle's "ʕς" proves the divergence was
+    real and the fix load-bearing, in seconds instead of a full revert-and-rebuild.
+7. **Re-confirm every expected value against the live oracle**, comparing ref vs rust vs the literal
+    written in the test source (three-way, so a test that merely mirrors the implementation shows
+    up). `uv run python -c "import iscc_core, iscc_lib; ..."`.
+8. Gates: `mise run check`, `cargo test -p iscc-lib` + the **full feature matrix**
+    (`--no-default-features` 220, `+text-processing` 259, default/all 288 — assert the per-target
+    `N passed`), clippy workspace, `mise run coverage` + the CI-exact
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    (then `mise run crap:baseline` and confirm the committed baseline is md5-stable),
+    `mise run bench:iai:check`, `uv run pytest -q`, and the pre-push Python trio (`ty check`, ruff
+    `--select S`, ruff `--select C901`).
+9. **Docs prose about a conditional algorithm is the likeliest real finding.** "Σ goes final when no
+    `Cased` character follows" is WRONG — the rule is "the nearest *following* non-`Case_Ignorable`
+    character is not `Cased`". Disprove it with one probe: `ΑΣ,Β` → `αςβ` (comma is not ignorable)
+    while `ΑΣ.Β` → `ασβ` (period is `MidNumLet`, hence ignorable).

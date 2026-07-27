@@ -45,21 +45,29 @@ fully-met target sections to `learnings-archive.md`.
     `cargo binstall -y iai-callgrind-runner --version 0.16.1` (MUST match the pin); CI mirrors this
 - **A docs page lives in FOUR places — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
     `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`**
-    (iter 145), whose regex nav parser is comment-aware since iter 146: strip `#`-to-EOL only
-    *outside* double quotes. **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after
-    it** — reversed, every per-page `site/**/*.md` reads as missing
+    (iter 145; nav parser is comment-aware since 146 — strip `#`-to-EOL only *outside* quotes).
+    **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
 
 ## ISCC Algorithm Knowledge
 
 - **Unicode data version — declared 16.0.0, enforced by a `U+FFFF` SENTINEL MAP** (found iter 129,
-    ruled + implemented 2026-07-26 iter 148; per-runtime table, deltas, repro `Ɤ` U+A7CB → the
-    `issues.md` entry): `text_clean`/`text_collapse` **replace** code points unassigned in Unicode
-    16.0.0 with `UNASSIGNED_SENTINEL` before normalization (vendored 731-range table, regen
+    ruled + implemented iter 148; per-runtime table, deltas, repro `Ɤ` U+A7CB → `issues.md`):
+    `text_clean`/`text_collapse` **replace** code points unassigned in Unicode 16.0.0 with
+    `UNASSIGNED_SENTINEL` before normalization (vendored 731-range table, regen
     `uv run --script scripts/gen_unicode16_unassigned.py`); the *unchanged* category-`C` filter then
-    removes the sentinel exactly where the reference removes them (conformance), and `U+FFFF` is
-    permanently `Cn`/`ccc = 0`/undecomposable (table invariance). Runtimes still ship different
-    tables (Go 15.0, Python 3.13 15.1, Rust crates 16.0/17.0) — never "fix" one binding to match
-    another
+    removes the sentinel exactly where the reference removes them, and `U+FFFF` is permanently
+    `Cn`/`ccc = 0`/undecomposable. Never "fix" one binding to match another
+- **`str::to_lowercase()` decides `Final_Sigma` from the COMPILER's Unicode tables** (iter 156):
+    rustc 1.97 ships 17.0, which moved U+0295 `Ll`→`Lo`, so a bare `.to_lowercase()` made hash
+    output a function of the rustc version. `text_collapse` lowercases via `to_lowercase_unicode16`,
+    which pre-substitutes each `Σ` with σ/ς decided from vendored `Cased`/`Case_Ignorable` tables
+    (`utils/unicode16_case.rs`, regen `scripts/gen_unicode16_case.py`) and only then delegates to
+    std. The rule is NOT "no `Cased` char follows": `ΑΣ,Β` → `αςβ`, `ΑΣ.Β` → `ασβ`
+- **A UCD *derived* property a runtime does not expose can be recovered behaviourally** (iter 156):
+    `(ch+Σ).lower()` ends in ς ⟺ `Cased ∧ ¬Case_Ignorable`; `("A"+ch+Σ).lower()` ⟺
+    `Cased ∨ Case_Ignorable`. Audit any vendored derived-property table against the bounds
+    computable from categories alone — `Lu∪Ll∪Lt ⊆ Cased`, `Mn∪Me∪Cf∪Lm∪Sk ⊆ Case_Ignorable`,
+    residuals exactly `Other_Upper`/`Other_Lower` + the 17 UAX #29 MidLetter/MidNumLet/Single_Quote
 - **Deleting a `Cn` code point before normalization changes ADJACENCY; mapping it does not** — why
     the iter-133 pre-filter was real non-conformance (deletion unblocks canonical/jamo composition,
     `Final_Sigma`, diaeresis). **Any Unicode differential MUST include multi-code-point sequences**:
@@ -68,13 +76,10 @@ fully-met target sections to `learnings-archive.md`.
 - **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141, +4
     **sequence** vectors iter 149; ASCII `\uXXXX`, `data.json`-shaped) + loader
     `tests/test_unicode_boundary.rs` — propagation source for every binding, deliberately NOT merged
-    into `data.json` (rationale → `decisions.md`). Two single-code-point cases are **live** 17.0-
-    table guards (U+A7F1 `Lm <super> 0053`, U+20C1 `Sc`), but all 4 wrap their code point in ASCII
-    and are **deletion-vs-sentinel agnostic** — only the sequence vectors gate that distinction, and
-    their expected values already differ from the delete-filter ones, so a binding suite needs **no
-    oracle column**. Gated: Rust, Python, Go (3 ruled skips), WASM, Ruby, napi, Java, C#, Kotlin =
-    **8 of 11** surfaces (`grep unicode_boundary` under-counts — Java's file is
-    `UnicodeBoundaryTest.java`, C#'s `UnicodeBoundaryTests.cs`, Kotlin's `UnicodeBoundaryTest.kt`)
+    into `data.json` (rationale → `decisions.md`). All 4 single-code-point cases wrap their code
+    point in ASCII and are **deletion-vs-sentinel agnostic** — only the sequence vectors gate that
+    distinction, and their expected values already differ from the delete-filter ones, so a binding
+    suite needs **no oracle column**. Live tally of gated surfaces → `issues.md` (8 of 11 at 156)
 - **A binding can pass a boundary vector for the WRONG reason** (iter 150): `packages/go` has no
     freeze rule; its Unicode 15.0 tables make U+20C1/U+A7F1 `Cn`, so the category-`C` filter drops
     them and coincidentally matches the sentinel output. Under go1.27 both become assigned and 5
@@ -82,9 +87,6 @@ fully-met target sections to `learnings-archive.md`.
 - **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (iter
     152): a `(canonical, copy)` table + a `git ls-files` set check reds on an unregistered *or
     deleted* tracked copy; discovery is by basename, so keep the canonical filenames
-- **A "must NOT be" oracle must name the design it came from** (iter 149): a *delete filter* turns
-    `e U+A7F1 U+0301` into `U+00E9`; `e U+015A` is the *category-override* failure. next.md labelled
-    the whole column "delete filter" and the mismatched value shipped into published docs
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (iter 141):
     cases swapped for ASCII no-ops stay green forever, hence the **ungated** guards on version, case
     counts and code points; mutation-probe each one, and give any skip list a *stale-key* guard
@@ -140,13 +142,11 @@ fully-met target sections to `learnings-archive.md`.
     **0.16.0**; preview a major with `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); rules go in
     `[tool.ruff.lint] extend-select`, never `select`; **never `ruff check --fix .`** without
     `--select` (deletes load-bearing `# noqa: S603/S607`)
-- **A prek `types:` tag is not a file-extension guess — probe it** (`.pyi` is tagged `pyi`, not
-    `python`; that hole silently skipped the published `_lowlevel.pyi`, closed iter 139). Prove a
-    hook's surface with a **staged, deliberately dirty** probe: `uv run prek run <hook> --files <p>`
-    — `Skipped` = the tag misses; "files were modified by this hook" = it bites (tracked files
-    only). Formatter caveats → `learnings-archive.md`. **A `files:`-scoped hook never sees
-    deletions** (added/copied/modified only, verified iter 145) — pair any consistency hook with a
-    pytest anchor test against the real tree, which covers the delete case at pre-push and in CI
+- **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
+    dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = the tag misses). `.pyi` is
+    tagged `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed iter 139).
+    **A `files:`-scoped hook never sees deletions** — pair any consistency hook with a pytest anchor
+    test against the real tree. Formatter caveats → `learnings-archive.md`
 - **A binding-toolchain bump can silently raise the *consumer* floor** — in a *published* binding
     that is a support-policy change reserved for Titusz (floor: Kotlin 2.3 or newer; `mavenLocal`
     proof recipe + the four docs → `learnings-archive.md`)
@@ -154,10 +154,9 @@ fully-met target sections to `learnings-archive.md`.
     it before touching `pom.xml` / `build.gradle.kts`, or before calling a Gradle error a failure
 - **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
     `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (the `releases/latest`
-    endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` stopped
-    publishing floating majors after `v7` → pin `@v9.0.0` with a `# exact tag:` comment;
-    `rubygems/configure-rubygems-credentials` publishes only exact tags. Majors →
-    `.claude/agent-memory/advance/deps-refresh.md`
+    endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` (pin `@v9.0.0`
+    \+ a `# exact tag:` comment) and `rubygems/configure-rubygems-credentials` publish only exact
+    tags. Majors → `.claude/agent-memory/advance/deps-refresh.md`
 - **An action-major bump is statically verifiable far past "the tag exists"** — the `inputs`/
     `outputs` diff is automated (`--check-action-inputs`); what stays manual is every intervening
     major's *default* changes. Recipe + the two silent biters (`setup-node@v5+` caching,
@@ -181,15 +180,13 @@ fully-met target sections to `learnings-archive.md`.
     issues are all `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all issues `low`) is
     NOT met — flag `**HUMAN REVIEW REQUESTED**` (runner "pause") instead, without churn
 - **Pre-push mdformat blocks on non-conforming context files**: the hook runs mdformat with
-    `--wrap 100` + `--number` in an isolated `mdformat-mkdocs[recommended]` env, over every file in
-    the push range — incl. `next.md` and per-agent `MEMORY*.md` — so one non-conforming file rejects
-    the whole batch even though staged-only `git commit` passed. define-next MUST run
-    `mise run format` before committing; review can unblock by reformatting + amending
+    `--wrap 100` + `--number` in an isolated env, over every file in the push range — incl.
+    `next.md` and per-agent `MEMORY*.md` — so one non-conforming file rejects the whole batch even
+    though staged-only `git commit` passed. Unblock by reformatting + amending
 - **Never write an exact count, a substring `grep -c`, or an unverified CLI flag into a verification
-    criterion** (iter 139: `ruff format --check` saw 155 files, not 153; `grep -c 'exclude'`
-    returned 2, not 0. Iter 148: `--fail-above 30.0` is a `cargo crap` syntax error). Assert the
-    *gate* (exit code) and anchor greps instead, and copy gate invocations from `ci.yml`, never from
-    memory
+    criterion** (iter 139: `ruff format --check` saw 155 files, not 153. Iter 148:
+    `--fail-above   30.0` is a `cargo crap` syntax error). Assert the *gate* (exit code) and anchor
+    greps instead; copy gate invocations from `ci.yml`, never from memory
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
     (iter 142: the prescribed artifact-matching rule could not resolve `wheels-*`; iter 143: two
     false Unicode safety claims shipped verbatim into published docs). advance implements the

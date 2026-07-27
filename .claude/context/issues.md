@@ -303,9 +303,21 @@ sequence half is mandatory: a per-code-point sweep scored the superseded pre-fil
 it failed 42 of 140 sequence cases. Review verified the sentinel design ad hoc at iteration 148 (127
 unassigned code points × 10 contexts = 1,270 cases, 0 mismatches, vs 504 for the pre-filter), so
 this step is regression protection, not initial proof; harness sketch → `decisions.md` 2026-07-26,
-"Sentinel conformance accepted on sequence evidence". 🔄 (b) boundary vectors wired into the Rust
-suite and all bindings (Go: see caveat in point 3); the spec already names 16.0.0 and the freeze
-rule. **(b) Rust half done iter 141**: `crates/iscc-lib/tests/unicode_boundary.json` (ASCII-escaped,
+"Sentinel conformance accepted on sequence evidence". ✅ **The last blocker for (a2) is gone (iter
+156): the divergence set is now empty.** `str::to_lowercase()` decided `Final_Sigma` from the
+*compiler's* tables (rustc 1.97 ships Unicode 17.0, which moved `U+0295` `Ll`→`Lo`), so the sweep
+scored 3 divergent rows at that one code point. `text_collapse` now lowercases through
+`to_lowercase_unicode16`, which pre-substitutes each `Σ` from a second vendored table
+(`crates/iscc-lib/src/utils/unicode16_case.rs`, 152 `Cased` + 452 `Case_Ignorable` ranges, generator
+`scripts/gen_unicode16_case.py`) — review re-ran the sweep independently: **17,793,024 comparisons,
+0 divergences**. The gate can therefore land green. Scope its blind spots: fail closed on a missing
+table, assert `unidata_version == "16.0.0"`, assert `total == 17_793_024` so a zero-case run cannot
+read as green, and rebuild the Python extension first (a stale `.so` silently measures the previous
+commit). **Residual the gate must protect:** only the *conditional* `Final_Sigma` mapping is frozen;
+every unconditional lowercase mapping still comes from rustc's tables (zero divergence measured
+today — see `decisions.md` 2026-07-27). 🔄 (b) boundary vectors wired into the Rust suite and all
+bindings (Go: see caveat in point 3); the spec already names 16.0.0 and the freeze rule. **(b) Rust
+half done iter 141**: `crates/iscc-lib/tests/unicode_boundary.json` (ASCII-escaped,
 `data.json`-shaped, 4 single code points × `text_clean`/`text_collapse`) + loader
 `tests/test_unicode_boundary.rs` (1 ungated shape/content guard + 2 `text-processing`-gated vector
 tests). ✅ **Sequence vectors done iter 149**: the four multi-code-point cases below are in the

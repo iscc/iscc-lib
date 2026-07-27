@@ -890,3 +890,11 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
     units — do NOT harden it
 - `decode_length`: multiples of 32 bits for standard MainTypes, 64 for ISCC-CODE, 8 for ID (C FFI:
     length index for 64-bit codes is 1, not 0)
+
+## Unicode oracle labelling (archived from learnings.md at iteration 156 — fixture + docs corrected)
+
+- **A "must NOT be" oracle must name the design it came from** (iter 149): a *delete filter* turns
+    `e U+A7F1 U+0301` into `U+00E9`; `e U+015A` is the *category-override* failure. next.md labelled
+    the whole column "delete filter" and the mismatched value shipped into published docs before
+    review caught it. Generalised into the "next.md Implementation Notes are a hypothesis" entry
+    that stays in `learnings.md`.

@@ -1,12 +1,12 @@
 # Review Agent Memory
 
 Concise index — **one line per entry, detail belongs in a topic file.** `review-patterns.md` (docs /
-verification / issues / gotchas + claim-probing + new-gate-script + fixture-oracle + index-gate
-recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP gates), `binding-reviews.md`
-(per-binding shortcuts + UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags + propagation slices),
-`dep-refresh-reviews.md` (v0.6.0 slice recipes), `gha-workflow-reviews.md` (release.yml gates +
-action-major bumps + pinning), `codex-integration.md` (second-opinion strengths / blind spots / how
-to weigh a finding). Stale detail in `MEMORY-archive.md`.
+verification / issues / gotchas + claim-probing + new-gate-script + fixture-oracle + index-gate +
+derived-property-table recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP gates),
+`binding-reviews.md` (per-binding shortcuts + UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags +
+propagation slices), `dep-refresh-reviews.md` (v0.6.0 slice recipes), `gha-workflow-reviews.md`
+(release.yml gates + action-major bumps + pinning), `codex-integration.md` (second-opinion strengths
+/ blind spots / how to weigh a finding). Stale detail in `MEMORY-archive.md`.
 
 ## Quality Gate Details
 
@@ -55,6 +55,12 @@ to weigh a finding). Stale detail in `MEMORY-archive.md`.
 - **No-op / human-handoff iteration (111)**: verify scope is empty, still scan `@{upstream}..HEAD`
     for circumvention. HUMAN-REVIEW spec amendments + `low` left (IDLE cond #2 NOT met) → flag
     **HUMAN REVIEW REQUESTED**, NOT `**IDLE**` (all-`low` only). Verdict still PASS; push the batch
+- **`str::to_lowercase()` reads the COMPILER's Unicode tables** (156): rustc 1.97 = 17.0, which
+    moved U+0295 `Ll`→`Lo`, so bare `.to_lowercase()` made hash output a function of the rustc
+    version. `text_collapse` goes through `to_lowercase_unicode16` + vendored
+    `utils/unicode16_case.rs` — reject any diff that reintroduces a bare `.to_lowercase()` there.
+    Only the *conditional* `Final_Sigma` half is frozen; unconditional mappings still come from
+    rustc (zero divergence measured, guarded only by the pending sweep gate → `decisions.md`)
 - **Unicode 16.0.0 freeze rule = a `U+FFFF` SENTINEL MAP since 148** (delete-filter RULED out,
     133–147). Gated: Rust (141/149), Python + pure-Go (150, Go 9/12, 3 ruled skips), WASM + Ruby
     (151), napi + Java (153), C# + Kotlin (154) = **8 of 11**; C FFI, C++, Swift left (live tally →
@@ -116,6 +122,12 @@ to weigh a finding). Stale detail in `MEMORY-archive.md`.
 - **Prek-hook-scope review (138–139)**: NEVER accept `git ls-files` arithmetic as a hook's surface —
     `.pyi` is tagged `pyi`, not `python`. Probing a *widened* tag needs a **staged, deliberately
     dirty** file → `review-patterns.md`
+- **Vendored DERIVED-property table + core case change (156, ~25 min)**: never accept a
+    behaviourally-derived generator as its own oracle — audit the table against bounds computable
+    from `unicodedata.category` alone, mutate SEMANTICALLY (keep the range count constant so the
+    *behavioural* tests, not just the shape test, are proven), re-run the 17.8M-comparison sweep
+    yourself after `maturin develop --release`, and probe the pre-fix defect with a 6-line throwaway
+    crate instead of a revert → `review-patterns.md`
 - **Core text/codec change + generated data (133/148, ≈12 min)**: Rust-only PLUS the **full feature
     matrix** PLUS the two CI-only gates — `mise run coverage` then the CI-exact
     `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`

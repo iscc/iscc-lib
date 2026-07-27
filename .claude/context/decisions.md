@@ -795,3 +795,34 @@ that is deliberate, not an oversight. Swift remains the one surface expected to 
 copy (SwiftPM resource bundling), and it must be registered in `VENDORED_COPIES`. **Context:**
 iteration 154 (`84ce2f1`) plus the review fix; hazard independently reported by the Codex review and
 confirmed by a three-run Gradle probe.
+
+## 2026-07-27 — `Final_Sigma` is frozen by pre-substitution, not by vendoring the case-mapping table
+
+**Decision:** `text_collapse` keeps delegating the bulk of lowercasing to `str::to_lowercase()`.
+Only the *conditional* `Final_Sigma` mapping is taken over: `to_lowercase_unicode16` walks the
+(sentinel-mapped, NFD-normalized) string, replaces each `U+03A3` with `U+03C2`/`U+03C3` decided from
+a vendored Unicode 16.0.0 `Cased` / `Case_Ignorable` table, and only then calls std — which can
+never see a `U+03A3` and so can never run its own 17.0-table sigma branch. The vendored `Cased`
+table deliberately stores `Cased` **minus** `Case_Ignorable` (152 ranges / 4,311 code points), which
+is not the UCD-defined `Cased` set. **Why:** bare `str::to_lowercase()` reads the *compiler's*
+tables (rustc 1.97 ships Unicode 17.0, which moved `U+0295` from `Ll` to `Lo`), so hash output was a
+function of the rustc version — measured as 3 divergent rows at exactly `U+0295` in a 17,793,024-
+comparison differential against `iscc-core` on uniform 16.0.0 tables. Pre-substitution is the
+smallest change that removes that dependence: the freeze is scoped to the one property that actually
+diverges, and every unconditional mapping (e.g. `U+0130`) stays with std. The subtracted
+`Case_Ignorable` set is what the two behavioural probes in `scripts/gen_unicode16_case.py` can
+measure, and the restriction is unobservable because the `Final_Sigma` scan skips case-ignorable
+code points before it ever tests casedness — in CPython's `handle_capital_sigma` and in the port
+alike. **Alternatives:** vendor the full Unicode 16.0.0 lowercase *mapping* table and stop using
+`str::to_lowercase()` entirely — rejected as a large, mostly-dead table for a divergence that does
+not exist today (the same sweep shows 0 unconditional-mapping divergences across all 1,112,064
+scalars); pin the rustc toolchain — rejected, it makes a build-tool version part of the conformance
+contract and does nothing for downstreams building from source. **Consequence:** the *unconditional*
+half of lowercasing is still supplied by whatever Unicode tables rustc ships. That is an accepted,
+currently-zero residual whose only guard is the differential sweep, which is exactly why criterion 4
+of the Unicode issue (wiring the sweep in as a permanent, fail-closed check) must land next. A
+future rustc that changes a non-sigma lowercase mapping would silently change output until then.
+**Context:** iteration 156 (`a7e84c8`); sweep re-run independently at review, 0 divergences; tables
+independently cross-checked against CPython 3.14 category data (`Lu∪Ll∪Lt ⊆ Cased`,
+`Mn∪Me∪Cf∪Lm∪Sk ⊆ Case_Ignorable`, residuals exactly `Other_Uppercase`/`Other_Lowercase` and the 17
+UAX #29 MidLetter/MidNumLet/Single_Quote code points).
