@@ -12,12 +12,25 @@ command return a *confidently wrong* answer rather than an error.
 
 ## Toolchains present / absent in this container
 
-`dotnet`, `mvn`, `gcc`, `java`, `go`, `ruby`, `node`, `wasm-pack`, `rustc` are **present**. `cmake`,
-`swift`, `gradle` are **ABSENT** → `packages/{cpp,swift}` can only ever be CI-verified from here,
-and that is axis 3 of the propagation cost ranking in [[MEMORY]]. **Kotlin IS locally testable** via
-`./gradlew … --offline` (the cache is warm) despite `gradle` not being on `PATH` — the wrapper
-works. Always probe with `command -v` before claiming a surface is unbuildable. Other env details →
-`MEMORY-archive.md`.
+`dotnet`, `mvn`, `gcc`, `g++`, `java`, `go`, `ruby`, `node`, `wasm-pack`, `rustc` are **present**.
+`cmake`, `swift`, `gradle`, `ninja` are absent from `$PATH` — but **absent from `$PATH` ≠
+unbuildable**, and that mistake shaped scoping for ~6 iterations:
+
+- **Kotlin IS locally testable** via `./gradlew … --offline` (warm cache) despite no `gradle`.
+- **C++ IS locally testable, two ways** (established 160-161): `uv run --with cmake cmake …` pulls
+    the PyPI cmake wheel (4.4.0) and runs the full ASAN suite; *or* skip cmake entirely and compile
+    `packages/cpp/tests/test_iscc.cpp` with plain `g++ -std=c++17 -Wall -Wextra -Wpedantic` plus
+    `-I packages/cpp/include -I crates/iscc-ffi/include -I crates/iscc-ffi/tests`,
+    `-L target/debug -liscc_ffi -lpthread -ldl -lm`, then run under `LD_LIBRARY_PATH=target/debug` →
+    `69 passed, 0 failed`. The g++ route proves the *test code*; only the cmake route proves the
+    `target_include_directories` wiring. Configure cmake into a **fresh** `build-*/` —
+    `packages/cpp/build*/` holds 5 stale gitignored dirs, one with an incompatible cmake 3.25 cache.
+- **Swift is genuinely absent**: no `swift`/`swiftc`, no `/usr/share/swift`, no `/opt/swift`, and
+    **no PyPI substitute** (`uv --with swift` installs an unrelated OpenStack package). It is the
+    only CI-proof-only surface left.
+
+Always probe with `command -v` **and** consider a PyPI/wrapper fallback before calling a surface
+unbuildable. Other env details → `MEMORY-archive.md`.
 
 ## Commands that lie
 

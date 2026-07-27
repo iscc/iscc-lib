@@ -1,69 +1,68 @@
-<!-- assessed-at: 98e296402e55ce707aed6a278fc32cbf8a329dcb -->
+<!-- assessed-at: 8c682837b64c9ef33c600a0d2180e6cd5189dec0 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Post-v0.5.0 — Unicode contract gated; propagation at 9 of 11 binding surfaces
+## Phase: Post-v0.5.0 — Unicode contract gated; propagation at 10 of 11 binding surfaces
 
-Iteration 159 propagated the Unicode 16.0.0 boundary vectors into the C FFI test through a
-generated, tracked C header, taking criterion 3 from 8 to 9 of 11 surfaces. I re-verified the slice
-by two methods the review did not use — decoding the header's octal escapes back into strings and
-diffing against the canonical fixture, and driving the built `libiscc_ffi.so` through `ctypes`. Only
-C++ and Swift remain ungated, and neither is buildable in this container.
+Iteration 160 gated the C++ wrapper test on the 12 Unicode 16.0.0 boundary vectors by **reusing the
+same generated header** the C FFI test already consumes — no second artifact, no vendored copy, no
+public-interface leak. I reproduced the slice by a route the review did not use (a plain
+`g++ -Wall -Wextra -Wpedantic` compile with no CMake at all) and cross-checked the passing assertion
+names against the canonical JSON fixture. **Swift is the last ungated surface.**
 
 ## Rust Core Crate
 
-**Status**: partially met — criteria 1, 2, 4 met; criterion 3 at 9 of 11 surfaces
+**Status**: partially met — criteria 1, 2, 4 met; criterion 3 at 10 of 11 surfaces
 
-- **Incremental scope**: `git diff 0b8f2e2..HEAD --stat -- . ':!.claude'` = **6 files**, all C FFI
-    propagation — new: `scripts/gen_ffi_boundary_vectors.py` (+135),
-    `tests/test_gen_ffi_boundary_vectors.py` (+94),
-    `crates/iscc-ffi/tests/unicode_boundary_vectors.h` (+65, generated); edited:
-    `crates/iscc-ffi/tests/test_iscc.c` (+36), `crates/iscc-ffi/CLAUDE.md` (+5), `docs/unicode.md`
-    (+4/−2). **Zero Rust source files changed**, zero baseline files changed. `.claude/context/specs/`
-    diff is **empty** — no spec moved under me.
-- Tier 1 surface unchanged: **32** symbols, all 10 `gen_*_v0` conformant against
-    `crates/iscc-lib/tests/data.json`. `#[test]` count in `crates/iscc-lib/**/*.rs` re-counted at
-    **342** (unchanged). No `unsafe` in the core.
+- **Incremental scope**: `git diff 98e2964..HEAD --stat -- . ':!.claude'` = **4 files**, all C++
+    propagation: `packages/cpp/tests/test_iscc.cpp` (+27), `packages/cpp/tests/CMakeLists.txt` (+4),
+    `packages/cpp/CLAUDE.md` (+5), `docs/unicode.md` (+4/−3). **Zero Rust source files, zero
+    baselines, zero workflow files, zero generated artifacts.** `.claude/context/specs/` diff is
+    **empty** — no spec moved under me. `target.md` unchanged.
+- Tier 1 surface unchanged: **32** symbols re-exported from `crates/iscc-lib/src/lib.rs`, all 10
+    `gen_*_v0` conformant against `crates/iscc-lib/tests/data.json`. `#[test]` count re-counted at
+    **342** (unchanged, corroborated by the audit metrics snapshot). No `unsafe` outside the FFI
+    crates.
 - **Criterion 1 (declared version 16.0.0 + sentinel freeze) — MET.** `utils/unicode16.rs` (731
-    unassigned ranges) + `utils/unicode16_case.rs` (152 `Cased`, 452 `Case_Ignorable`), both
-    regenerable and byte-stable.
-- **Criterion 2 (`Final_Sigma` case freeze, landed 156) — MET.** Untouched this iteration.
-- **Criterion 4 (differential sweep as a fail-closed gate, landed 157, hardened 158) — MET.**
-    Untouched this iteration; the `unicode-sweep` CI job is green on the tip.
-- **Criterion 3 (boundary vectors on every surface) — 9 of 11.** Gated: Python, Node.js, WASM, Java,
-    Ruby, Kotlin, C#, Go, **C FFI (new)**. Ungated: **C++**, **Swift**.
-- `specs/rust-core.md` L149-157 is still **STALE** (claims Go has the `Final_Sigma` defect — fixed
-    at 147 — and that `str::to_lowercase()` behaves like the reference, falsified by measurement at
-    156); criterion boxes 1/3/4 unchecked though 1 and 4 are met. Human-owned file; not edited.
+    unassigned ranges) + `utils/unicode16_case.rs` (152 `Cased`, 452 `Case_Ignorable`).
+- **Criterion 2 (`Final_Sigma` case freeze, landed 156) — MET.** Untouched.
+- **Criterion 4 (differential sweep as a fail-closed gate, 157, hardened 158) — MET.** Untouched;
+    the `unicode-sweep` CI job is green on the tip.
+- **Criterion 3 (boundary vectors on every surface) — 10 of 11.** Gated: Python, Node.js, WASM,
+    Java, Ruby, Kotlin, C#, Go, C FFI, **C++ (new)**. Ungated: **Swift only**.
+- `specs/rust-core.md` L149-157 remains **STALE** (claims Go carries the `Final_Sigma` defect —
+    fixed at 147 — and that `str::to_lowercase()` matches the reference, falsified by measurement at
+    156); criterion boxes 1/3/4 still unchecked though 1, 2 and 4 are met. Human-owned file; not
+    edited.
 
 ## Python Bindings
 
-**Status**: met — Unicode-gated since 150; also carries the new C-header drift gate
+**Status**: met — Unicode-gated since 150; carries the generated-header drift gate
 
 - All 32 Tier 1 symbols; `IsccResult`, streaming hashers, 12 `.detach(` GIL-release sites;
     abi3-py310 wheels incl. aarch64. Nothing under `crates/iscc-py/` moved this iteration.
-- `pytest --collect-only -q` → **399** tests (was 393). The +6 are exactly
-    `tests/test_gen_ffi_boundary_vectors.py`: the byte-exact regeneration anchor, an
-    ASCII/LF/no-`\x` hygiene case, an octal-escape unit case, a mutation case proving the gate
-    fires, and two fail-closed cases (wrong `unicode_data_version`, empty section). No prior case
-    removed; `tests/test_unicode_sweep.py` still **14**.
-- This is what carries the C FFI drift gate into CI — CI runs `pytest` but never the generator, so
-    the anchor `render(fixture) == tracked_header` is the only thing standing between a fixture edit
-    and a silently stale header. I confirmed `uv run --script scripts/gen_ffi_boundary_vectors.py`
-    leaves `git status --porcelain` empty.
+- `uv run pytest --collect-only -q` → **399** tests, **unchanged** — correct, since the C++ slice
+    added no Python. `tests/test_unicode_sweep.py` still 14;
+    `tests/test_gen_ffi_boundary_vectors.py` still 6.
+- **The drift gate now protects two consumers, not one.** I ran
+    `uv run --script scripts/gen_ffi_boundary_vectors.py` directly (rather than the pytest anchor
+    the review used): it rewrote the header and left `git status --porcelain` **empty** — the
+    tracked header is a byte-exact regeneration of the canonical fixture, so both the C and the C++
+    test see the current vectors.
 - The full 17.8M-comparison sweep stays out of `pytest`, `mise run test` and the pre-push hooks —
-    **do not wire it in**.
+    **do not wire it in**. Its one `@pytest.mark.skipif` (rebuild-required guard) is intentional and
+    pre-existing.
 
 ## Node.js Bindings
 
 **Status**: met — Unicode-gated since 153
 
-- `crates/iscc-napi` exports all 32 Tier 1 symbols with streaming classes; untouched this iteration.
-- `__tests__/unicode_boundary.test.mjs`: `node:test`, metadata guard + 12 vectors, zero skips,
-    snake_case exports. The local `.node` addon is gitignored — the recurring "checked-in stale
-    artifact" claim stays refuted.
+- `crates/iscc-napi` exports all 32 Tier 1 symbols with streaming classes; untouched.
+- `__tests__/unicode_boundary.test.mjs`: `node:test`, metadata guard + 12 vectors, zero skips. The
+    local `.node` addon is gitignored — the recurring "checked-in stale artifact" claim stays
+    refuted.
 
 ## WASM Bindings
 
@@ -76,72 +75,86 @@ C++ and Swift remain ungated, and neither is buildable in this container.
 
 ## C FFI
 
-**Status**: met — Unicode-gated this iteration (surface 9 of 11)
+**Status**: met — Unicode-gated at 159; now also the *source* of the C++ vectors
 
-- `crates/iscc-ffi/src/lib.rs` exposes **47** `#[unsafe(no_mangle)]` externs (unchanged); cbindgen
-    header plus csbindgen C# generation still run from `build.rs`. No FFI source changed.
-- `tests/test_iscc.c` is now **495** lines (was 459). A new helper `run_unicode_boundary_section()`
-    drives both text functions over the generated vectors and frees every returned string; section
-    29 adds three metadata guards (version `16.0.0`, counts 7 and 5) plus the 12 vectors. The review
-    measured `80 passed, 0 failed` with the **verbatim** CI gcc line — no new `-I` was needed
-    because the quoted `#include` resolves beside the includer.
-- `tests/unicode_boundary_vectors.h` (65 lines, tracked, generated) renders the canonical
-    `crates/iscc-lib/tests/unicode_boundary.json` as two `static const struct` arrays. Non-ASCII
-    UTF-8 is emitted as **3-digit octal**, deliberately never `\x` (C hex escapes are greedy and
-    unbounded).
-- **Independently re-verified here, by methods the review did not use:** (1) I parsed the tracked
-    header, decoded every octal escape back to a Python string and diffed name/input/expected
-    against the fixture — 7 + 5 entries, **byte-identical, zero mismatches**; (2) I loaded
-    `target/debug/libiscc_ffi.so` through `ctypes` and ran all 12 vectors through `iscc_text_clean`
-    / `iscc_text_collapse` — **0 divergences**. The generator's `render()` also fails closed on a
-    wrong `unicode_data_version`, a missing/empty section, a multi-input case, and a non-ASCII
-    render.
-- The generated header is correctly **absent** from `VENDORED_COPIES` (a derived artifact cannot
-    satisfy a byte-identity gate); rationale is recorded in `decisions.md` 2026-07-27.
-- No build-skip hazard: the `c-ffi` job is one plain `gcc` invocation plus the cbindgen freshness
-    check, so nothing can report UP-TO-DATE and skip (unlike the Gradle trap found at 154).
+- `crates/iscc-ffi/src/lib.rs` exposes **47** `#[unsafe(no_mangle)]` externs (unchanged). No FFI
+    source moved this iteration.
+- `tests/unicode_boundary_vectors.h` (65 lines, tracked, generated) is now included by **two**
+    tests: `crates/iscc-ffi/tests/test_iscc.c` (quoted `#include`, resolves beside the includer, no
+    `-I` in the CI gcc line) and `packages/cpp/tests/test_iscc.cpp` (one `PRIVATE` include dir).
+    Non-ASCII UTF-8 is 3-digit octal, deliberately never `\x`.
+- Verified at 159 by header-decode + `ctypes` and re-confirmed no-op-regenerable here.
 
-## Other Bindings (Java, Kotlin, Swift, Go, Ruby, C#, C++)
+## C++ Wrapper
 
-**Status**: met as bindings; Java, Ruby, C#, Kotlin Unicode-gated — **C++ and Swift still ungated**
+**Status**: met — Unicode-gated this iteration (surface 10 of 11)
+
+- `packages/cpp/tests/test_iscc.cpp` gained a `run_unicode_boundary_section()` helper (taking
+    `std::string (*)(const std::string&)`) and block 36: 3 metadata guards + both vector sections,
+    driven through the **wrapper** functions `iscc::text_clean` / `iscc::text_collapse`.
+- **Independently reproduced by a different route than the review's.** I compiled the test with a
+    bare `g++ -std=c++17 -Wall -Wextra -Wpedantic` (no CMake, manual `-I`) against
+    `target/debug/libiscc_ffi.so`: **zero diagnostics**, and the binary printed **69 passed, 0
+    failed**, exit 0, with **12** `PASS: unicode_boundary/…` lines and all 3 metadata guards passing
+    (`16.0.0`, 7, 5), `FAIL` count 0.
+- Stronger than a count check: I parsed the emitted PASS names and diffed them against the canonical
+    `crates/iscc-lib/tests/unicode_boundary.json` — the sets are **identical** (7 `text_clean` + 5
+    `text_collapse`, no missing, no extra). The C++ suite covers every canonical vector, not a
+    subset.
+- **No public-interface leak.** `packages/cpp/CMakeLists.txt` still exposes only `include/` and
+    `crates/iscc-ffi/include`; the new include dir is `PRIVATE` on the `test_iscc` target only, and
+    its relative path `…/tests/../../../crates/iscc-ffi/tests` resolves correctly (verified with
+    `realpath`). The review additionally proved the leak-freedom with a throwaway
+    `add_subdirectory()` consumer that fails to compile on the header.
+- **Correction to the previous state.md:** it claimed C++ "is not buildable in this container". That
+    was wrong on two counts — `uv run --with cmake cmake …` supplies cmake 4.4.0 from PyPI (review,
+    160), and the test program needs no cmake at all for a local proof (my g++ route). Only the
+    CMake *wiring* needs cmake. **The Swift half of that sentence still stands.**
+- Review's mutation probes (wrong expected value, dropped case + decremented count, drifted version
+    macro) each red the suite, and a bare `cmake --build` recompiles after a header edit — CMake
+    depfiles treat the cross-package header as a build input, so there is **no Gradle-style
+    stale-green** here (the class of bug found at 154).
+- Housekeeping only: `packages/cpp/` now carries **five** stale gitignored build dirs (`build`,
+    `build-asan`, `build-ci`, `build-review`, `build-uv`); `build/` holds an incompatible cmake 3.25
+    cache. Zero tree diff — clutter, not an issue. Configure into a fresh dir.
+
+## Other Bindings (Java, Kotlin, Swift, Go, Ruby, C#)
+
+**Status**: met as bindings; all Unicode-gated except **Swift**
 
 - `crates/iscc-jni`, `crates/iscc-rb`, `crates/iscc-uniffi` (32 exports, 21 tests, `publish=false`)
-    plus `packages/{dotnet,cpp,go,kotlin,swift}` carry the full 32-symbol surface. No binding source
-    file moved this iteration.
+    plus `packages/{dotnet,go,kotlin,swift}` carry the full 32-symbol surface. No binding source
+    moved this iteration.
 - C# (154, 13 tests), Kotlin (154, 13 tests, fixture registered as a Gradle task **input**), Java
     (153, surefire CWD = pom basedir), Ruby (151, 12 vectors) — all zero-skip.
-- `packages/go` sits at **177** `func Test`; its vendored `testdata/unicode_boundary.json` is
+- `packages/go` re-counted at **177** `func Test`; its vendored `testdata/unicode_boundary.json` is
     byte-identical to the canonical file. **The go1.27 checklist item stands and is recorded nowhere
-    but here:** go1.27 brings Unicode 17.0 tables, so Go will reacquire the `Final_Sigma` defect the
-    core shed at 156 unless an equivalent case freeze lands there too. Standing ruling
-    (`decisions.md` 2026-07-26): the Go skip map stays **unconditional**; the red is the intended
-    trigger. CI pins Go via `go-version-file: packages/go/go.mod` (`go 1.26.1`).
-- **C++ is the cheapest remaining surface and is nearly pre-wired.** Its
-    `packages/cpp/tests/test_iscc.cpp` (397 lines) has no JSON reader, but
-    `packages/cpp/CMakeLists.txt:19` already puts `../../crates/iscc-ffi/include` on the interface
-    include path, and `include/iscc/iscc.hpp` already wraps both functions (`iscc::text_clean` L251,
-    `iscc::text_collapse` L272). The header generated for C at 159 can be **reused as-is** — one
-    extra include directory, no second generated artifact, no `VENDORED_COPIES` entry.
-- **Swift is structurally different.** `Tests/IsccLibTests/ConformanceTests.swift` (215 lines)
-    already parses JSON with `JSONSerialization` against a vendored `data.json` in the test
-    directory, so it wants a *tracked vendored copy* of `unicode_boundary.json` (SwiftPM
-    `resources:`) which **must** be registered in `VENDORED_COPIES`.
-- Neither is locally buildable: `cmake` and `swift` are both **ABSENT** in this container (`gcc`,
-    `g++`, `go` present). Both slices are CI-proof-only.
+    but here:** go1.27 ships Unicode 17.0 tables, so Go reacquires the `Final_Sigma` defect the core
+    shed at 156 unless an equivalent freeze lands there. Standing ruling (`decisions.md`
+    2026-07-26): the skip map stays **unconditional**; the red is the intended trigger. CI pins Go
+    via `go-version-file: packages/go/go.mod` (`go 1.26.1`).
+- **Swift is the last surface and is structurally different from C/C++.**
+    `Tests/IsccLibTests/ConformanceTests.swift` (215 lines) parses JSON with `JSONSerialization`
+    against a **tracked vendored** `Tests/IsccLibTests/data.json`, declared in `Package.swift:27` as
+    `resources: [.copy("data.json")]` and registered in `VENDORED_COPIES`. The boundary slice
+    therefore needs a *second* vendored copy (`unicode_boundary.json`), a second `.copy(…)` entry, a
+    `Bundle.module` read, and a `VENDORED_COPIES` registration — the reverse of the C/C++ pattern.
+- **Swift is genuinely not locally verifiable:** `swift`, `swiftc` absent from `$PATH`, no
+    `/usr/share/swift` or `/opt/swift`, and no PyPI trick (`uv --with swift` installs an unrelated
+    OpenStack package — review confirmed). CI-proof-only.
 
 ## Documentation
 
 **Status**: met
 
-- `docs/unicode.md` updated for the new surface: the propagation paragraph now names the C FFI test
-    program and its generated header, and states that a pytest gate asserts byte-exact regeneration.
-    Accurate against the code.
-- `crates/iscc-ffi/CLAUDE.md` gained the header's path, the regeneration command and the
-    do-not-hand-edit rule.
-- Page-list machinery green: **23** documentation pages (24 tracked `docs/**/*.md` minus
-    `docs/includes/abbreviations.md`, a snippet) consistent across `zensical.toml` nav,
-    `ORDERED_PAGES` and `docs/llms.txt`. 12 crate/package READMEs; 12 crate/package CLAUDE.md files;
-    11 `docs/howto/*.md`; `scripts/version_sync.py --check` **21/21** targets at 0.5.0.
+- `docs/unicode.md` now states that the C FFI test **and the C++ wrapper test** consume a *single*
+    generated header, explicitly noting there is no second artifact. Accurate against the code.
+- `packages/cpp/CLAUDE.md` gained the header path, the regeneration command, the do-not-hand-edit
+    rule, and the test-only-include-dir invariant.
+- Page-list machinery green: `uv run scripts/check_docs_nav.py` → **23 documentation pages
+    consistent** across `zensical.toml` nav, `ORDERED_PAGES` and `docs/llms.txt`. 12 crate/package
+    READMEs; 12 crate/package CLAUDE.md files; 11 `docs/howto/*.md`;
+    `scripts/version_sync.py --check` **21/21** targets at **0.5.0**.
 - Remaining item is cosmetic and human-owned: `Add programming language logos to docs site` (`low`).
 
 ## Benchmarks
@@ -152,24 +165,28 @@ C++ and Swift remain ungated, and neither is buildable in this container.
     `std::hint`). `benches/iai_benches.rs`: iai-callgrind 0.16, 11 functions / 16 cases. 18
     pytest-benchmark fixtures in `tests/test_benchmarks.py`; documented speedups 1.3x–158x.
 - `.iai-baseline.json` and `.crap-baseline.json` are **byte-untouched** (CRAP re-counted at **105**
-    entries) — correct, since no Rust source moved and the new Python is fully covered by its own
-    tests.
+    entries; `git status --porcelain` on both is empty) — correct, since no Rust or Python source
+    moved.
 
 ## CI/CD and Publishing
 
 **Status**: partially met — green, and covering every line of working-tree code
 
-- **Latest CI: GREEN.** check-runs API on `aa01784` (= `origin/develop`): **45 check-runs, 23
-    distinct check names, 0 non-success, 0 in progress.** HEAD is `98e2964`, exactly **one** commit
-    ahead (`cid(log): iteration 159`), and `git diff --stat origin/develop..HEAD -- . ':!.claude'`
-    is **empty** — the green run genuinely covers all code, including the new C FFI slice.
+- **Latest CI: GREEN.** check-runs API on `bd50c27` (= `origin/develop`): **45 check-runs, 23
+    distinct check names, 0 non-success.** That tip is the iteration-160 review commit, i.e. it sits
+    **above** the C++ advance commit, so the green run genuinely covers the new slice.
+- HEAD is `8c68283`, **three** commits ahead of origin — two `cid(log)` plus the audit's metrics
+    snapshot — and `git diff --stat origin/develop..HEAD -- . ':!.claude'` is **empty**, so there is
+    no uncovered code. Working tree clean.
 - Job shape unchanged: **21 job keys → 22 jobs** (`python-test` is a `[3.10, 3.14]` matrix; `python`
-    is an `if: always()` aggregator) **→ 23 check names**, matching the API exactly. The `c-ffi` job
-    (`C FFI (cbindgen, gcc, test)`) needed no edit to pick up the new vectors.
+    is an `if: always()` aggregator) **→ 23 check names**, matching the API exactly. The `cpp` job
+    (`C++ (cmake, ASAN, test)`) is `apt-get install cmake` → `cargo build -p iscc-ffi` → configure
+    (`-DSANITIZE_ADDRESS=ON`) → build → run; it picked up the new vectors with no workflow edit.
 - PR **#44** `develop` → `main` is OPEN, titled "Release 0.6.0" — **not shipped**; version is still
     **0.5.0**. (This is why runs appear 2×.)
-- Iteration 159 completed cleanly: `iterations.jsonl` shows all four roles `OK` and an
-    `iteration_summary` with verdict **PASS** (214 turns, 2,867 s). Working tree clean.
+- Iteration 160 completed cleanly: `iterations.jsonl` shows update-state / define-next / advance /
+    review all `OK`, `iteration_summary` verdict **PASS** (200 turns, 2,433 s), plus the cadence
+    `audit` role `OK` (8 turns) which filed **no** new issues and committed only `metrics.jsonl`.
 - `release.yml` / `docs.yml` byte-unchanged: 97 `uses:` refs, 8 registry toggles,
     `workflow_dispatch`-only; `rubygems/configure-rubygems-credentials@main` still unpinned at
     `release.yml:895`. **`specs/ci-cd.md` remains drifted** — job table still 14 rows against 21
@@ -188,11 +205,10 @@ C++ and Swift remain ungated, and neither is buildable in this container.
 ## Open Issues
 
 **8 entries in `issues.md` — 4 `normal`, 4 `low`, zero `critical`, zero `HUMAN REVIEW REQUESTED`.**
-None opened and none closed this iteration. Nothing is parked on Titusz.
+None opened and none closed this iteration (the audit filed nothing). Nothing is parked on Titusz.
 
-- **NORMAL — "Declare and gate a Unicode data version (DECIDED)".** (a1) and (a2) are ✅; the
-    remainder is **(b)** propagation, now updated in place to record 9 of 11 surfaces with C++ and
-    Swift outstanding.
+- **NORMAL — "Declare and gate a Unicode data version (DECIDED)".** (a1) and (a2) ✅; the remainder
+    is **(b)** propagation, updated in place to **10 of 11** with Swift outstanding.
 - **NORMAL:** dependency review and refresh (major bumps, one per step); the rubygems `@v2.1.0` pin;
     the exhaustive `specs/ci-cd.md` job table.
 - **LOW / CID skips:** the three gate-script remainders deferred at 146 (trigger-contingent — do not
@@ -200,33 +216,35 @@ None opened and none closed this iteration. Nothing is parked on Titusz.
 
 ## Next Milestone
 
-**Propagation slice 6 — the C++ boundary vectors.** It is the cheapest of the two remaining surfaces
-by a wide margin, because the artifact it needs already exists: reuse
-`crates/iscc-ffi/tests/unicode_boundary_vectors.h` rather than generating a second copy.
-`packages/cpp/CMakeLists.txt:19` already exposes `../../crates/iscc-ffi/include`, so the slice is
-one added include directory (`../../crates/iscc-ffi/tests`) plus a vector loop in
-`packages/cpp/tests/test_iscc.cpp` calling `iscc::text_clean` / `iscc::text_collapse` (both already
-wrapped in `include/iscc/iscc.hpp`). No new generator, no new tracked artifact, and — since the
-header is derived — **no `VENDORED_COPIES` entry**; the existing pytest regeneration anchor already
-covers drift for both consumers. Expect the `cpp` job (cmake + ASAN) to be the only proof: `cmake`
-is absent in this container, so the advance agent must not claim a local run.
+**Propagation slice 7 — Swift, the final boundary-vector surface.** It closes criterion 3 of the
+Unicode issue outright, but it is the *hardest* of the eleven and the only one that cannot be proven
+locally: no `swift`/`swiftc` on `$PATH`, no toolchain under `/usr/share/swift` or `/opt/swift`, and
+no PyPI substitute (unlike the cmake-from-PyPI discovery that unblocked C++). **The advance agent
+must scope it as CI-proof-only and say so explicitly — do not claim a local run.**
 
-Swift is the harder remainder and should follow, not lead: it needs a *tracked vendored copy* of
-`unicode_boundary.json` under `packages/swift/Tests/IsccLibTests/` declared as a SwiftPM
-`resources:` entry, registered in `VENDORED_COPIES`, and read through `Bundle.module` — and `swift`
-is likewise absent locally.
+Unlike C and C++, Swift takes the fixture as a *tracked vendored copy*, mirroring what
+`ConformanceTests.swift` already does with `data.json`:
+
+1. `cp crates/iscc-lib/tests/unicode_boundary.json packages/swift/Tests/IsccLibTests/` — **`cp`
+    only**, never the Write/Edit tools (the `\uXXXX` escapes would decode to literal UTF-8 and
+    break byte-identity).
+2. Add `.copy("unicode_boundary.json")` to the existing `resources:` array at `Package.swift:27`.
+3. Register the new path under the `crates/iscc-lib/tests/unicode_boundary.json` key in
+    `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` — the byte-identity gate discovers
+    copies by basename and **will red** on an unregistered one.
+4. Read it via `Bundle.module` + `JSONSerialization` (same shape as the `data.json` loader) and
+    assert the metadata guards (`16.0.0`, 7, 5) plus all 12 vectors, zero skips.
 
 Lighter human-authorized alternatives if a smaller step is wanted: pin
 `rubygems/configure-rubygems-credentials` to `@v2.1.0` + `# exact tag:` comment (one line, still
-`@main` at `release.yml:895`); or make the `specs/ci-cd.md` job table exhaustive (14 rows vs 21 job
-keys).
+`@main` at `release.yml:895`; verify with the committed `scripts/check_release_workflow.py` gates,
+never a retyped heredoc, and require zero `warning: skipped` lines); or make the `specs/ci-cd.md`
+job table exhaustive (14 rows vs 21 job keys — re-derive from `ci.yml`, not from prose).
 
-Standing hazards for any fixture work: never write `unicode_boundary.json` through the Write/Edit
-tools (the `\uXXXX` escapes decode to literal UTF-8 — use `cp`, or Python with `ensure_ascii=True`);
-do not relabel the `e U+A7F1 U+0301` row's oracle back to `e U+015A`; keep any generated file pure
-ASCII, LF-only, one trailing newline, or the prek hygiene hooks will rewrite it and red the
-regeneration gate. Adding a *vector* to the canonical fixture remains a separate, deliberate slice —
-**ten** consumers now assert exactly 7 `text_clean` + 5 `text_collapse`, so a new row reds them all
-at once. Propagation invariant re-verified this iteration:
-`git ls-files -- '*data.json' '*unicode_boundary.json'` = **7** tracked paths, matching
-`VENDORED_COPIES`.
+Standing hazards for any fixture work: keep any generated or vendored file pure ASCII, LF-only, one
+trailing newline, or the prek hygiene hooks rewrite it and red the regeneration gate; do not relabel
+the `e U+A7F1 U+0301` row's oracle back to `e U+015A`. Adding a *vector* to the canonical fixture
+remains a separate, deliberate slice — **eleven** consumers now assert exactly 7 `text_clean` + 5
+`text_collapse`, so a new row reds them all at once. Propagation invariant re-verified this
+iteration: `git ls-files -- '*data.json' '*unicode_boundary.json'` = **7** tracked paths, exactly
+matching `VENDORED_COPIES`; a Swift slice takes it to 8.

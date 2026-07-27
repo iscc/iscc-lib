@@ -57,9 +57,9 @@ is stripped, which is what the reference does).
     `[dependency-groups]` — it is generator-only, excluded via `pyproject.toml`
     `[tool.ty.src] exclude`.
 2. **Table deps ≥ 16.0.0 — MET**, no dependency change; now explicitly freely-upgradable.
-3. **Boundary vectors — PARTIAL: Rust fixture COMPLETE (iters 141+149), surfaces at 9 of 11 (150:
-    Python; 151: WASM + Ruby; 153: napi + Java; 154: C# + Kotlin; **159: C FFI**) plus the pure-Go
-    port. REMAINING: C++, Swift + the 4 sibling `data.json` locations.**
+3. **Boundary vectors — PARTIAL: Rust fixture COMPLETE (iters 141+149), surfaces at 10 of 11 (150:
+    Python; 151: WASM + Ruby; 153: napi + Java; 154: C# + Kotlin; 159: C FFI; **160: C++**) plus
+    the pure-Go port. REMAINING: Swift only, + the 4 sibling `data.json` locations.**
     `crates/iscc-lib/tests/unicode_boundary.json` — project-owned, `data.json`-*shaped* but a
     separate file (NOT appended to the five vendored `data.json` copies), fully **ASCII-escaped**
     (a repo grep for `1FAE9` MISSES it — grep the filename),
@@ -80,8 +80,8 @@ is stripped, which is what the reference does).
     `git ls-files | grep -i unicode_boundary` is the fast check (11 paths at 154: 9 test files + 2
     JSON), but it UNDER-counts by name: Java/C#/Kotlin files are
     `UnicodeBoundaryTest{,s}.{java,cs,kt}`.** Only Go has a vendored copy; every other surface
-    reads the canonical file in place, compiles it in, or (C FFI, 159) consumes a generated header.
-    **REMAINING: C++, Swift + 4 sibling `data.json` locations**
+    reads the canonical file in place, compiles it in, or (C FFI 159 / C++ 160) consumes the one
+    generated header. **REMAINING: Swift + 4 sibling `data.json` locations**
     (`packages/dotnet/Iscc.Lib.Tests/testdata/`, `packages/swift/Tests/IsccLibTests/`,
     `packages/kotlin/src/test/resources/`, `packages/go/testdata/`; `find packages -name data.json`
     also returns 2 build artifacts, ignore those). **Reusable propagation pattern (proven
@@ -124,7 +124,10 @@ is stripped, which is what the reference does).
     and deliberately NOT filed:** `check_extension_fresh` tests the **union** of
     `RUST_SOURCE_DIRS`, so one renamed dir still passes while the other yields sources — redundant
     behind `--rebuilt`. The success line `TOTAL 17793024 comparisons, 0 divergences` is
-    **byte-frozen** by contract. Mandatory on every future table bump.
+    **byte-frozen** by contract. Mandatory on every future table bump. **Probe recipe (seconds, no
+    build):** load `scripts/unicode_sweep.py` via `importlib`, call `main(["--rebuilt"])`
+    in-process, and `setattr` `scalar_values` / `EXPECTED_*` / `FUNCTION_PAIRS` to exercise the
+    failure path at 30-scalar scale; a real run needs a `--release` rebuild (~60 s).
 
 ## The `Final_Sigma` case-table defect — FIXED at iter 156, re-verified at 157
 
@@ -259,12 +262,12 @@ Re-verified at iteration 154. This is axis 1 of the three-axis slice-cost rankin
 | Canonical file, LINKED  | **C#** (csproj `<Content Include=..\..\..\… Link="testdata\…">` + `AppContext.BaseDirectory`), **Kotlin** (`iscc.fixtureDir` system property set in `build.gradle.kts`) |
 | Compiled in             | Rust, WASM (both `include_str!`)                                                                                                                                        |
 | Vendored copy required  | Go (`testdata/` + `//go:embed`), Swift (`Bundle.module`, `Package.swift` `resources: [.copy(…)]`)                                                                       |
-| **Generated C header**  | **C FFI (DONE 159)** — `crates/iscc-ffi/tests/unicode_boundary_vectors.h`; **C++ can reuse it**                                                                         |
-| No JSON parser at all   | C++ (`packages/cpp/tests/test_iscc.cpp`, 397 lines, no reader)                                                                                                          |
+| **Generated C header**  | **C FFI (DONE 159)** + **C++ (DONE 160)** — ONE artifact, `crates/iscc-ffi/tests/unicode_boundary_vectors.h`, consumed by both; C++ needs no JSON reader                |
 
 - **Java's relative path works because surefire's default working directory is the pom basedir**,
     not the `mvn -f <pom>` invocation directory. `crates/iscc-jni/java` + `../../iscc-lib/tests/…`
     therefore resolves; the pre-existing `IsccLibTest.java` relies on the same fact for `data.json`.
+
 - **RULED 2026-07-26 (decisions.md, iter 154): boundary suites LINK the canonical fixture rather
     than vendoring a copy**, even where the sibling `data.json` is a tracked copy — that asymmetry
     inside `packages/{dotnet,kotlin}` is deliberate, not cleanup debt. Every tracked copy is a
@@ -272,9 +275,11 @@ Re-verified at iteration 154. This is axis 1 of the three-axis slice-cost rankin
     one surface expected to need it), it MUST be registered in `VENDORED_COPIES` of
     `tests/test_vendored_fixtures.py` in the same commit and MUST keep the canonical basename (the
     gate discovers by basename).
+
 - **CI reachability is free for every surface so far** — each binding job rebuilds its native
     artifact and its test command auto-discovers new files (`node --test __tests__/*.test.mjs`
     globs; surefire matches `*Test.java`; pytest `testpaths`; `go test ./...`).
+
 - **The generated-header pattern (RULED 159, `decisions.md` 2026-07-27) is the answer for any
     JSON-less surface.** PEP 723 generator → tracked `.h` of `static const struct` rows, placed
     **beside its includer** so a quoted `#include` needs no new `-I` (the CI gcc line is verbatim
@@ -285,3 +290,21 @@ Re-verified at iteration 154. This is axis 1 of the three-axis slice-cost rankin
     `render(fixture) == tracked_header` (CI runs pytest but never the generator). Verify it in
     seconds without a build: decode the octal escapes back to strings and diff against the fixture,
     then `ctypes.CDLL("target/debug/libiscc_ffi.so")` for a second, independent oracle.
+
+- **Swift is the LAST surface and is the reverse pattern — a tracked vendored copy.** Recipe:
+    `cp crates/iscc-lib/tests/unicode_boundary.json packages/swift/Tests/IsccLibTests/` (**`cp` only
+    — Write/Edit would decode the `\uXXXX` escapes to literal UTF-8 and break byte-identity**), add
+    `.copy("unicode_boundary.json")` to the `resources:` array at `Package.swift:27` (already
+    `[.copy("data.json")]`), **register the new path in `VENDORED_COPIES`** in the same commit, and
+    read it via `Bundle.module` + `JSONSerialization` exactly as the 215-line
+    `ConformanceTests.swift` already does for `data.json`. It is CI-proof-only — no local toolchain
+    and no PyPI substitute (→ `env-gotchas.md`), so an advance agent must not claim a local run.
+
+- **A second consumer of that header costs 4 files (160, C++).** The whole slice was one
+    `target_include_directories(test_iscc PRIVATE …/crates/iscc-ffi/tests)` — **`PRIVATE` on the
+    test target, NEVER on the public `iscc` INTERFACE target** — plus a helper taking
+    `std::string (*)(const std::string&)` and one assertion block. CMake depfiles treat the
+    cross-package header as a build input, so a bare `cmake --build` recompiles after a header edit:
+    **no Gradle-style stale-green here.** Verify without cmake: bare
+    `g++ -std=c++17 -Wall -Wextra -Wpedantic` with the three `-I`s (→ `env-gotchas.md`) →
+    `69 passed, 0 failed`, 12 `PASS: unicode_boundary/…` lines, 3 metadata guards.
