@@ -850,3 +850,33 @@ never the script directly. Recorded in learnings.md and filed for hardening in i
 **Context:** iteration 157 (`186287e`); blind spot flagged by the advance agent's handoff,
 independently reported by the Codex review, and reproduced at review (a missing source directory
 also passes the guard vacuously).
+
+## 2026-07-27 — The sweep gate's rebuild precondition is a trusted caller assertion, not an observation
+
+**Decision:** `scripts/unicode_sweep.py` refuses to run unless its `argv` carries `--rebuilt`
+(`check_rebuilt`, the first statement of `main`). Only two callers pass it: the `unicode:sweep` mise
+task and the `unicode-sweep` CI step, each immediately after an unconditional
+`maturin develop --release`. The flag asserts nothing the script verifies — a human who exports it
+without rebuilding is trusted — and the mtime `check_extension_fresh` observation is deliberately
+kept behind it as cheap redundancy for the "edited a `.rs`, forgot to rebuild" case. **Why:** the
+2026-07-27 mtime entry above left the operating rule ("always run through `mise run unicode:sweep`")
+as convention only, which is unenforced by construction; a `cargo update` or rustc bump touches no
+`.rs` file, so a bare invocation reported a false green on exactly the upgrade the gate exists to
+validate. Turning the convention into a refusal costs one flag and closes the hole for every path
+that matters, because the two authoritative paths rebuild first by construction. **Alternatives:**
+widen the mtime set to `Cargo.toml`/`Cargo.lock`/`rust-toolchain*` — still blind to a toolchain-only
+bump, so it buys false completeness (already rejected above); embed `rustc -vV` plus a dependency
+fingerprint in the extension and compare it — the only *observing* fix, rejected because it adds an
+unbound public symbol to the Python surface and breaks the 32-symbol Tier 1 story for a hazard the
+refusal already covers; make the script shell out to `maturin` itself — rejected, it removes the ~2
+s fail-fast signal and makes the script un-runnable without a ~21 s build. **Consequence:** the gate
+now trades a *silent* failure mode for a *loud* one — the residual (`--rebuilt` passed without a
+rebuild) is a deliberate act rather than an accident, and is stated in the `check_rebuilt`
+docstring. `sweep()` also stopped retaining one record per divergence: it counts every divergence
+but keeps at most `MAX_REPORTED_DIVERGENCES` (20) samples, so a broad regression prints diagnostics
+instead of OOM-killing CI. The success line `TOTAL 17793024 comparisons, 0 divergences` is unchanged
+and stays byte-frozen. **Context:** iteration 158 (`aedb61e`); both blind spots were filed by the
+iteration-157 review and independently reported by that iteration's Codex review. Verified at review
+by a bare-invocation probe (exit 1, empty stdout), two near-miss flag forms, a full green sweep, and
+an in-process `main()` run over 30 scalars with a wrong oracle (20 sample lines +
+`showing first 20 of 480 divergences` + the exact TOTAL line, return code 1).

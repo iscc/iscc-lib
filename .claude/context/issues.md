@@ -305,17 +305,24 @@ comparisons, 0 divergences** (~60 s). It fails closed on the oracle's `unidata_v
 extension, the scalar count and the comparison count — asserting both counts *before* the success
 line `TOTAL 17793024 comparisons, 0 divergences`, so a zero-case run cannot read green. Run it as
 `mise run unicode:sweep` (rebuild-then-sweep) or via the standalone `unicode-sweep` CI job (21st
-job, CPython 3.14 + `--release`; standalone because the `python-test` 3.10 leg could only skip). Ten
-pytest cases in `tests/test_unicode_sweep.py` pin the machinery, including a review-added guard that
-the eight contexts genuinely discriminate the superseded delete-filter design — only `base_mark` /
-`jamo` / `sigma` do, so an eight-context set swapped for ASCII shapes would keep the arithmetic pin
-green while exposing nothing. The sequence half of the criterion is covered for *every* scalar, not
-only the unassigned ones. **Residual the gate protects:** only the *conditional* `Final_Sigma`
-mapping is frozen; every unconditional lowercase mapping still comes from rustc's tables (zero
-divergence measured today — see `decisions.md` 2026-07-27). 🔄 (b) boundary vectors wired into the
-Rust suite and all bindings (Go: see caveat in point 3); the spec already names 16.0.0 and the
-freeze rule. **(b) Rust half done iter 141**: `crates/iscc-lib/tests/unicode_boundary.json`
-(ASCII-escaped, `data.json`-shaped, 4 single code points × `text_clean`/`text_collapse`) + loader
+job, CPython 3.14 + `--release`; standalone because the `python-test` 3.10 leg could only skip).
+**Hardened iter 158** (closing the two blind spots the iteration-157 review filed): a bare
+`uv run scripts/unicode_sweep.py` now refuses — `check_rebuilt` demands a `--rebuilt` caller
+assertion supplied only by those two rebuild-first paths, since the mtime guard is blind to a
+`cargo update` / rustc bump; an empty `*.rs` source set fails closed instead of passing vacuously;
+and `sweep()` counts every divergence while retaining at most 20 samples, so a broad regression
+prints diagnostics instead of OOM-killing CI. Rationale + the accepted "the flag is trusted, not
+verified" residual → `decisions.md` 2026-07-27. Fourteen pytest cases in
+`tests/test_unicode_sweep.py` pin the machinery, including a review-added guard that the eight
+contexts genuinely discriminate the superseded delete-filter design — only `base_mark` / `jamo` /
+`sigma` do, so an eight-context set swapped for ASCII shapes would keep the arithmetic pin green
+while exposing nothing. The sequence half of the criterion is covered for *every* scalar, not only
+the unassigned ones. **Residual the gate protects:** only the *conditional* `Final_Sigma` mapping is
+frozen; every unconditional lowercase mapping still comes from rustc's tables (zero divergence
+measured today — see `decisions.md` 2026-07-27). 🔄 (b) boundary vectors wired into the Rust suite
+and all bindings (Go: see caveat in point 3); the spec already names 16.0.0 and the freeze rule.
+**(b) Rust half done iter 141**: `crates/iscc-lib/tests/unicode_boundary.json` (ASCII-escaped,
+`data.json`-shaped, 4 single code points × `text_clean`/`text_collapse`) + loader
 `tests/test_unicode_boundary.rs` (1 ungated shape/content guard + 2 `text-processing`-gated vector
 tests). ✅ **Sequence vectors done iter 149**: the four multi-code-point cases below are in the
 fixture (`text_clean` 7 cases, `text_collapse` 5) and pinned in the test source by a
@@ -442,37 +449,6 @@ deliberately.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
 contract"
-
-## Harden the Unicode differential sweep gate `normal` [review]
-
-Two blind spots in `scripts/unicode_sweep.py` (landed iter 157). Both are safe to fix in one step;
-neither affects the gate's authoritative CI form, which rebuilds unconditionally.
-
-1. **The freshness guard cannot see a dependency-only or toolchain-only change.**
-    `check_extension_fresh` compares the `.so` mtime against the newest `*.rs` under
-    `crates/iscc-lib/src` + `crates/iscc-py/src` only. A `cargo update` that moves
-    `unicode-normalization` / `unicode-general-category`, or a rustc upgrade, touches no `.rs` file
-    — so a bare `uv run scripts/unicode_sweep.py` reports a **false green** from a stale extension.
-    That is precisely the upgrade the sweep exists to validate. A missing source directory also
-    passes vacuously (`max(..., default=0.0)`, reproduced at review). Options: widen the mtime set
-    to `Cargo.toml` / `Cargo.lock` / `rust-toolchain*`, embed `rustc -vV` + a dependency
-    fingerprint in the built extension and compare it, or make the direct invocation refuse to run
-    outside `mise run unicode:sweep`. Whatever is chosen, keep the fast fail-fast signal — do not
-    make the script always shell out to a ~21 s maturin build. Rationale for the current shape and
-    the interim operating rule (*always* run through `mise run unicode:sweep`) → `decisions.md`
-    2026-07-27.
-
-2. **The divergence list is unbounded.** `sweep()` retains every `Divergence` tuple even though
-    `main()` prints at most `MAX_REPORTED_DIVERGENCES`. A broad regression (e.g. a toolchain change
-    to a common case mapping) can retain millions of tuples with two strings each — several GB —
-    and OOM-kill the CI process before it emits any diagnostics, turning the most informative
-    failure into the least. Fix: count divergences separately and retain only the first
-    `MAX_REPORTED_DIVERGENCES` samples. `tests/test_unicode_sweep.py`
-    `test_sweep_reports_divergence_with_wrong_oracle` asserts `len(divergences) == count` and must
-    be updated in the same step.
-
-Both were reported by the iteration-157 Codex review; (1) was independently flagged in the advance
-handoff and reproduced at review.
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 

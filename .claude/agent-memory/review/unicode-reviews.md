@@ -27,21 +27,28 @@ propagation tally and the go1.27 checklist stay in `issues.md`; design rationale
 - **Never "fix" one binding to match another.** They all wrap the same Rust core except
     `packages/go`, which is an independent port.
 
-## The differential sweep gate (landed iter 157)
+## The differential sweep gate (landed iter 157, hardened 158)
 
 `scripts/unicode_sweep.py` — 1,112,064 scalars × 8 `CONTEXTS` × 2 `FUNCTION_PAIRS` = **17,793,024
 comparisons** against the installed `iscc-core` on CPython 3.14 (uniform 16.0.0 tables, no freeze
-rule of its own). Success line: `TOTAL 17793024 comparisons, 0 divergences`.
+rule of its own). Success line: `TOTAL 17793024 comparisons, 0 divergences` — byte-frozen, three
+context files assert it.
 
-- Run it as **`mise run unicode:sweep`** (rebuilds `--release` first, ~60 s) or via the standalone
-    CI job `unicode-sweep`. **Never verify a dependency or toolchain bump with a bare
-    `uv run scripts/unicode_sweep.py`** — `check_extension_fresh` watches only `*.rs` mtimes, so a
-    `cargo update` / rustc bump reads a stale `.so` GREEN. Accepted residual (`decisions.md`
-    2026-07-27); hardening filed in `issues.md`.
-- Guards, all fail-closed: oracle `unidata_version`, extension freshness, scalar count, comparison
-    count — the counts assert **before** the success line, so a zero-case run cannot read green.
-- `tests/test_unicode_sweep.py` (10 cases) pins the machinery, incl.
-    `test_contexts_discriminate_the_delete_filter_design`.
+- Run it as **`mise run unicode:sweep`** (rebuilds `--release` first, ~90 s total) or via the
+    standalone CI job `unicode-sweep`. A bare `uv run scripts/unicode_sweep.py` **refuses** since
+    158: `check_rebuilt` demands the `--rebuilt` caller assertion, passed only by the mise task and
+    the CI step, each immediately after an unconditional release build. The flag is *trusted*, not
+    observed — `--rebuilt` without a rebuild still sweeps a stale `.so` (documented residual).
+- Guards, all fail-closed and in this order: `check_rebuilt`, oracle `unidata_version`, extension
+    freshness (`.so` mtime vs newest `*.rs`; an **empty** source set fails since 158), scalar count,
+    comparison count — the counts assert **before** the success line, so a zero-case run cannot read
+    green. Residual: freshness is checked over the *union* of `RUST_SOURCE_DIRS`, so one renamed or
+    emptied dir still passes as long as the other has sources.
+- `sweep()` returns `SweepResult(comparisons, divergences, samples)`; `samples` is capped at
+    `MAX_REPORTED_DIVERGENCES` (20). Any test asserting over `samples` inherits the cap —
+    `test_contexts_discriminate_the_delete_filter_design` is safe only because 8 contexts × 2 fns =
+    16 < 20.
+- `tests/test_unicode_sweep.py` (14 cases) pins the machinery.
 
 ## Differential-gate recipe (iter 157, ~25 min on top of the new-gate-script recipe)
 
@@ -58,12 +65,19 @@ rule of its own). Success line: `TOTAL 17793024 comparisons, 0 divergences`.
     directory passes vacuously. Reproduce both before deciding whether they are acceptable.
 3. **Check the failure path's memory growth.** Retaining one record per divergence is fine at 0
     divergences and fatal at 17.8M — the most informative failure becomes an OOM kill with no log.
+    A unit test on the sweep function proves the cap; only an end-to-end `main()` run proves the
+    *reporting* (sample lines + "showing first N of M" + the frozen TOTAL) survives it.
 4. **Drive `main()` in-process**, never by editing the committed script: load it with
-    `importlib.util.spec_from_file_location`, monkeypatch `scalar_values` / `CONTEXTS` /
-    `FUNCTION_PAIRS` / the `EXPECTED_*` constants, wrap in `contextlib.redirect_stdout` and catch
-    `SystemExit`. Keeps the working tree clean and each probe under a second.
-5. **Assert stdout is empty when a count guard fires** — proof the guard runs before any success
-    reporting, not just that the exit code is non-zero.
+    `importlib.util.spec_from_file_location`, then `setattr(mod, …)` (never `mod.X = …`, `ty`
+    rejects it) on `scalar_values` / `CONTEXTS` / `FUNCTION_PAIRS` / `check_extension_fresh` / the
+    `EXPECTED_*` constants, wrap in `contextlib.redirect_stdout` and catch `SystemExit`. A
+    30-scalar wrong-oracle run of `main(["--rebuilt"])` returns 1 and prints exactly 20
+    `DIVERGENCE` lines + `showing first 20 of 480 divergences` +
+    `TOTAL 480 comparisons, 480 divergences`.
+5. **Probe near-miss forms of any new caller-assertion flag** — `--rebuild`, `--rebuilt=true` must
+    both be refused (membership tests in `argv` are exact; there is no argparse here).
+6. **Assert stdout is empty when a count or precondition guard fires** — proof the guard runs before
+    any success reporting, not just that the exit code is non-zero.
 
 ## Boundary vectors
 

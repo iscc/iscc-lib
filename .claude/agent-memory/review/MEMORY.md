@@ -62,10 +62,12 @@ strengths / blind spots / how to weigh a finding). Stale in `MEMORY-archive.md`.
     **HUMAN REVIEW REQUESTED**, NOT `**IDLE**` (all-`low` only). Verdict still PASS; push the batch
 - **Unicode freeze-rule work has its own playbook → `unicode-reviews.md`**: the `U+FFFF` sentinel
     contract (delete-filter and category-override both RULED OUT), the ban on a bare
-    `.to_lowercase()` in `text_collapse`, the `mise run unicode:sweep` gate and its stale-`.so`
-    trap, boundary-vector propagation (**8 of 11** bindings gated; C FFI / C++ / Swift left), and "a
-    binding can pass for the WRONG reason — check the MECHANISM". Read it before reviewing any diff
-    under `utils/unicode16*`, `unicode_boundary.json` or `scripts/gen_unicode16_*`
+    `.to_lowercase()` in `text_collapse`, the `mise run unicode:sweep` gate (a bare script run
+    REFUSES since 158 — `--rebuilt` is a *trusted* caller assertion), boundary-vector propagation
+    (**8 of 11** bindings gated; C FFI / C++ / Swift left — the C FFI does export
+    `iscc_text_clean`/`iscc_text_collapse`, so slice 5 is feasible), and "a binding can pass for the
+    WRONG reason — check the MECHANISM". Read it before reviewing any diff under `utils/unicode16*`,
+    `unicode_boundary.json` or `scripts/gen_unicode16_*`
 - **Concurrent CID loops (iter 97, detail → `MEMORY-archive.md`)**: spurious `mise run check` "files
     modified" on an untouched file + a mid-review working-tree change = a SECOND loop racing.
     Confirm with `ps aux`; flag HUMAN REVIEW REQUESTED, do NOT push or kill processes
@@ -92,9 +94,10 @@ strengths / blind spots / how to weigh a finding). Stale in `MEMORY-archive.md`.
     your OWN mutations, prefer a **real** regression to a synthetic typo, and work the blind-spot
     list → `review-patterns.md`. A `files:`-scoped prek hook needs a **staged** fire/skip probe and
     never sees deletions
-- **DIFFERENTIAL gate (157) / vendored DERIVED-property table (156), ~25 min each**: a case-count
-    pin catches a shrunken case set, never a swapped one; a behaviourally-derived generator is not
-    its own oracle. Both recipes → `unicode-reviews.md`
+- **DIFFERENTIAL gate (157/158) / vendored DERIVED-property table (156), ~25 min each**: a
+    case-count pin catches a shrunken case set, never a swapped one; a behaviourally-derived
+    generator is not its own oracle; a *unit* test on a bounded result proves the cap but never the
+    **reporting** path — drive `main()` in-process for that. Both recipes → `unicode-reviews.md`
 - **Repo-state gate that reads the git index (152, ~8 min)**: Python-only PLUS six mutations in a
     THROWAWAY repo (`git archive HEAD | tar -x -C /tmp/x && git init` — `git clone` fails here on
     `safe.directory`; never mutate the real index mid-iteration) → `review-patterns.md`

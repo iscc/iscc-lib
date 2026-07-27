@@ -95,11 +95,11 @@ uniform Unicode 16.0.0 tables — all 1,112,064 Unicode scalar values × 8 conte
 point plus seven neighbouring-character shapes, covering the sequence classes below) × 2 functions =
 17,793,024 comparisons, required to show **zero** divergences. The same sweep runs in CI as the
 dedicated job `Unicode sweep (16.0.0 differential)`. The script refuses a bare invocation — it only
-runs when the caller asserts a just-completed rebuild, so `mise run unicode:sweep` (or the CI job)
-is the only way to run it. Its purpose is the unguarded residual — a toolchain upgrade that changed
-an unconditional case mapping or a normalization table would otherwise surface only where it
-happened to hit one of the fixed boundary vectors below — not the `Final_Sigma` condition it
-re-proves.
+runs when the caller asserts a just-completed rebuild, so always run it through
+`mise run unicode:sweep` (or the CI job), which rebuilds first. Its purpose is the unguarded
+residual — a toolchain upgrade that changed an unconditional case mapping or a normalization table
+would otherwise surface only where it happened to hit one of the fixed boundary vectors below — not
+the `Final_Sigma` condition it re-proves.
 
 ## Boundary behaviour
 
