@@ -24,10 +24,17 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - **Verify a Go-package claim in ~60s**: `/tmp` module requiring
     `github.com/iscc/iscc-lib/packages/go v0.0.0` + a `replace` to the repo, then
     `GOFLAGS=-mod=mod CGO_ENABLED=0 go mod tidy && CGO_ENABLED=0 go run main.go`.
-- **Counts** (155): crate/pkg READMEs & CLAUDE.md 12 each (**scope the glob to
+- **Counts** (157): crate/pkg READMEs & CLAUDE.md 12 each (**scope the glob to
     `crates/*/   packages/*/`** — bare grep gives 14); pytest-benchmark 18; UniFFI 32; docs pages
     **23**; `docs/howto/*.md` 11; speedups 1.3x-158x; ffi extern **47** (`'#\[unsafe(no_mangle)\]'`;
-    bare `no_mangle` gives 48); iscc-lib `#[test]` **335**; `packages/go` `^func Test` **177**.
+    bare `no_mangle` gives 48); iscc-lib `#[test]` **342** (glob
+    `git ls-files 'crates/iscc-lib/**/*.rs'`; `src/` alone gives 288); `packages/go` `^func Test`
+    **177**; CRAP `entries` **105**.
+- **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` are both
+    importable under `uv run python`, so any reference-vs-core probe needs **no build** — a full
+    1.1M-scalar sweep of both text fns runs in minutes. **But check
+    `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` mtime against `crates/iscc-lib/src/` first**;
+    a stale `.so` silently measures the previous commit (bit review at 156).
 - **GOTCHA — `git ls-files 'docs/**/*.md'` returns 13, NOT 24** (misses top-level `docs/*.md`); use
     `uv run scripts/check_docs_nav.py` for the authoritative count.
 - **version_sync TARGETS** = **21** (`scripts/version_sync.py --check`) = the authoritative set of
@@ -52,16 +59,19 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
     `packages/go` is the ONLY binding not inheriting the core's Unicode behaviour.
 - `ci.yml` — **20 YAML job entries → 21 jobs → 22 check names**: `python-test` = 3.10/3.14 matrix,
     `python` (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job. `release.yml`
-    — 8 registry toggles; the Swift XCFramework step is in `prepare-release`, NOT a toggle.
-- **Unicode = 16.0.0 + SENTINEL freeze rule → read `unicode-contract.md` before ANY Unicode call**
-    (criterion status, per-surface fixture-plumbing table, the OPEN `Final_Sigma` case-table defect,
-    2 SUPERSEDED designs that must NOT be implemented). Inline landmark: **surefire's default CWD is
-    the pom basedir**, NOT the `mvn -f` dir — why the Java suites' `../../iscc-lib/tests/…` resolve.
+    — 8 registry toggles; Swift XCFramework is a `prepare-release` step, NOT a toggle.
+- **Unicode = 16.0.0 + TWO freeze layers → read `unicode-contract.md` before ANY Unicode call**
+    (SENTINEL for category/normalization + the `Final_Sigma` CASE freeze added 156; criterion
+    status, per-surface fixture-plumbing table, 2 SUPERSEDED designs that must NOT be implemented).
+    Inline landmark: **surefire's default CWD is the pom basedir**, NOT the `mvn -f` dir — why the
+    Java suites' `../../iscc-lib/tests/…` resolve.
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`), now
     gated. `streaming.rs`: `DataHasher`/`InstanceHasher` at crate root, `SumHasher` only via
     `streaming::`. iscc-wasm's `blake3 wasm32_simd` dep is feature-unification — **don't prune**.
     `iscc-py` has **12** `.detach(` sites. `benches/`: 12 criterion (0.7) + iai 0.16 (11 fns, 16
-    cases). **Inline `# held:`** = pin rationale — root `Cargo.toml` **4**, `pyproject.toml` zero.
+    cases). `crates/iscc-lib/src/utils/` holds TWO generated data modules: `unicode16.rs` (731
+    unassigned ranges) and `unicode16_case.rs` (152 `Cased` + 452 `Case_Ignorable`). **Inline
+    `# held:`** = pin rationale — root `Cargo.toml` **4**, `pyproject.toml` zero.
 - **Ruff/prek/mdformat → `lint-tooling.md`.** ruff **0.16.0** since 137; local prek is a strict
     SUPERSET of CI. Probe hooks with `prek run <hook> --files <f>`.
 - **Dependency-pin inventory + slice history** → `dep-refresh-survey.md`. All GHA refs CURRENT
@@ -77,48 +87,53 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - **When a ruling lands, re-verify the CODE against the NEW spec**; grep `decisions.md` for
     `supersede`. At 147 a 14-iteration "met" went unmet.
 - **Reproduce/refute inherited claims yourself, ideally by a DIFFERENT method** — cheap probes beat
-    inherited text (confirmed bugs at 147 and 156, refuted a stale-napi-`.node` claim at 151-153).
-    At 156 a classification-level diff both confirmed the sweep claim and bounded it (100 → 1).
-    Deliberate deviations from a fix sketch are legitimate: read the in-source comment first.
+    inherited text (bugs confirmed 147/156, stale-napi-`.node` claim refuted 151-153, generated
+    tables re-derived from scratch 157). **A generator can never be its own oracle.** Also verify
+    the numbers a PREDECESSOR flagged as unverified (157 cleared 155's 152/452). Deliberate
+    deviations from a fix sketch are legitimate: read the in-source comment first.
 - **Spec checkboxes are NOT a progress signal** — most specs sit at 0/N checked though MET; only
     `ci-cd.md` (44/52) + `rust-core.md`'s semver box are kept up. Spec *prose* rots too, and can be
     outright FALSIFIED by measurement (156: "Rust `str::to_lowercase()` does the same").
-- **Cost-rank a propagation slice on THREE axes** (153/154): fixture plumbing × target-API coverage
-    × **local buildability** (`command -v`). API coverage alone wrongly put C++ at "cheap"; the
-    third axis demotes Swift/C++ (no toolchain → CI-only proof).
-- **Fourth axis (154): is the fixture a DECLARED INPUT of that build system?** Gradle/MSBuild/CMake
-    can report UP-TO-DATE and skip the suite — 13 Kotlin tests silently did not run while every
-    surface gate was green. Only a mutate-then-rerun probe (no `clean`) exposes it; CI is immune.
+- **Cost-rank a propagation slice on FOUR axes** (153/154): fixture plumbing × target-API coverage ×
+    **local buildability** (`command -v` — demotes Swift/C++ to CI-only proof) × **is the fixture a
+    DECLARED INPUT of that build system?** Gradle/MSBuild/CMake can report UP-TO-DATE and skip the
+    suite — 13 Kotlin tests silently did not run while every gate was green. Only a
+    mutate-then-rerun probe (no `clean`) exposes it; CI is immune.
 
-## Current State (assessed-at: 12524f9, iter 156)
+## Current State (assessed-at: 78bf9b6, iter 157)
 
-- **IN_PROGRESS — CI GREEN and covering all code, but green proves NOTHING about the open defect.**
-    `origin/develop` == `ceb32fd` (unmoved): 43 check-runs, 22 names, 0 non-success; HEAD `12524f9`
-    is 3 `.claude`-only commits ahead. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped;
-    **0.5.0**).
-- **Iteration 155 PRODUCED NO CODE**: `define-next` **TIMEOUT** (1200 s, 0 turns), advance/review
-    never ran, runner still wrote `cid(log)`. It left an **uncommitted `next.md`** — a full work
-    package for the `Final_Sigma` fix; central claims verified at 156, but its `CASED_RANGES` 152 /
-    `CASE_IGNORABLE_RANGES` 452 shape numbers are NOT verified.
-- **Statuses:** Rust-core partially met (crit 3 at **8 of 11** surfaces + the pure-Go port; **crit 4
-    would land RED** — `unicode-contract.md`); all else met except CI/CD (partial). All 8 gated
-    suites ride EXISTING CI jobs, each rebuilding its native first.
+- **IN_PROGRESS — CI GREEN and covering all code.** `origin/develop` == `6742dc0`: 43 check-runs, 22
+    names, 0 non-success; HEAD `78bf9b6` is **1** `.claude`-only commit ahead (`cid(log)`), code
+    diff vs origin empty. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped; version **0.5.0**).
+- **Iteration 156 landed the `Final_Sigma` case freeze and PASSED** (all 4 roles OK, 223 turns). 6
+    code files: `utils.rs` +193, new `utils/unicode16_case.rs`, new `scripts/gen_unicode16_case.py`,
+    `docs/unicode.md`, `crates/iscc-lib/CLAUDE.md`, `.crap-baseline.json`. **The 155 next.md shape
+    numbers (152 / 452) were re-derived at 157 and are CORRECT.**
+- **Statuses:** Rust-core partially met (crit 1,2 met; crit 3 at **8 of 11** surfaces + the pure-Go
+    port; **crit 4 not started but would now land GREEN** — `unicode-contract.md`); all else met
+    except CI/CD (partial). All 8 gated suites ride EXISTING CI jobs, each rebuilding its native.
+- **Counts moved at 156:** iscc-lib `#[test]` **342** (was 335, +7); CRAP entries **105** (was 100).
+    Unchanged: 23 docs pages, 21/21 version_sync at 0.5.0, 47 ffi externs, 177 Go `func Test`,
+    `.iai-baseline.json` untouched.
 - **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **7** paths,
     matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
     `python-test`). Register every new copy; keep canonical basenames.
-- **Next = FIX the `Final_Sigma` case-table dependence FIRST** (vendor 16.0.0
-    `Cased`/`Case_Ignorable`), *then* land the crit-4 sweep green. Do NOT extend
-    `unicode_boundary.json` there — nine suites assert exactly 7/5 counts. It WILL trip CRAP and iai
-    (`text_collapse` is benched), unlike the last six iterations. Propagation queues behind both.
+- **Next = land crit 4, the sweep, as a committed fail-closed CI check** — now unblocked and the
+    ONLY possible guard for the accepted residual (unconditional lowercase mappings still come from
+    rustc's tables). Must assert `unidata_version`, assert the comparison total so a zero-case run
+    can't read green, rebuild the extension first, and declare its CI input set. Propagation (C FFI
+    → Swift → C++) queues behind it. Do NOT extend `unicode_boundary.json` — nine suites assert
+    exactly 7/5 counts.
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma`, fixed 147) and its
-    `str::to_lowercase` claim is falsified (156); crit-1/crit-3 boxes unchecked though met.
-    Human-owned — CID doesn't edit specs.
+    `str::to_lowercase` claim is now wrong twice over (falsified 156, then repaired in code);
+    crit-1/crit-3 boxes unchecked though met. Human-owned — CID doesn't edit specs.
 - **Issues: 8** (4 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`); human backlog
-    CLEARED. AUTHORIZED for CID: rubygems `@v2.1.0` pin; major dep bumps **one per step** (magnus
-    0.8 / jni 0.22 = source rewrites; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x);
+    CLEARED. The Unicode entry was updated in place at 156 and now carries the crit-4 fail-closed
+    requirements. AUTHORIZED for CID: rubygems `@v2.1.0` pin; major dep bumps **one per step**
+    (magnus 0.8 / jni 0.22 = source rewrites; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x);
     exhaustive `specs/ci-cd.md` job table. DEFERRED: npm OIDC.
-- **Don't re-flag as DONE**: C#+Kotlin 154, napi+Java 153, drift gate 152, WASM+Ruby 151, Python+Go
-    150, sequence vectors 149, sentinel 148 (earlier → `MEMORY-archive.md`).
+- **Don't re-flag as DONE**: `Final_Sigma` freeze 156, C#+Kotlin 154, napi+Java 153, drift gate 152,
+    WASM+Ruby 151, Python+Go 150 (149 and earlier → `MEMORY-archive.md`).
 
 ## Gotchas
 

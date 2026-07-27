@@ -95,48 +95,72 @@ is stripped, which is what the reference does).
     `:test UP-TO-DATE` and silently skipped all 13 Kotlin boundary tests after a fixture edit until
     `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)` was added; a green run does not
     prove the suite ran.
-4. **Differential sweep — UNMET, no harness in `scripts/`, AND IT WOULD LAND RED (found 155,
-    reproduced 156).** Review's 1,270-case probe at iter 148 (0 mismatches for the sentinel vs 504
-    for the pre-filter) was **ad hoc and not checked in** — it is initial proof, not the criterion.
-    Demands **ZERO** divergence (not "enumerate a residual" — that earlier entry at decisions.md
-    L552 predates the sentinel) over the **1,112,064 Unicode scalar values** — NOT 1,114,112:
-    `&str` cannot carry the 2,048 surrogates, so they are excluded and need no separate check. Must
-    ALSO cover sequence classes (base+Cn+mark, jamo+Cn+jamo, Σ+Cn+cased, Cn-between-marks) because
-    **a per-code-point sweep is provably insufficient** — the pre-filter scored 0 there while
-    failing 42 sequence cases. Mandatory on every future table bump.
+4. **Differential sweep — UNMET (no harness in `scripts/`), but IT WOULD NOW LAND GREEN** since the
+    `Final_Sigma` fix at 156. Re-measured independently at **157**: all **1,112,064** scalars ×
+    `text_clean`/`text_collapse` = **0 divergences**, and **1,854** sequence cases covering the
+    four mandated classes × both fns = **0 divergences**. Review's 17,793,024-comparison run at 156
+    agrees. Every one of these probes was **ad hoc and NOT checked in**
+    (`git ls-files | grep -i  sweep` → nothing; `scripts/unicode_sweep.py` was deliberately left
+    uncommitted) — initial proof, not the criterion. **Fastest way to re-run one**: both
+    `iscc_core` and `iscc_lib` are importable from the project venv, so a plain `uv run python`
+    loop needs no build — but **check the `.so` mtime against `src/utils.rs` first**; a stale
+    `_lowlevel.abi3.so` silently measures the previous commit (bit review at 156). Full 1.1M×2
+    sweep runs in well under 560 s. Demands **ZERO** divergence (not "enumerate a residual" — that
+    earlier entry at decisions.md L552 predates the sentinel) over the **1,112,064 Unicode scalar
+    values** — NOT 1,114,112: `&str` cannot carry the 2,048 surrogates, so they are excluded and
+    need no separate check. Must ALSO cover sequence classes (base+Cn+mark, jamo+Cn+jamo, Σ+Cn+cased,
+    Cn-between-marks) because **a per-code-point sweep is provably insufficient** — the pre-filter
+    scored 0 there while failing 42 sequence cases. Mandatory on every future table bump.
 
-## THE OPEN DEFECT: `Final_Sigma` reads rustc's tables, not the declared 16.0.0
+## The `Final_Sigma` case-table defect — FIXED at iter 156, re-verified at 157
 
-Found by the timed-out iter-155 define-next, **independently reproduced at 156**. The sentinel
-freeze rule covers *category* and *normalization* tables — it does **not** cover **case
-classification**. `text_collapse` (`utils.rs:220`) calls `str::to_lowercase()`, whose `Final_Sigma`
-decision reads rustc's `Cased`/`Case_Ignorable` (rustc 1.97.1 = Unicode **17.0**), not 16.0.0.
+**A SECOND freeze, separate from the sentinel.** The sentinel rule covers *category* and
+*normalization* tables; it does **not** cover **case classification**. `text_collapse` used to call
+bare `str::to_lowercase()`, whose `Final_Sigma` decision reads **rustc's** `Cased`/`Case_Ignorable`
+(rustc 1.97.1 = Unicode **17.0**), not 16.0.0. `U+0295` is `Ll` (→`Cased`) in 16.0 but `Lo` in 17.0,
+so `U+0295 U+03A3` lowercased to `…σ` instead of the reference's `…ς`. **Hash output was a function
+of the compiler version.**
 
-| input                         | `iscc-core`/CPython 3.14 (16.0) | Rust core today               | pure-Go port (15.0) |
-| ----------------------------- | ------------------------------- | ----------------------------- | ------------------- |
-| `U+0391 U+03A3 U+0295 U+0392` | `U+03B1 U+03C3 U+0295 U+03B2`   | `U+03B1 U+03C2 U+0295 U+03B2` | matches reference   |
-| `U+0295 U+03A3`               | `U+0295 U+03C2`                 | `U+0295 U+03C3`               | matches reference   |
+**The live design (`decisions.md` 2026-07-27) — pre-substitution, NOT a vendored case-mapping
+table.** `to_lowercase_unicode16` (`utils.rs:120`) walks the sentinel-mapped, NFD-normalized string,
+replaces each `U+03A3` with `U+03C2`/`U+03C3` decided from vendored 16.0.0 tables, then delegates to
+`str::to_lowercase()` — which can never see a capital sigma and so can never run its 17.0 branch. A
+`text.contains('\u{03A3}')` early return keeps non-Greek input on the original path (why iai stayed
+in band). **Do not "simplify" this back to a bare `.to_lowercase()`**; the crate CLAUDE.md says so.
 
-**Cause:** `U+0295` is `Ll` (→`Cased`) in 16.0, `Lo` (not `Cased`) in 17.0. **Go is correct today
-and will acquire the same defect at go1.27** — add this to the go1.27 checklist; it is not in
-issues.md.
+**Data:** `crates/iscc-lib/src/utils/unicode16_case.rs`, generated by
+`scripts/gen_unicode16_case.py` (PEP 723, `requires-python = "==3.14.*"`, stdlib-only, derives both
+properties *behaviourally* from CPython's `str.lower()`, fails closed on shape/`unidata_version`
+mismatch, byte-stable rerun). **`CASED_RANGES` = 152 ranges / 4,311 code points;
+`CASE_IGNORABLE_RANGES` = 452 ranges / 2,749 code points.** `CASED` deliberately stores `Cased`
+**minus** `Case_Ignorable` — not the UCD `Cased` set; unobservable because the scan skips ignorables
+before testing casedness. U+0345 is in the ignorable table only; U+0295 is cased; U+FFFF is in
+neither.
 
-**Cheap re-measure of the divergence set (~10 s, no project build).** Dump the two predicates
-behaviourally from each runtime and diff — `a = (ch+"Σ").lower().endswith("ς")` =
-`Cased and not Case_Ignorable`; `b = ("A"+ch+"Σ")…` = `Cased or Case_Ignorable`. Rust side:
-standalone `rustc -O /tmp/probe.rs`. Result at 156: **100 scalars diverge in classification, but 99
-are `Cn` in 16.0** → replaced by the sentinel before lowercasing (`U+FFFF` classifies identically in
-both tables), so **exactly 1 assigned scalar, `U+0295`, produces divergent output**. That both
-confirms the defect *and* is positive evidence the sentinel + its map-then-lowercase ordering work.
+**Verify the tables in ~30 s without trusting the generator** (it can't be its own oracle):
+re-derive with your own loop on the project venv (CPython 3.14.6 / 16.0.0) using the two behavioural
+probes `a = (ch+"Σ").lower().endswith("ς")` = `Cased and not Case_Ignorable`, and
+`b = ("A"+ch+"Σ")…` = `Cased or Case_Ignorable` (`CASE_IGNORABLE` = `b and not a`), merge to maximal
+ranges, and compare against the ranges parsed out of the `.rs`. At 157 both tables came back
+**byte-identical**, sorted, disjoint and maximally merged. Review additionally cross-checked them
+against CPython *category* data (`Lu∪Ll∪Lt ⊆ CASED`, `Mn∪Me∪Cf∪Lm∪Sk ⊆ CASE_IGNORABLE`, residuals
+exactly `Other_Uppercase`/`Other_Lowercase` and the 17 UAX #29 MidLetter/MidNumLet/Single_Quote).
 
-**Nothing gates it:** no `U+0295` anywhere in `src`/`tests`/`docs`; the existing sigma coverage
-(`test_sentinel_preserves_final_sigma_context`, fixture row `U+0391 U+03A3 U+0378 U+0392`) passes
-either way. All 22 CI checks green while it exists.
+**ACCEPTED RESIDUAL — the reason criterion 4 is now top priority.** Only the *conditional*
+`Final_Sigma` mapping is frozen; every *unconditional* lowercase mapping still comes from rustc's
+tables. Measured at zero divergence today, but **its only possible guard is the sweep**. A future
+rustc that changes a non-sigma mapping would silently change output and nothing would notice.
 
-**Two published overclaims to fix with the code:** `docs/unicode.md` "Output is invariant under
-table upgrades … severs all dependence" + "`Final_Sigma` context match `iscc-core` exactly", and the
-same note in `crates/iscc-lib/CLAUDE.md`. Spec `rust-core.md:151` ("Rust `str::to_lowercase()` does
-the same") is falsified too but is **human-owned — do not edit**.
+**Go is unaffected but still on the checklist.** `packages/go` was already correct on `U+0295`
+(x/text `cases.Lower` on 15.0 tables), i.e. right for an accidental reason. **go1.27 brings 17.0
+tables → Go acquires the defect the core just shed** unless an equivalent case freeze lands there
+too, on top of the 5 boundary cases already predicted to red. Still not in issues.md; only here.
+
+**Docs overclaims: FIXED at 156.** `docs/unicode.md` now narrows "invariant under table upgrades" to
+the *unassigned* classification and adds a "Case-property freeze (`Final_Sigma`)" section;
+`crates/iscc-lib/CLAUDE.md` has the matching rule. Spec `rust-core.md:149-157` is still wrong in two
+ways (present-tense Go defect fixed at 147; "Rust `str::to_lowercase()` does the same") but is
+**human-owned — do not edit**.
 
 ## Cross-implementation prerequisite: the Go `Final_Sigma` bug — FIXED (iter 147, verified 148)
 
@@ -203,13 +227,13 @@ literal UTF-8. Edit ASCII-escaped fixtures through Python (`json.dumps(..., ensu
 verify with `raw.isascii()` + numeric `ord()`, never by looking at glyphs.
 
 **Gates this work trips** (both bite in CI, not locally — see [[MEMORY]] Quality Gates). Measured
-outcomes: iai needed **no** baseline refresh either time (pre-filter max +1.96%; sentinel
-`bench_text_code.chars_1000` **−3.89%**, i.e. Ir flat-to-better as predicted); CRAP needed a
-cosmetic refresh both times (97 → 98 → **100** entries). Docs half of the contract is now MET —
-`docs/unicode.md` was rewritten in the SAME commit as the code (sentinel wording, "How much does
-this matter?" section, widened CPython-3.14 sentence). **Stale spec text (human-owned):**
-`specs/rust-core.md` still describes the Go `Final_Sigma` defect in the present tense and leaves its
-checkbox unchecked.
+outcomes across all three Unicode code landings: **iai has needed NO baseline refresh any time**
+(pre-filter max +1.96%; sentinel `bench_text_code.chars_1000` −3.89%; case freeze **−3.83%** — Ir
+flat-to-better every time, so stop predicting an iai red for Unicode work in `text_*`). CRAP needed
+a cosmetic same-commit refresh every time: 97 → 98 → 100 → **105** entries (the case freeze added
+`to_lowercase_unicode16`, `cased_lookahead`, `in_ranges`, `is_cased_in_unicode16`,
+`is_case_ignorable_in_unicode16`). Docs half of the contract is MET — `docs/unicode.md` has been
+rewritten in the SAME commit as the code both times.
 
 ## Fixture-loading plumbing per surface (settles propagation cost)
 
