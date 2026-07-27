@@ -1,300 +1,232 @@
 # Next Work Package
 
-## Step: Freeze `Final_Sigma` case classification at Unicode 16.0.0
+## Step: Land the Unicode 16.0.0 differential sweep as a permanent, fail-closed gate
 
 ## Goal
 
-Close the **single** divergence between the Rust core and the normative reference, so that criterion
-4 of the `normal` issue "Declare and gate a Unicode data version (DECIDED)" can land **green** in a
-following step. `text_collapse` lowercases with `str::to_lowercase()`, whose `Final_Sigma` decision
-reads the **compiler's** Unicode tables (rustc 1.97 ships 17.0). Unicode 17.0 reclassified U+0295
-from `Ll` to `Lo`, so the Rust core emits final sigma where `iscc-core` on uniform 16.0.0 tables
-emits medial sigma — the core's hash output is currently a function of the rustc version. This step
-vendors the Unicode 16.0.0 `Cased` / `Case_Ignorable` classification and drives `Final_Sigma` from
-it.
+Turn the throwaway full-code-space sweep — re-invented by hand at iterations 148, 155 and 156 — into
+a committed, runnable check (`scripts/unicode_sweep.py` + a `mise run unicode:sweep` task + its own
+CI job), closing criterion 4 of `specs/rust-core.md`. This is the *only* possible guard on the
+residual recorded in `decisions.md` 2026-07-27: every **unconditional** lowercase mapping still
+comes from rustc's tables, so a future toolchain could silently change hash output and nothing today
+would notice.
 
-**Reframe of the handoff's "Next" item 1 — not a backtrack, and not a repeat.** The handoff asked
-for the criterion-4 sweep harness. `specs/rust-core.md:103-118` requires the divergence set to be
-**empty** ("any nonzero result is a defect, not a residual to accept") and its later paragraph is
-explicit that "divergence caused by the runtime's tables being *newer* than 16.0 is **not** accepted
-and must be zero". Today's set is `{U+0295}`, so landing the gate first would land it red. The fix
-goes first; the permanent sweep gate is the step after. **No bounce signal:** iteration 155's
-`define-next` hit the runner wall with 0 turns — `advance` and `review` never ran, so this step has
-never been attempted, let alone rejected.
+Continuing the handoff's "Next" (not a bounce — iteration 156 passed review).
 
 ## Scope
 
-- **Create**:
-    - `scripts/gen_unicode16_case.py` — PEP 723 generator for the two vendored case tables (counted
-        file 1 of 2)
-    - `crates/iscc-lib/src/utils/unicode16_case.rs` — its data-only output (generated tool output, not
-        counted against the budget; never hand-edit)
-- **Modify**:
-    - `crates/iscc-lib/src/utils.rs` — `mod unicode16_case;`, two predicates, a shared range-lookup
-        helper, `to_lowercase_unicode16`, the one `text_collapse` call site, plus new `#[cfg(test)]`
-        cases (counted file 2 of 2; its test module is not counted)
-    - `.crap-baseline.json` — regenerated (tool output, not counted; see Verification)
-- **Modify (docs, excluded from the budget)**:
-    - `docs/unicode.md` — lines 57-60 overclaim; add a case-property-freeze subsection
-    - `crates/iscc-lib/CLAUDE.md` — line ~165 carries the same gap
+- **Create**: `scripts/unicode_sweep.py`, `tests/test_unicode_sweep.py`
+- **Modify**: `mise.toml`, `.github/workflows/ci.yml`, `docs/unicode.md`
 - **Reference**:
-    - `crates/iscc-lib/src/utils.rs` lines 26-60 (`UNASSIGNED_SENTINEL`, `is_unassigned_in_unicode16`
-        with its binary search + fast path) and lines 192-229 (`text_collapse`)
-    - `scripts/gen_unicode16_unassigned.py` — the generator template to mirror (PEP 723 header,
-        `EXPECTED_*` constants, `check_invariants` raising `SystemExit`, `render_module`,
-        `write_text(..., encoding="utf-8", newline="\n")`, closing `print`)
-    - `crates/iscc-lib/src/utils/unicode16.rs` — the generated-module shape to mirror
-    - `reference/iscc-core/iscc_core/code_content_text.py` -> `text_collapse` (NFD, `.lower()`, filter
-        C/M/P + whitespace, NFKC)
-    - `.claude/context/specs/rust-core.md` lines 103-118 (criterion 4) and the "Case mapping must be
-        context-sensitive in every implementation" paragraph
-    - `.claude/context/issues.md` -> "Declare and gate a Unicode data version (DECIDED)"
+    - `.claude/context/specs/rust-core.md` lines 103–116 (criterion 4 wording) and line 191 (the
+        `Verified when` box)
+    - `scripts/gen_unicode16_case.py` — the house style for a fail-closed Unicode script
+        (`raise SystemExit(...)`, `EXPECTED_*` constants, module docstring)
+    - `scripts/check_docs_nav.py` + `tests/test_check_docs_nav.py` — the house style for a gate script
+        with injected `Path` arguments and its pytest suite
+    - `.github/workflows/ci.yml` `python-test:` job (lines 47–73) — the exact
+        checkout/toolchain/setup-python/setup-uv/`uv sync`/`maturin develop` step shape to copy
+    - `mise.toml` `bench:iai:check` / `audit` tasks — task-comment style
+    - `docs/unicode.md` — the page that documents the freeze rule
+
+File budget: **3** non-test, non-doc files (`scripts/unicode_sweep.py`, `mise.toml`, `ci.yml`).
 
 ## Not In Scope
 
-- **Do not build the permanent sweep gate this step** — no `scripts/unicode_sweep.py`, no mise task,
-    no CI job. The probe below runs from `/tmp` and must leave **no** tree diff. Wiring the sweep in
-    as a runnable check (zero-case guard, `unidata_version` assert, CI placement) is the next step.
-- **Do not add cases to `crates/iscc-lib/tests/unicode_boundary.json`.** Nine binding suites assert
-    exactly 7 `text_clean` + 5 `text_collapse` cases as a metadata guard; adding a vector reds all
-    nine at once. A sigma vector belongs in a later, deliberate "extend the fixture + bump all nine
-    count guards" slice. Pin the new behaviour with Rust unit tests instead.
-- **Do not vendor the full lowercase *mapping* table.** Only the `Final_Sigma` *classification*
-    diverges. Mapping drift is a hypothetical the future sweep gate will catch.
-- Do not touch `packages/go` — `x/text`'s `cases.Lower` is on 15.0 tables and will inherit the same
-    reclassification only at go1.27, which is separately tracked.
-- Do not change `is_c_category`, `is_cmp_category`, the `is_whitespace()` filter, the sentinel map,
-    or the NFD/NFKC ordering. Do not rename, merge or re-run `scripts/gen_unicode16_unassigned.py`.
-- Do not edit anything under `.claude/context/specs/` (human-owned) and do not delete the issue from
-    `issues.md` — the review agent handles issue resolution.
-- No propagation work (C FFI / C++ / Swift boundary suites), no dependency bumps, no unrelated
-    refactors of `utils.rs`.
+- **Do not edit `.claude/context/specs/ci-cd.md`.** Adding this job moves the CI check-name count;
+    the human-authorized "Make the CI job table exhaustive" issue in `issues.md` owns that table and
+    will pick the new row up. Specs are human-owned.
+- **Do not touch any Rust source, `.crap-baseline.json` or `.iai-baseline.json`.** This step adds no
+    Rust code, so neither the CI-only CRAP `--fail-regression` gate nor the 10% Ir gate moves. A
+    baseline refresh here would be unexplained noise.
+- **Do not extend `crates/iscc-lib/tests/unicode_boundary.json`** or touch any binding conformance
+    suite — propagation to C FFI / C++ / Swift and the four sibling `data.json` copies is the next
+    slice.
+- **Do not wire the sweep into `mise run test`, `uv run pytest`'s default path, or the prek pre-push
+    hooks.** It needs a release extension build plus ~60 s and it needs CPython 3.14; a skip-on-3.10
+    pytest gate is exactly the fail-open shape to avoid.
+- **Do not add CLI flags that shrink the sweep** (`--sample`, `--limit`, `--fast`). The pytest suite
+    calls the sweep function directly with a small scalar iterable; a shrink flag is a
+    gate-circumvention surface.
+- Do not touch `packages/go` or anything on the go1.27 checklist.
+- Do not add a new docs page (no `zensical.toml` / `ORDERED_PAGES` / `llms.txt` wiring needed) — add
+    a section to the existing `docs/unicode.md`.
 
 ## Implementation Notes
 
 ### Verified facts — measured this iteration, do not re-derive
 
-1. **The defect reproduces right now.** On the project venv (CPython **3.14.6**,
-    `unicodedata.unidata_version == "16.0.0"`, `iscc-core` 1.3.0):
+Probed in the devcontainer at HEAD (`b95f0ed`) against the freshly rebuilt release extension:
 
-    | input (code points)         | `iscc-core` (16.0)          | Rust core today             |
-    | --------------------------- | --------------------------- | --------------------------- |
-    | U+0391 U+03A3 U+0295 U+0392 | U+03B1 U+03C3 U+0295 U+03B2 | U+03B1 U+03C2 U+0295 U+03B2 |
-    | U+0295 U+03A3               | U+0295 U+03C2               | U+0295 U+03C3               |
+- Project interpreter is **CPython 3.14.6**, `unicodedata.unidata_version == "16.0.0"`; `iscc_core`
+    is **1.3.0** and exports `iscc_core.text_clean` / `iscc_core.text_collapse` from the package
+    root. On 3.14 `iscc_core` **is** the "uniform Unicode 16.0.0 tables" reference the spec asks for
+    — it calls `unicodedata` directly with no freeze rule of its own, so post-16.0 code points are
+    `Cn` to it exactly as the sentinel makes them for us. Use it as the oracle; do not reimplement
+    `text_clean` / `text_collapse` in Python.
+- Scalar denominator: **1,112,064** = `range(0x110000)` minus `0xD800..=0xDFFF`.
+- With the 8 contexts below × 2 functions the sweep is **17,793,024** comparisons and takes **59 s**
+    wall clock, **0 divergences**. (This is the same total the iteration-156 review reported, so the
+    shape is reproducible.)
+- `uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml` takes **~21 s**
+    incremental here and **always** rewrites `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so`,
+    refreshing its mtime even when cargo reports the crates fresh. That makes an mtime-based
+    staleness guard safe (no false red after a rebuild).
+- `.github/workflows/ci.yml` has **20** job keys today; `python-test` is a 2-leg matrix (3.10 /
+    3.14).
+- `uv run ty check` passes on `import iscc_core` already (four `tests/*.py` do it), so the new
+    script needs **no** `[tool.ty.src] exclude` entry — it is stdlib + installed project deps only.
+- Ruff `S` is selected repo-wide and `S101` is ignored **only** under `tests/**`. Use
+    `raise SystemExit("...")` for every failure path in `scripts/unicode_sweep.py`; a bare `assert`
+    will red `uv run ruff check`.
 
-2. **The cause.** U+0295 is `Ll` (hence `Cased`) in Unicode 16.0.0 and `Lo` (not `Cased`) in 17.0.
-    Rust and CPython implement the *same* `Final_Sigma` algorithm (skip `Case_Ignorable` backwards,
-    require `Cased`; skip `Case_Ignorable` forwards, require **not** `Cased`) over *different*
-    tables.
+### The context set (this is the sequence half of criterion 4)
 
-3. **`text_clean` is unaffected** — no case mapping; its category filter uses the 16.0-pinned
-    `unicode-general-category` crate.
+Eight `(name, prefix, suffix)` contexts; for each scalar `c` the case string is
+`prefix + c + suffix` and both `text_clean` and `text_collapse` are compared. Build every non-ASCII
+piece with `chr(0x...)` so the script file stays pure ASCII:
 
-4. **Table shapes — re-derived from scratch this iteration and confirmed exact** (the previous draft
-    asserted these unverified; they now check out):
+| name        | prefix                      | suffix        | why                                |
+| ----------- | --------------------------- | ------------- | ---------------------------------- |
+| `bare`      | `""`                        | `""`          | the single-code-point sweep proper |
+| `ascii`     | `"a"`                       | `"b"`         | the boundary-fixture shape         |
+| `base_mark` | `"e"`                       | `chr(0x0301)` | spec class **base+Cn+mark**        |
+| `jamo`      | `chr(0x1100)`               | `chr(0x1161)` | spec class **jamo+Cn+jamo**        |
+| `sigma`     | `chr(0x0391) + chr(0x03A3)` | `chr(0x0392)` | spec class **Sigma+Cn+cased**      |
+| `marks`     | `chr(0x0301)`               | `chr(0x0301)` | spec class **Cn-between-marks**    |
+| `space`     | `" "`                       | `" "`         | whitespace filter + `.strip()`     |
+| `upper`     | `"A"`                       | `"Z"`         | cased neighbours for lowercasing   |
 
-    - `CASED_RANGES`: **4,311** code points in **152** maximal inclusive ranges
-    - `CASE_IGNORABLE_RANGES`: **2,749** code points in **452** maximal inclusive ranges
-    - U+0295 is in `CASED_RANGES`; the sentinel U+FFFF is in **neither** table, so the existing
-        fixture row U+0391 U+03A3 U+0378 U+0392 keeps its final sigma.
+The four spec-mandated sequence classes are covered by rows 3–6, and covered for **every** scalar
+rather than only the unassigned ones — a strict superset of what criterion 4 requires. Keep all
+eight in one `CONTEXTS` tuple of `(name, prefix, suffix)`.
 
-5. **`uv run --script` resolves a `requires-python = "==3.14.*"` script to 3.14.6 / 16.0.0** —
-    probed. No dependency pin is needed or possible: `unicodedata2` exposes categories, not the
-    derived `Cased` / `Case_Ignorable` properties, so the reference interpreter itself is the
-    source.
+### Script shape (`scripts/unicode_sweep.py`)
 
-### The generator: `scripts/gen_unicode16_case.py`
+Plain project script run as `uv run scripts/unicode_sweep.py` (**not** PEP 723 `--script`: it must
+import the project's built `iscc_lib`). Module docstring first, explaining the oracle, the
+denominator and why it is CI-only.
 
-Mirror `scripts/gen_unicode16_unassigned.py` structurally. Two differences:
+Constants, all fail-closed:
 
-- PEP 723 header: `requires-python = "==3.14.*"`, `dependencies = []`. Assert
-    `unicodedata.unidata_version == "16.0.0"` at the top and `raise SystemExit` otherwise — the
-    script must never write a table from the wrong tables.
+- `EXPECTED_UNIDATA_VERSION = "16.0.0"`
+- `EXPECTED_SCALAR_COUNT = 1_112_064`
+- `EXPECTED_COMPARISONS = 17_793_024`
 
-- Derivation, two O(1) behavioural probes per code point (whole sweep about 5 s). Build the two
-    probe strings with `chr(0x03A3)` / `chr(0x03C2)` rather than literals so the file stays ASCII:
+Suggested functions (keep each short and pure; inject `Path`s rather than reading module constants,
+so the pytest suite can point them at temp dirs):
 
-    ```python
-    SIGMA = chr(0x03A3)
-    FINAL = chr(0x03C2)
-    ch = chr(cp)
-    a = (ch + SIGMA).lower().endswith(FINAL)  # Cased and not Case_Ignorable
-    b = ("A" + ch + SIGMA).lower().endswith(FINAL)  # Cased or Case_Ignorable
-    cased = a
-    case_ignorable = b and not a
-    ```
+- `scalar_values() -> Iterator[int]` — yields every code point except the surrogate block.
+- `sweep(scalars: Iterable[int]) -> tuple[int, list[Divergence]]` — returns
+    `(comparison_count, divergences)`. A `Divergence` can be a plain `NamedTuple`
+    (`function, context, code_point, expected, actual`). No printing inside.
+- `check_oracle(unidata_version: str) -> None` — `raise SystemExit` unless it equals
+    `EXPECTED_UNIDATA_VERSION`, naming the required CPython 3.14.
+- `check_extension_fresh(extension: Path, source_dirs: Sequence[Path]) -> None` — `raise SystemExit`
+    if the extension's mtime is older than the newest `*.rs` under the given dirs, with a message
+    naming `mise run unicode:sweep`. `main()` passes `Path(iscc_lib._lowlevel.__file__)` and
+    `[crates/iscc-lib/src, crates/iscc-py/src]`.
+- `main() -> int` — oracle check, freshness check, run the sweep, then **three** post-conditions:
+    the scalar count equals `EXPECTED_SCALAR_COUNT`, the comparison count equals
+    `EXPECTED_COMPARISONS`, and the divergence list is empty. Print at most 20 divergences as
+    `U+XXXX` plus the section/context, then the summary line, then return 1.
 
-    This reads the exact two predicates CPython's `handle_capital_sigma` consults. `CASED_RANGES` is
-    therefore `Cased` **restricted to code points that are not `Case_Ignorable`** — say so in the
-    module doc comment. The restriction is unobservable: the scan skips case-ignorables before
-    testing `Cased`, so a code point that is both is always skipped first, by CPython and by the
-    port alike. Skip surrogates U+D800..U+DFFF.
+Final stdout line, exactly (parsed by a verification criterion):
 
-Emit both tables into one module in the `unicode16.rs` style — a doc header naming the generator and
-the Unicode version, then `pub(crate) const CASED_RANGES: [(u32, u32); 152] = [ ... ];` and
-`pub(crate) const CASE_IGNORABLE_RANGES: [(u32, u32); 452] = [ ... ];`, one `(0xLO, 0xHI),` entry
-per line so rustfmt is stable. Carry over the sorted / non-adjacent / non-inverted invariant checks.
-
-### The core change: `crates/iscc-lib/src/utils.rs`
-
-All new items get `#[cfg(feature = "text-processing")]`, matching the neighbours.
-
-- Factor the range lookup out of `is_unassigned_in_unicode16` into
-    `fn in_ranges(cp: u32, ranges: &[(u32, u32)]) -> bool` (the existing `binary_search_by`
-    comparator, unchanged) and call it from all three predicates. Keep the existing
-    `cp < UNASSIGNED_RANGES[0].0` fast path where it is today.
-
-- `fn is_cased_in_unicode16(c: char) -> bool` and
-    `fn is_case_ignorable_in_unicode16(c: char) -> bool` over the two new tables — naming mirrors
-    `is_unassigned_in_unicode16`.
-
-- `fn to_lowercase_unicode16(text: &str) -> String`:
-
-    ```text
-    if !text.contains(CAPITAL_SIGMA) { return text.to_lowercase(); }   // hot path unchanged
-    walk chars once, tracking `last_non_ignorable: Option<char>`;
-    on U+03A3 push U+03C2 iff last_non_ignorable is Some(cased)
-                          and the first non-ignorable char after it is not cased (or absent);
-    otherwise push U+03C3; push every other char unchanged; then `.to_lowercase()` the result.
-    ```
-
-    Pre-substituting means std never sees a U+03A3, so its own 17.0-table `Final_Sigma` branch can
-    never fire; U+03C3 / U+03C2 are already lowercase, so the delegated `to_lowercase()` leaves them
-    alone while still handling every other full-case mapping (e.g. U+0130). Track the previous
-    non-ignorable char in the forward walk instead of re-scanning backwards, so a sigma-dense string
-    stays linear.
-
-- **Placement matters.** In `text_collapse` the lowercasing happens *after* the sentinel map and NFD
-    (`crates/iscc-lib/src/utils.rs:209-220`). Replace only that trailing `.to_lowercase()` with
-    `to_lowercase_unicode16(...)`, so the function receives the sentinel-mapped, NFD-normalized
-    string — the same input CPython's `.lower()` sees, since the reference NFDs first too. "Scan the
-    original string for context" means the pre-lowercase string handed to `to_lowercase_unicode16`,
-    **not** the raw `text` argument: casedness of a neighbour is the same before and after
-    lowercasing, but NFD decomposition is not. Nothing else in the pipeline moves.
-
-### Tests to add (existing `#[cfg(test)] mod tests` in `utils.rs`)
-
-Expected values come from `iscc-core` 1.3.0 on CPython 3.14 — they are the oracle; do not recompute
-them from the Rust code. Write inputs with `\u{...}` escapes in the Rust source.
-
-| input                              | `text_collapse` expected           | pins                             |
-| ---------------------------------- | ---------------------------------- | -------------------------------- |
-| U+0391 U+03A3 U+0295 U+0392        | U+03B1 U+03C3 U+0295 U+03B2        | the fix (following context)      |
-| U+0295 U+03A3                      | U+0295 U+03C2                      | the fix (preceding context)      |
-| U+0391 U+03A3 U+2170               | U+03B1 U+03C3 U+0069               | `Other_Lowercase` cased extra    |
-| U+0391 U+03A3 U+02B0 U+0392        | U+03B1 U+03C3 U+0068 U+03B2        | `Lm` is case-ignorable           |
-| U+0391 U+03A3 U+0027 U+03B2        | U+03B1 U+03C3 U+03B2               | `Word_Break` ignorable extra     |
-| U+039B U+039F U+0393 U+039F U+03A3 | U+03BB U+03BF U+03B3 U+03BF U+03C2 | plain final sigma (passes today) |
-| U+0391 U+03A3 U+0378 U+0392        | U+03B1 U+03C2 U+03B2               | sentinel keeps final sigma       |
-
-If any expected value above disagrees with a fresh
-`uv run python -c "import iscc_core; print(repr(iscc_core.text_collapse(...)))"`, **the oracle
-wins** — fix the table and say so in the handoff.
-
-Add one shape test asserting `CASED_RANGES.len() == 152` and `CASE_IGNORABLE_RANGES.len() == 452` so
-a truncated regeneration reds immediately. Keep non-test helpers at low cyclomatic complexity —
-`cargo crap` scores them pessimistically.
-
-### The throwaway differential probe (write to `/tmp`, never commit)
-
-Rebuild the Python extension first, otherwise the probe measures a stale `.so`:
-`uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml`.
-`crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` is gitignored, so this leaves no diff.
-
-```python
-# /tmp/unicode_sweep_probe.py  -- throwaway; the next step turns this into a real gate
-import unicodedata, iscc_core, iscc_lib
-
-assert unicodedata.unidata_version == "16.0.0", unicodedata.unidata_version
-MARK = chr(0x0301)  # combining acute
-J_L, J_V = chr(0x1100), chr(0x1161)
-CAP_A, CAP_S, CAP_B = chr(0x0391), chr(0x03A3), chr(0x0392)
-CONTEXTS = [
-    "{}",  # bare scalar
-    "a{}b",  # ASCII neighbours
-    "e{}" + MARK,  # base + X + mark   (canonical composition)
-    J_L + "{}" + J_V,  # jamo + X + jamo   (Hangul composition)
-    CAP_A + CAP_S + "{}" + CAP_B,  # cased + sigma + X + cased (Final_Sigma, after)
-    "{}" + CAP_S,  # X + sigma         (Final_Sigma, before)
-    CAP_A + "{}" + CAP_S,  # cased + X + sigma (Case_Ignorable, before)
-    "a" + MARK + "{}" + MARK + "b",  # X between marks
-]
-scalars = [c for c in range(0x110000) if not (0xD800 <= c <= 0xDFFF)]
-assert len(scalars) == 1_112_064
-total = bad = 0
-for name, rust, ref in (
-    ("text_clean", iscc_lib.text_clean, iscc_core.text_clean),
-    ("text_collapse", iscc_lib.text_collapse, iscc_core.text_collapse),
-):
-    for ctx in CONTEXTS:
-        for c in scalars:
-            s = ctx.format(chr(c))
-            x, y = rust(s), ref(s)
-            total += 1
-            if x != y:
-                bad += 1
-                if bad <= 10:
-                    print(
-                        f"DIVERGE {name} ctx={ctx!a} cp=U+{c:04X} rust={x!a} ref={y!a}"
-                    )
-print(f"TOTAL {total} comparisons, {bad} divergences")
-raise SystemExit(1 if bad or total != 17_793_024 else 0)
+```text
+TOTAL 17793024 comparisons, 0 divergences
 ```
 
-Run with `uv run python /tmp/unicode_sweep_probe.py` (about 60-70 s; 8 contexts x 2 functions x
-1,112,064 scalars = 17,793,024 comparisons). The contexts cover the four sequence classes
-`specs/rust-core.md` requires (base+Cn+mark, jamo+Cn+jamo, sigma+Cn+cased, Cn-between-marks) plus
-the two that isolate `Cased` from `Case_Ignorable`. Before the fix it prints exactly 1 divergence
-(U+0295); after the fix it must print **0**. Run it **before** the fix too, so the handoff can
-report the 1 -> 0 transition as measured rather than assumed.
+Print the oracle provenance on a line above it (`iscc-core <version>`, `unidata <version>`,
+`python <version>`) so a CI log records what was compared.
 
-### Gates this step *will* trip (unlike the last five iterations)
+Order matters: assert the counts **before** reporting success, so a run that generated zero cases
+cannot read green.
 
-- **CRAP** — new functions and branches in a covered file. `--fail-regression` is CI-only, so run
-    `mise run coverage && mise run crap:baseline` and commit the refreshed `.crap-baseline.json`
-    **in the same commit**. Also confirm `mise run crap` exits 0 (nothing above the 30 threshold).
-- **iai-callgrind (10% Ir)** — `text_collapse` is benched. The `contains(CAPITAL_SIGMA)` fast path
-    should keep non-Greek inputs in the noise band; run `mise run bench:iai:check`. If a bench
-    genuinely exceeds 10%, do **not** quietly refresh `.iai-baseline.json`: refresh it *and* state
-    the measured per-bench delta plus the correctness justification prominently in the handoff so
-    review can rule on it.
+### `mise.toml`
+
+New `# --- Unicode conformance ---` section with a single task, placed after the performance
+section:
+
+```toml
+[tasks."unicode:sweep"]
+description = "Differential sweep of text_clean/text_collapse against iscc-core on Unicode 16.0.0"
+# Rebuilds the Python extension first: the sweep measures whatever `.so` is installed,
+# and a stale one silently measures the previous commit.
+run = """
+uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml &&
+uv run scripts/unicode_sweep.py
+"""
+```
+
+### CI job
+
+Add one job keyed `unicode-sweep` with `name: Unicode sweep (16.0.0 differential)`. Copy the
+`python-test` step shape verbatim but pin `python-version: '3.14'` (keep `allow-prereleases: true`
+and the `astral-sh/setup-uv@v9.0.0` exact-tag comment), then:
+
+Two steps after `uv sync --group dev`, mirroring `python-test` but with `--release` added:
+
+1. `Build Python bindings (release)` running
+    `uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml`
+2. `Run Unicode 16.0.0 differential sweep` running `uv run scripts/unicode_sweep.py`
+
+Add a job-level comment explaining why it is a standalone job: it needs a **release** extension (a
+debug build makes the 17.8M-comparison run several times slower) and CPython **3.14** specifically
+(the `python-test` matrix's 3.10 leg carries Unicode 15.1.0 tables and could only skip). Place it
+next to `audit:` / `release-workflow:` at the end of the file — the other standalone gates.
+
+### `tests/test_unicode_sweep.py`
+
+Load the script with `importlib.util.spec_from_file_location` (see `tests/test_check_docs_nav.py`).
+Cover, all fast and all unconditional except where noted:
+
+- `scalar_values()` yields `EXPECTED_SCALAR_COUNT` values and no surrogate.
+- `sweep()` over a small explicit scalar list returns `len(scalars) * len(CONTEXTS) * 2` comparisons
+    and — guarded by `pytest.mark.skipif(unicodedata.unidata_version != "16.0.0")` — zero
+    divergences.
+- `sweep()` **reports** a divergence when handed a deliberately wrong oracle (monkeypatch the
+    module's oracle reference to a lambda returning a fixed string) — proves the comparison is
+    load-bearing rather than always-equal.
+- `check_oracle("15.1.0")` raises `SystemExit`; `check_oracle("16.0.0")` does not.
+- `check_extension_fresh` raises `SystemExit` when a `tmp_path` `.rs` file is newer than a
+    `tmp_path` stand-in extension, and returns cleanly when it is older.
+- `EXPECTED_COMPARISONS == EXPECTED_SCALAR_COUNT * len(CONTEXTS) * 2` — pins the arithmetic so
+    dropping a context cannot silently shrink the sweep.
+
+### `docs/unicode.md`
+
+Add one short section (heading level matching its neighbours), after the case-freeze section: name
+the gate command `mise run unicode:sweep`, the CI job name, the oracle (`iscc-core` on CPython
+3.14), the denominator (1,112,064 scalars x 8 contexts x 2 functions = 17,793,024 comparisons), and
+state that the gate's purpose is the *unguarded* residual — unconditional lowercase mappings and
+normalization tables still come from rustc — not the `Final_Sigma` condition it re-proves. Do not
+restate the whole freeze rule.
 
 ## Verification
 
-- `uv run --script scripts/gen_unicode16_case.py` exits 0; running it a second time leaves
-    `git status --porcelain crates/iscc-lib/src/utils/unicode16_case.rs` **empty**
-- `grep -c 'CASED_RANGES: \[(u32, u32); 152\]' crates/iscc-lib/src/utils/unicode16_case.rs` is 1 and
-    `grep -c 'CASE_IGNORABLE_RANGES: \[(u32, u32); 452\]' crates/iscc-lib/src/utils/unicode16_case.rs`
-    is 1
-- The generator fails closed: temporarily edit one `EXPECTED_*` constant, observe a **non-zero**
-    exit and an unchanged output file, then restore the constant (working-tree edit only, restored
-    before commit)
-- `cargo test -p iscc-lib` passes with **0 failed**, and the lib unit-test binary reports **at least
-    288 passed** (`grep -c '#\[test\]' crates/iscc-lib/src` is 281 in the tree today)
-- `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- `uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml` exits 0, then
-    `uv run python /tmp/unicode_sweep_probe.py` prints `TOTAL 17793024 comparisons, 0 divergences`
-    and **exits 0**
-- Mutation probe (working-tree edit, restored afterwards): truncating `CASED_RANGES` to its first 10
-    entries makes `cargo test -p iscc-lib` **fail**; restoring makes it pass, and
-    `git status --porcelain crates/iscc-lib/src/utils/unicode16_case.rs` is empty at the end
-- `mise run coverage && mise run crap:baseline` run, `.crap-baseline.json` staged in the same
-    commit, and `mise run crap` exits 0
-- `mise run bench:iai:check` exits 0 (or the handoff carries the measured per-bench delta and the
-    justification for a baseline refresh)
-- `uv run pytest -q` passes with the rebuilt extension
-- `grep -c 'U+0295' docs/unicode.md` is at least 1, the file states that `Cased` / `Case_Ignorable`
-    are pinned to Unicode 16.0.0 by a vendored table and that `str::to_lowercase()` alone would make
-    output depend on the rustc version, and `uv run scripts/check_docs_nav.py` exits 0 reporting
-    **23** pages
-- `mise run check` exits 0 (all prek hooks) and `git status --porcelain` is clean afterwards
-- `git status --porcelain -- scripts/unicode_sweep.py crates/iscc-lib/tests/unicode_boundary.json .github .claude/context/specs`
-    is **empty**, and `git ls-files -- '*unicode_boundary.json' | wc -l` is **2** — no sweep gate,
-    no fixture change, no new vendored copy, no CI or spec edit slipped in
+- `uv run scripts/unicode_sweep.py` exits 0 and its last stdout line is exactly
+    `TOTAL 17793024 comparisons, 0 divergences` (~60 s)
+- `mise run unicode:sweep` exits 0 (rebuild then sweep)
+- Stale-extension guard fires: `touch crates/iscc-lib/src/utils.rs` then
+    `uv run scripts/unicode_sweep.py` exits non-zero with a message naming the rebuild; afterwards
+    `mise run unicode:sweep` exits 0 again and `git status --porcelain` is empty
+- Comparison-count guard fires: with one entry temporarily removed from `CONTEXTS`,
+    `uv run scripts/unicode_sweep.py` exits non-zero on the **count** assertion (not on a
+    divergence); after restoring, `git status --porcelain scripts/unicode_sweep.py` is empty
+- `uv run pytest -q` passes (379 existing + the new tests, zero errors) and
+    `uv run pytest -q tests/test_unicode_sweep.py` collects a non-zero number of tests
+- `uv run ruff check`, `uv run ruff format --check` and `uv run ty check` are all clean
+- `uv run python -c "import yaml; j=yaml.safe_load(open('.github/workflows/ci.yml'))['jobs']['unicode-sweep']; assert j['name']=='Unicode sweep (16.0.0 differential)'; s=[str(x.get('run','')) for x in j['steps']]; assert any('unicode_sweep.py' in x for x in s); assert any('--release' in x for x in s)"`
+    exits 0
+- `uv run zensical build` exits 0 and reports "No issues found"; `uv run scripts/check_docs_nav.py`
+    still reports 23 consistent pages
+- `git status --porcelain -- crates/ .crap-baseline.json .iai-baseline.json .claude/context/specs/`
+    prints nothing (no Rust source, baseline or spec moved)
+- `mise run check` exits 0 (all prek hooks) and `git status --porcelain` is empty afterwards
 
 ## Done When
 
-`text_collapse` derives `Final_Sigma` from the vendored Unicode 16.0.0 `Cased` / `Case_Ignorable`
-tables, the full-code-space plus sequence-class probe reports 0 divergences from `iscc-core` on
-uniform 16.0.0 tables, the CRAP baseline is refreshed in the same commit, and every verification
-command above passes.
+`scripts/unicode_sweep.py` is committed, runs green as `mise run unicode:sweep` and as a dedicated
+CPython 3.14 CI job, fails closed on a stale extension / wrong oracle version / shrunken case set,
+and every verification command above passes on the working tree.

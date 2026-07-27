@@ -20,15 +20,13 @@ iterations.
 - **A crashed review role means the previous step has NO verdict** (`iterations.jsonl` FAIL/turns:1
     with no `cid(review)` commit) — handoff.md then holds only the advance section and resolved
     issues were never deleted. Re-verify the prior step's claims from the tree.
-- **A `define-next` TIMEOUT leaves an uncommitted `next.md` in the tree** (iter 155, 1200 s wall, 0
-    turns): adopt-and-verify it rather than starting blank, but **re-derive every numeric invariant
-    it asserts** — those become hard-coded `EXPECTED_*` in code. Iter 156's two table shapes took
-    one 10 s one-liner and both checked out; its "11 contexts / 20,017,152 comparisons" prose did
-    not match its own 8-context snippet. Also: a timeout is **not** a bounce — no advance/review
-    ran, so the step has never been rejected; say so in `## Goal`.
-- **Run the expensive probe while scoping when it can invert the plan.** A full-code-space
-    differential sweep (~60 s) run during scoping showed the handoff's "land the gate" step would
-    land **red**, so the fix was scoped first. Cheap probe, milestone-level correction.
+- **A `define-next` TIMEOUT leaves an uncommitted `next.md` in the tree** (iter 155): adopt-and-
+    verify rather than starting blank, but **re-derive every numeric invariant it asserts** (they
+    become hard-coded `EXPECTED_*` in code) — iter 155's prose contradicted its own snippet. A
+    timeout is **not** a bounce: no advance/review ran, so say so in `## Goal`.
+- **Run the expensive probe while scoping when it can invert the plan.** The full-code-space
+    differential sweep (~60 s) inverted the milestone order at 155 and, re-run at 157, turned every
+    constant in the gate spec into a measured fact.
 - **Generated/tool-output files (Cargo.lock, bindings) don't count toward the 3-file limit**; doc
     files are also excluded — can batch all howto guides in one step.
 - Batch related small changes (version sync + docs; several fixes in the same crate/2 files). **IDLE
@@ -104,12 +102,13 @@ iterations.
 - **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
     Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) sequence vectors + fixture guard ✅149,
     (4) fixture propagation into the 11 bindings — ✅150 Python+Go, ✅151 WASM+Ruby, ✅152 drift gate,
-    ✅153 napi+Java, ✅154 C#+Kotlin (→ 8 of 11; Swift/C FFI/C++ left), (4b) **156 scoped: freeze
-    `Cased`/`Case_Ignorable` at 16.0.0** — a `str::to_lowercase()` defect that must land *before*
-    (5) the 1,112,064-scalar **and sequence-class** sweep gate, which is red until it does. Never
+    ✅153 napi+Java, ✅154 C#+Kotlin (→ 8 of 11; Swift/C FFI/C++ left), (4b) ✅156 `Final_Sigma`
+    case-table freeze at 16.0.0, (5) **157 scoped: the criterion-4 sweep gate**
+    (`scripts/unicode_sweep.py` + `mise run unicode:sweep` + own 3.14 CI job) — measured green while
+    scoping, 17,793,024 comparisons / 0 divergences / 59 s. Then propagation resumes. Never
     implement the superseded category override (`U+A7F1` injects a spurious `S`) or a 15.1.0
-    declared version. Escapes, fixture facts, the `Final_Sigma`/U+0295 table shapes, CRAP-in-tests →
-    [unicode-freeze-facts](unicode-freeze-facts.md).
+    declared version. Sweep constants, escapes, fixture facts, the `Final_Sigma`/U+0295 table
+    shapes, CRAP-in-tests → [unicode-freeze-facts](unicode-freeze-facts.md).
 - **Before scoping any propagation slice** read the
     [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy, the **two-axis** cost
     rule (plumbing × text coverage; a one-axis ranking wrongly put C FFI first three times),
@@ -132,9 +131,7 @@ iterations.
     dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore.
 - **Watch the tooling-cadence flag in state.md.** With 3 of the last 4 iterations CI/lint/workflow,
     prefer a user-facing item over a tracked `normal` tooling issue (iter 143) — a **one-iteration**
-    deferral, not a veto: count the window in `## Goal`. With zero unblocked user-facing candidates
-    the rule does not fire (iter 146) — enumerate each blocker. Parked-work lessons in the archive;
-    nothing is parked on Titusz today.
+    deferral, not a veto; with zero unblocked user-facing candidates it does not fire (iter 146).
 - **Binding artifacts are cheap probes, but each has its own age** — probe a *discriminating* input
     first, preferring probes that leave no tree diff: a `/tmp` module with a path/`replace` dep
     (Go), a `/tmp` MSBuild project at equal depth (C#), or a gitignored build output

@@ -167,3 +167,26 @@ tables (rustc 1.97.1 = Unicode **17.0**), while the reference reads CPython's (p
 - Spec authority: `specs/rust-core.md` — "divergence caused by the runtime's tables being *newer*
     than 16.0 is **not** accepted and must be zero". Its "Rust `str::to_lowercase()` does the same"
     sentence is what this defect falsifies; specs are human-owned, do not edit.
+
+## The criterion-4 differential sweep — measured iter 157 (scoped as `scripts/unicode_sweep.py`)
+
+Ran the full sweep myself while scoping; every number below is measured, not inherited.
+
+- **`iscc_core` on the project interpreter IS the oracle** — no Python reimplementation needed.
+    `iscc_core.text_clean` / `.text_collapse` are exported at package root, call `unicodedata`
+    directly with no freeze rule, and the venv is CPython **3.14.6 / unidata 16.0.0**. Post-16.0
+    code points are `Cn` to it exactly as the sentinel makes them for us.
+- **17,793,024 comparisons, 0 divergences, 59 s** on a release extension = 1,112,064 scalars
+    (`range(0x110000)` minus `D800..DFFF`) x **8 contexts** x 2 functions. Same total the iter-156
+    review reported, so the shape is reproducible. Contexts: bare, `a_b`, `e`+X+U+0301,
+    U+1100+X+U+1161, U+0391 U+03A3+X+U+0392, U+0301+X+U+0301, space, `A_Z` — rows 3-6 are the four
+    spec-mandated sequence classes, applied to *every* scalar (superset of the requirement).
+- **`maturin develop --release` always rewrites `_lowlevel.abi3.so`'s mtime** even when cargo
+    reports the crates fresh (~21 s incremental). So an mtime-vs-newest-`.rs` staleness guard is
+    safe — no false red after a rebuild.
+- Placement: **own CI job on 3.14**, not the `python-test` matrix (its 3.10 leg carries 15.1.0
+    tables and could only skip) and not pre-push (release build + 60 s). `ci.yml` had **20** job
+    keys before this step.
+- Ruff `S101` is ignored only under `tests/**` → scripts must `raise SystemExit(...)`, never
+    `assert`. `uv run ty check` already passes on `import iscc_core`; no `[tool.ty.src]` exclusion
+    needed.
