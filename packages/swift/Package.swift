@@ -24,7 +24,7 @@ let package = Package(
             name: "IsccLibTests",
             dependencies: ["IsccLib"],
             path: "Tests/IsccLibTests",
-            resources: [.copy("data.json")]
+            resources: [.copy("data.json"), .copy("unicode_boundary.json")]
         ),
     ]
 )

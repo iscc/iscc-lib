@@ -29,6 +29,7 @@ VENDORED_COPIES = {
     ],
     "crates/iscc-lib/tests/unicode_boundary.json": [
         "packages/go/testdata/unicode_boundary.json",
+        "packages/swift/Tests/IsccLibTests/unicode_boundary.json",
     ],
 }
 

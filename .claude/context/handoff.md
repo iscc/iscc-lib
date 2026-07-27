@@ -1,108 +1,81 @@
 # Handoff
 
-## 2026-07-27 — Review of: Propagation slice 6 — Unicode boundary vectors in the C++ test
+## 2026-07-27 — Propagation slice 7 — Unicode boundary vectors in the Swift test suite
 
-**Verdict:** PASS
+**Done:** Gated `packages/swift` on all 12 Unicode 16.0.0 boundary vectors — the 11th and last
+binding surface. Added `UnicodeBoundaryTests.swift` (3 test methods: metadata guard + 7 `text_clean`
+\+ 5 `text_collapse` vectors) comparing **Unicode scalar arrays**, never `String ==` (Swift string
+equality folds canonical equivalence, which would make three of the four sequence vectors vacuous).
+Vendored a byte-identical fixture copy (made with `cp`, registered in `VENDORED_COPIES`), and ran
+the whole suite locally via the swift.org Debian 12 toolchain — Swift is locally verifiable in this
+container, and the docs now say so.
 
-**Summary:** The C++17 wrapper test is now gated on all 12 Unicode 16.0.0 boundary vectors by
-reusing the *same* generated header the C FFI test already consumes — no second artifact, no
-vendored copy, no public-interface leak. The diff is 4 files (2 test, 2 doc), every next.md
-criterion reproduced independently, and three mutation probes plus a consumer-leak probe confirm the
-gate is real rather than green-by-construction. Criterion 3 of the Unicode issue is at **10 of 11**
-binding surfaces; only Swift remains.
+**Files changed:**
 
-**Verification:**
+- `packages/swift/Tests/IsccLibTests/UnicodeBoundaryTests.swift`: new boundary suite (metadata guard
+    pinning `16.0.0`/7/5; `scalars()` helper with a comment explaining why `String ==` is forbidden;
+    shared `assertVectors` helper with `file:`/`line:` forwarding)
+- `packages/swift/Tests/IsccLibTests/unicode_boundary.json`: vendored copy, created with `cp` only
+- `packages/swift/Package.swift`: added `.copy("unicode_boundary.json")` to the test target's
+    `resources:` array (only non-test/non-doc file beyond `.gitignore`)
+- `.gitignore`: added `.build/` (SwiftPM default scratch dir; `build/`/`build-*/` did not match it)
+- `tests/test_vendored_fixtures.py`: registered the Swift copy under the
+    `crates/iscc-lib/tests/unicode_boundary.json` key
+- `docs/unicode.md`: propagation paragraph now names the Swift test suite and its vendored copy
+    alongside the pure-Go package
+- `packages/swift/CLAUDE.md`: added `UnicodeBoundaryTests.swift`/`unicode_boundary.json`/
+    `Constants.swift` to the layout, dropped the stale `SmokeTests.swift` line, added a "Boundary
+    tests" section, replaced the false "Cannot run Swift tests in the Linux devcontainer" and
+    "macOS-only testing" claims with the swift.org Debian 12 + `--scratch-path` recipe
 
-- [x] `cargo build -p iscc-ffi` exits 0 — reproduced
-- [x] `uv run --with cmake cmake -S packages/cpp -B <fresh> -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=… -DSANITIZE_ADDRESS=ON`
-    exits 0, then `cmake --build` exits 0 — reproduced in a **fresh** `build-rev160/` (removed
-    after), build log contains no compiler diagnostic at all (only uv's benign `VIRTUAL_ENV` notice)
-- [x] Suite prints `69 passed, 0 failed`, exit 0 — reproduced; ASAN/LSan clean (exit 0, no leak
-    report)
-- [x] `grep -c '^PASS: unicode_boundary/'` → **12** — reproduced; all 3 metadata guards PASS
-    (`16.0.0`, 7, 5); `grep -c '^FAIL'` → 0
-- [x] `grep -c 'iscc-ffi/tests' packages/cpp/CMakeLists.txt` → **0** — reproduced (public INTERFACE
-    target untouched)
-- [x] `grep -c 'unicode_boundary_vectors.h' packages/cpp/tests/CMakeLists.txt` → **1** — reproduced
-- [x] `uv run pytest -q tests/test_gen_ffi_boundary_vectors.py tests/test_vendored_fixtures.py` →
-    **14 passed**; `git status --porcelain` for header / canonical fixture /
-    `test_vendored_fixtures.py` → empty
-- [x] `git status --porcelain -- .github/workflows/ .crap-baseline.json .iai-baseline.json crates/ packages/cpp/CMakeLists.txt`
+**Verification:** (every next.md criterion reproduced this session)
+
+- `cmp` canonical vs. Swift copy → identical (re-checked *after* `mise run check` hooks ran)
+- `git ls-files -- '*unicode_boundary.json' | wc -l` → **3**
+- `uv run pytest -q tests/test_vendored_fixtures.py` → **9 passed** (was 8); full `uv run pytest -q`
+    → **400 passed** (collect-only also 400, was 399)
+- `cargo build -p iscc-uniffi` exit 0; `git status --porcelain -- crates/` empty
+- `swift build --scratch-path /tmp/swiftbuild …` exit 0, `grep -ci warning` on the log → 0
+- `swift test --scratch-path /tmp/swiftbuild -Xlinker -L… -rpath …` →
+    **`Executed 12 tests, with 0 failures`** (9 conformance + 3 boundary), exit 0, no warnings
+- **Mutation probe** (in a `/tmp` copy, tracked tree never mutated): fixture expectation for
+    `text_clean/test_0004_seq_u0378_blocks_canonical_composition` changed to the delete-filter value
+    U+00E9 → suite reds with `("[101, 769]") is not equal to ("[233]")`, `12 tests, 1   failure`.
+    The scalar comparison is load-bearing exactly as next.md predicted.
+- `swift package dump-package` at repo root → exit 0 (root manifest untouched)
+- `grep -q '^\.build/$' .gitignore` → OK; `git status --porcelain` shows no `.build/` anywhere
+- `grep -c unicodeScalars UnicodeBoundaryTests.swift` → 1;
+    `grep -c 'XCTAssertEqual(actual, expected'` → 0
+- `grep -c -i swift docs/unicode.md` → 3 (≥ 2)
+- `uv run scripts/check_docs_nav.py` → `OK: 23 documentation pages consistent`;
+    `uv run zensical build` → "No issues found"
+- `mise run check` → all 17 hooks Passed (mdformat reflowed `packages/swift/CLAUDE.md` on the first
+    pass; second pass clean)
+- `git status --porcelain -- .github/workflows/ .crap-baseline.json .iai-baseline.json crates/ Package.swift`
     → empty
-- [x] `grep -c 'C++' docs/unicode.md` → **2** (≥ 2 required)
-- [x] `uv run zensical build` → "No issues found"; `uv run scripts/check_docs_nav.py` →
-    `OK: 23 documentation pages consistent`
-- [x] `mise run check` — all 17 hooks Passed, nothing modified (only the runner-owned
-    `iterations.jsonl` dirty afterwards)
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean (only the known, tracked
-    `proc-macro-error2` future-incompat note)
 
-**Independent probes beyond next.md** (the criteria above only prove *green*, not *load-bearing*):
-
-- **Mutation 1 — delete-filter-shaped expected value** for
-    `text_clean/test_0004_seq_u0378_blocks_canonical_composition` (`e\314\201` → `\303\251`):
-    `68 passed, 1 failed`, exit 1. Also proves CMake's depfiles treat the cross-package header as a
-    build input — a bare `cmake --build` recompiled without a reconfigure, so there is no
-    Gradle-style stale-green here (the class that bit slice 4).
-- **Mutation 2 — dropped case + decremented count macro** (`text_collapse` 5 → 4): metadata guard
-    reds (`got 4, expected 5`), exit 1.
-- **Mutation 3 — drifted version macro** (`16.0.0` → `17.0.0`): metadata guard reds, exit 1.
-- **Public-interface leak probe**: a throwaway project that `add_subdirectory`s `packages/cpp`,
-    links only `iscc::iscc` and `#include`s `unicode_boundary_vectors.h` **fails to compile**
-    (`fatal error: … No such file or directory`). The include directory is genuinely test-only.
-    vcpkg/conan are unaffected either way — both ship pre-built release tarballs and never configure
-    this CMake project.
-- **`g++ -std=c++17 -Wall -Wextra -Wpedantic -c test_iscc.cpp`** → completely silent. Worth noting:
-    the project's CMake does **not** set `-Wall -Wextra`, so the criterion "no compiler warning" is
-    weak on its own; this manual compile is what actually backs the claim.
-- Tally re-derived from disk: 10 of the 11 native bindings named in `docs/unicode.md` now have a
-    boundary suite (all 11 files located); only Swift is missing. `docs/unicode.md`'s new sentence
-    is accurate.
-
-**Issues found:** (none)
-
-Scope discipline is exact: 4 files, **0** non-test non-doc files. Every `## Not In Scope` item held
-— public CMakeLists, `ci.yml`, both baselines, `test_vendored_fixtures.py`, the header and the
-canonical fixture are all byte-unchanged; no second artifact, no `delete_filter_output` oracle, no
-Swift/cmake install step. No suppressions, skips, threshold changes or hook weakening anywhere in
-`@{upstream}..HEAD`.
-
-**Codex review:** No actionable defects. Verbatim: "The new C++ boundary-vector tests compile and
-pass, and the generated-header include remains correctly scoped to the test target."
-
-**Next:** Two `normal` `[human]` issues are ready and both are cheap; take either.
-
-1. **Pin `rubygems/configure-rubygems-credentials@v2.1.0`** in `.github/workflows/release.yml` line
-    895 with an inline `# exact tag:` comment (RULED by Titusz, option (a)). One line plus a
-    comment; verification is static — run the committed gates
-    `uv run scripts/check_release_workflow.py` and `… --check-action-inputs` (zero
-    `warning: skipped` lines is part of the pass), never a retyped heredoc.
-2. **Make the CI job table in `specs/ci-cd.md` exhaustive** — 14 rows against 21 real jobs. This is
-    an authorized spec edit (`[human]` issue with a `**Spec:**` field); re-derive the job list from
-    `ci.yml` rather than from any prose.
-
-The Swift slice (the last boundary-vector surface) is **not** locally verifiable: no `swift`
-toolchain in this container, and there is no PyPI trick for it — `uv --with swift` installs the
-unrelated OpenStack package, which I confirmed this session. It would also be the first slice adding
-a *tracked vendored copy*, which must be registered in `VENDORED_COPIES`. Scope it as CI-proof-only
-and say so explicitly, or defer it.
+**Next:** Criterion 3 of the Unicode issue is now **11 of 11** binding surfaces. The two remaining
+cheap `normal` `[human]` items from the previous review stand: (1) pin
+`rubygems/configure-rubygems-credentials@v2.1.0` in `release.yml` (one line + `# exact tag:`
+comment, verify with the committed release-workflow gates), (2) make the `specs/ci-cd.md` job table
+exhaustive against the 21 real `ci.yml` jobs (authorized spec edit).
 
 **Notes:**
 
-- **state.md needs a correction (for update-state):** lines 13 and 129 assert that `cmake` is ABSENT
-    and that C++ "is not buildable in this container". That is now disproven — `cmake` is absent
-    from `$PATH`, but `uv run --with cmake cmake …` resolves the PyPI wheel (4.4.0) and builds/runs
-    the full ASAN suite. This belief shaped scoping for several iterations; the Swift half of the
-    same sentence still stands. Recorded in `learnings.md` and in review memory.
-- The next.md Implementation Notes were accurate as written this time — the helper signature, block
-    36 and the CMake line all landed verbatim and compiled clean on the first build. The advance
-    agent's one documented deviation (naming `unicode_boundary_vectors.h` in the CMake comment,
-    which next.md's suggested comment text omitted but its own grep criterion required) is correct.
-- `packages/cpp/` now carries four stale local build directories (`build`, `build-asan`, `build-ci`,
-    `build-uv`). All are gitignored and leave no tree diff — clutter only, not worth an issue, but a
-    future C++ step should configure into a fresh directory rather than reuse any of them (the
-    `build/` cache was written by cmake 3.25 and is incompatible with the uv-provided 4.4.0).
-- The FAIL message format renders a decomposed and a precomposed `é` identically
-    (`got "é", expected "é"`). Pre-existing in `assert_str_eq`, shared with the C test, and not
-    worth changing — but a future debugger of a real Unicode failure here should compare bytes, not
-    the terminal output.
+- **One deliberate deviation from next.md's letter:** next.md said to drop the stale
+    `SmokeTests.swift` line from the *layout block* and "not otherwise rewrite the file" — but
+    `packages/swift/CLAUDE.md` also carried a whole "### Smoke tests (`SmokeTests.swift`)"
+    subsection under *Test Patterns* describing the same nonexistent file (the scoping run's
+    "Executed 9 tests" confirms only ConformanceTests runs). I removed that subsection too: leaving
+    a section documenting tests that don't exist while deleting its layout line would have made the
+    doc self-contradictory, and doc updates must match the actual implementation. No other section
+    was touched beyond what next.md lists.
+- The gate sequencing is worth knowing: `test_no_unregistered_tracked_copy` discovers copies via
+    `git ls-files`, so it *fails* until the new fixture copy is `git add`ed (index = tracked). Red
+    before staging, green after — the gate works exactly as designed.
+- The swift.org toolchain from the scoping run was still unpacked in `/tmp/swifttc` (no re-download
+    needed). Nothing from `/tmp` is committed; no toolchain was added to mise/CI/devcontainer.
+- `state.md`'s "Swift is CI-proof-only / not locally verifiable" framing (also in the previous
+    handoff) is now disproven with a full local green run — update-state should drop it.
+- mdformat reflowed the new CLAUDE.md bullets (line-wrap only); the committed file is the post-hook
+    version.

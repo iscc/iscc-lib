@@ -141,8 +141,10 @@ Node.js, WASM, Java, Ruby, C#, and Kotlin binding suites (which all read the can
 directly), by the C FFI test program and the C++ wrapper test via a single C header generated from
 the fixture by `scripts/gen_ffi_boundary_vectors.py` (a pytest gate asserts the tracked header is a
 byte-exact regeneration; both tests include the same header — there is no second generated
-artifact), and by the pure-Go package via the vendored copy at
-`packages/go/testdata/unicode_boundary.json`.
+artifact), and by the pure-Go package and the Swift test suite via vendored copies at
+`packages/go/testdata/unicode_boundary.json` and
+`packages/swift/Tests/IsccLibTests/unicode_boundary.json`, each gated for byte-identity against the
+canonical fixture by a pytest check.
 
 ## Cross-implementation consistency
 

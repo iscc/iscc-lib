@@ -33,6 +33,17 @@ Detail moved out of MEMORY.md index. See also [[ci-gates]] for the swift/kotlin 
 - Two `Package.swift` coexist: root (SPM consumers, reads for dep resolution) +
     `packages/swift/Package.swift` (CI/local dev). Root uses Ferrostar toggle `useLocalFramework` +
     `releaseTag`/`releaseChecksum`, `binaryTarget` for distribution; omits testTarget.
+- **Swift IS locally testable on Linux** (proven iters 160-161): swift.org ships a Debian 12 x86_64
+    tarball matching this container — recipe in `packages/swift/CLAUDE.md` Common Pitfalls (unpack
+    to `/tmp/swifttc`, `cargo build -p iscc-uniffi`,
+    `swift test --scratch-path   /tmp/swiftbuild -Xlinker -L<repo>/target/debug -Xlinker -rpath -Xlinker …`).
+    Use `--scratch-path` outside the repo; `.build/` is gitignored since iter 161.
+- Tests: `ConformanceTests.swift` (9 methods/50 vectors) + `UnicodeBoundaryTests.swift` (12 boundary
+    vectors + metadata guard). **Never compare Swift `String ==` in Unicode tests** — it folds
+    canonical equivalence ("e"+U+0301 == U+00E9), making sequence vectors vacuous; compare
+    `unicodeScalars.map { $0.value }` arrays. Vendored `unicode_boundary.json` + `data.json` are SPM
+    `.copy(...)` resources, registered in `tests/test_vendored_fixtures.py` (gate reads
+    `git   ls-files`, so it stays red until the copy is `git add`ed).
 - `scripts/build_xcframework.sh`: 5 Rust targets → `lipo` → `xcodebuild -create-xcframework` →
     `ditto` zip → checksum. Output `target/ios/IsccLib.xcframework.zip` (`--release`/`--debug`).
 - Version constant: `packages/swift/Sources/IsccLib/Constants.swift` (`isccLibVersion`). CI job
