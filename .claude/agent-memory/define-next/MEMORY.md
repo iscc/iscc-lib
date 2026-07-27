@@ -103,12 +103,15 @@ iterations.
     Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) sequence vectors + fixture guard ✅149,
     (4) fixture propagation into the 11 bindings — ✅150 Python+Go, ✅151 WASM+Ruby, ✅152 drift gate,
     ✅153 napi+Java, ✅154 C#+Kotlin (→ 8 of 11; Swift/C FFI/C++ left), (4b) ✅156 `Final_Sigma`
-    case-table freeze at 16.0.0, (5) **157 scoped: the criterion-4 sweep gate**
-    (`scripts/unicode_sweep.py` + `mise run unicode:sweep` + own 3.14 CI job) — measured green while
-    scoping, 17,793,024 comparisons / 0 divergences / 59 s. Then propagation resumes. Never
-    implement the superseded category override (`U+A7F1` injects a spurious `S`) or a 15.1.0
-    declared version. Sweep constants, escapes, fixture facts, the `Final_Sigma`/U+0295 table
-    shapes, CRAP-in-tests → [unicode-freeze-facts](unicode-freeze-facts.md).
+    case-table freeze at 16.0.0, (5) ✅157 the criterion-4 sweep gate (`scripts/unicode_sweep.py` +
+    `mise run unicode:sweep` + own 3.14 CI job) — measured green while scoping at 157 **and 158**,
+    17,793,024 comparisons / 0 divergences / ~60 s, (6) **158 scoped: harden that gate**
+    (`--rebuilt` flag required so a bare run can't false-green off a stale `.so`; bound divergence
+    retention to 20 samples + an exact count; kill the `default=0.0` vacuous freshness pass). Then
+    propagation resumes at C FFI. Never implement the superseded category override (`U+A7F1` injects
+    a spurious `S`) or a 15.1.0 declared version. Sweep constants, escapes, fixture facts, the
+    `Final_Sigma`/U+0295 table shapes, CRAP-in-tests →
+    [unicode-freeze-facts](unicode-freeze-facts.md).
 - **Before scoping any propagation slice** read the
     [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy, the **two-axis** cost
     rule (plumbing × text coverage; a one-axis ranking wrongly put C FFI first three times),

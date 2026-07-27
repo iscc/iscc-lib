@@ -1,232 +1,188 @@
 # Next Work Package
 
-## Step: Land the Unicode 16.0.0 differential sweep as a permanent, fail-closed gate
+## Step: Harden the Unicode sweep gate — require a rebuild, bound the divergence list
 
 ## Goal
 
-Turn the throwaway full-code-space sweep — re-invented by hand at iterations 148, 155 and 156 — into
-a committed, runnable check (`scripts/unicode_sweep.py` + a `mise run unicode:sweep` task + its own
-CI job), closing criterion 4 of `specs/rust-core.md`. This is the *only* possible guard on the
-residual recorded in `decisions.md` 2026-07-27: every **unconditional** lowercase mapping still
-comes from rustc's tables, so a future toolchain could silently change hash output and nothing today
-would notice.
+Close the two blind spots filed as the `normal` `[review]` issue **"Harden the Unicode differential
+sweep gate"**: a bare `uv run scripts/unicode_sweep.py` can report a **false green** from an
+extension that predates a `cargo update` or a rustc bump (exactly the upgrade the gate exists to
+validate), and `sweep()` retains *every* divergence, so a broad regression can OOM-kill CI before it
+prints a single diagnostic — turning the most informative failure into the least.
 
-Continuing the handoff's "Next" (not a bounce — iteration 156 passed review).
+Not a bounce: iteration 157 passed review (PASS_WITH_NOTES) and this is the follow-up the review
+agent filed, which both the handoff and state.md name as the better next step ahead of the C-FFI
+propagation slice (that slice still needs an unmade design call about how a C test reads JSON).
 
 ## Scope
 
-- **Create**: `scripts/unicode_sweep.py`, `tests/test_unicode_sweep.py`
-- **Modify**: `mise.toml`, `.github/workflows/ci.yml`, `docs/unicode.md`
+- **Modify** (3 non-test/non-doc files — the budget, exactly):
+    - `scripts/unicode_sweep.py` — add the rebuild-assertion guard, bound divergence retention, fix
+        the vacuous freshness pass
+    - `mise.toml` — the `unicode:sweep` task passes the new flag after its `maturin develop` step
+    - `.github/workflows/ci.yml` — the `unicode-sweep` job's sweep step passes the new flag
+- **Modify** (tests/docs, outside the budget):
+    - `tests/test_unicode_sweep.py` — update the four `sweep()` call sites to the new return shape;
+        add the three new guard tests
+    - `docs/unicode.md` — one sentence in "Differential sweep gate": the script refuses to run unless
+        the caller just rebuilt, so `mise run unicode:sweep` (or the CI job) is the only way to run it
 - **Reference**:
-    - `.claude/context/specs/rust-core.md` lines 103–116 (criterion 4 wording) and line 191 (the
-        `Verified when` box)
-    - `scripts/gen_unicode16_case.py` — the house style for a fail-closed Unicode script
-        (`raise SystemExit(...)`, `EXPECTED_*` constants, module docstring)
-    - `scripts/check_docs_nav.py` + `tests/test_check_docs_nav.py` — the house style for a gate script
-        with injected `Path` arguments and its pytest suite
-    - `.github/workflows/ci.yml` `python-test:` job (lines 47–73) — the exact
-        checkout/toolchain/setup-python/setup-uv/`uv sync`/`maturin develop` step shape to copy
-    - `mise.toml` `bench:iai:check` / `audit` tasks — task-comment style
-    - `docs/unicode.md` — the page that documents the freeze rule
-
-File budget: **3** non-test, non-doc files (`scripts/unicode_sweep.py`, `mise.toml`, `ci.yml`).
+    - `.claude/context/issues.md` → "Harden the Unicode differential sweep gate" (the authorization)
+    - `.claude/context/decisions.md` 2026-07-27 → "The Unicode sweep gate trusts an mtime freshness
+        guard, not a build-input hash" (which alternatives are already rejected)
+    - `.claude/context/handoff.md` (iteration-157 review: the two findings, both reproduced there)
 
 ## Not In Scope
 
-- **Do not edit `.claude/context/specs/ci-cd.md`.** Adding this job moves the CI check-name count;
-    the human-authorized "Make the CI job table exhaustive" issue in `issues.md` owns that table and
-    will pick the new row up. Specs are human-owned.
-- **Do not touch any Rust source, `.crap-baseline.json` or `.iai-baseline.json`.** This step adds no
-    Rust code, so neither the CI-only CRAP `--fail-regression` gate nor the 10% Ir gate moves. A
-    baseline refresh here would be unexplained noise.
-- **Do not extend `crates/iscc-lib/tests/unicode_boundary.json`** or touch any binding conformance
-    suite — propagation to C FFI / C++ / Swift and the four sibling `data.json` copies is the next
-    slice.
-- **Do not wire the sweep into `mise run test`, `uv run pytest`'s default path, or the prek pre-push
-    hooks.** It needs a release extension build plus ~60 s and it needs CPython 3.14; a skip-on-3.10
-    pytest gate is exactly the fail-open shape to avoid.
-- **Do not add CLI flags that shrink the sweep** (`--sample`, `--limit`, `--fast`). The pytest suite
-    calls the sweep function directly with a small scalar iterable; a shrink flag is a
-    gate-circumvention surface.
-- Do not touch `packages/go` or anything on the go1.27 checklist.
-- Do not add a new docs page (no `zensical.toml` / `ORDERED_PAGES` / `llms.txt` wiring needed) — add
-    a section to the existing `docs/unicode.md`.
+- **Do not widen the mtime set** to `Cargo.toml` / `Cargo.lock` / `rust-toolchain*`. `decisions.md`
+    2026-07-27 rejects it as buying a *false* sense of completeness (still blind to a rustc-only
+    bump), and the rebuild assertion below makes it moot.
+- **Do not make the script shell out to `maturin` itself** — same ruling: it removes the fast
+    fail-fast signal and makes the script un-runnable without a build.
+- **Do not embed build fingerprints in the Rust extension** (a `__build_info__`-style symbol would
+    add an unbound public symbol to the Python surface and breaks the 32-symbol Tier 1 story).
+- **Do not wire the full 17.8M-comparison sweep into `pytest`, `mise run test` or the pre-push
+    hooks.** The pytest suite must keep exercising `sweep()` with tiny explicit scalar lists only.
+- **Do not change the success line format.** `TOTAL 17793024 comparisons, 0 divergences` must stay
+    byte-identical — state.md, the review handoff and agent memory all assert it.
+- No Rust source, no `.crap-baseline.json`, no `.iai-baseline.json`, no `.claude/context/specs/`
+    edits. No Rust code moves in this step, so **neither** the CI-only CRAP `--fail-regression`
+    baseline nor the iai Ir baseline may be refreshed.
+- Do not start propagation slice 5 (C FFI / C++ / Swift) and do not touch
+    `crates/iscc-lib/tests/unicode_boundary.json` or any sibling `data.json`.
+- Do not edit `.claude/context/decisions.md` or delete the issue from `issues.md` — the review agent
+    owns both.
 
 ## Implementation Notes
 
-### Verified facts — measured this iteration, do not re-derive
+Measured on the working tree while scoping (all facts below are current, not inherited):
 
-Probed in the devcontainer at HEAD (`b95f0ed`) against the freshly rebuilt release extension:
+- The tree is green *before* this step and must stay green — `mise run unicode:sweep` exits 0 with
+    this as its last stdout line:
 
-- Project interpreter is **CPython 3.14.6**, `unicodedata.unidata_version == "16.0.0"`; `iscc_core`
-    is **1.3.0** and exports `iscc_core.text_clean` / `iscc_core.text_collapse` from the package
-    root. On 3.14 `iscc_core` **is** the "uniform Unicode 16.0.0 tables" reference the spec asks for
-    — it calls `unicodedata` directly with no freeze rule of its own, so post-16.0 code points are
-    `Cn` to it exactly as the sentinel makes them for us. Use it as the oracle; do not reimplement
-    `text_clean` / `text_collapse` in Python.
-- Scalar denominator: **1,112,064** = `range(0x110000)` minus `0xD800..=0xDFFF`.
-- With the 8 contexts below × 2 functions the sweep is **17,793,024** comparisons and takes **59 s**
-    wall clock, **0 divergences**. (This is the same total the iteration-156 review reported, so the
-    shape is reproducible.)
-- `uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml` takes **~21 s**
-    incremental here and **always** rewrites `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so`,
-    refreshing its mtime even when cargo reports the crates fresh. That makes an mtime-based
-    staleness guard safe (no false red after a rebuild).
-- `.github/workflows/ci.yml` has **20** job keys today; `python-test` is a 2-leg matrix (3.10 /
-    3.14).
-- `uv run ty check` passes on `import iscc_core` already (four `tests/*.py` do it), so the new
-    script needs **no** `[tool.ty.src] exclude` entry — it is stdlib + installed project deps only.
-- Ruff `S` is selected repo-wide and `S101` is ignored **only** under `tests/**`. Use
-    `raise SystemExit("...")` for every failure path in `scripts/unicode_sweep.py`; a bare `assert`
-    will red `uv run ruff check`.
+    ```text
+    TOTAL 17793024 comparisons, 0 divergences
+    ```
 
-### The context set (this is the sequence half of criterion 4)
+- `uv run pytest -q --collect-only` → **389** tests.
 
-Eight `(name, prefix, suffix)` contexts; for each scalar `c` the case string is
-`prefix + c + suffix` and both `text_clean` and `text_collapse` are compared. Build every non-ASCII
-piece with `chr(0x...)` so the script file stays pure ASCII:
+- Retention is 1:1 — `sweep()` with a wrong oracle over 30 scalars: **480 comparisons, 480 retained
+    tuples**, `MAX_REPORTED_DIVERGENCES = 20`. At full scale that is up to 17.8M two-string tuples.
 
-| name        | prefix                      | suffix        | why                                |
-| ----------- | --------------------------- | ------------- | ---------------------------------- |
-| `bare`      | `""`                        | `""`          | the single-code-point sweep proper |
-| `ascii`     | `"a"`                       | `"b"`         | the boundary-fixture shape         |
-| `base_mark` | `"e"`                       | `chr(0x0301)` | spec class **base+Cn+mark**        |
-| `jamo`      | `chr(0x1100)`               | `chr(0x1161)` | spec class **jamo+Cn+jamo**        |
-| `sigma`     | `chr(0x0391) + chr(0x03A3)` | `chr(0x0392)` | spec class **Sigma+Cn+cased**      |
-| `marks`     | `chr(0x0301)`               | `chr(0x0301)` | spec class **Cn-between-marks**    |
-| `space`     | `" "`                       | `" "`         | whitespace filter + `.strip()`     |
-| `upper`     | `"A"`                       | `"Z"`         | cased neighbours for lowercasing   |
+- `mise.toml` already uses `env = { … }` on a task (`bench:iai`), so either an env key or a CLI flag
+    is available. **Prefer the CLI flag** — it is visible in the CI log line and in `mise.toml`, and
+    it needs no cross-platform env-prefix shell syntax.
 
-The four spec-mandated sequence classes are covered by rows 3–6, and covered for **every** scalar
-rather than only the unassigned ones — a strict superset of what criterion 4 requires. Keep all
-eight in one `CONTEXTS` tuple of `(name, prefix, suffix)`.
+### 1. Rebuild assertion (issue item 1, the completeness half)
 
-### Script shape (`scripts/unicode_sweep.py`)
+Add a module-level `REBUILD_FLAG = "--rebuilt"` and a small, directly testable guard:
 
-Plain project script run as `uv run scripts/unicode_sweep.py` (**not** PEP 723 `--script`: it must
-import the project's built `iscc_lib`). Module docstring first, explaining the oracle, the
-denominator and why it is CI-only.
-
-Constants, all fail-closed:
-
-- `EXPECTED_UNIDATA_VERSION = "16.0.0"`
-- `EXPECTED_SCALAR_COUNT = 1_112_064`
-- `EXPECTED_COMPARISONS = 17_793_024`
-
-Suggested functions (keep each short and pure; inject `Path`s rather than reading module constants,
-so the pytest suite can point them at temp dirs):
-
-- `scalar_values() -> Iterator[int]` — yields every code point except the surrogate block.
-- `sweep(scalars: Iterable[int]) -> tuple[int, list[Divergence]]` — returns
-    `(comparison_count, divergences)`. A `Divergence` can be a plain `NamedTuple`
-    (`function, context, code_point, expected, actual`). No printing inside.
-- `check_oracle(unidata_version: str) -> None` — `raise SystemExit` unless it equals
-    `EXPECTED_UNIDATA_VERSION`, naming the required CPython 3.14.
-- `check_extension_fresh(extension: Path, source_dirs: Sequence[Path]) -> None` — `raise SystemExit`
-    if the extension's mtime is older than the newest `*.rs` under the given dirs, with a message
-    naming `mise run unicode:sweep`. `main()` passes `Path(iscc_lib._lowlevel.__file__)` and
-    `[crates/iscc-lib/src, crates/iscc-py/src]`.
-- `main() -> int` — oracle check, freshness check, run the sweep, then **three** post-conditions:
-    the scalar count equals `EXPECTED_SCALAR_COUNT`, the comparison count equals
-    `EXPECTED_COMPARISONS`, and the divergence list is empty. Print at most 20 divergences as
-    `U+XXXX` plus the section/context, then the summary line, then return 1.
-
-Final stdout line, exactly (parsed by a verification criterion):
-
-```text
-TOTAL 17793024 comparisons, 0 divergences
+```python
+def check_rebuilt(argv: Sequence[str]) -> None:
+    """Fail closed unless the caller rebuilt the extension in this invocation."""
 ```
 
-Print the oracle provenance on a line above it (`iscc-core <version>`, `unidata <version>`,
-`python <version>`) so a CI log records what was compared.
+Raise `SystemExit` naming `mise run unicode:sweep` when the flag is absent. Make `main` take
+`argv: Sequence[str]` (call it as `sys.exit(main(sys.argv[1:]))`) and call `check_rebuilt(argv)`
+**first**, before `check_oracle` — the failure must arrive before any sweeping, and stdout must
+carry no `TOTAL` line.
 
-Order matters: assert the counts **before** reporting success, so a run that generated zero cases
-cannot read green.
+Why this and not the mtime widening: the issue explicitly lists "make the direct invocation refuse
+to run outside `mise run unicode:sweep`" as an option, and it *implements* the operating rule that
+`decisions.md` 2026-07-27 already recorded as convention ("always re-run the sweep through
+`mise run unicode:sweep`, never the script directly"). It therefore hardens that ruling rather than
+reversing it — say so in the code comment, and mention the residual honestly: the flag is a caller
+*assertion*, so a human who passes it without rebuilding is trusted.
 
-### `mise.toml`
+Keep `check_extension_fresh` — the flag is an assertion, the mtime check is an observation, and the
+cheap redundancy still catches "exported the flag, edited a `.rs`, forgot to rebuild".
 
-New `# --- Unicode conformance ---` section with a single task, placed after the performance
-section:
+Wire the flag through both authoritative paths:
 
-```toml
-[tasks."unicode:sweep"]
-description = "Differential sweep of text_clean/text_collapse against iscc-core on Unicode 16.0.0"
-# Rebuilds the Python extension first: the sweep measures whatever `.so` is installed,
-# and a stale one silently measures the previous commit.
-run = """
-uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml &&
-uv run scripts/unicode_sweep.py
-"""
+- `mise.toml` task `unicode:sweep` — append the flag to the sweep line only; the build line above it
+    stays byte-identical and still `&&`-chained, so a failed build never reaches the sweep:
+
+    ```bash
+    uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml &&
+    uv run scripts/unicode_sweep.py --rebuilt
+    ```
+
+- `.github/workflows/ci.yml`, job key `unicode-sweep`, step "Run Unicode 16.0.0 differential sweep"
+    → same flag. Nothing else in that job changes.
+
+### 2. Vacuous freshness pass (issue item 1, the trivial half)
+
+`check_extension_fresh` currently uses `max(…, default=0.0)`, so a missing/empty source directory
+passes silently. Collect the `*.rs` paths first and `raise SystemExit` when the list is empty,
+naming the directories it looked in. One check covers both "directory missing" and "no sources
+found". `grep default=0.0` must come back empty afterwards.
+
+### 3. Bounded divergence retention (issue item 2)
+
+Give `sweep()` an explicit result shape rather than a bare tuple:
+
+```python
+class SweepResult(NamedTuple):
+    comparisons: int
+    divergences: int  # every divergence, counted
+    samples: list[Divergence]  # at most MAX_REPORTED_DIVERGENCES, retained in order
 ```
 
-### CI job
+`sweep()` increments `divergences` unconditionally and appends to `samples` only while
+`len(samples) < MAX_REPORTED_DIVERGENCES`. `main()` prints `result.samples` and keeps the final line
+exactly `f"TOTAL {result.comparisons} comparisons, {result.divergences} divergences"`; return
+`1 if result.divergences else 0`. An extra "showing first N of M" line before the TOTAL line is
+welcome (it only prints on failure), but the TOTAL line itself must not change.
 
-Add one job keyed `unicode-sweep` with `name: Unicode sweep (16.0.0 differential)`. Copy the
-`python-test` step shape verbatim but pin `python-version: '3.14'` (keep `allow-prereleases: true`
-and the `astral-sh/setup-uv@v9.0.0` exact-tag comment), then:
+Four existing tests unpack `count, divergences = us.sweep(...)` — update all four
+(`test_sweep_comparison_count`, `test_sweep_zero_divergences_on_boundary_scalars`,
+`test_sweep_reports_divergence_with_wrong_oracle`,
+`test_contexts_discriminate_the_delete_filter_design`). The last one sweeps a single scalar (16
+comparisons < 20), so its `exposed` set is unaffected by the cap — keep it asserting the same three
+`(function, context)` pairs; do **not** weaken it.
 
-Two steps after `uv sync --group dev`, mirroring `python-test` but with `--release` added:
+### Traps
 
-1. `Build Python bindings (release)` running
-    `uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml`
-2. `Run Unicode 16.0.0 differential sweep` running `uv run scripts/unicode_sweep.py`
-
-Add a job-level comment explaining why it is a standalone job: it needs a **release** extension (a
-debug build makes the 17.8M-comparison run several times slower) and CPython **3.14** specifically
-(the `python-test` matrix's 3.10 leg carries Unicode 15.1.0 tables and could only skip). Place it
-next to `audit:` / `release-workflow:` at the end of the file — the other standalone gates.
-
-### `tests/test_unicode_sweep.py`
-
-Load the script with `importlib.util.spec_from_file_location` (see `tests/test_check_docs_nav.py`).
-Cover, all fast and all unconditional except where noted:
-
-- `scalar_values()` yields `EXPECTED_SCALAR_COUNT` values and no surrogate.
-- `sweep()` over a small explicit scalar list returns `len(scalars) * len(CONTEXTS) * 2` comparisons
-    and — guarded by `pytest.mark.skipif(unicodedata.unidata_version != "16.0.0")` — zero
-    divergences.
-- `sweep()` **reports** a divergence when handed a deliberately wrong oracle (monkeypatch the
-    module's oracle reference to a lambda returning a fixed string) — proves the comparison is
-    load-bearing rather than always-equal.
-- `check_oracle("15.1.0")` raises `SystemExit`; `check_oracle("16.0.0")` does not.
-- `check_extension_fresh` raises `SystemExit` when a `tmp_path` `.rs` file is newer than a
-    `tmp_path` stand-in extension, and returns cleanly when it is older.
-- `EXPECTED_COMPARISONS == EXPECTED_SCALAR_COUNT * len(CONTEXTS) * 2` — pins the arithmetic so
-    dropping a context cannot silently shrink the sweep.
-
-### `docs/unicode.md`
-
-Add one short section (heading level matching its neighbours), after the case-freeze section: name
-the gate command `mise run unicode:sweep`, the CI job name, the oracle (`iscc-core` on CPython
-3.14), the denominator (1,112,064 scalars x 8 contexts x 2 functions = 17,793,024 comparisons), and
-state that the gate's purpose is the *unguarded* residual — unconditional lowercase mappings and
-normalization tables still come from rustc — not the `Final_Sigma` condition it re-proves. Do not
-restate the whole freeze rule.
+- `ty check` and the Ruff `S`/`C901` selections are **pre-push-only** — `mise run check` cannot see
+    them. Run `uv run ty check` explicitly after editing the `.py` files (this bit the iteration-157
+    review).
+- The pytest module is loaded via `importlib`, so patch module attributes with
+    `monkeypatch.setattr(us, …)`, never direct assignment (`ty` rejects the latter).
+- Keep `scripts/unicode_sweep.py` pure ASCII — non-ASCII pieces are built with `chr(0x…)`.
+- `uv run zensical build` wipes `site/`; run it before any `gen_llms_full.py` invocation.
 
 ## Verification
 
-- `uv run scripts/unicode_sweep.py` exits 0 and its last stdout line is exactly
-    `TOTAL 17793024 comparisons, 0 divergences` (~60 s)
-- `mise run unicode:sweep` exits 0 (rebuild then sweep)
-- Stale-extension guard fires: `touch crates/iscc-lib/src/utils.rs` then
-    `uv run scripts/unicode_sweep.py` exits non-zero with a message naming the rebuild; afterwards
-    `mise run unicode:sweep` exits 0 again and `git status --porcelain` is empty
-- Comparison-count guard fires: with one entry temporarily removed from `CONTEXTS`,
-    `uv run scripts/unicode_sweep.py` exits non-zero on the **count** assertion (not on a
-    divergence); after restoring, `git status --porcelain scripts/unicode_sweep.py` is empty
-- `uv run pytest -q` passes (379 existing + the new tests, zero errors) and
-    `uv run pytest -q tests/test_unicode_sweep.py` collects a non-zero number of tests
-- `uv run ruff check`, `uv run ruff format --check` and `uv run ty check` are all clean
-- `uv run python -c "import yaml; j=yaml.safe_load(open('.github/workflows/ci.yml'))['jobs']['unicode-sweep']; assert j['name']=='Unicode sweep (16.0.0 differential)'; s=[str(x.get('run','')) for x in j['steps']]; assert any('unicode_sweep.py' in x for x in s); assert any('--release' in x for x in s)"`
-    exits 0
-- `uv run zensical build` exits 0 and reports "No issues found"; `uv run scripts/check_docs_nav.py`
-    still reports 23 consistent pages
+- `timeout 60 uv run scripts/unicode_sweep.py` exits **non-zero**, its message names
+    `mise run unicode:sweep`, and its stdout contains **no** line starting with `TOTAL` (it fails
+    before sweeping, so it also returns in a couple of seconds)
+- `mise run unicode:sweep` exits 0 and its last stdout line is byte-exactly
+    `TOTAL 17793024 comparisons, 0 divergences`
+- `grep -c "default=0.0" scripts/unicode_sweep.py` → `0`
+- `uv run pytest -q tests/test_unicode_sweep.py` passes (10 updated + at least 3 new cases) in under
+    10 s, and includes tests asserting all three of:
+    - `sweep()` with a wrong oracle over 30 scalars gives `comparisons == 480`, `divergences == 480`,
+        `len(samples) == us.MAX_REPORTED_DIVERGENCES`
+    - `check_rebuilt([])` raises `SystemExit` whose message contains `mise run unicode:sweep`, and
+        `check_rebuilt([us.REBUILD_FLAG])` returns `None`
+    - `check_extension_fresh` raises `SystemExit` when the source dirs yield no `*.rs` (empty
+        directory and missing directory both)
+- `uv run pytest -q` passes (389 pre-existing + the new cases, none removed)
+- CI job shape holds:
+    `uv run python -c "import yaml,sys; j=yaml.safe_load(open('.github/workflows/ci.yml'))['jobs']['unicode-sweep']; s=[x for x in j['steps'] if 'unicode_sweep.py' in str(x.get('run',''))]; assert len(s)==1 and '--rebuilt' in s[0]['run']; print('OK')"`
+    prints `OK`
+- `uv run ruff check` , `uv run ruff format --check` and `uv run ty check` all exit 0
+- `uv run zensical build` exits 0 with "No issues found"; `uv run scripts/check_docs_nav.py` prints
+    `OK: 23 documentation pages consistent`; `docs/unicode.md` states the sweep is run via
+    `mise run unicode:sweep` and that the script refuses a bare invocation
+- `mise run check` exits 0 (all prek hooks)
 - `git status --porcelain -- crates/ .crap-baseline.json .iai-baseline.json .claude/context/specs/`
-    prints nothing (no Rust source, baseline or spec moved)
-- `mise run check` exits 0 (all prek hooks) and `git status --porcelain` is empty afterwards
+    is empty (no Rust source, no baseline, no spec moved), and
+    `git status --porcelain -- crates/iscc-lib/tests/unicode_boundary.json` is empty
 
 ## Done When
 
-`scripts/unicode_sweep.py` is committed, runs green as `mise run unicode:sweep` and as a dedicated
-CPython 3.14 CI job, fails closed on a stale extension / wrong oracle version / shrunken case set,
-and every verification command above passes on the working tree.
+All verification criteria pass: a bare script invocation fails closed, the authoritative
+`mise run unicode:sweep` and CI paths still report `TOTAL 17793024 comparisons, 0 divergences`, the
+divergence list is provably capped at 20 retained samples while the count stays exact, and no Rust
+source, baseline or spec moved.

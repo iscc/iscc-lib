@@ -58,6 +58,20 @@ and verification facts. **How to apply:** read before scoping anything under `sc
     146: "fail if zero action refs resolve" contradicts the recorded fails-open decision, so the
     step scoped only the *observability* half (a `resolved R of T` summary line, exit code
     untouched) and named the policy flip as human-gated in `Not In Scope`.
+- **But distinguish reversing a ruling from *enforcing the consequence the ruling itself wrote
+    down*.** Iter 158: `decisions.md` 2026-07-27 rejected build-input hashing and always-rebuild for
+    the sweep's freshness guard, and closed with the operating rule "always run it through
+    `mise run unicode:sweep`". Making the script *require* a `--rebuilt` flag turns that stated
+    convention into a gate — it is none of the rejected alternatives, and the `[review]` issue
+    enumerated it as an option (an issue's option list is authorization). Say so explicitly in
+    `## Implementation Notes` so review doesn't read it as a policy flip.
+- **Prefer a CLI flag over an env var** when a task/CI job must vouch for a precondition: visible in
+    the CI log line and in `mise.toml`, no cross-platform env-prefix shell syntax, and directly
+    unit-testable via a `check_*(argv)` helper (mise *does* support `env = { … }` per task —
+    `bench:iai` uses it — so this is a preference, not a constraint).
+- A guard the caller *asserts* (flag) and a guard the script *observes* (mtime) are complementary;
+    keeping both on a fail-closed gate is cheap defense in depth, and it keeps the existing guard
+    tests load-bearing.
 
 ## Docs page lists
 
