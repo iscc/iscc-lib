@@ -106,17 +106,6 @@ not happened yet — CID must not act on them unprompted:
     reported undeclared. No such action exists among the 18 refs. **Trigger:** the false positive
     is actually observed.
 
-## Pin `rubygems/configure-rubygems-credentials` off the `@main` branch (RULED) `normal` [human]
-
-**RULED by Titusz 2026-07-26 — take option (a): `@v2.1.0` with an inline `# exact tag:` comment**,
-mirroring the `astral-sh/setup-uv@v9.0.0` precedent. The repo's tags-never-SHAs convention stands;
-this does not become the first SHA-pinned action. Rationale in `decisions.md` (2026-07-26).
-
-**CID is authorized to make this change.** It is a one-line edit to `.github/workflows/release.yml`
-line 895 plus the comment. The step passes no `with:` keys, so this is purely a trust-anchor choice
-with no input-compatibility risk. Verification is static (the workflow is `workflow_dispatch`-only)
-plus the first real gem publish.
-
 ## Make the CI job table in `specs/ci-cd.md` exhaustive `normal` [human]
 
 The CI job table in `.claude/context/specs/ci-cd.md` has **14 rows against 21 real jobs** in

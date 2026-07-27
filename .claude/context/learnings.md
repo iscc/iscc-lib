@@ -36,9 +36,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** (`benches/`
     import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally, E0432) — drop `--all-targets`
 - **Every "not locally verifiable" toolchain claim so far has been false**: `cmake` via
-    `uv run --with cmake cmake …` (PyPI wheel 4.4.0, iter 160 — configure into a fresh gitignored
-    `build-*/`, never the stale `packages/cpp/build/`), and `swift` via swift.org's **Debian 12
-    x86_64** tarball (iters 160/161; recipe in `packages/swift/CLAUDE.md`, `--scratch-path /tmp/…`)
+    `uv run --with cmake cmake …` (configure into a fresh gitignored `build-*/`, never the stale
+    `packages/cpp/build/`), `swift` via swift.org's Debian 12 tarball (`packages/swift/CLAUDE.md`)
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
     dies until `sudo apt-get install -y valgrind` +
     `cargo binstall -y iai-callgrind-runner --version 0.16.1` (pin-matched); CI mirrors this
@@ -72,9 +71,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `mise run unicode:sweep` + the `unicode-sweep` CI job — 1,112,064 scalars × 8 contexts × 2 fns
     vs installed `iscc-core` on CPython 3.14, must print the byte-frozen
     `TOTAL 17793024 comparisons, 0 divergences`. **Re-run it for every Unicode-table or toolchain
-    bump.** A bare `uv run scripts/unicode_sweep.py` REFUSES (`--rebuilt` is a *caller assertion*,
-    only those two rebuild-first paths supply it); `sweep()` retains at most 20 samples, so any test
-    reading `result.samples` inherits that cap
+    bump.** A bare `uv run scripts/unicode_sweep.py` REFUSES (only those two rebuild-first paths
+    supply `--rebuilt`); `sweep()` retains at most 20 samples
 - **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141, +4
     **sequence** vectors 149; ASCII `\uXXXX`, `data.json`-shaped) + loader
     `tests/test_unicode_boundary.rs` — propagation source, deliberately NOT merged into `data.json`.
@@ -82,14 +80,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     suites: 8 read the canonical fixture directly, Go/Swift keep byte-identity-gated vendored
     copies, and C/C++ share ONE generated header (`crates/iscc-ffi/tests/unicode_boundary_vectors.h`
     from a PEP 723 renderer, drift-gated by a pytest `render(fixture) == tracked` anchor, NOT
-    `VENDORED_COPIES`). The 4 single-code-point cases are deletion-vs-sentinel agnostic; only the
-    sequence vectors gate that, and their expected values already differ from the delete-filter
-    ones, so a binding suite needs **no oracle column**
+    `VENDORED_COPIES`). Only the 4 **sequence** vectors discriminate sentinel from delete-filter, so
+    a binding suite needs **no oracle column**
 - **A binding can pass a boundary vector for the WRONG reason** (iters 150/161): `packages/go` has
     no freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn` so its category-`C` filter
-    coincidentally matches (under go1.27 five cases flip red — never version-gate a skip list); and
-    Swift's `String ==` folds canonical equivalence (`"e"+U+0301 == U+00E9`), so a string-comparing
-    suite passes even on delete-filter values — compare `unicodeScalars.map { $0.value }` arrays
+    coincidentally matches (go1.27 flips five cases red — see issues.md); and Swift's `String ==`
+    folds canonical equivalence (`"e"+U+0301 == U+00E9`), so a string-comparing suite passes even on
+    delete-filter values — compare `unicodeScalars.map { $0.value }` arrays
 - **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (152):
     discovery is by basename, so keep the canonical filenames and register every tracked copy
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (iter 141):
@@ -158,7 +155,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (the `releases/latest`
     endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` (pin `@v9.0.0`
     \+ a `# exact tag:` comment) and `rubygems/configure-rubygems-credentials` publish only exact
-    tags. Majors → `.claude/agent-memory/advance/deps-refresh.md`
+    tags. **Measure what a branch pin drops with
+    `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by`** — a recent PR title understates it
+    (iter 162: `@main` was 31 commits and a rebuilt `dist/` bundle ahead of `v2.1.0`, not the "one
+    dependabot bump" next.md asserted). Majors → `.claude/agent-memory/advance/deps-refresh.md`
 - **An action-major bump is statically verifiable far past "the tag exists"** — the `inputs`/
     `outputs` diff is automated (`--check-action-inputs`); what stays manual is every intervening
     major's *default* changes (recipe + the two silent biters → `learnings-archive.md`)

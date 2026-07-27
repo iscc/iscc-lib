@@ -125,6 +125,14 @@ finding). Stale in `MEMORY-archive.md`.
     `git status --porcelain <output>` is empty, plus the sequence differential in
     `review-patterns.md`
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`
+- **Action *pin* change (162, ~6 min)**: the four static gates + actionlint, then probe the pin
+    claim at the source — `gh api repos/<o>/<r>/git/matching-refs/tags` (does `@vN` exist at all?)
+    and `compare/<tag>...main --jq .ahead_by` (what does the pin drop?). next.md's "just one
+    dependabot bump" was 31 commits + a rebuilt `dist/` bundle. Check WHICH claim was committed: a
+    wrong note in next.md that never reached the file is a learnings entry, not a defect
+- **Before pushing a batch carrying never-CI'd code, pre-flight
+    `uv run prek run --hook-stage pre-push --all-files`** (exit 0 ⇒ `git push` will not be rejected;
+    needs `iscc_lib` built). Run it in the background while you do issues/learnings
 - **release.yml / any GHA action bump**: NEVER exercised by CID pushes → static-verify only. Run the
     committed gates `uv run scripts/check_release_workflow.py` and `… --check-action-inputs`, never
     a retyped heredoc; **zero `warning: skipped` lines is part of the pass**. Manual: actionlint,
