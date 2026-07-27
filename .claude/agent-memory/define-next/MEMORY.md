@@ -14,13 +14,21 @@ iterations.
     last review invalidates the handoff wholesale** (iter 147: handoff said "write `## Step: NONE`",
     but the intervening ruling had filed a `critical` bug and cleared the backlog). Check
     `git log --oneline` for `human(` commits newer than the review commit before trusting "Next".
-- **A human issue's suggested fix is a hypothesis, not a spec — probe it** (iter 147: the issue said
-    hoist a package-level `cases.Caser`; x/text documents `Caser` as *not* goroutine-safe and the
-    hoist measured no faster). Cheap throwaway probes (a `zz_probe_test.go` you delete, a `/tmp`
-    module) settle these in a minute and turn `## Implementation Notes` into measured facts.
+- **A human issue's or handoff's suggested fix is a hypothesis, not a spec — probe it** (iter 147:
+    the suggested `cases.Caser` hoist was both unsafe and no faster). Cheap throwaway probes settle
+    these in a minute and turn `## Implementation Notes` into measured facts.
 - **A crashed review role means the previous step has NO verdict** (`iterations.jsonl` FAIL/turns:1
     with no `cid(review)` commit) — handoff.md then holds only the advance section and resolved
     issues were never deleted. Re-verify the prior step's claims from the tree.
+- **A `define-next` TIMEOUT leaves an uncommitted `next.md` in the tree** (iter 155, 1200 s wall, 0
+    turns): adopt-and-verify it rather than starting blank, but **re-derive every numeric invariant
+    it asserts** — those become hard-coded `EXPECTED_*` in code. Iter 156's two table shapes took
+    one 10 s one-liner and both checked out; its "11 contexts / 20,017,152 comparisons" prose did
+    not match its own 8-context snippet. Also: a timeout is **not** a bounce — no advance/review
+    ran, so the step has never been rejected; say so in `## Goal`.
+- **Run the expensive probe while scoping when it can invert the plan.** A full-code-space
+    differential sweep (~60 s) run during scoping showed the handoff's "land the gate" step would
+    land **red**, so the fix was scoped first. Cheap probe, milestone-level correction.
 - **Generated/tool-output files (Cargo.lock, bindings) don't count toward the 3-file limit**; doc
     files are also excluded — can batch all howto guides in one step.
 - Batch related small changes (version sync + docs; several fixes in the same crate/2 files). **IDLE
@@ -30,18 +38,17 @@ iterations.
 - **HUMAN REVIEW override on overwhelming evidence is for BUG fixes, not NEW policy gates** — a gate
     that amends the spec/notes needs human sign-off first (iter 106/112).
 - **next.md is a sensitive file** — Write needs a prior Read of it; if Write is blocked, use
-    `cat > file << 'EOF'` via Bash.
-- **Escape sequences in a tool payload may get decoded before they hit the file** (observed iter
-    149, NOT reproduced iter 150 \\u2014 transport-dependent): `\u0378` can land as the *character*,
-    corrupting a snippet next.md must hand advance verbatim. Safest is `U+0378` prose notation;
-    otherwise verify with `python3 ... .isascii()` / `grep -c 'u0378' <file>` after every write.
+    `cat > file << 'EOF'` via Bash (quoted EOF = no expansion, so backticks are safe).
+- **Escape sequences in a tool payload may get decoded before they hit the file** (iter 149;
+    transport-dependent). Use `U+XXXX` prose notation, build probe strings with `chr(0x...)` rather
+    than backslash-u literals, and after every write print the file's non-ASCII character set.
 
 ## Architecture & Conformance Facts
 
 - Hub-and-spoke: pure-Rust `iscc-lib` core → binding crates (py, napi, wasm, ffi, jni, rb) + go/
     dotnet/cpp/swift/kotlin packages. Tier 1 = **32** crate-root re-exports, bound in all languages.
-- Go bindings are pure Go (no CGO/WASM/binaries). `gen_iscc_code_v0` vectors have no `wide` — pass
-    `false`. `"stream:<hex>"` prefix = hex-encoded byte data.
+- Go bindings are pure Go (no CGO/WASM). `gen_iscc_code_v0` vectors have no `wide` — pass `false`;
+    `"stream:<hex>"` prefix = hex-encoded byte data.
 - **5 identical data.json copies, update together**: `crates/iscc-lib/tests/`,
     `packages/go/   testdata/`, `packages/dotnet/Iscc.Lib.Tests/testdata/`,
     `packages/swift/Tests/IsccLibTests/`, `packages/kotlin/src/test/resources/`. Hardcoded
@@ -60,9 +67,8 @@ iterations.
 ## CI/Release, Docs, Gotchas
 
 - Release: `workflow_dispatch` with per-registry checkboxes; version_sync.py manages **21** targets
-    (`--check` exits 1 on mismatch; issues.md line ~55 says "22" — wrong, don't propagate).
-    `iscc-rb` needs `libclang-dev` (keep `--exclude iscc-rb` in Rust CI). XCFramework cache key must
-    hash all build inputs.
+    (issues.md line ~55 says "22" — wrong). `iscc-rb` needs `libclang-dev` (keep `--exclude iscc-rb`
+    in Rust CI). XCFramework cache key must hash all build inputs.
 - Docs: `zensical.toml nav` + `scripts/gen_llms_full.py ORDERED_PAGES` need an entry per new howto
     guide (template `docs/howto/dotnet.md`; collapsible `??? tip "Build from source"`).
 - Gotchas: JNI names encode `_` as `_1`; WASM pkg `@iscc/wasm`, npm lib `@iscc/lib`; Windows GHA →
@@ -75,10 +81,9 @@ iterations.
 ## v1.0.0 Hardening Phase — COMPLETE (iters 86–114); detail in MEMORY-archive.md + learnings.md
 
 - **Semver + Coverage/CRAP + Perf + Audit are the 4 quality gates** (CRAP/Perf/Audit enforcing,
-    Semver informational until the human-gated v1.0.0). **Baselines are committed and refreshed only
-    by deliberate reviewed `mise run` commits** — never from CI; don't widen `--epsilon`.
-- **cargo-deny** reads Cargo.lock + metadata (NOT compiled artifacts) → a green local
-    `cargo deny check` is authoritative. `deny.toml` detail in learnings.md.
+    Semver informational until the human-gated v1.0.0). **Baselines are refreshed only by deliberate
+    reviewed `mise run` commits** — never from CI; don't widen `--epsilon`. `cargo deny check` reads
+    Cargo.lock + metadata, so a green local run is authoritative (learnings.md).
 
 ## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
 
@@ -92,32 +97,29 @@ iterations.
     version-lookup commands: [dep-refresh ledger](dep-refresh-ledger.md); read it before scoping any
     dep step. Headline rule: **never move a consumer floor (MSRV, `go` directive,
     `required_ruby_version`, a published binding's compiler) inside a refresh slice** (iter 128).
-- **Lint/formatter tool bumps and hook-config changes have their own playbook** — slicing rules,
-    `uvx ruff@<ver> --config` and `prek run -c /tmp/probe.yaml` probing recipes, and the gate-parity
-    warnings: [lint tooling lessons](lint-tooling-lessons.md). Headline: **never make an exact
-    file/finding count a pass/fail criterion** (it drifts with the CID agents' own commits — iter
-    139 predicted 153, review measured 155); make the exit code the criterion.
+- **Lint/formatter tool bumps and hook-config changes have their own playbook** (slicing rules,
+    probing recipes, gate-parity warnings): [lint tooling lessons](lint-tooling-lessons.md).
+    Headline: **never make an exact file/finding count a pass/fail criterion** — it drifts with the
+    CID agents' own commits; make the exit code the criterion.
 - **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
     Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) sequence vectors + fixture guard ✅149,
     (4) fixture propagation into the 11 bindings — ✅150 Python+Go, ✅151 WASM+Ruby, ✅152 drift gate,
-    ✅153 napi+Java, **154 scoped C#+Kotlin** (→ 8 of 11; Swift/C FFI/C++ left) — (5) the
-    1,112,064-scalar **and sequence-class** sweep. Never implement the superseded category override
-    (`U+A7F1` injects a spurious `S`) or a 15.1.0 declared version. Escapes, fixture facts,
-    CRAP-in-tests → [unicode-freeze-facts](unicode-freeze-facts.md).
+    ✅153 napi+Java, ✅154 C#+Kotlin (→ 8 of 11; Swift/C FFI/C++ left), (4b) **156 scoped: freeze
+    `Cased`/`Case_Ignorable` at 16.0.0** — a `str::to_lowercase()` defect that must land *before*
+    (5) the 1,112,064-scalar **and sequence-class** sweep gate, which is red until it does. Never
+    implement the superseded category override (`U+A7F1` injects a spurious `S`) or a 15.1.0
+    declared version. Escapes, fixture facts, the `Final_Sigma`/U+0295 table shapes, CRAP-in-tests →
+    [unicode-freeze-facts](unicode-freeze-facts.md).
 - **Before scoping any propagation slice** read the
     [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy, the **two-axis** cost
-    rule (plumbing × text coverage — a one-axis ranking put C FFI first three times and it is the
-    *most* expensive), binding-artifact staleness, Go's measured 9/12 with its **per-case** skip
-    list, and the slice order.
-- **Gate/checker steps in `scripts/` have their own playbook** — prek-vs-CI placement, the Python
-    3.10 floor (no `tomllib`), injected-`Path` shape, network/offline probing, docs-list wiring, and
-    when a gate change needs Titusz: [gate scripts playbook](gate-scripts-playbook.md). Read it
-    before scoping anything under `scripts/` or `.pre-commit-config.yaml`.
+    rule (plumbing × text coverage; a one-axis ranking wrongly put C FFI first three times),
+    artifact staleness, Go's 9/12 per-case skip list, and the slice order.
+- **Gate/checker steps in `scripts/` have their own playbook** (prek-vs-CI placement, Python 3.10
+    floor, injected-`Path` shape, docs-list wiring, when a gate needs Titusz):
+    [gate scripts playbook](gate-scripts-playbook.md). Read before scoping under `scripts/`.
 - **In a file no CI push exercises, split behavioural edits from mechanical ones** (iters 139/140:
-    `release.yml`'s guard fixes vs the 97-ref `uses:` bump, so a broken release is bisectable).
-    Recipe, job inventory, evidence rules for un-runnable workflow bumps (check `ci.yml` first;
-    verify each floating tag via `gh api repos/<r>/git/ref/tags/<vN>`):
-    [release.yml static gates](release-yml-static-gates.md).
+    `release.yml` guard fixes vs the 97-ref `uses:` bump, so a broken release is bisectable). Recipe
+    - evidence rules: [release.yml static gates](release-yml-static-gates.md).
 - **Any step touching the text hot path trips two gates at once**: the CI-only CRAP
     `--fail-regression` baseline and the `.iai-baseline.json` 10% Ir gate. A `tests/`-only step
     usually trips **neither** — say so in next.md so advance doesn't refresh a baseline. Exception +
@@ -129,18 +131,16 @@ iterations.
 - **Recurring**: the cargo-deny gate WILL periodically go red on fresh RustSec advisories vs
     dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore.
 - **Watch the tooling-cadence flag in state.md.** With 3 of the last 4 iterations CI/lint/workflow,
-    prefer a user-facing item over a tracked `normal` tooling issue (iter 143) — deferring is a
-    **one-iteration** move, not a veto: count the window in `## Goal`. At the threshold with zero
-    unblocked user-facing candidates the rule does not fire (iter 146) — enumerate each blocker.
-- Parked-work scoping lessons → `MEMORY-archive.md`; nothing is parked on Titusz today.
-- **Binding artifacts are cheap probes, but each has its own age** (Python current, napi + Ruby were
-    both stale) — always probe a *discriminating* input first, and prefer probes that leave no tree
-    diff: a `/tmp` module with a path/`replace` dep (Go, iter 150), a `/tmp` MSBuild project at
-    equal directory depth (C#, iter 154), or a build whose output is gitignored (`rake compile`,
-    iter 151). Freshness table + runner timings →
+    prefer a user-facing item over a tracked `normal` tooling issue (iter 143) — a **one-iteration**
+    deferral, not a veto: count the window in `## Goal`. With zero unblocked user-facing candidates
+    the rule does not fire (iter 146) — enumerate each blocker. Parked-work lessons in the archive;
+    nothing is parked on Titusz today.
+- **Binding artifacts are cheap probes, but each has its own age** — probe a *discriminating* input
+    first, preferring probes that leave no tree diff: a `/tmp` module with a path/`replace` dep
+    (Go), a `/tmp` MSBuild project at equal depth (C#), or a gitignored build output
+    (`rake compile`, `maturin develop`). Freshness table →
     [propagation ledger](unicode-fixture-propagation.md).
 - **"Not buildable in this container" claims decay — re-probe before they veto a slice** (iter 154:
-    state.md ruled Kotlin out, but `~/.gradle` had held an unpacked gradle dist + caches since iter
-    128 and `./gradlew cleanTest test --offline` ran the suite in 6 s). Cost: two minutes. Payoff: a
-    2-surface slice instead of 1. Corollary trap: a runner can report success **without executing**
-    (gradle `test` UP-TO-DATE) — always force a rerun and check the result-file mtime.
+    state.md ruled Kotlin out; `./gradlew cleanTest test --offline` ran the suite in 6 s off cached
+    `~/.gradle`). Corollary trap: a runner can report success **without executing** (gradle `test`
+    UP-TO-DATE) — force a rerun and check the result-file mtime.

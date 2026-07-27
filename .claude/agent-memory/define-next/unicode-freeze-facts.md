@@ -142,3 +142,28 @@ recomposes to `\uac00` (the reference does the same), which reads as a contradic
 `missing = "pessimistic"` → `crap = c^2 + c`; threshold 30 means cyclomatic \<= 5. Keep new fixture
 logic inside `#[test]` fns so the CRAP report gains no entry (only `boundary_data` and
 `run_boundary_section` are in `.crap-baseline.json` today).
+
+## `Final_Sigma` case-table dependence — measured iter 155/156
+
+The freeze rule pinned *categories* and *normalization* but not **case classification**.
+`text_collapse` delegates to `str::to_lowercase()`, whose `Final_Sigma` decision reads **rustc's**
+tables (rustc 1.97.1 = Unicode **17.0**), while the reference reads CPython's (project venv =
+**3.14.6 / 16.0.0**). Same algorithm, different tables.
+
+- **Exactly one assigned scalar diverges: U+0295** (`Ll`/`Cased` in 16.0, `Lo`/not-`Cased` in 17.0).
+    Reproduced three independent ways (rustc probe, full-code-space sweep, and a one-line
+    `iscc_core` vs `iscc_lib` comparison). 99 other classification deltas are all `Cn` in 16.0 and
+    are sentinel-replaced before lowercasing.
+- **Vendored table shapes, re-derived from scratch at iter 156 and exact**: `Cased` = **4,311** code
+    points / **152** ranges; `Case_Ignorable` = **2,749** / **452**. Derivation is two behavioural
+    probes per scalar against CPython (no `unicodedata2` — it exposes categories, not these derived
+    properties): `a = (ch+SIGMA).lower().endswith(FINAL)` -> `Cased`;
+    `b = ("A"+ch+SIGMA).lower().endswith(FINAL)`, `case_ignorable = b and not a`. Whole sweep ~10 s.
+- U+FFFF is in **neither** table (so the sentinel keeps a preceding sigma final); `uv run --script`
+    resolves `requires-python = "==3.14.*"` to 3.14.6 / 16.0.0, so a PEP 723 generator can use the
+    interpreter itself as the data source with `dependencies = []`.
+- **Go is currently the *correct* surface** (`x/text` on 15.0 tables) and will acquire the same
+    defect at go1.27 — add it to the go1.27 checklist.
+- Spec authority: `specs/rust-core.md` — "divergence caused by the runtime's tables being *newer*
+    than 16.0 is **not** accepted and must be zero". Its "Rust `str::to_lowercase()` does the same"
+    sentence is what this defect falsifies; specs are human-owned, do not edit.
