@@ -42,8 +42,8 @@ project's `cmake_minimum_required(VERSION 3.14)` with no deprecation error. Full
 root, no `cd`, gitignored build dir:
 `uv run --with cmake cmake -S packages/cpp -B packages/cpp/build-uv -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=$PWD/target/debug -DSANITIZE_ADDRESS=ON`
 → `--build` → `LD_LIBRARY_PATH=$PWD/target/debug packages/cpp/build-uv/tests/test_iscc` = **54
-passed, 0 failed**. Do not reuse `packages/cpp/build/` (its cache is cmake 3.25). `swift` remains
-genuinely absent with no equivalent escape hatch.
+passed, 0 failed**. Do not reuse `packages/cpp/build/` (its cache is cmake 3.25). `swift` is absent
+from `$PATH` too, but a swift.org **debian12** tarball runs here — recipe at the end of this file.
 
 - Go is a hybrid: its **per-function `*_test.go` conformance tests read
     `../../crates/iscc-lib/tests/data.json` by relative path**, while `testdata/data.json` exists
@@ -167,8 +167,33 @@ genuinely absent with no equivalent escape hatch.
         INTERFACE target in `packages/cpp/CMakeLists.txt` (that path is inherited by vcpkg/conan
         consumers) — state.md recommended the wrong file. Baseline 54 → 69 passed (3 metadata guards
         \+ 12 vectors).
-8. Swift last: the one *tracked vendored copy* (→ `VENDORED_COPIES`, SwiftPM `resources:` read via
-    `Bundle.module`), and `swift` is genuinely absent here — CI-proof-only.
+8. **iter 161 scoped — Swift**, the last surface: the one *tracked vendored copy* (→
+    `VENDORED_COPIES`, SwiftPM `resources: [.copy(…)]` read via `Bundle.module`). **It is NOT
+    CI-proof-only** — see the toolchain recipe and the `String ==` trap below.
+
+## Swift is locally runnable (measured iter 161 — overturns 160 iterations of "macOS-only")
+
+The container is **Debian 12 x86_64** and swift.org publishes debian12 tarballs (6.0.3 / 6.1.2 /
+6.2.1 all HEAD 200). No `sudo`, no apt: libcurl4/libxml2 are already present.
+
+```bash
+curl -fsSL -o /tmp/swifttc/swift.tar.gz \
+    https://download.swift.org/swift-6.1.2-release/debian12/swift-6.1.2-RELEASE/swift-6.1.2-RELEASE-debian12.tar.gz
+tar -xzf /tmp/swifttc/swift.tar.gz -C /tmp/swifttc   # 784 MB, ~5 min total
+export PATH=/tmp/swifttc/swift-6.1.2-RELEASE-debian12/usr/bin:$PATH
+cargo build -p iscc-uniffi   # then, from packages/swift:
+swift test --scratch-path /tmp/swiftbuild -Xlinker -L<repo>/target/debug \
+    -Xlinker -rpath -Xlinker <repo>/target/debug     # 9 tests, 0 failures (12 with the boundary suite)
+```
+
+- `--scratch-path` is load-bearing: `.build/` is **not** in `.gitignore` (`build/`/`build-*/` do not
+    match it), so a bare `swift build` pollutes `git status`. `swift package dump-package` (the CI
+    step on the root manifest) creates nothing.
+- **`String ==` in Swift folds canonical equivalence** — `"e"+U+0301 == U+00E9` and
+    `U+1100 U+1161 == U+AC00` are both `true`, and `XCTAssertEqual` uses `==`. Three of the four
+    sequence vectors would pass **vacuously** under a delete-filter regression. Compare
+    `text.unicodeScalars.map { $0.value }` (or UTF-8 bytes). Measured both ways in a `/tmp` clone of
+    the package: scalars red on the mutated expectation, strings stayed green.
 
 ## Standing hazards
 
