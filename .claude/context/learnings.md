@@ -2,9 +2,7 @@
 
 High-signal pitfalls, patterns and verified conventions from CID iterations. The review agent
 maintains this file — append, prune, and archive completed-phase entries to `learnings-archive.md`.
-
-**Size budget:** Keep under 200 lines. When this file exceeds 200 lines, move entries about
-fully-met target sections to `learnings-archive.md`.
+**Size budget: keep under 200 lines**; over that, archive entries about fully-met target sections.
 
 ## Architecture
 
@@ -37,10 +35,10 @@ fully-met target sections to `learnings-archive.md`.
     newline, or the prek hygiene hooks rewrite it and break the regeneration-no-op gate
 - **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** (`benches/`
     import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally, E0432) — drop `--all-targets`
-- **`cmake` is absent from `$PATH` but `uv run --with cmake cmake …` works** (PyPI wheel, 4.4.0 —
-    iter 160), so the `packages/cpp` ASAN suite IS locally verifiable; configure into a fresh
-    gitignored `build-*/`, never the stale `packages/cpp/build/` (cmake 3.25 cache). No equivalent
-    for Swift — `uv --with swift` installs the unrelated OpenStack package
+- **Every "not locally verifiable" toolchain claim so far has been false**: `cmake` via
+    `uv run --with cmake cmake …` (PyPI wheel 4.4.0, iter 160 — configure into a fresh gitignored
+    `build-*/`, never the stale `packages/cpp/build/`), and `swift` via swift.org's **Debian 12
+    x86_64** tarball (iters 160/161; recipe in `packages/swift/CLAUDE.md`, `--scratch-path /tmp/…`)
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
     dies until `sudo apt-get install -y valgrind` +
     `cargo binstall -y iai-callgrind-runner --version 0.16.1` (pin-matched); CI mirrors this
@@ -79,18 +77,19 @@ fully-met target sections to `learnings-archive.md`.
     reading `result.samples` inherits that cap
 - **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141, +4
     **sequence** vectors 149; ASCII `\uXXXX`, `data.json`-shaped) + loader
-    `tests/test_unicode_boundary.rs` — propagation source for every binding, deliberately NOT merged
-    into `data.json`. The 4 single-code-point cases are **deletion-vs-sentinel agnostic**; only the
+    `tests/test_unicode_boundary.rs` — propagation source, deliberately NOT merged into `data.json`.
+    **All 11 native surfaces + pure-Go are gated as of iter 161**, so adding a vector now costs 12
+    suites: 8 read the canonical fixture directly, Go/Swift keep byte-identity-gated vendored
+    copies, and C/C++ share ONE generated header (`crates/iscc-ffi/tests/unicode_boundary_vectors.h`
+    from a PEP 723 renderer, drift-gated by a pytest `render(fixture) == tracked` anchor, NOT
+    `VENDORED_COPIES`). The 4 single-code-point cases are deletion-vs-sentinel agnostic; only the
     sequence vectors gate that, and their expected values already differ from the delete-filter
-    ones, so a binding suite needs **no oracle column**. Tally → `issues.md` (10 of 11, Swift left)
-- **A surface with no JSON reader takes the fixture as a GENERATED, tracked artifact** (iters
-    159/160): ONE PEP 723 renderer writes `crates/iscc-ffi/tests/unicode_boundary_vectors.h` and
-    **both** C (quoted `#include`, no new `-I`) and C++ (one `PRIVATE` include dir) consume it —
-    never a second artifact. Drift gate is a pytest `render(fixture) == tracked_header` anchor, NOT
-    `VENDORED_COPIES` (byte-identical copies only); octal-escape rule → `learnings-archive.md`
-- **A binding can pass a boundary vector for the WRONG reason** (iter 150): `packages/go` has no
-    freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn`, so its category-`C` filter
-    coincidentally matches. Under go1.27 five green cases flip red — never version-gate a skip list
+    ones, so a binding suite needs **no oracle column**
+- **A binding can pass a boundary vector for the WRONG reason** (iters 150/161): `packages/go` has
+    no freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn` so its category-`C` filter
+    coincidentally matches (under go1.27 five cases flip red — never version-gate a skip list); and
+    Swift's `String ==` folds canonical equivalence (`"e"+U+0301 == U+00E9`), so a string-comparing
+    suite passes even on delete-filter values — compare `unicodeScalars.map { $0.value }` arrays
 - **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (152):
     discovery is by basename, so keep the canonical filenames and register every tracked copy
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (iter 141):
@@ -115,11 +114,11 @@ fully-met target sections to `learnings-archive.md`.
     `crates/iscc-lib/tests/unicode_boundary.json` left `./gradlew test` `UP-TO-DATE` — a silent
     stale green (fixed with `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`; NONE hashes
     contents only, so the varying absolute path never forces a re-run). MSBuild `<Content Link=…>`
-    is safe by construction. Re-probe this for the Swift/C++ slices; CI is immune either way (fresh
-    checkout, no build-dir cache). C/C++ dodge the class entirely — the fixture is a *compile-time*
-    include and CMake's depfiles re-trigger the compile on a bare `cmake --build` (verified iter
-    160). Prove a `target_include_directories(<test> PRIVATE …)` is genuinely test-only with a
-    throwaway `add_subdirectory()` consumer that `#include`s the header and MUST fail to compile
+    is safe by construction, and so are SwiftPM `.copy(...)` resources (probed 161: a fixture edit
+    reds an *incremental* `swift test`). C/C++ dodge the class entirely — the fixture is a
+    *compile-time* include and CMake's depfiles re-trigger the compile on a bare `cmake --build`
+    (160). All 12 suites are now probed and Gradle was the only offender; CI is immune either way
+    (fresh checkout, no build-dir cache)
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`

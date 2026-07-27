@@ -236,3 +236,39 @@ OpenStack package, not a toolchain).
     `add_subdirectory` consumers only.
 - `add_subdirectory(tests)` is unconditional in `packages/cpp/CMakeLists.txt` — pre-existing; a
     consumer configuring the package also configures the test target. Not introduced by this slice.
+
+### Swift slice (iter 161, ~8 min) — the last surface; Swift IS locally runnable
+
+**There is a working Swift toolchain in this container** at
+`/tmp/swifttc/swift-6.1.2-RELEASE-debian12/usr/bin` (swift.org's Debian 12 x86_64 tarball; re-fetch
+recipe in `packages/swift/CLAUDE.md`, 784 MB, no `sudo`). Every "Swift is macOS-only /
+CI-proof-only" claim in state.md, handoff.md and the package CLAUDE.md was false. Pattern: two
+consecutive iterations refuted a "not verifiable here" claim (cmake 160, swift 161) — treat the next
+one as unproven.
+
+- Commands (repo root): `cargo build -p iscc-uniffi`; then with the toolchain on `PATH`, from
+    `packages/swift`:
+    `swift test --scratch-path /tmp/swiftbuild-revNNN -Xlinker -L<repo>/target/debug -Xlinker -rpath -Xlinker <repo>/target/debug`
+    → `Executed 12 tests, with 0 failures` (9 `ConformanceTests` + 3 `UnicodeBoundaryTests`; the
+    trailing `Test run with 0 tests passed` is swift-testing finding no `@Test`, not a failure).
+    Always use `--scratch-path` **outside** the repo. `swift package dump-package` at the repo root
+    checks the *other* `Package.swift`.
+- **12 tests ≠ 12 vectors.** Each vector method loops a whole section, so a section that resolves
+    empty passes silently — the value of the separate 7/5 metadata guard. Probe it.
+- **Three mutations in a `cp -r packages/swift /tmp/swiftprobe` copy** (never the work tree), all
+    verified: (1) fixture expectation → the delete-filter value `U+00E9` reds with
+    `("[101, 769]") is not equal to ("[233]")`; (2) *same mutated fixture* + `scalars(...)` swapped
+    for a plain `actual, expected` → **suite goes GREEN**, which is the only way to prove the scalar
+    comparison is load-bearing rather than decorative; (3) drop a `text_clean` case → metadata guard
+    reds `("6") is not equal to ("7")`.
+- **SwiftPM `.copy(...)` resources ARE declared build inputs** — mutation (1) red an *incremental*
+    `swift test` with no clean, so Swift does not have the Gradle UP-TO-DATE hazard. That closes the
+    "is the fixture a build input?" question for all 12 suites; Gradle was the only offender.
+- Swift `String ==` folds canonical equivalence (`"e"+U+0301 == U+00E9`, `U+1100 U+1161 == U+AC00`),
+    so any Unicode assertion must compare `text.unicodeScalars.map { $0.value }` arrays. Reject a
+    "simplification" back to `XCTAssertEqual(actual, expected)` on strings.
+- CI (`ci.yml` `swift` job, `macos-14`) runs `swift test` over the whole target, so a new
+    `*Tests.swift` file needs no workflow edit — but confirm that in ci.yml.
+- `.build/` is gitignored since iter 161; a bare `swift build` can no longer dirty the tree.
+- `try!` / `as!` / `!` force-unwraps in these test files mirror `ConformanceTests.swift` and are
+    fine — a crash is a test failure. Not a review finding.

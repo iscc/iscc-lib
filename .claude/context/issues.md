@@ -216,6 +216,13 @@ pinning is ever adopted it should be adopted repo-wide.
 
 ## Declare and gate a Unicode data version (DECIDED) `normal` [human]
 
+> **CID-actionable work: NONE as of iteration 161.** All four criteria are complete — (a1) sentinel
+> freeze rule, (a2) fail-closed differential sweep gate, (b) boundary vectors on all 11 native
+> surfaces + pure-Go, (c) user documentation. The only remainder is **human-only**: updating the
+> upstream `iscc/iscc-core#137` thread to propose the sentinel mechanism (see the last paragraph).
+> Do not scope a CID step against this issue. Titusz: close it, or downgrade it to `low`, once the
+> upstream thread is updated. The go1.27 checklist below stays here as a trigger-on-bump record.
+
 The Unicode data version is unpinned and differs per implementation, so `text_clean` /
 `text_collapse` — and therefore Meta-Code, Text-Code and the returned `name`/`description` fields —
 disagree across implementations for any text containing a character assigned after Unicode 15.
@@ -345,8 +352,11 @@ tables. A *delete filter* removes the code point before normalization, so row 3 
 same `\u00E9` as row 1. Both wrong values differ from the expected output, so the guard holds either
 way.
 
-**Remaining for (b):** copy the fixture into the 11 bindings' conformance tests and the four sibling
-`data.json` locations. **Every new tracked copy must be registered in the `VENDORED_COPIES` table of
+✅ **(b) COMPLETE as of iteration 161 — all 11 native binding surfaces plus the pure-Go package are
+gated on the 12 boundary vectors.** The "four sibling `data.json` locations" phrasing below is moot:
+the .NET and Kotlin suites read the canonical fixture directly (slice 4), so only Go and Swift ever
+needed a vendored `unicode_boundary.json`, and both are registered in `VENDORED_COPIES`. **Every new
+tracked copy must be registered in the `VENDORED_COPIES` table of
 `tests/test_vendored_fixtures.py`** (byte-identity gate landed iter 152) and must keep the canonical
 basename `data.json` / `unicode_boundary.json` — the gate discovers copies by basename, so a copy
 renamed to anything else is invisible to it. All blockers are cleared: the sentinel conversion has
@@ -421,12 +431,23 @@ project). Review also mutation-probed three ways (delete-filter-shaped expected 
 a bare `cmake --build` after a header edit, so there is no Gradle-style stale-green here. **This
 container does have a working `cmake`** after all: `uv run --with cmake cmake …` resolves the PyPI
 wheel (4.4.0), so the C++ ASAN suite is fully locally verifiable — build into a fresh gitignored
-`build-*/`, not the stale `packages/cpp/build/` (cmake 3.25 cache). **1 surface left:** Swift (no
-toolchain in this container and no PyPI equivalent — `uv --with swift` installs the unrelated
-OpenStack package; it is the one that would add a tracked vendored copy, which **must** be
-registered in `VENDORED_COPIES`), plus the four sibling `data.json` copies. (The running tally
-counts the 11 native bindings named in `docs/unicode.md`; `packages/go` is the separate pure-Go port
-and UniFFI is the shared mechanism behind Kotlin and Swift, not an independent surface. Note that
+`build-*/`, not the stale `packages/cpp/build/` (cmake 3.25 cache). ✅ **Propagation slice 7 done
+(iter 161): Swift — the eleventh and last surface.**
+`packages/swift/Tests/IsccLibTests/UnicodeBoundaryTests.swift` (3 XCTest methods: metadata guard +
+one per section) reads a byte-identical vendored copy at
+`packages/swift/Tests/IsccLibTests/unicode_boundary.json`, added to the `IsccLibTests` target's SPM
+`resources:` as `.copy(...)` and registered in `VENDORED_COPIES`. It compares **Unicode scalar
+arrays**, never `String ==` — Swift string equality folds canonical equivalence, and review proved
+the point by mutating the fixture to a delete-filter value: scalar comparison reds, `String ==`
+stays green. `Executed 12 tests, with 0 failures` (9 conformance + 3 boundary), zero skips, warning-
+free build. **Swift also turns out to be locally verifiable in this container** — swift.org ships a
+Debian 12 x86_64 toolchain that matches it (recipe now in `packages/swift/CLAUDE.md`), refuting the
+"CI-proof-only / macOS-only" framing that had stood since the package was created; `.build/` is
+gitignored so a bare `swift build` cannot dirty the tree. Review also probed the Gradle-class
+stale-green hazard: SwiftPM `.copy(...)` resources **are** declared build inputs, so a fixture edit
+reds an incremental `swift test` with no clean. (The running tally counts the 11 native bindings
+named in `docs/unicode.md`; `packages/go` is the separate pure-Go port and UniFFI is the shared
+mechanism behind Kotlin and Swift, not an independent surface. Note that
 `git ls-files | grep unicode_boundary` under-counts the tally — the Java/C#/Kotlin suites are named
 `UnicodeBoundaryTest.java`, `UnicodeBoundaryTests.cs` and `UnicodeBoundaryTest.kt`.)
 
