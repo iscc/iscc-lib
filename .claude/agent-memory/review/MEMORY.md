@@ -96,16 +96,20 @@ build-tool-wrapper majors), `gha-workflow-reviews.md` (release.yml, action bumps
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see `gate-reviews.md` Audit)
 - **Dependency refresh (v0.6.0)**: per-slice gates, hold-backs, reflexes → `dep-refresh-reviews.md`.
-    **Nine slices + xunit.v3 + Gradle 9.6.1 CLOSED**; left: JUnit 6, `jni` 0.22, `magnus` 0.8,
+    **Nine slices + xunit.v3 + Gradle 9.6.1 + JUnit 6.1.2 CLOSED**; left: `jni` 0.22, `magnus` 0.8,
     `release.yml` actions. A toolchain bump in a PUBLISHED binding moves the **consumer floor**; a
     DATA-TABLE dep needs an exhaustive differential (all 50 vendored vectors predate Unicode 16)
 - **Build-tool WRAPPER major / any committed BINARY blob (165, ~15 min)**: never review it by
     reading the diff — pin the blob to the publisher's checksum AND regenerate it in a throwaway
     dir, then diff every artifact; also probe the release-only publish task →
     `dep-refresh-reviews.md`
-- **Test-FRAMEWORK major (164, ~10 min)**: the "≥ N passed" floor in next.md proves nothing — run
-    the suite in a `git archive HEAD~1` tree and demand the **same** total (v2 and v3 both gave 104;
-    a collapse of the 12 boundary rows would still have cleared the 85 floor)
+- **Test-FRAMEWORK major (164 xunit, 166 JUnit 6, ~10 min)**: the "≥ N passed" floor in next.md
+    proves nothing — demand the **same** total as the pre-bump tree (`git archive HEAD~1`), or
+    cheaper, derive it from the FIXTURE (166: surefire dynamic-case counts == `data.json`
+    per-function vector counts + static `@Test` count). Also resolve the dependency graph
+    (`gradlew dependencies --configuration testRuntimeClasspath`) and force a cold recompile —
+    `mvn test` reuses stale test classes ("Nothing to compile"), only `mvn clean test` proves the
+    new framework COMPILES → `dep-refresh-reviews.md`
 - **Prek-hook-scope review (138–139)**: NEVER accept `git ls-files` arithmetic as a hook's surface —
     `.pyi` is tagged `pyi`, not `python`; a *widened* tag needs a **staged, dirty** file probe
 - **Core text/codec change + generated data (133/148, ≈12 min)**: Rust-only PLUS the **full feature

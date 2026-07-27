@@ -935,3 +935,8 @@ runs on `opus`. Deliberate — do not "unify" them.
 - **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** (`benches/`
     import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally, E0432) — drop `--all-targets` when
     checking a no-default-features build.
+
+## Vendored vector copies (archived at 166 — boundary-vector propagation CLOSED at 161)
+
+- **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (152):
+    discovery is by basename, so keep the canonical filenames and register every tracked copy

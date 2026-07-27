@@ -25,8 +25,6 @@ All nine ecosystem and tooling slices are closed (Rust, Python, Rust direct pins
 Go, Ruby, ruff 0.16 adoption, release-workflow Actions). What remains are the **major bumps**, all
 authorized by Titusz for CID on 2026-07-26 — **one per step**, gates green, no bundling:
 
-- JUnit 6.x (`packages/kotlin/build.gradle.kts` + `crates/iscc-jni/java/pom.xml` — two build
-    systems, and it renumbers the platform artifacts 1.x→6.x)
 - `jni` 0.22 (`crates/iscc-jni/src/lib.rs`) and `magnus` 0.8 (`crates/iscc-rb/src/lib.rs`) — real
     API migrations and the riskiest items here; one crate per step. If either needs an
     upstream-behaviour ruling, park it and say so rather than guessing.

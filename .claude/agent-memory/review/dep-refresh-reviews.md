@@ -256,9 +256,33 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
 All locally-verifiable slices are done (1-8; slice 8 closed iter 137). napi `package.json`
 (`@napi-rs/cli: ^3`) and dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked current iter 129
 — no edit needed. xunit.v3 3.x + Test.Sdk 18.x CLOSED iter 164 (below). What is left, all
-human/major-gated: `release.yml` GHA refs (not CI-exercised), JUnit 6.x, and the deferred magnus 0.8
-/ jni 0.22 migrations, each its own step. Gradle wrapper 9.6.1 CLOSED iter 165 (below). Watch for
-the slice-5 lesson in any published binding: a runtime/toolchain floor moving silently.
+human/major-gated: `release.yml` GHA refs (not CI-exercised) and the deferred magnus 0.8 / jni 0.22
+migrations, each its own step. Gradle wrapper 9.6.1 CLOSED iter 165, JUnit 6.1.2 CLOSED iter 166
+(both below). Watch for the slice-5 lesson in any published binding: a runtime/toolchain floor
+moving silently.
+
+## JVM test-framework major (iter 166, JUnit 5.14.4 → 6.1.2, Gradle + Maven) — ~10 min
+
+JUnit 6 gives Platform/Jupiter/Vintage ONE version number, so `junit-platform-launcher` jumps 1.14.4
+→ 6.1.2 alongside `junit-jupiter`; a leftover 1.x pin is the obvious tell. Recipe:
+
+- `packages/kotlin/gradlew -p packages/kotlin -q dependencies --configuration testRuntimeClasspath`
+    — every `org.junit.*` row must read the new version (proves the bump took effect, not a cached
+    5.x resolution).
+- **Derive the expected case total from the FIXTURE**, cheaper and stronger than archiving the
+    pre-bump tree: parse `crates/iscc-jni/java/target/surefire-reports/TEST-*.xml`, bucket
+    `name()[N]` dynamic cases per factory, and require each bucket to equal the matching `data.json`
+    per-function vector count (20/5/3/5/3/2/4/3/5 = 50) + 19 static `@Test` = 69;
+    `UnicodeBoundaryTest` = 7+5 dynamic + 1 static = 13. Total 82.
+- **`mvn test` reuses previously compiled test classes** ("Nothing to compile — all classes are up
+    to date"), so it can pass without ever compiling against the new framework. Run `mvn clean test`
+    once: expect `Compiling 4 … / Compiling 2 source files with javac [debug target 17]`.
+- Consumer surface: `gradlew -p packages/kotlin -q generatePomFileForMavenPublication`, then
+    `grep -c junit build/publications/maven/pom-default.xml` must be **0** (Gradle publishes
+    `components["java"]`, so `testImplementation`/`testRuntimeOnly` never leak); the Maven side is
+    guarded by `<scope>test</scope>`. Java floor 17 = CI's `temurin 17` = local JDK, no floor move.
+- Surefire 3.5.6 auto-resolves the aligned launcher — an explicit pom launcher dependency is NOT
+    needed and its presence would be a smell.
 
 ## Build-tool wrapper major (iter 165, Gradle 8.12.1 → 9.6.1) — ~15 min
 

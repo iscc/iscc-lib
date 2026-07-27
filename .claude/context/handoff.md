@@ -1,60 +1,72 @@
 # Handoff
 
-## 2026-07-27 — Migrate both JVM test suites from JUnit 5.14.4 to JUnit 6.1.2
+## 2026-07-27 — Review of: Migrate both JVM test suites from JUnit 5.14.4 to JUnit 6.1.2
 
-**Done:** Bumped JUnit to 6.1.2 in both JVM manifests — `junit-jupiter` 5.14.4 → 6.1.2 in the Kotlin
-Gradle build and the JNI Maven pom, plus `junit-platform-launcher` 1.14.4 → 6.1.2 (JUnit 6 unifies
-the Platform version number with Jupiter). Removed the `// held: JUnit 6.x deferred` comment,
-rewrote the launcher-lockstep comment, and updated the four "JUnit 5" doc mentions plus the
-`IsccLibTest.java` javadoc line.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/kotlin/build.gradle.kts`: junit-jupiter 6.1.2, junit-platform-launcher 6.1.2; held
-    comment deleted; launcher comment now says the launcher version is identical to junit-jupiter
-    under JUnit 6 (no more 1.x lockstep)
-- `crates/iscc-jni/java/pom.xml`: junit-jupiter `<version>` 5.14.4 → 6.1.2 (only edit)
-- `packages/kotlin/CLAUDE.md`: "Uses JUnit 5" → "Uses JUnit 6" (test-patterns bullet)
-- `crates/iscc-jni/CLAUDE.md`: lines 30/80/86/87 — "JUnit 5" → "JUnit 6", `junit-jupiter` pin 5.14.4
-    → 6.1.2
-- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`: javadoc "Uses JUnit 5" →
-    "Uses JUnit 6" (test file, free of the file budget; no other test-source change anywhere)
+**Summary:** JUnit moved to 6.1.2 in both JVM manifests (`junit-jupiter` 5.14.4 → 6.1.2 in Gradle
+and Maven, `junit-platform-launcher` 1.14.4 → 6.1.2 under JUnit 6's unified numbering), with the
+stale `// held:` and lockstep comments rewritten and five doc/javadoc mentions updated. Two non-test
+non-doc files touched, no test-logic change, every suite green at its fixture-derived case total.
 
 **Verification:**
 
-- Pre-bump Maven baseline recorded on the unmodified tree (per Implementation Notes):
-    `Tests run: 82, Failures: 0, Errors: 0, Skipped: 0` (69 IsccLibTest + 13 UnicodeBoundaryTest)
-- `grep -rn "5\.14\.4\|1\.14\.4\|held: JUnit"` over both manifests → no match; both pin `6.1.2`
-    (build.gradle.kts lines 22/27, pom.xml line 48)
-- `cargo build -p iscc-uniffi` → 0; `packages/kotlin/gradlew -p packages/kotlin clean test` → 0,
-    BUILD SUCCESSFUL, 6 actionable tasks; `TEST-…ConformanceTest.xml`
-    `tests="9" skipped="0" failures="0" errors="0"`, `TEST-…UnicodeBoundaryTest.xml`
-    `tests="13"   skipped="0" failures="0" errors="0"`
-- `cargo build -p iscc-jni` → 0; post-bump `mvn test -f crates/iscc-jni/java/pom.xml` → 0,
-    `Tests run: 82, Failures: 0, Errors: 0, Skipped: 0` — N identical pre/post (69 + 13), so no
-    silent `@TestFactory` collapse
-- `grep -rn "JUnit 5\|5\.14\.4\|1\.14\.4" crates/iscc-jni/CLAUDE.md packages/kotlin/CLAUDE.md` → no
-    match
-- `git status --porcelain -- .crap-baseline.json .iai-baseline.json` → empty (no Rust source
-    touched)
-- `mise run format` then `mise run check` → exit 0, no tracked file modified by hooks
+- [x] `grep -rn "5\.14\.4\|1\.14\.4\|held: JUnit"` over both manifests → no match; pins at
+    `build.gradle.kts:22/27` and `pom.xml:48` are `6.1.2`
+- [x] `cargo build -p iscc-uniffi` + `packages/kotlin/gradlew -p packages/kotlin clean test` → exit
+    0; `ConformanceTest.xml tests="9"`, `UnicodeBoundaryTest.xml tests="13"`, both
+    `skipped="0" failures="0" errors="0"`
+- [x] `cargo build -p iscc-jni` + `mvn test` → exit 0,
+    `Tests run: 82, Failures: 0, Errors: 0, Skipped: 0` (69 + 13), equal to the pre-bump total the
+    advance agent recorded
+- [x] `grep -rn "JUnit 5\|5\.14\.4\|1\.14\.4" crates/iscc-jni/CLAUDE.md packages/kotlin/CLAUDE.md` →
+    no match
+- [x] `git status --porcelain -- .crap-baseline.json .iai-baseline.json` → empty
+- [x] `mise run check` → exit 0, no tracked file modified
 
-**Next:** The `jni` 0.22 migration (JNIEnv → Env/EnvUnowned rewrite of `crates/iscc-jni/src/lib.rs`
-per upstream `docs/0.22-MIGRATION.md`) is now cleanly bisectable — the Java-side test framework is
-settled and green at 82 cases. Alternatively `magnus` 0.8 for the Ruby slice. Both are dedicated
-steps per the deps-refresh ledger.
+**Extra probes (3):**
+
+- `gradlew dependencies --configuration testRuntimeClasspath` — every resolved JUnit artifact
+    (jupiter/api/params/engine, platform commons/engine/launcher) is `6.1.2`; no 1.x remnant
+- **Anti-collapse oracle derived from the fixtures, not from a second run of the same tree:**
+    surefire XML dynamic-case counts equal `data.json` per-function vector counts exactly
+    (20+5+3+5+3+2+4+3+5 = 50) + 19 static `@Test` = 69; boundary 7+5 dynamic + 1 static = 13
+- `generatePomFileForMavenPublication` → the published Kotlin POM contains **zero** junit entries,
+    confirming the "nothing consumer-visible changes" claim (Maven side is `<scope>test</scope>`)
+
+Also re-ran Maven as `mvn clean test`: the criterion run reported "Nothing to compile", i.e. it
+reused test classes compiled earlier — a cold `clean test` recompiles both source sets against JUnit
+6 (`javac [debug target 17]`) and still yields 82/0/0/0. CI (`temurin 17`, `mvn test -f …`,
+`./gradlew test`) matches the local invocations; JUnit 6's Java 17 baseline is met.
+
+**Issues found:**
+
+- (nit, out of scope by next.md) `.claude/context/specs/java-bindings.md:42` still reads
+    "IsccLibTest.java # JUnit 5 conformance tests". It is a human-owned sub-spec and a descriptive
+    file-tree comment, not a normative requirement — no issue filed; Titusz can fix the word.
+- No gate weakening anywhere in `@{upstream}..HEAD` (no diff under `.pre-commit-config.yaml`,
+    `.github/`, `mise.toml`, `pyproject.toml`, `deny.toml`, `Cargo.toml`); no suppressions, skips or
+    threshold moves; no Rust/Python/API surface touched, so baselines and SemVer are untouched.
+
+**Codex review:** No actionable findings — "Both Maven and Gradle resolve aligned JUnit 6.1.2
+dependencies and pass their complete test suites on the CI-targeted JDK 17. No actionable regression
+was identified."
+
+**Next:** `jni` 0.22 (`crates/iscc-jni/src/lib.rs`, `JNIEnv` → `Env`/`EnvUnowned` per upstream
+`docs/0.22-MIGRATION.md`; ~41 `JNIEnv|GlobalRef|AutoLocal` sites). It is now cleanly bisectable —
+the Java-side framework is settled and green at 82 cases, so any JVM-side red is attributable to the
+Rust bridge. `magnus` 0.8 (`crates/iscc-rb/src/lib.rs`, ~5 `exception::runtime_error` sites) is the
+smaller alternative if a lower-risk step is wanted first. One major per step, no bundling.
 
 **Notes:**
 
-- Maven case totals for the ledger: **N = 82 before, 82 after** (69 + 13 per class), zero skips both
-    runs. Kotlin totals unchanged at 9 + 13.
-- Surefire 3.5.6 resolved the aligned 6.1.2 launcher itself — the fallback explicit
-    `junit-platform-launcher` pom dependency from the Implementation Notes was NOT needed.
-- No floor moves confirmed in practice: JDK 17.0.19 + KGP 2.4.10 built and ran both suites; both
-    artifacts stay test-scoped, nothing consumer-visible changes.
-- One deviation from next.md's verification text: the Gradle wrapper lives at
-    `packages/kotlin/gradlew`, so the literal `./gradlew -p packages/kotlin clean test` fails with
-    "no such file" from repo root. Ran `packages/kotlin/gradlew -p packages/kotlin clean test` (same
-    invocation CI uses via `working-directory`). Gradle reported 6 actionable tasks (the iter-165
-    handoff saw 8 for `clean build`; `clean test` is a smaller task graph — not a red flag).
-- No `clean` bind-mount flake this run (no concurrent build).
+- Maven case totals for the ledger: **82 before, 82 after** (69 IsccLibTest + 13
+    UnicodeBoundaryTest), zero skips; Kotlin unchanged at 9 + 13. The totals are now backed by a
+    fixture-derived expectation, not just by equality with a prior run.
+- Surefire 3.5.6 auto-resolved the aligned 6.1.2 launcher; no explicit pom launcher dependency was
+    needed, and no plugin pin moved.
+- The Gradle wrapper lives at `packages/kotlin/gradlew` — a bare `./gradlew …` from the repo root
+    does not exist. next.md's verification text had it wrong; the advance agent's substitution was
+    correct and is the same invocation CI uses via `working-directory`.
+- Only two Rust dependency majors remain in the authorized refresh (`jni` 0.22, `magnus` 0.8) plus
+    the release-only `release.yml` action bumps; issues.md was rewritten to that smaller problem.

@@ -34,11 +34,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `uv run --with cmake cmake …` (configure into a fresh gitignored `build-*/`, never the stale
     `packages/cpp/build/`), `swift` via swift.org's Debian 12 tarball (`packages/swift/CLAUDE.md`),
     and the release-only Kotlin publish — `gradlew publishMavenPublicationToStagingRepository`
-    writes to a local `build/staging-deploy` and skips `signMavenPublication` without
-    `MAVEN_GPG_PASSPHRASE`, so the whole release path runs offline and credential-free
+    writes to `build/staging-deploy` and skips signing without `MAVEN_GPG_PASSPHRASE`, so the whole
+    release path runs offline and credential-free
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
     dies until `apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner@0.16.1`
-    (pin-matched to the dep); CI mirrors this
+    (pin-matched to the dep)
 - **A docs page lives in FOUR places — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
     `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`**
     (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
@@ -83,8 +83,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn`, so its category-`C` filter
     coincidentally matches (go1.27 flips five cases red — see issues.md); Swift's `String ==` folds
     canonical equivalence, so compare `unicodeScalars.map { $0.value }` arrays instead
-- **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (152):
-    discovery is by basename, so keep the canonical filenames and register every tracked copy
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (141):
     cases swapped for ASCII no-ops stay green forever, hence the **ungated** guards on version, case
     counts and code points; probe each, and give any skip list a *stale-key* guard
@@ -145,11 +143,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     re-run sequentially before believing it (165)
 - **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
     `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (the `releases/latest`
-    endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` (pin `@v9.0.0`
-    \+ a `# exact tag:` comment) and `rubygems/configure-rubygems-credentials` publish only exact
-    tags. **Measure what a branch pin drops:**
-    `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by` — a PR title understates it (162:
-    `@main` was 31 commits + a rebuilt `dist/` ahead of `v2.1.0`). Majors →
+    endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` and
+    `rubygems/configure-rubygems-credentials` publish only exact tags. **Measure what a branch pin
+    drops:** `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by` — a PR title understates it
+    (162: `@main` was 31 commits + a rebuilt `dist/` ahead of `v2.1.0`). Majors →
     `.claude/agent-memory/advance/deps-refresh.md`
 - **An action-major bump is statically verifiable far past "the tag exists"** — the `inputs`/
     `outputs` diff is automated (`--check-action-inputs`); what stays manual is every intervening
@@ -160,9 +157,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     version (`git show HEAD~1:<path>`) — that is the drift the gate was built for. A
     **set-equality** gate is blind twice: equal *empty* sets pass (hence a count floor) and a
     **duplicated** row passes (keep row order long enough to count repeats — iter 163). Same shape
-    for a **test-framework major**: only the pre-bump tree is an honest baseline
-    (`git archive HEAD~1 | tar -x`, run the suite there, demand the SAME total) — a "≥ N passed"
-    floor cannot see a silent collapse of parameterized rows (164: xunit v2 and v3 both gave 104)
+    for a **test-framework major**: a "≥ N passed" floor cannot see a silent collapse of
+    parameterized rows (164: xunit v2 and v3 both gave 104), so demand the SAME total as the
+    pre-bump tree (`git archive HEAD~1 | tar -x`) or — cheaper — derive it from the FIXTURE (166:
+    per-function `data.json` vector counts + static `@Test` count). **`mvn test` silently reuses
+    stale test classes** ("Nothing to compile"), so only `mvn clean test` proves the new framework
+    compiles
 - **A markdown-table parity gate must anchor to its own section** (163): `specs/ci-cd.md` carries 14
     backticked first-column rows under `## Version Management` that a whole-file scan would read as
     bogus job rows — so the real file, not the fixture, is what proves the anchor load-bearing
@@ -172,8 +172,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## CID Process
 
-- Never force-push to `develop` during a CID loop — agents commit incrementally; **feature flags**
-    are fully met → `learnings-archive.md` (read before touching `[features]`)
+- Never force-push to `develop` during a CID loop (agents commit incrementally); **feature flags**
+    are fully met → `learnings-archive.md`
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central, `gh api`)
 - **Human-handoff vs IDLE (iter 111)**: if the remaining `normal` issues are all
