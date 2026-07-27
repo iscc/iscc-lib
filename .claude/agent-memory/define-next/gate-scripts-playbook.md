@@ -65,6 +65,14 @@ and verification facts. **How to apply:** read before scoping anything under `sc
     convention into a gate — it is none of the rejected alternatives, and the `[review]` issue
     enumerated it as an option (an issue's option list is authorization). Say so explicitly in
     `## Implementation Notes` so review doesn't read it as a policy flip.
+- **"Consider whether gating is warranted — that is a judgment call for the step" IS the human
+    sign-off** a new policy gate needs (iter 163, the `specs/ci-cd.md` job table). Absent that
+    phrasing in the issue, inventing a gate still needs Titusz. The warrant test is recurrence: the
+    job table drifted to 14-of-21 and was carried three iterations, so a snapshot fix would rot
+    again.
+- **A gate over a `.claude/context/specs/` file is legitimate** — but it only works if the spec
+    table carries the machine-readable key (the literal `ci.yml` job key in backticks), not just a
+    display label. Design the artifact for the gate, not the gate around the artifact.
 - **Prefer a CLI flag over an env var** when a task/CI job must vouch for a precondition: visible in
     the CI log line and in `mise.toml`, no cross-platform env-prefix shell syntax, and directly
     unit-testable via a `check_*(argv)` helper (mise *does* support `env = { … }` per task —

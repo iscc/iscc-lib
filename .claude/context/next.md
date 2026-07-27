@@ -1,80 +1,93 @@
 # Next Work Package
 
-## Step: Pin `rubygems/configure-rubygems-credentials` to the exact tag `@v2.1.0`
+## Step: Make the `specs/ci-cd.md` CI job table exhaustive and gate it against `ci.yml`
 
 ## Goal
 
-Replace the only `@main` action reference in the repository — the OIDC credential step in the
-RubyGems publish job — with the exact tag `@v2.1.0` plus an inline `# exact tag:` comment, closing
-the RULED `normal` issue "Pin `rubygems/configure-rubygems-credentials` off the `@main` branch"
-before the pending v0.6.0 release runs that job.
+Rewrite the CI job table in `.claude/context/specs/ci-cd.md` so it lists all 21 job keys of
+`.github/workflows/ci.yml` (it lists 14), and add a parity gate so the table cannot drift again —
+picking up the `[human]` issue "Make the CI job table in `specs/ci-cd.md` exhaustive", whose text
+explicitly leaves the `check_docs_nav.py`-style gating to this step's judgment.
 
 ## Alternatives Considered
 
-- **Chosen:** the one-line pin — it is RULED and authorized, it removes an unreviewed-upstream-head
-    trust anchor from the release pipeline that a v0.6.0 dispatch would actually execute, and its
-    tiny diff keeps this iteration's push attributable: the push carries three commits CI has never
-    seen (`acf178a`, `e38c17e`, `c7cc0bc` — 785 lines of rewritten `tools/cid.py` /
-    `tests/test_cid.py`) to the gates for the first time.
-- **Rejected:** making the `specs/ci-cd.md` job table exhaustive (14 rows vs 21 real jobs) — also
-    authorized, but a larger diff landing on the same push that first exposes the rewritten runner
-    to CI, and it changes no executable behaviour. Next step if this one passes.
+- **Chosen:** exhaustive table + parity gate — the only `normal` non-dependency item, zero runtime
+    risk, and the table has already drifted through three iterations, so the gate is what makes the
+    fix durable rather than a snapshot.
+- **Rejected:** the `xunit` 3.x / `Microsoft.NET.Test.Sdk` 18.x major bump — also authorized, but a
+    real behaviour change in a published test surface; better taken with the spec baseline correct
+    and after this documentation-only step, per the issue's "one per step" rule.
 
 ## Scope
 
-- **Modify**: `.github/workflows/release.yml` (one `uses:` line + a preceding comment)
-- **Reference**: `.github/workflows/ci.yml` lines 61-63 (the `# exact tag:` comment precedent),
-    `.pre-commit-config.yaml` (the `check-release-workflow` hook),
-    `scripts/check_release_workflow.py`
+- **Create**: `scripts/check_ci_job_table.py`, `tests/test_check_ci_job_table.py`
+- **Modify**: `.claude/context/specs/ci-cd.md`, `.pre-commit-config.yaml`
+- **Reference**: `.github/workflows/ci.yml` (the 21 `jobs:` keys and their steps — the sole source
+    for the descriptions), `scripts/check_docs_nav.py` + `tests/test_check_docs_nav.py` (the
+    checker/test pattern to follow), `scripts/check_release_workflow.py` (pyyaml usage)
+
+File budget: 2 non-test, non-doc files (`scripts/check_ci_job_table.py`, `.pre-commit-config.yaml`).
 
 ## Not In Scope
 
-- **Do not SHA-pin.** `decisions.md` 2026-07-26 ruled option (a): exact tag, tags-never-SHAs stands.
-- Do not touch the other non-version refs in `release.yml` (`dtolnay/rust-toolchain@stable`,
-    `pypa/gh-action-pypi-publish@release/v1`, `ruby/setup-ruby@v1`,
-    `oxidize-rb/actions/cross-gem@v1`, `nttld/setup-ndk@v1`, `PyO3/maturin-action@v1`,
-    `rust-lang/crates-io-auth-action@v1`) — they are deliberate upstream-published pointers.
-- Do not add a "no floating branch ref" check to `scripts/check_release_workflow.py` or anywhere
-    else. Distinguishing `@main` from `@stable` is a new policy gate and needs Titusz's sign-off.
-- Do not edit `.claude/context/issues.md` — review owns issue resolution.
-- Do not start the `specs/ci-cd.md` job table or any dependency major bump.
-- Do not rebase, reset or amend the three unpushed commits; leave `.claude/skills/release/SKILL.md`
-    alone (release-job *gating* is unchanged).
+- Any edit to `.github/workflows/ci.yml` itself — no new job, no rename, no reordering. The table
+    describes CI as it is; a red gate here means the table is wrong, not the workflow.
+- A new CI job for the checker. The pytest anchor test carries it into CI via `python-test`, which
+    is the established pattern (`check_docs_nav.py`).
+- Gating any other table in `ci-cd.md` (workflow files, auth, build matrices) or `release.yml` /
+    `docs.yml` job lists.
+- The handoff's "no floating branch ref" assertion in `scripts/check_release_workflow.py` — a new
+    policy that needs Titusz's sign-off.
+- Editing `issues.md`. The review agent resolves the issue after verifying the fix.
 
 ## Implementation Notes
 
-- Target is `.github/workflows/release.yml` line 895, inside the `publish-rubygems` job's step
-    `Configure RubyGems credentials (OIDC trusted publishing)`. The step passes **no `with:` keys**,
-    so this is purely a trust-anchor choice with zero input-compatibility risk.
-- The action publishes **only exact tags** — `git/matching-refs/tags` returns `v1.0.0`, `v2.0.0`,
-    `v2.1.0` and nothing else, so `@v2` does not resolve. That is exactly the `astral-sh/setup-uv`
-    situation, so mirror its comment shape: a short `# exact tag: …` comment (why the major tag is
-    not used) on the line(s) directly above the `uses:` line, indented to match the step body.
-- Nothing functional is lost: `v2.1.0` was published 2026-06-12 ("Switch to Node 24 and adopt
-    pending major dependency updates"); `main`'s head (2026-06-24) is a single transitive
-    `yaml 2.8.3 → 2.9.0` dependabot bump.
-- `https://raw.githubusercontent.com/rubygems/configure-rubygems-credentials/v2.1.0/action.yml`
-    returns HTTP 200 and declares `gem-server` / `audience` / `role-to-assume`, so the
-    `--check-action-inputs` fetch keeps resolving the ref after the change (it splits the ref on the
-    first `@` to build that URL) — the resolved count must not drop.
-- Run `mise run format` before committing; yamlfix owns this file and must leave the new comment
-    untouched.
+- **Table shape:** first column is the literal `ci.yml` job key in backticks (that is what makes the
+    table mechanically checkable), second column what the job checks. Exactly one row per key, all
+    21\. Derive each description from that job's steps in `ci.yml` — do not carry over a stale
+    description or write one from memory (e.g. the `java` row's "49 tests" claim is unverified).
+- Add one sentence under the table for the two shapes a reader cannot infer from a key list:
+    `python-test` is a `[3.10, 3.14]` matrix and `python` is its `if: always()` aggregator, so 21
+    keys surface as 22 check names.
+- **Also fix the stale prose at `ci-cd.md` L35-37**: it names `astral-sh/setup-uv@v4`,
+    `actions/setup-python@v5`, `actions/setup-node@v4`; the real pins are `@v9.0.0`, `@v7`, `@v7`.
+    Drop the version numbers from the prose rather than re-pinning them — versions belong in
+    `ci.yml`, and re-stating them just re-arms the same drift.
+- **Checker:** `yaml.safe_load` on `ci.yml` for `jobs:` keys (`pyyaml` is a dev-group dep, so it is
+    importable both under `uv run` and in-process from pytest); regex over the table section only
+    for the spec side — anchor the scan between the `## CI Workflow — Quality Gates` heading and the
+    next `## ` heading so other tables cannot feed it rows. No `tomllib`: CI's `python-test` matrix
+    includes Python 3.10.
+- Report every mismatch (missing rows and rows naming a nonexistent job) before exiting non-zero,
+    and print an `OK: …` line with the compared job count on success.
+- **Count floor:** a set-equality gate passes vacuously on two empty sets — fail loudly if either
+    side yields fewer than 10 keys. Do not make the exact number (21) a pass/fail condition; it
+    drifts with every legitimate CI change.
+- Give the core function explicit `Path` arguments (`ci_yml=`, `spec_md=`) rather than reading
+    module constants, so tests and review can point it at throwaway copies and mutate them.
+- **prek wiring:** new hook `check-ci-job-table`, `language: system`,
+    `entry: uv run scripts/check_ci_job_table.py`, `pass_filenames: false`, `files:` matching both
+    `^\.github/workflows/ci\.yml$` and `^\.claude/context/specs/ci-cd\.md$`. Mirror the
+    `check-docs-nav` comment noting that a `files:`-scoped hook never sees deletions, which is why
+    the pytest anchor exists.
+- **Tests:** load the script via `importlib.util.spec_from_file_location` (see
+    `tests/test_check_docs_nav.py`); anchor one test on the real tracked files, and cover at least
+    the three failure modes — a row missing, a row naming a job that does not exist, and the count
+    floor tripping.
 
 ## Verification
 
-- `grep -c 'uses: rubygems/configure-rubygems-credentials@v2\.1\.0' .github/workflows/release.yml`
-    prints `1`, and `grep -c 'uses: .*@main' .github/workflows/release.yml` prints `0`
-- `uv run scripts/check_release_workflow.py` exits 0
-- `uv run --no-project --with pyyaml python scripts/check_release_workflow.py --check-action-inputs`
-    (the `ci.yml` `release-workflow` job invocation) exits 0, emits **no** `warning: skipped` line,
-    and prints an `action-inputs: resolved <T> of <T> action refs (0 skipped)` summary
-- `uv run pytest -q tests/test_check_release_workflow.py` passes
-- `uv run prek run --files .github/workflows/release.yml` — every hook Passed and no file was
-    modified by a hook
-- `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/release.yml` exits 0
-    with no output
+- `uv run scripts/check_ci_job_table.py` exits 0 and prints an `OK: …` line naming the number of
+    jobs compared.
+- The gate fires on a real break: in a throwaway tree (`git archive HEAD | tar -x -C /tmp/ci-tbl`),
+    deleting one table row makes the checker exit non-zero and name that job key; restoring it
+    returns exit 0.
+- `uv run pytest -q tests/test_check_ci_job_table.py` passes.
+- `uv run prek run check-ci-job-table --files .github/workflows/ci.yml` and
+    `... --files .claude/context/specs/ci-cd.md` both report `Passed` (not `Skipped`).
+- `mise run check` — all hooks pass, no file modified by the run.
 
 ## Done When
 
-`release.yml` pins the RubyGems credential action to `@v2.1.0` with an explanatory `# exact tag:`
-comment, no `@main` reference remains in the file, and all six checks above pass.
+The CI job table names every `ci.yml` job key, the parity gate is wired into prek and pytest, and
+all five verification criteria pass.
