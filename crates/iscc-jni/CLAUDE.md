@@ -27,7 +27,7 @@ crates/iscc-jni/
       SumCodeResult.java      # Result class for genSumCodeV0 (iscc, datahash, filesize, units)
       NativeLoader.java       # Platform-aware native library loader (JAR extraction + fallback)
     src/test/java/io/iscc/iscc_lib/
-      IsccLibTest.java        # JUnit 5 conformance + unit tests
+      IsccLibTest.java        # JUnit 6 conformance + unit tests
   README.md                   # Maven installation and API overview
 ```
 
@@ -77,14 +77,14 @@ cd crates/iscc-jni/java && mvn test
 
 ### Java tests (`IsccLibTest.java`)
 
-- **Conformance tests**: JUnit 5 `@TestFactory` with `DynamicTest` -- parametrized over vendored
+- **Conformance tests**: JUnit 6 `@TestFactory` with `DynamicTest` -- parametrized over vendored
     `data.json` vectors at `crates/iscc-lib/tests/data.json`; each `gen_*_v0` function must match
     the `iscc` output field for every test case
 - **Unit tests**: `@Test` methods for codec round-trips (`encodeComponent` -> `isccDecode`),
     `jsonToDataUrl`, `genSumCodeV0` equivalence, streaming hasher state validation, constants
     verification, and negative-input validation
-- Tests use JUnit 5 assertions (`assertEquals`, `assertThrows`, `assertNotNull`, etc.)
-- Test-only dependencies: `junit-jupiter` 5.14.4, `gson` 2.14.0 (for JSON vector parsing)
+- Tests use JUnit 6 assertions (`assertEquals`, `assertThrows`, `assertNotNull`, etc.)
+- Test-only dependencies: `junit-jupiter` 6.1.2, `gson` 2.14.0 (for JSON vector parsing)
 - No mocking -- tests call real Rust functions through JNI
 - `stream:<hex>` prefixed byte data decoded via `HexFormat.of().parseHex()`
 - `meta` inputs that are JSON objects are serialized with sorted keys via `TreeMap` before passing

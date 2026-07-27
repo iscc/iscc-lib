@@ -59,7 +59,7 @@ point to `../../target/debug/` relative to the Kotlin package root.
 - One test method per gen function (no `gen_sum_code_v0` vectors in data.json)
 - `decodeStream` helper converts `"stream:<hex>"` format to `ByteArray`
 - Asserts exact ISCC string equality against expected outputs
-- Uses JUnit 5 (`org.junit.jupiter`) and Gson (`com.google.code.gson:gson`) for JSON parsing
+- Uses JUnit 6 (`org.junit.jupiter`) and Gson (`com.google.code.gson:gson`) for JSON parsing
 
 ## Binding Generation
 

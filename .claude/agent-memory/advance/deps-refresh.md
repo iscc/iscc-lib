@@ -23,9 +23,21 @@ v8.x/v9.0.0 are exact release tags only, so write `@v9.0.0` not `@v9` (iter-127 
 to resolve action"). `releases/latest` proves a release exists, NOT that a floating `@vN` tag exists
 — confirm via `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Slice 8 (ruff 0.16, sub-slices
 A–E) CLOSED iter 137. xunit.v3 + Test.Sdk 18.x DONE iter 164 (see below). Gradle wrapper 8.12.1 →
-9.6.1 DONE iter 165 (see below). Remaining (all human/major-gated): `release.yml` actions (97
-`uses:` refs; upload/download-artifact@v4 must move together; setup-uv there needs `@v9.0.0` too;
-only truly validated by a release run), JUnit 6.x migration, jni 0.22, magnus 0.8.
+9.6.1 DONE iter 165 (see below). JUnit 6.1.2 DONE iter 166 (see below). Remaining (all
+human/major-gated): `release.yml` actions (97 `uses:` refs; upload/download-artifact@v4 must move
+together; setup-uv there needs `@v9.0.0` too; only truly validated by a release run), jni 0.22,
+magnus 0.8.
+
+## JUnit 6.1.2 (iter 166 — DONE)
+
+- JUnit 6 unifies Platform/Jupiter/Vintage under one version number — the Gradle
+    `junit-platform-launcher` pin is now identical to junit-jupiter (6.1.2), no more 1.x lockstep.
+- Zero test-source changes needed (suites use only `@Test`/`@TestFactory`/`DynamicTest`/
+    `@BeforeAll`/Assertions); Maven totals 82 = 82 pre/post (69 IsccLibTest + 13 Boundary), Kotlin 9
+    \+ 13. Surefire 3.5.6 auto-resolves the aligned launcher — no explicit pom launcher dep needed.
+- No consumer floor moves: both artifacts test-scoped; JUnit 6 baselines (Java 17, Kotlin 2.2) met.
+- GOTCHA: the Gradle wrapper script lives at `packages/kotlin/gradlew` — from repo root run
+    `packages/kotlin/gradlew -p packages/kotlin …`, a bare `./gradlew` is not found.
 
 ## Gradle wrapper 9.6.1 (iter 165 — DONE)
 
@@ -58,8 +70,8 @@ only truly validated by a release run), JUnit 6.x migration, jni 0.22, magnus 0.
     discovery with "OutputDirectoryCreator not available … unaligned platform jars". Maven is
     unaffected (surefire resolves the aligned launcher itself).
 - Held: `central-publishing-maven-plugin` 0.7.0 (0.11.0 exists; deploy goal only runs in a real
-    Maven Central publish — bump during a human-supervised release). JUnit 6.x deferred (renumbered
-    platform artifacts, removed Platform APIs; its Kotlin ≥ 2.2 prereq is now met by 2.4.10).
+    Maven Central publish — bump during a human-supervised release). JUnit 6 migration landed iter
+    166 (see above).
 - Kotlin 2.4.10 compiles the UniFFI-generated bindings unchanged; KGP 2.4.x supports Gradle
     7.6.3–9.5.0 so the 8.12.1 wrapper needed no change.
 - Kotlin compiler bumps move the CONSUMER floor (metadata forward-compat ≈ one minor): 2.4.10 ⇒
