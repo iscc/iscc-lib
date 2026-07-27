@@ -19,8 +19,10 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     `VENDORED_COPIES` table or the no-unregistered-copy test reds
 - Unicode 16.0.0 freeze rule (iter 148, RULED): `text_clean`/`text_collapse` MAP 16.0-unassigned
     code points to `UNASSIGNED_SENTINEL` (`U+FFFF`) before normalization; unchanged category-`C`
-    filter removes it where the reference does. NOT a delete-filter, NOT a category override.
-    Design, table regen, boundary fixture, pending work → unicode-freeze.md
+    filter removes it where the reference does. NOT a delete-filter, NOT a category override. Case
+    freeze (iter 156): `Final_Sigma` decided from vendored `utils/unicode16_case.rs` tables via
+    `to_lowercase_unicode16` — never bare `str::to_lowercase()` in `text_collapse`. Design, table
+    regen, boundary fixture, pending work → unicode-freeze.md
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`

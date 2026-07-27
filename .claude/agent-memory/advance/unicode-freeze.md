@@ -67,11 +67,26 @@ metadata:
     3 tests in the Gradle XML — use `@TestFactory`/`DynamicTest` so each vector is a `testcase` and
     `tests="13"` is checkable; run `./gradlew cleanTest test --offline` locally (bare `test` can be
     UP-TO-DATE and not execute).
+- Case-property freeze (iter 156): `text_collapse` lowercases via `to_lowercase_unicode16` in
+    `utils.rs` — decides `Final_Sigma` from vendored `Cased`/`Case_Ignorable` tables in
+    `utils/unicode16_case.rs` (152 ranges/4,311 cps + 452 ranges/2,749 cps; regen:
+    `uv run --script scripts/gen_unicode16_case.py`, PEP 723 `requires-python = "==3.14.*"`, derives
+    both properties behaviourally from `str.lower()` sigma probes, asserts
+    `unidata_version == "16.0.0"`), pre-substitutes each `Σ` (ς iff prev non-ignorable is cased and
+    next non-ignorable is not), THEN delegates to std `to_lowercase()` so the compiler's 17.0-table
+    `Final_Sigma` branch can never fire. **Why:** rustc 1.97 ships Unicode 17.0, which reclassified
+    `U+0295` `Ll`→`Lo`, so bare `str::to_lowercase()` makes output a function of the rustc version
+    (was the single sweep divergence: 3 comparisons, 1 code point). `CASED_RANGES` = `Cased` minus
+    `Case_Ignorable` (unobservable — scan skips ignorables first). Table placement: lowercase runs
+    AFTER sentinel map + NFD, so context is scanned on the NFD'd string. Sweep evidence: 17,793,024
+    comparisons (8 contexts × 2 fns × 1,112,064 scalars) — 3 divergences before, **0 after**.
 - Pending: 3 binding surfaces (C FFI — needs a JSON reader or generated table, `tests/test_iscc.c`
     has no text coverage; C++ — no `cmake` in container; Swift — no `swift` toolchain in container,
     would add a tracked vendored copy that MUST be registered in `VENDORED_COPIES` of
-    `tests/test_vendored_fixtures.py`); full-code-space + sequence-class differential sweep (spec
-    requirement 4).
+    `tests/test_vendored_fixtures.py`); full-code-space + sequence-class differential sweep wired in
+    as a permanent gate (spec requirement 4 — probe script shape in next.md iter 156 /
+    `/tmp/unicode_sweep_probe.py`; must be fail-closed, assert `unidata_version == "16.0.0"` and
+    `total == 17_793_024`).
 - GOTCHA (iter 149): writing `\uXXXX` escape text into the ASCII-escaped fixture via the Edit tool
     decodes it into literal UTF-8 chars. Write fixture JSON with Python
     (`json.dumps(..., ensure_ascii=True, indent=2)` + trailing newline round-trips the file

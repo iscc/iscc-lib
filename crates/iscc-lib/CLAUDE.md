@@ -167,5 +167,13 @@ cargo bench -p iscc-lib                     # Criterion benchmarks
     sentinel map, `text_clean` applies NFKC, then control-char removal, then line collapsing.
     `text_collapse` applies NFD, lowercase, filter C/M/P categories, then NFKC. Do not reorder these
     steps.
+- **`Final_Sigma` is frozen at Unicode 16.0.0** -- `text_collapse` lowercases with
+    `to_lowercase_unicode16`, which decides the conditional `Σ` → `ς` mapping from the vendored
+    `Cased` / `Case_Ignorable` tables in `utils/unicode16_case.rs` (regenerate with
+    `uv run --script scripts/gen_unicode16_case.py`, never hand-edit) before delegating remaining
+    mappings to `str::to_lowercase()`. Plain `str::to_lowercase()` reads the *compiler's* Unicode
+    tables (rustc 1.97: 17.0, which reclassified `U+0295` from `Ll` to `Lo`), so using it directly
+    would make output a function of the rustc version. Do not replace the wrapper with a bare
+    `.to_lowercase()`.
 - **JSON canonicalization** -- the crate uses `serde_json_canonicalizer` for RFC 8785 (JCS)
     compliant serialization of JSON metadata, matching iscc-core's `jcs.canonicalize()` behavior.

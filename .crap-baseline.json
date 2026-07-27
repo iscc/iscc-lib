@@ -125,7 +125,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "text_clean",
-      "line": 116,
+      "line": 197,
       "cyclomatic": 9.0,
       "coverage": 100.0,
       "crap": 9.0
@@ -179,6 +179,14 @@
       "crap": 7.0
     },
     {
+      "file": "./crates/iscc-lib/src/utils.rs",
+      "function": "to_lowercase_unicode16",
+      "line": 120,
+      "cyclomatic": 7.0,
+      "coverage": 100.0,
+      "crap": 7.0
+    },
+    {
       "file": "./crates/iscc-lib/src/wtahash.rs",
       "function": "alg_wtahash",
       "line": 285,
@@ -221,7 +229,7 @@
     {
       "file": "./crates/iscc-lib/tests/test_unicode_boundary.rs",
       "function": "run_boundary_section",
-      "line": 71,
+      "line": 148,
       "cyclomatic": 2.0,
       "coverage": null,
       "crap": 6.0
@@ -349,7 +357,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "text_trim",
-      "line": 180,
+      "line": 261,
       "cyclomatic": 4.0,
       "coverage": 100.0,
       "crap": 4.0
@@ -446,6 +454,14 @@
       "file": "./crates/iscc-lib/src/streaming.rs",
       "function": "DataHasher::update",
       "line": 91,
+      "cyclomatic": 3.0,
+      "coverage": 100.0,
+      "crap": 3.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/utils.rs",
+      "function": "cased_lookahead",
+      "line": 96,
       "cyclomatic": 3.0,
       "coverage": 100.0,
       "crap": 3.0
@@ -573,7 +589,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "is_unassigned_in_unicode16",
-      "line": 45,
+      "line": 47,
       "cyclomatic": 2.0,
       "coverage": 100.0,
       "crap": 2.0
@@ -581,7 +597,7 @@
     {
       "file": "./crates/iscc-lib/tests/test_unicode_boundary.rs",
       "function": "boundary_data",
-      "line": 20,
+      "line": 49,
       "cyclomatic": 1.0,
       "coverage": null,
       "crap": 2.0
@@ -764,15 +780,15 @@
     },
     {
       "file": "./crates/iscc-lib/src/utils.rs",
-      "function": "is_c_category",
-      "line": 65,
+      "function": "in_ranges",
+      "line": 57,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
     },
     {
       "file": "./crates/iscc-lib/src/utils.rs",
-      "function": "is_cmp_category",
+      "function": "is_cased_in_unicode16",
       "line": 78,
       "cyclomatic": 1.0,
       "coverage": 100.0,
@@ -780,8 +796,32 @@
     },
     {
       "file": "./crates/iscc-lib/src/utils.rs",
+      "function": "is_case_ignorable_in_unicode16",
+      "line": 87,
+      "cyclomatic": 1.0,
+      "coverage": 100.0,
+      "crap": 1.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/utils.rs",
+      "function": "is_c_category",
+      "line": 146,
+      "cyclomatic": 1.0,
+      "coverage": 100.0,
+      "crap": 1.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/utils.rs",
+      "function": "is_cmp_category",
+      "line": 159,
+      "cyclomatic": 1.0,
+      "coverage": 100.0,
+      "crap": 1.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/utils.rs",
       "function": "text_remove_newlines",
-      "line": 171,
+      "line": 252,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -789,7 +829,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "text_collapse",
-      "line": 206,
+      "line": 288,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -797,7 +837,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "multi_hash_blake3",
-      "line": 236,
+      "line": 318,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0

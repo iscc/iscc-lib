@@ -1,124 +1,96 @@
 # Handoff
 
-## 2026-07-26 — Review of: Propagate the Unicode boundary fixture to the C# and Kotlin test suites (slice 4)
+## 2026-07-27 — Freeze `Final_Sigma` case classification at Unicode 16.0.0
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Vendored the Unicode 16.0.0 `Cased` / `Case_Ignorable` classification (new generator
+`scripts/gen_unicode16_case.py` → data module `crates/iscc-lib/src/utils/unicode16_case.rs`) and
+routed `text_collapse`'s lowercasing through a new `to_lowercase_unicode16` that decides the
+`Final_Sigma` condition from those tables before delegating all remaining case mappings to
+`str::to_lowercase()` — so std's compiler-table (Unicode 17.0) sigma branch can never fire. The
+full-code-space + sequence-class differential sweep against `iscc-core` on CPython 3.14 went from
+**3 divergent comparisons (single code point U+0295) to 0** — measured before and after, not
+assumed.
 
-**Summary:** The C# and Kotlin boundary suites are correct, idiomatic, in scope, and genuinely
-gating — I mutation-probed both and each reds the *named* vector on a delete-filter-shaped expected
-value and reds the metadata guard on a dropped case. Criterion 3 goes 6 → **8 of 11** native
-surfaces with no new tracked fixture copy. One real hole, found by the independent Codex review and
-confirmed by a three-run probe: the Kotlin `Test` task did not treat the out-of-tree fixture as an
-input, so `./gradlew test` reported `UP-TO-DATE` and silently skipped all 13 boundary tests after a
-fixture edit. Fixed in this review with one additive, gate-strengthening line (CI was never
-affected).
+**Files changed:**
 
-**Verification:** (every criterion from next.md, all commands re-run this session)
+- `scripts/gen_unicode16_case.py` (new, counted file 1 of 2): PEP 723 generator
+    (`requires-python = "==3.14.*"`, no deps; refuses to run unless
+    `unicodedata.unidata_version == "16.0.0"`). Derives both properties behaviourally from the two
+    probes CPython's `handle_capital_sigma` consults (`(ch+Σ).lower()` / `("A"+ch+Σ).lower()` ending
+    in ς), merges into maximal inclusive ranges, fails closed on any shape mismatch (`SystemExit`
+    before writing).
+- `crates/iscc-lib/src/utils/unicode16_case.rs` (new, generated tool output): `CASED_RANGES`
+    `[(u32,u32); 152]` (4,311 cps; = `Cased` restricted to non-`Case_Ignorable`, documented as
+    unobservable) + `CASE_IGNORABLE_RANGES` `[(u32,u32); 452]` (2,749 cps). U+0295 in cased, U+FFFF
+    in neither — both enforced by generator invariants and a Rust test.
+- `crates/iscc-lib/src/utils.rs` (counted file 2 of 2): `mod unicode16_case`; range lookup factored
+    into shared `in_ranges` (existing comparator unchanged, `is_unassigned_in_unicode16` fast path
+    kept in place); `is_cased_in_unicode16` / `is_case_ignorable_in_unicode16`; `cased_lookahead`
+    (single reverse pass — sigma-dense strings stay linear) + `to_lowercase_unicode16` (hot path:
+    `!text.contains('Σ')` → plain `to_lowercase()`); `text_collapse` step 1 now feeds the
+    sentinel-mapped, NFD-normalized string to `to_lowercase_unicode16` — nothing else in the
+    pipeline moved. 7 new tests (6 sigma-context cases + table invariants).
+- `.crap-baseline.json`: regenerated in this commit (tool output).
+- `docs/unicode.md` (docs, excluded): scoped the "severs all dependence" overclaim to the
+    *unassigned* classification; new "Case-property freeze (`Final_Sigma`)" section naming U+0295
+    and the rustc-version dependence of bare `str::to_lowercase()`.
+- `crates/iscc-lib/CLAUDE.md` (docs, excluded): new pitfall entry — do not replace
+    `to_lowercase_unicode16` with bare `.to_lowercase()`.
 
-- [x] `cargo build -p iscc-ffi` exit 0 →
-    `LD_LIBRARY_PATH=$PWD/target/debug dotnet test packages/dotnet/Iscc.Lib.Tests/` — **104 passed,
-    0 failed, 0 skipped** (≥ 104 met exactly)
-- [x] `--filter FullyQualifiedName~UnicodeBoundary` — **13 passed, 0 failed, 0 skipped**
-- [x] `cargo build -p iscc-uniffi` exit 0 → `gradlew -p packages/kotlin cleanTest test --offline`
-    exit 0; `TEST-uniffi.iscc_uniffi.UnicodeBoundaryTest.xml` written at 22:23 (newer than the
-    source) with `tests="13" skipped="0" failures="0" errors="0"` and all 12 vector names +
-    `boundaryFixtureMetadata()` as individual `testcase` entries
-- [x] `git ls-files -- '*unicode_boundary.json'` = **2** paths; `git ls-files -- '*data.json'` =
-    **5** — no tracked copy added
-- [x] `uv run pytest tests/test_vendored_fixtures.py -q` — **8 passed** (`VENDORED_COPIES`
-    untouched)
-- [x] `git status --porcelain -- 'crates/*/src' .crap-baseline.json .iai-baseline.json packages/dotnet/Iscc.Lib/NativeMethods.g.cs packages/kotlin/src/main`
-    — **empty** (CRAP / iai / semver gates inert for this diff)
-- [x] No build artifact untracked-and-stageable — `git status --porcelain` showed only
-    `iterations.jsonl` (runner-owned) before my fix
-- [x] `uv run scripts/check_docs_nav.py` — `OK: 23 documentation pages consistent`
-- [x] `docs/unicode.md` canonical-fixture sentence names **C#** and **Kotlin** alongside Python,
-    Node.js, WASM, Java, Ruby; the pure-Go vendored-copy clause is intact
-- [x] `mise run check` exit 0 (all prek hooks Passed) and the tree clean afterwards; pre-push stage
-    (`prek run --hook-stage pre-push --all-files`) also all Passed
-- [x] `cargo test -p iscc-lib` — 281 + 28 + 22 + 4 + 1 passed, 0 failed;
-    `cargo clippy --workspace --all-targets -- -D warnings` clean
+**Verification:** (every criterion from next.md, all run this session)
 
-**Review-added probes (beyond next.md):**
+- Generator: exit 0; second run **byte-identical** (md5 verified; the porcelain check reads `??`
+    only because the file is new/untracked — determinism itself is proven). Both shape greps = 1.
+- Fail-closed probe: `EXPECTED_CASED_RANGE_COUNT` 152→153 → exit **1**, output file untouched (md5),
+    constant restored (verified by grep).
+- `cargo test -p iscc-lib`: **0 failed**; lib unit binary **288 passed** (meets ≥288 exactly: 281
+    prior + 7 new; re-run after the format pass). Integration binaries 28/22/4/1 all green.
+- `cargo clippy --workspace --all-targets -- -D warnings`: clean. Feature matrix:
+    `--no-default-features` and `--no-default-features --features text-processing` both compile.
+- Oracle check: all 7 expected values re-confirmed against live `iscc_core.text_collapse` on CPython
+    3.14.6 / unidata 16.0.0 before writing the tests — no table corrections needed.
+- Sweep probe (from `/tmp`, no tree diff): **before** the fix —
+    `TOTAL 17793024 comparisons, 3 divergences`, all at cp=U+0295 (3 contexts; next.md's "1
+    divergence" = 1 code point — the probe counts per context row). **After** —
+    `TOTAL 17793024 comparisons, 0 divergences`, exit **0**. Extension rebuilt via
+    `uv run maturin develop --release` before each run.
+- Mutation probe: `CASED_RANGES` truncated to 10 entries → `cargo test -p iscc-lib --lib` **4
+    failed**; restored (md5-identical) → 288 passed.
+- CRAP: `mise run coverage` + `mise run crap:baseline` run, baseline staged in this commit;
+    `mise run crap` exit 0 — 105 functions, none above 30. New fns all 100% covered:
+    `to_lowercase_unicode16` 7.0, `cased_lookahead` 3.0, `in_ranges` / `is_cased_in_unicode16` 1.0.
+- `mise run bench:iai:check` exit 0 — 16/16 within 10% of baseline; `bench_text_code.chars_1000`
+    **-3.83% Ir** (fast path holds; no baseline refresh needed).
+- `uv run pytest -q`: **379 passed** with the rebuilt extension.
+- Docs: `grep -c 'U+0295' docs/unicode.md` = 1; pinning + rustc-version claims stated;
+    `check_docs_nav.py` OK, **23** pages.
+- `mise run check` exit 0 (all prek hooks).
+- Scope guards: porcelain empty for `scripts/unicode_sweep.py`, `unicode_boundary.json`, `.github`,
+    `.claude/context/specs`; `git ls-files -- '*unicode_boundary.json'` = **2**.
 
-- **Mutation A** — `text_clean/test_0006_seq_ua7f1_no_decomposition_leak` expected value set to the
-    delete-filter result `é`: C# **12 passed / 1 failed** naming
-    `TextCleanBoundary(_: "test_0006_seq_ua7f1_no_decomposition_leak", …)`; Kotlin **1 failed**
-    naming `textCleanBoundary() > test_0006_seq_ua7f1_no_decomposition_leak`. The sentinel-vs-delete
-    distinction is genuinely gated on both surfaces without an oracle column.
-- **Mutation B** — one `text_clean` case deleted: both metadata guards red
-    (`BoundaryFixtureMetadata` / `boundaryFixtureMetadata()`), so a truncated fixture cannot
-    silently shrink the run.
-- **Freshness** — both natives rebuilt from source before every run; `cargo build -p iscc-uniffi`
-    recompiled (expected: the advance agent's `cargo clippy --all-targets` had replaced the
-    artifacts), so the suites ran against a freshly linked core, not the advance agent's binaries.
-- **Gate-circumvention scan** over the whole unpushed batch (`@{upstream}..HEAD`, 4 commits): zero
-    suppressions, skips, threshold changes or hook weakenings. No CI, lint-config or manifest file
-    is touched.
-
-**Issues found:**
-
-- **(fixed in this review)** Kotlin `Test` tasks track only their own project tree, so
-    `crates/iscc-lib/tests/unicode_boundary.json` was not a declared input. Probe: `cleanTest test`
-    (green) → `test` (`UP-TO-DATE`, correct) → **mutate fixture** → `test` still `UP-TO-DATE` and
-    all 13 boundary tests silently did not run. Fixed with
-    `inputs.file("$fixtureDir/unicode_boundary.json").withPathSensitivity(PathSensitivity.NONE)` in
-    the existing `tasks.withType<Test>` block, plus a comment. Re-probed: no change → `UP-TO-DATE`;
-    fixture edit → task re-executes and reds; restore → greens. **CI was never affected** (the
-    `kotlin` job is checkout + `cargo build` + `./gradlew test` with no build-dir cache), so this is
-    a local/CID verification hole, not a shipped defect. `PathSensitivity.NONE` is deliberate: the
-    absolute path differs per checkout and must not by itself invalidate the task.
-- No scope violations. Two non-test/non-doc files modified (`Iscc.Lib.Tests.csproj`,
-    `build.gradle.kts`) — within the 3-file budget. Every `## Not In Scope` item respected: no
-    vendored copy, no `delete_filter_output` oracle, no `crates/*/src` change, no baseline refresh,
-    no regenerated binding, no dependency edit, no CI job, no spec edit, and the issue was left for
-    review to update.
-
-**Codex review:** one P2, and it was right. `packages/kotlin/build.gradle.kts:37` — "this property
-tracks only the unchanged directory string, not the fixture contents; Gradle therefore reports
-`:test UP-TO-DATE` and skips all 13 boundary tests even if the new vectors would fail." I reproduced
-it exactly as described and applied its recommended `inputs.file(...)` fix (with
-`PathSensitivity.NONE` added). Codex found nothing else and explicitly cleared the vector logic.
-Worth noting for the loop: every surface-level gate was green (13/13 on both suites, plus my own
-mutation probe — which only worked because I used `cleanTest`), so this hazard was invisible to the
-entire verification grid. Rationale recorded in `decisions.md` (2026-07-26, "Binding boundary suites
-link the canonical fixture instead of vendoring a copy").
-
-**Next:** Two reasonable candidates, in this order of value:
-
-1. **Criterion 4 — the differential sweep, wired in as a runnable check** (`issues.md` → "Declare
-    and gate a Unicode data version", item (a2)). It is the only remaining piece with no partial
-    credit, it protects every future table bump on every surface at once, and it is fully local (no
-    missing toolchain). It **must** cover both the 1,112,064 Unicode scalar values *and* sequence
-    classes — a per-code-point sweep scored the superseded pre-filter 0 failures while it failed 42
-    of 140 sequence cases. Harness sketch in `decisions.md` 2026-07-26 ("Sentinel conformance
-    accepted on sequence evidence"). Treat it as a **new gate script**: define-next should scope
-    both the sweep and its blind-spot properties (is it fail-open on a missing table? does a
-    zero-case run read as green? does it distinguish "skipped" from "passed"?).
-2. **C FFI slice 5** — the cheapest remaining surface that is buildable here.
-    `crates/iscc-ffi/tests/test_iscc.c` has neither a JSON reader nor any text-function coverage,
-    so it needs either a generated C vector table (build-script or checked-in, generated from the
-    canonical fixture) or a hand-rolled reader. C++ and Swift stay blocked — no `cmake`, no `swift`
-    toolchain in this container; Swift is also the one surface that would add a *tracked* vendored
-    copy and must register it in `VENDORED_COPIES`.
-
-Whichever is picked, carry forward the question this iteration surfaced: **is the fixture a declared
-input of that surface's build system?** SwiftPM resource bundling, CMake and a generated C table
-each answer it differently, and a green run does not.
+**Next:** The permanent sweep gate (criterion 4) can now land green: turn
+`/tmp/unicode_sweep_probe.py` into `scripts/unicode_sweep.py` + a mise task + CI placement. Scope
+its blind spots per the earlier review note: fail-closed on missing table, assert
+`unidata_version == "16.0.0"`, assert `total == 17_793_024` so a zero-case run cannot read as green,
+and rebuild the extension before sweeping (a stale `.so` silently measures the previous commit).
 
 **Notes:**
 
-- `packages/dotnet` and `packages/kotlin` now handle `data.json` (tracked vendored copy) and
-    `unicode_boundary.json` (linked to the canonical file) asymmetrically. That is deliberate — see
-    `decisions.md` — not an oversight to "clean up".
-- The Kotlin suite's `@TestFactory`/`DynamicTest` shape is load-bearing: a plain `@Test` loop
-    reports 3 `testcase` entries in the Gradle XML, which would make `tests="13"` unmeetable and
-    hide per-vector failure names. Same reasoning as the iteration-153 Java twin.
-- `dotnet test --list-tests` shows theories at *method* level only (3 names for this class). That is
-    pre-discovery, not a missing test — the runtime failure line does carry the case name.
-- Gradle emits a pre-existing "Deprecated Gradle Version" warning (wrapper 8.12.1 vs Kotlin plugin
-    2.4.10). The wrapper bump is one of the separately-authorized majors under the dependency issue,
-    not a regression from this step.
-- `learnings.md` was over its 200-line budget; the Windows-`pwsh` entry was archived and two closed
-    gate entries condensed. Review memory `MEMORY.md` was compacted 161 → 139 lines with the detail
-    pushed into `binding-reviews.md` and `codex-integration.md`.
+- Pre-fix divergence count was **3 comparison rows**, not 1 — all the same code point U+0295 across
+    3 sigma contexts. next.md's "exactly 1 divergence" counts code points; the probe (its own spec)
+    counts rows. The divergence *set* is `{U+0295}` exactly as stated, so I treated this as
+    consistent, not an oracle conflict.
+- next.md's test table has 7 rows; row 7 (sentinel keeps final sigma) was already pinned by the
+    pre-existing `test_sentinel_preserves_final_sigma_context`, so I added 6 sigma tests + 1 table
+    test = 288 total, meeting the ≥288 bar exactly. All expected values verified against the live
+    oracle first.
+- The generated table intentionally stores `Cased − Case_Ignorable` in `CASED_RANGES` (that is what
+    the behavioural probes measure); both the module doc and the generator docstring say so and why
+    it is unobservable. Sizes 152/4,311 and 452/2,749 matched next.md's re-derived facts on first
+    run.
+- `to_lowercase_unicode16` tracks preceding context on the **original** (pre-substitution) chars and
+    checks casedness only of non-ignorable chars, so the restricted `CASED_RANGES` is always
+    consulted safely; Σ itself is cased-and-not-ignorable, making consecutive sigmas (`ΑΣΣ` → `ασς`)
+    match CPython.
+- Nothing out of scope touched: no Go changes, no fixture changes, no sweep-gate files, no spec
+    edits. issues.md untouched (review owns issue resolution).
