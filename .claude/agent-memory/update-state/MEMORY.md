@@ -12,8 +12,7 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     tip — **QUOTE the path** (zsh globs `?`). Failed logs: `gh run view --log-failed`.
 - **Unpushed check**: `git log --oneline origin/develop..HEAD`, then
     `git diff --stat origin/develop..HEAD -- . ':!.claude'`. Empty = green CI covers HEAD.
-    **NON-empty = it does NOT** — report the gap instead of calling CI green-for-HEAD (bit at 148;
-    fired for real at 162, a 785-line `tools/cid.py` + `tests/test_cid.py` commit no gate had run).
+    **NON-empty = it does NOT** — report the gap (bit at 148; fired for real at 162).
 - **ALWAYS `tail -5 .claude/context/iterations.jsonl`** — the ONLY place a crashed role shows up
     (also the `audit` role, every 10th iteration). **A non-OK status does NOT mean no work:
     corroborate with `git log` for the `cid(<role>):` commit** — infra crash vs benign overrun and
@@ -29,9 +28,8 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     `docs/includes/abbreviations.md`, a snippet); `docs/howto/*.md` 11; speedups 1.3x-158x; ffi
     extern **47** (`'#\[unsafe(no_mangle)\]'`; bare `no_mangle` gives 48); iscc-lib `#[test]`
     **342** (glob `git ls-files 'crates/iscc-lib/**/*.rs'`; `src/` alone gives 288); `packages/go`
-    `^func Test` **177**; CRAP `entries` **105**; pytest **432** (`uv run pytest --collect-only -q`;
-    399 → 400 with the Swift vendored-copy case at 161 → 432 after `tests/test_cid.py` went 46 → 78
-    in the out-of-loop 162 commit).
+    `^func Test` **177**; CRAP `entries` **105**; pytest **432**
+    (`uv run pytest --collect-only -q`).
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` are both
     importable under `uv run python`, so any reference-vs-core probe needs **no build** — but check
     `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` mtime first (stale `.so` silently measures
@@ -50,6 +48,9 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     docs page-list parity (prek hook + a pytest in `python-test`); the `unicode-sweep` job (157).
 - **Red with NO code change:** cargo-deny (live advisory DB). **Fails open:** the release.yml static
     gate (job log must show zero `warning: skipped`). **Informational:** cargo-semver-checks.
+- Candidate NOT to report as a gap: a "no floating branch ref" assertion in
+    `check_release_workflow.py` (now enforceable — zero `@main` refs) is a NEW policy needing
+    Titusz's sign-off, since it must allow deliberate pointers like `@stable`.
 
 ## Codebase Landmarks
 
@@ -76,8 +77,9 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
 - **Ruff/prek/mdformat → `lint-tooling.md`.** ruff **0.16.0** since 137; local prek is a strict
     SUPERSET of CI. Probe hooks with `prek run <hook> --files <f>`.
 - **Dependency-pin inventory + slice history** → `dep-refresh-survey.md`. All GHA refs CURRENT
-    (140); release.yml keeps **97 `uses:`**, `rubygems/configure-rubygems-credentials@main` (L895)
-    the ONLY unpinned one. No Dependabot/Renovate; **`rb_sys` pinned in THREE linked places**.
+    (140); release.yml keeps **97 `uses:`**. Since 162 the repo has **ZERO `@main` action refs**
+    across ci/docs/release (rubygems pinned `@v2.1.0` at L897, with the `# exact tag:` comment
+    convention). No Dependabot/Renovate; **`rb_sys` pinned in THREE linked places**.
 
 ## Recurring Patterns
 
@@ -104,17 +106,17 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     cmake (PyPI wheel), Kotlin (`./gradlew --offline`), C++ (bare `g++`) and Swift (`/tmp`
     toolchain) each fell to a second look after the docs said otherwise → `env-gotchas.md`.
 
-## Current State (assessed-at: e38c17e, iter 162)
+## Current State (assessed-at: 47a87bc, iter 163)
 
-- **IN_PROGRESS — CI green on the pushed tip but NOT covering HEAD.** `origin/develop` == `b44c72e`
-    (161 review): **45 check-runs, 23 names, 0 non-success**, covers the Swift slice. HEAD `e38c17e`
-    is 2 commits ahead and the code diff is **non-empty**: an out-of-loop `cid(loop)` commit with
-    `tools/cid.py` (389) + `tests/test_cid.py` (421) + `CLAUDE.md` (13), gated by
-    `python-test`/ruff/ty but never run. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped;
-    **0.5.0**).
+- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `82b559d` (162 review): **45
+    check-runs, 23 names, 0 non-success**. HEAD `47a87bc` is one `cid(log)` commit ahead with an
+    EMPTY non-`.claude` diff — the 785-line runner rewrite flagged at 162 got pushed and passed, so
+    no tracked code is outside CI. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped; **0.5.0**).
 - **THE UNICODE WORK IS FINISHED.** 161 gated Swift (PASS) = surface **11 of 11**; all four
     rust-core Unicode criteria MET and the umbrella issue is **gone from issues.md**. Rust core is
     now met except `>= 1.0.0` (human-HELD). Everything met except CI/CD (partial).
+- **The backlog is now purely the authorized `[human]` items** — no CID-schedulable gap remains in
+    any target section. Expect define-next to pick the `specs/ci-cd.md` job table or a dep major.
 - **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** paths,
     matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
     `python-test`). Register new copies; keep canonical basenames (the gate discovers by basename).
@@ -125,14 +127,14 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     rulings**); context arrives via `.claude/skills/cid-ctx-<role>/SKILL.md` packs.
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
     wrong twice over); criterion boxes unchecked though all four hold. Human-owned — don't edit.
-- **Issues: 9** (4 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`) after a 597→167-line
-    rebuild; the go1.27 hazard is now its OWN `normal` entry. AUTHORIZED for CID: rubygems `@v2.1.0`
-    pin (still `@main` at `release.yml:895`); major dep bumps **one per step** (magnus 0.8 / jni
-    0.22 = source rewrites; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x); exhaustive
-    `specs/ci-cd.md` job table. DEFERRED: npm OIDC. Upstream `iscc-core#137` is human-only.
-- **Don't re-flag as DONE**: Swift vectors 161, C++ 160, C FFI 159, sweep-gate hardening 158, sweep
-    gate 157, `Final_Sigma` 156, C#+Kotlin 154, napi+Java 153, drift gate 152, WASM+Ruby 151,
-    Python+Go 150 (≤149 → `MEMORY-archive.md`).
+- **Issues: 8** (3 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`; 156 lines — count
+    headers, NOT priority tags: lines 3-4 are a legend that inflates a naive `grep -c`). AUTHORIZED
+    for CID: exhaustive `specs/ci-cd.md` job table; major dep bumps **one per step** (magnus 0.8 /
+    jni 0.22 = source rewrites; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x). The go1.27
+    entry is a standing tripwire, not schedulable. DEFERRED: npm OIDC. `iscc-core#137` human-only.
+- **Don't re-flag as DONE**: rubygems `@v2.1.0` pin 162, Swift vectors 161, C++ 160, C FFI 159,
+    sweep-gate hardening 158, sweep gate 157, `Final_Sigma` 156, C#+Kotlin 154, napi+Java 153, drift
+    gate 152, WASM+Ruby 151, Python+Go 150 (≤149 → `MEMORY-archive.md`).
 
 ## Gotchas
 
