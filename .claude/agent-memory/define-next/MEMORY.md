@@ -49,8 +49,7 @@ iterations.
     dotnet/cpp/swift/kotlin packages. Tier 1 = **32** crate-root re-exports, bound in all languages.
 - Go bindings are pure Go (no CGO/WASM). `gen_iscc_code_v0` vectors have no `wide` — pass `false`;
     `"stream:<hex>"` prefix = hex-encoded byte data.
-- **5 identical data.json copies update together** (table in `tests/test_vendored_fixtures.py`);
-    hardcoded vector-count asserts (Rust core + WASM) bump with them.
+- **5 data.json copies + their vector-count asserts move together** (`test_vendored_fixtures.py`).
 - **SumHasher** lives at `iscc_lib::streaming::SumHasher` (NOT Tier 1; count stays 32).
 
 ## Dev Environment Constraints
@@ -72,8 +71,7 @@ iterations.
     guide (template `docs/howto/dotnet.md`; collapsible `??? tip "Build from source"`).
 - Gotchas: JNI names encode `_` as `_1`; WASM pkg `@iscc/wasm`, npm lib `@iscc/lib`; Windows GHA →
     `pwsh`, add `shell: bash`; Gson Maven groupId `com.google.code.gson`.
-- "10 gen functions" vs "9 conformance functions" — no blanket 9→10 find/replace (corrupts
-    conformance-scoped files). See learnings.md.
+- "10 gen functions" vs "9 conformance functions" — never blanket-replace 9→10 (see learnings.md).
 - Language API name styles (doc examples): Ruby/Rust `snake_case`; C#/Go/Java `PascalCase`; JS/
     Swift/Kotlin `camelCase`; Swift/Kotlin take named `bits`/`u` params.
 - **4 quality gates**: Semver (informational until the human-gated v1.0.0) + Coverage/CRAP + Perf +
@@ -86,10 +84,10 @@ iterations.
 - v0.5.0 released; all 12 bindings meet core criteria; the 4 spec'd v0.6.0 feature issues are DONE;
     the **Unicode chain is CLOSED at iter 161** (11 of 11 surfaces). Backlog order: the rubygems
     `@v2.1.0` pin (162), the `specs/ci-cd.md` job table + parity gate (163), then the authorized
-    major bumps one per step (xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle wrapper, JUnit 6.x,
-    then `jni` 0.22 / `magnus` 0.8 — real API migrations, park rather than guess). Trigger-only:
-    go1.27 + the Go freeze table (~Aug 2026). HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm
-    OIDC (token good to 2026-09-16).
+    major bumps one per step — xunit v3 + Test.Sdk 18.x (**scoped 164**), Gradle wrapper, JUnit 6.x,
+    then `jni` 0.22 / `magnus` 0.8 (API rewrites; park rather than guess); per-major facts →
+    [dep-refresh ledger](dep-refresh-ledger.md). Trigger-only: go1.27 + the Go freeze table (~Aug
+    2026). HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm OIDC (token good to 2026-09-16).
 - **iters 115–123 DONE (detail in MEMORY-archive.md)**. **Root lesson: the CRAP regression gate is
     CI-ONLY** — a step adding a branch to a covered fn MUST refresh the baseline in it.
 - **iters 124–137 = the dependency-refresh slices, all 8 CLOSED** → ledger, gotchas, hold-backs,

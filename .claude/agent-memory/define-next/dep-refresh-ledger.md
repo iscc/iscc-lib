@@ -100,6 +100,26 @@ comment (`# held:` / `// held:` / XML `held:`) beside the pin, never by disablin
 - `packages/dotnet/*/*.csproj`: test refs float on `17.*` / `2.*` wildcards. Only majors remain
     (xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x).
 
+## Major bump A — xunit v3 + `Microsoft.NET.Test.Sdk` 18.x (scoped iter 164)
+
+Only `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` + its 3 `.cs` test files + the package
+`CLAUDE.md`. Verified while scoping (read-only, nuget.org API):
+
+- **dotnet SDK 8.0.423 IS in the devcontainer** and nuget.org is reachable, so the whole slice is
+    locally verifiable: `cargo build -p iscc-ffi` then the CI command
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`.
+- Latest stable at scoping: `xunit.v3` 3.2.2, `xunit.runner.visualstudio` 3.1.5,
+    `Microsoft.NET.Test.Sdk` 18.8.1. **All three declare a `net8.0` group in their nuspec**, and
+    MTSdk 18's own targets error only *below* net8.0 → **no consumer-floor move** (`net8.0` and CI
+    `dotnet-version: '8.0'` stay). Check this the same way for the next .NET major.
+- v3 renames the package (`xunit` → `xunit.v3`) and makes test projects **stand-alone executables**
+    (`<OutputType>Exe</OutputType>`); `using Xunit;` and every `Assert` member used here survive.
+- **Real hazard:** `ConformanceTests` `MemberData` yields `JsonElement` in `object[]`, which v3's
+    data serializer cannot round-trip — the fallback is to yield the vector key `string` and look up
+    the JSON in the test body. A **passed-count floor** in the criteria is what catches a silent
+    collapse from one case per vector to one case per theory method.
+- No `Directory.Build.props`, `global.json` or `TreatWarningsAsErrors` anywhere in the repo.
+
 ## Slice 8 — ruff 0.16 adoption, split into 3 sub-slices (scoped iter 131)
 
 `uvx ruff@0.16.0 check .` = **104 errors over 5 non-test files** (0.16 widened the *default* rule

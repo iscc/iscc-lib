@@ -1,93 +1,82 @@
 # Next Work Package
 
-## Step: Make the `specs/ci-cd.md` CI job table exhaustive and gate it against `ci.yml`
+## Step: Migrate the .NET test project to xunit v3 and Microsoft.NET.Test.Sdk 18.x
 
 ## Goal
 
-Rewrite the CI job table in `.claude/context/specs/ci-cd.md` so it lists all 21 job keys of
-`.github/workflows/ci.yml` (it lists 14), and add a parity gate so the table cannot drift again —
-picking up the `[human]` issue "Make the CI job table in `specs/ci-cd.md` exhaustive", whose text
-explicitly leaves the `check_docs_nav.py`-style gating to this step's judgment.
+Take the first of the authorized dependency majors from "Dependency review and refresh across the
+project" (`normal` `[human]`): move `packages/dotnet/Iscc.Lib.Tests` from `xunit` 2.\* /
+`Microsoft.NET.Test.Sdk` 17.\* to `xunit.v3` 3.x / Test.Sdk 18.x, with the whole .NET conformance
+suite still green under the exact `dotnet` CI invocation.
 
 ## Alternatives Considered
 
-- **Chosen:** exhaustive table + parity gate — the only `normal` non-dependency item, zero runtime
-    risk, and the table has already drifted through three iterations, so the gate is what makes the
-    fix durable rather than a snapshot.
-- **Rejected:** the `xunit` 3.x / `Microsoft.NET.Test.Sdk` 18.x major bump — also authorized, but a
-    real behaviour change in a published test surface; better taken with the spec baseline correct
-    and after this documentation-only step, per the issue's "one per step" rule.
+- **Chosen:** the xunit 3.x + Test.Sdk 18.x bump — the handoff's "Next", one manifest plus its own
+    test sources, and fully verifiable locally (dotnet SDK 8.0.423 installed, nuget.org reachable).
+    Both new packages declare `net8.0` support in their nuspec, so no consumer floor moves.
+- **Rejected:** the Gradle wrapper 8.12.1 + JUnit 6.x major — spans two build systems
+    (`packages/kotlin` and `crates/iscc-jni/java/pom.xml`), JUnit 6 renumbers the platform artifacts
+    1.x→6.x, and the JVM slice carries the known consumer-floor hazard. Its own later step.
 
 ## Scope
 
-- **Create**: `scripts/check_ci_job_table.py`, `tests/test_check_ci_job_table.py`
-- **Modify**: `.claude/context/specs/ci-cd.md`, `.pre-commit-config.yaml`
-- **Reference**: `.github/workflows/ci.yml` (the 21 `jobs:` keys and their steps — the sole source
-    for the descriptions), `scripts/check_docs_nav.py` + `tests/test_check_docs_nav.py` (the
-    checker/test pattern to follow), `scripts/check_release_workflow.py` (pyyaml usage)
-
-File budget: 2 non-test, non-doc files (`scripts/check_ci_job_table.py`, `.pre-commit-config.yaml`).
+- **Modify**: `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj`; its three test sources
+    (`SmokeTests.cs`, `ConformanceTests.cs`, `UnicodeBoundaryTests.cs`) as the migration requires;
+    `packages/dotnet/CLAUDE.md` (it documents "xunit 2.x"). Only if the CI invocation genuinely
+    cannot stay byte-identical: `.github/workflows/ci.yml` **and** the `dotnet` row of the job table
+    in `.claude/context/specs/ci-cd.md`, in the same edit.
+- **Reference**: `.github/workflows/ci.yml` `dotnet` job (~lines 140-157) — the invocation that must
+    keep working; `packages/dotnet/CLAUDE.md` (test patterns, P/Invoke pitfalls);
+    <https://xunit.net/docs/getting-started/v3/migration>.
 
 ## Not In Scope
 
-- Any edit to `.github/workflows/ci.yml` itself — no new job, no rename, no reordering. The table
-    describes CI as it is; a red gate here means the table is wrong, not the workflow.
-- A new CI job for the checker. The pytest anchor test carries it into CI via `python-test`, which
-    is the established pattern (`check_docs_nav.py`).
-- Gating any other table in `ci-cd.md` (workflow files, auth, build matrices) or `release.yml` /
-    `docs.yml` job lists.
-- The handoff's "no floating branch ref" assertion in `scripts/check_release_workflow.py` — a new
-    policy that needs Titusz's sign-off.
-- Editing `issues.md`. The review agent resolves the issue after verifying the fix.
+- `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — the published library, its `<Version>`, and its
+    `net8.0` target framework stay untouched; this is a test-project-only bump.
+- Raising `<TargetFramework>` or CI/release `dotnet-version: '8.0'` — a consumer floor, human-only.
+    Both new packages support `net8.0`; if either turns out to demand a newer SDK, stop and report.
+- Switching to Microsoft.Testing.Platform runner mode (`TestingPlatformDotnetTestSupport`,
+    `UseMicrosoftTestingPlatformRunner`) — `dotnet test -e` is a VSTest feature and must survive.
+- The other authorized majors (Gradle/JUnit, `jni` 0.22, `magnus` 0.8) and any dotnet edits in
+    `.github/workflows/release.yml`.
+- Editing `issues.md` — the entry stays until review verifies the slice.
 
 ## Implementation Notes
 
-- **Table shape:** first column is the literal `ci.yml` job key in backticks (that is what makes the
-    table mechanically checkable), second column what the job checks. Exactly one row per key, all
-    21\. Derive each description from that job's steps in `ci.yml` — do not carry over a stale
-    description or write one from memory (e.g. the `java` row's "49 tests" claim is unverified).
-- Add one sentence under the table for the two shapes a reader cannot infer from a key list:
-    `python-test` is a `[3.10, 3.14]` matrix and `python` is its `if: always()` aggregator, so 21
-    keys surface as 22 check names.
-- **Also fix the stale prose at `ci-cd.md` L35-37**: it names `astral-sh/setup-uv@v4`,
-    `actions/setup-python@v5`, `actions/setup-node@v4`; the real pins are `@v9.0.0`, `@v7`, `@v7`.
-    Drop the version numbers from the prose rather than re-pinning them — versions belong in
-    `ci.yml`, and re-stating them just re-arms the same drift.
-- **Checker:** `yaml.safe_load` on `ci.yml` for `jobs:` keys (`pyyaml` is a dev-group dep, so it is
-    importable both under `uv run` and in-process from pytest); regex over the table section only
-    for the spec side — anchor the scan between the `## CI Workflow — Quality Gates` heading and the
-    next `## ` heading so other tables cannot feed it rows. No `tomllib`: CI's `python-test` matrix
-    includes Python 3.10.
-- Report every mismatch (missing rows and rows naming a nonexistent job) before exiting non-zero,
-    and print an `OK: …` line with the compared job count on success.
-- **Count floor:** a set-equality gate passes vacuously on two empty sets — fail loudly if either
-    side yields fewer than 10 keys. Do not make the exact number (21) a pass/fail condition; it
-    drifts with every legitimate CI change.
-- Give the core function explicit `Path` arguments (`ci_yml=`, `spec_md=`) rather than reading
-    module constants, so tests and review can point it at throwaway copies and mutate them.
-- **prek wiring:** new hook `check-ci-job-table`, `language: system`,
-    `entry: uv run scripts/check_ci_job_table.py`, `pass_filenames: false`, `files:` matching both
-    `^\.github/workflows/ci\.yml$` and `^\.claude/context/specs/ci-cd\.md$`. Mirror the
-    `check-docs-nav` comment noting that a `files:`-scoped hook never sees deletions, which is why
-    the pytest anchor exists.
-- **Tests:** load the script via `importlib.util.spec_from_file_location` (see
-    `tests/test_check_docs_nav.py`); anchor one test on the real tracked files, and cover at least
-    the three failure modes — a row missing, a row naming a job that does not exist, and the count
-    floor tripping.
+- Package moves (latest stable at scoping): `xunit` → `xunit.v3` (3.2.2),
+    `xunit.runner.visualstudio` → 3.x (3.1.5), `Microsoft.NET.Test.Sdk` → 18.x (18.8.1). Keep the
+    file's floating-wildcard style (`Version="18.*"`, `Version="3.*"`) unless restore resolves
+    something unexpected. `xunit.abstractions` is not referenced here, so nothing to remove.
+- v3 test projects are stand-alone executables: add `<OutputType>Exe</OutputType>`. The
+    `using Xunit;` namespace is unchanged, and every `Assert` member in use (Equal, StartsWith,
+    True, NotEmpty, Throws, Single, Null, NotNull, IsType, Empty, All) still exists in v3.
+- **Main hazard:** `ConformanceTests` `MemberData` methods yield `JsonElement` inside `object[]`,
+    which xunit v3's data serializer cannot round-trip. If v3 stops enumerating rows as individual
+    test cases (or errors on them), yield the vector key `string` only and look up `DataJson` inside
+    the test body — that restores one test case per vector without changing what is asserted.
+- **Second hazard:** the v3 test host is a separate process. Run the CI command verbatim, including
+    `-e LD_LIBRARY_PATH`. If `-e` no longer reaches the host, prefer exporting `LD_LIBRARY_PATH` in
+    the CI step (and update the spec's `dotnet` row) over changing runner mode.
+- `cargo build -p iscc-ffi` first — a missing/stale `target/debug/libiscc_ffi.so` shows up as
+    `DllNotFoundException`, not a migration failure. There is no `Directory.Build.props` or
+    `global.json`; xunit.analyzers warnings are not errors (no `TreatWarningsAsErrors`), but list
+    any new warning in the handoff.
+- This step touches no Rust source, so neither the CI-only CRAP baseline nor `.iai-baseline.json`
+    moves — do not refresh either.
 
 ## Verification
 
-- `uv run scripts/check_ci_job_table.py` exits 0 and prints an `OK: …` line naming the number of
-    jobs compared.
-- The gate fires on a real break: in a throwaway tree (`git archive HEAD | tar -x -C /tmp/ci-tbl`),
-    deleting one table row makes the checker exit non-zero and name that job key; restoring it
-    returns exit 0.
-- `uv run pytest -q tests/test_check_ci_job_table.py` passes.
-- `uv run prek run check-ci-job-table --files .github/workflows/ci.yml` and
-    `... --files .claude/context/specs/ci-cd.md` both report `Passed` (not `Skipped`).
-- `mise run check` — all hooks pass, no file modified by the run.
+- `cargo build -p iscc-ffi` then
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug` exits 0 with
+    `Failed: 0` and **at least 85 passed** tests (row-level theory enumeration must survive).
+- `grep -c 'Include="xunit"' packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` prints `0`, and
+    the same file matches `Include="xunit.v3"`, `Include="Microsoft.NET.Test.Sdk" Version="18`, and
+    still `<TargetFramework>net8.0</TargetFramework>`.
+- `grep -ri 'xunit 2' packages/dotnet/` returns nothing (docs describe the shipped state).
+- `mise run check` exits 0 and modifies no file.
+- If `.github/workflows/ci.yml` was touched: `uv run scripts/check_ci_job_table.py` exits 0.
 
 ## Done When
 
-The CI job table names every `ci.yml` job key, the parity gate is wired into prek and pytest, and
-all five verification criteria pass.
+The .NET suite runs green on xunit v3 + Test.Sdk 18.x under the unchanged CI invocation, no v2
+package reference or doc claim remains, and all verification criteria pass.
