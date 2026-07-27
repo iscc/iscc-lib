@@ -11,7 +11,7 @@ its own, so post-16.0 code points are `Cn` to the oracle exactly as the sentinel
 them for iscc-lib — on 3.14 it *is* the uniform-16.0.0-tables reference.
 
 The denominator is fixed: 1,112,064 Unicode scalar values (`range(0x110000)` minus the
-2,048 surrogates, which `&str` cannot carry) x 8 sequence contexts x 2 functions =
+2,048 surrogates, which `&str` cannot carry) x 8 contexts x 2 functions =
 17,793,024 comparisons, and the divergence set must be empty. Both counts are asserted
 before success is reported, so a run that generated zero cases cannot read green.
 

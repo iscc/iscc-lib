@@ -91,11 +91,13 @@ The vendored tables freeze which code points count as unassigned and how the con
 tables still come from the Rust toolchain's dependencies. A differential sweep gate guards exactly
 that residual: `mise run unicode:sweep` rebuilds the Python extension and compares `text_clean` /
 `text_collapse` against the `iscc-core` reference running on CPython 3.14, whose `unicodedata` ships
-uniform Unicode 16.0.0 tables — all 1,112,064 Unicode scalar values × 8 sequence contexts × 2
-functions = 17,793,024 comparisons, required to show **zero** divergences. The same sweep runs in CI
-as the dedicated job `Unicode sweep (16.0.0 differential)`. Its purpose is the unguarded residual —
-a toolchain upgrade that changed an unconditional case mapping or a normalization table would
-surface here and nowhere else — not the `Final_Sigma` condition it re-proves.
+uniform Unicode 16.0.0 tables — all 1,112,064 Unicode scalar values × 8 contexts (the bare code
+point plus seven neighbouring-character shapes, covering the sequence classes below) × 2 functions =
+17,793,024 comparisons, required to show **zero** divergences. The same sweep runs in CI as the
+dedicated job `Unicode sweep (16.0.0 differential)`. Its purpose is the unguarded residual — a
+toolchain upgrade that changed an unconditional case mapping or a normalization table would
+otherwise surface only where it happened to hit one of the fixed boundary vectors below — not the
+`Final_Sigma` condition it re-proves.
 
 ## Boundary behaviour
 

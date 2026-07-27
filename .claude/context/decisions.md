@@ -826,3 +826,27 @@ future rustc that changes a non-sigma lowercase mapping would silently change ou
 independently cross-checked against CPython 3.14 category data (`Lu∪Ll∪Lt ⊆ Cased`,
 `Mn∪Me∪Cf∪Lm∪Sk ⊆ Case_Ignorable`, residuals exactly `Other_Uppercase`/`Other_Lowercase` and the 17
 UAX #29 MidLetter/MidNumLet/Single_Quote code points).
+
+## 2026-07-27 — The Unicode sweep gate trusts an mtime freshness guard, not a build-input hash
+
+**Decision:** `scripts/unicode_sweep.py` decides whether the extension it measures is current by
+comparing `_lowlevel.abi3.so`'s mtime against the newest `*.rs` under `crates/iscc-lib/src` and
+`crates/iscc-py/src`, and nothing else. `Cargo.toml`, `Cargo.lock`, the rustc version and every
+transitive Unicode-table crate are outside the guard; so is a missing source directory
+(`max(..., default=0.0)` passes vacuously). The authoritative execution paths — the `unicode-sweep`
+CI job and `mise run unicode:sweep` — both rebuild unconditionally before sweeping, so the guard
+only has to catch the local "edited Rust, then ran the script directly" case. **Why:** the guard is
+a convenience backstop on a path that is not the gate. Making it complete means either hashing the
+full cargo build-input closure (duplicating cargo's own fingerprint logic) or shelling out to
+`rustc -vV` plus `cargo metadata` on every run — real complexity to protect an invocation the docs
+do not recommend. **Alternatives:** widen the mtime set to `Cargo.toml`/`Cargo.lock` — cheap, but
+still blind to a toolchain-only bump, so it would buy a false sense of completeness; drop the guard
+and always rebuild inside the script — rejected, it makes the script un-runnable without a ~21 s
+maturin build and removes the fast fail-fast signal. **Consequence:** a `cargo update` or rustc
+upgrade that touches no `.rs` file can produce a false green from a bare
+`uv run scripts/unicode_sweep.py`. That is exactly the upgrade scenario the sweep exists to
+validate, so the operating rule is: **always re-run the sweep through `mise run unicode:sweep`**,
+never the script directly. Recorded in learnings.md and filed for hardening in issues.md.
+**Context:** iteration 157 (`186287e`); blind spot flagged by the advance agent's handoff,
+independently reported by the Codex review, and reproduced at review (a missing source directory
+also passes the guard vacuously).

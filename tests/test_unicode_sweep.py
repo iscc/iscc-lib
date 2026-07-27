@@ -14,6 +14,7 @@ import os
 import unicodedata
 from pathlib import Path
 
+import iscc_core
 import pytest
 
 # Load scripts/unicode_sweep.py by path — it is a repo gate script, not a package.
@@ -84,6 +85,42 @@ def test_sweep_reports_divergence_with_wrong_oracle(monkeypatch):
     assert sample.code_point == 0x0041
     assert sample.expected == "wrong-oracle"
     assert sample.actual != sample.expected
+
+
+def _delete_unassigned(text):
+    """Strip unassigned code points outright — the superseded iteration-133 design."""
+    return "".join(char for char in text if unicodedata.category(char) != "Cn")
+
+
+def _delete_filter_clean(text):
+    """`text_clean` built on a delete filter instead of the `U+FFFF` sentinel map."""
+    return iscc_core.text_clean(_delete_unassigned(text))
+
+
+def _delete_filter_collapse(text):
+    """`text_collapse` built on a delete filter instead of the `U+FFFF` sentinel map."""
+    return iscc_core.text_collapse(_delete_unassigned(text))
+
+
+def test_contexts_discriminate_the_delete_filter_design(monkeypatch):
+    """The context set must catch a delete filter, not just a wrong single code point.
+
+    Swapping the sentinel map for outright deletion is the one design the spec names as
+    passing a per-code-point-only sweep, so the contexts have to expose it. This pins
+    that they do — a future edit that keeps eight contexts but drops the sequence shapes
+    would leave the sweep blind to it. Version-independent: `iscc-core` is both the
+    oracle and the base of the subject, so only the filter placement differs.
+    """
+    patched = (
+        ("text_clean", iscc_core.text_clean, _delete_filter_clean),
+        ("text_collapse", iscc_core.text_collapse, _delete_filter_collapse),
+    )
+    monkeypatch.setattr(us, "FUNCTION_PAIRS", patched)
+    _count, divergences = us.sweep([0x0378])  # unassigned in every Unicode version
+    exposed = {(div.function, div.context) for div in divergences}
+    assert ("text_clean", "base_mark") in exposed  # base + Cn + mark
+    assert ("text_clean", "jamo") in exposed  # jamo + Cn + jamo
+    assert ("text_collapse", "sigma") in exposed  # Sigma + Cn + cased
 
 
 def test_check_oracle_rejects_pre_16_tables():

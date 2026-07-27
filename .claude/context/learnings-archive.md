@@ -898,3 +898,8 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
     the whole column "delete filter" and the mismatched value shipped into published docs before
     review caught it. Generalised into the "next.md Implementation Notes are a hypothesis" entry
     that stays in `learnings.md`.
+
+## CID role models (archived iter 157 — readable from `.claude/agents/*.md`)
+
+`advance` runs on Claude Fable 5 (`model: fable`, `effort: xhigh`, timeout 3600 s); every other role
+runs on `opus`. Deliberate — do not "unify" them.

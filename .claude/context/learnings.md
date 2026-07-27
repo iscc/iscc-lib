@@ -25,9 +25,8 @@ fully-met target sections to `learnings-archive.md`.
     `unicodedata.unidata_version`; upstream iscc-core#137). Always name the interpreter:
     `uv run --python 3.13 --no-project --with iscc-core python -c …`
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) must be proven output-neutral by a
-    **differential sweep** over all 1,112,032 code points (~2 min; recipe → `learnings-archive.md`),
-    never by a green vector suite — every `data.json` vector predates Unicode 16 (only the separate
-    `unicode_boundary.json` fixture probes the 16.0 boundary)
+    **differential sweep**, never by a green vector suite — every `data.json` vector predates
+    Unicode 16. For the Rust core that sweep is now `mise run unicode:sweep` (see below)
 
 ## Tooling
 
@@ -52,11 +51,11 @@ fully-met target sections to `learnings-archive.md`.
 
 - **Unicode data version — declared 16.0.0, enforced by a `U+FFFF` SENTINEL MAP** (found iter 129,
     ruled + implemented iter 148; per-runtime table, deltas, repro `Ɤ` U+A7CB → `issues.md`):
-    `text_clean`/`text_collapse` **replace** code points unassigned in Unicode 16.0.0 with
+    `text_clean`/`text_collapse` **replace** code points unassigned in 16.0.0 with
     `UNASSIGNED_SENTINEL` before normalization (vendored 731-range table, regen
     `uv run --script scripts/gen_unicode16_unassigned.py`); the *unchanged* category-`C` filter then
-    removes the sentinel exactly where the reference removes them, and `U+FFFF` is permanently
-    `Cn`/`ccc = 0`/undecomposable. Never "fix" one binding to match another
+    removes it, and `U+FFFF` is permanently `Cn`/`ccc = 0`/undecomposable. Never "fix" one binding
+    to match another
 - **`str::to_lowercase()` decides `Final_Sigma` from the COMPILER's Unicode tables** (iter 156):
     rustc 1.97 ships 17.0, which moved U+0295 `Ll`→`Lo`, so a bare `.to_lowercase()` made hash
     output a function of the rustc version. `text_collapse` lowercases via `to_lowercase_unicode16`,
@@ -65,28 +64,29 @@ fully-met target sections to `learnings-archive.md`.
     std. The rule is NOT "no `Cased` char follows": `ΑΣ,Β` → `αςβ`, `ΑΣ.Β` → `ασβ`
 - **A UCD *derived* property a runtime does not expose can be recovered behaviourally** (iter 156):
     `(ch+Σ).lower()` ends in ς ⟺ `Cased ∧ ¬Case_Ignorable`; `("A"+ch+Σ).lower()` ⟺
-    `Cased ∨ Case_Ignorable`. Audit any vendored derived-property table against the bounds
-    computable from categories alone — `Lu∪Ll∪Lt ⊆ Cased`, `Mn∪Me∪Cf∪Lm∪Sk ⊆ Case_Ignorable`,
-    residuals exactly `Other_Upper`/`Other_Lower` + the 17 UAX #29 MidLetter/MidNumLet/Single_Quote
+    `Cased ∨ Case_Ignorable`. Always audit such a table against bounds computable from categories
+    alone — a behavioural generator is not its own oracle (bounds → `decisions.md` 2026-07-27)
 - **Deleting a `Cn` code point before normalization changes ADJACENCY; mapping it does not** — why
-    the iter-133 pre-filter was real non-conformance (deletion unblocks canonical/jamo composition,
-    `Final_Sigma`, diaeresis). **Any Unicode differential MUST include multi-code-point sequences**:
-    a per-code-point sweep scores the broken design 0 failures; the iter-148 sequence probe (127
-    code points × 10 contexts) scored it 504/1270, the sentinel 0/1270 (recipe → review memory)
+    the iter-133 pre-filter was real non-conformance. **Any Unicode differential MUST include
+    multi-code-point sequences**: a per-code-point sweep scores the broken design 0 failures; only
+    the `base_mark` / `jamo` / `sigma` shapes expose it (`bare`/`ascii`/`marks`/`space`/`upper` = 0)
+- **The differential sweep is a committed gate since iter 157**: `mise run unicode:sweep` + the
+    `unicode-sweep` CI job — 1,112,064 scalars × 8 contexts × 2 fns vs installed `iscc-core` on
+    CPython 3.14, must print `TOTAL 17793024 comparisons, 0 divergences`. **Re-run it for every
+    Unicode-table or toolchain bump, via the mise task — never `uv run scripts/unicode_sweep.py`
+    directly**: the freshness guard watches only `*.rs` mtimes, so a `cargo update` / rustc bump
+    reads a stale `.so` GREEN
 - **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141, +4
     **sequence** vectors iter 149; ASCII `\uXXXX`, `data.json`-shaped) + loader
     `tests/test_unicode_boundary.rs` — propagation source for every binding, deliberately NOT merged
-    into `data.json` (rationale → `decisions.md`). All 4 single-code-point cases wrap their code
-    point in ASCII and are **deletion-vs-sentinel agnostic** — only the sequence vectors gate that
-    distinction, and their expected values already differ from the delete-filter ones, so a binding
-    suite needs **no oracle column**. Live tally of gated surfaces → `issues.md` (8 of 11 at 156)
+    into `data.json`. The 4 single-code-point cases are **deletion-vs-sentinel agnostic**; only the
+    sequence vectors gate that, and their expected values already differ from the delete-filter
+    ones, so a binding suite needs **no oracle column**. Live tally → `issues.md` (8 of 11 at 157)
 - **A binding can pass a boundary vector for the WRONG reason** (iter 150): `packages/go` has no
-    freeze rule; its Unicode 15.0 tables make U+20C1/U+A7F1 `Cn`, so the category-`C` filter drops
-    them and coincidentally matches the sentinel output. Under go1.27 both become assigned and 5
-    green cases flip red — never version-gate a skip list to hide that
-- **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (iter
-    152): a `(canonical, copy)` table + a `git ls-files` set check reds on an unregistered *or
-    deleted* tracked copy; discovery is by basename, so keep the canonical filenames
+    freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn`, so its category-`C` filter
+    coincidentally matches. Under go1.27 five green cases flip red — never version-gate a skip list
+- **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (152):
+    discovery is by basename, so keep the canonical filenames and register every tracked copy
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (iter 141):
     cases swapped for ASCII no-ops stay green forever, hence the **ungated** guards on version, case
     counts and code points; mutation-probe each one, and give any skip list a *stale-key* guard
@@ -174,11 +174,10 @@ fully-met target sections to `learnings-archive.md`.
 - Never force-push to `develop` during a CID loop — agents commit incrementally; **feature flags**
     are fully met → `learnings-archive.md` (read before touching `[features]`)
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
-    upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central API,
-    `pip index versions`, Go module proxy, `gh api`)
-- **Human-handoff vs IDLE (iter 111)**: when autonomous work runs out but the remaining `normal`
-    issues are all `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all issues `low`) is
-    NOT met — flag `**HUMAN REVIEW REQUESTED**` (runner "pause") instead, without churn
+    upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central, `gh api`)
+- **Human-handoff vs IDLE (iter 111)**: if the remaining `normal` issues are all
+    `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all `low`) is NOT met — flag
+    `**HUMAN REVIEW REQUESTED**` (runner "pause") instead, without churn
 - **Pre-push mdformat blocks on non-conforming context files**: the hook runs mdformat with
     `--wrap 100` + `--number` in an isolated env, over every file in the push range — incl.
     `next.md` and per-agent `MEMORY*.md` — so one non-conforming file rejects the whole batch even
@@ -188,13 +187,13 @@ fully-met target sections to `learnings-archive.md`.
     `--fail-above   30.0` is a `cargo crap` syntax error). Assert the *gate* (exit code) and anchor
     greps instead; copy gate invocations from `ci.yml`, never from memory
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
-    (iter 142: the prescribed artifact-matching rule could not resolve `wheels-*`; iter 143: two
-    false Unicode safety claims shipped verbatim into published docs). advance implements the
-    *intent* and documents any deviation; review re-proves the prescribed rule fails, re-derives
-    every quantitative or "never/always" claim, and scopes "implementation X agrees with us" to the
-    class actually proven
+    (142: a prescribed rule that could not resolve `wheels-*`; 143: two false Unicode safety claims
+    shipped verbatim into published docs). advance implements the *intent* and documents any
+    deviation; review re-derives every quantitative or "never/always" claim from its source
 - **next.md must never task advance with editing `issues.md`** (iter 135): advance's protocol
     forbids writing it and review owns issue progress/resolution. A slice-progress ledger paragraph
     belongs in the handoff Notes for review to append — advance correctly refused and quoted it
-- **Role model assignment (2026-07)**: `advance` runs on Claude Fable 5 (`model: fable`,
-    `effort: xhigh`, timeout 3600s), all other roles on `opus` — deliberate; do not "unify"
+- **A differential gate's discriminating power lives in its CASE SET, not its case COUNT** (iter
+    157): an arithmetic pin on the case total catches a *shrunken* sweep but not a *swapped* one.
+    Prove such a gate by running it with a **superseded real design** as the subject, assert which
+    rows light up, and commit that as a test
