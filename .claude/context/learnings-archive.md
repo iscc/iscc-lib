@@ -912,3 +912,12 @@ runs on `opus`. Deliberate — do not "unify" them.
     `[tool.ruff.lint]   extend-select`, never `select`; **never run `ruff check --fix .`** without
     an explicit `--select` — it deletes load-bearing `# noqa` directives (this last rule is also
     recorded in the `issues.md` dependency entry, which remains open for the human-gated majors).
+
+## Generated-artifact + reference-porting details (archived iter 160)
+
+- **Escape non-ASCII UTF-8 in generated C as 3-digit octal** (`\360`), never `\x` — C hex escapes
+    are greedy and unbounded, so `"\xe9b"` parses as one out-of-range escape, not `é` + `b`. Applies
+    to `scripts/gen_ffi_boundary_vectors.py` and any future C/C++ generator.
+- Porting from the Python reference is complete for all 10 `gen_*_v0` functions; the Rust core
+    (`crates/iscc-lib/src/`) is the authoritative source. `reference/iscc-core/` is a gitignored
+    shallow clone — read its source files directly, never deepwiki MCP (also in `CLAUDE.md`).

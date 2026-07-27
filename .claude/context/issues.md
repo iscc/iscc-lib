@@ -407,14 +407,28 @@ not byte-identical); its equivalent guarantee is the pytest anchor
 Review decoded the header's octal escapes back to code points and diffed against the fixture, then
 mutation-probed five ways — wrong expected value, dropped case, drifted version macro, hand-edited
 header, and a fixture vector added without regenerating — each one reds. Design rationale (why not a
-C JSON parser, why not `VENDORED_COPIES`) → `decisions.md` 2026-07-27. **2 surfaces left:** C++ (not
-buildable in this container — no `cmake`; the generated-header mechanism is directly reusable) and
-Swift (no toolchain in this container; it is the one that would add a tracked vendored copy, which
-**must** be registered in `VENDORED_COPIES`), plus the four sibling `data.json` copies. (The running
-tally counts the 11 native bindings named in `docs/unicode.md`; `packages/go` is the separate
-pure-Go port and UniFFI is the shared mechanism behind Kotlin and Swift, not an independent surface.
-Note that `git ls-files | grep unicode_boundary` under-counts the tally — the Java/C#/Kotlin suites
-are named `UnicodeBoundaryTest.java`, `UnicodeBoundaryTests.cs` and `UnicodeBoundaryTest.kt`.)
+C JSON parser, why not `VENDORED_COPIES`) → `decisions.md` 2026-07-27. ✅ **Propagation slice 6 done
+(iter 160): C++.** `packages/cpp/tests/test_iscc.cpp` reuses the **same** generated header — no
+second artifact — via `#include "unicode_boundary_vectors.h"` plus a `run_unicode_boundary_section`
+helper and block 36 (3 metadata guards + both sections): **69 passed, 0 failed**, zero skips,
+ASAN/LSan clean, and `g++ -Wall -Wextra -Wpedantic` silent. The include directory is a single
+`target_include_directories(test_iscc PRIVATE …/crates/iscc-ffi/tests)` in
+`packages/cpp/tests/CMakeLists.txt` — **never** on the public `iscc` INTERFACE target; review proved
+that with a throwaway `add_subdirectory()` consumer that `#include`s the header and fails to compile
+(vcpkg/conan are unaffected either way — both ship pre-built tarballs and never configure this CMake
+project). Review also mutation-probed three ways (delete-filter-shaped expected value, dropped case
+\+ decremented count macro, drifted version macro) — each reds, and each proved CMake re-compiles on
+a bare `cmake --build` after a header edit, so there is no Gradle-style stale-green here. **This
+container does have a working `cmake`** after all: `uv run --with cmake cmake …` resolves the PyPI
+wheel (4.4.0), so the C++ ASAN suite is fully locally verifiable — build into a fresh gitignored
+`build-*/`, not the stale `packages/cpp/build/` (cmake 3.25 cache). **1 surface left:** Swift (no
+toolchain in this container and no PyPI equivalent — `uv --with swift` installs the unrelated
+OpenStack package; it is the one that would add a tracked vendored copy, which **must** be
+registered in `VENDORED_COPIES`), plus the four sibling `data.json` copies. (The running tally
+counts the 11 native bindings named in `docs/unicode.md`; `packages/go` is the separate pure-Go port
+and UniFFI is the shared mechanism behind Kotlin and Swift, not an independent surface. Note that
+`git ls-files | grep unicode_boundary` under-counts the tally — the Java/C#/Kotlin suites are named
+`UnicodeBoundaryTest.java`, `UnicodeBoundaryTests.cs` and `UnicodeBoundaryTest.kt`.)
 
 **Go — RULED by Titusz 2026-07-26: skip, do not vendor the delta.** `packages/go` skips the Unicode
 16.0 boundary vectors with an explicit tracking note (and an issue filed here) rather than vendoring

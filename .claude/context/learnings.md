@@ -16,17 +16,13 @@ fully-met target sections to `learnings-archive.md`.
 
 ## Reference Implementation
 
-- Reference code lives in `reference/iscc-core/` (shallow clone, gitignored). Read source files
-    directly — do not use deepwiki MCP
-- When porting from Python reference, verify against Rust `crates/iscc-lib/src/` first — the Rust
-    implementation is the authoritative source for this project
 - **`iscc-core` output is not stable across CPython versions** (5,185 code points differ 3.13 vs
     3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so the result tracks
     `unicodedata.unidata_version`; upstream iscc-core#137). Always name the interpreter:
     `uv run --python 3.13 --no-project --with iscc-core python -c …`
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) must be proven output-neutral by a
-    **differential sweep**, never by a green vector suite — every `data.json` vector predates
-    Unicode 16. For the Rust core that sweep is now `mise run unicode:sweep` (see below)
+    **differential sweep** (`mise run unicode:sweep`), never by a green vector suite — every
+    `data.json` vector predates Unicode 16
 
 ## Tooling
 
@@ -41,6 +37,10 @@ fully-met target sections to `learnings-archive.md`.
     newline, or the prek hygiene hooks rewrite it and break the regeneration-no-op gate
 - **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** (`benches/`
     import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally, E0432) — drop `--all-targets`
+- **`cmake` is absent from `$PATH` but `uv run --with cmake cmake …` works** (PyPI wheel, 4.4.0 —
+    iter 160), so the `packages/cpp` ASAN suite IS locally verifiable; configure into a fresh
+    gitignored `build-*/`, never the stale `packages/cpp/build/` (cmake 3.25 cache). No equivalent
+    for Swift — `uv --with swift` installs the unrelated OpenStack package
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
     dies until `sudo apt-get install -y valgrind` +
     `cargo binstall -y iai-callgrind-runner --version 0.16.1` (pin-matched); CI mirrors this
@@ -67,10 +67,9 @@ fully-met target sections to `learnings-archive.md`.
     `(ch+Σ).lower()` ends in ς ⟺ `Cased ∧ ¬Case_Ignorable`; `("A"+ch+Σ).lower()` ⟺
     `Cased ∨ Case_Ignorable`. Always audit such a table against bounds computable from categories
     alone — a behavioural generator is not its own oracle (bounds → `decisions.md` 2026-07-27)
-- **Deleting a `Cn` code point before normalization changes ADJACENCY; mapping it does not** — why
-    the iter-133 pre-filter was real non-conformance. **Any Unicode differential MUST include
-    multi-code-point sequences**: a per-code-point sweep scores the broken design 0 failures; only
-    the `base_mark` / `jamo` / `sigma` shapes expose it (`bare`/`ascii`/`marks`/`space`/`upper` = 0)
+- **Any Unicode differential MUST include multi-code-point sequences** — deleting a `Cn` code point
+    changes ADJACENCY, mapping it does not, and a per-code-point sweep scores the superseded
+    delete-filter design 0 failures; only `base_mark` / `jamo` / `sigma` expose it
 - **The differential sweep is a committed fail-closed gate since iter 157, hardened 158**:
     `mise run unicode:sweep` + the `unicode-sweep` CI job — 1,112,064 scalars × 8 contexts × 2 fns
     vs installed `iscc-core` on CPython 3.14, must print the byte-frozen
@@ -79,17 +78,16 @@ fully-met target sections to `learnings-archive.md`.
     only those two rebuild-first paths supply it); `sweep()` retains at most 20 samples, so any test
     reading `result.samples` inherits that cap
 - **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141, +4
-    **sequence** vectors iter 149; ASCII `\uXXXX`, `data.json`-shaped) + loader
+    **sequence** vectors 149; ASCII `\uXXXX`, `data.json`-shaped) + loader
     `tests/test_unicode_boundary.rs` — propagation source for every binding, deliberately NOT merged
     into `data.json`. The 4 single-code-point cases are **deletion-vs-sentinel agnostic**; only the
     sequence vectors gate that, and their expected values already differ from the delete-filter
-    ones, so a binding suite needs **no oracle column**. Live tally → `issues.md` (9 of 11)
-- **A surface with no JSON reader takes the fixture as a GENERATED, tracked artifact** (iter 159, C
-    FFI): a PEP 723 renderer writes `crates/iscc-ffi/tests/unicode_boundary_vectors.h` beside
-    `test_iscc.c` (quoted `#include` ⇒ no new `-I` in the CI gcc line); its drift gate is a pytest
-    `render(fixture) == tracked_header` anchor, **not** `VENDORED_COPIES` (byte-identical copies
-    only). Escape non-ASCII UTF-8 as **3-digit octal** (`\360`), never `\x` — C hex escapes are
-    greedy and unbounded
+    ones, so a binding suite needs **no oracle column**. Tally → `issues.md` (10 of 11, Swift left)
+- **A surface with no JSON reader takes the fixture as a GENERATED, tracked artifact** (iters
+    159/160): ONE PEP 723 renderer writes `crates/iscc-ffi/tests/unicode_boundary_vectors.h` and
+    **both** C (quoted `#include`, no new `-I`) and C++ (one `PRIVATE` include dir) consume it —
+    never a second artifact. Drift gate is a pytest `render(fixture) == tracked_header` anchor, NOT
+    `VENDORED_COPIES` (byte-identical copies only); octal-escape rule → `learnings-archive.md`
 - **A binding can pass a boundary vector for the WRONG reason** (iter 150): `packages/go` has no
     freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn`, so its category-`C` filter
     coincidentally matches. Under go1.27 five green cases flip red — never version-gate a skip list
@@ -98,12 +96,10 @@ fully-met target sections to `learnings-archive.md`.
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (iter 141):
     cases swapped for ASCII no-ops stay green forever, hence the **ungated** guards on version, case
     counts and code points; mutation-probe each one, and give any skip list a *stale-key* guard
-- **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"** (iter 143): 3,995
-    Egyptian Hieroglyphs, 7 new scripts, **32 LATIN-named** incl. U+A7CB. Never write "Latin text is
-    unaffected"; diff assigned-set dumps from two `unicodedata2==<ver>` runs
-- **Per-algorithm internals**, `gen_meta_code_v0` normalization order, `data.json` vector shape/
-    counts, settled API-parameter facts, **ISCC-IDv1** and the three settled codec rules (all
-    test-pinned) → `learnings-archive.md`
+- **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"** (143): 3,995 Egyptian
+    Hieroglyphs, 7 scripts, **32 LATIN-named** incl. U+A7CB — never write "Latin text is unaffected"
+- **Per-algorithm internals**, normalization order, `data.json` shape/counts, API-parameter facts,
+    **ISCC-IDv1**, the three codec rules (all test-pinned) → `learnings-archive.md`
 
 ## CI/CD
 
@@ -120,8 +116,10 @@ fully-met target sections to `learnings-archive.md`.
     stale green (fixed with `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`; NONE hashes
     contents only, so the varying absolute path never forces a re-run). MSBuild `<Content Link=…>`
     is safe by construction. Re-probe this for the Swift/C++ slices; CI is immune either way (fresh
-    checkout, no build-dir cache). The C FFI dodges the class entirely — the fixture is a
-    *compile-time* include, and gcc is re-run unconditionally
+    checkout, no build-dir cache). C/C++ dodge the class entirely — the fixture is a *compile-time*
+    include and CMake's depfiles re-trigger the compile on a bare `cmake --build` (verified iter
+    160). Prove a `target_include_directories(<test> PRIVATE …)` is genuinely test-only with a
+    throwaway `add_subdirectory()` consumer that `#include`s the header and MUST fail to compile
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`

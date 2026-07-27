@@ -83,9 +83,11 @@ context files assert it.
 
 `crates/iscc-lib/tests/unicode_boundary.json` (12 vectors: 4 single code points × 2 functions + 4
 sequences). Gated in Rust (141/149), Python + pure-Go (150), WASM + Ruby (151), napi + Java (153),
-C# + Kotlin (154), C FFI (159) = **9 of 11**; C++ and Swift left (neither toolchain is in this
-container). `git ls-files | grep unicode_boundary` under-counts — the Java/C#/Kotlin suites are
-`UnicodeBoundaryTest*.{java,cs,kt}`.
+C# + Kotlin (154), C FFI (159), C++ (160, reusing the C FFI header) = **10 of 11**; only **Swift**
+left — its toolchain genuinely is not in this container and there is no PyPI substitute, unlike
+`cmake` (`uv run --with cmake cmake …` works). `git ls-files | grep unicode_boundary` under-counts —
+the Java/C#/Kotlin suites are `UnicodeBoundaryTest*.{java,cs,kt}` and C/C++ consume a generated
+header, not a JSON file.
 
 - Single-code-point vectors are **deletion-agnostic**; only the 4 sequence vectors discriminate
     sentinel-vs-delete, and their expected values already differ from the delete-filter results, so

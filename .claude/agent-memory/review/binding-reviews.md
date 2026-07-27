@@ -204,3 +204,35 @@ header `crates/iscc-ffi/tests/unicode_boundary_vectors.h` (renderer
 - gcc 12.2 (this container) does **not** warn on `strcmp`-macro literal-vs-`NULL`, so the
     `const char *` local advance added "for `-Waddress`" is harmless defensiveness, not a fix —
     probe such a claim by compiling the un-localised form before repeating it.
+
+### C++ slice (iter 160, ~12 min) — reuses the C FFI header, no second artifact
+
+**`cmake` IS available in this container** despite being absent from `$PATH`:
+`uv run --with cmake cmake …` resolves the PyPI wheel (4.4.0). state.md's long-standing "C++ is not
+buildable here" is wrong; the Swift half still stands (`uv --with swift` installs the unrelated
+OpenStack package, not a toolchain).
+
+- Commands (from repo root, **fresh** build dir — `packages/cpp/build*/` are all gitignored, and the
+    stale `build/` holds a cmake 3.25 cache incompatible with 4.4.0): `cargo build -p iscc-ffi`;
+    `uv run --with cmake cmake -S packages/cpp -B packages/cpp/build-revNNN -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=$PWD/target/debug -DSANITIZE_ADDRESS=ON`;
+    `uv run --with cmake cmake --build …`;
+    `LD_LIBRARY_PATH=$PWD/target/debug packages/cpp/build-revNNN/tests/test_iscc` →
+    `69 passed, 0 failed`, exit 0 (ASAN/LSan clean ⇔ exit 0). `rm -rf` the dir afterwards.
+- **The CMake build sets NO `-Wall -Wextra`** — "no compiler warning" is a near-vacuous criterion.
+    Back it with a manual
+    `g++ -std=c++17 -Wall -Wextra -Wpedantic -c packages/cpp/tests/test_iscc.cpp -o /tmp/tw.o -Ipackages/cpp/include -Icrates/iscc-ffi/include -Icrates/iscc-ffi/tests`.
+- **Three mutations, all verified to red** (edit the tracked header, `cp` a backup first, restore +
+    `git status` after): delete-filter-shaped expected value → names the vector; dropped case +
+    decremented count macro → 7/5 guard reds; version macro → guard reds.
+- **CMake depfiles DO track the cross-package header** — a bare `cmake --build` after a header edit
+    recompiles, no reconfigure needed. So C/C++ are immune to the Gradle UP-TO-DATE stale-green
+    class; mutation 1 proves this for free.
+- **Public-INTERFACE leak probe** (the decisive check for a test-only include dir): write a
+    throwaway `/tmp` project that `add_subdirectory`s `packages/cpp`, links only `iscc::iscc` and
+    `#include`s the header — it MUST fail with `fatal error: … No such file or directory`. Note
+    `packages/cpp/CMakeLists.txt` already puts `../../crates/iscc-ffi/include` on the **public**
+    target, so cross-package relative paths are the house convention; vcpkg/conan never configure
+    this project at all (both ship pre-built release tarballs), so the blast radius is
+    `add_subdirectory` consumers only.
+- `add_subdirectory(tests)` is unconditional in `packages/cpp/CMakeLists.txt` — pre-existing; a
+    consumer configuring the package also configures the test target. Not introduced by this slice.

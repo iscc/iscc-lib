@@ -66,10 +66,9 @@ strengths / blind spots / how to weigh a finding). Stale in `MEMORY-archive.md`.
     contract (delete-filter and category-override both RULED OUT), the ban on a bare
     `.to_lowercase()` in `text_collapse`, the `mise run unicode:sweep` gate (a bare script run
     REFUSES since 158 — `--rebuilt` is a *trusted* caller assertion), boundary-vector propagation
-    (**9 of 11** bindings gated since 159; only C++ and Swift left, neither toolchain in this
-    container), and "a binding can pass for the WRONG reason — check the MECHANISM". Read it before
-    reviewing any diff under `utils/unicode16*`, `unicode_boundary.json` or
-    `scripts/gen_unicode16_*`
+    (**10 of 11** bindings gated since 160; only Swift left — genuinely no toolchain here), and "a
+    binding can pass for the WRONG reason — check the MECHANISM". Read it before reviewing any diff
+    under `utils/unicode16*`, `unicode_boundary.json` or `scripts/gen_unicode16_*`
 - **Concurrent CID loops (iter 97, detail → `MEMORY-archive.md`)**: spurious `mise run check` "files
     modified" on an untouched file + a mid-review working-tree change = a SECOND loop racing.
     Confirm with `ps aux`; flag HUMAN REVIEW REQUESTED, do NOT push or kill processes
@@ -108,14 +107,20 @@ strengths / blind spots / how to weigh a finding). Stale in `MEMORY-archive.md`.
     check, pytest; `# noqa` and hook-mode probes → `dep-refresh-reviews.md` slice 8
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
     `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go` (empty)
-- **Binding boundary-fixture slices** (150/151/153/154/159) → `binding-reviews.md`, incl. the
+- **Binding boundary-fixture slices** (150/151/153/154/159/160) → `binding-reviews.md`, incl. the
     `cargo test -p iscc-wasm` = 0-tests trap and the **Gradle UP-TO-DATE stale-green trap** — always
-    ask "is the fixture a declared build input?" for SwiftPM / CMake next
-- **GENERATED tracked artifact for a JSON-less surface (159, C FFI; C++ will reuse it)**: verify by
+    ask "is the fixture a declared build input?" (CMake depfiles: yes, verified 160; **SwiftPM
+    resources: still unprobed**)
+- **GENERATED tracked artifact for a JSON-less surface (159 C FFI, 160 C++ reusing it)**: verify by
     **decoding the artifact back** and diffing against the fixture — `render() == tracked` proves
     self-consistency, not correctness — then five mutations (expected value, dropped case + macro,
     version macro, hand-edited artifact, fixture vector added without regen) → `binding-reviews.md`
     "C FFI slice". Do NOT expect it in `VENDORED_COPIES`
+- **C++ slice (160, ~12 min)**: `cmake` is absent from `$PATH` but `uv run --with cmake cmake …`
+    works (4.4.0) — state.md's "C++ not buildable here" is FALSE; Swift genuinely is not. The CMake
+    build sets **no `-Wall -Wextra`**, so back "no warning" with a manual
+    `g++ -Wall -Wextra   -Wpedantic -c`; prove a test-only include dir with an `add_subdirectory()`
+    leak probe that MUST fail to compile → `binding-reviews.md` "C++ slice"
 - **Ruby-only / Kotlin-only / published-`.pyi`** command sets → `binding-reviews.md` "Per-binding
     review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
