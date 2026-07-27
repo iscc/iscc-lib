@@ -95,15 +95,48 @@ is stripped, which is what the reference does).
     `:test UP-TO-DATE` and silently skipped all 13 Kotlin boundary tests after a fixture edit until
     `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)` was added; a green run does not
     prove the suite ran.
-4. **Differential sweep — UNMET, no harness in `scripts/`.** Review's 1,270-case probe at iter 148
-    (0 mismatches for the sentinel vs 504 for the pre-filter) was **ad hoc and not checked in** —
-    it is initial proof, not the criterion. Demands **ZERO** divergence (not "enumerate a residual"
-    — that earlier entry at decisions.md L552 predates the sentinel) over the **1,112,064 Unicode
-    scalar values** — NOT 1,114,112: `&str` cannot carry the 2,048 surrogates, so they are excluded
-    and need no separate check. Must ALSO cover sequence classes (base+Cn+mark, jamo+Cn+jamo,
-    Σ+Cn+cased, Cn-between-marks) because **a per-code-point sweep is provably insufficient** — the
-    pre-filter scored 0 there while failing 42 sequence cases. Mandatory on every future table
-    bump.
+4. **Differential sweep — UNMET, no harness in `scripts/`, AND IT WOULD LAND RED (found 155,
+    reproduced 156).** Review's 1,270-case probe at iter 148 (0 mismatches for the sentinel vs 504
+    for the pre-filter) was **ad hoc and not checked in** — it is initial proof, not the criterion.
+    Demands **ZERO** divergence (not "enumerate a residual" — that earlier entry at decisions.md
+    L552 predates the sentinel) over the **1,112,064 Unicode scalar values** — NOT 1,114,112:
+    `&str` cannot carry the 2,048 surrogates, so they are excluded and need no separate check. Must
+    ALSO cover sequence classes (base+Cn+mark, jamo+Cn+jamo, Σ+Cn+cased, Cn-between-marks) because
+    **a per-code-point sweep is provably insufficient** — the pre-filter scored 0 there while
+    failing 42 sequence cases. Mandatory on every future table bump.
+
+## THE OPEN DEFECT: `Final_Sigma` reads rustc's tables, not the declared 16.0.0
+
+Found by the timed-out iter-155 define-next, **independently reproduced at 156**. The sentinel
+freeze rule covers *category* and *normalization* tables — it does **not** cover **case
+classification**. `text_collapse` (`utils.rs:220`) calls `str::to_lowercase()`, whose `Final_Sigma`
+decision reads rustc's `Cased`/`Case_Ignorable` (rustc 1.97.1 = Unicode **17.0**), not 16.0.0.
+
+| input                         | `iscc-core`/CPython 3.14 (16.0) | Rust core today               | pure-Go port (15.0) |
+| ----------------------------- | ------------------------------- | ----------------------------- | ------------------- |
+| `U+0391 U+03A3 U+0295 U+0392` | `U+03B1 U+03C3 U+0295 U+03B2`   | `U+03B1 U+03C2 U+0295 U+03B2` | matches reference   |
+| `U+0295 U+03A3`               | `U+0295 U+03C2`                 | `U+0295 U+03C3`               | matches reference   |
+
+**Cause:** `U+0295` is `Ll` (→`Cased`) in 16.0, `Lo` (not `Cased`) in 17.0. **Go is correct today
+and will acquire the same defect at go1.27** — add this to the go1.27 checklist; it is not in
+issues.md.
+
+**Cheap re-measure of the divergence set (~10 s, no project build).** Dump the two predicates
+behaviourally from each runtime and diff — `a = (ch+"Σ").lower().endswith("ς")` =
+`Cased and not Case_Ignorable`; `b = ("A"+ch+"Σ")…` = `Cased or Case_Ignorable`. Rust side:
+standalone `rustc -O /tmp/probe.rs`. Result at 156: **100 scalars diverge in classification, but 99
+are `Cn` in 16.0** → replaced by the sentinel before lowercasing (`U+FFFF` classifies identically in
+both tables), so **exactly 1 assigned scalar, `U+0295`, produces divergent output**. That both
+confirms the defect *and* is positive evidence the sentinel + its map-then-lowercase ordering work.
+
+**Nothing gates it:** no `U+0295` anywhere in `src`/`tests`/`docs`; the existing sigma coverage
+(`test_sentinel_preserves_final_sigma_context`, fixture row `U+0391 U+03A3 U+0378 U+0392`) passes
+either way. All 22 CI checks green while it exists.
+
+**Two published overclaims to fix with the code:** `docs/unicode.md` "Output is invariant under
+table upgrades … severs all dependence" + "`Final_Sigma` context match `iscc-core` exactly", and the
+same note in `crates/iscc-lib/CLAUDE.md`. Spec `rust-core.md:151` ("Rust `str::to_lowercase()` does
+the same") is falsified too but is **human-owned — do not edit**.
 
 ## Cross-implementation prerequisite: the Go `Final_Sigma` bug — FIXED (iter 147, verified 148)
 
