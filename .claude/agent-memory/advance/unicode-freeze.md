@@ -95,9 +95,18 @@ metadata:
     `--release`, standalone because the 3.10 matrix leg could only skip). Tests
     `tests/test_unicode_sweep.py` (14) load it via importlib; `sweep()` reads module globals at call
     time so the oracle is monkeypatchable.
-- Pending: 3 binding surfaces (C FFI — needs a JSON reader or generated table, `tests/test_iscc.c`
-    has no text coverage; C++ — no `cmake` in container; Swift — no `swift` toolchain in container,
-    would add a tracked vendored copy that MUST be registered in `VENDORED_COPIES` of
+- Propagation slice 5 (iter 159): C FFI — `scripts/gen_ffi_boundary_vectors.py` (PEP 723, stdlib
+    only) renders the canonical fixture into `crates/iscc-ffi/tests/unicode_boundary_vectors.h`
+    (pure-ASCII C header; non-ASCII UTF-8 bytes as **3-digit octal escapes** — NEVER `\x`, C hex
+    escapes are greedy/unbounded). `test_iscc.c` includes it via quoted `#include` (sibling dir, no
+    new `-I` in the CI gcc line), runs 3 metadata guards + 12 vectors → 80 passed. Drift gate
+    `tests/test_gen_ffi_boundary_vectors.py` (6 tests): render == tracked header byte-exact,
+    mutation fires, wrong-version/empty-section fail closed. Header is NOT in `VENDORED_COPIES`
+    (derived, not byte-identical — the no-op gate is its equivalent). GOTCHA: compare
+    `ISCC_UNICODE_DATA_VERSION` through a `const char *` local so `-Waddress` never sees a literal
+    vs NULL.
+- Pending: 2 binding surfaces (C++ — no `cmake` in container; Swift — no `swift` toolchain in
+    container, would add a tracked vendored copy that MUST be registered in `VENDORED_COPIES` of
     `tests/test_vendored_fixtures.py`).
 - GOTCHA (iter 149): writing `\uXXXX` escape text into the ASCII-escaped fixture via the Edit tool
     decodes it into literal UTF-8 chars. Write fixture JSON with Python
