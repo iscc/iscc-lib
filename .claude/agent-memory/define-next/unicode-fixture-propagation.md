@@ -31,9 +31,19 @@ measured facts below instead of re-probing.
 
 **Cost has two axes, not one** (the single "already calls text functions" axis misled iters
 151-152): fixture-reading plumbing *and* text-function coverage. C FFI (`tests/test_iscc.c`) and C++
-have **neither a JSON parser nor a vector file** — most expensive, and C++ cannot be built here
-(`cmake` missing). Swift has plumbing but adds a *tracked copy* (→ `VENDORED_COPIES` registration);
-C# and Kotlin looked the same until iter 154 found the build-config indirection that avoids it.
+have **neither a JSON parser nor a vector file** — most expensive to open, but once the C header
+exists C++ reuses it for near-zero cost. Swift has plumbing but adds a *tracked copy* (→
+`VENDORED_COPIES` registration); C# and Kotlin looked the same until iter 154 found the build-config
+indirection that avoids it.
+
+**`cmake` is NOT a blocker (measured iter 160).** `cmake` is absent from `$PATH`, but the PyPI wheel
+installs on demand: `uv run --with cmake cmake …` → **4.4.0**, ~29 MB download, accepts the
+project's `cmake_minimum_required(VERSION 3.14)` with no deprecation error. Full flow from the repo
+root, no `cd`, gitignored build dir:
+`uv run --with cmake cmake -S packages/cpp -B packages/cpp/build-uv -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=$PWD/target/debug -DSANITIZE_ADDRESS=ON`
+→ `--build` → `LD_LIBRARY_PATH=$PWD/target/debug packages/cpp/build-uv/tests/test_iscc` = **54
+passed, 0 failed**. Do not reuse `packages/cpp/build/` (its cache is cmake 3.25). `swift` remains
+genuinely absent with no equivalent escape hatch.
 
 - Go is a hybrid: its **per-function `*_test.go` conformance tests read
     `../../crates/iscc-lib/tests/data.json` by relative path**, while `testdata/data.json` exists
@@ -146,8 +156,19 @@ C# and Kotlin looked the same until iter 154 found the build-config indirection 
         probe gives **12/12 vectors OK, zero skips** — the C FFI wraps the Rust core, so no skip map.
         Existing C suite baseline: **65 passed, 0 failed** → 80 with 12 vectors + a 3-assertion
         metadata guard.
-7. Swift, then C++ last: Swift adds the one *tracked vendored copy* (→ `VENDORED_COPIES`) and C++
-    has no local `cmake`; both are CI-proof-only here.
+7. **iter 160 scoped — C++**, promoted ahead of Swift because the `uv run --with cmake` escape hatch
+    (above) makes it locally runnable *and* the artifact it needs already exists: reuse
+    `crates/iscc-ffi/tests/unicode_boundary_vectors.h` as-is — no second generator, no
+    `VENDORED_COPIES` entry. Measured while scoping with a standalone `/tmp` probe: `-Wall -Wextra`
+    - ASAN clean, **12/12 vectors PASS**, and the helper signature
+        `void run_unicode_boundary_section(const char*, std::string (*fn)(const std::string&), const iscc_unicode_boundary_vector*, size_t)`
+        compiles (taking the address of the inline `iscc::text_clean` is fine). Include dir goes on
+        the **test** target in `packages/cpp/tests/CMakeLists.txt`, never on the public `iscc`
+        INTERFACE target in `packages/cpp/CMakeLists.txt` (that path is inherited by vcpkg/conan
+        consumers) — state.md recommended the wrong file. Baseline 54 → 69 passed (3 metadata guards
+        \+ 12 vectors).
+8. Swift last: the one *tracked vendored copy* (→ `VENDORED_COPIES`, SwiftPM `resources:` read via
+    `Bundle.module`), and `swift` is genuinely absent here — CI-proof-only.
 
 ## Standing hazards
 

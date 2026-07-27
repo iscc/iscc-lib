@@ -56,7 +56,9 @@ iterations.
 ## Dev Environment Constraints
 
 - **No Swift toolchain / no shellcheck** in the Linux devcontainer — `swift test` + shell lint are
-    CI/macOS only.
+    CI/macOS only. **`cmake` is only missing from `$PATH`**: `uv run --with cmake cmake …` pulls the
+    PyPI wheel (4.4.0) and builds/runs the C++ ASAN suite (iter 160) — network to PyPI works, so
+    "tool absent" is worth one `uv run --with <tool>` probe before it vetoes a step.
 - `uniffi-bindgen`: `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen`. UniFFI
     0.31.0; SPM module name MUST be `iscc_uniffiFFI`; no `const`/`usize`/borrowed/generic exports.
 - cargo-crap 0.2.2, cargo-llvm-cov 0.8.7, valgrind 3.19 + iai-callgrind-runner ARE installed.
@@ -102,16 +104,13 @@ iterations.
 - **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
     Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) sequence vectors + fixture guard ✅149,
     (4) fixture propagation into the 11 bindings — ✅150 Python+Go, ✅151 WASM+Ruby, ✅152 drift gate,
-    ✅153 napi+Java, ✅154 C#+Kotlin, **159 scoped: C FFI** via a generated header (→ 9 of 11; only
-    Swift/C++ left, both CI-proof-only here), (4b) ✅156 `Final_Sigma` case-table freeze at 16.0.0,
-    (5) ✅157 the criterion-4 sweep gate (`scripts/unicode_sweep.py` + `mise run unicode:sweep` + own
-    3.14 CI job) — measured green while scoping at 157 **and 158**, 17,793,024 comparisons / 0
-    divergences / ~60 s, (6) ✅158 hardened that gate (`--rebuilt` flag so a bare run can't
-    false-green off a stale `.so`; divergence retention bounded to 20 samples with an exact count;
-    no `default=0.0` vacuous freshness pass). Never implement the superseded category override
+    ✅153 napi+Java, ✅154 C#+Kotlin, ✅159 C FFI via a generated header, **160 scoped: C++** reusing
+    that same header (→ 10 of 11; only Swift left, genuinely CI-proof-only), (4b) ✅156 `Final_Sigma`
+    case-table freeze at 16.0.0, (5) ✅157 the criterion-4 sweep gate (`mise run unicode:sweep` + own
+    3.14 CI job; 17,793,024 comparisons / 0 divergences / ~60 s), ✅158 hardened (`--rebuilt` flag,
+    bounded divergence retention, no vacuous pass). Never implement the superseded category override
     (`U+A7F1` injects a spurious `S`) or a 15.1.0 declared version. Sweep constants, escapes,
-    fixture facts, the `Final_Sigma`/U+0295 table shapes, CRAP-in-tests →
-    [unicode-freeze-facts](unicode-freeze-facts.md).
+    fixture facts, table shapes, CRAP-in-tests → [unicode-freeze-facts](unicode-freeze-facts.md).
 - **Before scoping any propagation slice** read the
     [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy, the **two-axis** cost
     rule (plumbing × text coverage; a one-axis ranking wrongly put C FFI first three times),
@@ -145,7 +144,11 @@ iterations.
     check with a pytest case proving the gate fires on a mutated source. C-header specifics (octal
     escapes, sibling-dir quoted include so `ci.yml` needs no `-I`) →
     [propagation ledger](unicode-fixture-propagation.md).
-- **"Not buildable in this container" claims decay — re-probe before they veto a slice** (iter 154:
-    state.md ruled Kotlin out; `./gradlew cleanTest test --offline` ran the suite in 6 s off cached
-    `~/.gradle`). Corollary trap: a runner can report success **without executing** (gradle `test`
-    UP-TO-DATE) — force a rerun and check the result-file mtime.
+- **"Not buildable in this container" claims decay — re-probe before they veto a slice.** Iter 154:
+    state.md ruled Kotlin out; `./gradlew cleanTest test --offline` ran in 6 s off cached
+    `~/.gradle`. Iter 160: state.md ruled C++ out three iterations running; `uv run --with cmake`
+    built and ran the ASAN suite. Corollary trap: a runner can report success **without executing**
+    (gradle `test` UP-TO-DATE) — force a rerun and check the result-file mtime.
+- **When state.md names the file to edit, re-derive it** (iter 160: it pointed at the public `iscc`
+    INTERFACE target for a test-only include dir, which vcpkg/conan consumers inherit). Test-only
+    plumbing belongs on the test target.
