@@ -20,13 +20,13 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
 - **ALWAYS `git status --porcelain` too.** A TIMEOUT role dies before committing but **leaves its
     written file dirty** — at 155 define-next timed out with 0 turns yet left a 440-line `next.md`
     carrying the iteration's most important finding. Treat as an unverified lead, not fact.
-- **Counts** (159): crate/pkg READMEs & CLAUDE.md 12 each (**scope the glob to
-    `crates/*/   packages/*/`** — bare grep gives 14); pytest-benchmark 18; UniFFI 32; docs pages
-    **23**; `docs/howto/*.md` 11; speedups 1.3x-158x; ffi extern **47** (`'#\[unsafe(no_mangle)\]'`;
-    bare `no_mangle` gives 48); iscc-lib `#[test]` **342** (glob
+- **Counts** (160): crate/pkg READMEs & CLAUDE.md 12 each (**scope the glob to `crates/*/` +
+    `packages/*/`** — bare grep gives 14); pytest-benchmark 18; UniFFI 32; docs pages **23**
+    (`git ls-files 'docs/*.md' 'docs/**/*.md'` gives 24 — subtract `docs/includes/abbreviations.md`,
+    a snippet); `docs/howto/*.md` 11; speedups 1.3x-158x; ffi extern **47**
+    (`'#\[unsafe(no_mangle)\]'`; bare `no_mangle` gives 48); iscc-lib `#[test]` **342** (glob
     `git ls-files 'crates/iscc-lib/**/*.rs'`; `src/` alone gives 288); `packages/go` `^func Test`
-    **177**; CRAP `entries` **105**; pytest **393** via `uv run pytest --collect-only -q` (counts
-    without running the suite).
+    **177**; CRAP `entries` **105**; pytest **399** (`uv run pytest --collect-only -q`).
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` are both
     importable under `uv run python`, so any reference-vs-core probe needs **no build** — but check
     `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` mtime first (stale `.so` silently measures
@@ -89,8 +89,8 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     `supersede`. At 147 a 14-iteration "met" went unmet.
 - **Reproduce/refute inherited claims yourself, ideally by a DIFFERENT method** — cheap probes beat
     inherited text (bugs confirmed 147/156, stale-napi-`.node` refuted 151-153, tables re-derived
-    157, both filed sweep blind spots reproduced 158). **A generator can never be its own oracle.**
-    Verify numbers a PREDECESSOR flagged as unverified (157 cleared 155's 152/452). Deliberate
+    157, sweep blind spots reproduced 158, C header decoded + `ctypes`-probed 160). **A generator
+    can never be its own oracle.** Verify numbers a predecessor flagged unverified. Deliberate
     deviations from a fix sketch are legitimate: read the in-source comment first.
 - **Spec checkboxes are NOT a progress signal** — most specs sit at 0/N checked though MET; only
     `ci-cd.md` (44/52) + `rust-core.md`'s semver box are kept up. Spec *prose* rots too, and can be
@@ -101,44 +101,51 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     suite — 13 Kotlin tests silently did not run while every gate was green. Only a
     mutate-then-rerun probe (no `clean`) exposes it; CI is immune.
 
-## Current State (assessed-at: 0b8f2e2, iter 159)
+## Current State (assessed-at: 98e2964, iter 160)
 
-- **IN_PROGRESS — CI GREEN and covering all code.** `origin/develop` == `5581696`: **45 check-runs,
-    23 names, 0 non-success**; HEAD `0b8f2e2` is 1 `.claude`-only commit ahead, code diff vs origin
+- **IN_PROGRESS — CI GREEN and covering all code.** `origin/develop` == `aa01784`: **45 check-runs,
+    23 names, 0 non-success**; HEAD `98e2964` is 1 `.claude`-only commit ahead, code diff vs origin
     empty. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped; version **0.5.0**).
-- **Iteration 158 HARDENED the sweep gate; verdict PASS** (4 roles OK, 193 turns). 5 code files,
-    zero Rust source / zero baseline: `unicode_sweep.py` (`--rebuilt` refusal + bounded samples),
-    its tests 10 → **14**, `ci.yml` + `mise.toml` one line each, `docs/unicode.md`. Detail →
-    `unicode-contract.md` crit 4.
-- **Statuses:** Rust-core partially met — crit 1, 2, 4 MET; **crit 3 stuck at 8 of 11** surfaces (C
-    FFI, C++, Swift ungated) + the pure-Go port. All else met except CI/CD (partial). Only count
-    that moved at 158: pytest **393** (was 389); all others in Shortcuts held.
+- **Iteration 159 propagated the boundary vectors into C FFI; verdict PASS** (4 roles OK, 214
+    turns). 6 code files, zero Rust source / zero baseline: new `gen_ffi_boundary_vectors.py` +
+    `tests/test_gen_ffi_boundary_vectors.py` (6 cases) + generated
+    `crates/iscc-ffi/tests/unicode_boundary_vectors.h`; `test_iscc.c` 459 → **495** lines (80 C
+    assertions). Pattern + verification recipe → `unicode-contract.md` (plumbing table).
+- **Statuses:** Rust-core partially met — crit 1, 2, 4 MET; **crit 3 now 9 of 11** surfaces (only
+    **C++ and Swift** ungated) + the pure-Go port. All else met except CI/CD (partial). Only count
+    that moved at 159: pytest **399** (was 393); all others in Shortcuts held.
 - **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **7** paths,
     matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
     `python-test`). Register new copies; keep canonical basenames (the gate discovers by basename).
-- **Next = propagation slice 5 (C FFI)** — last surface buildable here (`gcc`; `cmake`/`swift`
-    absent). Re-verified 159: `include/iscc.h` declares `iscc_text_clean` (L383) /
-    `iscc_text_collapse` (L434), but `tests/test_iscc.c` (459 lines) has **zero** hits for either
-    and no JSON reader; the `c-ffi` job is one bare `gcc -I include` + a cbindgen freshness check.
-    Recommended: PEP 723 generator → `unicode_boundary_vectors.h` of `static const char *`, gated by
-    regenerate-then-`git status` empty (the `gen_unicode16_*.py` pattern). A *generated* header is
-    derived → must **NOT** go in `VENDORED_COPIES`. Do NOT extend `unicode_boundary.json` — nine
-    suites assert exactly 7/5 counts.
+    Generated artifacts are derived and must stay OUT.
+- **Next = propagation slice 6 (C++), then Swift.** Both are CI-proof-only (`cmake`/`swift` absent;
+    `gcc`/`g++`/`go` present). C++ is nearly pre-wired — verified 160: `packages/cpp/CMakeLists.txt`
+    L17-19 already exposes `../../crates/iscc-ffi/include`, and `include/iscc/iscc.hpp` wraps
+    `iscc::text_clean` (L251) / `iscc::text_collapse` (L272), so the slice is one added include dir
+    (`../../crates/iscc-ffi/tests`) + a loop — **reuse the C header, do not generate a second
+    copy**. Swift is the harder one: `ConformanceTests.swift` (215 lines) already uses
+    `JSONSerialization` on a vendored `data.json`, so it wants a tracked `resources:` copy
+    REGISTERED in `VENDORED_COPIES`. Do NOT extend `unicode_boundary.json` — **ten** consumers
+    assert exactly 7/5.
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
     wrong twice over); crit-1/-3/-4 boxes unchecked though 1/2/4 are met. Human-owned — don't edit.
 - **Issues: 8** (4 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`); human backlog
-    CLEARED. CLOSED at 158: "Harden the Unicode differential sweep gate"; the Unicode umbrella
-    entry's remainder is now only **(b) propagation**. AUTHORIZED for CID: rubygems `@v2.1.0` pin
+    CLEARED. None opened/closed at 159; the Unicode umbrella entry's remainder is only **(b)
+    propagation**, now recorded in-place as 9 of 11. AUTHORIZED for CID: rubygems `@v2.1.0` pin
     (still `@main` at `release.yml:895`); major dep bumps **one per step** (magnus 0.8 / jni 0.22 =
     source rewrites; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x); exhaustive
     `specs/ci-cd.md` job table. DEFERRED: npm OIDC.
-- **Don't re-flag as DONE**: sweep-gate hardening 158, sweep gate 157, `Final_Sigma` 156, C#+Kotlin
-    154, napi+Java 153, drift gate 152, WASM+Ruby 151, Python+Go 150 (≤149 → `MEMORY-archive.md`).
+- **Don't re-flag as DONE**: C FFI vectors 159, sweep-gate hardening 158, sweep gate 157,
+    `Final_Sigma` 156, C#+Kotlin 154, napi+Java 153, drift gate 152, WASM+Ruby 151, Python+Go 150
+    (≤149 → `MEMORY-archive.md`).
 
 ## Gotchas
 
 - **state.md Write** = permission error → only `cat > file << 'EOF' ... EOF` via Bash works.
 - **mdformat** aborts commits on rewrap edge cases (list → `lint-tooling.md`). Recipe:
     `cp f /tmp/c.md && uv run mdformat --wrap 100 --number /tmp/c.md && diff`, adopt, re-run once.
+    **Never let a `` `code span` `` straddle a line break** — mdformat joins the halves with the
+    indent whitespace, silently corrupting the path (`` `tests/ ` `` + `test_x.py` →
+    `tests/   test_x.py`). Reword so each span fits on one line, then adopt the rewrap.
 - **Absent toolchains (`cmake`/`swift`/`gradle`), invisible exec bits, case-sensitive binding-API
     greps, csbindgen/UniFFI/JNA side effects, the Go probe recipe → `env-gotchas.md`.**
