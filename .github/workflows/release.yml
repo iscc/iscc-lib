@@ -892,7 +892,9 @@ jobs:
         with:
           ruby-version: '3.3'
       - name: Configure RubyGems credentials (OIDC trusted publishing)
-        uses: rubygems/configure-rubygems-credentials@main
+        # exact tag: configure-rubygems-credentials publishes no floating major
+        # tag (only v1.0.0/v2.0.0/v2.1.0 exist), so @v2 does not resolve
+        uses: rubygems/configure-rubygems-credentials@v2.1.0
       - name: Get workspace version
         id: version
         run: |
