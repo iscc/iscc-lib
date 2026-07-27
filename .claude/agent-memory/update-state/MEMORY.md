@@ -94,49 +94,51 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
 - **When a ruling lands, re-verify the CODE against the NEW spec**; grep `decisions.md` for
     `supersede`. At 147 a 14-iteration "met" went unmet.
 - **Reproduce/refute inherited claims yourself, ideally by a DIFFERENT method** — cheap probes beat
-    inherited text (bugs confirmed 147/156; stale-napi-`.node`, "C++ unbuildable" and "Swift not
-    verifiable" all REFUTED). **A generator can never be its own oracle.** Verify numbers a
-    predecessor flagged unverified. A suite that prints N passes may still cover a SUBSET — diff the
-    emitted assertion names against the canonical fixture. Deliberate deviations from a fix sketch
-    are legitimate: read the in-source comment first.
+    inherited text (bugs confirmed 147/156; stale-napi-`.node`, "C++ unbuildable", "Swift not
+    verifiable" all REFUTED). **A generator can never be its own oracle.** A suite that prints N
+    passes may still cover a SUBSET — diff emitted assertion names against the canonical fixture, or
+    (164) compare the count against the PRE-change tree, not a floor.
 - **Spec checkboxes are NOT a progress signal** — most specs sit at 0/N checked though MET; only
     `ci-cd.md` (44/52) + `rust-core.md`'s semver box are kept up. Spec *prose* rots too, and can be
     outright FALSIFIED by measurement (156: "Rust `str::to_lowercase()` does the same").
 - **Ask whether a fixture is a DECLARED INPUT of the build system.** Gradle/MSBuild can report
-    UP-TO-DATE and skip a suite — 13 Kotlin tests silently did not run while every gate was green
-    (CMake depfiles and SwiftPM `.copy()` resources are fine). Only a mutate-then-rerun probe (no
-    `clean`) exposes it; CI is immune. All 12 suites are now probed.
+    UP-TO-DATE and skip a suite — 13 Kotlin tests silently did not run while every gate was green.
+    Only a mutate-then-rerun probe (no `clean`) exposes it; CI is immune. All 12 suites now probed.
 - **A "not verifiable in this container" claim is UNPROVEN, not true.** `command -v` under-reports:
     cmake (PyPI wheel), Kotlin (`./gradlew --offline`), C++ (bare `g++`) and Swift (`/tmp`
     toolchain) each fell to a second look after the docs said otherwise → `env-gotchas.md`.
 
-## Current State (assessed-at: c331d4b, iter 164)
+## Current State (assessed-at: 0d9ac0f, iter 165)
 
-- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `95740f4` (163 review): **45
-    check-runs, 23 names, 0 non-success**. HEAD `c331d4b` is one `cid(log)` commit ahead with an
+- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `75b8810` (164 review): **45
+    check-runs, 23 names, 0 non-success**. HEAD `0d9ac0f` is one `cid(log)` commit ahead with an
     EMPTY non-`.claude` diff. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped; **0.5.0**).
-- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces) and **163 closed the ci-cd job-table
-    drift**. Rust core met except `>= 1.0.0` (human-HELD); everything met except CI/CD (partial).
+- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces); 163 closed the ci-cd job-table drift;
+    **164 closed the dotnet dep major** (`xunit.v3` 3.\* / Test.Sdk 18.\* + `<OutputType>Exe</…>`;
+    104 results both before and after). Rust core met except `>= 1.0.0` (human-HELD); everything met
+    except CI/CD (partial).
 - **Only ONE CID-schedulable item left: the dependency-majors refresh, one per step.** Everything
-    else is human-held or a tripwire. Expect define-next to start with xunit 3.x + Test.Sdk 18.x.
+    else is human-held or a tripwire. Next up is the JVM slice (Gradle wrapper, JUnit 6.x — two
+    build systems, splittable), then `jni` 0.22 / `magnus` 0.8.
 - **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** paths,
     matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
     `python-test`). Register new copies; keep canonical basenames (the gate discovers by basename).
     Generated artifacts are derived and must stay OUT. A 13th vector now costs **12 suites**.
-- **Loop infra changed under the roles (162 commit):** `ARTIFACT_BUDGETS` in `tools/cid.py` caps
-    next 120 / **state 200** / handoff 100 / issues 300 / learnings 200 / decisions 400 and reports
-    overruns to the owning role; `decisions.md` rotates into `decisions-archive.md` (**grep BOTH for
-    rulings**); context arrives via `.claude/skills/cid-ctx-<role>/SKILL.md` packs.
+- **Loop infra (162):** `ARTIFACT_BUDGETS` in `tools/cid.py` caps next 120 / **state 200** / handoff
+    100 / issues 300 / learnings 200 / decisions 400; `decisions.md` rotates into
+    `decisions-archive.md` (**grep BOTH**); context = `.claude/skills/cid-ctx-<role>/SKILL.md`
+    packs.
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
     wrong twice over); criterion boxes unchecked though all four hold. Human-owned — don't edit.
-- **Issues: 7** (2 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`; 142 lines — count
+- **Issues: 7** (2 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`; 141 lines — count
     headers, NOT priority tags: lines 3-4 are a legend that inflates a naive `grep -c`). AUTHORIZED
-    for CID: major dep bumps **one per step** (magnus 0.8 / jni 0.22 = source rewrites; xunit 3.x,
-    Test.Sdk 18.x, Gradle wrapper, JUnit 6.x). The go1.27 entry is a standing tripwire, not
+    for CID: major dep bumps **one per step** (Gradle wrapper, JUnit 6.x, then magnus 0.8 / jni 0.22
+    = source rewrites; `release.yml` actions). The go1.27 entry is a standing tripwire, not
     schedulable. DEFERRED: npm OIDC. `iscc-core#137` human-only.
-- **Don't re-flag as DONE**: ci-cd job table + parity gate 163, rubygems `@v2.1.0` pin 162, Swift
-    vectors 161, C++ 160, C FFI 159, sweep-gate hardening 158, sweep gate 157, `Final_Sigma` 156,
-    C#+Kotlin 154, napi+Java 153, drift gate 152, WASM+Ruby 151, Python+Go 150 (≤149 → archive).
+- **Don't re-flag as DONE**: dotnet xunit v3 164, ci-cd job table + parity gate 163, rubygems
+    `@v2.1.0` pin 162, Swift vectors 161, C++ 160, C FFI 159, sweep-gate hardening 158, sweep gate
+    157, `Final_Sigma` 156, C#+Kotlin 154, napi+Java 153, drift gate 152, WASM+Ruby 151, Python+Go
+    150 (≤149 → archive).
 
 ## Gotchas
 

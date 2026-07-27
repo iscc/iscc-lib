@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-# Dependency-refresh survey (verified iteration 141 — all 9 slices closed)
+# Dependency-refresh survey (10 slices closed; last updated iteration 165)
 
 Backing detail for the sliced `normal` `[human]` issue "Dependency review and refresh across the
 project" (spec: `.claude/context/specs/ci-cd.md` → Dependency Freshness). MEMORY.md keeps only a
@@ -35,9 +35,8 @@ just landed instead of re-surveying everything; refresh this file when a slice l
     `setup-python@v7` (2), `cache@v6` (1). **It contains NO `astral-sh/setup-uv` step and needs
     none** — it invokes no `uv`/`uvx`; issues.md and the iteration-127 handoff claimed otherwise and
     both were wrong (corrected in issues.md at iter 140).
-- `rubygems/configure-rubygems-credentials@main` (release.yml:895) is the **only unpinned ref in the
-    repo** — a floating branch in the OIDC gem-publish job. Human tag-vs-SHA ruling pending;
-    upstream publishes only exact tags (no floating `v2`), and `main` is ahead of `v2.1.0`.
+- `rubygems/configure-rubygems-credentials` was pinned `@v2.1.0` at iter 162 (release.yml:897, with
+    a `# exact tag:` comment). The repo now has **zero `@main` refs** across ci/docs/release.
 - **Verifying a bump statically** (release.yml is `workflow_dispatch`-only, so this is all there
     is): resolve `git/ref/tags/<vN>`; fetch each new major's `action.yml` at the tag and confirm
     every `with:` key is still a declared `inputs` key and every `steps.<id>.outputs.<x>` the
@@ -83,12 +82,21 @@ just landed instead of re-surveying everything; refresh this file when a slice l
 
 9. GHA refs in release.yml (iter 140; the 9 refs listed above).
 
-Closed as **verified current, no edit needed** (iter 129): napi `package.json` (`@napi-rs/cli: ^3`
-covers 3.7.4) and dotnet `.csproj` (`17.*`/`2.*` wildcards) — editing them is churn.
+**Slice 10 — dotnet test framework major (iter 164):** `xunit` → `xunit.v3` at `3.*`,
+`xunit.runner.visualstudio` at `3.*`, `Microsoft.NET.Test.Sdk` at `18.*`, plus the
+`<OutputType>Exe</OutputType>` that v3 requires (its test projects are stand-alone executables).
+Zero test-source edits; v2 and v3 both report exactly 104 results — that pre-vs-post equality, not
+the coverage floor, is what proves row-level enumeration survived. VSTest runner mode kept on
+purpose: `dotnet test -e` (VSTest-only) carries `LD_LIBRARY_PATH` for the P/Invoke lib →
+`decisions.md` 2026-07-27.
 
-**All 9 slices CLOSED — no CID-doable remainder.** What is left under the parent issue is
-human/major-gated only: magnus 0.8, jni 0.22 (source rewrites), Gradle wrapper major, JUnit 6.x,
-xunit 3.x / Test.Sdk 18.x.
+Closed as **verified current, no edit needed** (iter 129): napi `package.json` (`@napi-rs/cli: ^3`
+covers 3.7.4) — editing it is churn.
+
+**All 9 original slices plus the dotnet major are CLOSED.** Remaining under the parent issue,
+authorized for CID one per step: Gradle wrapper 8.12.1 + JUnit 6.x (two build systems — Gradle in
+`packages/kotlin`, Maven in `crates/iscc-jni/java/pom.xml`; independently verifiable, sequence the
+wrapper first), then `jni` 0.22 and `magnus` 0.8 (source rewrites, riskiest).
 
 ## Per-binding manifests
 
@@ -114,9 +122,11 @@ xunit 3.x / Test.Sdk 18.x.
     `github.com/zeebo/blake3 v0.2.4`, `golang.org/x/text v0.40.0`, indirect
     `github.com/klauspost/cpuid/v2 v2.4.0` + `golang.org/x/sys v0.47.0`. All at latest published; no
     hold-back. Dep `go` directives (x/text 1.25.0, x/sys 1.25.0, cpuid 1.24.0) all sit below 1.26.1.
-- `packages/dotnet/*/*.csproj` — `net8.0`; test project refs already float
-    (`Microsoft.NET.Test.Sdk 17.*`, `xunit 2.*`, `xunit.runner.visualstudio 2.*`) → near-empty
-    slice.
+- `packages/dotnet/*/*.csproj` — `net8.0` (support policy, never move in a refresh); test refs float
+    on `3.*` / `18.*` since iter 164. **The only ecosystem in the repo with no lockfile** (Cargo,
+    uv, Gemfile, Gradle all pin), so CI can resolve an unreviewed 3.x/18.x;
+    `RestorePackagesWithLockFile` is the fix if a float ever reds CI. Not filed as an issue — the
+    wildcard style is long-standing.
 
 ## Documented hold-backs (do not "fix" these)
 
