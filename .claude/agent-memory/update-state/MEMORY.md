@@ -28,7 +28,9 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     extern **47** (`'#\[unsafe(no_mangle)\]'`; bare `no_mangle` gives 48); iscc-lib `#[test]`
     **342** (glob `git ls-files 'crates/iscc-lib/**/*.rs'`; `src/` alone gives 288); `packages/go`
     `^func Test` **177**; Kotlin `@Test` **9 + 3** source annotations → **9 + 13** reported cases
-    (the boundary suite is parameterized); CRAP `entries` **105**; pytest **441** at 164
+    and Java **29 + 3** → **69 + 13 = 82** surefire cases (both suites are `@TestFactory`-driven, so
+    annotations ≠ cases; the dynamic totals are derivable from `data.json` vector counts —
+    20+5+3+5+3+2+4+3+5 = 50); CRAP `entries` **105**; pytest **441** at 164
     (`uv run pytest --collect-only -q`).
 - **YAML probes need `uv run python`** — the bare system `python3` has NO `yaml` module. Job-table
     parity is gated since 163; probe by hand only if the gate itself is suspect.
@@ -108,19 +110,19 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     cmake (PyPI wheel), Kotlin (`./gradlew --offline`), C++ (bare `g++`) and Swift (`/tmp`
     toolchain) each fell to a second look after the docs said otherwise → `env-gotchas.md`.
 
-## Current State (assessed-at: f2a0f3e, iter 166)
+## Current State (assessed-at: 1c18b68, iter 167)
 
-- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `7e1a8b7` (165 review): **45
-    check-runs, 23 names, 0 non-success**. HEAD `f2a0f3e` is one `cid(log)` commit ahead with an
+- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `6d78f8e` (166 review): **45
+    check-runs, 23 names, 0 non-success**. HEAD `1c18b68` is one `cid(log)` commit ahead with an
     EMPTY non-`.claude` diff. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped; **0.5.0**).
 - **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces); 163 closed the ci-cd job-table drift,
-    164 the dotnet dep major, **165 the Kotlin Gradle wrapper 8.12.1 → 9.6.1** (only
-    `packages/kotlin/`; 9 + 13 test cases unmoved). Rust core met except `>= 1.0.0` (human-HELD);
-    everything met except CI/CD (partial).
-- **Only ONE CID-schedulable item left: the dependency-majors refresh, one per step.** Everything
-    else is human-held or a tripwire. Next up is **JUnit 6.x** (5.14.4 in BOTH
-    `packages/kotlin/build.gradle.kts` and `crates/iscc-jni/java/pom.xml`; the launcher renumbers
-    1.14.x → 6.x), then `jni` 0.22 / `magnus` 0.8.
+    164 the dotnet dep major, 165 the Kotlin Gradle wrapper 9.6.1, **166 JUnit 5.14.4 → 6.1.2 in
+    BOTH JVM manifests** (launcher renumbered 1.14.4 → 6.1.2; test counts unmoved). Rust core met
+    except `>= 1.0.0` (human-HELD); everything met except CI/CD (partial).
+- **Only ONE CID-schedulable item left: the dependency-majors refresh, one per step** — and it is
+    down to the two Rust source-level migrations, **`jni` 0.22** (`crates/iscc-jni/src/lib.rs`,
+    `JNIEnv` → `Env`/`EnvUnowned`, ~41 sites) and **`magnus` 0.8** (`crates/iscc-rb/src/lib.rs`, ~5
+    `exception::runtime_error` sites). Everything else is human-held or a tripwire.
 - **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** paths,
     matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
     `python-test`). Register new copies; keep canonical basenames (the gate discovers by basename).
@@ -130,14 +132,16 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     context = `.claude/skills/cid-ctx-<role>/SKILL.md` packs.
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
     wrong twice over); criterion boxes unchecked though all four hold. Human-owned — don't edit.
-- **Issues: 7** (2 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`; 142 lines — count
+- **Issues: 7** (2 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`; 140 lines — count
     headers, NOT priority tags: lines 3-4 are a legend that inflates a naive `grep -c`). AUTHORIZED
-    for CID: major dep bumps **one per step** (JUnit 6.x, then magnus 0.8 / jni 0.22 = source
-    rewrites). The `release.yml` actions slice CLOSED at 140 — don't re-list it. The go1.27 entry is
-    a standing tripwire, not schedulable. DEFERRED: npm OIDC. `iscc-core#137` human-only.
-- **Don't re-flag as DONE**: Kotlin Gradle wrapper 9.6.1 165, dotnet xunit v3 164, ci-cd job table +
-    parity gate 163, rubygems `@v2.1.0` pin 162, Swift vectors 161, C++ 160, C FFI 159 (≤158 →
-    archive).
+    for CID: major dep bumps **one per step** (only `jni` 0.22 / `magnus` 0.8 left). The
+    `release.yml` actions slice CLOSED at 140 and the whole JVM slice at 166 — don't re-list either
+    (the 166 handoff wrongly implied release.yml action bumps remain; **the issue BODY is the
+    authority on what is left**, not the handoff's "Next"). The go1.27 entry is a standing tripwire,
+    not schedulable. DEFERRED: npm OIDC. `iscc-core#137` human-only.
+- **Don't re-flag as DONE**: JUnit 6.1.2 166, Kotlin Gradle wrapper 9.6.1 165, dotnet xunit v3 164,
+    ci-cd job table + parity gate 163, rubygems `@v2.1.0` pin 162, Swift vectors 161, C++ 160 (≤159
+    → archive).
 
 ## Gotchas
 
