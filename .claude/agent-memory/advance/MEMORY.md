@@ -59,6 +59,10 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     `$?` the pager's exit — redirect to a file
 - Ruby CI job: libclang-dev required; ruby/setup-ruby@v1 `working-directory` is a `with:` param.
     `rust` job matrix: `--no-default-features` / `--all-features` / `--features text-processing`
+- Adding/renaming a ci.yml job requires updating the job table in `.claude/context/specs/ci-cd.md`
+    in the same commit — parity-gated by `scripts/check_ci_job_table.py` (prek hook
+    `check-ci-job-table` + pytest anchor `tests/test_check_ci_job_table.py`; backticked first-column
+    keys, count floor 10)
 - `version-check` job: `scripts/version_sync.py --check` (16 targets incl. Swift Constants,
     Package.swift releaseTag, Kotlin; exits 1 on mismatch). Go CI job has zero Rust deps
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds (`maturin` not on PATH

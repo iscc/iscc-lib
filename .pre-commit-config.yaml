@@ -83,6 +83,18 @@ repos:
         files: ^(docs/.*\.md|docs/llms\.txt|zensical\.toml|scripts/gen_llms_full\.py)$
         stages: [pre-commit]
         pass_filenames: false
+      # The CI job table in specs/ci-cd.md is hand-written and has drifted as
+      # jobs were added to ci.yml. Note: prek `files:` matching only sees
+      # added/modified paths, so a change that only deletes rows via another
+      # path does not trigger this hook — the tests/test_check_ci_job_table.py
+      # anchor test catches drift at pre-push and in CI.
+      - id: check-ci-job-table
+        name: CI job table parity
+        entry: uv run scripts/check_ci_job_table.py
+        language: system
+        files: ^(\.github/workflows/ci\.yml|\.claude/context/specs/ci-cd\.md)$
+        stages: [pre-commit]
+        pass_filenames: false
       - id: standardrb-fix
         name: Ruby linting (fix)
         entry: bash -c 'export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH" &&
