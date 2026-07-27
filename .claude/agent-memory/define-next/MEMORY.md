@@ -102,15 +102,15 @@ iterations.
 - **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
     Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) sequence vectors + fixture guard ✅149,
     (4) fixture propagation into the 11 bindings — ✅150 Python+Go, ✅151 WASM+Ruby, ✅152 drift gate,
-    ✅153 napi+Java, ✅154 C#+Kotlin (→ 8 of 11; Swift/C FFI/C++ left), (4b) ✅156 `Final_Sigma`
-    case-table freeze at 16.0.0, (5) ✅157 the criterion-4 sweep gate (`scripts/unicode_sweep.py` +
-    `mise run unicode:sweep` + own 3.14 CI job) — measured green while scoping at 157 **and 158**,
-    17,793,024 comparisons / 0 divergences / ~60 s, (6) **158 scoped: harden that gate**
-    (`--rebuilt` flag required so a bare run can't false-green off a stale `.so`; bound divergence
-    retention to 20 samples + an exact count; kill the `default=0.0` vacuous freshness pass). Then
-    propagation resumes at C FFI. Never implement the superseded category override (`U+A7F1` injects
-    a spurious `S`) or a 15.1.0 declared version. Sweep constants, escapes, fixture facts, the
-    `Final_Sigma`/U+0295 table shapes, CRAP-in-tests →
+    ✅153 napi+Java, ✅154 C#+Kotlin, **159 scoped: C FFI** via a generated header (→ 9 of 11; only
+    Swift/C++ left, both CI-proof-only here), (4b) ✅156 `Final_Sigma` case-table freeze at 16.0.0,
+    (5) ✅157 the criterion-4 sweep gate (`scripts/unicode_sweep.py` + `mise run unicode:sweep` + own
+    3.14 CI job) — measured green while scoping at 157 **and 158**, 17,793,024 comparisons / 0
+    divergences / ~60 s, (6) ✅158 hardened that gate (`--rebuilt` flag so a bare run can't
+    false-green off a stale `.so`; divergence retention bounded to 20 samples with an exact count;
+    no `default=0.0` vacuous freshness pass). Never implement the superseded category override
+    (`U+A7F1` injects a spurious `S`) or a 15.1.0 declared version. Sweep constants, escapes,
+    fixture facts, the `Final_Sigma`/U+0295 table shapes, CRAP-in-tests →
     [unicode-freeze-facts](unicode-freeze-facts.md).
 - **Before scoping any propagation slice** read the
     [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy, the **two-axis** cost
@@ -139,6 +139,11 @@ iterations.
     first, preferring probes that leave no tree diff: a `/tmp` module with a path/`replace` dep
     (Go), a `/tmp` MSBuild project at equal depth (C#), or a gitignored build output
     (`rake compile`, `maturin develop`). Freshness table →
+    [propagation ledger](unicode-fixture-propagation.md).
+- **A derived/generated artifact is gated by "regenerate → `git status --porcelain` empty", not by
+    `VENDORED_COPIES`** (iter 159) — that table is only for byte-identical *copies*. Pair the no-op
+    check with a pytest case proving the gate fires on a mutated source. C-header specifics (octal
+    escapes, sibling-dir quoted include so `ci.yml` needs no `-I`) →
     [propagation ledger](unicode-fixture-propagation.md).
 - **"Not buildable in this container" claims decay — re-probe before they veto a slice** (iter 154:
     state.md ruled Kotlin out; `./gradlew cleanTest test --offline` ran the suite in 6 s off cached

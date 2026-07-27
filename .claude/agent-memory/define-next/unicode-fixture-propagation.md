@@ -126,8 +126,28 @@ C# and Kotlin looked the same until iter 154 found the build-config indirection 
         `./gradlew cleanTest test --offline` really runs (**9 tests, 0 fail, 6 s**). **`swift` is
         genuinely absent.** Trap: bare `./gradlew test` prints `BUILD SUCCESSFUL` while the task is
         UP-TO-DATE and executes nothing — always `cleanTest test` and check the `TEST-*.xml` mtime.
-6. Swift, then C FFI + C++ last: C FFI/C++ each need a JSON reader or a generated C table, and C++
-    has no local `cmake`.
+6. **iter 159 scoped — C FFI**, ahead of Swift/C++ because it is the last surface that both builds
+    *and runs* here. Design (measured while scoping, all proven end-to-end in `/tmp`):
+    - PEP 723 generator `scripts/gen_ffi_boundary_vectors.py` (`dependencies = []`, stdlib `json`)
+        renders the canonical fixture into a **tracked, ASCII**
+        `crates/iscc-ffi/tests/   unicode_boundary_vectors.h` of
+        `static const struct {name,input,expected}` arrays plus
+        `ISCC_TEXT_{CLEAN,COLLAPSE}_VECTOR_COUNT` / `ISCC_UNICODE_DATA_VERSION` macros.
+    - **Octal escapes (`\%03o`), never `\xHH`** — C hex escapes are greedy/unbounded, so
+        `"a\xF0\x9F\xAB\xA9b"` mis-parses; octal stops after 3 digits.
+    - The header sits **next to `test_iscc.c`**, so a quoted `#include` needs **no new `-I`** and
+        `ci.yml`'s `c-ffi` gcc line stays byte-identical. Verified by compiling with the exact CI
+        command.
+    - A generated header is derived, not byte-identical → it must **NOT** go in `VENDORED_COPIES`;
+        its equivalent is a pytest gate asserting `render(fixture) == tracked header` (+ a mutation
+        case so the gate provably fires).
+    - Measured: `cargo build -p iscc-ffi` = 14.8 s, **no tree diff** (`NativeMethods.g.cs` is
+        byte-stable). The local `.so` was stale (pre-156 `Final_Sigma`); after rebuild a `ctypes`
+        probe gives **12/12 vectors OK, zero skips** — the C FFI wraps the Rust core, so no skip map.
+        Existing C suite baseline: **65 passed, 0 failed** → 80 with 12 vectors + a 3-assertion
+        metadata guard.
+7. Swift, then C++ last: Swift adds the one *tracked vendored copy* (→ `VENDORED_COPIES`) and C++
+    has no local `cmake`; both are CI-proof-only here.
 
 ## Standing hazards
 
