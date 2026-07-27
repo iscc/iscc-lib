@@ -28,26 +28,26 @@ iterations.
 
 ## Context
 
-<next>
-@.claude/context/next.md
-</next>
+The CID runner prefixes your prompt with the `cid-ctx-advance` skill, so **everything below is
+already in your context** — inlined by the runner before your first turn, current as of this moment:
 
-<handoff>
-@.claude/context/handoff.md
-</handoff>
+- `next.md` — the work package, in full
+- `handoff.md`, `learnings.md`
+- `git status --short`
 
-<learnings>
-@.claude/context/learnings.md
-</learnings>
+**Do not re-read these with the Read tool** — re-reading returns the same bytes you already have.
+Read anything else on demand, once.
 
-<git-state>
-!`git status --short 2>/dev/null`
-</git-state>
+(An agent definition cannot inline files itself: `@path` imports and `` !`command` `` blocks are
+inert in `.claude/agents/*.md`. They work in CLAUDE.md and skills respectively — measured on Claude
+Code 2.1.220. That is why the pack is a skill.)
+
+Beyond the pack, read only the files next.md's `## Reference` section names. Do not explore broadly.
 
 ## Protocol
 
-1. **Understand the work package** — read next.md carefully. Note the scope, implementation notes,
-    and verification criteria.
+1. **Understand the work package** — the injected next.md is your whole brief. Note the scope,
+    implementation notes, and verification criteria.
 
 2. **Read reference material** — read ONLY the files listed in next.md's "Reference" section. For
     the iscc-core reference implementation, read files directly from `reference/iscc-core/` (see
@@ -62,8 +62,10 @@ iterations.
     - Consult `notes/` documents referenced in next.md for architectural guidance
     - Keep it simple. Prefer explicit over clever.
     - Write short, pure functions with docstrings
-    - Stay within the file scope defined in next.md (max 3 files, excluding tests and docs — or up to
-        8 when next.md cites an `[audit]` issue and states the raised budget in its Scope)
+    - Stay within the file scope defined in next.md: max 3 files excluding tests and docs, raised to
+        8 when next.md cites an `[audit]` issue and states the budget, and unlimited when next.md
+        declares a `**Fan-out:**` line — in which case apply the *same* change to every surface it
+        names and make no per-surface design decisions of your own
     - If next.md lists documentation files in Scope, update them to reflect the code changes made in
         this step. Doc updates should be minimal and accurate — match the actual implementation,
         don't embellish.
@@ -116,9 +118,17 @@ technical debt introduced>
 
 - Stay in scope. Implement what next.md defines. Do not add features, refactor unrelated code, or
     "improve" things outside the work package.
+- **Delegate rarely.** You hold the Agent tool, but a work package capped at 3 files is almost never
+    worth a subagent — the spawn costs more than the work it saves. Reserve it for a wide read-only
+    investigation next.md explicitly calls for, and write the code yourself. Never delegate to
+    verify or double-check what you just did; that is the review agent's job, and doing it here pays
+    twice for one gate. When one subagent suffices, use one rather than several.
 - If the step feels too large or you discover it requires more files than next.md's budget allows
-    (3, or 8 for an audit-cited refactor step), stop and write a handoff explaining why. Do not
-    attempt a partial implementation.
+    (3, or 8 for an audit-cited refactor step; a declared fan-out has no limit), stop and write a
+    handoff explaining why. Do not attempt a partial implementation.
+- **handoff.md has a hard budget of 100 lines.** It is a report to the reviewer: what you did, what
+    you ran, what it said. Evidence, not narration — do not replay your reasoning or restate what
+    next.md already specified.
 - If you encounter a blocker (missing dependency, unclear requirement, conflicting design), document
     it in the handoff and commit what you have. Do not guess.
 - If you discover a problem that is out of scope, document it in the handoff Notes section for the

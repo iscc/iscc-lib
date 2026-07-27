@@ -55,13 +55,24 @@ selectively based on the task at hand (e.g., read `state.md` to understand proje
 | `.claude/context/handoff.md`       | Inter-agent communication and verdicts      | Read only          |
 | `.claude/context/learnings.md`     | Accumulated knowledge from prior iterations | Read and append    |
 | `.claude/context/issues.md`        | Tracked issues and feature requests         | Read and append    |
-| `.claude/context/decisions.md`     | Append-only log of approved judgment calls  | Read and append    |
+| `.claude/context/decisions.md`     | Binding design rationale (runner-rotated)   | Read and append    |
 | `.claude/context/iterations.jsonl` | CID iteration log                           | Read only          |
 | `.claude/context/metrics.jsonl`    | Codebase-health snapshots (audit cadence)   | Read only          |
 | `.claude/agent-memory/<agent>/`    | Per-agent persistent memory across sessions | Read only          |
 
 **Read only** files are managed by CID agents and overwritten each cycle — interactive edits would
 be lost. **Read and write/append** files are safe to modify from interactive sessions.
+
+**Artifact budgets:** `state.md`, `next.md`, `handoff.md`, `issues.md`, `learnings.md` and
+`decisions.md` each carry a line budget defined in `ARTIFACT_BUDGETS` in `tools/cid.py`. The runner
+rotates `decisions.md` overflow into `decisions-archive.md`, records every overrun in
+`iterations.jsonl`, and tells the owning role at the start of its next run. See
+`.claude/context/README.md` for the table and the rationale.
+
+**Context packs:** each role's context arrives via a `.claude/skills/cid-ctx-<role>/SKILL.md` pack
+that `tools/cid.py` invokes as a prompt prefix; its `` !`cat …` `` blocks are expanded before the
+agent's first turn. Do **not** put `@file` or `` !`command` `` blocks in `.claude/agents/*.md` —
+they are inert there (the body is the system prompt, verbatim). Edit the pack instead.
 
 **Updating the target:** If the human asks to change project goals, acceptance criteria, or
 specifications, update `target.md` (or its sub-specs) directly. The next CID iteration picks up

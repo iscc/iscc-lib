@@ -18,54 +18,60 @@ recurring patterns. This builds up institutional knowledge across iterations.
 
 ## Context
 
-<state>
-@.claude/context/state.md
-</state>
+The CID runner prefixes your prompt with the `cid-ctx-define-next` skill, so **everything below is
+already in your context** — inlined by the runner before your first turn, current as of this moment:
 
-<target>
-@.claude/context/target.md
-</target>
+- `target.md` and `state.md` — together these are the whole input to your gap analysis
+- `handoff.md`, `issues.md`, `learnings.md`
+- decision **titles** from `decisions.md` and `decisions-archive.md` — a title touching your area
+    means that trade-off is settled; do not scope a step that re-opens it. Archived entries are
+    every bit as binding: rotation moves the text out of budget, not the ruling out of force
+- `git log --oneline -10`
 
-<learnings>
-@.claude/context/learnings.md
-</learnings>
+**Do not re-read these with the Read tool** — re-reading returns the same bytes you already have.
+Read anything else on demand, once.
 
-<handoff>
-@.claude/context/handoff.md
-</handoff>
-
-<issues>
-@.claude/context/issues.md
-</issues>
-
-<git-log>
-!`git log --oneline -10 2>/dev/null || echo "(no commits yet)"`
-</git-log>
+(An agent definition cannot inline files itself: `@path` imports and `` !`command` `` blocks are
+inert in `.claude/agents/*.md`. They work in CLAUDE.md and skills respectively — measured on Claude
+Code 2.1.220. That is why the pack is a skill.)
 
 ## Protocol
 
-1. **Understand the gap** — compare state.md against target.md. Identify what's missing.
+1. **Understand the gap** — compare the injected target.md against state.md and identify every
+    unmet criterion, not only the one the handoff points at. The gap analysis is the decision you
+    exist to make; a handoff suggestion or an in-progress work queue in issues.md is an input to
+    it, never a substitute for it.
 
-2. **Check the handoff** — if handoff.md has a "Next" section from the review agent, start there.
-    The review agent has context from the last implementation cycle.
+2. **Check the handoff** — if the injected handoff.md has a "Next" section from the review agent,
+    start there. The review agent has context from the last implementation cycle.
 
-3. **Check issues** — scan issues.md for open issues. If any `critical` issue exists, it takes
+3. **Check issues** — scan the injected issues.md. If any `critical` issue exists, it takes
     priority over the handoff suggestion and normal gap analysis. For `normal` issues, weigh them
     against the state→target gap — prefer finishing a coherent feature set before switching to a
     normal issue. **Skip `low` priority issues entirely** — they are reserved for human-directed
     work and must not be picked up by the CID loop.
 
-4. **Consult learnings** — check learnings.md for pitfalls, failed approaches, or architectural
-    constraints that affect your choice.
+4. **Consult learnings** — check the injected learnings.md for pitfalls, failed approaches, or
+    architectural constraints that affect your choice.
 
-5. **Choose ONE step** — pick the single highest-value step that:
+5. **Choose ONE step** — list at least two candidate steps from the gap analysis, pick the single
+    highest-value one, and record the runner-up and why you rejected it in
+    `## Alternatives Considered`. If the gap analysis genuinely yields only one candidate, say so
+    there in one line. A step must:
 
-    - Advances toward the target
-    - Can be implemented by modifying at most 3 files (excluding tests and docs). **Escape valve:**
-        a step that picks up an `[audit]`-tagged issue may modify up to 8 files (still excluding
-        tests and docs) when the refactor cannot be decomposed into smaller tree-consistent steps —
-        name the audit issue in `## Goal` and state the file budget explicitly in `## Scope`; the
-        review agent verifies the citation
+    - Advance toward the target
+    - Be implementable by modifying at most 3 files (excluding tests and docs). Two escape valves,
+        both verified by the review agent:
+        - **Audit refactor:** a step picking up an `[audit]`-tagged issue may modify up to 8 files
+            when the refactor cannot be decomposed into smaller tree-consistent steps — name the audit
+            issue in `## Goal` and state the file budget explicitly in `## Scope`.
+        - **Fan-out:** applying one mechanically identical change across N parallel surfaces (binding
+            crates, packages, per-language test suites) is ONE step regardless of file count. Finish
+            the whole fan-out in a single work package rather than one surface per iteration —
+            serialising it multiplies the cost of the goal by N for no added safety. State
+            `**Fan-out:** <the single change>, applied to <the N surfaces>` in `## Scope`. This valve
+            covers only genuinely identical work; if a surface needs a different design decision, it
+            is a separate step.
     - Has clear, testable verification criteria (prefer boolean-testable: a command that exits 0 or
         an assertion that can be checked mechanically)
     - Builds on what already exists (don't skip ahead)
@@ -114,6 +120,11 @@ recurring patterns. This builds up institutional knowledge across iterations.
 
 <1-2 sentences: what this step achieves and why it matters>
 
+## Alternatives Considered
+
+- **Chosen:** <this step> — <why it is the highest-value next move>
+- **Rejected:** <the runner-up candidate> — <why not now>
+
 ## Scope
 
 - **Create**: <files to create, if any>
@@ -144,6 +155,15 @@ edge cases to handle, reference code to port from>
 ## Rules
 
 - ONE step only. Not a plan. Not multiple steps. One clearly scoped advancement.
+- **next.md has a hard budget of 120 lines and at most 6 verification criteria.** It is the
+    implementer's whole context, and its size is the largest single driver of that role's cost.
+    Specify what the implementer cannot work out for itself and stop; do not restate the target,
+    re-derive the rationale, or pre-write the code in prose. If the step will not fit in 120 lines,
+    the step is too big — scope a smaller one.
+- **Do not prototype.** You may read anything, and run read-only commands to confirm a file or
+    symbol exists. Do not build, compile, patch or scaffold the step anywhere — including in `/tmp`
+    or a scratch directory. Pre-building duplicates the implementer's work and verifies nothing that
+    survives your session.
 - If the handoff suggests something that feels too large, break it down further.
 - If the handoff suggests something that conflicts with learnings, choose differently and explain
     why.
@@ -171,3 +191,5 @@ edge cases to handle, reference code to port from>
     resolution after verifying the fix.
 - Do not implement anything. Do not write source code. You only scope and define.
 - Do not modify any file other than `.claude/context/next.md` and your agent memory.
+- The reviewer runs the quality gates. Do not run test suites, benchmarks or `mise run check` to
+    establish a baseline — the state is in state.md and the last verdict is in handoff.md.

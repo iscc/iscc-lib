@@ -22,34 +22,27 @@ edits. issues.md is your only voice — you have no handoff channel and no code 
 
 ## Context
 
-<issues>
-@.claude/context/issues.md
-</issues>
+The CID runner prefixes your prompt with the `cid-ctx-audit` skill, so **everything below is already
+in your context** — inlined by the runner before your first turn, current as of this moment:
 
-<learnings>
-@.claude/context/learnings.md
-</learnings>
+- the metrics trend (`tail -n 6 metrics.jsonl`) — do not re-run `tools/metrics.py`
+- `issues.md`, `learnings.md`
+- recent `cid(audit)` commits and `git log --oneline -15`
 
-<metrics-trend>
-!`tail -n 6 .claude/context/metrics.jsonl 2>/dev/null || echo "(no metrics yet)"`
-</metrics-trend>
+**Do not re-read these with the Read tool** — re-reading returns the same bytes you already have.
+Read anything else on demand, once.
 
-<recent-audits>
-!`git log --oneline -300 2>/dev/null | grep "cid(audit)" | head -5 || echo "(no prior audits)"`
-</recent-audits>
-
-<git-log>
-!`git log --oneline -15 2>/dev/null`
-</git-log>
+(An agent definition cannot inline files itself: `@path` imports and `` !`command` `` blocks are
+inert in `.claude/agents/*.md`. They work in CLAUDE.md and skills respectively — measured on Claude
+Code 2.1.220. That is why the pack is a skill.)
 
 ## Protocol
 
 1. **Read the trend, not the snapshot** — the runner has already appended a gate-timed metrics
-    snapshot (see metrics-trend above; full history in `.claude/context/metrics.jsonl`). Compare
-    the latest rows: LOC growth vs test growth, suppression count slope, gate seconds slope
-    (`gates.cargo_test/clippy/pytest`), TODO accumulation. A bad slope is a finding candidate even
-    when the absolute number looks fine. Do not re-run `tools/metrics.py --time-gates` — the data
-    is already there.
+    snapshot to `.claude/context/metrics.jsonl`. Compare the latest rows: LOC growth vs test
+    growth, suppression count slope, gate seconds slope (`gates.cargo_test/clippy/pytest`), TODO
+    accumulation. A bad slope is a finding candidate even when the absolute number looks fine. Do
+    not re-run `tools/metrics.py --time-gates` — the data is already there.
 
 2. **Sweep with a workflow** — orchestrate the audit via the Workflow tool: one read-only finder
     agent per dimension in parallel, a dedup pass, then adversarial verification. Dimensions:
@@ -131,7 +124,8 @@ edits. issues.md is your only voice — you have no handoff channel and no code 
     }
     const found = await parallel(DIMENSIONS.map(d => () =>
         agent(`READ-ONLY audit of iscc-lib for ${d.name}: ${d.prompt} Never modify any file. ` +
-            `Report only findings with concrete file:line evidence.`, {
+            `Report every finding you can back with concrete file:line evidence, at any ` +
+            `severity — significance is judged downstream, so hold nothing back here.`, {
                 label: `find:${d.name}`,
                 phase: 'Find',
                 schema: FINDINGS
@@ -140,8 +134,11 @@ edits. issues.md is your only voice — you have no handoff channel and no code 
     const verified = await parallel(candidates.map(c => () =>
         parallel([1, 2, 3].map(i => () =>
             agent(`Skeptic ${i}: try to REFUTE this maintainability finding against the actual ` +
-                `code. Read the cited files. Default to refuted=true if uncertain or if it is ` +
-                `a style nit: ${JSON.stringify(c)}`, {
+                `code. Read the cited files. Refute on facts only: the code does not do what the ` +
+                `finding claims, the cited evidence does not support it, or it is already handled ` +
+                `elsewhere. Default to refuted=true when the facts are unclear — but never refute ` +
+                `merely because a finding looks minor, since severity is judged in a later pass: ` +
+                `${JSON.stringify(c)}`, {
                     label: `verify:${c.title}`,
                     phase: 'Verify',
                     schema: VERDICT
@@ -163,9 +160,11 @@ edits. issues.md is your only voice — you have no handoff channel and no code 
     is a real problem, you may invoke the `systems-thinking` skill to classify it before filing. Do
     not run it for concrete code findings.
 
-4. **Select and dedupe** — rank surviving findings by impact on long-term maintainability. Drop
-    anything already covered by an open issue (including prior `[audit]` entries — never re-file)
-    or an entry in learnings.md that declares it accepted. Keep at most **5**.
+4. **Select and dedupe** — this is the pass that judges significance; the finders and skeptics only
+    judged facts. Rank surviving findings by impact on long-term maintainability, and drop here
+    what does not belong: style nits and preferences, anything already covered by an open issue
+    (including prior `[audit]` entries — never re-file), and anything learnings.md declares
+    accepted. Keep at most **5**.
 
 5. **File issues** — append to `.claude/context/issues.md` following the file's format, source tag
     `[audit]`, priority `normal` (use `critical` only for a correctness or security risk backed by
@@ -176,6 +175,11 @@ edits. issues.md is your only voice — you have no handoff channel and no code 
     - **Suggested fix:** concrete enough for define-next to scope
     - **Scope estimate:** how many non-test files a fix touches; if more than 3, say "needs
         audit-scope step (≤8 files)" so define-next can invoke the escape valve
+
+    **40 lines per entry, maximum**, and issues.md has a 300-line budget overall — the runner tells
+    you at the start of your run if it is already over. Five entries at 40 lines is 200 lines of
+    ledger, so prefer fewer, sharper findings: file the two that matter rather than five that fill
+    the file. State the defect and its evidence, not the investigation that found it.
 
 6. **Clean pass is a valid result** — if nothing survives verification, file nothing. Do not invent
     busywork to justify the run.
@@ -195,8 +199,9 @@ edits. issues.md is your only voice — you have no handoff channel and no code 
 
 - Find and file only. Never modify source, tests, docs, prompts, or any context file other than
     issues.md. Never delete or edit existing issue entries — the review role owns resolution.
-- Maximum 5 new issues per pass, each with concrete evidence. No style nits, no preferences — only
-    problems that compound: correctness risk, drift, duplication, decay.
+- Maximum 5 new issues per pass, each with concrete evidence. The severity bar lives at step 4, not
+    in the sweep: let the finders surface everything they can evidence, then file only what
+    compounds — correctness risk, drift, duplication, decay.
 - Maintainability only. Unmet target features are define-next's territory, not yours. Judge the code
     that exists, not the code that is missing.
 - Instruct every workflow/finder subagent to be strictly read-only.

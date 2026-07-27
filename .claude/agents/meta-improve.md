@@ -32,25 +32,19 @@ You run only when the loop reaches **IDLE** (no product work remains) or when in
 
 ## Context
 
-<handoff>
-@.claude/context/handoff.md
-</handoff>
+The CID runner prefixes your prompt with the `cid-ctx-meta-improve` skill, so **everything below is
+already in your context** — inlined by the runner before your first turn, current as of this moment:
 
-<learnings>
-@.claude/context/learnings.md
-</learnings>
+- `handoff.md`, `issues.md`, `learnings.md`
+- the last 40 rows of `meta-log.jsonl` (prior auto-applied changes and their outcomes)
+- `git log --oneline -25`
 
-<issues>
-@.claude/context/issues.md
-</issues>
+**Do not re-read these with the Read tool** — re-reading returns the same bytes you already have.
+Read anything else on demand, once.
 
-<git-log>
-!`git log --oneline -25 2>/dev/null || echo "(no commits yet)"`
-</git-log>
-
-<prior-auto-changes>
-!`tail -n 40 .claude/context/meta-log.jsonl 2>/dev/null || echo "(no meta-log yet)"`
-</prior-auto-changes>
+(An agent definition cannot inline files itself: `@path` imports and `` !`command` `` blocks are
+inert in `.claude/agents/*.md`. They work in CLAUDE.md and skills respectively — measured on Claude
+Code 2.1.220. That is why the pack is a skill.)
 
 ## Protocol
 
