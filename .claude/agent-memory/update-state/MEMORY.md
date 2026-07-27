@@ -20,18 +20,21 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
 - **ALWAYS `git status --porcelain` too.** A TIMEOUT role dies before committing but **leaves its
     written file dirty** — at 155 define-next timed out with 0 turns yet left a 440-line `next.md`
     carrying the iteration's most important finding. Treat as an unverified lead, not fact.
-- **Counts** (158): crate/pkg READMEs & CLAUDE.md 12 each (**scope the glob to
+- **Counts** (159): crate/pkg READMEs & CLAUDE.md 12 each (**scope the glob to
     `crates/*/   packages/*/`** — bare grep gives 14); pytest-benchmark 18; UniFFI 32; docs pages
     **23**; `docs/howto/*.md` 11; speedups 1.3x-158x; ffi extern **47** (`'#\[unsafe(no_mangle)\]'`;
     bare `no_mangle` gives 48); iscc-lib `#[test]` **342** (glob
     `git ls-files 'crates/iscc-lib/**/*.rs'`; `src/` alone gives 288); `packages/go` `^func Test`
-    **177**; CRAP `entries` **105**; pytest **389** via `uv run pytest --collect-only -q` (counts
+    **177**; CRAP `entries` **105**; pytest **393** via `uv run pytest --collect-only -q` (counts
     without running the suite).
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` are both
     importable under `uv run python`, so any reference-vs-core probe needs **no build** — but check
     `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` mtime first (stale `.so` silently measures
     the previous commit). Load `scripts/unicode_sweep.py` via `importlib` to probe its
-    guards/`sweep()` directly in seconds instead of re-inventing a sweep.
+    guards/`sweep()` directly in seconds instead of re-inventing a sweep — **since 158 the CLI
+    refuses without `--rebuilt`**, so drive `main(["--rebuilt"])` in-process and `setattr`
+    `scalar_values` / `EXPECTED_*` / `FUNCTION_PAIRS` to exercise the failure path at 30-scalar
+    scale (a full run needs a `--release` rebuild, ~60 s + build).
 - **version_sync TARGETS** = **21** (`scripts/version_sync.py --check`) = the authoritative set of
     version-synced files; absentees rot.
 - **Issue headers**: `grep -nE '^## ' issues.md` (priority+source tag). **Trace a dep**:
@@ -98,37 +101,39 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     suite — 13 Kotlin tests silently did not run while every gate was green. Only a
     mutate-then-rerun probe (no `clean`) exposes it; CI is immune.
 
-## Current State (assessed-at: c30a374, iter 158)
+## Current State (assessed-at: 0b8f2e2, iter 159)
 
-- **IN_PROGRESS — CI GREEN and covering all code.** `origin/develop` == `9f80a32`: **45 check-runs,
-    23 names, 0 non-success**; HEAD `c30a374` is 1 `.claude`-only commit ahead, code diff vs origin
+- **IN_PROGRESS — CI GREEN and covering all code.** `origin/develop` == `5581696`: **45 check-runs,
+    23 names, 0 non-success**; HEAD `0b8f2e2` is 1 `.claude`-only commit ahead, code diff vs origin
     empty. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped; version **0.5.0**).
-- **Iteration 157 landed the criterion-4 sweep gate; PASS_WITH_NOTES** (4 roles OK, 235 turns). 5
-    code files, all ADDITIVE, **zero Rust source and zero baseline touched**: new
-    `scripts/unicode_sweep.py` + `tests/test_unicode_sweep.py` (10 tests), `ci.yml` (21st job),
-    `mise.toml` (`unicode:sweep`), `docs/unicode.md`.
-- **Statuses:** Rust-core partially met — crit 1, 2, **4 MET**; **crit 3 stuck at 8 of 11** surfaces
-    (C FFI, C++, Swift ungated) + the pure-Go port. All else met except CI/CD (partial). Counts
-    moved at 157: check names **23** (was 22), job keys **21** (was 20), pytest **389** (was 379);
-    all others held.
+- **Iteration 158 HARDENED the sweep gate; verdict PASS** (4 roles OK, 193 turns). 5 code files,
+    zero Rust source / zero baseline: `unicode_sweep.py` (`--rebuilt` refusal + bounded samples),
+    its tests 10 → **14**, `ci.yml` + `mise.toml` one line each, `docs/unicode.md`. Detail →
+    `unicode-contract.md` crit 4.
+- **Statuses:** Rust-core partially met — crit 1, 2, 4 MET; **crit 3 stuck at 8 of 11** surfaces (C
+    FFI, C++, Swift ungated) + the pure-Go port. All else met except CI/CD (partial). Only count
+    that moved at 158: pytest **393** (was 389); all others in Shortcuts held.
 - **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **7** paths,
     matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
     `python-test`). Register new copies; keep canonical basenames (the gate discovers by basename).
-- **Next = harden the sweep gate (new `normal` [review] issue), then propagation slice 5 (C FFI).**
-    Both blind spots re-confirmed at 158 by direct probe → `unicode-contract.md` crit 4;
-    `decisions.md` 2026-07-27 already rejected the two obvious fixes. C FFI is the only remaining
-    surface buildable here and needs a design call first (`tests/test_iscc.c` has no JSON reader).
-    Do NOT extend `unicode_boundary.json` — nine suites assert exactly 7/5 counts.
+- **Next = propagation slice 5 (C FFI)** — last surface buildable here (`gcc`; `cmake`/`swift`
+    absent). Re-verified 159: `include/iscc.h` declares `iscc_text_clean` (L383) /
+    `iscc_text_collapse` (L434), but `tests/test_iscc.c` (459 lines) has **zero** hits for either
+    and no JSON reader; the `c-ffi` job is one bare `gcc -I include` + a cbindgen freshness check.
+    Recommended: PEP 723 generator → `unicode_boundary_vectors.h` of `static const char *`, gated by
+    regenerate-then-`git status` empty (the `gen_unicode16_*.py` pattern). A *generated* header is
+    derived → must **NOT** go in `VENDORED_COPIES`. Do NOT extend `unicode_boundary.json` — nine
+    suites assert exactly 7/5 counts.
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
     wrong twice over); crit-1/-3/-4 boxes unchecked though 1/2/4 are met. Human-owned — don't edit.
-- **Issues: 9** (5 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`); human backlog
-    CLEARED. NEW at 157: "Harden the Unicode differential sweep gate" `[review]`. The Unicode
-    umbrella entry's remainder is now only **(b) propagation**. AUTHORIZED for CID: rubygems
-    `@v2.1.0` pin; major dep bumps **one per step** (magnus 0.8 / jni 0.22 = source rewrites; xunit
-    3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x); exhaustive `specs/ci-cd.md` job table. DEFERRED:
-    npm OIDC.
-- **Don't re-flag as DONE**: sweep gate 157, `Final_Sigma` 156, C#+Kotlin 154, napi+Java 153, drift
-    gate 152, WASM+Ruby 151, Python+Go 150 (149 and earlier → `MEMORY-archive.md`).
+- **Issues: 8** (4 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`); human backlog
+    CLEARED. CLOSED at 158: "Harden the Unicode differential sweep gate"; the Unicode umbrella
+    entry's remainder is now only **(b) propagation**. AUTHORIZED for CID: rubygems `@v2.1.0` pin
+    (still `@main` at `release.yml:895`); major dep bumps **one per step** (magnus 0.8 / jni 0.22 =
+    source rewrites; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x); exhaustive
+    `specs/ci-cd.md` job table. DEFERRED: npm OIDC.
+- **Don't re-flag as DONE**: sweep-gate hardening 158, sweep gate 157, `Final_Sigma` 156, C#+Kotlin
+    154, napi+Java 153, drift gate 152, WASM+Ruby 151, Python+Go 150 (≤149 → `MEMORY-archive.md`).
 
 ## Gotchas
 

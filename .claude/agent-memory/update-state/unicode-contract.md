@@ -109,15 +109,22 @@ is stripped, which is what the reference does).
     context set reds), stale-`.so` mtime guard. 10 pytest cases in `tests/test_unicode_sweep.py`
     pin it, incl. one proving the 8 contexts **discriminate the superseded delete-filter design**
     (the arithmetic pin alone cannot catch a *swapped* context set). **Do NOT wire the full sweep
-    into pytest / `mise run test` / pre-push.** **Two confirmed blind spots (filed `normal`
-    [review], reproduced by direct probe at 158):** (a) `check_extension_fresh` watches only `*.rs`
-    mtimes → a `cargo update`/rustc bump gives a false green from a bare
-    `uv run scripts/unicode_sweep.py`; a missing source dir passes vacuously
-    (`max(..., default=0.0)`). Operating rule (`decisions.md` 2026-07-27): **always go through
-    `mise run unicode:sweep`.** (b) `sweep()` retains EVERY divergence though only 20 print
-    (probed: 800 comparisons → 800 tuples) → OOM before diagnostics on a broad regression; fixing
-    it must also update `test_sweep_reports_divergence_with_wrong_oracle`, which asserts
-    `len(divergences) == count`. Mandatory on every future table bump.
+    into pytest / `mise run test` / pre-push.** **HARDENED at 158 — both 157 blind spots CLOSED,
+    issue closed; re-probed at 159, do not refile.** (a) `check_rebuilt` is now the FIRST statement
+    of `main`: a bare `uv run scripts/unicode_sweep.py` exits **1 in ~2 s with 0 bytes of stdout**.
+    Membership is exact — `--rebuild`, `--rebuilt=true`, `-r` are all refused; only the two
+    rebuild-first paths (`mise run unicode:sweep`, the CI step) pass `--rebuilt`. The flag is a
+    **trusted caller assertion, not an observation** (`decisions.md` 2026-07-27); the three
+    rejected fixes are widen-the-mtime-set, embed a build fingerprint as a public symbol (breaks
+    the 32-symbol Tier 1 story), and shell out to maturin. Empty/missing source dirs now raise
+    instead of `max(..., default=0.0)`. (b) `SweepResult(comparisons, divergences, samples)` counts
+    every divergence but retains ≤ `MAX_REPORTED_DIVERGENCES` (**20**); the *reporting* path is
+    bounded too — probed in-process: 20 `DIVERGENCE` lines, `showing first 20 of N divergences`,
+    then the frozen TOTAL line. Test count went 10 → **14**. **Remaining residual, observed 158/159
+    and deliberately NOT filed:** `check_extension_fresh` tests the **union** of
+    `RUST_SOURCE_DIRS`, so one renamed dir still passes while the other yields sources — redundant
+    behind `--rebuilt`. The success line `TOTAL 17793024 comparisons, 0 divergences` is
+    **byte-frozen** by contract. Mandatory on every future table bump.
 
 ## The `Final_Sigma` case-table defect — FIXED at iter 156, re-verified at 157
 
