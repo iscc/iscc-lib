@@ -172,8 +172,8 @@ iter 152 every new tracked copy must also be registered in `VENDORED_COPIES` of
     SwiftPM resources, CMake, and any C-FFI generated table.
 - `packages/dotnet/{bin,obj}` and `packages/kotlin/build/` are gitignored, so build outputs of these
     slices never reach `git ls-files` or the drift gate.
-- Kotlin emits a pre-existing "Deprecated Gradle Version" warning (wrapper 8.12.1 vs Kotlin plugin
-    2.4.10) — the wrapper bump is a separate authorized major, not this slice's regression.
+- Kotlin's old "Deprecated Gradle Version" warning (wrapper 8.12.1 vs KGP 2.4.10) is GONE since the
+    9.6.1 wrapper bump (iter 165) — any `Deprecat` line in a Kotlin build log is now a real finding.
 
 ### C FFI slice (iter 159, ~15 min) — generated tracked artifact, NOT a vendored copy
 

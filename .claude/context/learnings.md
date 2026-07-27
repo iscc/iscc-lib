@@ -7,37 +7,35 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 ## Architecture
 
 - Hub-and-spoke: `iscc-lib` (pure Rust core) → binding crates (py, napi, wasm, ffi, jni, rb,
-    uniffi). Each depends only on `iscc-lib`, never on another binding. `packages/go` is NOT a
-    binding — it is an independent pure-Go reimplementation (see the Unicode entry below)
-- Tier 1 API (32 symbols) exposed via `pub use` at crate root. Tier 2 is `pub(crate)` — internal
-    only, never crosses FFI. Core is sync; each binding adapts async idiomatically
+    uniffi), each depending only on the core. Tier 1 = 32 symbols `pub use`d at crate root; Tier 2
+    is `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
 
 ## Reference Implementation
 
 - **`iscc-core` output is not stable across CPython versions** (5,185 code points differ 3.13 vs
-    3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so the result tracks
-    `unicodedata.unidata_version`; upstream iscc-core#137). Always name the interpreter:
-    `uv run --python 3.13 --no-project --with iscc-core python -c …`
+    3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so output tracks
+    `unicodedata.unidata_version`; iscc-core#137). Always name the interpreter:
+    `uv run --python 3.13 --no-project --with iscc-core …`
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) must be proven output-neutral by a
     **differential sweep** (`mise run unicode:sweep`), never by a green vector suite — every
     `data.json` vector predates Unicode 16
 
 ## Tooling
 
-- `mise` manages tool versions and tasks; Python env uses `uv`; hooks via `prek`. Never use `mise`
-    in CI — call tools directly. Pre-push-**only** gates: clippy `-D warnings`, cargo test, pytest,
-    `ty check` (the ruff `S`/`C901` scans also run pre-commit since iter 134)
+- `mise` for tools/tasks, `uv` for the Python env, `prek` for hooks; never use `mise` in CI — call
+    tools directly. Pre-push-**only** gates: clippy `-D warnings`, cargo test, pytest, `ty check`
 - **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (iter 133):
     inline `# /// script` metadata, `uv run --script <path>`, and `[tool.ty.src] exclude` **only if
     it imports a non-project dep** (a stdlib-only generator needs no exclusion — iter 159). A dep a
     *pytest* test imports in-process cannot be PEP 723 and must be a dev-group dep (142, `pyyaml`).
     Generated Rust must be data-only + rustfmt-stable; generated C must be ASCII + LF + one trailing
     newline, or the prek hygiene hooks rewrite it and break the regeneration-no-op gate
-- **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** (`benches/`
-    import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally, E0432) — drop `--all-targets`
 - **Every "not locally verifiable" toolchain claim so far has been false**: `cmake` via
     `uv run --with cmake cmake …` (configure into a fresh gitignored `build-*/`, never the stale
-    `packages/cpp/build/`), `swift` via swift.org's Debian 12 tarball (`packages/swift/CLAUDE.md`)
+    `packages/cpp/build/`), `swift` via swift.org's Debian 12 tarball (`packages/swift/CLAUDE.md`),
+    and the release-only Kotlin publish — `gradlew publishMavenPublicationToStagingRepository`
+    writes to a local `build/staging-deploy` and skips `signMavenPublication` without
+    `MAVEN_GPG_PASSPHRASE`, so the whole release path runs offline and credential-free
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
     dies until `apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner@0.16.1`
     (pin-matched to the dep); CI mirrors this
@@ -60,10 +58,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     which pre-substitutes each `Σ` with σ/ς decided from vendored `Cased`/`Case_Ignorable` tables
     (`utils/unicode16_case.rs`, regen `scripts/gen_unicode16_case.py`) and only then delegates to
     std. The rule is NOT "no `Cased` char follows": `ΑΣ,Β` → `αςβ`, `ΑΣ.Β` → `ασβ`
-- **A UCD *derived* property a runtime does not expose can be recovered behaviourally** (iter 156):
+- **A UCD *derived* property a runtime does not expose can be recovered behaviourally** (156):
     `(ch+Σ).lower()` ends in ς ⟺ `Cased ∧ ¬Case_Ignorable`; `("A"+ch+Σ).lower()` ⟺
-    `Cased ∨ Case_Ignorable`. Always audit such a table against bounds computable from categories
-    alone — a behavioural generator is not its own oracle (bounds → `decisions.md` 2026-07-27)
+    `Cased ∨ Case_Ignorable`. Audit such a table against category-only bounds — a behavioural
+    generator is not its own oracle (bounds → `decisions.md` 2026-07-27)
 - **Any Unicode differential MUST include multi-code-point sequences** — deleting a `Cn` code point
     changes ADJACENCY, mapping it does not, and a per-code-point sweep scores the superseded
     delete-filter design 0 failures; only `base_mark` / `jamo` / `sigma` expose it
@@ -141,7 +139,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     that is a support-policy change reserved for Titusz (floor: Kotlin 2.3 or newer; `mavenLocal`
     proof recipe + the four docs → `learnings-archive.md`)
 - **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`. Read
-    it before touching `pom.xml` / `build.gradle.kts`, or before calling a Gradle error a failure
+    it before touching `pom.xml` / `build.gradle.kts`, or before calling a Gradle error a failure.
+    Gradle 9 writes `build/reports/problems` at the END of every build, so a *concurrent* build (a
+    background Codex run) makes `clean` fail "Unable to delete directory … New files were found" —
+    re-run sequentially before believing it (165)
 - **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
     `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (the `releases/latest`
     endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` (pin `@v9.0.0`
@@ -193,7 +194,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **next.md must never task advance with editing `issues.md`** (iter 135): advance's protocol
     forbids writing it and review owns issue progress/resolution. A slice-progress ledger paragraph
     belongs in the handoff Notes for review to append — advance correctly refused and quoted it
-- **A differential gate's discriminating power lives in its CASE SET, not its case COUNT** (iter
-    157): an arithmetic pin on the case total catches a *shrunken* sweep but not a *swapped* one.
-    Prove such a gate by running it with a **superseded real design** as the subject, assert which
-    rows light up, and commit that as a test
+- **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
+    total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
+    design**, assert which rows light up, and commit that as a test

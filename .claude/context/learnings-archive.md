@@ -929,3 +929,9 @@ runs on `opus`. Deliberate — do not "unify" them.
     "Latin text is unaffected". Now enshrined in `docs/unicode.md` and in `decisions.md` 2026-07-26
     ("Practical guidance quantifies the Unicode 16 delta instead of calling Latin text safe"), so
     the docs phase this guarded is complete.
+
+## Feature-flag clippy trap (archived at 165 — feature flags fully met)
+
+- **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** (`benches/`
+    import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally, E0432) — drop `--all-targets` when
+    checking a no-default-features build.

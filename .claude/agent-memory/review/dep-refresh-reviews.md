@@ -256,9 +256,39 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
 All locally-verifiable slices are done (1-8; slice 8 closed iter 137). napi `package.json`
 (`@napi-rs/cli: ^3`) and dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked current iter 129
 — no edit needed. xunit.v3 3.x + Test.Sdk 18.x CLOSED iter 164 (below). What is left, all
-human/major-gated: `release.yml` GHA refs (not CI-exercised), Gradle wrapper + JUnit 6.x, and the
-deferred magnus 0.8 / jni 0.22 migrations, each its own step. Watch for the slice-5 lesson in any
-published binding: a runtime/toolchain floor moving silently.
+human/major-gated: `release.yml` GHA refs (not CI-exercised), JUnit 6.x, and the deferred magnus 0.8
+/ jni 0.22 migrations, each its own step. Gradle wrapper 9.6.1 CLOSED iter 165 (below). Watch for
+the slice-5 lesson in any published binding: a runtime/toolchain floor moving silently.
+
+## Build-tool wrapper major (iter 165, Gradle 8.12.1 → 9.6.1) — ~15 min
+
+A wrapper bump ships a **binary blob** (`gradle-wrapper.jar`) plus tool-generated scripts. Never
+review it by reading the diff — prove provenance twice, both cheap:
+
+1. **Publisher checksum:**
+    `curl -sSL https://services.gradle.org/distributions/gradle-<v>-wrapper.jar.sha256` (needs
+    `-L`; the bare URL 301s) must equal `sha256sum` of the file AND of the committed blob
+    (`git cat-file blob <hash> | sha256sum`).
+2. **Independent regeneration:**
+    `mkdir /tmp/wraptest && printf 'rootProject.name = "x"\n' >  /tmp/wraptest/settings.gradle.kts && packages/kotlin/gradlew -p /tmp/wraptest wrapper  --gradle-version <v>`
+    — without a settings file the `wrapper` task FAILS. Then diff all four artifacts;
+    `gradlew.bat` matches only after `sed 's/\r$//'` (Gradle emits 82 CRLF lines, the repo stores
+    LF via `.gitattributes` + `mixed-line-ending`). This also proves any new
+    `gradle-wrapper.properties` keys (9.x adds `retries`/`retryBackOffMs`) are tool defaults.
+
+Then: `cargo build -p iscc-uniffi` → `gradlew -p packages/kotlin clean build`, read
+`build/test-results/test/*.xml` for `tests="9"` / `tests="13"` with `skipped="0"`, and
+`grep -in deprecat` the captured log (that KGP diagnostic is the point of the bump). **Also probe
+the release-only path** `gradlew -p packages/kotlin publishMavenPublicationToStagingRepository`: it
+writes to a local `build/staging-deploy`, `signMavenPublication` is SKIPPED without
+`MAVEN_GPG_PASSPHRASE`, so `release.yml`'s never-CI'd publish step is fully verifiable offline.
+
+GOTCHAS: Gradle 9 writes `build/reports/problems` at the END of a build, so a **concurrent** build
+(the background Codex run) makes `clean` fail "Unable to delete directory … New files were found" —
+re-run sequentially, it is not a defect. KGP's session dir `packages/kotlin/.kotlin/sessions` is
+untracked and un-ignored but exists only during a build. Gradle 9 deletes the distribution zip after
+extraction, so advance cannot hash the cached zip — the wrapper-jar checksum above is the better
+provenance anyway.
 
 ## dotnet test-framework major (iter 164, xunit v2 → v3 + Test.Sdk 18) — ~10 min
 
