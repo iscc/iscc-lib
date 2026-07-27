@@ -434,3 +434,21 @@ plus a hot-path core edit. Run, in this order:
     `Cased` character follows" is WRONG — the rule is "the nearest *following* non-`Case_Ignorable`
     character is not `Cased`". Disprove it with one probe: `ΑΣ,Β` → `αςβ` (comma is not ignorable)
     while `ΑΣ.Β` → `ασβ` (period is `MidNumLet`, hence ignorable).
+
+## Spec↔config parity gate — iteration-163 specifics
+
+`scripts/check_ci_job_table.py` compares `ci.yml` job keys against the table in
+`.claude/context/specs/ci-cd.md` (21 jobs at 163).
+
+- **Section anchoring is load-bearing on the real file, not the fixture.** `ci-cd.md` carries 14
+    backticked first-column rows under `## Version Management` (paths, mise tasks) that an
+    unanchored whole-file scan would read as bogus job rows — so a green baseline run *is* the proof
+    the anchor works.
+- **Cheapest real regression:** `git show HEAD~1:.claude/context/specs/ci-cd.md > /tmp/old`, then
+    `run_checks(real_ci, Path('/tmp/old'))`. The pre-change 14-row table yields 0 parsed job rows →
+    count-floor error plus all 21 missing, i.e. the gate provably catches the drift it exists for.
+- **Two set-equality blind spots:** equal *empty* sets pass (hence the ≥10 count floor), and a
+    **duplicated** row passes because sets dedupe — keep row order long enough to count repeats.
+    Codex found the duplicate hole; `spec_job_rows()` now preserves order and reports duplicates.
+- The spec prose hardcodes "21 job keys → 22 check names"; the gate deliberately pins no count, so
+    that number must be hand-corrected in whatever step adds a job.

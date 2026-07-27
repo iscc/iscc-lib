@@ -383,3 +383,16 @@ skeptics refute them by default. **Evidence:** audit iterations 130/140/150/160 
 for $11.53. **Alternatives:** leave the audit alone and read 4/4 clean passes as real — rejected,
 the double suppression makes a clean pass uninformative either way. **Context:** interactive
 session, 2026-07-27, against the platform prompting guides for Opus 5 and Fable 5.
+
+## 2026-07-27 — The xunit v3 test project stays in VSTest runner mode
+
+**Decision:** `packages/dotnet/Iscc.Lib.Tests` moves to `xunit.v3` 3.x + `Microsoft.NET.Test.Sdk`
+18.x but keeps the classic VSTest runner (`xunit.runner.visualstudio` 3.x, no
+`TestingPlatformDotnetTestSupport` / `UseMicrosoftTestingPlatformRunner`). The only csproj change
+beyond the package swap is `<OutputType>Exe</OutputType>`, which v3 requires because its test
+projects are stand-alone executables. **Why:** the `dotnet` CI job passes the native library path
+with `dotnet test -e LD_LIBRARY_PATH=…`, and `-e` is a VSTest feature; Microsoft.Testing.Platform
+mode would force a CI-invocation rewrite for no test-coverage gain. VSTest mode also kept the
+migration to zero test-source edits. **Alternatives:** adopt MTP runner mode now — rejected, it
+changes the CI contract and the P/Invoke library-path mechanism in the same step as a framework
+major. **Context:** iteration 164; v2 and v3 both report exactly 104 results.

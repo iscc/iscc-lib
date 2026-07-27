@@ -72,15 +72,15 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     vs installed `iscc-core` on CPython 3.14, must print the byte-frozen
     `TOTAL 17793024 comparisons, 0 divergences`. **Re-run it for every Unicode-table or toolchain
     bump.** A bare `uv run scripts/unicode_sweep.py` REFUSES (only those two rebuild-first paths
-    supply `--rebuilt`); `sweep()` retains at most 20 samples
-- **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (141, +4 **sequence**
-    vectors 149; ASCII `\uXXXX`, `data.json`-shaped) + loader `tests/test_unicode_boundary.rs` —
-    propagation source, deliberately NOT merged into `data.json`. **All 11 native surfaces + pure-Go
-    are gated as of iter 161**, so a new vector costs 12 suites: 8 read the canonical fixture, Go/
-    Swift keep byte-identity-gated vendored copies, C/C++ share ONE generated header
-    (`crates/iscc-ffi/tests/unicode_boundary_vectors.h`, PEP 723 renderer, gated by a pytest
-    `render(fixture) == tracked` anchor, NOT `VENDORED_COPIES`). Only the 4 **sequence** vectors
-    discriminate sentinel from delete-filter, so a binding suite needs **no oracle column**
+    supply `--rebuilt`)
+- **Boundary vectors: `crates/iscc-lib/tests/unicode_boundary.json`** (141; 12 vectors = 7
+    `text_clean` + 5 `text_collapse`; the 4 **sequence** ones from 149 are the only discriminators
+    of sentinel vs delete-filter, so a binding suite needs **no oracle column**). ASCII `\uXXXX`,
+    `data.json`-shaped, loader `tests/test_unicode_boundary.rs`, deliberately NOT merged into
+    `data.json`. **All 11 native surfaces + pure-Go gated as of iter 161**, so a new vector costs 12
+    suites: 8 read the canonical fixture, Go/Swift keep byte-identity-gated copies, C/C++ share ONE
+    generated header (`crates/iscc-ffi/tests/unicode_boundary_vectors.h`, gated by a pytest
+    `render(fixture) == tracked` anchor, NOT `VENDORED_COPIES`)
 - **A binding can pass a boundary vector for the WRONG reason** (150/161): `packages/go` has no
     freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn`, so its category-`C` filter
     coincidentally matches (go1.27 flips five cases red — see issues.md); Swift's `String ==` folds
@@ -90,8 +90,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (141):
     cases swapped for ASCII no-ops stay green forever, hence the **ungated** guards on version, case
     counts and code points; probe each, and give any skip list a *stale-key* guard
-- **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"** (143): 3,995 Egyptian
-    Hieroglyphs, 7 scripts, **32 LATIN-named** incl. U+A7CB — never write "Latin text is unaffected"
 - **Per-algorithm internals**, normalization order, `data.json` shape/counts, API-parameter facts,
     **ISCC-IDv1**, the three codec rules (all test-pinned) → `learnings-archive.md`
 
@@ -100,10 +98,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **A binding suite's runner is not `cargo test`** (iter 151): `cargo test -p iscc-wasm` reports
     `0 passed` — only `wasm-pack test --node …` runs `#[wasm_bindgen_test]`, so clippy
     `--all-targets` proves compilation, never coverage. **Every gitignored native artifact goes
-    stale silently** — Ruby `.so` (`rake compile`), napi `.node` (`napi build --platform`), JNI
-    `.so` (`cargo build -p iscc-jni`); rebuild, then probe `text_clean("a"+U+A7F1+"b") == "ab"`
-    (stale → `aSb`). CI rebuilds all three first, so this is local-only; `mvn -o -B test -f <pom>`
-    works offline and surefire's cwd is the pom's basedir
+    stale silently** — Ruby `.so` (`rake compile`), napi `.node`, JNI `.so`; rebuild, then probe
+    `text_clean("a"+U+A7F1+"b") == "ab"` (stale → `aSb`). CI rebuilds first, so this is local-only
 - **A suite reading a fixture OUTSIDE its own build tree must declare it as a build input** (154):
     Gradle's `Test` task tracks only its project tree, so a `unicode_boundary.json` edit left
     `./gradlew test` `UP-TO-DATE` — a silent stale green (fixed with
@@ -150,10 +146,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (the `releases/latest`
     endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` (pin `@v9.0.0`
     \+ a `# exact tag:` comment) and `rubygems/configure-rubygems-credentials` publish only exact
-    tags. **Measure what a branch pin drops with
-    `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by`** — a recent PR title understates it
-    (iter 162: `@main` was 31 commits and a rebuilt `dist/` bundle ahead of `v2.1.0`, not the "one
-    dependabot bump" next.md asserted). Majors → `.claude/agent-memory/advance/deps-refresh.md`
+    tags. **Measure what a branch pin drops:**
+    `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by` — a PR title understates it (162:
+    `@main` was 31 commits + a rebuilt `dist/` ahead of `v2.1.0`). Majors →
+    `.claude/agent-memory/advance/deps-refresh.md`
 - **An action-major bump is statically verifiable far past "the tag exists"** — the `inputs`/
     `outputs` diff is automated (`--check-action-inputs`); what stays manual is every intervening
     major's *default* changes (recipe + the two silent biters → `learnings-archive.md`)
@@ -162,10 +158,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `git add`/`git rm` are free; the cheapest *real* regression is the guarded file's own previous
     version (`git show HEAD~1:<path>`) — that is the drift the gate was built for. A
     **set-equality** gate is blind twice: equal *empty* sets pass (hence a count floor) and a
-    **duplicated** row passes (keep row order long enough to count repeats — iter 163)
-- **A markdown-table parity gate must anchor to its own section, and the real file is what proves
-    the anchor load-bearing** (163): `specs/ci-cd.md` carries 14 backticked first-column rows under
-    `## Version Management` (paths, mise tasks) that a whole-file scan would read as bogus job rows
+    **duplicated** row passes (keep row order long enough to count repeats — iter 163). Same shape
+    for a **test-framework major**: only the pre-bump tree is an honest baseline
+    (`git archive HEAD~1 | tar -x`, run the suite there, demand the SAME total) — a "≥ N passed"
+    floor cannot see a silent collapse of parameterized rows (164: xunit v2 and v3 both gave 104)
+- **A markdown-table parity gate must anchor to its own section** (163): `specs/ci-cd.md` carries 14
+    backticked first-column rows under `## Version Management` that a whole-file scan would read as
+    bogus job rows — so the real file, not the fixture, is what proves the anchor load-bearing
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the
     previous sha's in-flight run (`cancelled`, not `failure`); let it conclude when a Done-When
     needs green CI on a sha. Each develop commit triggers TWO runs (push + the open develop→main PR)

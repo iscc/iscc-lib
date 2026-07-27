@@ -921,3 +921,11 @@ runs on `opus`. Deliberate — do not "unify" them.
 - Porting from the Python reference is complete for all 10 `gen_*_v0` functions; the Rust core
     (`crates/iscc-lib/src/`) is the authoritative source. `reference/iscc-core/` is a gitignored
     shallow clone — read its source files directly, never deepwiki MCP (also in `CLAUDE.md`).
+
+## Unicode 16.0 delta size (iter 143, archived at 164)
+
+- **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"**: 3,995 Egyptian
+    Hieroglyphs, 7 new scripts, and **32 LATIN-named** code points including U+A7CB. Never write
+    "Latin text is unaffected". Now enshrined in `docs/unicode.md` and in `decisions.md` 2026-07-26
+    ("Practical guidance quantifies the Unicode 16 delta instead of calling Latin text safe"), so
+    the docs phase this guarded is complete.

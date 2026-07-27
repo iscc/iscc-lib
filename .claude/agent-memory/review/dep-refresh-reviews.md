@@ -255,10 +255,35 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
 
 All locally-verifiable slices are done (1-8; slice 8 closed iter 137). napi `package.json`
 (`@napi-rs/cli: ^3`) and dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked current iter 129
-— no edit needed. What is left, all human/major-gated: `release.yml` GHA refs (not CI-exercised),
-Gradle wrapper + JUnit 6.x / xunit 3 / Test.Sdk 18 majors, and the deferred magnus 0.8 / jni 0.22
-migrations, each its own step. Watch for the slice-5 lesson in any published binding: a
-runtime/toolchain floor moving silently.
+— no edit needed. xunit.v3 3.x + Test.Sdk 18.x CLOSED iter 164 (below). What is left, all
+human/major-gated: `release.yml` GHA refs (not CI-exercised), Gradle wrapper + JUnit 6.x, and the
+deferred magnus 0.8 / jni 0.22 migrations, each its own step. Watch for the slice-5 lesson in any
+published binding: a runtime/toolchain floor moving silently.
+
+## dotnet test-framework major (iter 164, xunit v2 → v3 + Test.Sdk 18) — ~10 min
+
+Review recipe for any **test-framework** bump, .NET or otherwise:
+
+- **The floor in next.md is not the check — the pre-bump tree is.**
+    `git archive HEAD~1 | tar -x -C   /tmp/dnold`, then
+    `dotnet test /tmp/dnold/packages/dotnet/Iscc.Lib.Tests/ -e   LD_LIBRARY_PATH=$PWD/target/debug`
+    (reuse the real `target/debug`, no second cargo build). v2 and v3 both gave **exactly 104** —
+    that equality, not "104 ≥ 85", is what proves `[MemberData]` rows did not silently collapse. A
+    collapse of the 12 boundary rows would still have cleared 85.
+- `--list-tests` counts test **methods** (53), not rows. For the row breakdown run
+    `--logger "console;verbosity=detailed"` and `grep -cE '^\s+Passed\s+'`: 50 conformance + 41
+    smoke + 13 boundary = 104. Boundary is 13 = 12 fixture vectors (7 `text_clean` + 5
+    `text_collapse`) + 1 metadata-guard fact — do not read 13 as a 13th vector.
+- Cheap scope checks: `git diff HEAD~1..HEAD --name-only -- packages/dotnet/` (must not list
+    `Iscc.Lib/Iscc.Lib.csproj`), and grep the csproj for
+    `TestingPlatformDotnetTestSupport|UseMicrosoftTestingPlatformRunner` (must be absent — `-e` is a
+    VSTest feature; see `decisions.md` 2026-07-27).
+- Run the CI sequence from a clean tree (`rm -rf packages/dotnet/*/bin packages/dotnet/*/obj`, then
+    `dotnet build …csproj` and `dotnet test …/`) — CI always starts fresh. `dotnet build` must print
+    `0 Warning(s)`; there is no `Directory.Build.props`, `global.json`, `.sln` or
+    `TreatWarningsAsErrors`, so analyzer warnings never fail a build and must be read off the log.
+- **Floating wildcards (`3.*`, `18.*`) and no lock file** are the pre-existing .NET style: CI can
+    resolve a newer 3.x/18.x than was reviewed. Not a defect to file, but say so in the handoff.
 
 ## Dependency/tool-bump review reflexes (moved from MEMORY.md index, iter 149)
 

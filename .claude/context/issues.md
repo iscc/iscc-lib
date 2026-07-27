@@ -25,7 +25,6 @@ All nine ecosystem and tooling slices are closed (Rust, Python, Rust direct pins
 Go, Ruby, ruff 0.16 adoption, release-workflow Actions). What remains are the **major bumps**, all
 authorized by Titusz for CID on 2026-07-26 — **one per step**, gates green, no bundling:
 
-- `xunit` 3.x and `Microsoft.NET.Test.Sdk` 18.x (`packages/dotnet/*/*.csproj`)
 - Gradle wrapper 8.12.1 and JUnit 6.x (`packages/kotlin`, `crates/iscc-jni/java/pom.xml`)
 - `jni` 0.22 (`crates/iscc-jni/src/lib.rs`) and `magnus` 0.8 (`crates/iscc-rb/src/lib.rs`) — real
     API migrations and the riskiest items here; one crate per step. If either needs an
