@@ -124,6 +124,20 @@ Probed live before scoping; all figures verified at HEAD:
     verified, ~4s), not the `python-test` matrix (would fetch 3×). Expect the CI job/check-name
     count to rise by one; flag it so update-state does not read it as drift.
 
+## The `@main` pin (scoped iter 162)
+
+- `rubygems/configure-rubygems-credentials@main` at line 895 was the **only** `@main`/`@master` ref
+    in the whole `.github/workflows/` tree. Tags published: `v1.0.0`, `v2.0.0`, `v2.1.0` — **no
+    floating `@v2`**, so the exact tag is forced (same shape as `astral-sh/setup-uv@v9.0.0`).
+- `v2.1.0` = 2026-06-12 ("Node 24 + pending major dependency updates"); `main` is one transitive
+    `yaml 2.8.3 → 2.9.0` dependabot commit ahead. The step passes **no `with:` keys**, so nothing
+    but the trust anchor changes, and `raw…/v2.1.0/action.yml` returns 200 (the input gate keeps
+    resolving the ref).
+- After it, the remaining non-version refs are deliberate upstream pointers: `@stable` (7),
+    `@release/v1`, and the `@v1`/`@v2` floating majors. A gate forbidding "branch refs" would have
+    to hair-split `@main` from `@stable` — that is a **new policy gate and needs Titusz**, so the
+    step stayed a one-line edit.
+
 ## Related
 
 - GHA `uses:` refresh facts and the "floating `@vN` is a convention, not a guarantee" rule live in

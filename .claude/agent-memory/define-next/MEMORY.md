@@ -9,6 +9,11 @@ iterations.
 
 - **CI red always first** — green CI is a prerequisite for all other work; formatting/lint/advisory
     fixes preempt the handoff "Next". Then `critical` issues, regardless of feature trajectory.
+- **`tools/cid.py` never pushes — the review agent pushes the whole batch on PASS** (`review.md`
+    step 12). So "get unpushed commits under CI" is never a step: it happens as a byproduct of the
+    next PASS. What it *should* change is sizing — when HEAD carries commits no gate has seen
+    (out-of-loop `human(...)`/`cid(loop)` work), scope a deliberately small, low-risk diff so a red
+    CI run is attributable to the untested code and not to this step (iter 162).
 - **Verify claimed gaps by reading the actual files** — state.md and handoff "IDLE" both go stale;
     read issues.md directly (review can miscount). **A `human(...)` commit newer than the last
     `cid(review)` invalidates the handoff wholesale** (iter 147) — check `git log` before trusting
@@ -50,12 +55,9 @@ iterations.
 
 ## Dev Environment Constraints
 
-- **No shellcheck** (shell lint is CI-only). **`cmake` is only missing from `$PATH`**:
-    `uv run --with cmake cmake …` pulls the PyPI wheel (4.4.0) and builds/runs the C++ ASAN suite
-    (iter 160).
-- **Swift IS runnable here (iter 161)** — Debian 12 x86_64 container, swift.org ships a debian12
-    tarball (784 MB, ~5 min, no sudo). Recipe + the `String ==` canonical-equivalence trap →
-    [propagation ledger](unicode-fixture-propagation.md).
+- **No shellcheck** (shell lint is CI-only). `cmake` runs via `uv run --with cmake cmake …` (PyPI
+    wheel, iter 160); **Swift runs here too** (swift.org debian12 tarball, 784 MB / ~5 min / no sudo
+    — recipe → [propagation ledger](unicode-fixture-propagation.md)).
 - `uniffi-bindgen`: `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen`. UniFFI
     0.31.0; SPM module name MUST be `iscc_uniffiFFI`; no `const`/`usize`/borrowed/generic exports.
 - cargo-crap 0.2.2, cargo-llvm-cov 0.8.7, valgrind 3.19 + iai-callgrind-runner ARE installed.
@@ -81,10 +83,13 @@ iterations.
 
 ## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
 
-- v0.5.0 released; all 12 bindings meet core criteria; the 4 spec'd v0.6.0 feature issues are DONE.
-    Still open: the Unicode chain (below), the authorized major bumps (one per step), the
-    `rubygems/configure-rubygems-credentials@v2.1.0` pin, and an exhaustive `specs/ci-cd.md` job
-    table. HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm OIDC (token good to 2026-09-16).
+- v0.5.0 released; all 12 bindings meet core criteria; the 4 spec'd v0.6.0 feature issues are DONE;
+    the **Unicode chain is CLOSED at iter 161** (11 of 11 surfaces). Remaining backlog, in the order
+    handoff/state rank it: the `rubygems/…-credentials@v2.1.0` pin (scoped 162), an exhaustive
+    `specs/ci-cd.md` job table, then the authorized major bumps one per step (xunit 3.x,
+    `Microsoft.NET.Test.Sdk` 18.x, Gradle wrapper, JUnit 6.x, then `jni` 0.22 / `magnus` 0.8 — real
+    API migrations, park rather than guess). Trigger-only: go1.27 + the Go freeze table (~Aug 2026).
+    HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm OIDC (token good to 2026-09-16).
 - **iters 115–123 DONE (detail in MEMORY-archive.md)**. **Root lesson: the CRAP regression gate is
     CI-ONLY** — a step adding a branch to a covered fn MUST refresh the baseline in it.
 - **iters 124–137 = the dependency-refresh slices, all 8 CLOSED** → ledger, gotchas, hold-backs,
@@ -94,19 +99,13 @@ iterations.
 - **Lint/formatter tool bumps and hook-config changes have their own playbook**:
     [lint tooling lessons](lint-tooling-lessons.md). Headline: **never make an exact file/finding
     count a pass/fail criterion** — it drifts with the CID agents' own commits; use the exit code.
-- **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
-    Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) sequence vectors + fixture guard ✅149,
-    (4) propagation into the 11 bindings — ✅150 Python+Go, ✅151 WASM+Ruby, ✅152 drift gate, ✅153
-    napi+Java, ✅154 C#+Kotlin, ✅159 C FFI (generated header), ✅160 C++ (same header), **161 scoped:
-    Swift → 11 of 11**, (4b) ✅156 `Final_Sigma` case-table freeze, (5) ✅157 sweep gate
-    (`mise run unicode:sweep`; 17,793,024 comparisons / 0 divergences / ~60 s), ✅158 hardened. Never
-    implement the superseded category override (`U+A7F1` injects a spurious `S`) or a 15.1.0
-    declared version. Constants, escapes, table shapes →
-    [unicode-freeze-facts](unicode-freeze-facts.md).
-- **Before scoping any propagation slice** read the
-    [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy, the **two-axis** cost
-    rule (plumbing × text coverage; a one-axis ranking wrongly put C FFI first three times),
-    artifact staleness, Go's 9/12 per-case skip list, toolchain recipes, and the slice order.
+- **Unicode chain DONE (iters 147–161)**: sentinel freeze, `Final_Sigma` case freeze, sequence
+    vectors, the `mise run unicode:sweep` gate (17,793,024 comparisons / 0 divergences / ~60 s), and
+    boundary vectors on all 11 surfaces. Never implement the superseded category override (`U+A7F1`
+    injects a spurious `S`) or a 15.1.0 declared version. Constants/escapes/table shapes →
+    [unicode-freeze-facts](unicode-freeze-facts.md); loader taxonomy, vendoring rules, toolchain
+    recipes and the two-axis cost rule → [propagation ledger](unicode-fixture-propagation.md). A
+    13th vector now costs 12 suites at once, so any fixture edit is its own deliberate slice.
 - **Gate/checker steps in `scripts/` have their own playbook** (prek-vs-CI placement, Python 3.10
     floor, injected-`Path` shape, docs-list wiring, when a gate needs Titusz):
     [gate scripts playbook](gate-scripts-playbook.md). Read before scoping under `scripts/`.
