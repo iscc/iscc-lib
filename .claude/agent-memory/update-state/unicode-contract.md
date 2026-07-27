@@ -57,9 +57,9 @@ is stripped, which is what the reference does).
     `[dependency-groups]` — it is generator-only, excluded via `pyproject.toml`
     `[tool.ty.src] exclude`.
 2. **Table deps ≥ 16.0.0 — MET**, no dependency change; now explicitly freely-upgradable.
-3. **Boundary vectors — PARTIAL: Rust fixture COMPLETE (iters 141+149), surfaces at 10 of 11 (150:
-    Python; 151: WASM + Ruby; 153: napi + Java; 154: C# + Kotlin; 159: C FFI; **160: C++**) plus
-    the pure-Go port. REMAINING: Swift only, + the 4 sibling `data.json` locations.**
+3. **Boundary vectors — COMPLETE at iter 161: 11 of 11 surfaces** (150: Python; 151: WASM + Ruby;
+    153: napi + Java; 154: C# + Kotlin; 159: C FFI; 160: C++; **161: Swift**) plus the pure-Go
+    port. The umbrella issue is closed; nothing here is CID-actionable any more.
     `crates/iscc-lib/tests/unicode_boundary.json` — project-owned, `data.json`-*shaped* but a
     separate file (NOT appended to the five vendored `data.json` copies), fully **ASCII-escaped**
     (a repo grep for `1FAE9` MISSES it — grep the filename),
@@ -81,20 +81,20 @@ is stripped, which is what the reference does).
     JSON), but it UNDER-counts by name: Java/C#/Kotlin files are
     `UnicodeBoundaryTest{,s}.{java,cs,kt}`.** Only Go has a vendored copy; every other surface
     reads the canonical file in place, compiles it in, or (C FFI 159 / C++ 160) consumes the one
-    generated header. **REMAINING: Swift + 4 sibling `data.json` locations**
-    (`packages/dotnet/Iscc.Lib.Tests/testdata/`, `packages/swift/Tests/IsccLibTests/`,
-    `packages/kotlin/src/test/resources/`, `packages/go/testdata/`; `find packages -name data.json`
-    also returns 2 build artifacts, ignore those). **Reusable propagation pattern (proven
-    150–154):** read the canonical fixture in place wherever the language can (only Go needed a
-    copy; else `cp` and verify with `cmp`); assert `unicode_data_version` + per-section counts
-    (7/5) as a metadata guard so truncation cannot degrade to a zero-iteration loop; **never copy
-    the `delete_filter_output` oracle** — the sequence vectors' expected values already differ from
-    the delete-filter results, so plain equality reds a regression; give any skip list a stale-key
-    guard; prefer `@TestFactory`/`[Theory]`-style per-vector cases so failures name the vector.
-    **Ask whether the fixture is a DECLARED INPUT of that surface's build system** — at 154 Gradle
-    reported `:test UP-TO-DATE` and silently skipped all 13 Kotlin boundary tests after a fixture
-    edit until `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)` was added; a green run
-    does not prove the suite ran.
+    generated header. **Go and Swift are the only vendored copies** (`packages/go/testdata/`,
+    `packages/swift/Tests/IsccLibTests/`); the 4 sibling `data.json` locations were never in scope
+    for the boundary fixture (`find packages -name data.json` also returns 2 build artifacts,
+    ignore those). **Reusable propagation pattern (proven 150–154):** read the canonical fixture in
+    place wherever the language can (only Go needed a copy; else `cp` and verify with `cmp`); assert
+    `unicode_data_version` + per-section counts (7/5) as a metadata guard so truncation cannot
+    degrade to a zero-iteration loop; **never copy the `delete_filter_output` oracle** — the
+    sequence vectors' expected values already differ from the delete-filter results, so plain
+    equality reds a regression; give any skip list a stale-key guard; prefer
+    `@TestFactory`/`[Theory]`-style per-vector cases so failures name the vector. **Ask whether the
+    fixture is a DECLARED INPUT of that surface's build system** — at 154 Gradle reported
+    `:test UP-TO-DATE` and silently skipped all 13 Kotlin boundary tests after a fixture edit until
+    `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)` was added; a green run does not
+    prove the suite ran.
 4. **Differential sweep — MET at iteration 157.** `scripts/unicode_sweep.py` (committed),
     `mise run unicode:sweep` (rebuilds the extension first), and CI job key `unicode-sweep` / check
     name **`Unicode sweep (16.0.0 differential)`** — unconditional, green twice on `9f80a32`.
@@ -291,14 +291,14 @@ Re-verified at iteration 154. This is axis 1 of the three-axis slice-cost rankin
     seconds without a build: decode the octal escapes back to strings and diff against the fixture,
     then `ctypes.CDLL("target/debug/libiscc_ffi.so")` for a second, independent oracle.
 
-- **Swift is the LAST surface and is the reverse pattern — a tracked vendored copy.** Recipe:
-    `cp crates/iscc-lib/tests/unicode_boundary.json packages/swift/Tests/IsccLibTests/` (**`cp` only
-    — Write/Edit would decode the `\uXXXX` escapes to literal UTF-8 and break byte-identity**), add
-    `.copy("unicode_boundary.json")` to the `resources:` array at `Package.swift:27` (already
-    `[.copy("data.json")]`), **register the new path in `VENDORED_COPIES`** in the same commit, and
-    read it via `Bundle.module` + `JSONSerialization` exactly as the 215-line
-    `ConformanceTests.swift` already does for `data.json`. It is CI-proof-only — no local toolchain
-    and no PyPI substitute (→ `env-gotchas.md`), so an advance agent must not claim a local run.
+- **Swift LANDED at 161 (the reverse pattern — a tracked vendored copy).** Shipped shape:
+    `Tests/IsccLibTests/unicode_boundary.json` (byte-identical, registered in `VENDORED_COPIES`),
+    `.copy("unicode_boundary.json")` at `Package.swift:27`, and an 88-line
+    `UnicodeBoundaryTests.swift` reading `Bundle.module` + `JSONSerialization`. **Its one hazard,
+    proven load-bearing by mutation: Swift's `String ==` folds canonical equivalence**, so a bare
+    `XCTAssertEqual` on strings makes the sequence vectors VACUOUS — it compares
+    `unicodeScalars.map(\.value)` arrays instead. Any future Swift fixture assertion must do the
+    same. SwiftPM `.copy()` resources ARE declared build inputs (no stale-green).
 
 - **A second consumer of that header costs 4 files (160, C++).** The whole slice was one
     `target_include_directories(test_iscc PRIVATE …/crates/iscc-ffi/tests)` — **`PRIVATE` on the

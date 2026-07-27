@@ -12,11 +12,14 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     tip — **QUOTE the path** (zsh globs `?`). Failed logs: `gh run view --log-failed`.
 - **Unpushed check**: `git log --oneline origin/develop..HEAD`, then
     `git diff --stat origin/develop..HEAD -- . ':!.claude'`. Empty = green CI covers HEAD.
-    **NON-empty = it does NOT** — report the gap instead of calling CI green-for-HEAD (bit at 148).
+    **NON-empty = it does NOT** — report the gap instead of calling CI green-for-HEAD (bit at 148;
+    fired for real at 162, a 785-line `tools/cid.py` + `tests/test_cid.py` commit no gate had run).
 - **ALWAYS `tail -5 .claude/context/iterations.jsonl`** — the ONLY place a crashed role shows up
     (also the `audit` role, every 10th iteration). **A non-OK status does NOT mean no work:
     corroborate with `git log` for the `cid(<role>):` commit** — infra crash vs benign overrun and
-    the crashed-review fingerprint → `MEMORY-archive.md`.
+    the crashed-review fingerprint → `MEMORY-archive.md`. Conversely **`git log` can show work with
+    NO jsonl entry**: out-of-loop `cid(loop):` commits (human/interactive sessions, authored as "CID
+    Agent") land between iterations and may carry uncovered tracked code — always diff them.
 - **ALWAYS `git status --porcelain` too.** A TIMEOUT role dies before committing but **leaves its
     written file dirty** — at 155 define-next timed out with 0 turns yet left a 440-line `next.md`
     carrying the iteration's most important finding. Treat as an unverified lead, not fact.
@@ -26,8 +29,9 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
     `docs/includes/abbreviations.md`, a snippet); `docs/howto/*.md` 11; speedups 1.3x-158x; ffi
     extern **47** (`'#\[unsafe(no_mangle)\]'`; bare `no_mangle` gives 48); iscc-lib `#[test]`
     **342** (glob `git ls-files 'crates/iscc-lib/**/*.rs'`; `src/` alone gives 288); `packages/go`
-    `^func Test` **177**; CRAP `entries` **105**; pytest **399**
-    (`uv run pytest --collect-only -q`).
+    `^func Test` **177**; CRAP `entries` **105**; pytest **432** (`uv run pytest --collect-only -q`;
+    399 → 400 with the Swift vendored-copy case at 161 → 432 after `tests/test_cid.py` went 46 → 78
+    in the out-of-loop 162 commit).
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` are both
     importable under `uv run python`, so any reference-vs-core probe needs **no build** — but check
     `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` mtime first (stale `.so` silently measures
@@ -84,52 +88,49 @@ internals, release internals, closed milestones), `dep-refresh-survey.md` (pin i
 - **When a ruling lands, re-verify the CODE against the NEW spec**; grep `decisions.md` for
     `supersede`. At 147 a 14-iteration "met" went unmet.
 - **Reproduce/refute inherited claims yourself, ideally by a DIFFERENT method** — cheap probes beat
-    inherited text (bugs confirmed 147/156, stale-napi-`.node` refuted 151-153, tables re-derived
-    157, sweep blind spots reproduced 158, C header decoded + `ctypes`-probed 160, C++ rebuilt with
-    bare `g++` and its PASS names set-diffed against the fixture 161, "C++ unbuildable" REFUTED
-    161). **A generator can never be its own oracle.** Verify numbers a predecessor flagged
-    unverified. A binding suite that prints N passes may still cover a SUBSET — diff the emitted
-    assertion names against the canonical fixture, do not just count them. Deliberate deviations
-    from a fix sketch are legitimate: read the in-source comment first.
+    inherited text (bugs confirmed 147/156; stale-napi-`.node`, "C++ unbuildable" and "Swift not
+    verifiable" all REFUTED). **A generator can never be its own oracle.** Verify numbers a
+    predecessor flagged unverified. A suite that prints N passes may still cover a SUBSET — diff the
+    emitted assertion names against the canonical fixture. Deliberate deviations from a fix sketch
+    are legitimate: read the in-source comment first.
 - **Spec checkboxes are NOT a progress signal** — most specs sit at 0/N checked though MET; only
     `ci-cd.md` (44/52) + `rust-core.md`'s semver box are kept up. Spec *prose* rots too, and can be
     outright FALSIFIED by measurement (156: "Rust `str::to_lowercase()` does the same").
-- **Cost-rank a propagation slice on FOUR axes** (153/154): fixture plumbing × target-API coverage ×
-    **local buildability** × **is the fixture a DECLARED INPUT of that build system?**
-    Gradle/MSBuild can report UP-TO-DATE and skip the suite — 13 Kotlin tests silently did not run
-    while every gate was green (CMake depfiles are fine; verified 160). Only a mutate-then-rerun
-    probe (no `clean`) exposes it; CI is immune. On axis 3, **`command -v` alone under-reports**:
-    absent from `$PATH` ≠ unbuildable (PyPI cmake, `./gradlew --offline`, or a bare `g++` line) →
-    `env-gotchas.md`.
+- **Ask whether a fixture is a DECLARED INPUT of the build system.** Gradle/MSBuild can report
+    UP-TO-DATE and skip a suite — 13 Kotlin tests silently did not run while every gate was green
+    (CMake depfiles and SwiftPM `.copy()` resources are fine). Only a mutate-then-rerun probe (no
+    `clean`) exposes it; CI is immune. All 12 suites are now probed.
+- **A "not verifiable in this container" claim is UNPROVEN, not true.** `command -v` under-reports:
+    cmake (PyPI wheel), Kotlin (`./gradlew --offline`), C++ (bare `g++`) and Swift (`/tmp`
+    toolchain) each fell to a second look after the docs said otherwise → `env-gotchas.md`.
 
-## Current State (assessed-at: 8c68283, iter 161)
+## Current State (assessed-at: e38c17e, iter 162)
 
-- **IN_PROGRESS — CI GREEN and covering all code.** `origin/develop` == `bd50c27`: **45 check-runs,
-    23 names, 0 non-success**; HEAD `8c68283` is 3 `.claude`-only commits ahead (2 `cid(log)` + the
-    audit's metrics snapshot), code diff vs origin empty. PR **#44 (develop→main) OPEN** (v0.6.0 NOT
-    shipped; version **0.5.0**).
-- **Iteration 160 propagated the boundary vectors into C++; verdict PASS** (4 roles OK + audit OK,
-    200 turns, no issues filed). Only **4** files (2 test, 2 doc), zero Rust source / baseline /
-    workflow — it **reuses the C header**, no second artifact. Mechanism → `unicode-contract.md`.
-- **Statuses:** Rust-core partially met — crit 1, 2, 4 MET; **crit 3 now 10 of 11** surfaces (only
-    **Swift** ungated). All else met except CI/CD (partial). **No count moved at 160.**
-- **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **7** paths,
+- **IN_PROGRESS — CI green on the pushed tip but NOT covering HEAD.** `origin/develop` == `b44c72e`
+    (161 review): **45 check-runs, 23 names, 0 non-success**, covers the Swift slice. HEAD `e38c17e`
+    is 2 commits ahead and the code diff is **non-empty**: an out-of-loop `cid(loop)` commit with
+    `tools/cid.py` (389) + `tests/test_cid.py` (421) + `CLAUDE.md` (13), gated by
+    `python-test`/ruff/ty but never run. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped;
+    **0.5.0**).
+- **THE UNICODE WORK IS FINISHED.** 161 gated Swift (PASS) = surface **11 of 11**; all four
+    rust-core Unicode criteria MET and the umbrella issue is **gone from issues.md**. Rust core is
+    now met except `>= 1.0.0` (human-HELD). Everything met except CI/CD (partial).
+- **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** paths,
     matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
     `python-test`). Register new copies; keep canonical basenames (the gate discovers by basename).
-    Generated artifacts are derived and must stay OUT.
-- **Next = propagation slice 7 (Swift), the LAST surface** — the only genuinely CI-proof-only one
-    (no toolchain, no PyPI substitute → `env-gotchas.md`) and the reverse of C/C++: it needs a
-    **tracked vendored copy** registered in `VENDORED_COPIES`. Full recipe → `unicode-contract.md`.
-    Do NOT extend `unicode_boundary.json` — **eleven** consumers assert exactly 7/5.
+    Generated artifacts are derived and must stay OUT. A 13th vector now costs **12 suites**.
+- **Loop infra changed under the roles (162 commit):** `ARTIFACT_BUDGETS` in `tools/cid.py` caps
+    next 120 / **state 200** / handoff 100 / issues 300 / learnings 200 / decisions 400 and reports
+    overruns to the owning role; `decisions.md` rotates into `decisions-archive.md` (**grep BOTH for
+    rulings**); context arrives via `.claude/skills/cid-ctx-<role>/SKILL.md` packs.
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
-    wrong twice over); crit-1/-3/-4 boxes unchecked though 1/2/4 are met. Human-owned — don't edit.
-- **Issues: 8** (4 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`); human backlog
-    CLEARED. None opened/closed at 160; the Unicode umbrella entry's remainder is only **(b)
-    propagation**, recorded in-place as 10 of 11. AUTHORIZED for CID: rubygems `@v2.1.0` pin (still
-    `@main` at `release.yml:895`); major dep bumps **one per step** (magnus 0.8 / jni 0.22 = source
-    rewrites; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x); exhaustive `specs/ci-cd.md` job
-    table. DEFERRED: npm OIDC.
-- **Don't re-flag as DONE**: C++ vectors 160, C FFI vectors 159, sweep-gate hardening 158, sweep
+    wrong twice over); criterion boxes unchecked though all four hold. Human-owned — don't edit.
+- **Issues: 9** (4 `normal`, 5 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`) after a 597→167-line
+    rebuild; the go1.27 hazard is now its OWN `normal` entry. AUTHORIZED for CID: rubygems `@v2.1.0`
+    pin (still `@main` at `release.yml:895`); major dep bumps **one per step** (magnus 0.8 / jni
+    0.22 = source rewrites; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x); exhaustive
+    `specs/ci-cd.md` job table. DEFERRED: npm OIDC. Upstream `iscc-core#137` is human-only.
+- **Don't re-flag as DONE**: Swift vectors 161, C++ 160, C FFI 159, sweep-gate hardening 158, sweep
     gate 157, `Final_Sigma` 156, C#+Kotlin 154, napi+Java 153, drift gate 152, WASM+Ruby 151,
     Python+Go 150 (≤149 → `MEMORY-archive.md`).
 

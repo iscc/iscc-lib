@@ -25,12 +25,17 @@ unbuildable**, and that mistake shaped scoping for ~6 iterations:
     `69 passed, 0 failed`. The g++ route proves the *test code*; only the cmake route proves the
     `target_include_directories` wiring. Configure cmake into a **fresh** `build-*/` —
     `packages/cpp/build*/` holds 5 stale gitignored dirs, one with an incompatible cmake 3.25 cache.
-- **Swift is genuinely absent**: no `swift`/`swiftc`, no `/usr/share/swift`, no `/opt/swift`, and
-    **no PyPI substitute** (`uv --with swift` installs an unrelated OpenStack package). It is the
-    only CI-proof-only surface left.
+- **Swift IS locally testable — the "genuinely absent" claim was REFUTED at 161.** No `swift` on
+    `$PATH` and no PyPI substitute (`uv --with swift` installs an unrelated OpenStack package), but
+    a hand-fetched toolchain lives at `/tmp/swifttc/swift-6.1.2-RELEASE-debian12/usr/bin` and
+    survives across iterations (verified present at 162). Run with an explicit
+    `--scratch-path /tmp/…` so nothing lands in the tree; `.build/` is gitignored. If `/tmp` is
+    cleared, the re-fetch recipe (784 MB, ~5 min, no `sudo`) is in `packages/swift/CLAUDE.md`.
+    Nothing was added to the image, `mise.toml`, the devcontainer or CI.
 
-Always probe with `command -v` **and** consider a PyPI/wrapper fallback before calling a surface
-unbuildable. Other env details → `MEMORY-archive.md`.
+**No surface is CI-proof-only any more.** Always probe with `command -v` **and** consider a
+PyPI/wrapper fallback or a `/tmp` toolchain before calling one unbuildable — that mistake shaped
+scoping for ~6 iterations. Other env details → `MEMORY-archive.md`.
 
 ## Commands that lie
 
