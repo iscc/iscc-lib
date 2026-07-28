@@ -48,12 +48,12 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     gate is CI-ONLY — refresh baseline (`mise run crap:baseline`) in the SAME step as any
     branch-adding change. Full mechanics + gotchas → ci-gates.md
 - Audit rule: advisory with patched release → `cargo update -p <crate>`, never `deny.toml` `ignore`
-- Dependency refresh (iters 124-140; xunit.v3 164, Gradle 9.6.1 165, JUnit 6.1.2 166): manifests
-    current; held majors (criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:` in root
-    Cargo.toml; ruff 0.16 (`ruff format` covers Markdown fences); prek ruff hooks carry `pyi` in
-    `types_or` (CI parity — prek types `.pyi` as `pyi`, NOT `python`); NEVER blanket `--fix`
-    (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`. Detail + prek staged-probe gotcha →
-    deps-refresh.md
+- Dependency refresh (iters 124-140; xunit.v3 164, Gradle 9.6.1 165, JUnit 6.1.2 166, magnus 0.8
+    iter 167): manifests current; held majors (criterion 0.8, jni 0.22, uniffi 0.32) carry `# held:`
+    in root Cargo.toml; ruff 0.16 (`ruff format` covers Markdown fences); prek ruff hooks carry
+    `pyi` in `types_or` (CI parity — prek types `.pyi` as `pyi`, NOT `python`); NEVER blanket
+    `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`. Detail + prek staged-probe
+    gotcha → deps-refresh.md
 - GOTCHAs: ci.yml `cancel-in-progress: true` per ref — a second develop push cancels the previous
     sha's in-flight CI run (don't push again while waiting on a green CI for a sha); system
     `python3` lacks PyYAML (use `uv run python`); piping `cargo crap`/`cargo deny` to `tail` makes
@@ -138,7 +138,9 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 
 ## Ruby Bindings (Magnus) — full details → MEMORY-archive.md
 
-- Magnus 0.7.1 (not 0.8, Ruby 3.1 compat); `function!` has no `&Ruby` param — use `Ruby::get()`.
+- Magnus 0.8 (since iter 167; Ruby 3.0-3.4, MSRV 1.65); `function!` has no `&Ruby` param — use
+    `Ruby::get()`. 0.8 dropped `old-api`: use `ruby.exception_runtime_error()` +
+    `ruby.str_from_slice()`, never `magnus::exception::*` / `RString::from_slice` (deprecated).
     `ExtensionTask.new("iscc-rb")` = Cargo package name; `extconf.rb` at crate root. Streaming:
     `RefCell<Option<inner>>` one-shot finalize; `_` prefix for methods NOT class names. Standard
     Ruby + rubocop-minitest; pre-commit hook needs portable PATH for `bundle`

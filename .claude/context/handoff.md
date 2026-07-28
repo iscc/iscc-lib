@@ -1,72 +1,56 @@
 # Handoff
 
-## 2026-07-27 — Review of: Migrate both JVM test suites from JUnit 5.14.4 to JUnit 6.1.2
+## 2026-07-28 — Migrate the Ruby binding from magnus 0.7 to magnus 0.8
 
-**Verdict:** PASS
+**Done:** Bumped the workspace `magnus` pin to 0.8 (removed the 4-line `# held: magnus` comment) and
+migrated `crates/iscc-rb/src/lib.rs` off both deprecated `old-api` symbol families:
+`magnus::exception::runtime_error()` → `ruby.exception_runtime_error()` (5 sites) and
+`RString::from_slice(&b)` → `ruby.str_from_slice(&b)` (5 sites), using the file's existing
+`Ruby::get().expect("called from Ruby")` idiom throughout.
 
-**Summary:** JUnit moved to 6.1.2 in both JVM manifests (`junit-jupiter` 5.14.4 → 6.1.2 in Gradle
-and Maven, `junit-platform-launcher` 1.14.4 → 6.1.2 under JUnit 6's unified numbering), with the
-stale `// held:` and lockstep comments rewritten and five doc/javadoc mentions updated. Two non-test
-non-doc files touched, no test-logic change, every suite green at its fixture-derived case total.
+**Files changed:**
+
+- `Cargo.toml`: `magnus = { version = "0.8", features = ["rb-sys"] }`; `# held: magnus` block
+    deleted (jni/uniffi/criterion holds untouched)
+- `Cargo.lock`: magnus 0.7.1 → 0.8.2, magnus-macros 0.6.0 → 0.8.0, rb-sys-env 0.1.2 → 0.2.3
+- `crates/iscc-rb/src/lib.rs`: 10 call-site migrations; `to_magnus_err` now obtains a `Ruby` handle;
+    in the four hasher `update`/`finalize` methods the handle moved to the top of the method (the
+    two `finalize`s reuse it for `hash_new`); `alg_simhash`, `alg_minhash_256`, `soft_hash_video_v0`
+    gained a handle before their return-value conversion. All `unsafe { ….as_slice() }` blocks
+    untouched (`as_slice` is not deprecated in 0.8)
+- `crates/iscc-rb/CLAUDE.md`: line 7 "Magnus 0.7.1" → "Magnus 0.8"
 
 **Verification:**
 
-- [x] `grep -rn "5\.14\.4\|1\.14\.4\|held: JUnit"` over both manifests → no match; pins at
-    `build.gradle.kts:22/27` and `pom.xml:48` are `6.1.2`
-- [x] `cargo build -p iscc-uniffi` + `packages/kotlin/gradlew -p packages/kotlin clean test` → exit
-    0; `ConformanceTest.xml tests="9"`, `UnicodeBoundaryTest.xml tests="13"`, both
-    `skipped="0" failures="0" errors="0"`
-- [x] `cargo build -p iscc-jni` + `mvn test` → exit 0,
-    `Tests run: 82, Failures: 0, Errors: 0, Skipped: 0` (69 + 13), equal to the pre-bump total the
-    advance agent recorded
-- [x] `grep -rn "JUnit 5\|5\.14\.4\|1\.14\.4" crates/iscc-jni/CLAUDE.md packages/kotlin/CLAUDE.md` →
-    no match
-- [x] `git status --porcelain -- .crap-baseline.json .iai-baseline.json` → empty
-- [x] `mise run check` → exit 0, no tracked file modified
+- `grep -n magnus Cargo.toml` → only line 53 `version = "0.8"`; no `held: magnus` match
+- `grep -rn 'magnus::exception::\|RString::from_slice' crates/iscc-rb/src/lib.rs` → no match
+- `cargo clippy -p iscc-rb --all-targets -- -D warnings` → exit 0 (compiled against magnus 0.8.2)
+- Pre-edit baseline `(cd crates/iscc-rb && bundle exec rake compile && bundle exec rake test)`:
+    **124 runs, 314 assertions, 0 failures, 0 errors, 0 skips**
+- Post-edit same invocation: **124 runs, 314 assertions, 0 failures, 0 errors, 0 skips** — identical
+    totals, six `assert_raises(RuntimeError)` sites still green
+- `mise run audit` → exit 0 (`advisories ok, bans ok, licenses ok, sources ok`)
+- `mise run check` → exit 0, all hooks Passed (incl. "Ruby linting (fix)" = standardrb); tracked
+    tree unchanged except the intended files + runner-owned `iterations.jsonl`
 
-**Extra probes (3):**
-
-- `gradlew dependencies --configuration testRuntimeClasspath` — every resolved JUnit artifact
-    (jupiter/api/params/engine, platform commons/engine/launcher) is `6.1.2`; no 1.x remnant
-- **Anti-collapse oracle derived from the fixtures, not from a second run of the same tree:**
-    surefire XML dynamic-case counts equal `data.json` per-function vector counts exactly
-    (20+5+3+5+3+2+4+3+5 = 50) + 19 static `@Test` = 69; boundary 7+5 dynamic + 1 static = 13
-- `generatePomFileForMavenPublication` → the published Kotlin POM contains **zero** junit entries,
-    confirming the "nothing consumer-visible changes" claim (Maven side is `<scope>test</scope>`)
-
-Also re-ran Maven as `mvn clean test`: the criterion run reported "Nothing to compile", i.e. it
-reused test classes compiled earlier — a cold `clean test` recompiles both source sets against JUnit
-6 (`javac [debug target 17]`) and still yields 82/0/0/0. CI (`temurin 17`, `mvn test -f …`,
-`./gradlew test`) matches the local invocations; JUnit 6's Java 17 baseline is met.
-
-**Issues found:**
-
-- (nit, out of scope by next.md) `.claude/context/specs/java-bindings.md:42` still reads
-    "IsccLibTest.java # JUnit 5 conformance tests". It is a human-owned sub-spec and a descriptive
-    file-tree comment, not a normative requirement — no issue filed; Titusz can fix the word.
-- No gate weakening anywhere in `@{upstream}..HEAD` (no diff under `.pre-commit-config.yaml`,
-    `.github/`, `mise.toml`, `pyproject.toml`, `deny.toml`, `Cargo.toml`); no suppressions, skips or
-    threshold moves; no Rust/Python/API surface touched, so baselines and SemVer are untouched.
-
-**Codex review:** No actionable findings — "Both Maven and Gradle resolve aligned JUnit 6.1.2
-dependencies and pass their complete test suites on the CI-targeted JDK 17. No actionable regression
-was identified."
-
-**Next:** `jni` 0.22 (`crates/iscc-jni/src/lib.rs`, `JNIEnv` → `Env`/`EnvUnowned` per upstream
-`docs/0.22-MIGRATION.md`; ~41 `JNIEnv|GlobalRef|AutoLocal` sites). It is now cleanly bisectable —
-the Java-side framework is settled and green at 82 cases, so any JVM-side red is attributable to the
-Rust bridge. `magnus` 0.8 (`crates/iscc-rb/src/lib.rs`, ~5 `exception::runtime_error` sites) is the
-smaller alternative if a lower-risk step is wanted first. One major per step, no bundling.
+**Next:** `jni` 0.22 is the last CID-schedulable Rust major (`crates/iscc-jni/src/lib.rs`, ~41
+`JNIEnv|GlobalRef|AutoLocal` sites per upstream `docs/0.22-MIGRATION.md`) — needs its own scoping
+pass with an `ErrorPolicy` decision. Beyond that, the refresh remainder is human/release-gated
+(`release.yml` action bumps, uniffi 0.32, criterion 0.8 MSRV).
 
 **Notes:**
 
-- Maven case totals for the ledger: **82 before, 82 after** (69 IsccLibTest + 13
-    UnicodeBoundaryTest), zero skips; Kotlin unchanged at 9 + 13. The totals are now backed by a
-    fixture-derived expectation, not just by equality with a prior run.
-- Surefire 3.5.6 auto-resolved the aligned 6.1.2 launcher; no explicit pom launcher dependency was
-    needed, and no plugin pin moved.
-- The Gradle wrapper lives at `packages/kotlin/gradlew` — a bare `./gradlew …` from the repo root
-    does not exist. next.md's verification text had it wrong; the advance agent's substitution was
-    correct and is the same invocation CI uses via `working-directory`.
-- Only two Rust dependency majors remain in the authorized refresh (`jni` 0.22, `magnus` 0.8) plus
-    the release-only `release.yml` action bumps; issues.md was rewritten to that smaller problem.
+- Baseline test totals for the ledger: **124 runs / 314 assertions before AND after**, zero skips
+    (next.md asked for this line; both runs are on the same tree modulo my edits, so the equality is
+    the meaningful check — the suite grew from 111 at iter 130 because the unicode-boundary suite
+    landed in between).
+- Lock delta deviation from next.md's prediction: `rb-sys-env` 0.1.2 → 0.2.3 came along with magnus
+    \+ magnus-macros (a build-dependency of magnus/rb-sys; `cargo update -p magnus` pulled it as part
+    of the minimal update). No other lock movement.
+- No consumer floor moved: gemspec `required_ruby_version`, CI `ruby-version: '3.1'`, and workspace
+    `rust-version` are all untouched, matching next.md's measurement (magnus 0.8 MSRV 1.65, Ruby
+    3.0-3.4).
+- The `rb_sys` gem pin (`Gemfile` 0.9.123) and the crate-side `rb-sys` 0.9.128 in Cargo.lock are
+    distinct artifacts; neither moved (magnus 0.8 requires rb-sys >= 0.9.113, already satisfied).
+- Ruby-visible behaviour unchanged by construction: `exception_runtime_error()` returns the same
+    `RuntimeError` class the old free function did.

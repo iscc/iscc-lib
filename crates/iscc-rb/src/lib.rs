@@ -22,7 +22,8 @@ use std::cell::RefCell;
 
 /// Map an `IsccError` to a Magnus `RuntimeError`.
 fn to_magnus_err(e: iscc_lib::IsccError) -> Error {
-    Error::new(magnus::exception::runtime_error(), e.to_string())
+    let ruby = Ruby::get().expect("called from Ruby");
+    Error::new(ruby.exception_runtime_error(), e.to_string())
 }
 
 /// Generate a Meta-Code from name and optional metadata.
@@ -265,7 +266,7 @@ fn iscc_decode(iscc: String) -> Result<RArray, Error> {
     arr.push(st)?;
     arr.push(vs)?;
     arr.push(li)?;
-    arr.push(RString::from_slice(&digest))?;
+    arr.push(ruby.str_from_slice(&digest))?;
     Ok(arr)
 }
 
@@ -307,7 +308,8 @@ fn alg_simhash(hash_digests: RArray) -> Result<RString, Error> {
         })
         .collect::<Result<Vec<_>, Error>>()?;
     let result = iscc_lib::alg_simhash(&digests).map_err(to_magnus_err)?;
-    Ok(RString::from_slice(&result))
+    let ruby = Ruby::get().expect("called from Ruby");
+    Ok(ruby.str_from_slice(&result))
 }
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
@@ -315,7 +317,8 @@ fn alg_simhash(hash_digests: RArray) -> Result<RString, Error> {
 /// Returns a 32-byte binary String.
 fn alg_minhash_256(features: Vec<u32>) -> RString {
     let result = iscc_lib::alg_minhash_256(&features);
-    RString::from_slice(&result)
+    let ruby = Ruby::get().expect("called from Ruby");
+    ruby.str_from_slice(&result)
 }
 
 /// Split data into content-defined chunks using gear rolling hash.
@@ -330,7 +333,7 @@ fn alg_cdc_chunks(data: RString, utf32: bool, avg_chunk_size: u32) -> Result<RAr
     let ruby = Ruby::get().expect("called from Ruby");
     let arr = ruby.ary_new_capa(chunks.len());
     for chunk in chunks {
-        arr.push(RString::from_slice(chunk))?;
+        arr.push(ruby.str_from_slice(chunk))?;
     }
     Ok(arr)
 }
@@ -348,7 +351,8 @@ fn soft_hash_video_v0(frame_sigs: RArray, bits: u32) -> Result<RString, Error> {
         })
         .collect::<Result<Vec<_>, Error>>()?;
     let result = iscc_lib::soft_hash_video_v0(&frames, bits).map_err(to_magnus_err)?;
-    Ok(RString::from_slice(&result))
+    let ruby = Ruby::get().expect("called from Ruby");
+    Ok(ruby.str_from_slice(&result))
 }
 
 /// Streaming Data-Code generator for Ruby.
@@ -372,10 +376,11 @@ impl RbDataHasher {
     ///
     /// Raises `RuntimeError` if called after `finalize`.
     fn update(&self, data: RString) -> Result<(), Error> {
+        let ruby = Ruby::get().expect("called from Ruby");
         let mut inner = self.inner.borrow_mut();
         let hasher = inner.as_mut().ok_or_else(|| {
             Error::new(
-                magnus::exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 "DataHasher already finalized",
             )
         })?;
@@ -391,14 +396,14 @@ impl RbDataHasher {
     /// Returns an `RHash` with key `"iscc"`. Raises `RuntimeError` if
     /// called more than once.
     fn finalize(&self, bits: u32) -> Result<RHash, Error> {
+        let ruby = Ruby::get().expect("called from Ruby");
         let hasher = self.inner.borrow_mut().take().ok_or_else(|| {
             Error::new(
-                magnus::exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 "DataHasher already finalized",
             )
         })?;
         let r = hasher.finalize(bits).map_err(to_magnus_err)?;
-        let ruby = Ruby::get().expect("called from Ruby");
         let hash = ruby.hash_new();
         hash.aset("iscc", r.iscc)?;
         Ok(hash)
@@ -426,10 +431,11 @@ impl RbInstanceHasher {
     ///
     /// Raises `RuntimeError` if called after `finalize`.
     fn update(&self, data: RString) -> Result<(), Error> {
+        let ruby = Ruby::get().expect("called from Ruby");
         let mut inner = self.inner.borrow_mut();
         let hasher = inner.as_mut().ok_or_else(|| {
             Error::new(
-                magnus::exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 "InstanceHasher already finalized",
             )
         })?;
@@ -445,14 +451,14 @@ impl RbInstanceHasher {
     /// Returns an `RHash` with keys `"iscc"`, `"datahash"`, `"filesize"`.
     /// Raises `RuntimeError` if called more than once.
     fn finalize(&self, bits: u32) -> Result<RHash, Error> {
+        let ruby = Ruby::get().expect("called from Ruby");
         let hasher = self.inner.borrow_mut().take().ok_or_else(|| {
             Error::new(
-                magnus::exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 "InstanceHasher already finalized",
             )
         })?;
         let r = hasher.finalize(bits).map_err(to_magnus_err)?;
-        let ruby = Ruby::get().expect("called from Ruby");
         let hash = ruby.hash_new();
         hash.aset("iscc", r.iscc)?;
         hash.aset("datahash", r.datahash)?;

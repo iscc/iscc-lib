@@ -4,7 +4,7 @@ Guidance for agents working on the Ruby binding crate.
 
 ## Architecture
 
-Magnus 0.7.1 bridge between Rust `iscc-lib` core and Ruby. Compiled as a native extension via
+Magnus 0.8 bridge between Rust `iscc-lib` core and Ruby. Compiled as a native extension via
 `rb_sys`. The compiled shared library is named `iscc_rb.so` (matching the Cargo package name
 `iscc-rb` → `iscc_rb`), loaded by Ruby as `require "iscc_lib/iscc_rb"`.
 

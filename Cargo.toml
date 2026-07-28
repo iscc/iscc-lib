@@ -50,11 +50,7 @@ tempfile = "3"
 # AutoLocal -> Auto, closure-based thread attachment, mandatory ErrorPolicy) that rewrites
 # crates/iscc-jni/src/lib.rs per upstream docs/0.22-MIGRATION.md. Needs a dedicated step.
 jni = "0.21"
-# held: magnus 0.8 drops the default `old-api` feature, which deprecates
-# `magnus::exception::runtime_error()` used in crates/iscc-rb/src/lib.rs (a clippy -D warnings
-# failure); needs a call-site refactor to `Ruby::exception_runtime_error()` in its own dedicated
-# step (the Ruby Gemfile refresh deliberately left this alone).
-magnus = { version = "0.7", features = ["rb-sys"] }
+magnus = { version = "0.8", features = ["rb-sys"] }
 # held: uniffi 0.32 requires regenerating and re-verifying the Swift + Kotlin bindings; the
 # Linux devcontainer has no Swift toolchain, so the result cannot be validated locally.
 uniffi = "0.31"

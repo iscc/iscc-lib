@@ -23,10 +23,10 @@ v8.x/v9.0.0 are exact release tags only, so write `@v9.0.0` not `@v9` (iter-127 
 to resolve action"). `releases/latest` proves a release exists, NOT that a floating `@vN` tag exists
 — confirm via `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Slice 8 (ruff 0.16, sub-slices
 A–E) CLOSED iter 137. xunit.v3 + Test.Sdk 18.x DONE iter 164 (see below). Gradle wrapper 8.12.1 →
-9.6.1 DONE iter 165 (see below). JUnit 6.1.2 DONE iter 166 (see below). Remaining (all
-human/major-gated): `release.yml` actions (97 `uses:` refs; upload/download-artifact@v4 must move
-together; setup-uv there needs `@v9.0.0` too; only truly validated by a release run), jni 0.22,
-magnus 0.8.
+9.6.1 DONE iter 165 (see below). JUnit 6.1.2 DONE iter 166 (see below). magnus 0.8 DONE iter 167
+(see below). Remaining (all human/major-gated): `release.yml` actions (97 `uses:` refs;
+upload/download-artifact@v4 must move together; setup-uv there needs `@v9.0.0` too; only truly
+validated by a release run), jni 0.22.
 
 ## JUnit 6.1.2 (iter 166 — DONE)
 
@@ -97,10 +97,12 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
 - **jni 0.21**; 0.22 is a wholesale API rework (JNIEnv → EnvUnowned/Env, GlobalRef → Global,
     AutoLocal → Auto, closure-based thread attachment, mandatory ErrorPolicy) that rewrites
     `crates/iscc-jni/src/lib.rs` per upstream `docs/0.22-MIGRATION.md`. Dedicated step.
-- **magnus 0.7**; 0.8 drops the default `old-api` feature → `magnus::exception::runtime_error()`
-    (used in `crates/iscc-rb/src/lib.rs`) becomes deprecated = clippy failure; refactor to
-    `Ruby::exception_runtime_error()`. Do in the Ruby slice (rb_sys gem must keep matching the
-    `oxidize-rb/actions/cross-gem` Docker tag).
+- **magnus 0.8** DONE iter 167 (0.7 → 0.8.2): mechanical — `magnus::exception::runtime_error()` →
+    `ruby.exception_runtime_error()` (5 sites) and `RString::from_slice(&b)` →
+    `ruby.str_from_slice(&b)` (5 sites), handle via `Ruby::get().expect("called from Ruby")`.
+    `RString::as_slice` NOT deprecated. Lock delta was magnus + magnus-macros + **rb-sys-env
+    0.1.2→0.2.3** (build-dep, one more than predicted). No consumer floor moved (Ruby 3.0-3.4, MSRV
+    1.65). rb_sys gem pin `0.9.123` untouched (moves only with cross-gem Docker tag).
 - **uniffi 0.31**; 0.32 requires regenerating + re-verifying Swift/Kotlin bindings — unverifiable
     locally (no Swift toolchain in the Linux devcontainer).
 - **pyo3 0.29** is current; a `# note:` reminds that bumps must re-verify `gil_used = true` and the
