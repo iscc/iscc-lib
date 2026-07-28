@@ -947,3 +947,9 @@ runs on `opus`. Deliberate — do not "unify" them.
     NONE hashes contents only, so the varying absolute path never forces a re-run. Gradle was the
     only offender: MSBuild `<Content Link=…>`, SwiftPM `.copy(...)` and the C/C++ *compile-time*
     include (CMake depfiles) are safe by construction; CI is immune either way (fresh checkout).
+
+## Markdown-table parity gate (archived at 168 — the gate is committed and green)
+
+- **A markdown-table parity gate must anchor to its own section** (163): `specs/ci-cd.md` carries 14
+    backticked first-column rows under `## Version Management` that a whole-file scan would read as
+    bogus job rows — so the real file, not the fixture, is what proves the anchor load-bearing

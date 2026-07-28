@@ -97,6 +97,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     stale silently** — Ruby `.so` (`rake compile`), napi `.node`, JNI `.so`; rebuild, then probe
     `text_clean("a"+U+A7F1+"b") == "ab"` (stale → `aSb`); after a dep bump, `strings <artifact>`
     greps out the dep version actually linked in (167). CI rebuilds first, so this is local-only
+- **The JVM type-checks nothing a native method returns** (168): an `Object[]` returned where
+    `String[]` is declared survives every element read — assert `getClass().getName()` and probe
+    under `java -Xcheck:jni`; the Maven suite calls only 26 of the 33 JNI natives
 - **A suite reading a fixture OUTSIDE its own build tree must declare it as a build input** (154):
     Gradle's `Test` task tracks only its project tree, so a `unicode_boundary.json` edit left
     `./gradlew test` `UP-TO-DATE` — a silent stale green. Fixed, and all 12 suites probed (Gradle
@@ -161,9 +164,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     per-function `data.json` vector counts + static `@Test` count). **`mvn test` silently reuses
     stale test classes** ("Nothing to compile"), so only `mvn clean test` proves the new framework
     compiles
-- **A markdown-table parity gate must anchor to its own section** (163): `specs/ci-cd.md` carries 14
-    backticked first-column rows under `## Version Management` that a whole-file scan would read as
-    bogus job rows — so the real file, not the fixture, is what proves the anchor load-bearing
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the
     previous sha's in-flight run (`cancelled`, not `failure`); let it conclude when a Done-When
     needs green CI on a sha. Each develop commit triggers TWO runs (push + the open develop→main PR)
@@ -181,10 +181,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `--wrap 100` + `--number` in an isolated env, over every file in the push range — incl.
     `next.md` and per-agent `MEMORY*.md` — so one non-conforming file rejects the whole batch even
     though staged-only `git commit` passed. Unblock by reformatting + amending
-- **Never write an exact count, a substring `grep -c`, or an unverified CLI flag into a verification
-    criterion** (iter 139: `ruff format --check` saw 155 files, not 153. Iter 148:
-    `--fail-above   30.0` is a `cargo crap` syntax error). Assert the *gate* (exit code) and anchor
-    greps instead; copy gate invocations from `ci.yml`, never from memory
+- **Never write an exact count, a substring `grep -c`, an unverified CLI flag, or an unverified
+    `#[deprecated]` claim into a verification criterion** (iter 139: `ruff format --check` saw 155
+    files, not 153. Iter 148: `--fail-above   30.0` is a `cargo crap` syntax error. Iter 168: a
+    "must not appear" grep banned `Env::byte_array_from_slice`, undeprecated in jni 0.22.4 — the
+    note read belonged to a neighbouring fn — so a zero-copy helper got re-implemented with an extra
+    alloc). Confirm the attribute in `~/.cargo/registry/src/*/<crate>-<ver>/`; assert the *gate*
+    (exit code) and anchor greps; copy gate invocations from `ci.yml`, never from memory
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
     (142: a prescribed rule that could not resolve `wheels-*`; 143: two false Unicode safety claims
     shipped verbatim into published docs). advance implements the *intent* and documents any

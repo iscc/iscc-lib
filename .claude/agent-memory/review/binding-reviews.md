@@ -140,6 +140,29 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 - `pom.xml` sets no `project.build.sourceEncoding`; non-ASCII in comments is pre-existing and
     harmless, non-ASCII in *string literals* would be platform-dependent.
 
+### JNI crate review — beyond `mvn clean test` (iter 168, ~12 min)
+
+- Baseline: `cargo build -p iscc-jni` then `mvn clean test -f crates/iscc-jni/java/pom.xml` = **82
+    tests** (69 `IsccLibTest` + 13 `UnicodeBoundaryTest`); the totals are fixture-derived, so they
+    cannot move while `java/` and `data.json` are untouched.
+    `strings target/debug/libiscc_jni.so |   grep -oE 'jni(-sys)?-0\.[0-9.]+'` proves which jni
+    version is actually linked.
+- **The suite calls only 26 of the 33 natives** — `conformanceSelftest`, `encodeBase64`,
+    `textRemoveNewlines`, `isccDecompose`, `algSimhash`, `algMinhash256`, `softHashVideoV0` are
+    never invoked (filed as an issue at 168). Probe them yourself:
+    `javac -cp crates/iscc-jni/java/target/classes -d /tmp/p Probe.java` then
+    `java -Xcheck:jni -cp "crates/iscc-jni/java/target/classes:/tmp/p" -Djava.library.path=target/debug Probe`
+    (`target/classes` exists after a `mvn test` run). `-Xcheck:jni` printed zero warnings at 168.
+- **HotSpot type-checks nothing a native returns** — assert `getClass().getName()` is
+    `[Ljava.lang.String;` / `[[B` / `[B`, and stress the five `with_local_frame` sites past the ~512
+    local-ref limit (2 MiB through `algCdcChunks` → 1025 chunks, 5000-char `slidingWindow`, 1000
+    codes through `genMixedCodeV0`, 1000 sigs through `genVideoCodeV0`).
+- **Verify every `#[deprecated]` claim next.md makes against the vendored crate source** —
+    `~/.cargo/registry/src/index.crates.io-*/jni-0.22.4/src/env.rs`. At 168 `byte_array_from_slice`
+    (env.rs:3350) was NOT deprecated though next.md said so; `get_string`, `get_array_length`,
+    `get_int_array_region`, `get_/set_object_array_element` were, and `push_/pop_local_frame` were
+    removed outright. The error policy is at `src/errors/policy.rs:188`.
+
 ### Vendored-copy propagation slice (iter 150 — Python + pure-Go; moved from MEMORY.md index)
 
 Per-language shortcut, then `cmp` the vendored copy against the canonical and assert

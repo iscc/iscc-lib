@@ -3,10 +3,10 @@
 Concise index — **one line per entry, detail belongs in a topic file.** `review-patterns.md` (docs,
 verification, issues, gotchas, claim-probing, gate scripts, fixture oracles, parity gates),
 `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding
-commands, propagation CLOSED 12/12 at 161), `dep-refresh-reviews.md` (v0.6.0 slices, framework and
-build-tool-wrapper majors), `gha-workflow-reviews.md` (release.yml, action bumps, pinning),
-`unicode-reviews.md` (freeze rule, sweep + differential gates, boundary vectors),
-`codex-integration.md` (weighing a finding). Stale entries in `MEMORY-archive.md`.
+commands + the JNI 26-of-33 probe, propagation CLOSED 12/12 at 161), `dep-refresh-reviews.md`
+(v0.6.0 slices, framework and build-tool-wrapper majors), `gha-workflow-reviews.md` (release.yml,
+action bumps, pinning), `unicode-reviews.md` (freeze rule, sweep + differential gates, boundary
+vectors), `codex-integration.md` (weighing a finding). Stale entries in `MEMORY-archive.md`.
 
 ## Quality Gate Details
 
@@ -32,6 +32,9 @@ build-tool-wrapper majors), `gha-workflow-reviews.md` (release.yml, action bumps
     number, test spec, expected value and count from source → `review-patterns.md` "Claim-Probing"
 - `iscc_decompose` returns units WITHOUT "ISCC:" prefix — cross-check doc examples. **Docs site
     URL** is `https://lib.iscc.codes/`, NOT `https://iscc-lib.iscc.io/` (advance gets this wrong)
+- **A `#[deprecated]` claim in next.md is a hypothesis like any other** (168) — read the attribute
+    in `~/.cargo/registry/src/index.crates.io-*/<crate>-<ver>/src/`; jni 0.22.4 never deprecated
+    `Env::byte_array_from_slice`, so a "must not appear" grep criterion cost a zero-copy helper
 - **Advance agent idle claims**: verify remaining issue priorities independently — it may claim
     "only low-priority remain" when `normal` issues still exist
 - Go `// indirect`, CI `find` cross-arch, prek stash conflict, and mode-only commits under
@@ -96,12 +99,13 @@ build-tool-wrapper majors), `gha-workflow-reviews.md` (release.yml, action bumps
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see `gate-reviews.md` Audit)
 - **Dependency refresh (v0.6.0)**: per-slice gates, hold-backs, reflexes → `dep-refresh-reviews.md`.
-    **Nine slices + xunit.v3 + Gradle 9.6.1 + JUnit 6.1.2 + magnus 0.8 CLOSED**; left: `jni` 0.22,
-    `release.yml` actions. A toolchain bump in a PUBLISHED binding moves the **consumer floor** —
-    re-derive it from the crate's own README/`Cargo.toml`, never from a `# held:` comment (167: the
-    comment claimed a Ruby 3.2+ floor magnus 0.8 never had); a DATA-TABLE dep needs an exhaustive
-    differential (all 50 vendored vectors predate Unicode 16). **Prove a gitignored native artifact
-    was rebuilt against the bump**: `strings <artifact> | grep -o '<dep>-[0-9.]*'`
+    **Nine slices + xunit.v3 + Gradle 9.6.1 + JUnit 6.1.2 + magnus 0.8 + jni 0.22 CLOSED**; left:
+    `release.yml` actions (uniffi 0.32 / criterion 0.8 are human-gated). A toolchain bump in a
+    PUBLISHED binding moves the **consumer floor** — re-derive it from the crate's own
+    README/`Cargo.toml`, never from a `# held:` comment (167: the comment claimed a Ruby 3.2+ floor
+    magnus 0.8 never had); a DATA-TABLE dep needs an exhaustive differential (all 50 vendored
+    vectors predate Unicode 16). **Prove a gitignored native artifact was rebuilt against the
+    bump**: `strings <artifact> | grep -o '<dep>-[0-9.]*'`
 - **Build-tool WRAPPER major / any committed BINARY blob (165, ~15 min)**: never review it by
     reading the diff — pin the blob to the publisher's checksum AND regenerate it in a throwaway
     dir, then diff every artifact; also probe the release-only publish task →

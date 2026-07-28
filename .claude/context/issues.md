@@ -21,15 +21,12 @@ and user-facing behaviour in `docs/`.
 Planned for the **v0.6.0** release. No automated dependency updates are configured (no
 Dependabot/Renovate), so manifests drift between releases.
 
-One CID-schedulable item is left, authorized by Titusz on 2026-07-26: **`jni` 0.22** in
-`crates/iscc-jni/src/lib.rs` — a wholesale API rework (`JNIEnv` → `EnvUnowned`/`Env`, `GlobalRef` →
-`Global`, `AutoLocal` → `Auto`, closure-based thread attachment, a mandatory per-function
-`ErrorPolicy`) across ~41 sites, per upstream `docs/0.22-MIGRATION.md`. It needs its own scoping
-pass; if it needs an upstream-behaviour ruling, park it and say so rather than guessing.
-
-The rest of the refresh is human/release-gated: `release.yml` action bumps (never exercised by CI),
-`uniffi` 0.32 (requires regenerating and re-verifying the Swift + Kotlin bindings), `criterion` 0.8
-(needs rustc 1.86 > the declared `rust-version = "1.85"`).
+Three items remain. `uniffi` 0.32 and `criterion` 0.8 are human-gated: uniffi needs the Swift +
+Kotlin bindings regenerated and re-verified (no Swift toolchain assumption may be baked in), and
+criterion needs rustc 1.86 > the declared `rust-version = "1.85"`, i.e. an MSRV policy call. The
+`release.yml` action refresh is CID-doable on static evidence (per the 2026-07-25 decision) but is
+never exercised by a CI run, so it must lean on `scripts/check_release_workflow.py` and
+`--check-action-inputs` rather than on a green pipeline.
 
 **Constraints that still bind:** wheels stay `abi3-py310`; PyO3 bumps only together with
 re-verifying `gil_used = true` semantics and the `py.detach` call sites; `rb_sys` in `Gemfile.lock`
@@ -44,6 +41,58 @@ release. Re-check when bumping `iai-callgrind` (which must stay in lockstep with
 `iai-callgrind-runner`).
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness"
+
+## JNI `build_byte_array` re-implements a non-deprecated upstream helper `normal` [review]
+
+`crates/iscc-jni/src/lib.rs` grew a hand-rolled `build_byte_array` at iteration 168 because next.md
+listed `Env::byte_array_from_slice` as deprecated in jni 0.22. It is **not**: jni-0.22.4
+`src/env.rs:3349-3360` carries no `#[deprecated]` attribute (the note that was read belongs to
+`set_object_array_element` two functions above), and its body is exactly `JByteArray::new` +
+`set_region` over a *transmuted* `&[i8]` — no allocation.
+
+The local helper instead collects a fresh `Vec<i8>` per call, adding one allocation and one full
+copy to every returned `byte[]`. Worst case is `algCdcChunks`, which calls it once per chunk (≈1000
+allocations per MiB of input); `isccDecode`, `algSimhash`, `algMinhash256` and `softHashVideoV0`
+return digest-sized arrays where the cost is negligible.
+
+Fix: call `env.byte_array_from_slice(bytes)` at the four sites (or reduce the helper to a delegating
+one-liner) and update the two `crates/iscc-jni/CLAUDE.md` rows that teach `build_byte_array`.
+Resolved when `Vec<i8>` no longer appears in the crate,
+`mvn clean test -f crates/iscc-jni/java/pom.xml` still reports 82/82, and
+`cargo clippy -p iscc-jni --all-targets -- -D warnings` exits 0.
+
+## Seven of the 33 JNI natives have no Java test `normal` [review]
+
+`IsccLib.java` declares 33 native methods; `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/`
+never calls seven of them — `conformanceSelftest`, `encodeBase64`, `textRemoveNewlines`,
+`isccDecompose`, `algSimhash`, `algMinhash256`, `softHashVideoV0`. The jni 0.21→0.22 migration
+rewrote all 33 signatures, so a green 82-test suite proved only 26 of them; the seven were verified
+by hand at review time and work, but nothing guards them.
+
+Two of the gaps are structural, not cosmetic: `conformanceSelftest` is the only `jboolean` return in
+the crate (jni-sys 0.4 changed that alias to Rust `bool`), and `isccDecompose` is one of three
+functions returning a JVM-allocated array whose *element class* Java never checks — HotSpot does not
+type-check native return values, so a wrong array class survives element reads. Assert
+`getClass().getName()` (`[Ljava.lang.String;`, `[[B`) in at least one test.
+
+Resolved when every native declared in `IsccLib.java` is called by at least one JUnit test and
+`mvn clean test -f crates/iscc-jni/java/pom.xml` is green.
+
+## Binding docs teach APIs the code no longer uses `normal` [review]
+
+Two doc surfaces drifted during the dependency refresh and now teach removed APIs to agents:
+
+- `crates/iscc-rb/CLAUDE.md:108` still presents `RString::from_slice` as the way to copy a slice
+    into a Ruby string; `crates/iscc-rb/src/lib.rs` has used `ruby.str_from_slice` since the magnus
+    0.8 bump (iteration 167).
+- `.claude/context/specs/java-bindings.md` says the binding uses "the `jni` crate (v0.21)" (line 22)
+    and describes `src/lib.rs` as "~1060 lines" in two places; it is jni 0.22 and 1168 lines since
+    iteration 168.
+
+**HUMAN REVIEW REQUESTED**: the second bullet edits a human-owned spec file. The Ruby doc fix needs
+no authorization. Resolved when both files match the code.
+
+**Spec:** `.claude/context/specs/java-bindings.md` → "Why JNI (not JNA or Panama FFI)"
 
 ## go1.27 bump reds the Go boundary suite unless the freeze table lands with it `normal` [review]
 

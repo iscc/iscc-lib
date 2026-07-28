@@ -259,9 +259,12 @@ All locally-verifiable slices are done (1-8; slice 8 closed iter 137). napi `pac
 iter 165, JUnit 6.1.2 CLOSED iter 166 (both below), **magnus 0.8 CLOSED iter 167** (gates + the
 corrected floor facts → `binding-reviews.md` "Ruby Binding Review"; lock delta was magnus +
 magnus-macros + magnus's own build-dep `rb-sys-env` 0.1.2→0.2.3, all reaching only `iscc-rb` per
-`cargo tree -i`). What is left, all human/major-gated: `release.yml` GHA refs (not CI-exercised) and
-the `jni` 0.22 migration. Watch for the slice-5 lesson in any published binding: a runtime/toolchain
-floor moving silently.
+`cargo tree -i`). **jni 0.22 CLOSED iter 168** — 0.22.4, `rust-version = 1.85` == workspace MSRV so
+no floor moved; lock delta (+jni-macros/simd_cesu8/simdutf8, -cesu8/thiserror 1.x/windows-sys 0.45)
+reaches only `iscc-jni`; review recipe → `binding-reviews.md` "JNI crate review". What is left:
+`release.yml` GHA refs (not CI-exercised, but CID-doable on static evidence per the 2026-07-25
+decision), `uniffi` 0.32 and `criterion` 0.8 (both human-gated). Watch for the slice-5 lesson in any
+published binding: a runtime/toolchain floor moving silently.
 
 ## JVM test-framework major (iter 166, JUnit 5.14.4 → 6.1.2, Gradle + Maven) — ~10 min
 

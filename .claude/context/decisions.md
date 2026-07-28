@@ -396,3 +396,18 @@ mode would force a CI-invocation rewrite for no test-coverage gain. VSTest mode 
 migration to zero test-source edits. **Alternatives:** adopt MTP runner mode now — rejected, it
 changes the CI contract and the P/Invoke library-path mechanism in the same step as a framework
 major. **Context:** iteration 164; v2 and v3 both report exactly 104 results.
+
+## 2026-07-28 — JNI exports return `#[repr(transparent)]` wrappers and keep hand-thrown exceptions
+
+**Decision:** the 33 `extern "system"` functions in `crates/iscc-jni/src/lib.rs` return jni wrapper
+types (`JString`, `JObject`, `JByteArray`, `JObjectArray`) instead of the raw `jstring`/`jobject`
+aliases, and `throw_and_default`/`throw_state_error` keep calling `env.throw_new` themselves,
+returning `Ok(T::default())` into `.resolve::<ThrowRuntimeExAndDefault>()`. **Why:** jni 0.22's
+`EnvOutcome::resolve` requires `T: Default`, which raw pointer aliases do not implement; the
+wrappers are `#[repr(transparent)]`, so the ABI Java sees is unchanged. The policy's `on_error`
+calls `Env::exception_check` first (jni-0.22.4 `src/errors/policy.rs:188`) and returns the default
+without throwing when an exception is already pending, so the `IllegalArgumentException` /
+`IllegalStateException` contract asserted by six Java tests survives untouched and the policy only
+fires on a genuine panic or unhandled `Err`. **Alternatives:** a custom `ErrorPolicy` per exception
+class — rejected, it would move the exception choice away from the call site that knows which one
+applies, for no behavioural gain. **Context:** iteration 168, jni 0.21 → 0.22 migration.
