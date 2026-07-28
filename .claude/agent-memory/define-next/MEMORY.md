@@ -28,6 +28,14 @@ iterations.
     `## Goal`.
 - **A remembered "supported versions" range is a docs ceiling, not an enforced one — read the
     constant out of the tool's own artifact** (165; recipe → [ledger](dep-refresh-ledger.md)).
+- **Any upstream-API claim I put in Implementation Notes must be read out of
+    `~/.cargo/registry/src/*/<crate>-<ver>/`, with enough context lines to see which item an
+    attribute belongs to** — at 168 a `#[deprecated]` note two functions above got attributed to
+    `Env::byte_array_from_slice`, and advance dutifully hand-rolled a slower replacement (169 undid
+    it). A wrong fact in next.md costs a whole extra iteration.
+- **When a fix touches surfaces that no test exercises, scope the fix and the missing tests as ONE
+    step** (169: 3 of 5 edited JNI return sites had no Java test). Tests don't count against the
+    3-file budget, and splitting them ships an unguarded change.
 - **Run the expensive probe while scoping when it can invert the plan** — the ~60 s sweep reordered
     the milestones at 155/157; the 5-min Swift fetch at 161 killed a 10-iteration-old veto.
 - **Generated/tool-output files (Cargo.lock, bindings) don't count toward the 3-file limit**; doc
@@ -80,31 +88,27 @@ iterations.
 ## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
 
 - v0.5.0 released; all 12 bindings meet core criteria; the 4 spec'd v0.6.0 feature issues are DONE;
-    the **Unicode chain is CLOSED at iter 161** (11 of 11 surfaces). Backlog worked one major per
-    step: rubygems `@v2.1.0` pin (162), ci-cd job-table gate (163), xunit v3 (164), Gradle 9.6.1
-    (165), JUnit 6.1.2 (166), magnus 0.8 (167), `jni` 0.22 (**scoped 168** — one package; a crate
-    cannot compile half-migrated) — facts → [ledger](dep-refresh-ledger.md). **After 168 the
-    CID-schedulable dependency work is done.** Trigger-only: go1.27 + the Go freeze table (~Aug
-    2026). HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm OIDC (token to 2026-09-16).
-- **iters 115–123 DONE (detail in MEMORY-archive.md)**. **Root lesson: the CRAP regression gate is
-    CI-ONLY** — a step adding a branch to a covered fn MUST refresh the baseline in it.
-- **iters 124–137 = the dependency-refresh slices, all 8 CLOSED** → ledger, gotchas, hold-backs,
-    version-lookup commands: [dep-refresh ledger](dep-refresh-ledger.md); read it before scoping any
-    dep step. Headline: **never move a consumer floor (MSRV, `go` directive,
-    `required_ruby_version`, a published binding's compiler) inside a refresh slice** (iter 128).
-    Second headline (168): **a major's real design question is usually a behavioural contract the
-    new API would silently change** — find the built-in option that preserves it; never take the
-    library default and edit tests (jni 0.22's exception contract → ledger).
+    the **Unicode chain is CLOSED at 161**. **After 168 the CID-schedulable dependency work is
+    done**; 169 scoped the JNI debt review filed against 168 (byte-array regression + 7 untested
+    natives, batched). Then: the static-evidence `release.yml` action pass, the Ruby doc-drift line,
+    then nothing. Trigger-only: go1.27 + the Go freeze table (~Aug 2026). HELD `low` by Titusz:
+    v1.0.0 + Semver-enforcing, npm OIDC (token to 2026-09-16).
+- **Closed phases: 115–123 (features) and the dep slices 124–137 + 162–168** — detail in
+    MEMORY-archive.md and the [dep-refresh ledger](dep-refresh-ledger.md) (read it before any dep
+    step). Lessons that still bite: the CRAP regression gate is **CI-only** (a new branch in a
+    covered fn needs the baseline refreshed in the same step); **never move a consumer floor**
+    (MSRV, `go` directive, `required_ruby_version`, a published binding's compiler) inside a refresh
+    slice (128); a major's real design question is a behavioural contract the new API would silently
+    change — preserve it with a built-in option, never by editing tests (168).
 - **Lint/formatter tool bumps and hook-config changes have their own playbook**:
     [lint tooling lessons](lint-tooling-lessons.md). Headline: **never make an exact file/finding
     count a pass/fail criterion** — it drifts with the CID agents' own commits; use the exit code.
-- **Unicode chain DONE (iters 147–161)**: sentinel freeze, `Final_Sigma` case freeze, sequence
-    vectors, the `mise run unicode:sweep` gate (17,793,024 comparisons / 0 divergences / ~60 s), and
-    boundary vectors on all 11 surfaces. Never implement the superseded category override (`U+A7F1`
-    injects a spurious `S`) or a 15.1.0 declared version. Constants/escapes/table shapes →
-    [unicode-freeze-facts](unicode-freeze-facts.md); loader taxonomy, vendoring rules, toolchain
-    recipes and the two-axis cost rule → [propagation ledger](unicode-fixture-propagation.md). A
-    13th vector now costs 12 suites at once, so any fixture edit is its own deliberate slice.
+- **Unicode chain DONE (147–161)**: sentinel freeze, `Final_Sigma` freeze, the
+    `mise run unicode:sweep` gate (17,793,024 comparisons / 0 divergences / ~60 s), boundary vectors
+    on all 11 surfaces. Never revive the superseded category override or a 15.1.0 declared version.
+    Constants/escapes/tables → [unicode-freeze-facts](unicode-freeze-facts.md); loaders, vendoring,
+    toolchains, the two-axis cost rule → [propagation ledger](unicode-fixture-propagation.md). A
+    13th vector costs 12 suites at once — any fixture edit is its own deliberate slice.
 - **Gate/checker steps in `scripts/` have their own playbook** (prek-vs-CI placement, Python 3.10
     floor, injected-`Path` shape, docs-list wiring, when a gate needs Titusz):
     [gate scripts playbook](gate-scripts-playbook.md). Read before scoping under `scripts/`.
