@@ -1,79 +1,85 @@
 # Next Work Package
 
-## Step: Bump criterion 0.7 → 0.8 (dev-dependency, bench harness only)
+## Step: Bump uniffi 0.31 → 0.32 and regenerate the Swift + Kotlin bindings
 
 ## Goal
 
-Land the first of the two authorized dependency majors that gate the v0.6.0 release: move the
-`criterion` workspace dev-dependency to 0.8 and refresh `Cargo.lock`. This is fully verifiable
-locally and leaves the published MSRV untouched.
+Land the last authorized dependency major — and with it the last CID-doable v0.6.0 release
+criterion: pin `uniffi = "0.32"` in the workspace and regenerate both checked-in bindings as a
+*pure* regeneration (no hand edits to generated code, no `crates/iscc-uniffi/src` edits).
 
 ## Alternatives Considered
 
-- **Chosen:** `criterion` 0.7 → 0.8 — the smaller of the two remaining release-gating items, it
-    touches one manifest plus a generated lockfile, and every gate that could react (clippy
-    `-D warnings`, `cargo bench --no-run`, `cargo deny`) runs in this container.
-- **Rejected:** `uniffi` 0.31 → 0.32 — the other authorized item, but it regenerates two checked-in
-    binding files and its Swift half is only verifiable by the `swift` CI job. Doing the cheap,
-    fully local bump first keeps a red CI attributable to the uniffi step when it lands.
+- **Chosen:** uniffi 0.32 — the sole remaining item of the release-gating dependency issue; closing
+    it clears the v0.6.0 gate. Both breaking-change risks were measured away while scoping (below).
+- **Rejected:** correcting the stale Go `Final_Sigma` claim in `specs/rust-core.md` L149-157 — a
+    mechanically checkable fact the review agent may now fix inline; it gates no release criterion.
 
 ## Scope
 
-- **Modify**: `Cargo.toml` (root — the `criterion` pin and its now-stale rationale comment),
-    `Cargo.lock` (generated), and `crates/iscc-lib/benches/benchmarks.rs` **only if** the build
-    demands it (no API used there was removed in 0.8 — see notes).
-- **Reference**: `.claude/context/issues.md` → "Dependency review and refresh across the project"
-    (the binding constraints), `crates/iscc-lib/Cargo.toml` (the two `[[bench]]` targets),
-    `.github/workflows/ci.yml` → the `bench` job.
+- **Modify**: `Cargo.toml` (workspace pin + rewrite the stale 3-line pin comment above it),
+    `Cargo.lock` (generated), `packages/swift/Sources/IsccLib/iscc_uniffi.swift` (generated),
+    `packages/swift/Sources/iscc_uniffiFFI/iscc_uniffiFFI.h` (generated),
+    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (generated)
+- **Reference**: `packages/swift/CLAUDE.md` (generation command + the swift.org Debian 12 tarball
+    recipe under Common Pitfalls), `packages/kotlin/CLAUDE.md` (generation + Gradle),
+    `crates/iscc-uniffi/src/lib.rs`, `.claude/agent-memory/advance/uniffi-swift-kotlin.md`
 
 ## Not In Scope
 
-- **Do not touch `rust-version = "1.85"`** anywhere. criterion's rustc-1.86 floor is a
-    contributor/bench toolchain floor; a dev-dependency is never built by downstream consumers.
-    Raising the declared MSRV is a human-gated v1.0.0 decision (`low` issue).
-- Do not bump `uniffi` (that is the next step), `iai-callgrind`, or anything else in the same
-    commit; do not run a bare `cargo update`.
-- Do not refresh `.iai-baseline.json` or `.crap-baseline.json` — no `iscc-lib` source line moves, so
-    neither the perf nor the CRAP gate has anything to re-record.
-- Do not edit `issues.md`; the review agent owns issue resolution. Put progress in the handoff.
-- Do not add a `deny.toml` entry (see notes — the one new transitive crate is already allow-listed).
+- Adopting any new 0.32 feature (`uniffi.toml` excludes, `--config` global config, recursive enums,
+    `#[uniffi::export(rust, foreign)]`, the experimental `uniffi-bindgen-kotlin-jni` backend).
+- Any edit to `crates/iscc-uniffi/src/lib.rs` or `uniffi-bindgen.rs` — if one turns out to be
+    required, STOP and hand back for a re-scope (issues.md constraint on this bump).
+- Moving any consumer floor: JNA 5.19.1, `kotlin("jvm") 2.4.10`, `swift-tools-version: 5.9`,
+    `rust-version = "1.85"`, JDK 17. Those are Titusz's calls.
+- Refreshing `.iai-baseline.json` / `.crap-baseline.json` — no `iscc-lib` core source moves here.
+- Editing `issues.md` (review owns issue resolution) or `.pre-commit-config.yaml`.
 
 ## Implementation Notes
 
-Measured while scoping, all read-only from the sparse index and the 0.8.2 `.crate` tarball:
-
-- Latest is **0.8.2** (0.8.0/0.8.1/0.8.2 all unyanked, `rust-version = "1.86"`). Write the pin as
-    `criterion = { version = "0.8", features = ["html_reports"] }` — the `html_reports` feature
-    still exists in 0.8 with the same name, as do `async`, `cargo_bench_support`, `real_blackbox`.
-- The only 0.8.0 BREAKING entry is **"Drop async-std support"** (unused here). Everything
-    `benches/benchmarks.rs` imports survives: `BenchmarkId` and `Bencher` are re-exported from
-    `benchmark_group`, `Criterion` and `Throughput` are defined in `lib.rs`, and the
-    `criterion_group!` / `criterion_main!` macros are unchanged. `benches/iai_benches.rs` mentions
-    criterion only in doc comments — it is an iai-callgrind target and does not link criterion.
-- New transitive dependency on unix/windows: **`alloca` 0.4.0 (MIT)**, plus its `cc` build
-    dependency (memory-layout randomisation added in 0.8). MIT is already in `deny.toml`'s allow
-    list, so the audit gate needs no change — but run it, since the lock gains crates.
-- Refresh the lock by editing the pin and letting `cargo` resolve (or `cargo update -p criterion`).
-    Keep the `Cargo.lock` diff scoped to criterion, criterion-plot and newly required crates.
-- Replace the four-line `# authorized 2026-07-28 (pending bump): …` comment above the pin with a
-    short evergreen note: criterion is a dev-dependency of `iscc-lib` consumed by the `benchmarks`
-    bench target, so its rustc-1.86 floor is a contributor/bench floor, not the published MSRV.
-    Leave the `uniffi` comment block exactly as it is.
-- `cargo deny` is not preinstalled here: `cargo binstall cargo-deny@0.19.9 --force` first.
+- uniffi **0.32.0** is latest and unyanked; the sparse index declares no `rust-version`, so the
+    published MSRV is untouched. `uniffi::uniffi_bindgen_main()` still exists behind the `cli`
+    feature → `crates/iscc-uniffi/uniffi-bindgen.rs` needs no edit.
+- Verified while scoping that no 0.32 breaking change reaches this crate: the `[ByRef] bytes` change
+    is UDL-only (this crate is proc-macro-only — `setup_scaffolding!()`, no `.udl` anywhere); the
+    async-primary-constructor break does not apply (both `#[uniffi::constructor]`s, `src/lib.rs`
+    ~441/~493, are sync); the `--config` change needs a `uniffi.toml` (none in the repo, and no
+    `--config` is passed); the pipeline rework targets external bindgen authors.
+- CLI shape changed benignly: `--library` is now a **deprecated boolean flag** and the cdylib is the
+    positional `source` (library mode auto-detected). Both commands documented in the two
+    `CLAUDE.md` files still parse — run them verbatim so the recipes stay accurate.
+- Swift generation writes three files into `--out-dir`: keep `iscc_uniffi.swift` there, move
+    `iscc_uniffiFFI.h` to `packages/swift/Sources/iscc_uniffiFFI/`, and **discard** the generated
+    `iscc_uniffiFFI.modulemap` — the checked-in `module.modulemap` is hand-simplified (Darwin `use`
+    directives break SPM) and must stay byte-identical. Module name stays `iscc_uniffiFFI`.
+- Kotlin generation needs `--no-format` (no ktfmt in the container).
+- Gradle reports `UP-TO-DATE` without executing anything: use `./gradlew clean test`, and do not run
+    a second Gradle build concurrently (it deletes `build/reports/problems` mid-flight).
+- Rebuild `cargo build -p iscc-uniffi` before every Swift/Kotlin run — a stale `libiscc_uniffi.so`
+    fails the uniffi checksum check loudly, which is the intended signal, not a bug to work around.
+- Run `mise run format` before `git add`. If a hygiene hook rewrites a *generated* file, record it
+    in the handoff — do not hand-edit generated code to satisfy it.
+- If `cargo deny` flags a new license or advisory from 0.32's added transitive crates, report it in
+    the handoff; do **not** add a `deny.toml` ignore.
 
 ## Verification
 
-- Root `Cargo.toml` pins criterion at `version = "0.8"`, and the `criterion` package entry in
-    `Cargo.lock` resolves to a `0.8.x` version.
-- `grep -n 'rust-version = "1.85"' Cargo.toml` still matches (the MSRV line is untouched).
-- `cargo bench --no-run` exits 0 (the exact command of the CI `bench` job).
-- `cargo bench -p iscc-lib --bench benchmarks -- --test` exits 0 (every bench body executes once
-    under the new harness, not just compiles).
-- `mise run lint` exits 0 (clippy `--workspace --all-targets -D warnings` — this is what catches a
-    fresh deprecation, as criterion 0.6 did with `criterion::black_box`).
-- `mise run test` and `mise run audit` both exit 0.
+- `grep -n 'uniffi = "0.32"' Cargo.toml` matches, `Cargo.lock` resolves `uniffi` to `0.32.0`,
+    `grep -n 'rust-version = "1.85"' Cargo.toml` still matches, and no "pending bump" / "not
+    verifiable locally" wording survives beside the pin.
+- Regeneration is a no-op: after `cargo build -p iscc-uniffi`, re-running both documented bindgen
+    commands (with the Swift header re-placed as above) leaves `git status --porcelain` empty.
+- `cargo build -p iscc-uniffi` then `./gradlew clean test` in `packages/kotlin` exits 0, with
+    `tests="9"` in `build/test-results/test/*ConformanceTest.xml` and `tests="13"` in
+    `*UnicodeBoundaryTest.xml`.
+- Swift suite passes locally via the `packages/swift/CLAUDE.md` tarball recipe:
+    `swift test --scratch-path /tmp/swiftbuild -Xlinker -L../../target/debug -Xlinker -rpath   -Xlinker ../../target/debug`
+    exits 0 with zero failures and zero skips.
+- `mise run lint` and `mise run test` exit 0.
+- `mise run audit` exits 0 with no `deny.toml` edit.
 
 ## Done When
 
-`criterion` 0.8 is pinned in the root manifest with a refreshed `Cargo.lock`, the MSRV line is
-unchanged, and all six verification checks pass.
+All six verification checks pass on the working tree with the bindings regenerated rather than
+hand-edited; the macOS `swift` CI job on the pushed commit stays the final confirmation.

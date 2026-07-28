@@ -67,8 +67,8 @@ iterations.
 - **No shellcheck** (shell lint is CI-only). `cmake` runs via `uv run --with cmake cmake …` (PyPI
     wheel, iter 160); **Swift runs here too** (swift.org debian12 tarball, 784 MB / ~5 min / no sudo
     — recipe → [propagation ledger](unicode-fixture-propagation.md)).
-- `uniffi-bindgen`: `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen`. UniFFI
-    0.31.0; SPM module name MUST be `iscc_uniffiFFI`; no `const`/`usize`/borrowed/generic exports.
+- `uniffi-bindgen`: `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen` (UniFFI pin →
+    ledger); SPM module name MUST be `iscc_uniffiFFI`; no `const`/`usize`/borrowed/generic exports.
 - `dotnet` 8.0.423 is on `$PATH` with nuget.org reachable, so .NET restore/test steps are locally
     verifiable; only `packages/dotnet` had no committed lockfile as of 170.
 - cargo-crap 0.2.2, cargo-llvm-cov 0.8.7, valgrind 3.19 + iai-callgrind-runner ARE installed.
@@ -98,9 +98,9 @@ iterations.
     `packages/dotnet` lockfile gap (the `release.yml` action pass was a measured no-op — recipe in
     [release.yml static gates](release-yml-static-gates.md)).
 - **2026-07-28 the human unblocked v0.6.0**: `target.md` names it the active milestone and the
-    release ships when the dependency issue closes. Both held majors are authorized as **separate**
-    steps — 171 scoped `criterion` 0.8 (local, cheap), `uniffi` 0.32 is the last one (Swift verified
-    only by CI). Facts for both → [dep-refresh ledger](dep-refresh-ledger.md). Trigger-only: go1.27
+    release ships when the dependency issue closes. Both held majors were authorized as **separate**
+    steps — 171 landed `criterion` 0.8, 172 scoped `uniffi` 0.32 (the last item; Swift *is* locally
+    verifiable). Facts for both → [dep-refresh ledger](dep-refresh-ledger.md). Trigger-only: go1.27
     \+ the Go freeze table (~Aug 2026). HELD `low` by Titusz: v1.0.0 + Semver-enforcing, the MSRV
     verification job (a v1.0.0 prerequisite — never move `rust-version` in a dep step), npm OIDC.
 - **Closed phases: 115–123 (features) and the dep slices 124–137 + 162–168** — detail in

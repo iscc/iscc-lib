@@ -282,15 +282,31 @@ lockfile and every reacting gate runs locally. Measured while scoping (sparse in
 - No docs, README, howto or workflow names the criterion version — the doc surface is zero (the
     "criterion 0.7" strings live only in agent memories, each agent's own to update).
 
-## Remaining after major bump F
+## Major bump G — uniffi 0.31 → 0.32, Swift + Kotlin bindings (scoped iter 172)
 
-`release.yml` GHA refs are a **confirmed no-op** as of 2026-07-28 (all 25 `uses:` refs current) and
-that bullet is gone from the issue. Only `uniffi` 0.32 remains: regenerate
-`packages/swift/Sources/IsccLib/iscc_uniffi.swift` +
-`packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` as a *pure* regeneration; read
-the 0.32 changelog first and re-scope if `crates/iscc-uniffi/src` needs edits. Kotlin verifies
-locally, Swift only via the `swift` CI job (the "no Swift toolchain" veto died at 161 — a local
-toolchain install is possible, see the propagation ledger).
+The LAST item of the issue (`release.yml` GHA refs were a confirmed no-op on 2026-07-28). Measured
+while scoping, all read-only (sparse index + `.crate` tarball + the upstream `CHANGELOG.md` raw from
+`mozilla/uniffi-rs@main` — the facade crate itself ships no changelog):
+
+- 0.32.0 latest/unyanked, **no `rust-version` declared** → MSRV untouched.
+    `uniffi::uniffi_bindgen_main()` still lives in `src/cli/mod.rs` behind `cli` → the 3-line
+    `uniffi-bindgen.rs` stays.
+- **Every 0.32 breaking change is unreachable here, and each is cheap to disprove**: `[ByRef] bytes`
+    → UDL-only (crate is proc-macro-only, `setup_scaffolding!()`, no `.udl` in the repo); async
+    primary constructors → both `#[uniffi::constructor]`s are sync; `--config` now wants a *global*
+    config file → repo has no `uniffi.toml` and passes no `--config`; pipeline rework → external
+    bindgen authors only.
+- **CLI shape**: `--library` became a deprecated *boolean* flag (library mode auto-detected) with
+    the cdylib as positional `source`. The commands in `packages/{swift,kotlin}/CLAUDE.md` and
+    `specs/swift-bindings.md` still parse unchanged.
+- Doc surface is **zero** — no `.md`, workflow, README or `mise.toml` names a uniffi version; only
+    the root `Cargo.toml` pin comment does (and it repeats the falsified "Swift is not verifiable
+    locally" claim, so the bump must rewrite it).
+- Swift generation emits 3 files; the checked-in `Sources/iscc_uniffiFFI/module.modulemap` is
+    hand-simplified and must NOT be replaced by the generated `iscc_uniffiFFI.modulemap`.
+- Suite-size assertions: Kotlin `tests="9"` + `tests="13"`; Swift = exit 0 via the swift.org Debian
+    12 tarball recipe in `packages/swift/CLAUDE.md` (the "Swift only verifiable in CI" claim died at
+    161 and was corrected in issues.md at 171).
 
 ## Handy version-lookup commands
 
