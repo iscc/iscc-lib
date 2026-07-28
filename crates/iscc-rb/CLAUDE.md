@@ -105,7 +105,8 @@ publisher is registered on rubygems.org for `iscc/iscc-lib` + `release.yml`.
     must start with uppercase)
 - `unsafe { data.as_slice() }` for zero-copy binary data from `RString` — safe only when the slice
     is consumed immediately without intervening Ruby API calls that could trigger GC
-- `RString::from_slice` to copy borrowed Rust slices into Ruby strings
+- `ruby.str_from_slice(&bytes)` on the `Ruby` handle (via `Ruby::get()`) to copy borrowed Rust
+    slices into Ruby strings
 
 ## Local Development
 

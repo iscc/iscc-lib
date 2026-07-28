@@ -149,11 +149,13 @@ jobs:
           dotnet-version: '8.0'
       - name: Build FFI native library
         run: cargo build -p iscc-ffi
+      - name: Restore .NET packages (locked mode)
+        run: dotnet restore packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj --locked-mode
       - name: Build .NET projects
-        run: dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj
+        run: dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj --no-restore
       - name: Run .NET tests
         run: >
-          dotnet test packages/dotnet/Iscc.Lib.Tests/
+          dotnet test packages/dotnet/Iscc.Lib.Tests/ --no-restore
           -e LD_LIBRARY_PATH=${{ github.workspace }}/target/debug
   java:
     name: Java (JNI build, mvn test)

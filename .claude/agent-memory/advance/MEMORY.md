@@ -50,11 +50,12 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     branch-adding change. Full mechanics + gotchas → ci-gates.md
 - Audit rule: advisory with patched release → `cargo update -p <crate>`, never `deny.toml` `ignore`
 - Dependency refresh (iters 124-140; xunit.v3 164, Gradle 9.6.1 165, JUnit 6.1.2 166, magnus 0.8
-    167, jni 0.22 168): manifests current; held majors (criterion 0.8, uniffi 0.32) carry `# held:`
-    in root Cargo.toml; ruff 0.16 (`ruff format` covers Markdown fences); prek ruff hooks carry
-    `pyi` in `types_or` (CI parity — prek types `.pyi` as `pyi`, NOT `python`); NEVER blanket
-    `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`. Detail + prek staged-probe
-    gotcha → deps-refresh.md
+    167, jni 0.22 168, .NET lockfile 170): manifests current + GHA action majors probed current
+    2026-07-28; held majors (criterion 0.8, uniffi 0.32) carry `# held:` in root Cargo.toml; ruff
+    0.16 (`ruff format` covers Markdown fences); prek ruff hooks carry `pyi` in `types_or` (CI
+    parity — prek types `.pyi` as `pyi`, NOT `python`); NEVER blanket `--fix` (deletes 13
+    `# noqa: S603/S607`); rb_sys pinned `0.9.123`. Detail + prek staged-probe gotcha →
+    deps-refresh.md
 - GOTCHAs: ci.yml `cancel-in-progress: true` per ref — a second develop push cancels the previous
     sha's in-flight CI run (don't push again while waiting on a green CI for a sha); system
     `python3` lacks PyYAML (use `uv run python`); piping `cargo crap`/`cargo deny` to `tail` makes

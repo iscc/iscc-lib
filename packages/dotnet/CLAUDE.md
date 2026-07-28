@@ -31,7 +31,8 @@ packages/dotnet/
       osx-x64/native/libiscc_ffi.dylib
       win-x64/native/iscc_ffi.dll
   Iscc.Lib.Tests/                        # xUnit test project
-    Iscc.Lib.Tests.csproj                # References Iscc.Lib, xunit.v3 3.x, Microsoft.NET.Test.Sdk 18.x
+    Iscc.Lib.Tests.csproj                # References Iscc.Lib, xunit.v3, Microsoft.NET.Test.Sdk (exact pinned versions)
+    packages.lock.json                   # Committed NuGet lock file (CI restores with --locked-mode)
     SmokeTests.cs                        # End-to-end P/Invoke validation for every public method
     ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions
     UnicodeBoundaryTests.cs              # Unicode 16.0.0 boundary vectors (canonical fixture linked via csproj)
@@ -178,6 +179,10 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 - **Version drift:** the `<Version>` in `Iscc.Lib.csproj` must stay in sync with the workspace
     `Cargo.toml` version. Use `mise run version:sync` to update all manifests, and
     `mise run version:check` to verify.
+- **Test dependencies are pinned via a committed lock file:** `Iscc.Lib.Tests` sets
+    `RestorePackagesWithLockFile` and CI restores with `--locked-mode`, so a `PackageReference`
+    version change must regenerate `packages.lock.json` in the same commit:
+    `dotnet restore packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj --force-evaluate`.
 - **runtimes/ directory is gitignored:** native libraries under `runtimes/` are populated by CI
     during the pack step. Local development uses `LD_LIBRARY_PATH` instead of bundled runtimes.
 - **Struct result lifetime:** `IsccSumCodeResult` and `IsccDecodeResult` contain native pointers.

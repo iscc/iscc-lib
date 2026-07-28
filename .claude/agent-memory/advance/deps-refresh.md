@@ -24,9 +24,23 @@ to resolve action"). `releases/latest` proves a release exists, NOT that a float
 — confirm via `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Slice 8 (ruff 0.16, sub-slices
 A–E) CLOSED iter 137. xunit.v3 + Test.Sdk 18.x DONE iter 164 (see below). Gradle wrapper 8.12.1 →
 9.6.1 DONE iter 165 (see below). JUnit 6.1.2 DONE iter 166 (see below). magnus 0.8 DONE iter 167
-(see below). jni 0.22 DONE iter 168 (see below). Remaining (all human/major-gated): `release.yml`
-actions (97 `uses:` refs; upload/download-artifact@v4 must move together; setup-uv there needs
-`@v9.0.0` too; only truly validated by a release run).
+(see below). jni 0.22 DONE iter 168 (see below). .NET test-dep pin + lockfile DONE iter 170 (see
+below). Action-freshness pass probed NO-OP 2026-07-28: all 25 distinct `uses:` refs across the three
+workflow files are on their publisher's latest major (`matching-refs/tags/v<N+1>` empty for all 23
+versioned refs; both exact pins == `releases/latest`). Remaining (all human/major-gated): criterion
+0.8, uniffi 0.32 (see Held-back section).
+
+## .NET test-dep pin + NuGet lockfile (iter 170 — DONE)
+
+- `Iscc.Lib.Tests.csproj`: `<RestorePackagesWithLockFile>true</...>` + exact pins (Test.Sdk 18.8.1,
+    xunit.v3 3.2.2, runner.visualstudio 3.1.5); `packages.lock.json` COMMITTED; CI `dotnet` job runs
+    `dotnet restore … --locked-mode` then build/test with `--no-restore`. Any version bump must
+    regen the lock in the same commit: `dotnet restore <csproj> --force-evaluate`.
+- `--locked-mode` ACCEPTS a referenced project with zero `PackageReference`s and no lock file
+    (`Iscc.Lib` needed nothing). Drift → `NU1004`, exit 1 — but `| tail` masks the exit code,
+    redirect to a file.
+- NuGet emits the lock file WITHOUT a trailing newline; prek `end-of-file-fixer` adds one and NuGet
+    never rewrites it back (restore skips writing when the graph is unchanged) — no tug-of-war.
 
 ## jni 0.22 (iter 168 — DONE)
 
