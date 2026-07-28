@@ -1,23 +1,23 @@
-<!-- assessed-at: 1c18b68219d33287eb6e6485a415b74188ca348e -->
+<!-- assessed-at: 8ea3e025dd25d9cb17851e253085f33ec6df4882 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All target sections met except human-held publishing items; two Rust dependency majors are the last CID-schedulable work
+## Phase: All target sections met except human-held publishing items; one Rust dependency major is the last CID-schedulable work
 
-Iteration 166 took the JVM test-framework slice of the authorized dependency refresh: JUnit 5.14.4 →
-6.1.2 in both build systems (Gradle and Maven), with the platform launcher renumbered 1.14.4 →
-6.1.2. Tracked changes touch five files (two manifests, three doc/javadoc comments); no test logic
-moved. CI is green over the whole tree.
+Iteration 167 took the Ruby slice of the authorized dependency refresh: workspace `magnus 0.7 → 0.8`
+with both deprecated `old-api` families migrated to their `Ruby`-handle equivalents. Tracked changes
+touch four files (`Cargo.toml`, `Cargo.lock`, `crates/iscc-rb/src/lib.rs`,
+`crates/iscc-rb/CLAUDE.md`) and no test, fixture or Gemfile moved. CI is green over the whole tree.
 
 ## Rust Core Crate
 
 **Status**: met, except the human-held v1.0.0 cut
 
-- Nothing under `crates/iscc-lib/`, `benches/` or `specs/rust-core.md` moved since 0d9ac0f: 32 Tier
-    1 symbols, 342 `#[test]`, all 10 `gen_*_v0` conformant against `tests/data.json`, no `unsafe`
-    outside the FFI crates.
+- Nothing under `crates/iscc-lib/`, `benches/` or `specs/` moved since 1c18b68: 32 Tier 1 symbols,
+    342 `#[test]`, all 10 `gen_*_v0` conformant against `tests/data.json`, no `unsafe` outside the
+    FFI crates.
 - All four Unicode criteria remain MET: declared 16.0.0 + sentinel freeze, the `Final_Sigma` case
     freeze, boundary vectors on 11 of 11 surfaces, and the fail-closed differential sweep gate.
 - Only unmet target line: `crate is >= 1.0.0`. Version is **0.5.0**; the cut is human-gated and
@@ -65,34 +65,34 @@ moved. CI is green over the whole tree.
 
 **Status**: met — every surface Unicode-gated
 
-- **The two JVM surfaces moved this iteration.** `crates/iscc-jni/java/pom.xml` pins `junit-jupiter`
-    6.1.2; `packages/kotlin/build.gradle.kts` pins `junit-jupiter` **and** `junit-platform-launcher`
-    at 6.1.2 (JUnit 6 unifies Platform and Jupiter numbering), and the stale
-    `// held: JUnit 6.x deferred` comment is gone. A repo-wide sweep of tracked non-`.claude` files
-    finds zero `5.14.4`, `1.14.4` or `JUnit 5` strings.
-- Test sources unchanged in count: Kotlin 9 `@Test` in `ConformanceTest.kt` + 3 in
-    `UnicodeBoundaryTest.kt` (→ 9 + 13 cases); Java 29 annotations in `IsccLibTest.java` + 3 in
-    `UnicodeBoundaryTest.java` (→ 69 + 13 = 82 cases). Only a javadoc line changed in
-    `IsccLibTest.java`.
-- `crates/iscc-rb`, `crates/iscc-uniffi` (32 exports, 21 tests, `publish=false`), `packages/dotnet`
-    (xunit.v3 3.x since 164) and `packages/{cpp,go,swift}` carry the full 32-symbol surface; no
-    other binding source moved.
+- **The Ruby surface moved this iteration.** Root `Cargo.toml` pins
+    `magnus = { version = "0.8", features = ["rb-sys"] }`, `Cargo.lock` resolves magnus **0.8.2**,
+    and the `# held: magnus` comment is gone (3 inline holds left: criterion 0.8, jni 0.22, uniffi
+    0.32). `crates/iscc-rb/src/lib.rs` has zero `magnus::exception::` and zero `RString::from_slice`
+    call sites; 33 `define_*` registrations still cover the full 32-symbol surface. Test files,
+    `Gemfile*` and fixtures are byte-untouched.
+- Doc drift, observed not filed: `crates/iscc-rb/CLAUDE.md:108` still teaches `RString::from_slice`
+    as the pattern for copying slices into Ruby strings, while the code now uses
+    `ruby.str_from_slice`. The architecture line in the same file was updated to "Magnus 0.8".
+- No other binding source moved: Kotlin 9 + 3 `@Test` sources (→ 9 + 13 cases), Java 29 + 3 (→ 69 +
+    13 = 82 cases) on JUnit 6.1.2 since 166; `crates/iscc-jni`, `crates/iscc-uniffi` (32 exports, 21
+    tests, `publish=false`), `packages/dotnet` (xunit.v3 3.x since 164) and
+    `packages/{cpp,go,swift}` all unchanged.
 - Propagation invariant holds: `git ls-files -- '*data.json' '*unicode_boundary.json'` = 8 tracked
     paths, matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py`. A 13th boundary vector
     costs 12 suites at once.
 - The go1.27 hazard remains its own tracked issue: go1.27 ships Unicode 17.0 tables, so
     `packages/go` (177 `func Test`) reacquires the `Final_Sigma` defect unless a freeze lands with
     the bump. The skip map stays unconditional by standing ruling; the red is the intended trigger.
-- Cosmetic drift, human-owned, not filed: `specs/java-bindings.md:42` still says "JUnit 5
-    conformance tests" in a file-tree comment.
 
 ## Documentation
 
 **Status**: met
 
-- Nothing under `docs/` moved. Page-list machinery unchanged: 23 documentation pages across
-    `zensical.toml` nav, `ORDERED_PAGES` and `docs/llms.txt`; 11 `docs/howto/*.md`; 12 crate/package
-    READMEs; 12 crate/package `CLAUDE.md`. `docs/unicode.md` names all 11 gated surfaces.
+- Nothing under `docs/` moved (latest docs commit is 2840c7f, iteration 161). Page-list machinery
+    unchanged: 23 documentation pages across `zensical.toml` nav, `ORDERED_PAGES` and
+    `docs/llms.txt`; 11 `docs/howto/*.md`; 12 crate/package READMEs; 12 crate/package `CLAUDE.md`.
+    `docs/unicode.md` names all 11 gated surfaces.
 - Remaining item is cosmetic and human-owned: `Add programming language logos to docs site` (`low`).
 
 ## Benchmarks
@@ -102,41 +102,43 @@ moved. CI is green over the whole tree.
 - 12 criterion benches (criterion 0.7) + `benches/iai_benches.rs` (iai-callgrind 0.16, 11 fns / 16
     cases); 18 pytest-benchmark fixtures; documented speedups 1.3x-158x.
 - `.iai-baseline.json` and `.crap-baseline.json` byte-untouched (CRAP still 105 entries) — correct,
-    since no Rust source moved.
+    since no `iscc-lib` core source moved.
 
 ## CI/CD and Publishing
 
 **Status**: partially met — green, with only human-held publishing work left
 
-- **CI GREEN and it covers HEAD.** `origin/develop` = `6d78f8e` (the 166 review commit carrying the
-    JUnit bump): check-runs API reports **45 runs, 23 distinct names, 0 non-success** — so both the
-    `java` and `kotlin` jobs really did resolve and run JUnit 6.1.2. HEAD `1c18b68` is one
-    `cid(log)` commit ahead and `git diff --stat origin/develop..HEAD -- . ':!.claude'` is empty.
-    Working tree clean; all four roles of 166 logged OK.
+- **CI GREEN and it covers HEAD.** `origin/develop` = `90bde13` (the 167 review commit carrying the
+    magnus bump): check-runs API reports **45 runs, 23 distinct names, 0 non-success** — so the
+    `ruby` job really did compile and test against magnus 0.8.2. HEAD `8ea3e02` is one `cid(log)`
+    commit ahead and `git diff --stat origin/develop..HEAD -- . ':!.claude'` is empty. Working tree
+    clean; all four roles of 167 logged OK.
 - Job shape unchanged: 21 job keys → 22 jobs → 23 check names (`python-test` is a `[3.10, 3.14]`
-    matrix; `python` is an `if: always()` aggregator). `ci.yml`, `docs.yml` and `release.yml`
-    byte-untouched since 47a87bc; zero `@main` action refs; 97 `uses:` refs; 8 registry toggles;
-    `workflow_dispatch`-only. The `specs/ci-cd.md` job table stays exhaustive and gated from two
-    places (prek hook + `tests/test_check_ci_job_table.py::test_real_repo_passes`).
+    matrix; `python` is an `if: always()` aggregator). No workflow file changed this iteration (last
+    workflow commit 21bb004, iteration 162): zero `@main` action refs; 97 `uses:` refs in
+    `release.yml`; 8 registry toggles; `workflow_dispatch`-only. The `specs/ci-cd.md` job table
+    stays exhaustive and gated from two places (prek hook + `test_check_ci_job_table.py`).
 - PR **#44** `develop` → `main` ("Release 0.6.0") still OPEN — not shipped; version **0.5.0**,
     `scripts/version_sync.py` 21 targets consistent.
 - Enforcing gates unchanged: iai perf (>10% Ir), coverage + CRAP (`--fail-regression` is CI-only, so
     a green `mise run check` proves nothing), `cargo-deny` (live advisory DB — can red with no code
     change), docs page-list parity, `unicode-sweep`, CI job-table parity.
-- Dependency freshness: the issue body now lists **only** `jni` 0.22 and `magnus` 0.8 as remaining
-    majors — nine ecosystem slices plus the JVM build-tooling and test-framework steps are closed.
+- Dependency freshness: the issue body now lists **`jni` 0.22 as the single remaining
+    CID-schedulable major** — ten ecosystem slices are closed. Everything else in the issue is
+    human/release-gated (release.yml action bumps, uniffi 0.32, criterion 0.8).
 - Reproducibility gap, observed not filed: `packages/dotnet` is the only ecosystem with no lockfile
     (Cargo, uv, Gemfile, Gradle all pin) and its two test packages float on `3.*` / `18.*`.
 
 ## Open Issues
 
 **7 entries in `issues.md` — 2 `normal`, 5 `low`, zero `critical`, zero `HUMAN REVIEW REQUESTED`.**
-Count unchanged at 166; only the JUnit bullet inside the dependency issue was struck.
+Count unchanged at 167; only the magnus bullet inside the dependency issue was struck.
 
-- **NORMAL:** dependency review/refresh (remaining majors: `jni` 0.22 in
-    `crates/iscc-jni/src/lib.rs` and `magnus` 0.8 in `crates/iscc-rb/src/lib.rs` — both real
-    source-level API migrations, authorized one per step); `go1.27` reds the Go boundary suite
-    unless the freeze lands with it (a standing tripwire, not schedulable work).
+- **NORMAL:** dependency review/refresh (one schedulable item left: `jni` 0.22 in
+    `crates/iscc-jni/src/lib.rs` — `JNIEnv` → `EnvUnowned`/`Env`, `GlobalRef` → `Global`,
+    `AutoLocal` → `Auto`, closure-based attachment and a mandatory per-function `ErrorPolicy` across
+    ~41 sites); `go1.27` reds the Go boundary suite unless the freeze lands with it (a standing
+    tripwire, not schedulable work).
 - **LOW / CID skips:** update the upstream `iscc-core#137` thread (human-only), the three
     gate-script remainders deferred at 146 (trigger-contingent), v1.0.0 (HELD), docs language logos,
     npm OIDC (ruled out for v0.6.0).
@@ -144,7 +146,8 @@ Count unchanged at 166; only the JUnit bullet inside the dependency issue was st
 ## Next Milestone
 
 Every target section except CI/CD is met and CI is green over the whole tree. The only
-CID-schedulable work left is the tail of the authorized dependency-majors refresh: the two
-source-level Rust API migrations, `jni` 0.22 and `magnus` 0.8, taken one per step. Which one goes
-first and how it is sliced is define-next's call. Beyond that the backlog is human-held (v1.0.0 cut,
-npm OIDC, docs logos, the upstream thread).
+CID-schedulable work left is the last authorized dependency major: the `jni` 0.22 migration of
+`crates/iscc-jni/src/lib.rs`, which unlike the nine mechanical slices before it is a real
+source-level API rework touching the Java and Kotlin surfaces. Whether it lands as one package or
+needs slicing is define-next's call. Beyond that the backlog is human-held (v1.0.0 cut, npm OIDC,
+docs logos, the upstream thread).
