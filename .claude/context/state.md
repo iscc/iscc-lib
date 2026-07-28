@@ -1,66 +1,59 @@
-<!-- assessed-at: 52919020f7b565de1e3fb63f73b00ab74abfce0f -->
+<!-- assessed-at: 2916ce4ce14f0dcab693dd552bf1bf32b7150962 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.6.0 — CI RED on develop: CRAP gate fixed at 176, but Semver (#[non_exhaustive] Version) still red
+## Phase: v0.6.0 — `gen_iscc_id_v1` minting landed in CORE (33 symbols); CI still RED on Semver
 
-Iteration 176 re-baselined `.crap-baseline.json` (reviewed PASS, pushed) which cleared the CRAP
-regression gate — one of the two gates the pushed IDv1-decode batch had tripped. The other,
-`cargo-semver-checks`, is **still failing** on `origin/develop` (tip `a961c75`): marking public
-`enum Version` `#[non_exhaustive]` requires a major bump vs the 0.5.0 baseline. `gen_iscc_id_v1`
-minting still exists nowhere and Go still carries the names the target says to rename/delete. HEAD
-`5291902` is the `cid(log)` commit — its code is identical to the red develop tip, so the red covers
-HEAD.
+Iteration 177 added Tier 1 `gen_iscc_id_v1(timestamp, hub_id, realm)` + `IsccIdResult` to the pure
+Rust core (reviewed PASS, oracle-verified), so the core now carries all 33 targeted Tier 1 symbols.
+The 11 language surfaces still lack IDv1 minting and Go still uses the superseded names. CI remains
+**RED on `origin/develop`** — the sole failing gate is `cargo-semver-checks` rejecting
+`#[non_exhaustive]` on public `enum Version`. HEAD `2916ce4` is the `cid(log)` commit; its code is
+identical to the red develop tip, so the red covers HEAD.
 
 ## Rust Core Crate
 
-**Status**: partially met — IDv1 decode in source, minting absent, Semver gate red on it
+**Status**: met (feature-complete for v0.6.0), but its own change reds an enforcing CI gate
 
-- **IDv1 decode works in core:** `codec::Version` is `#[non_exhaustive]` `V0`/`V1`;
-    `validate_version` permits `V1` only for MainType `Id`, so `iscc_decode`/`iscc_decompose` accept
-    `Id` Version 1 (oracle-matched). The `decode_header` varnibble-truncation bug is fixed
-    (range-checked `u8::try_from`), reviewed PASS.
-- **CI RED (sole remaining gate):** `cargo-semver-checks` fails `enum_marked_non_exhaustive` on
-    `enum Version` — marking a public enum `#[non_exhaustive]` requires a major bump (exit 100,
-    enforcing check-run). This is the ONLY red gate now; the CRAP regression that also fired at 175
-    was cleared at 176 by re-baselining `decode_header` (CC 16, 100% covered) into
-    `.crap-baseline.json`.
-- **`gen_iscc_id_v1` minting absent** — grep of `crates/iscc-lib/src/` finds no definition; 32 of 33
-    targeted Tier 1 symbols present. Only other unmet line: `crate >= 1.0.0` (0.5.0, human-gated).
-- All 10 `gen_*_v0` conformant, no `unsafe` outside FFI, Unicode criteria unchanged.
+- **33/33 Tier 1 symbols present:** `gen_iscc_id_v1` minting now defined at `lib.rs:1064` with
+    `IsccIdResult` (`types.rs:95`), additive/clock-free, oracle-matched vs `iscc-core` 1.3.0; IDv1
+    decode via generic `iscc_decode`/`iscc_decompose` (accepts `Id` Version 1). All 10 `gen_*_v0`
+    conformant, no `unsafe` outside FFI, Unicode criteria unchanged.
+- **CI RED (sole gate):** `cargo-semver-checks` fails `enum_marked_non_exhaustive` on `enum Version`
+    — marking a public enum `#[non_exhaustive]` needs a major bump vs 0.5.0 (exit 100, enforcing).
+    `mise run check` does not run semver, so a green local check proves nothing here.
+- Only other unmet criterion: `crate >= 1.0.0` (0.5.0, human-gated).
 
 ## Python Bindings
 
 **Status**: partially met — 32/33 symbols
 
 - `crates/iscc-py` exports 32 symbols with `IsccResult`, streaming hashers, 12 `.detach(` GIL sites,
-    abi3-py310 wheels. IDv1 decode inherits from core; **no `gen_iscc_id_v1`**.
-- Carries the `iscc_decode` differential conformance test (`test_iscc_decode_conformance.py`);
-    pushed and part of the (green-except-semver) CI run.
+    abi3-py310 wheels. IDv1 decode inherits from core; **no `gen_iscc_id_v1`**. Untouched at 177.
+- Carries the `iscc_decode` differential conformance test (`test_iscc_decode_conformance.py`).
 
 ## Node.js Bindings
 
 **Status**: partially met — 32/33 symbols
 
 - `crates/iscc-napi` exports 32 symbols with streaming classes, Unicode-gated. IDv1 decode inherits
-    from core; **no `gen_iscc_id_v1`.** Untouched this iteration.
+    from core; **no `gen_iscc_id_v1`.** Untouched.
 
 ## WASM Bindings
 
 **Status**: partially met — 32/33 symbols
 
-- `crates/iscc-wasm` exports 32 symbols, `SumHasher` wrapper, Unicode-gated. IDv1 decode inherits
-    from core; **no `gen_iscc_id_v1`.** `ci.yml` guard asserting the `blake3 wasm32_simd` feature
-    stays enabled is pushed and part of the CI run.
+- `crates/iscc-wasm` exports 32 symbols, `SumHasher` wrapper, Unicode-gated, `blake3 wasm32_simd`
+    feature guarded in ci.yml. IDv1 decode inherits from core; **no `gen_iscc_id_v1`.** Untouched.
 
 ## C FFI
 
 **Status**: partially met — 32/33 symbols
 
-- 47 `#[unsafe(no_mangle)]` externs in `crates/iscc-ffi/src/lib.rs`, Unicode-gated; untouched. IDv1
-    decode inherits from core; **no `gen_iscc_id_v1`.**
+- 47 `#[unsafe(no_mangle)]` externs in `crates/iscc-ffi/src/lib.rs`, Unicode-gated. IDv1 decode
+    inherits from core; **no `gen_iscc_id_v1`.** Untouched.
 
 ## Other Bindings (Java, Kotlin, C#, C++, Go, Ruby, Swift)
 
@@ -78,7 +71,8 @@ HEAD.
 **Status**: partially met
 
 - Docs site (23 pages, 12 READMEs, 12 CLAUDE.md) met; a Go IDv1 how-to note is present.
-- Tabbed multi-language examples do not yet cover an IDv1 surface.
+- Tabbed multi-language examples do not yet cover an IDv1 surface; Tier-1 count text still reads 32
+    by design (separate sweep step under #43).
 
 ## Benchmarks
 
@@ -92,11 +86,11 @@ HEAD.
 
 **Status**: RED on develop — top priority. Dependency freshness met; release-readiness blocked
 
-- **CI is FAILING on `origin/develop` = `a961c75`:** check-runs API reports 45 runs, **2 failures,
-    all `Semver (cargo-semver-checks)`**. Cause: `#[non_exhaustive]` on public `enum Version` from
-    the IDv1 batch, rejected vs the 0.5.0 semver baseline. The CRAP regression that co-fired at 175
-    is now GREEN (176 re-baseline). Local `mise run check` catches neither — semver runs only in CI
-    vs the last release.
+- **CI FAILING on `origin/develop` = `98205f2`:** check-runs API reports 45 runs, **2 failures, all
+    `Semver (cargo-semver-checks)`** — `#[non_exhaustive]` on public `enum Version`, rejected vs the
+    0.5.0 baseline. The gen_iscc_id_v1 addition is additive (no new semver break) but did not clear
+    the pre-existing one. CRAP regression that co-fired at 175 stayed green after the 176
+    re-baseline.
 - Dependency freshness met (criterion 0.8 at 171, uniffi 0.32 at 172); zero `# held:`/`authorized`
     pin comments in root `Cargo.toml`. Job shape unchanged (21 keys → 22 jobs → 23 names).
 - PR **#44** `develop` → `main` OPEN; version **0.5.0**.
@@ -115,10 +109,10 @@ redness is not yet filed as an issue.
 
 ## Next Milestone
 
-**Get CI green on develop first** — the sole remaining red gate is `cargo-semver-checks` rejecting
+**Get CI green on develop first** — the sole red gate is `cargo-semver-checks` rejecting
 `#[non_exhaustive]` on public `enum Version` (it wants a major bump vs 0.5.0). This needs a
 decision: drop the marker, allowlist/configure the lint as an accepted pre-1.0 exception, or move
-the semver baseline. Only after CI is green, resume experimental ISCC-IDv1: `gen_iscc_id_v1` minting
-across core and all 11 surfaces plus the Go rename (`EncodeIsccID` → `GenIsccIDV1`, delete
-`DecodeIsccID`/`IsccIDv1Result`) and the Tier-1 32→33 doc sweep — the last CID-doable v0.6.0
-release-readiness blockers.
+the semver baseline. Only after CI is green, fan out experimental `gen_iscc_id_v1` minting from core
+to the 11 language surfaces, do the Go rename (`EncodeIsccID` → `GenIsccIDV1`, delete
+`DecodeIsccID`/`IsccIDv1Result`), and run the Tier-1 32→33 doc/count sweep — the last CID-doable
+v0.6.0 release-readiness blockers.

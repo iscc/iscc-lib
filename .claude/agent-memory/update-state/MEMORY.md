@@ -91,22 +91,24 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: 5291902, iter 177)
+## Current State (assessed-at: 2916ce4, iter 178)
 
-- **CI STILL RED on develop, but down to ONE gate.** Iter 176 re-baselined `.crap-baseline.json`
-    (reviewed PASS, PUSHED) → **CRAP gate now GREEN**. Real develop tip `a961c75`: check-runs API =
-    45 runs, **2 failures, ALL `Semver (cargo-semver-checks)`** — `enum Version` `#[non_exhaustive]`
-    (codec.rs) trips `enum_marked_non_exhaustive`, exit 100, enforcing vs the 0.5.0 baseline. Local
-    `mise run check` does NOT run semver → green local proves nothing. TOP priority = clear semver.
-- **HEAD `5291902` = cid(log) 176 only; code == origin/develop**
-    (`git diff origin/develop..HEAD --   . ':!.claude'` empty), so the red covers HEAD — no
+- **CI STILL RED on develop, ONE gate.** Real develop tip `98205f2`: check-runs API = 45 runs, **2
+    failures, ALL `Semver (cargo-semver-checks)`** — `enum Version` `#[non_exhaustive]` (codec.rs)
+    trips `enum_marked_non_exhaustive`, exit 100, enforcing vs the 0.5.0 baseline. Iter 177's
+    `gen_iscc_id_v1` is ADDITIVE (no new semver break) and did NOT clear the pre-existing one. Local
+    `mise run check` does NOT run semver → green local proves nothing. TOP priority = clear it.
+- **`gen_iscc_id_v1` minting NOW EXISTS in CORE** (iter 177, reviewed PASS): `lib.rs:1064`
+    `gen_iscc_id_v1(timestamp,hub_id,realm)->IsccResult<IsccIdResult>`, `IsccIdResult` at
+    `types.rs:95`, oracle-matched vs iscc-core 1.3.0. **Core = 33/33 Tier-1 symbols now.** BINDINGS
+    still 32/33 (untouched). Go rename NOT done — `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result`
+    still in `packages/go/iscc_id.go`, no `GenIsccIDV1`.
+- **HEAD `2916ce4` = cid(log) 177 only; code == origin/develop**
+    (`git diff origin/develop..HEAD   -- . ':!.claude'` empty), so the red covers HEAD — no
     unpushed-code gap.
 - **Semver-red remedy is a DECISION, not a mechanical fix:** drop `#[non_exhaustive]`, configure/
     allowlist the lint as an accepted pre-1.0 exception, or move the baseline. define-next scopes
     it.
-- **`gen_iscc_id_v1` minting STILL exists NOWHERE** (grep of `crates/iscc-lib/src/` empty). Go
-    rename NOT done — `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result` still in
-    `packages/go/iscc_id.go`, no `GenIsccIDV1`. 32/33 Tier-1 symbols.
 - **Issues 11: 0 critical, 4 normal, 7 low.** The Semver CI redness is NOT yet an issue.
 - **SCOPE CONTEXT (still live from 174):** out-of-loop non-`cid()` commit `2c4e487` rewrote
     `target.md` + EVERY binding spec to demand **33 Tier 1 symbols** (`gen_iscc_id_v1`) +
