@@ -150,11 +150,9 @@ adjacency-sensitive divergence on sequences containing unassigned code points is
 Python `str.lower()`, which applies the conditional `Final_Sigma` mapping (`Σ` → `ς` when preceded
 by a cased character and not followed by one); Rust `str::to_lowercase()` does the same. A
 context-insensitive mapping is a conformance defect in its own right, independent of Unicode
-versions, and `packages/go` currently has one: `TextCollapse` uses `strings.ToLower`, so `ΛΟΓΟΣ`
-collapses to `λογοσ` instead of `λογος`. This is the freeze rule's only cross-implementation
-prerequisite and it is tracked separately in `issues.md`; the `Final_Sigma` boundary vector cannot
-pass in Go until it lands, and — unlike divergence class (a) — it affects ordinary Greek text rather
-than a Unicode-version edge case.
+versions: it affects ordinary Greek text rather than a Unicode-version edge case. Every surface
+implements the conditional mapping today — `packages/go`'s `TextCollapse` collapses `ΛΟΓΟΣ` to
+`λογος` (not `λογοσ`), regression-tested in `packages/go/utils_test.go`.
 
 **Verified when:**
 

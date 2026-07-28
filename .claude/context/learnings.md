@@ -29,7 +29,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     imports a non-project dep** (159). A dep a *pytest* test imports in-process must be a dev-group
     dep (142, `pyyaml`). Generated Rust must be data-only + rustfmt-stable; generated C must be
     ASCII + LF + one trailing newline, or the prek hygiene hooks rewrite it and break the
-    regeneration-no-op gate
+    regeneration-no-op gate — and a **third-party** generator you cannot fix (uniffi bindgen, 172)
+    always trips it, so verify that no-op modulo `sed 's/[[:space:]]*$//'`, never by `git status`
 - **Every "not locally verifiable" toolchain claim so far has been false**: `cmake` via
     `uv run --with cmake cmake …` (configure into a fresh gitignored `build-*/`, never the stale
     `packages/cpp/build/`), `swift` via swift.org's Debian 12 tarball (`packages/swift/CLAUDE.md`),
@@ -106,14 +107,14 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     checked" are the same green (read `action-inputs: resolved R of T`, not the job status), and
     "transport failure degrades to a warning" is NOT met by `except OSError` (`IncompleteRead` is an
     `HTTPException`, captive-portal HTML raises `yaml.YAMLError`)
-- **A csproj `Version="X"` is a FLOOR, not a pin** (170): NuGet resolves a direct `PackageReference`
-    to the *lowest applicable* version — exactness comes from the committed `packages.lock.json`
-    plus CI's `restore --locked-mode` (csproj drift → `NU1004`, tampered `resolved`/`contentHash` →
-    `NU1403`). A warm tree prints "All projects are up-to-date" and validates NOTHING — probe cold
-- **A dev-dependency's rustc floor cannot reach consumers — prove it, don't argue it** (171):
-    `cargo tree -i <dep> -e no-dev --target all` printing "nothing to print" is the evidence that a
-    dev-only major (criterion 0.8, rustc 1.86) leaves `rust-version` alone. Without `--target all`,
-    `-i` silently hides platform-gated transitives (criterion 0.8's `winapi` via `page_size`)
+- **A rustc floor travels the dependency graph — measure it, don't argue it** (171/172):
+    `cargo tree -i <dep> -e no-dev --target all` = "nothing to print" proves a dev-only major's
+    floor (criterion 0.8, 1.86) leaves `rust-version` alone; without `--target all` it hides
+    platform-gated transitives. A **normal**-dep major is the opposite: uniffi 0.32's
+    `cargo_metadata 0.23.1` (1.86) + `cargo-platform 0.3.3` (1.91) broke `iscc-uniffi` on the
+    inherited 1.85 while `-p iscc-lib` stayed fine. Read each new transitive's `rust-version`
+    (`~/.cargo/registry/src/*/<crate>-<ver>/Cargo.toml`) and settle it by building — **the 1.85
+    toolchain is installed**: `cargo +1.85.0 check -p <crate> --locked`
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with both `--fail-regression` and a
@@ -135,8 +136,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     **A `files:`-scoped hook never sees deletions** — pair any consistency hook with a pytest anchor
     test against the real tree. Formatter caveats → `learnings-archive.md`
 - **A binding-toolchain bump can silently raise the *consumer* floor** — in a *published* binding
-    that is a support-policy change reserved for Titusz (floor: Kotlin 2.3 or newer; `mavenLocal`
-    proof recipe + the four docs → `learnings-archive.md`)
+    that is Titusz's call (floor: Kotlin 2.3+; `mavenLocal` recipe + the four docs → the archive)
 - **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`. Read
     it before touching `pom.xml` / `build.gradle.kts`, or before calling a Gradle error a failure.
     Gradle 9 writes `build/reports/problems` at the END of every build, so a *concurrent* build (a

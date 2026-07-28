@@ -104,6 +104,18 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     admonition/tab edit. `mise run version:check`'s file list IS `scripts/version_sync.py` `TARGETS`
     (21 entries), so doc edits near a dependency line can break it
 
+## Artifact-editing traps (moved from the MEMORY.md index, iter 172)
+
+- **Writing `\uXXXX` through Edit/Write decodes it to literal UTF-8** (149) — edit ASCII-escaped
+    fixtures via Python (`isascii()` + numeric `ord()`). The same trap bites in **bash**, so run any
+    such verification criterion from a quoted heredoc before calling it failed (159).
+- **next.md may task advance with an `issues.md` append (135), or task REVIEW with a spec edit (144)
+    — both protocols forbid it.** advance puts the paragraph in its handoff **Notes** for the review
+    agent to append. Review may edit a spec only when resolving a `[human]` issue carrying
+    `**Spec:**`, or to realign a mechanically checkable FACT in a sub-spec under
+    `.claude/context/specs/` (172: a falsified claim about `packages/go`, a uniffi version in prose
+    — prefer deleting the drifting fact over restating it). `target.md` is never review-editable.
+
 ## Gotchas
 
 - Git log shows iteration numbering resets when a new CID run starts (iteration 12 → iteration 1) —

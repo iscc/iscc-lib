@@ -965,3 +965,10 @@ runs on `opus`. Deliberate — do not "unify" them.
     archived 171 — all 12 boundary suites closed): Gradle's `Test` task tracks only its project
     tree, so a `unicode_boundary.json` edit left `./gradlew test` `UP-TO-DATE` — a silent stale
     green. Fixed by declaring the fixture an explicit input.
+
+## .NET lockfile gate (archived iter 172 — v0.6.0 dependency refresh complete)
+
+- **A csproj `Version="X"` is a FLOOR, not a pin** (170): NuGet resolves a direct `PackageReference`
+    to the *lowest applicable* version — exactness comes from the committed `packages.lock.json`
+    plus CI's `restore --locked-mode` (csproj drift → `NU1004`, tampered `resolved`/`contentHash` →
+    `NU1403`). A warm tree prints "All projects are up-to-date" and validates NOTHING — probe cold

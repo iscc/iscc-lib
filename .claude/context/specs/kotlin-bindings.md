@@ -12,11 +12,11 @@ zero-friction ISCC integration for both mobile platforms.
 
 **Why Kotlin/JVM (not Kotlin Multiplatform):**
 
-UniFFI 0.31's Kotlin backend generates JVM-only code using `com.sun.jna.*` for native library
-loading. Kotlin/Native would require a separate `cinterop`-based approach that UniFFI does not
-support. Since iOS is already covered by the Swift bindings (which share the same UniFFI scaffolding
-crate), Kotlin/Native targets (iOS, macOS) would be redundant. The Kotlin bindings focus on Android
-and desktop/server JVM where JNA is the standard native loading mechanism.
+UniFFI's Kotlin backend generates JVM-only code using `com.sun.jna.*` for native library loading.
+Kotlin/Native would require a separate `cinterop`-based approach that UniFFI does not support. Since
+iOS is already covered by the Swift bindings (which share the same UniFFI scaffolding crate),
+Kotlin/Native targets (iOS, macOS) would be redundant. The Kotlin bindings focus on Android and
+desktop/server JVM where JNA is the standard native loading mechanism.
 
 **Shared infrastructure with Swift:**
 

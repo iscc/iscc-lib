@@ -16,43 +16,24 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
-## Dependency review and refresh across the project `normal` [human]
+## `iscc-uniffi` no longer builds on the declared MSRV 1.85 `normal` [review]
 
-Planned for the **v0.6.0** release. No automated dependency updates are configured (no
-Dependabot/Renovate), so manifests drift between releases.
+uniffi 0.32 (iteration 172) pulls `cargo_metadata 0.23.1` (`rust-version = "1.86.0"`) and
+`cargo-platform 0.3.3` (`rust-version = "1.91"`) into `iscc-uniffi`'s **default, non-dev**
+dependency graph, so `cargo +1.85.0 check -p iscc-uniffi --locked` now fails at resolution
+(`cargo_metadata@0.23.1 requires rustc 1.86.0`). The pre-bump graph topped out at 1.83.
+`crates/iscc-uniffi/Cargo.toml` inherits `rust-version.workspace = true` (`1.85`), so that
+declaration is false for this crate.
 
-One item remains, **authorized by Titusz on 2026-07-28** (`criterion` 0.8 landed at iteration 171):
+Consumers are unaffected and nothing is red: `iscc-uniffi` is `publish = false`, the only published
+crate still passes `cargo +1.85.0 check -p iscc-lib --locked`, and every CI job builds on stable.
 
-- **`uniffi` 0.31 → 0.32 — regenerate, do not hand-edit.** Read the 0.32 changelog first: if the
-    proc-macro surface changed such that `crates/iscc-uniffi/src` needs edits, stop and re-scope —
-    that is a different step. Otherwise regenerate both checked-in bindings
-    (`packages/swift/Sources/IsccLib/iscc_uniffi.swift`,
-    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt`); the diff must be a pure
-    regeneration. Kotlin is verifiable locally (Gradle/JVM); **so is Swift** —
-    `packages/swift/CLAUDE.md` documents the swift.org Debian 12 6.1.2 tarball (~784 MB, no `sudo`),
-    so "no Swift toolchain in the devcontainer" is not a reason to defer. The `swift` CI job stays
-    the final word: the step is not done until CI is green on the pushed commit. uniffi's runtime
-    checksum check fails loudly on a stale binding, so a missed regeneration reds the suites rather
-    than passing silently.
+Resolved when the crate states its real floor instead of inheriting a false one — an explicit
+per-crate `rust-version` on `crates/iscc-uniffi` (true floor 1.91, set by `cargo-platform`) is the
+small fix. Raising the *root* declaration is Titusz's call: that is the published MSRV promise. Any
+future MSRV CI job must check `-p iscc-lib`, never `--workspace`.
 
-GitHub Action refs are **current** — re-probed 2026-07-28 across all 25 distinct `uses:` refs in
-`.github/workflows/*.yml`: `git/matching-refs/tags/v<N+1>` is empty for all 23 versioned refs, and
-both exact pins equal their publisher's `releases/latest`. Re-probe before assuming drift; do not
-scope an action bump on a release note alone.
-
-**Constraints that still bind:** wheels stay `abi3-py310`; PyO3 bumps only together with
-re-verifying `gil_used = true` semantics and the `py.detach` call sites; `rb_sys` in `Gemfile.lock`
-must match the `oxidize-rb/actions/cross-gem` Docker image tag (exact-pinned `0.9.123`);
-quality-gate CI tool pins bump together with their baselines. Never run `ruff@0.16 check --fix .` —
-it deletes load-bearing `# noqa` directives. All quality gates and conformance vectors must pass on
-the refreshed set.
-
-**Known upstream wart (not actionable):** the `proc-macro-error2 v2.0.1` future-incompat warning on
-every `cargo test` / `cargo bench` comes from `iai-callgrind-macros`, is dev-only, and has no fixed
-release. Re-check when bumping `iai-callgrind` (which must stay in lockstep with the CI-installed
-`iai-callgrind-runner`).
-
-**Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness"
+**Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
 
 ## go1.27 bump reds the Go boundary suite unless the freeze table lands with it `normal` [review]
 

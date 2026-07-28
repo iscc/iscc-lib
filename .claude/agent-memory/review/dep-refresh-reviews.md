@@ -265,8 +265,43 @@ reaches only `iscc-jni`; review recipe → `binding-reviews.md` "JNI crate revie
 pin + committed `packages.lock.json` CLOSED iter 170** (below). **GHA action majors probed current
 2026-07-28** — `git/matching-refs/tags/v<N+1>` empty for all 23 versioned refs, both exact pins ==
 `releases/latest`; re-probe rather than trusting that snapshot. **criterion 0.8 CLOSED iter 171**
-(below). What is left: `uniffi` 0.32, human-authorized as a pure regeneration. Watch for the slice-5
-lesson in any published binding: a runtime/toolchain floor moving silently.
+(below). **uniffi 0.32 CLOSED iter 172 (below) — every authorized major has now landed and the
+`[human]` dependency issue is deleted.** Watch for the slice-5 lesson in any published binding: a
+runtime/toolchain floor moving silently.
+
+## uniffi 0.31 → 0.32 (regeneration major, iter 172) — ~15 min
+
+The whole diff is one pin + `Cargo.lock` + two generated files. Do NOT review the 900-line generated
+diff — **regenerate it yourself and compare**, which proves "no hand edits" outright:
+
+```
+cargo build -p iscc-uniffi && strings target/debug/libiscc_uniffi.so | grep -o 'uniffi_core-0\.[0-9.]*'
+cargo run -q -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate \
+    --library target/debug/libiscc_uniffi.so --language swift --out-dir /tmp/regen/swift
+cargo run -q -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate \
+    --language kotlin --no-format --out-dir /tmp/regen/kotlin target/debug/libiscc_uniffi.so
+```
+
+Raw output is **not** hygiene-clean (trailing whitespace on blank lines; `.swift` ends without a
+newline, `.kt`/`.h` with extra blank lines), so compare modulo `sed 's/[[:space:]]*$//'` +
+trailing-blank trim — a literal `git status` no-op is unachievable and its absence is not a finding.
+Discard the generated `iscc_uniffiFFI.modulemap` (the checked-in `module.modulemap` is
+hand-simplified) and keep `iscc_uniffiFFI.h` under `Sources/iscc_uniffiFFI/`.
+
+- **Consumer-API check**: diff `grep -E '^(public |open )'` (Swift) and
+    `^(public |open |data class |enum class )` (Kotlin) across `HEAD~1..HEAD` — 0.32 changed only
+    template mechanics (Kotlin checksum externals `Short` → `Int`, Swift `$0` → named
+    `uniffiCallStatus`, `public` split onto its own line). Suites passing proves the checksum init
+    agrees, so the widened JNA return type is runtime-verified.
+- Suites: `./gradlew clean test` in `packages/kotlin` (`tests="9"` + `tests="13"`) and the swift.org
+    tarball recipe (12 tests, 0 failures). The toolchain persists at `/tmp/swifttc/…` within a
+    container session — check before re-downloading 784 MB.
+- **THE finding (Codex P1, confirmed):** uniffi 0.32 drags `cargo_metadata 0.23.1` (rustc 1.86) and
+    `cargo-platform 0.3.3` (rustc 1.91) into `iscc-uniffi`'s **default non-dev** graph, so
+    `cargo +1.85.0 check -p iscc-uniffi --locked` fails while the crate inherits
+    `rust-version = "1.85"`. **The 1.85.0 toolchain IS installed here** — settle any MSRV claim by
+    building, and check `-p iscc-lib` separately (it stays green; it is the only published crate).
+    Accepted, not NEEDS_WORK: `publish = false`, CI is all-stable → `decisions.md` 2026-07-28.
 
 ## criterion 0.7 → 0.8 (dev-dep / bench-harness major, iter 171) — ~12 min
 

@@ -395,3 +395,16 @@ without throwing when an exception is already pending, so the `IllegalArgumentEx
 fires on a genuine panic or unhandled `Err`. **Alternatives:** a custom `ErrorPolicy` per exception
 class — rejected, it would move the exception choice away from the call site that knows which one
 applies, for no behavioural gain. **Context:** iteration 168, jni 0.21 → 0.22 migration.
+
+## 2026-07-28 — uniffi 0.32 accepted with a raised source-build floor on unpublished `iscc-uniffi`
+
+**Decision:** the workspace pins `uniffi = "0.32"` even though its default graph
+(`cargo_metadata 0.23.1` → rustc 1.86, `cargo-platform 0.3.3` → 1.91) makes `iscc-uniffi`
+unbuildable on the inherited `rust-version = "1.85"`. **Why:** `iscc-uniffi` is `publish = false`
+and exists only to emit the Swift/Kotlin bindings; the published crate still passes
+`cargo +1.85.0 check -p iscc-lib --locked`, every CI job builds on stable, and no gate or consumer
+promise moves. Holding at 0.31 to protect a floor nothing verifies would have blocked the last
+authorized v0.6.0 dependency item. **Alternatives:** raise the workspace `rust-version` — rejected,
+that is the published MSRV promise and Titusz's call; pin the transitives back — rejected, uniffi
+0.32 requires them. **Context:** iteration 172; the now-false inherited declaration is filed as a
+`normal` issue proposing an explicit per-crate `rust-version` on `iscc-uniffi`.
