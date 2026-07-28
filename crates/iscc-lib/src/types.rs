@@ -92,6 +92,14 @@ pub struct IsccCodeResult {
     pub iscc: String,
 }
 
+/// Result of [`gen_iscc_id_v1`](crate::gen_iscc_id_v1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct IsccIdResult {
+    /// ISCC-IDv1 string (e.g., `"ISCC:MAIGHFECJMOPMIAB"`).
+    pub iscc: String,
+}
+
 /// Result of [`gen_sum_code_v0`](crate::gen_sum_code_v0).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

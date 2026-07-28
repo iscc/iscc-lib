@@ -1043,9 +1043,103 @@ pub fn gen_sum_code_v0(
     hasher.finalize(bits, wide, add_units)
 }
 
+/// Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
+///
+/// The ISCC-IDv1 is a 64-bit identifier packing a 52-bit microsecond UTC
+/// timestamp (since the UNIX epoch) into the high bits and a 12-bit HUB-ID
+/// (0-4095) into the low bits, then encoding it as an ISCC-ID unit with the
+/// given `realm` as SubType and Version `V1`.
+///
+/// `realm` selects the ID realm: `0` for testnet, `1` for the first
+/// operational mainnet. This function is clock-free — the caller supplies the
+/// timestamp; there is no dependency on the system clock.
+///
+/// **Experimental:** the ISCC-IDv1 format is not yet part of ISO 24138 and may
+/// change. There is no dedicated decoder — use [`iscc_decode`] to decode.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` if `timestamp >= 2^52`, `hub_id >= 2^12`,
+/// or `realm` is not `0` or `1`. Failures are reported in that order.
+pub fn gen_iscc_id_v1(timestamp: u64, hub_id: u16, realm: u8) -> IsccResult<IsccIdResult> {
+    if timestamp >= (1u64 << 52) {
+        return Err(IsccError::InvalidInput("Timestamp overflow".into()));
+    }
+    if hub_id >= (1u16 << 12) {
+        return Err(IsccError::InvalidInput("HUB-ID overflow".into()));
+    }
+    if realm != 0 && realm != 1 {
+        return Err(IsccError::InvalidInput(
+            "Realm-ID must be 0 (test) or 1 (operational)".into(),
+        ));
+    }
+
+    // Pack 52-bit timestamp into the high bits and 12-bit HUB-ID into the low bits.
+    let body = (timestamp << 12) | u64::from(hub_id);
+    let digest = body.to_be_bytes();
+
+    let component = codec::encode_component(
+        codec::MainType::Id,
+        codec::SubType::try_from(realm)?,
+        codec::Version::V1,
+        64,
+        &digest,
+    )?;
+    Ok(IsccIdResult {
+        iscc: format!("ISCC:{component}"),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_gen_iscc_id_v1_golden() {
+        // Golden vector: timestamp/hub-id/realm packed and encoded as ISCC-IDv1.
+        let result = gen_iscc_id_v1(1751831876325218, 1, 0).unwrap();
+        assert_eq!(result.iscc, "ISCC:MAIGHFECJMOPMIAB");
+    }
+
+    #[test]
+    fn test_gen_iscc_id_v1_round_trip() {
+        // Round-trip every corner of the realm × hub_id × timestamp space via iscc_decode.
+        let max_ts = (1u64 << 52) - 1;
+        for realm in [0u8, 1u8] {
+            for hub_id in [0u16, 4095u16] {
+                for timestamp in [0u64, max_ts] {
+                    let result = gen_iscc_id_v1(timestamp, hub_id, realm).unwrap();
+                    let (mt, st, vs, li, digest) = iscc_decode(&result.iscc).unwrap();
+                    assert_eq!(mt, 6, "MainType Id");
+                    assert_eq!(st, realm, "SubType is realm");
+                    assert_eq!(vs, 1, "Version V1");
+                    assert_eq!(li, 0, "64-bit length index");
+                    assert_eq!(digest.len(), 8, "8-byte body");
+                    let body = u64::from_be_bytes(digest.try_into().unwrap());
+                    assert_eq!(body >> 12, timestamp, "timestamp in high 52 bits");
+                    assert_eq!(body & 0xFFF, u64::from(hub_id), "hub_id in low 12 bits");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_gen_iscc_id_v1_validation_ordering() {
+        // Timestamp overflow wins over an also-invalid hub_id and realm.
+        let err = gen_iscc_id_v1(1u64 << 52, 4096, 2).unwrap_err();
+        assert_eq!(err.to_string(), "invalid input: Timestamp overflow");
+
+        // HUB-ID overflow wins over an also-invalid realm.
+        let err = gen_iscc_id_v1(0, 1u16 << 12, 2).unwrap_err();
+        assert_eq!(err.to_string(), "invalid input: HUB-ID overflow");
+
+        // Realm out of range is the last check.
+        let err = gen_iscc_id_v1(0, 0, 2).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "invalid input: Realm-ID must be 0 (test) or 1 (operational)"
+        );
+    }
 
     #[cfg(feature = "meta-code")]
     #[test]

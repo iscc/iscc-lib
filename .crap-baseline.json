@@ -171,6 +171,14 @@
       "crap": 7.205599006411332
     },
     {
+      "file": "./crates/iscc-lib/src/lib.rs",
+      "function": "gen_iscc_id_v1",
+      "line": 1064,
+      "cyclomatic": 7.0,
+      "coverage": 95.83333333333334,
+      "crap": 7.003544560185185
+    },
+    {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_header",
       "line": 263,

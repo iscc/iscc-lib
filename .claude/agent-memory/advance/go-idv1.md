@@ -16,8 +16,17 @@ metadata:
     `MainType::Id`; called in `encode_header` (top) + `decode_header` (after enum decode),
     `encode_component` transitive. `TryFrom<u8>` stays context-free. Realm = raw `SubType` nibble
     (realm0→None, realm1→Image cosmetic) — never add realm variants. Pinned:
-    `iscc_decode("ISCC:MAIGHFECJMOPMIAB")` → `(6,0,1,0,<8 bytes>)`. Part 2 (`gen_iscc_id_v1` minting
-    \+ `IsccIdResult`, clock-free `u64` timestamp arg) still pending → spec §"Part 2".
+    `iscc_decode("ISCC:MAIGHFECJMOPMIAB")` → `(6,0,1,0,<8 bytes>)`.
+- Rust ISCC-IDv1 Part 2 DONE (iter 177, #43): Tier 1
+    `gen_iscc_id_v1(timestamp: u64, hub_id: u16,   realm: u8) -> IsccResult<IsccIdResult>` in
+    `lib.rs` (before tests mod) + `IsccIdResult { iscc }` `#[non_exhaustive]` in `types.rs`.
+    Clock-free (caller supplies ts). Validation order (first fails): `timestamp>=1<<52` "Timestamp
+    overflow", `hub_id>=1<<12` "HUB-ID overflow", `realm∉{0,1}` "Realm-ID must be 0 (test) or 1
+    (operational)". Body = `(ts<<12)|hub_id`, be_bytes, then
+    `encode_component(Id, SubType::try_from(realm)?, V1, 64, &digest)` + "ISCC:". Golden
+    `gen_iscc_id_v1(1751831876325218,1,0)=="ISCC:MAIGHFECJMOPMIAB"`. Tier 1 now 33 symbols. STILL
+    PENDING: 11-surface binding fan-out, Go `EncodeIsccID` rename/`DecodeIsccID` deletion, Python
+    differential test vs iscc_core (needs rebuilt wheel), 32→33 doc/count sweep.
 - KNOWN pre-existing CI break (iter 174, out of scope):
     `cargo test -p iscc-lib --no-default-features` fails to COMPILE — `lib.rs:2072`
     `test_iscc_decode_rejects_uncomposable_sequence` calls `gen_meta_code_v0`/`gen_text_code_v0`
