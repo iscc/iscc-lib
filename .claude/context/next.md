@@ -1,79 +1,74 @@
 # Next Work Package
 
-## Step: Add `gen_iscc_id_v1` minting to the Rust core
+## Step: Add `gen_iscc_id_v1` to the Python binding + differential test
 
 ## Goal
 
-Implement the one new Tier 1 symbol `gen_iscc_id_v1` (issue #43, GitHub) plus its `IsccIdResult`
-type in the pure-Rust core. This is the foundation for the 11-surface fan-out and the last
-CID-doable v0.6.0 release blocker; Part 1 (generic decode accepts V1) already landed.
+Begin the #43 Part 2 fan-out by exposing the core's `gen_iscc_id_v1` on the Python surface (the
+flagship drop-in for `iscc-core`) and pinning it to the reference with a pytest differential test —
+a named resolution criterion of issue "ISCC-IDv1 is unsupported outside Go". CI is already GREEN on
+develop (the state.md "Semver RED" is a phantom: the `Semver` job is `continue-on-error: true`,
+ci.yml L355, and both runs on tip `98205f2` concluded `success`), so no "fix CI" step is owed.
 
 ## Alternatives Considered
 
-- **Chosen:** core `gen_iscc_id_v1` minting — every binding surface must wrap a core symbol that
-    does not exist yet, so the core is the strict prerequisite for the whole #43 fan-out.
-- **Rejected:** the `iscc_clean` codec-input-cleaning divergence (`normal` [review]) — real, but
-    independent of the named v0.6.0 release blocker (#43), which wins per gap priority.
-- **Rejected:** jump straight to a binding surface (e.g. Python) — impossible before the core symbol
-    exists; also the Python differential test needs a rebuilt wheel that this core-only step omits.
+- **Chosen:** Python binding for `gen_iscc_id_v1` — the reference-parity anchor; its differential
+    infrastructure (`iscc_core` dev-dep, `tests/test_iscc_decode_conformance.py`) already exists, so
+    this is the strongest correctness signal and the cleanest template for the remaining surfaces.
+- **Rejected — one "11-surface fan-out" step (handoff suggestion):** each binding tech uses a
+    different wrapper pattern (PyO3 dict vs napi vs wasm vs C ABI vs JNI vs Magnus vs UniFFI), so it
+    is NOT genuinely-identical fan-out and blows the file budget. Each surface is its own step.
+- **Rejected — FFI first (unblocks cpp/dotnet):** heavier (C ABI + `iscc.h` regen + freshness gate),
+    a poor first template; do it after the reference-parity Python anchor lands.
 
 ## Scope
 
-- **Modify**: `crates/iscc-lib/src/types.rs` (add `IsccIdResult { pub iscc: String }`,
-    `#[non_exhaustive]`, matching the other result structs), `crates/iscc-lib/src/lib.rs` (add
-    `pub fn gen_iscc_id_v1` + `#[test]`s).
-- **Reference**: `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)" (lines
-    335-540); `reference/iscc-core/iscc_core/iscc_id.py` `gen_iscc_id_v1` (lines 59-149);
-    `crates/iscc-lib/src/codec.rs` `encode_component` (line 490). `.crap-baseline.json` (generated;
-    re-baseline, not counted against the file budget).
+- **Modify**: `crates/iscc-py/src/lib.rs` (add `#[pyfunction] gen_iscc_id_v1` returning
+    `PyDict{"iscc"}`, register in `#[pymodule]`); `crates/iscc-py/python/iscc_lib/__init__.py`
+    (import as `_gen_iscc_id_v1`, add `IsccIdResult(IsccResult)` with `iscc: str`, public wrapper,
+    re-export, `__all__`); `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` (stub, docstring-only
+    body)
+- **Create**: `tests/test_iscc_id_v1.py` (differential test — does not count toward budget)
+- **Reference**: `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)";
+    `gen_iscc_code_v0` wrapper pattern (lib.rs:332, __init__.py:270);
+    `tests/test_iscc_decode_conformance.py` (import-`iscc_core` differential pattern);
+    `crates/iscc-py/CLAUDE.md` ("adding a Tier 1 function")
 
 ## Not In Scope
 
-- The 11 binding surfaces, the Go `DecodeIsccID`/`IsccIDv1Result` deletion + `EncodeIsccID` rename,
-    and the Python differential test against `iscc_core` — each a separate follow-up step.
-- The Tier-1 32→33 doc/count sweep across `docs/`, `notes/`, CLAUDE.md/README (separate step).
-- Any `decode_iscc_id_v1` — deliberately does not exist (Titusz, 2026-07-28); generic `iscc_decode`
-    covers decoding.
-- Adding realm variants to `SubType`, or any time/clock dependency — the core is clock-free.
-- Touching the `iscc_clean` divergence issue.
+- The Tier-1 32→33 count/doc sweep — a separate #43 step; do NOT edit any "32 symbols" text or
+    `docs/**`, `notes/**`, `README`/`CLAUDE.md` count strings here.
+- Any other binding surface (napi, wasm, ffi, jni, rb, uniffi, dotnet, cpp, go) or the Go rename.
+- Any core (`crates/iscc-lib`) change — `gen_iscc_id_v1`/`IsccIdResult` already exist there.
+- A "now"/clock convenience or a `decode_iscc_id_v1` — both deliberately excluded by spec.
 
 ## Implementation Notes
 
-- Signature:
-    `pub fn gen_iscc_id_v1(timestamp: u64, hub_id: u16, realm: u8) -> IsccResult<IsccIdResult>`.
-    Mark experimental in the doc comment. Add to crate root — a `pub fn` in `lib.rs` is already at
-    the root; `IsccIdResult` re-exports via the existing `pub use types::*`.
-- Validation order is normative, first failure wins, exact core text: `timestamp >= 2^52` →
-    `IsccError::InvalidInput("Timestamp overflow")`; `hub_id >= (1 << 12)` → `"HUB-ID overflow"`;
-    `realm` not in `(0, 1)` → `"Realm-ID must be 0 (test) or 1 (operational)"`.
-- Encode exactly like the reference: `body = (timestamp << 12) | hub_id as u64`,
-    `digest = body.to_be_bytes()`, then
-    `encode_component(MainType::Id, SubType::try_from(realm)?, Version::V1, 64, &digest)` and
-    prepend `"ISCC:"`. `SubType::try_from(1)` yielding `Image` is cosmetic — only the nibble is
-    written.
-- cargo tests (Python oracle differential is out of scope — it needs the wheel):
-    - Golden: `gen_iscc_id_v1(1751831876325218, 1, 0).unwrap().iscc == "ISCC:MAIGHFECJMOPMIAB"`.
-    - Round-trip via existing `iscc_decode` across realm {0,1} × hub_id {0,4095} × timestamp {0,
-        `2^52 - 1`}: decode returns `(6, realm, 1, 0, 8 bytes)`, and `body>>12 == timestamp`,
-        `body & 0xFFF == hub_id`.
-    - Validation ordering: assert the correct message fires first for each overflow case.
-- Adding a fn shifts line numbers in `lib.rs`, so the CI-only CRAP `--fail-regression` gate will
-    likely report moved/new functions. Re-run `mise run coverage && mise run crap:baseline` and
-    commit the refreshed `.crap-baseline.json` in this same step. No iai baseline change (no new
-    bench). Semver stays informational (additive symbol, no break).
+- Signature mirrors the reference: `gen_iscc_id_v1(timestamp, hub_id=0, realm_id=0)`. **`timestamp`
+    is required — no clock default** (core is clock-free). Wrapper returns `IsccIdResult`. Call core
+    as `iscc_lib::gen_iscc_id_v1(timestamp, hub_id, realm_id)`; map `Err` → `PyValueError`. No
+    `py.detach` (trivial compute). `realm_id` maps to the core's `realm: u8`; `hub_id: u16`,
+    `timestamp: u64`.
+- `_lowlevel.pyi` stub body is a docstring only — no trailing `...` (ruff PIE790/PYI048).
+- Differential test: `import iscc_core`, assert
+    `iscc_lib.gen_iscc_id_v1(ts,hub,realm)["iscc"] ==   iscc_core.gen_iscc_id_v1(ts, hub, realm)["iscc"]`
+    over a small grid of explicit timestamps × hub × realm∈{0,1} (never pass `timestamp=None` —
+    the reference would call the clock). Include the golden
+    `gen_iscc_id_v1(1751831876325218, 1, 0)["iscc"] == "ISCC:MAIGHFECJMOPMIAB"`, assert `realm_id=2`
+    raises `ValueError`, and verify both `result["iscc"]` and `result.iscc` access.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (existing suite + new `gen_iscc_id_v1` golden, round-trip, and
-    validation-ordering tests).
-- `iscc_lib::gen_iscc_id_v1` and `iscc_lib::IsccIdResult` resolve from the crate root (exercised by
-    the new tests compiling).
-- `cargo clippy -p iscc-lib -- -D warnings` clean and `cargo fmt -p iscc-lib --check` clean.
-- `mise run coverage` then
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json   --fail-regression --fail-above`
-    exits 0 (re-baseline committed if it flagged moves).
+- `maturin develop -m crates/iscc-py/Cargo.toml` builds, then `pytest tests/test_iscc_id_v1.py`
+    passes (differential vs installed `iscc_core` + golden + validation).
+- `python -c "from iscc_lib import gen_iscc_id_v1, IsccIdResult; assert gen_iscc_id_v1(1751831876325218,1,0)['iscc']=='ISCC:MAIGHFECJMOPMIAB'"`
+    exits 0.
+- `pytest` (full Python suite) still passes — no regression.
+- `ruff check crates/iscc-py tests` and `ruff format --check crates/iscc-py tests` clean.
+- `uv run ty check` clean (the new `.pyi` stub type-checks).
+- `cargo clippy -p iscc-py --all-targets -- -D warnings` clean.
 
 ## Done When
 
-The core mints a correct ISCC-IDv1 via `gen_iscc_id_v1` with passing golden/round-trip/validation
-tests and all four verification checks green.
+`gen_iscc_id_v1` is importable from `iscc_lib`, returns an `IsccIdResult` matching `iscc_core`
+byte-for-byte, and all lint/type/clippy/pytest gates stay clean.
