@@ -203,7 +203,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 - [ ] `mvn test` passes (65 tests) with all conformance vectors
 - [ ] All 10 `gen_*_v0` functions return correct ISCC strings matching `data.json`
-- [ ] All 32 Tier 1 symbols accessible from Java
+- [ ] All 33 Tier 1 symbols accessible from Java
 - [ ] `DataHasher` and `InstanceHasher` streaming types work correctly
 - [ ] Streaming hashers throw `IllegalStateException` after finalization
 - [ ] Invalid inputs throw `IllegalArgumentException` (not Rust panics)

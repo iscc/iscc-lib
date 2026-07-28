@@ -265,7 +265,7 @@ Uses the existing Sonatype/Maven Central credentials from the Java/JNI publishin
 - [ ] Kotlin tests pass conformance vectors on JVM target
 - [ ] Published to Maven Central as `io.iscc:iscc-lib-kotlin`
 - [ ] All 10 `gen_*_v0` functions return correct data classes
-- [ ] All 32 Tier 1 symbols accessible from Kotlin
+- [ ] All 33 Tier 1 symbols accessible from Kotlin
 - [ ] Native libraries bundled for 5 desktop platforms (linux-x86-64, linux-aarch64, darwin-aarch64,
     darwin-x86-64, win32-x86-64)
 - [ ] Native libraries bundled for Android ABIs (arm64-v8a, armeabi-v7a, x86_64)

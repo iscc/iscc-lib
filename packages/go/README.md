@@ -92,6 +92,10 @@ Package-level functions that return typed result structs (e.g., `*MetaCodeResult
 | `EncodeIsccID`    | Encode realm, hub ID, timestamp as ISCC-IDv1 (experimental)      |
 | `DecodeIsccID`    | Decode an ISCC-IDv1 into realm, hub ID, timestamp (experimental) |
 
+ISCC-IDv1 is not part of ISO 24138 and is implemented **only in this pure-Go package**. The native
+`iscc-lib` bindings reject Version 1 headers, so an ISCC-IDv1 produced here cannot yet be decoded by
+them.
+
 ### Streaming
 
 | Type / Function     | Description                               |

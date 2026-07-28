@@ -132,6 +132,12 @@ ROLE_BUDGET_USD = {
     AUDIT_ROLE: 15.0,
 }
 
+# Primary model pinned for every headless role invocation. Passed as --model so the
+# session base does not drift onto the CLI's rolling default. Per-agent frontmatter
+# (e.g. advance/audit on fable) still overrides this — frontmatter model takes
+# precedence over the session --model.
+PRIMARY_MODEL = "claude-opus-4-8[1m]"
+
 # Prompt size (in tokens) above which a role run is reported as at risk of silent
 # context truncation. The review role has already touched 92% of a 200k window;
 # truncation there degrades the quality gate invisibly, which is worse than a cost
@@ -271,6 +277,7 @@ def is_role_entry(entry):
     return ROLE_ENTRY_KEYS.issubset(entry.keys()) and entry.get("role") in (
         *ROLES,
         META_ROLE,
+        AUDIT_ROLE,
         "orchestrator",
     )
 
@@ -1067,6 +1074,9 @@ def build_agent_cmd(claude_cmd, role, prompt, skip_permissions, fallback_model=N
         "--verbose",
         # Stable system-prompt prefix across the 4+ invocations per iteration
         "--exclude-dynamic-system-prompt-sections",
+        # Pin the session base model; per-agent frontmatter still overrides it
+        "--model",
+        PRIMARY_MODEL,
     ]
     budget_usd = ROLE_BUDGET_USD.get(role)
     if budget_usd:
@@ -1405,7 +1415,13 @@ def run_audit(claude_cmd, iteration, cwd, skip_permissions=False, fallback_model
     run_metrics_snapshot(cwd)
     _, pre_head = _git(cwd, "rev-parse", "HEAD")
     result = run_agent(
-        claude_cmd, AUDIT_ROLE, iteration, cwd, skip_permissions, fallback_model
+        claude_cmd,
+        AUDIT_ROLE,
+        iteration,
+        cwd,
+        skip_permissions,
+        fallback_model,
+        base_sha=pre_head.strip(),
     )
     enforce_audit_safety(cwd, pre_head.strip())
     _stash_abandoned_edits(cwd, "audit", _is_audit_output)
@@ -1493,6 +1509,7 @@ def maybe_run_meta_improve(claude_cmd, iteration, cwd, args):
         cwd,
         args.skip_permissions,
         args.fallback_model,
+        base_sha=pre_head.strip(),
     )
     # Hard-enforce the guardrails on whatever the agent committed, then quarantine any
     # uncommitted prompt edits it abandoned (e.g. on timeout) so they cannot leak into
@@ -1547,6 +1564,7 @@ def cmd_improve(args):
         cwd,
         args.skip_permissions,
         args.fallback_model,
+        base_sha=pre_head.strip(),
     )
     enforce_meta_safety(cwd, pre_head.strip())
     _stash_abandoned_edits(cwd, "meta", _is_meta_bookkeeping)
@@ -1684,6 +1702,7 @@ def cmd_role(args):
     iteration = (
         args.iteration if args.iteration is not None else last_iteration(cwd) + 1
     )
+    _, pre_head = _git(cwd, "rev-parse", "HEAD")
     result = run_agent(
         claude_cmd,
         args.role,
@@ -1691,6 +1710,7 @@ def cmd_role(args):
         cwd,
         args.skip_permissions,
         args.fallback_model,
+        base_sha=pre_head.strip(),
     )
     commit_log(cwd, iteration)
 

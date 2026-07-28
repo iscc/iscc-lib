@@ -389,6 +389,19 @@ for _, unit := range units {
 }
 ```
 
+### Experimental ISCC-IDv1
+
+`EncodeIsccID(realm uint8, hubID uint16, timestamp uint64) (string, error)` and
+`DecodeIsccID(code string) (*IsccIDv1Result, error)` encode and decode an 80-bit ISCC-IDv1 (a 52-bit
+microsecond timestamp plus a 12-bit HUB-ID).
+
+!!! warning "Go-only and experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release. It is currently implemented
+    **only in this pure-Go package** — the native bindings (Rust, Python, Node.js, WebAssembly, C, Java,
+    Ruby, Swift, Kotlin) reject Version 1 headers with `invalid Version: 1`, so an ISCC-IDv1 produced
+    here cannot yet be decoded by them.
+
 ### Other codec functions
 
 - `EncodeBase64(data []byte) string` — encode bytes to base64url (no padding)

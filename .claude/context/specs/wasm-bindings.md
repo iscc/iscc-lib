@@ -8,7 +8,7 @@ in any WASM-capable environment (browsers, Deno, Cloudflare Workers, Node.js via
 **Single-layer design:**
 
 1. **Rust bridge** (`crates/iscc-wasm/src/lib.rs`): wasm-bindgen annotated functions that call
-    `iscc-lib` core and return JavaScript types via WASM interop. All 32 Tier 1 symbols exported.
+    `iscc-lib` core and return JavaScript types via WASM interop. All 33 Tier 1 symbols exported.
 2. **Generated JS glue** (`pkg/`): wasm-pack generates JavaScript wrapper and TypeScript
     declarations for the WASM module.
 
@@ -24,7 +24,7 @@ in any WASM-capable environment (browsers, Deno, Cloudflare Workers, Node.js via
 crates/iscc-wasm/
 ├── Cargo.toml              # cdylib, depends on iscc-lib + wasm-bindgen
 ├── src/
-│   └── lib.rs              # wasm-bindgen bridge (all 32 Tier 1 symbols)
+│   └── lib.rs              # wasm-bindgen bridge (all 33 Tier 1 symbols)
 ├── package.json            # npm package config (@iscc/wasm)
 ├── README.md               # Per-crate README for npm
 ├── tests/
@@ -172,7 +172,7 @@ wasm:
 ## Verification Criteria
 
 - [ ] `wasm-pack test --node` passes all conformance vectors
-- [ ] All 32 Tier 1 symbols accessible from JavaScript/TypeScript
+- [ ] All 33 Tier 1 symbols accessible from JavaScript/TypeScript
 - [ ] Package builds with `wasm-pack build`
 - [ ] `DataHasher` and `InstanceHasher` streaming types work in WASM
 - [x] `SumHasher` streaming type works in WASM (single-pass ISCC-SUM, output matches two-hasher

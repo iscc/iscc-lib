@@ -319,7 +319,7 @@ Ruby `VERSION` constant, which is synced by the version script.
 - [ ] Streaming functions accept IO objects (anything with `.read`)
 - [ ] `gen_sum_code_v0` accepts path strings and `Pathname` objects
 - [ ] Conformance tests pass against vendored `data.json` vectors
-- [ ] All 32 Tier 1 symbols are accessible from Ruby
+- [ ] All 33 Tier 1 symbols are accessible from Ruby
 - [ ] `DataHasher` and `InstanceHasher` streaming types work correctly
 - [ ] Precompiled gems available for Linux (x86_64, aarch64), macOS (x86_64, arm64), Windows (x64)
 - [ ] Source gem compiles on platforms without precompiled binaries (requires Rust)

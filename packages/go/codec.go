@@ -438,7 +438,8 @@ func EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest
 	if st > STWide {
 		return "", fmt.Errorf("iscc: invalid SubType: %d", stype)
 	}
-	if vs > VSV0 {
+	// Version 1 is only valid for ISCC-IDv1 (MainType ID); all other MainTypes require Version 0.
+	if vs > VSV0 && (mt != MTId || vs != VSV1) {
 		return "", fmt.Errorf("iscc: invalid Version: %d", version)
 	}
 	if mt == MTIscc {
@@ -576,12 +577,60 @@ type DecodeResult struct {
 	Digest   []byte
 }
 
-// IsccDecode decodes an ISCC string into its header components and raw digest.
-// Strips optional "ISCC:" prefix and dashes.
-func IsccDecode(iscc string) (*DecodeResult, error) {
+// isccNormalize returns the canonical shortest form of an ISCC, without the
+// "ISCC:" prefix.
+//
+// Mirrors iscc_core.codec.iscc_normalize: decomposes the input into ISCC-UNITs
+// and recomposes them into a single ISCC-CODE when two or more are present,
+// otherwise returns the sole unit unchanged. This is what lets a concatenated
+// unit sequence and a composite ISCC-CODE normalize to the same string.
+//
+// Multiformat (multibase-prefixed) inputs are not supported; the reference
+// handles those in normalize_multiformat before this step.
+func isccNormalize(iscc string) (string, error) {
+	// Wide-mode detection reads the original header, before decomposition.
 	clean := strings.TrimPrefix(iscc, "ISCC:")
 	clean = strings.ReplaceAll(clean, "-", "")
 	raw, err := decodeBase32(clean)
+	if err != nil {
+		return "", err
+	}
+	mt, st, _, _, _, err := decodeHeader(raw)
+	if err != nil {
+		return "", err
+	}
+	isWide := mt == MTIscc && st == STWide
+
+	decomposed, err := IsccDecompose(clean)
+	if err != nil {
+		return "", err
+	}
+	if len(decomposed) >= 2 {
+		composed, err := GenIsccCodeV0(decomposed, isWide)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimPrefix(composed.Iscc, "ISCC:"), nil
+	}
+	if len(decomposed) == 0 {
+		return "", fmt.Errorf("iscc: decomposed to zero ISCC-UNITs")
+	}
+	return decomposed[0], nil
+}
+
+// IsccDecode decodes an ISCC string into its header components and raw digest.
+//
+// Normalizes the input to its canonical form first (matching
+// iscc_core.codec.iscc_decode), then base32-decodes it and parses the header.
+// A concatenated sequence of ISCC-UNITs is therefore composed into a single
+// ISCC-CODE before decoding, so a sequence and its composite form decode
+// identically. The optional "ISCC:" prefix and dashes are stripped.
+func IsccDecode(iscc string) (*DecodeResult, error) {
+	normalized, err := isccNormalize(iscc)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := decodeBase32(normalized)
 	if err != nil {
 		return nil, err
 	}
@@ -591,12 +640,9 @@ func IsccDecode(iscc string) (*DecodeResult, error) {
 	}
 	bitLength := decodeLength(mt, lengthIndex, st)
 	nbytes := int(bitLength / 8)
-	if len(tail) < nbytes {
-		return nil, fmt.Errorf("iscc: decoded body too short: expected %d digest bytes, got %d", nbytes, len(tail))
-	}
-	if len(tail) > nbytes {
-		return nil, fmt.Errorf("iscc: decoded body too long: expected %d digest bytes, got %d trailing bytes", nbytes, len(tail)-nbytes)
-	}
+	// No length check here: normalization guarantees an exact body. IsccDecompose
+	// rejects a short unit body and truncates each unit to its encoded length, and
+	// a recomposed ISCC-CODE is well-formed by construction.
 	digest := make([]byte, nbytes)
 	copy(digest, tail[:nbytes])
 

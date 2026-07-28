@@ -16,6 +16,116 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
+## ISCC-IDv1 is unsupported outside Go, and Go uses superseded names `normal` [human]
+
+GitHub: https://github.com/iscc/iscc-lib/issues/43 — **a v0.6.0 release blocker.**
+
+`codec::Version` has only `V0` (`crates/iscc-lib/src/codec.rs:99-112`), so every surface rejects any
+ISCC-IDv1 — including through the already-shipped generic `iscc_decode` / `iscc_decompose`, which
+`iscc_core` handles fine (its `decode_header` does no version validation at all).
+`iscc_lib.iscc_decode("ISCC:MAIGHFECJMOPMIAB")` raises `invalid Version: 1` where
+`iscc_core.iscc_decode` returns `(6, 0, 1, 0, <8 bytes>)`. That is a live drop-in-compatibility gap
+in a shipped Tier 1 function, independent of any new symbol.
+
+Separately, the minting function `gen_iscc_id_v1` is missing everywhere, and `packages/go` carries
+the only implementation, under a superseded name and reversed parameter order (`EncodeIsccID`),
+alongside a `DecodeIsccID` / `IsccIDv1Result` pair that must be **deleted** rather than renamed —
+`iscc-core` has no IDv1 decoder and the generic path covers it.
+
+Canonical definition, validation rules, codec changes, the `#[non_exhaustive]` requirement, the IDv0
+exclusion, test placement and the full "Verified when" list are in
+`.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)".
+
+Two repo-wide defects follow from the change:
+
+- The Tier 1 symbol count reads 32 across `docs/`, `notes/`, per-crate and per-package `CLAUDE.md`
+    and `README.md`, and in three non-Markdown sources: `crates/iscc-uniffi/src/lib.rs:3`,
+    `crates/iscc-rb/src/lib.rs:7` (`Symbols (32 of 32):`, whose enumerated list also needs the new
+    name) and `.claude/agents/advance.md:146`, which wraps as `Tier 1 (32\nsymbols)` so a
+    `grep "32 symbols"` reports it clean. Four sites were already stale beforehand
+    (`crates/iscc-wasm/CLAUDE.md`, `docs/java-api.md`, `notes/00-overview.md`, an archive file).
+    `specs/*.md` and `target.md` are already at 33; historical records (`iterations.jsonl`,
+    `state.md`, agent memory) are out of scope — no role may rewrite them.
+- Hand-maintained per-symbol API docs lack the `gen_iscc_id_v1` entry and the field-extraction
+    recipe: `docs/rust-api.md`, `docs/java-api.md`, `docs/ruby-api.md`, `docs/c-ffi-api.md` and the
+    11 `docs/howto/*.md` pages. `docs/api.md` is mkdocstrings autodoc. A new docs page would drag in
+    the four-list parity check in `scripts/check_docs_nav.py`.
+
+Resolved when the generic decode path accepts Version 1 on all 11 surfaces, `gen_iscc_id_v1` exists
+under the canonical name, Go's `DecodeIsccID` / `IsccIDv1Result` are gone, the pytest differential
+test against `iscc_core` passes, and no shipped-artifact Tier 1 count still reads 32.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)"
+
+## Codec input cleaning diverges from iscc-core `iscc_clean` `normal` [review]
+
+The reference routes codec input through `iscc_clean` (`reference/iscc-core/iscc_core/codec.py:644`,
+reached via `normalize_multiformat` at `:363`), which strips dashes and surrounding whitespace and
+accepts a case-insensitive `iscc:` scheme. Our codec does none of this, so documented-valid inputs
+raise. Verified live against `iscc_core` 1.3.0:
+
+- `ISCC:KACY-PXW4-45FT-…` → reference returns 4 units, ours raises `invalid symbol at 4`
+- `"  ISCC:AAAYPXW445FTYNJ3  "` → reference returns 1 unit, ours raises `invalid length at 24`
+- `"iscc:AAAYPXW445FTYNJ3"` → reference returns 1 unit, ours raises `invalid symbol at 4`
+
+The reference docstring (`codec.py:381-382`) explicitly blesses the hyphen-separated form, so this
+is an unintended drop-in-compatibility gap, not a deliberate tightening — no decision record exists
+for it.
+
+Four Rust sites clean ad-hoc: `codec.rs:485` (`iscc_decompose`), `lib.rs:810` (`gen_mixed_code_v0`),
+`lib.rs:896` (`gen_iscc_code_v0`) and `lib.rs:222` (`iscc_normalize`, feeding `iscc_decode`). The
+fourth strips the prefix and dashes but not whitespace, and rejects a lowercase scheme — so
+`iscc_decode` matches only the dash form and still diverges on the other two. `packages/go` is a
+hand-written port with the same four gaps at `codec.go:482`, `code_content_mixed.go:23`,
+`code_iscc.go:27` and `codec.go:592` (`isccNormalize`) — two parallel fixes, not one.
+
+Porting subtlety: in the reference's no-colon branch (`codec.py:656-661`) dashes are stripped **only
+when the string is not multibase-prefixed**. An unconditional `.replace('-', "")` would corrupt
+`f`/`b`/`v`/`z`/`u`-prefixed input. Multiformat decoding itself stays a documented non-goal
+(`crates/iscc-lib/src/lib.rs:216-219`) — file it separately if ever wanted.
+
+Resolved when a shared private `iscc_clean` helper is routed through all four Rust sites and the
+four Go sites, and a differential test covers the dash, whitespace and lowercase-scheme forms for
+`iscc_decompose`, `iscc_decode`, `gen_iscc_code_v0` and `gen_mixed_code_v0`.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations"
+
+## iscc-core mints 88-bit ISCC-IDv0 codes it cannot decode `low` [review]
+
+`iscc_core.encode_length` accepts an 88-bit `ID` body but the `LN` enum
+(`reference/iscc-core/iscc_core/constants.py:166-178`) has 64/72/80/96 and no 88, so the reference
+cannot decode what its own generator produced. Reproduced on `iscc_core` 1.3.0:
+`gen_iscc_id_v0(code, 1, wallet, uc=20000)` → `ISCC:MEBUAGCA47NDLBDXUCOAC`, and `iscc_decode` on
+that string raises `ValueError: 88 is not a valid LN`.
+
+iscc-lib decodes it fine (`decode_length(MainType::Id, …)` is `length * 8 + 64`,
+`crates/iscc-lib/src/codec.rs:370`), so we are the more correct side. **No local change** — matching
+the reference here would replicate a defect, and ISCC-IDv0 is permanently out of scope (deprecated,
+never in ISO 24138, no backward compatibility owed). Recorded only so a future conformance sweep
+does not "fix" our decoder to match.
+
+Resolved when filed upstream and the outcome noted.
+
+**Upstream:** iscc/iscc-core
+
+## iai text benchmarks are ASCII-only, so the perf gate is blind to the Unicode freeze `normal` [review]
+
+`is_unassigned_in_unicode16` (`crates/iscc-lib/src/utils.rs`) runs a binary search over 731 ranges
+for every character in `text_clean` / `text_collapse`, with a single fast path:
+`cp < UNASSIGNED_RANGES[0].0` (`0x0378`). Every iai text input is pure ASCII — `synthetic_text()` in
+`crates/iscc-lib/benches/iai_benches.rs` repeats `"The quick brown fox jumps over the lazy dog. "`,
+and `bench_meta_code` uses `"Die Unendliche Geschichte"` — so `bench_text_code.chars_1000` and
+`bench_meta_code.*` never leave the fast path. The green `Perf (iai-callgrind)` gate is therefore no
+evidence that the freeze rule is cost-free for Greek, Cyrillic, CJK or Indic text, which pays ~10
+comparisons per character. `to_lowercase_unicode16`'s `Vec<char>` + `Vec<bool>` allocations are
+unmeasured for the same reason (they only run when the input contains `U+03A3`).
+
+Resolved when at least one non-ASCII text case exists in `iai_benches.rs` (e.g. a CJK and a Greek
+`chars_1000` variant) with its entry in `.iai-baseline.json`, regenerated via
+`mise run bench:iai:baseline` on a valgrind-capable machine.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
+
 ## go1.27 bump reds the Go boundary suite unless the freeze table lands with it `normal` [review]
 
 **Trigger-on-bump record — do not scope a step until go1.27 is available (~Aug 2026).**

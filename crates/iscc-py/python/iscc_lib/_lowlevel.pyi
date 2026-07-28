@@ -37,15 +37,17 @@ def encode_component(
     """
 
 def iscc_decode(iscc: str) -> tuple[int, int, int, int, bytes]:
-    """Decode an ISCC unit string into header components and raw digest.
+    """Decode an ISCC string into header components and raw digest.
 
-    Inverse of :func:`encode_component`. Strips an optional ``"ISCC:"``
-    prefix and dashes, base32-decodes the string, parses the header, and
-    returns the digest truncated to exactly the encoded bit-length.
+    Normalizes the input to its canonical form first: a concatenated sequence
+    of ISCC-UNITs is composed into a single ISCC-CODE before decoding, so a
+    sequence and its composite form decode identically. Strips an optional
+    ``"ISCC:"`` prefix and dashes.
 
-    :param iscc: ISCC unit string (with or without ``"ISCC:"`` prefix).
+    :param iscc: ISCC string (with or without ``"ISCC:"`` prefix).
     :return: Tuple of ``(maintype, subtype, version, length_index, digest)``.
-    :raises ValueError: If the input is not a valid ISCC string.
+    :raises ValueError: If the input is not a valid ISCC string, or is a unit
+        sequence that cannot be composed into an ISCC-CODE.
     """
 
 def json_to_data_url(json: str) -> str:

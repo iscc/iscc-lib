@@ -64,6 +64,7 @@ def test_last_iteration_returns_max_across_schemas(tmp_path):
 def test_is_role_entry_accepts_canonical_and_rejects_others():
     assert cid.is_role_entry(_role_row(1))
     assert cid.is_role_entry(_role_row(1, role="meta-improve"))
+    assert cid.is_role_entry(_role_row(1, role="audit"))
     assert cid.is_role_entry(_role_row(1, role="orchestrator"))  # legacy role kept
     assert not cid.is_role_entry({"iteration": 1, "step": "x", "verdict": "PASS"})
     assert not cid.is_role_entry(

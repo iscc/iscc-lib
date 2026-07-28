@@ -1,7 +1,7 @@
 ---
 name: meta-improve
 description: Improve the CID loop itself — evidence-driven, bounded, measurable, self-correcting
-model: opus
+model: claude-opus-4-8[1m]
 effort: high
 tools: Read, Grep, Glob, Bash, Edit, Write
 memory: project

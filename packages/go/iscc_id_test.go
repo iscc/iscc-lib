@@ -81,6 +81,36 @@ func TestIsccDecodeAcceptsIDv1(t *testing.T) {
 	}
 }
 
+func TestIsccDecomposeRoundTripsIDv1(t *testing.T) {
+	// Decomposition re-encodes each unit via EncodeComponent, which must accept
+	// Version 1 for MainType ID or an ISCC-IDv1 fails to survive the round trip.
+	code, err := EncodeIsccID(knownRealm, knownHubID, knownTimestamp)
+	if err != nil {
+		t.Fatalf("EncodeIsccID: %v", err)
+	}
+	units, err := IsccDecompose(code)
+	if err != nil {
+		t.Fatalf("IsccDecompose(%q): %v", code, err)
+	}
+	if len(units) != 1 {
+		t.Fatalf("unit count: got %d, want 1", len(units))
+	}
+	if got := "ISCC:" + units[0]; got != code {
+		t.Errorf("round-trip: got %q, want %q", got, code)
+	}
+}
+
+func TestEncodeComponentRejectsVersion1ForNonID(t *testing.T) {
+	// The encode side mirrors decodeHeader: Version 1 is exclusive to MainType ID.
+	_, err := EncodeComponent(uint8(MTData), uint8(STNone), uint8(VSV1), 64, make([]byte, 8))
+	if err == nil {
+		t.Fatal("expected error for Version=1 with MainType Data, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid Version") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
 func TestDecodeHeaderRejectsVersion1ForNonID(t *testing.T) {
 	// Construct a Data-Code-shaped header with Version=1 (64-bit length index 1).
 	header, err := encodeHeader(MTData, STNone, VSV1, 1)
@@ -149,7 +179,8 @@ func TestDecodeIsccIDRejectsNonID(t *testing.T) {
 }
 
 func TestDecodeIsccIDRejectsTrailingBytes(t *testing.T) {
-	// Trailing-byte rejection in IsccDecode propagates through the delegation.
+	// Trailing base32 re-aligns the stream into a malformed trailing unit, which
+	// normalization rejects; the failure propagates through the delegation.
 	_, err := DecodeIsccID(knownIsccID + "AA")
 	if err == nil {
 		t.Fatal("expected error for trailing bytes, got nil")

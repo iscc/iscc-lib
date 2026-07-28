@@ -208,11 +208,49 @@ pub fn encode_component(
     codec::encode_component(mt, st, vs, bit_length, digest)
 }
 
-/// Decode an ISCC unit string into its header components and raw digest.
+/// Normalize an ISCC to its canonical shortest form, without the `"ISCC:"` prefix.
 ///
-/// Inverse of [`encode_component`]. Strips an optional `"ISCC:"` prefix and
-/// dashes, base32-decodes the string, parses the variable-length header, and
-/// returns the digest, whose length must equal exactly the encoded bit-length.
+/// Mirrors `iscc_core.codec.iscc_normalize`: decomposes the input into ISCC-UNITs
+/// and recomposes them into a single ISCC-CODE when two or more units are present,
+/// otherwise returns the sole unit unchanged. This is what lets a concatenated unit
+/// sequence and a composite ISCC-CODE normalize to the same canonical string.
+///
+/// Multiformat (multibase-prefixed) inputs are not supported here; the reference
+/// handles them in `normalize_multiformat` before this step.
+fn iscc_normalize(iscc: &str) -> IsccResult<String> {
+    // Wide-mode detection reads the *original* header, before decomposition.
+    let clean = iscc.strip_prefix("ISCC:").unwrap_or(iscc).replace('-', "");
+    let raw = codec::decode_base32(&clean)?;
+    let (mt, st, _, _, _) = codec::decode_header(&raw)?;
+    let is_wide = mt == codec::MainType::Iscc && st == codec::SubType::Wide;
+
+    // Pass the cleaned form: iscc_decompose does not itself strip dashes.
+    let decomposed = codec::iscc_decompose(&clean)?;
+    if decomposed.len() >= 2 {
+        let units: Vec<&str> = decomposed.iter().map(String::as_str).collect();
+        let composed = gen_iscc_code_v0(&units, is_wide)?.iscc;
+        Ok(composed
+            .strip_prefix("ISCC:")
+            .unwrap_or(&composed)
+            .to_string())
+    } else {
+        decomposed
+            .into_iter()
+            .next()
+            .ok_or_else(|| IsccError::InvalidInput("decomposed to zero ISCC-UNITs".to_string()))
+    }
+}
+
+/// Decode an ISCC string into its header components and raw digest.
+///
+/// Normalizes the input to its canonical form first (matching
+/// `iscc_core.codec.iscc_decode`), then base32-decodes it, parses the
+/// variable-length header, and returns the digest.
+///
+/// Normalization means a concatenated sequence of ISCC-UNITs is composed into a
+/// single ISCC-CODE before decoding, so a sequence and its composite form decode
+/// identically. Trailing bytes after a composite are discarded by decomposition,
+/// exactly as in the reference.
 ///
 /// Returns `(maintype, subtype, version, length_index, digest)` where the
 /// integer fields match [`codec::MainType`], [`codec::SubType`], and
@@ -220,30 +258,18 @@ pub fn encode_component(
 ///
 /// # Errors
 ///
-/// Returns `IsccError::InvalidInput` on invalid base32 input, malformed
-/// header, or if the decoded body does not equal exactly the expected digest
-/// length — both truncated inputs and inputs with trailing bytes are rejected.
+/// Returns `IsccError::InvalidInput` on invalid base32 input, a malformed
+/// header, a body shorter than its encoded bit-length, or a unit sequence that
+/// cannot be composed into an ISCC-CODE.
 pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
-    // Strip optional "ISCC:" prefix (case-sensitive, matching iscc_decompose)
-    let clean = iscc.strip_prefix("ISCC:").unwrap_or(iscc);
-    // Remove dashes (matching iscc_clean behavior for base32 input)
-    let clean = clean.replace('-', "");
-    let raw = codec::decode_base32(&clean)?;
+    let normalized = iscc_normalize(iscc)?;
+    let raw = codec::decode_base32(&normalized)?;
     let (mt, st, vs, length_index, tail) = codec::decode_header(&raw)?;
     let bit_length = codec::decode_length(mt, length_index, st);
     let nbytes = (bit_length / 8) as usize;
-    if tail.len() < nbytes {
-        return Err(IsccError::InvalidInput(format!(
-            "decoded body too short: expected {nbytes} digest bytes, got {}",
-            tail.len()
-        )));
-    }
-    if tail.len() > nbytes {
-        return Err(IsccError::InvalidInput(format!(
-            "decoded body too long: expected {nbytes} digest bytes, got {}",
-            tail.len()
-        )));
-    }
+    // No length check here: normalization guarantees an exact body. `iscc_decompose`
+    // rejects a short unit body and truncates each unit to its encoded length, and a
+    // recomposed ISCC-CODE is well-formed by construction.
     Ok((
         mt as u8,
         st as u8,
@@ -1998,6 +2024,74 @@ mod tests {
     }
 
     /// Error on truncated input where body is shorter than expected digest length.
+    /// A concatenated unit sequence normalizes to its composite before decoding.
+    #[test]
+    fn test_iscc_decode_normalizes_unit_sequence() {
+        let data = gen_data_code_v0(&[0x61; 2000], 64).unwrap().iscc;
+        let instance = gen_instance_code_v0(&[0x61; 2000], 64).unwrap().iscc;
+        let composite = gen_iscc_code_v0(&[&data, &instance], false).unwrap().iscc;
+
+        let sequence = format!(
+            "{}{}",
+            data.strip_prefix("ISCC:").unwrap(),
+            instance.strip_prefix("ISCC:").unwrap()
+        );
+        assert_eq!(
+            iscc_decode(&sequence).unwrap(),
+            iscc_decode(&composite).unwrap(),
+            "a unit sequence must decode identically to its composite"
+        );
+        // MainType is ISCC (5), not the leading unit's Data (3).
+        assert_eq!(iscc_decode(&sequence).unwrap().0, 5);
+    }
+
+    /// Trailing base32 after a composite decodes rather than erroring.
+    ///
+    /// Appending base32 characters re-aligns the whole byte stream, so the
+    /// reference does not "ignore a trailing byte" — it decodes a shifted body
+    /// and returns a different digest. This asserts only that the input is
+    /// accepted, which is the behaviour normalization restores; the exact
+    /// shifted digest is pinned against `iscc_core` by the Python differential
+    /// in `tests/test_iscc_decode_conformance.py`.
+    #[test]
+    fn test_iscc_decode_accepts_trailing_after_composite() {
+        let data = gen_data_code_v0(&[0x61; 2000], 64).unwrap().iscc;
+        let instance = gen_instance_code_v0(&[0x61; 2000], 64).unwrap().iscc;
+        let composite = gen_iscc_code_v0(&[&data, &instance], false).unwrap().iscc;
+
+        let (mt, _st, _vs, _li, digest) = iscc_decode(&format!("{composite}AA")).unwrap();
+        assert_eq!(mt, 5, "still decodes as an ISCC-CODE");
+        assert_eq!(digest.len(), 16);
+    }
+
+    /// A unit sequence that cannot compose into an ISCC-CODE is rejected.
+    #[test]
+    fn test_iscc_decode_rejects_uncomposable_sequence() {
+        // Meta + Text has neither a Data-Code nor an Instance-Code, so
+        // gen_iscc_code_v0 rejects it — as the reference does.
+        let meta = gen_meta_code_v0("Hello", None, None, 64).unwrap().iscc;
+        let text = gen_text_code_v0("Hello World", 64).unwrap().iscc;
+        let sequence = format!(
+            "{}{}",
+            meta.strip_prefix("ISCC:").unwrap(),
+            text.strip_prefix("ISCC:").unwrap()
+        );
+        assert!(iscc_decode(&sequence).is_err());
+    }
+
+    /// Wide-mode is detected from the original header and survives normalization.
+    #[test]
+    fn test_iscc_decode_preserves_wide_subtype() {
+        let data = gen_data_code_v0(&[0x61; 2000], 128).unwrap().iscc;
+        let instance = gen_instance_code_v0(&[0x61; 2000], 128).unwrap().iscc;
+        let wide = gen_iscc_code_v0(&[&data, &instance], true).unwrap().iscc;
+
+        let (mt, st, _vs, _li, digest) = iscc_decode(&wide).unwrap();
+        assert_eq!(mt, 5);
+        assert_eq!(st, 7, "SubType must stay WIDE through normalization");
+        assert_eq!(digest.len(), 32);
+    }
+
     #[test]
     fn test_iscc_decode_truncated_input() {
         // Encode a valid 256-bit Meta-Code, then truncate the base32 string
@@ -2007,32 +2101,6 @@ mod tests {
         let truncated = &encoded[..6];
         let result = iscc_decode(truncated);
         assert!(result.is_err(), "should fail on truncated input");
-    }
-
-    /// Error on input whose decoded body has trailing bytes beyond the digest.
-    #[test]
-    fn test_iscc_decode_rejects_trailing_bytes() {
-        // Canonical 64-bit Meta-Code: 16 base32 chars decode to exactly 10
-        // bytes (2 header + 8 digest). Appending "AA" yields 18 chars which
-        // decode to 11 bytes — one trailing byte beyond the digest.
-        let canonical = "ISCC:AAAZXZ6OU74YAZIM";
-        let padded = format!("{canonical}AA");
-        // Sanity: the padded form really decodes to more bytes than canonical.
-        let canonical_raw = codec::decode_base32(canonical.strip_prefix("ISCC:").unwrap()).unwrap();
-        let padded_raw = codec::decode_base32(padded.strip_prefix("ISCC:").unwrap()).unwrap();
-        assert!(
-            padded_raw.len() > canonical_raw.len(),
-            "suffix must add at least one decoded byte"
-        );
-        let result = iscc_decode(&padded);
-        assert!(
-            matches!(&result, Err(IsccError::InvalidInput(msg)) if msg.contains("too long")),
-            "expected InvalidInput with 'too long', got {result:?}"
-        );
-        // The canonical form (no suffix) still decodes to its 8-byte digest.
-        let (mt, _st, _vs, _li, digest) = iscc_decode(canonical).unwrap();
-        assert_eq!(mt, 0);
-        assert_eq!(digest.len(), 8);
     }
 
     // --- json_to_data_url tests ---

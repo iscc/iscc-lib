@@ -104,9 +104,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      # The blake3 dep in crates/iscc-wasm/Cargo.toml exists only to feature-unify
+      # `wasm32_simd` onto iscc-lib's blake3 — nothing in the crate imports it, so a
+      # dep-pruner or refactor could drop it and silently return the published
+      # @iscc/wasm to the scalar BLAKE3 backend with every test still green.
+      - name: Assert blake3 wasm32_simd feature is enabled
+        run: |
+          cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}" \
+            | grep -q 'wasm32_simd' \
+            || { echo "::error::blake3 wasm32_simd feature is not enabled for iscc-wasm — the published WASM build would fall back to scalar BLAKE3"; exit 1; }
       - name: Run tests
         env:
           RUSTFLAGS: -C target-feature=+simd128

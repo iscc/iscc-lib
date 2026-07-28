@@ -5,7 +5,7 @@ description: >-
   quality gates, update learnings, and set the verdict. Spawned by the CID runner (tools/cid.py)
   as the fourth role of a CID iteration; not intended for ad-hoc delegation in interactive
   sessions.
-model: opus
+model: claude-opus-4-8[1m]
 effort: xhigh
 tools: Read, Grep, Glob, Bash, Edit, Write
 memory: project
