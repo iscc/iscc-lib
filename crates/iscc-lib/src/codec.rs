@@ -318,9 +318,18 @@ pub fn decode_header(data: &[u8]) -> IsccResult<(MainType, SubType, Version, u32
         vec![]
     };
 
-    let mtype = MainType::try_from(mtype_val as u8)?;
-    let stype = SubType::try_from(stype_val as u8)?;
-    let version = Version::try_from(version_val as u8)?;
+    // Range-check each varnibble before narrowing so a multi-nibble value that
+    // does not fit in a u8 is rejected instead of wrapping (e.g. 262 -> 6 = Id).
+    let mtype_u8 = u8::try_from(mtype_val)
+        .map_err(|_| IsccError::InvalidInput(format!("invalid MainType: {mtype_val}")))?;
+    let stype_u8 = u8::try_from(stype_val)
+        .map_err(|_| IsccError::InvalidInput(format!("invalid SubType: {stype_val}")))?;
+    let version_u8 = u8::try_from(version_val)
+        .map_err(|_| IsccError::InvalidInput(format!("invalid Version: {version_val}")))?;
+
+    let mtype = MainType::try_from(mtype_u8)?;
+    let stype = SubType::try_from(stype_u8)?;
+    let version = Version::try_from(version_u8)?;
     validate_version(mtype, version)?;
 
     Ok((mtype, stype, version, length, tail))
@@ -1133,6 +1142,15 @@ mod tests {
         let result = decode_header(&raw);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("invalid Version"));
+    }
+
+    #[test]
+    fn test_decode_header_rejects_truncated_varnibble_fields() {
+        // "MDFZAAAAAAAAAAAAAA" decodes to a header whose multi-nibble fields
+        // overflow a u8 (version 257, MainType 262). Before the range check these
+        // wrapped (257 -> 1, 262 -> 6 = Id) and canonicalized to a valid ISCC.
+        assert!(crate::iscc_decode("MDFZAAAAAAAAAAAAAA").is_err());
+        assert!(iscc_decompose("MDFZAAAAAAAAAAAAAA").is_err());
     }
 
     #[test]
