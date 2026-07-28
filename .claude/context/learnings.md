@@ -19,12 +19,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) needs a **differential sweep**
     (`mise run unicode:sweep`) to prove output-neutrality, never a green vector suite — every
     `data.json` vector predates Unicode 16
-- **Widening a decode gate re-exposes latent truncation** (174): `decode_header` narrows each
-    varnibble with `as u8` before `TryFrom`, so a multi-nibble value wraps (version `257`→`1`,
-    MainType `262`→`6`=`Id`) and a MALFORMED header silently canonicalizes to a valid ISCC
-    (`iscc_decompose("MDFZAAAAAAAAAAAAAA")` → `["MAIAAAAAAAAAAAAA"]`; `iscc_core` rejects it). When
-    reviewing a codec header-gate change, probe a wrapped multi-nibble header — a valid-vector
-    oracle proves nothing about it
+- **A widened decode gate re-exposes latent truncation** (174 → fixed 175): `decode_header` used
+    `as u8` before `TryFrom`, so a multi-nibble value wrapped (version `257`→`1`, MainType
+    `262`→`6`=`Id`) and a MALFORMED header canonicalized to a valid ISCC; now `u8::try_from`-gated +
+    tested. Probe a wrapped header (`"MDFZAAAAAAAAAAAAAA"`) on any codec header-gate change
 
 ## Tooling
 

@@ -1,40 +1,44 @@
 # Handoff
 
-## 2026-07-28 — Reject truncated varnibble header fields in `decode_header`
+## 2026-07-28 — Review of: Reject truncated varnibble header fields in `decode_header`
 
-**Done:** Replaced the three `as u8` narrowing casts in `decode_header` (codec.rs) with
-range-checked `u8::try_from` conversions, so a multi-nibble varnibble value that overflows a `u8` is
-rejected before the enum `TryFrom` runs — closing the critical bug where a malformed header wrapped
-(version `257`→`1`, MainType `262`→`6`=`Id`) and silently canonicalized to a valid ISCC.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-lib/src/codec.rs`: `decode_header` now converts `mtype_val`/`stype_val`/`version_val`
-    via `u8::try_from(..).map_err(|_| IsccError::InvalidInput(..))?` before `MainType::try_from`
-    etc. Added `#[test] test_decode_header_rejects_truncated_varnibble_fields` asserting both
-    `iscc_decode("MDFZAAAAAAAAAAAAAA")` and `iscc_decompose("MDFZAAAAAAAAAAAAAA")` return `Err`.
+**Summary:** The critical `decode_header` truncation bug is fixed exactly as scoped — the three
+`as u8` narrowing casts are replaced with range-checked `u8::try_from` before the enum `TryFrom`, so
+a multi-nibble varnibble that overflows a `u8` is rejected instead of wrapping. One-file core change
+(codec.rs) plus one regression test; no signature change, no API break. All gates green.
 
 **Verification:**
 
-- `cargo test -p iscc-lib` — **299 passed** (298 prior + 1 new), 0 failed. New test green; all
-    existing codec/conformance/boundary tests unchanged.
-- New test confirms `iscc_decode("MDFZAAAAAAAAAAAAAA")` and `iscc_decompose(..)` both `Err`.
-- Valid path preserved: existing `test_decode_header_idv1_version1` /
-    `test_decompose_idv1_accepts_version1` still green, so `iscc_decode("ISCC:MAIGHFECJMOPMIAB")` →
-    `(6, 0, 1, 0, <8 bytes>)` and decompose → `["MAIGHFECJMOPMIAB"]`.
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings` — clean (the `proc-macro-error2`
-    future-incompat note is a transitive dep, not our code; clippy finished OK).
-- `cargo fmt -p iscc-lib --check` — clean.
+- [x] `cargo test -p iscc-lib` — 299 passed (298 + new), 0 failed
+- [x] `iscc_decode`/`iscc_decompose("MDFZAAAAAAAAAAAAAA")` both `Err` — probed: rejected with
+    `invalid Version: 257` (right reason — version overflows `u8`)
+- [x] `iscc_decode("ISCC:MAIGHFECJMOPMIAB")` still `(6, 0, 1, 0, <8 bytes>)` — probed: mtype=6,
+    ver=1, decodes clean
+- [x] `cargo clippy -p iscc-lib --all-targets -- -D warnings` — clean (proc-macro-error2 note is a
+    transitive dep)
+- [x] `cargo fmt -p iscc-lib --check` — clean
+- [x] `mise run check` — all prek hooks pass
+- [x] (probe, +budget) full feature matrix compiles/tests: `--no-default-features` and
+    `+text-processing` both green — no repeat of 174's feature-gated compile break
 
-**Next:** Prerequisite is now green — the Part 2 `gen_iscc_id_v1` minting + `IsccIdResult` step
-(issue #43) can proceed. Also note the whole NEEDS_WORK batch from 174 (incl. out-of-loop commit
-`2c4e487`) is still unpushed and CI-unverified; the next cycle pushes the full batch.
+**Issues found:**
+
+- (none) — clean, precise fix. Deleted the resolved critical `decode_header` issue from issues.md.
+
+**Codex review:** Clean. "The checked conversions correctly prevent malformed varnibble values from
+wrapping into valid enum discriminants without affecting valid headers. The full iscc-lib test suite
+passes." No actionable findings.
+
+**Next:** The critical prerequisite is now green, so the batch is pushable. Next step is Part 2 of
+issue #43 — `gen_iscc_id_v1` minting + `IsccIdResult` and the Go `DecodeIsccID`/`IsccIDv1Result`
+deletion + the repo-wide Tier-1 count 32→33 doc sweep — per `specs/rust-core.md` → "ISCC-IDv1
+Operations (Experimental)". A v0.6.0 release blocker.
 
 **Notes:**
 
-- Pure core codec fix, no signature change, no API break. No binding rebuild needed.
-- Applied the same range-check to `stype_val` too (not just mtype/version) for consistency — a
-    wrapped SubType would have been an equivalent latent defect; message style matches existing
-    `InvalidInput` format.
-- Did not run `mise run check` (full prek suite); relied on the targeted clippy/fmt/test gates the
-    work package named. Batch is unpushed so pre-push mdformat is not yet exercised.
+- The whole develop batch back to `2c4e487` (iters 172–175) is unpushed; this review push sends it
+    all to `origin/develop` as one unit, where CI verifies it for the first time.
+- Batch gate-integrity scanned across `@{upstream}..HEAD`: no suppressions; the only CI change is a
+    strengthening `blake3 wasm32_simd` assertion (iter 173, already reviewed).

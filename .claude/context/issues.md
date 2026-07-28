@@ -16,28 +16,6 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
-## `decode_header` truncates varnibble fields, canonicalizing malformed input `critical` [review]
-
-`decode_header` (`crates/iscc-lib/src/codec.rs:319-322`) decodes `mtype_val`, `stype_val` and
-`version_val` as `u32` from `decode_varnibble_from_bytes`, then narrows each with `as u8` before
-`TryFrom`. A multi-nibble header value wraps: version `257` → `1`, MainType `262` → `6` (`Id`). So a
-malformed input silently passes the new Version-1 gate and gets canonicalized to a valid-looking
-ISCC. Verified at HEAD: `iscc_decode("MDFZAAAAAAAAAAAAAA")` → `(6, 0, 1, 0, <8 bytes>)` and
-`iscc_decompose("MDFZAAAAAAAAAAAAAA")` → `["MAIAAAAAAAAAAAAA"]`, where `iscc_core` rejects the
-string outright.
-
-The `as u8` truncation is pre-existing (wrapped-to-0 already aliased for `V0`), but iteration 174's
-`Version::V1` acceptance made the version-1-wrapping class newly reachable — on HEAD~1 these inputs
-errored with `invalid Version: 1`. Tightening decode validation is blessed (decisions.md
-2026-07-24), so this is a fix, not a break.
-
-Resolved when `decode_header` rejects any `mtype_val`/`stype_val`/`version_val` that does not fit
-its enum before narrowing (e.g. `u8::try_from(..)?` in place of `as u8`), with a `#[cfg(test)]` case
-asserting `iscc_decode`/`iscc_decompose` reject a wrapped multi-nibble header
-(`"MDFZAAAAAAAAAAAAAA"`) instead of canonicalizing it.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations"
-
 ## ISCC-IDv1 is unsupported outside Go, and Go uses superseded names `normal` [human]
 
 GitHub: https://github.com/iscc/iscc-lib/issues/43 — **a v0.6.0 release blocker.**
