@@ -49,10 +49,10 @@ iai-callgrind = "0.16"
 tempfile = "3"
 jni = "0.22"
 magnus = { version = "0.8", features = ["rb-sys"] }
-# authorized 2026-07-28 (pending bump): uniffi 0.32 requires regenerating the checked-in Swift
-# and Kotlin bindings. Kotlin is verifiable locally; Swift is not (no Swift toolchain in the
-# Linux devcontainer) and is validated by the `swift` CI job instead. See issues.md.
-uniffi = "0.31"
+# uniffi bumps require regenerating the checked-in Swift and Kotlin bindings (pure
+# regeneration, no hand edits). Verify Kotlin via Gradle and Swift via the swift.org Debian 12
+# tarball recipe in packages/swift/CLAUDE.md; the macOS `swift` CI job is the final confirmation.
+uniffi = "0.32"
 
 [profile.release]
 lto = true

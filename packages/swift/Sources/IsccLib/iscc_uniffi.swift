@@ -39,6 +39,52 @@ fileprivate extension ForeignBytes {
     init(bufferPointer: UnsafeBufferPointer<UInt8>) {
         self.init(len: Int32(bufferPointer.count), data: bufferPointer.baseAddress)
     }
+
+    init(rawBufferPointer: UnsafeRawBufferPointer) {
+        self.init(
+            len: Int32(rawBufferPointer.count),
+            data: rawBufferPointer.baseAddress?.assumingMemoryBound(to: UInt8.self)
+        )
+    }
+}
+
+// Converter for `&[u8]` / `[ByRef] bytes` arguments.
+//
+// Conforms to `FfiConverter` so the compiler enforces the full converter
+// method set. Only the scope-bound `lower(_:_body:)` overload is sound —
+// zero-copy byte buffers only flow foreign -> Rust, and only in argument
+// position. The four protocol-witness methods (`lift`, `lower`, `read`,
+// `write`) `fatalError` at runtime if anyone reaches them.
+//
+// The scope-bound `lower` takes a closure because the `ForeignBytes`
+// pointer is only guaranteed valid for the duration of
+// `Data.withUnsafeBytes`. Callers must run the full FFI call inside
+// the closure body.
+fileprivate enum FfiConverterByRefBytes: FfiConverter {
+    typealias SwiftType = Data
+    typealias FfiType = ForeignBytes
+
+    static func lower<R>(_ value: Data, _ body: (ForeignBytes) throws -> R) rethrows -> R {
+        return try value.withUnsafeBytes { rawBuf in
+            try body(ForeignBytes(rawBufferPointer: rawBuf))
+        }
+    }
+
+    static func lower(_ value: Data) -> ForeignBytes {
+        fatalError("ByRef bytes cannot use the plain lower: returning ForeignBytes escapes the Data.withUnsafeBytes scope. Use the scope-bound lower(_:_body:) overload instead.")
+    }
+
+    static func lift(_ value: ForeignBytes) throws -> Data {
+        fatalError("ByRef bytes cannot be lifted: zero-copy &[u8] only flows foreign->Rust")
+    }
+
+    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        fatalError("ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
+
+    static func write(_ value: Data, into buf: inout [UInt8]) {
+        fatalError("ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
 }
 
 // For every type used in the interface, we provide helper methods for conveniently
@@ -519,7 +565,11 @@ fileprivate struct FfiConverterString: FfiConverter {
             return String()
         }
         let bytes = UnsafeBufferPointer<UInt8>(start: value.data!, count: Int(value.len))
-        return String(bytes: bytes, encoding: String.Encoding.utf8)!
+        // Use Swift's native UTF-8 decoder; `String(bytes:encoding:.utf8)` goes
+        // through Foundation's NSString and silently strips a leading U+FEFF BOM.
+        // Invalid UTF-8 substitutes U+FFFD instead of trapping (unreachable
+        // given Rust's `String` invariant).
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     public static func lower(_ value: String) -> RustBuffer {
@@ -535,7 +585,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        // See `lift` above for why we avoid Foundation's NSString-backed decoder here.
+        return String(decoding: try readBytes(&buf, count: Int(len)), as: UTF8.self)
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -636,7 +687,8 @@ open class DataHasher: DataHasherProtocol, @unchecked Sendable {
 public convenience init() {
     let handle =
         try! rustCall() {
-    uniffi_iscc_uniffi_fn_constructor_datahasher_new($0
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_constructor_datahasher_new(uniffiCallStatus
     )
 }
     self.init(unsafeFromHandle: handle)
@@ -659,9 +711,10 @@ public convenience init() {
      */
 open func finalize(bits: UInt32)throws  -> DataCodeResult  {
     return try  FfiConverterTypeDataCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_method_datahasher_finalize(
             self.uniffiCloneHandle(),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -670,9 +723,10 @@ open func finalize(bits: UInt32)throws  -> DataCodeResult  {
      * Push data into the hasher.
      */
 open func update(data: Data)throws   {try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_method_datahasher_update(
             self.uniffiCloneHandle(),
-        FfiConverterData.lower(data),$0
+        FfiConverterData.lower(data),uniffiCallStatus
     )
 }
 }
@@ -797,7 +851,8 @@ open class InstanceHasher: InstanceHasherProtocol, @unchecked Sendable {
 public convenience init() {
     let handle =
         try! rustCall() {
-    uniffi_iscc_uniffi_fn_constructor_instancehasher_new($0
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_constructor_instancehasher_new(uniffiCallStatus
     )
 }
     self.init(unsafeFromHandle: handle)
@@ -820,9 +875,10 @@ public convenience init() {
      */
 open func finalize(bits: UInt32)throws  -> InstanceCodeResult  {
     return try  FfiConverterTypeInstanceCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_method_instancehasher_finalize(
             self.uniffiCloneHandle(),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -831,9 +887,10 @@ open func finalize(bits: UInt32)throws  -> InstanceCodeResult  {
      * Push data into the hasher.
      */
 open func update(data: Data)throws   {try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_method_instancehasher_update(
             self.uniffiCloneHandle(),
-        FfiConverterData.lower(data),$0
+        FfiConverterData.lower(data),uniffiCallStatus
     )
 }
 }
@@ -1688,7 +1745,8 @@ public func FfiConverterTypeVideoCodeResult_lower(_ value: VideoCodeResult) -> R
 /**
  * UniFFI-compatible error type wrapping `iscc_lib::IsccError`.
  */
-public enum IsccUniError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
+public
+enum IsccUniError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
 
 
@@ -1944,10 +2002,11 @@ fileprivate struct FfiConverterSequenceSequenceInt32: FfiConverterRustBuffer {
  */
 public func algCdcChunks(data: Data, utf32: Bool, avgChunkSize: UInt32)throws  -> [Data]  {
     return try  FfiConverterSequenceData.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_alg_cdc_chunks(
         FfiConverterData.lower(data),
         FfiConverterBool.lower(utf32),
-        FfiConverterUInt32.lower(avgChunkSize),$0
+        FfiConverterUInt32.lower(avgChunkSize),uniffiCallStatus
     )
 })
 }
@@ -1956,8 +2015,9 @@ public func algCdcChunks(data: Data, utf32: Bool, avgChunkSize: UInt32)throws  -
  */
 public func algMinhash256(features: [UInt32]) -> Data  {
     return try!  FfiConverterData.lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_alg_minhash_256(
-        FfiConverterSequenceUInt32.lower(features),$0
+        FfiConverterSequenceUInt32.lower(features),uniffiCallStatus
     )
 })
 }
@@ -1966,8 +2026,9 @@ public func algMinhash256(features: [UInt32]) -> Data  {
  */
 public func algSimhash(hashDigests: [Data])throws  -> Data  {
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_alg_simhash(
-        FfiConverterSequenceData.lower(hashDigests),$0
+        FfiConverterSequenceData.lower(hashDigests),uniffiCallStatus
     )
 })
 }
@@ -1976,7 +2037,8 @@ public func algSimhash(hashDigests: [Data])throws  -> Data  {
  */
 public func conformanceSelftest() -> Bool  {
     return try!  FfiConverterBool.lift(try! rustCall() {
-    uniffi_iscc_uniffi_fn_func_conformance_selftest($0
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_conformance_selftest(uniffiCallStatus
     )
 })
 }
@@ -1985,8 +2047,9 @@ public func conformanceSelftest() -> Bool  {
  */
 public func encodeBase64(data: Data) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_encode_base64(
-        FfiConverterData.lower(data),$0
+        FfiConverterData.lower(data),uniffiCallStatus
     )
 })
 }
@@ -1995,12 +2058,13 @@ public func encodeBase64(data: Data) -> String  {
  */
 public func encodeComponent(mtype: UInt8, stype: UInt8, version: UInt8, bitLength: UInt32, digest: Data)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_encode_component(
         FfiConverterUInt8.lower(mtype),
         FfiConverterUInt8.lower(stype),
         FfiConverterUInt8.lower(version),
         FfiConverterUInt32.lower(bitLength),
-        FfiConverterData.lower(digest),$0
+        FfiConverterData.lower(digest),uniffiCallStatus
     )
 })
 }
@@ -2009,9 +2073,10 @@ public func encodeComponent(mtype: UInt8, stype: UInt8, version: UInt8, bitLengt
  */
 public func genAudioCodeV0(cv: [Int32], bits: UInt32)throws  -> AudioCodeResult  {
     return try  FfiConverterTypeAudioCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_gen_audio_code_v0(
         FfiConverterSequenceInt32.lower(cv),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -2020,9 +2085,10 @@ public func genAudioCodeV0(cv: [Int32], bits: UInt32)throws  -> AudioCodeResult 
  */
 public func genDataCodeV0(data: Data, bits: UInt32)throws  -> DataCodeResult  {
     return try  FfiConverterTypeDataCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_gen_data_code_v0(
         FfiConverterData.lower(data),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -2031,9 +2097,10 @@ public func genDataCodeV0(data: Data, bits: UInt32)throws  -> DataCodeResult  {
  */
 public func genImageCodeV0(pixels: Data, bits: UInt32)throws  -> ImageCodeResult  {
     return try  FfiConverterTypeImageCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_gen_image_code_v0(
         FfiConverterData.lower(pixels),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -2042,9 +2109,10 @@ public func genImageCodeV0(pixels: Data, bits: UInt32)throws  -> ImageCodeResult
  */
 public func genInstanceCodeV0(data: Data, bits: UInt32)throws  -> InstanceCodeResult  {
     return try  FfiConverterTypeInstanceCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_gen_instance_code_v0(
         FfiConverterData.lower(data),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -2053,9 +2121,10 @@ public func genInstanceCodeV0(data: Data, bits: UInt32)throws  -> InstanceCodeRe
  */
 public func genIsccCodeV0(codes: [String], wide: Bool)throws  -> IsccCodeResult  {
     return try  FfiConverterTypeIsccCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_gen_iscc_code_v0(
         FfiConverterSequenceString.lower(codes),
-        FfiConverterBool.lower(wide),$0
+        FfiConverterBool.lower(wide),uniffiCallStatus
     )
 })
 }
@@ -2064,11 +2133,12 @@ public func genIsccCodeV0(codes: [String], wide: Bool)throws  -> IsccCodeResult 
  */
 public func genMetaCodeV0(name: String, description: String?, meta: String?, bits: UInt32)throws  -> MetaCodeResult  {
     return try  FfiConverterTypeMetaCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_gen_meta_code_v0(
         FfiConverterString.lower(name),
         FfiConverterOptionString.lower(description),
         FfiConverterOptionString.lower(meta),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -2077,9 +2147,10 @@ public func genMetaCodeV0(name: String, description: String?, meta: String?, bit
  */
 public func genMixedCodeV0(codes: [String], bits: UInt32)throws  -> MixedCodeResult  {
     return try  FfiConverterTypeMixedCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_gen_mixed_code_v0(
         FfiConverterSequenceString.lower(codes),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -2088,11 +2159,12 @@ public func genMixedCodeV0(codes: [String], bits: UInt32)throws  -> MixedCodeRes
  */
 public func genSumCodeV0(path: String, bits: UInt32, wide: Bool, addUnits: Bool)throws  -> SumCodeResult  {
     return try  FfiConverterTypeSumCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_gen_sum_code_v0(
         FfiConverterString.lower(path),
         FfiConverterUInt32.lower(bits),
         FfiConverterBool.lower(wide),
-        FfiConverterBool.lower(addUnits),$0
+        FfiConverterBool.lower(addUnits),uniffiCallStatus
     )
 })
 }
@@ -2101,9 +2173,10 @@ public func genSumCodeV0(path: String, bits: UInt32, wide: Bool, addUnits: Bool)
  */
 public func genTextCodeV0(text: String, bits: UInt32)throws  -> TextCodeResult  {
     return try  FfiConverterTypeTextCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_gen_text_code_v0(
         FfiConverterString.lower(text),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -2112,9 +2185,10 @@ public func genTextCodeV0(text: String, bits: UInt32)throws  -> TextCodeResult  
  */
 public func genVideoCodeV0(frameSigs: [[Int32]], bits: UInt32)throws  -> VideoCodeResult  {
     return try  FfiConverterTypeVideoCodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_gen_video_code_v0(
         FfiConverterSequenceSequenceInt32.lower(frameSigs),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -2123,7 +2197,8 @@ public func genVideoCodeV0(frameSigs: [[Int32]], bits: UInt32)throws  -> VideoCo
  */
 public func ioReadSize() -> UInt32  {
     return try!  FfiConverterUInt32.lift(try! rustCall() {
-    uniffi_iscc_uniffi_fn_func_io_read_size($0
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_io_read_size(uniffiCallStatus
     )
 })
 }
@@ -2132,8 +2207,9 @@ public func ioReadSize() -> UInt32  {
  */
 public func isccDecode(iscc: String)throws  -> DecodeResult  {
     return try  FfiConverterTypeDecodeResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_iscc_decode(
-        FfiConverterString.lower(iscc),$0
+        FfiConverterString.lower(iscc),uniffiCallStatus
     )
 })
 }
@@ -2142,8 +2218,9 @@ public func isccDecode(iscc: String)throws  -> DecodeResult  {
  */
 public func isccDecompose(isccCode: String)throws  -> [String]  {
     return try  FfiConverterSequenceString.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_iscc_decompose(
-        FfiConverterString.lower(isccCode),$0
+        FfiConverterString.lower(isccCode),uniffiCallStatus
     )
 })
 }
@@ -2152,8 +2229,9 @@ public func isccDecompose(isccCode: String)throws  -> [String]  {
  */
 public func jsonToDataUrl(json: String)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_json_to_data_url(
-        FfiConverterString.lower(json),$0
+        FfiConverterString.lower(json),uniffiCallStatus
     )
 })
 }
@@ -2162,7 +2240,8 @@ public func jsonToDataUrl(json: String)throws  -> String  {
  */
 public func metaTrimDescription() -> UInt32  {
     return try!  FfiConverterUInt32.lift(try! rustCall() {
-    uniffi_iscc_uniffi_fn_func_meta_trim_description($0
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_meta_trim_description(uniffiCallStatus
     )
 })
 }
@@ -2171,7 +2250,8 @@ public func metaTrimDescription() -> UInt32  {
  */
 public func metaTrimMeta() -> UInt32  {
     return try!  FfiConverterUInt32.lift(try! rustCall() {
-    uniffi_iscc_uniffi_fn_func_meta_trim_meta($0
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_meta_trim_meta(uniffiCallStatus
     )
 })
 }
@@ -2180,7 +2260,8 @@ public func metaTrimMeta() -> UInt32  {
  */
 public func metaTrimName() -> UInt32  {
     return try!  FfiConverterUInt32.lift(try! rustCall() {
-    uniffi_iscc_uniffi_fn_func_meta_trim_name($0
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_meta_trim_name(uniffiCallStatus
     )
 })
 }
@@ -2189,9 +2270,10 @@ public func metaTrimName() -> UInt32  {
  */
 public func slidingWindow(seq: String, width: UInt32)throws  -> [String]  {
     return try  FfiConverterSequenceString.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_sliding_window(
         FfiConverterString.lower(seq),
-        FfiConverterUInt32.lower(width),$0
+        FfiConverterUInt32.lower(width),uniffiCallStatus
     )
 })
 }
@@ -2200,9 +2282,10 @@ public func slidingWindow(seq: String, width: UInt32)throws  -> [String]  {
  */
 public func softHashVideoV0(frameSigs: [[Int32]], bits: UInt32)throws  -> Data  {
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_soft_hash_video_v0(
         FfiConverterSequenceSequenceInt32.lower(frameSigs),
-        FfiConverterUInt32.lower(bits),$0
+        FfiConverterUInt32.lower(bits),uniffiCallStatus
     )
 })
 }
@@ -2211,8 +2294,9 @@ public func softHashVideoV0(frameSigs: [[Int32]], bits: UInt32)throws  -> Data  
  */
 public func textClean(text: String) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_text_clean(
-        FfiConverterString.lower(text),$0
+        FfiConverterString.lower(text),uniffiCallStatus
     )
 })
 }
@@ -2221,8 +2305,9 @@ public func textClean(text: String) -> String  {
  */
 public func textCollapse(text: String) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_text_collapse(
-        FfiConverterString.lower(text),$0
+        FfiConverterString.lower(text),uniffiCallStatus
     )
 })
 }
@@ -2231,7 +2316,8 @@ public func textCollapse(text: String) -> String  {
  */
 public func textNgramSize() -> UInt32  {
     return try!  FfiConverterUInt32.lift(try! rustCall() {
-    uniffi_iscc_uniffi_fn_func_text_ngram_size($0
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_text_ngram_size(uniffiCallStatus
     )
 })
 }
@@ -2240,8 +2326,9 @@ public func textNgramSize() -> UInt32  {
  */
 public func textRemoveNewlines(text: String) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_text_remove_newlines(
-        FfiConverterString.lower(text),$0
+        FfiConverterString.lower(text),uniffiCallStatus
     )
 })
 }
@@ -2250,9 +2337,10 @@ public func textRemoveNewlines(text: String) -> String  {
  */
 public func textTrim(text: String, nbytes: UInt64) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_text_trim(
         FfiConverterString.lower(text),
-        FfiConverterUInt64.lower(nbytes),$0
+        FfiConverterUInt64.lower(nbytes),uniffiCallStatus
     )
 })
 }
@@ -2272,112 +2360,112 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_alg_cdc_chunks() != 47849) {
+    if (uniffi_iscc_uniffi_checksum_func_alg_cdc_chunks() != 23469) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_alg_minhash_256() != 22989) {
+    if (uniffi_iscc_uniffi_checksum_func_alg_minhash_256() != 31368) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_alg_simhash() != 21273) {
+    if (uniffi_iscc_uniffi_checksum_func_alg_simhash() != 16431) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_conformance_selftest() != 11319) {
+    if (uniffi_iscc_uniffi_checksum_func_conformance_selftest() != 24279) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_encode_base64() != 9010) {
+    if (uniffi_iscc_uniffi_checksum_func_encode_base64() != 43598) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_encode_component() != 59640) {
+    if (uniffi_iscc_uniffi_checksum_func_encode_component() != 11010) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_gen_audio_code_v0() != 43793) {
+    if (uniffi_iscc_uniffi_checksum_func_gen_audio_code_v0() != 22048) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_gen_data_code_v0() != 28881) {
+    if (uniffi_iscc_uniffi_checksum_func_gen_data_code_v0() != 32429) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_gen_image_code_v0() != 48752) {
+    if (uniffi_iscc_uniffi_checksum_func_gen_image_code_v0() != 3265) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_gen_instance_code_v0() != 34639) {
+    if (uniffi_iscc_uniffi_checksum_func_gen_instance_code_v0() != 55971) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_gen_iscc_code_v0() != 639) {
+    if (uniffi_iscc_uniffi_checksum_func_gen_iscc_code_v0() != 7495) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_gen_meta_code_v0() != 39627) {
+    if (uniffi_iscc_uniffi_checksum_func_gen_meta_code_v0() != 18926) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_gen_mixed_code_v0() != 7580) {
+    if (uniffi_iscc_uniffi_checksum_func_gen_mixed_code_v0() != 56007) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_gen_sum_code_v0() != 42460) {
+    if (uniffi_iscc_uniffi_checksum_func_gen_sum_code_v0() != 46479) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_gen_text_code_v0() != 16777) {
+    if (uniffi_iscc_uniffi_checksum_func_gen_text_code_v0() != 94) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_gen_video_code_v0() != 39557) {
+    if (uniffi_iscc_uniffi_checksum_func_gen_video_code_v0() != 148) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_io_read_size() != 37026) {
+    if (uniffi_iscc_uniffi_checksum_func_io_read_size() != 44662) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_iscc_decode() != 12467) {
+    if (uniffi_iscc_uniffi_checksum_func_iscc_decode() != 9926) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_iscc_decompose() != 63757) {
+    if (uniffi_iscc_uniffi_checksum_func_iscc_decompose() != 31989) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_json_to_data_url() != 13818) {
+    if (uniffi_iscc_uniffi_checksum_func_json_to_data_url() != 59838) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_meta_trim_description() != 27949) {
+    if (uniffi_iscc_uniffi_checksum_func_meta_trim_description() != 33044) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_meta_trim_meta() != 58429) {
+    if (uniffi_iscc_uniffi_checksum_func_meta_trim_meta() != 25178) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_meta_trim_name() != 13793) {
+    if (uniffi_iscc_uniffi_checksum_func_meta_trim_name() != 8515) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_sliding_window() != 60980) {
+    if (uniffi_iscc_uniffi_checksum_func_sliding_window() != 12614) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_soft_hash_video_v0() != 10500) {
+    if (uniffi_iscc_uniffi_checksum_func_soft_hash_video_v0() != 11339) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_text_clean() != 65070) {
+    if (uniffi_iscc_uniffi_checksum_func_text_clean() != 1971) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_text_collapse() != 65207) {
+    if (uniffi_iscc_uniffi_checksum_func_text_collapse() != 22035) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_text_ngram_size() != 47590) {
+    if (uniffi_iscc_uniffi_checksum_func_text_ngram_size() != 22367) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_text_remove_newlines() != 28628) {
+    if (uniffi_iscc_uniffi_checksum_func_text_remove_newlines() != 55449) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_text_trim() != 45299) {
+    if (uniffi_iscc_uniffi_checksum_func_text_trim() != 46357) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_method_datahasher_finalize() != 29844) {
+    if (uniffi_iscc_uniffi_checksum_method_datahasher_finalize() != 26196) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_method_datahasher_update() != 59854) {
+    if (uniffi_iscc_uniffi_checksum_method_datahasher_update() != 4871) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_method_instancehasher_finalize() != 56495) {
+    if (uniffi_iscc_uniffi_checksum_method_instancehasher_finalize() != 34828) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_method_instancehasher_update() != 51907) {
+    if (uniffi_iscc_uniffi_checksum_method_instancehasher_update() != 52277) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_constructor_datahasher_new() != 61879) {
+    if (uniffi_iscc_uniffi_checksum_constructor_datahasher_new() != 31742) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_constructor_instancehasher_new() != 15676) {
+    if (uniffi_iscc_uniffi_checksum_constructor_instancehasher_new() != 59577) {
         return InitializationResult.apiChecksumMismatch
     }
 

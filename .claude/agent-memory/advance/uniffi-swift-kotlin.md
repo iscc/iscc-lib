@@ -11,9 +11,19 @@ Detail moved out of MEMORY.md index. See also [[ci-gates]] for the swift/kotlin 
 
 ## `crates/iscc-uniffi/` — shared scaffolding crate
 
-- `uniffi = "0.31"` (workspace dep). Proc macro approach only: `#[uniffi::export]`,
+- `uniffi = "0.32"` (workspace dep, since iter 172). Proc macro approach only: `#[uniffi::export]`,
     `#[derive(uniffi::Record)]`, `#[derive(uniffi::Object)]`, `#[uniffi::constructor]`. No UDL
     files, no build.rs. Uses `uniffi::setup_scaffolding!()`. `publish = false`.
+- 0.32 CLI: `--library` is a deprecated-but-accepted boolean flag; the cdylib is the positional
+    `source` arg (library mode auto-detected). Both CLAUDE.md recipes still parse verbatim.
+- **Raw bindgen output is NOT hook-clean**: trailing whitespace on blank lines (all 3 files) +
+    EOF-newline issues (`.swift` lacks one, `.kt`/`.h` carry extra blank lines). prek hygiene hooks
+    normalize on `mise run format`/`check` — the regeneration-no-op check therefore holds only
+    *modulo* trailing-ws/EOF normalization (compare via `sed 's/[[:space:]]*$//'`). May need TWO
+    hook passes to reach a fixed point (ws-strip exposes a fresh EOF blank line). Never hand-edit
+    generated files to satisfy hooks.
+- Generated `.kt` triggers one benign Kotlin compile warning (`Expression is unused` at the
+    `IntegrityCheckingUniffiLib` reference in `uniffiEnsureInitialized`) — uniffi-intended, ignore.
 - 32 Tier 1 symbols, 11 result Records, `IsccUniError` enum (`#[derive(uniffi::Error)]` +
     `From<iscc_lib::IsccError>`), DataHasher/InstanceHasher Objects.
 - `crate-type = ["cdylib", "staticlib", "lib"]` — cdylib for dynamic, staticlib for XCFramework.
