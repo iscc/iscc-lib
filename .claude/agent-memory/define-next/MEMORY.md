@@ -90,6 +90,20 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
 - **2026-07-28 (174): out-of-loop commit `2c4e487` REOPENED scope AFTER a review IDLE/NONE handoff**
     → target grew to 33 Tier 1 symbols + experimental **ISCC-IDv1** on core + all 11 surfaces (#43).
     Trust fresh state.md over an IDLE handoff when a non-`cid()` commit post-dates the last review.
+- **2026-07-28 (177): state.md conflated a Semver check-run "failure" with the workflow conclusion**
+    — it declared "CI RED on develop", but `gh run list --branch develop` shows tip `a961c75` (=HEAD
+    code) both runs `conclusion:success`. The `Semver` job is `continue-on-error: true` (ci.yml
+    L355), so its red check-run does NOT fail the workflow. CRAP was fixed at 176 → CI is GREEN.
+    Verify workflow *conclusion* at the source, never trust a state.md "red" derived from check-run
+    status. So 177 skipped a phantom "fix CI" step and went straight to #43 Part 2.
+- **#43 Part 2 core step (177): `gen_iscc_id_v1(timestamp:u64, hub_id:u16, realm:u8)` +
+    `IsccIdResult` in `iscc-lib` core.** Reference `iscc_id.py`: `body=(ts<<12)|hub`, `to_be_bytes`,
+    then `encode_component(Id, SubType::try_from(realm)?, V1, 64, &digest)` (helper at codec.rs:490,
+    exactly what the reference uses). Validation order normative: ts>=2^52, hub>=2^12, realm∉{0,1}.
+    Golden `gen_iscc_id_v1(1751831876325218,1,0)=="ISCC:MAIGHFECJMOPMIAB"`. cargo tests = round-trip
+    (via `iscc_decode`) + validation ordering only; Python differential test belongs with the wheel
+    step. Adding a fn shifts lib.rs lines → CRAP re-baseline in the SAME step. Then bindings fan
+    out.
 - **ISCC-IDv1 (#43) = Part 1 (codec accept V1) then Part 2 (`gen_iscc_id_v1` minting)** — spec-
     mandated order; full detail in `specs/rust-core.md`. Part 1 adds `V1`+`#[non_exhaustive]` to
     `codec::Version` (semver-major `enum_marked_non_exhaustive` → advance writes `**API-BREAK:**`
