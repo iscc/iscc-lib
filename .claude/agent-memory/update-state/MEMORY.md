@@ -14,9 +14,11 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
     `git diff --stat origin/develop..HEAD -- . ':!.claude'`. Empty = green CI covers HEAD.
     **NON-empty = it does NOT** — report the gap (bit at 148; fired for real at 162).
 - **ALWAYS `tail -6 .claude/context/iterations.jsonl`** — the ONLY place a crashed role (or the
-    every-10th `audit` role) shows up. **A non-OK status does NOT mean no work: corroborate with
-    `git log`** (fingerprints → `MEMORY-archive.md`). Conversely **work with NO jsonl entry**:
-    out-of-loop `cid(loop):` commits land between iterations — always diff them.
+    `audit` role) shows up. **A non-OK status does NOT mean no work: corroborate with `git log`**
+    (fingerprints → `MEMORY-archive.md`). Conversely **work with NO jsonl entry**: out-of-loop
+    `cid(loop):` commits land between iterations — always diff them.
+- **Audit cadence is predictable**: jsonl entries at iterations **130/140/150/160** — fires on
+    multiples of 10, commits only `cid(audit): metrics snapshot`.
 - **ALWAYS `git status --porcelain` too.** A TIMEOUT role dies before committing but **leaves its
     written file dirty** — at 155 define-next timed out with 0 turns yet left a 440-line `next.md`
     carrying the iteration's most important finding. Treat as an unverified lead, not fact.
@@ -37,9 +39,8 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 
 - **ENFORCING:** iai perf (>10% Ir); coverage + CRAP (`--fail-regression` is **CI-ONLY**, so a green
     `mise run check` proves nothing); cargo-deny; docs page-list parity; `unicode-sweep` (157); CI
-    job-table parity (163). The last three share one pattern: **prek hook + a pytest**, and the
-    pytest is what makes it a CI gate (a hook's `files:` sees only changed paths, so row-only
-    deletions slip past it).
+    job-table parity (163). The last three are **prek hook + a pytest**, and the pytest is what
+    makes it a CI gate (a hook's `files:` sees only changed paths).
 - **Red with NO code change:** cargo-deny (live advisory DB). **Fails open:** the release.yml static
     gate (job log must show zero `warning: skipped`). **Informational:** cargo-semver-checks.
 - NOT a gap to report: a "no floating branch ref" assertion in `check_release_workflow.py` is a NEW
@@ -51,11 +52,10 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
     iscc-uniffi has 21 tests, `publish=false`. `packages/` layout → `MEMORY-archive.md`;
     `packages/go` is the ONLY binding not inheriting the core's Unicode behaviour.
 - `ci.yml` — **21 YAML job entries → 22 jobs → 23 check names**: `python-test` = 3.10/3.14 matrix,
-    `python` (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job. Enumerate with
-    a PyYAML one-liner over `d['jobs']`. `release.yml` — 8 registry toggles; Swift XCFramework is a
-    `prepare-release` step, NOT a toggle. **`specs/ci-cd.md`'s job table is EXHAUSTIVE since 163**
-    (21 rows == 21 keys, gated); its prose hardcodes the counts and the gate pins none (≥10 floor),
-    so a job addition reds the gate but the prose number needs a HAND edit.
+    `python` (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job. `release.yml`
+    — 8 registry toggles; Swift XCFramework is a `prepare-release` step, NOT a toggle.
+    **`specs/ci-cd.md`'s job table is EXHAUSTIVE since 163** (21 rows == 21 keys, gated), but its
+    prose counts are unpinned (≥10 floor) and need a HAND edit when a job is added.
 - **Unicode = 16.0.0 + TWO freeze layers + the sweep gate → read `unicode-contract.md` before ANY
     Unicode call** (fixture-plumbing table, 2 SUPERSEDED designs that must NOT be implemented).
     Inline landmark: **surefire's default CWD is the pom basedir**, NOT the `mvn -f` dir — why the
@@ -85,51 +85,50 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
     (bugs confirmed 147/156; three "unbuildable" claims REFUTED). **A generator is never its own
     oracle**; a suite printing N passes may cover a SUBSET — compare against the PRE-change tree.
 - **Spec checkboxes are NOT a progress signal** — most sit at 0/N though MET; only `ci-cd.md`
-    (44/52) + `rust-core.md`'s semver box are kept up. Spec *prose* rots and can be FALSIFIED by
-    measurement (156).
+    (44/52) + `rust-core.md`'s semver box are kept up. Spec *prose* rots (falsified at 156).
 - **Ask whether a fixture is a DECLARED INPUT of the build system.** Gradle/MSBuild can report
     UP-TO-DATE and skip a suite; only a mutate-then-rerun probe exposes it. All 12 probed, CI
     immune.
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: cd899f3, iter 169)
+## Current State (assessed-at: 312524a, iter 170)
 
-- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `5bf5a26` (168 review): **45
-    check-runs, 23 names, 0 non-success**. HEAD `cd899f3` is one `cid(log)` commit ahead with an
-    EMPTY non-`.claude` diff. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped; **0.5.0**).
-- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces). Dep-refresh slices: 163 ci-cd job
-    table, 164 dotnet xunit v3, 165 Kotlin Gradle 9.6.1, 166 JUnit 6.1.2, 167 magnus 0.8, **168 jni
-    0.21 → 0.22** (lock 0.22.4; 33 `Java_*` natives on `EnvUnowned`/`Env`; no Java/Kotlin/fixture
-    source touched). Rust core met except `>= 1.0.0` (human-HELD); all met except CI/CD (partial).
-- **THE DEPENDENCY REFRESH IS OUT OF SCHEDULABLE MAJORS.** Its issue body now lists 3 items: uniffi
-    0.32 + criterion 0.8 (human-gated), and the `release.yml` action pass (CID-doable but STATIC
-    EVIDENCE ONLY — that workflow never runs in CI). The backlog is now **review-filed debt**.
-- **A migration's own review can file more issues than the migration closed** — 168 filed 3 `normal`
-    against `iscc-jni` (hand-rolled `build_byte_array` duplicating the non-deprecated
-    `Env::byte_array_from_slice`; 7 of 33 natives called by NO JUnit test; doc drift). Expect the
-    post-migration issue count to RISE; check `git log` + issues.md diff, not the handoff's "Next".
-- **Crate/spec docs rot after a dep migration** — now a filed `normal` issue covering
-    `crates/iscc-rb/CLAUDE.md:108` (`RString::from_slice`) and `specs/java-bindings.md` ("jni
-    v0.21", "~1060 lines"; actual 1168). Diff a crate's CLAUDE.md + spec against the code after any
-    binding-API bump.
+- **IN_PROGRESS — CI green and it COVERS HEAD.** `origin/develop` == `d06e024` (169 review): **45
+    check-runs, 23 names, 0 non-success**. HEAD `312524a` is one `cid(log)` commit ahead with an
+    EMPTY non-`.claude` diff; tree CLEAN. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped;
+    **0.5.0**).
+- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces); slice history 163-169 →
+    `dep-refresh-survey.md`. Rust core met except `>= 1.0.0` (human-HELD); all met except CI/CD.
+- **169 closed BOTH JNI issues 168 filed**: `build_byte_array`/`Vec<i8>` grep now empty, **5**
+    `env.byte_array_from_slice` sites, `crates/iscc-jni/src/lib.rs` **1152 lines** / 33 natives,
+    `IsccLibTest.java` 29 → **40** `@Test` (93 JVM tests), all 33 natives JUnit-covered.
+- **THE DEPENDENCY REFRESH IS OUT OF SCHEDULABLE MAJORS.** 3 items left: uniffi 0.32 and criterion
+    0.8 (human-gated) plus the `release.yml` action pass (CID-doable, STATIC EVIDENCE ONLY — that
+    workflow never runs in CI).
+- **A migration's review files debt, and the NEXT iteration can clear it** — count went 7 → 10 → 8
+    across 167-169. Never carry an issue count forward: re-`grep -nE '^## ' issues.md` every time.
+- **Crate/spec docs rot after a dep migration.** `crates/iscc-jni/CLAUDE.md` was fixed WITH the 169
+    code, but the filed issue's other two surfaces are still stale (verified 170):
+    `crates/iscc-rb/CLAUDE.md:108` (`RString::from_slice`) and `specs/java-bindings.md` (L22 "jni
+    v0.21"; L13+L32 "~1060 lines", actual 1152). Diff a crate's CLAUDE.md + spec after any bump.
 - **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** paths,
     matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
-    `python-test`). Register new copies; keep canonical basenames (the gate discovers by basename).
-    Generated artifacts are derived and must stay OUT. A 13th vector now costs **12 suites**.
+    `python-test`). Keep canonical basenames (the gate discovers by basename); generated artifacts
+    stay OUT. A 13th vector now costs **12 suites**.
 - **Loop infra (162):** `ARTIFACT_BUDGETS` in `tools/cid.py` caps **state 200**; `decisions.md`
-    rotates into `decisions-archive.md` (**grep BOTH**) — that rotation lands as an UNCOMMITTED
-    dirty tree, so dirty `decisions*.md` is the runner, not a crashed role.
+    rotates into `decisions-archive.md` (**grep BOTH**) — dirty `decisions*.md` = the runner, not a
+    crashed role.
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
     wrong twice over); criterion boxes unchecked though all four hold. Human-owned — don't edit.
-- **Issues: 10** (5 `normal`, 5 `low`, 0 critical, **1 HUMAN REVIEW REQUESTED** — inside the
-    doc-drift issue, for the spec half; ~190 lines — count headers, NOT priority tags: lines 3-4 are
-    a legend that inflates a naive `grep -c`). go1.27 is now its OWN `normal` entry (standing
-    tripwire, not schedulable); npm OIDC DEFERRED; `iscc-core#137` human-only.
+- **Issues: 8** (3 `normal`, 5 `low`, 0 critical, **1 HUMAN REVIEW REQUESTED** — the doc-drift
+    issue's spec half; 154 lines — count headers, NOT priority tags: lines 3-4 are a legend that
+    inflates a naive `grep -c`). go1.27 is its OWN entry (tripwire); npm OIDC DEFERRED.
 - **Unfiled, carried by 2 roles:** `packages/dotnet` is the only ecosystem without a lockfile (test
-    packages float on `3.*` / `18.*`); the 168 review parked it for the **audit at iteration 170**.
-- **Don't re-flag as DONE**: jni 0.22 168, magnus 0.8 167, JUnit 6.1.2 166, Gradle 9.6.1 165, dotnet
-    xunit v3 164, ci-cd job table 163 (≤162 → archive).
+    packages float on `3.*` / `18.*`); parked for the **audit at iteration 170** — check whether
+    that audit filed it before reporting it as unfiled again.
+- **Don't re-flag as DONE**: JNI cleanup 169, jni 0.22 168, magnus 0.8 167, JUnit 6.1.2 166, Gradle
+    9.6.1 165, dotnet xunit v3 164, ci-cd job table 163 (≤162 → archive).
 
 ## Gotchas
 
