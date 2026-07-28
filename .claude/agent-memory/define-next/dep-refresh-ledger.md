@@ -240,20 +240,40 @@ own `CHANGELOG.md`, which is the cheapest breaking-change list there is):
     from the vectors), so the suite total is not greppable — the honest baseline is a `rake test`
     run on the unmodified tree, same pattern as Maven's `@TestFactory` total at 166.
 
-## Remaining after major bump D
+## Major bump E — jni 0.21 → 0.22, JNI binding (scoped iter 168)
+
+One package, not sliced: a crate cannot compile half-migrated. Only `Cargo.toml` +
+`crates/iscc-jni/src/lib.rs` + its `CLAUDE.md`; `packages/kotlin` is UniFFI/JNA and unaffected.
+Facts settled while scoping (all from the `.crate` tarball, read-only):
+
+- 0.22.4 latest, 0.22.0/0.22.1 **yanked**; `rust-version = "1.85"` = our MSRV exactly → no floor
+    move. 33 `extern "system"` fns (the 41 figure counted `JNIEnv` mentions, not natives).
+- **The design question answered:** keep the crate's own `throw_new` calls and make
+    `throw_and_default`/`throw_state_error` return `jni::errors::Result<T>` with `Ok(T::default())`.
+    `ThrowRuntimeExAndDefault::on_error` calls `Env::exception_check()` first and refuses to
+    overwrite a pending exception, so the published `IllegalArgumentException` /
+    `IllegalStateException` contract (asserted in `IsccLibTest`) survives untouched and the policy
+    only fires on a genuine panic. Without this, `resolve::<ThrowRuntimeExAndDefault>` would convert
+    them to `RuntimeException` and red the Java suite.
+- Deprecated (⇒ hard errors under `-D warnings`): `get_string`, `get_array_length`,
+    `get_int_array_region`, `get/set_object_array_element`, `byte_array_from_slice` (its note is an
+    upstream copy-paste error naming `JObjectArray::set_element`; real fix is `JByteArray::new` +
+    `set_region`), and `push/pop_local_frame` (gone → `with_local_frame`). **Not** deprecated:
+    `new_string`, `new_object`, `new_object_array`, `find_class`, `convert_byte_array`, `throw_new`.
+
+## Remaining after major bump E
 
 `release.yml` GHA refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` move as a pair;
-nothing in it is exercised by a CID push → human-timed), `uniffi` 0.32 (Swift+Kotlin regen — the "no
-Swift toolchain" veto died at 161, so re-scope it on evidence), and **`jni` 0.22**: rust-version
-1.85.0 = exactly our MSRV, 41 `JNIEnv` sites in a 1,065-line file, and a 778-line upstream
-`docs/0.22-MIGRATION.md` inside the `.crate` tarball. Budget a scoping pass for that doc: the step
-has to choose an `ErrorPolicy` and a `with_env` closure shape for ~40 `extern "system"` natives,
-which is design work, not a rename sweep.
+nothing in it is exercised by a CID push → human-timed) and `uniffi` 0.32 (Swift+Kotlin regen — the
+"no Swift toolchain" veto died at 161, so re-scope it on evidence). Both are human/release-gated:
+after jni 0.22 the CID-schedulable dependency work is **done**.
 
 ## Handy version-lookup commands
 
-- crates.io: `cargo search <crate> --limit 1`; changelog via
-    `curl -sL https://static.crates.io/crates/<c>/<c>-<ver>.crate | tar xz`
+- crates.io: the **JSON API returns 403** here (data-access policy). Use the sparse index —
+    `curl -s https://index.crates.io/3/j/jni` (path = `1/`, `2/`, `3/x/`, or `ab/cd/` by name
+    length) → one JSON line per version with `vers`, `yanked`, `rust_version`. Source + upstream
+    migration docs: `curl -sL https://static.crates.io/crates/<c>/<c>-<ver>.crate | tar xz`
 - Maven **stable**: `repo1.maven.org/maven2/<path>/maven-metadata.xml` filtered by
     `^[0-9]+(\.[0-9]+)*$` (the `<latest>` field includes betas/milestones)
 - npm: `curl -s https://registry.npmjs.org/<pkg>` → `.dist-tags.latest`

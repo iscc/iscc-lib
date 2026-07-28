@@ -9,11 +9,10 @@ iterations.
 
 - **CI red always first** — green CI is a prerequisite for all other work; formatting/lint/advisory
     fixes preempt the handoff "Next". Then `critical` issues, regardless of feature trajectory.
-- **`tools/cid.py` never pushes — the review agent pushes the whole batch on PASS** (`review.md`
-    step 12). So "get unpushed commits under CI" is never a step: it happens as a byproduct of the
-    next PASS. What it *should* change is sizing — when HEAD carries commits no gate has seen
-    (out-of-loop `human(...)`/`cid(loop)` work), scope a deliberately small, low-risk diff so a red
-    CI run is attributable to the untested code and not to this step (iter 162).
+- **`tools/cid.py` never pushes — the review agent pushes the whole batch on PASS**, so "get
+    unpushed commits under CI" is never a step. What it *should* change is sizing: when HEAD carries
+    commits no gate has seen (out-of-loop `human(...)`/`cid(loop)` work), scope a deliberately small
+    diff so a red CI run is attributable to that untested code, not to this step (iter 162).
 - **Verify claimed gaps by reading the actual files** — state.md and handoff "IDLE" both go stale;
     read issues.md directly (review can miscount). **A `human(...)` commit newer than the last
     `cid(review)` invalidates the handoff wholesale** (iter 147) — check `git log` before trusting
@@ -28,8 +27,7 @@ iterations.
     hard-coded `EXPECTED_*`). A timeout is **not** a bounce — no advance/review ran; say so in
     `## Goal`.
 - **A remembered "supported versions" range is a docs ceiling, not an enforced one — read the
-    constant out of the tool's own artifact** (165: KGP's `GradleCompatibilityCheck.class` has a min
-    and a deprecation threshold, no max; recipe → [ledger](dep-refresh-ledger.md)).
+    constant out of the tool's own artifact** (165; recipe → [ledger](dep-refresh-ledger.md)).
 - **Run the expensive probe while scoping when it can invert the plan** — the ~60 s sweep reordered
     the milestones at 155/157; the 5-min Swift fetch at 161 killed a 10-iteration-old veto.
 - **Generated/tool-output files (Cargo.lock, bindings) don't count toward the 3-file limit**; doc
@@ -41,9 +39,8 @@ iterations.
     that amends the spec/notes needs human sign-off first (iter 106/112).
 - **next.md is a sensitive file** — Write needs a prior Read of it; if Write is blocked, use
     `cat > file << 'EOF'` via Bash (quoted EOF = no expansion, so backticks are safe).
-- **Escape sequences in a tool payload may get decoded before they hit the file** (iter 149;
-    transport-dependent). Use `U+XXXX` prose notation, build probe strings with `chr(0x...)` rather
-    than backslash-u literals, and after every write print the file's non-ASCII character set.
+- **Escape sequences in a tool payload may get decoded before they hit the file** (149): use
+    `U+XXXX` prose and `chr(0x...)` probes, and print the file's non-ASCII set after every write.
 
 ## Architecture & Conformance Facts
 
@@ -51,7 +48,6 @@ iterations.
     dotnet/cpp/swift/kotlin packages. Tier 1 = **32** crate-root re-exports, bound in all languages.
 - Go bindings are pure Go (no CGO/WASM). `gen_iscc_code_v0` vectors have no `wide` — pass `false`;
     `"stream:<hex>"` prefix = hex-encoded byte data.
-- **5 data.json copies + their vector-count asserts move together** (`test_vendored_fixtures.py`).
 - **SumHasher** lives at `iscc_lib::streaming::SumHasher` (NOT Tier 1; count stays 32).
 
 ## Dev Environment Constraints
@@ -66,9 +62,9 @@ iterations.
 
 ## CI/Release, Docs, Gotchas
 
-- Release: `workflow_dispatch` with per-registry checkboxes; version_sync.py manages **21** targets
-    (issues.md line ~55 says "22" — wrong). `iscc-rb` needs `libclang-dev` (keep `--exclude iscc-rb`
-    in Rust CI). XCFramework cache key must hash all build inputs.
+- Release: `workflow_dispatch` per-registry checkboxes; version_sync.py manages **21** targets.
+    `iscc-rb` needs `libclang-dev` (keep `--exclude iscc-rb` in Rust CI); the XCFramework cache key
+    must hash all build inputs.
 - Docs: `zensical.toml nav` + `scripts/gen_llms_full.py ORDERED_PAGES` need an entry per new howto
     guide (template `docs/howto/dotnet.md`; collapsible `??? tip "Build from source"`).
 - Gotchas: JNI names encode `_` as `_1`; WASM pkg `@iscc/wasm`, npm lib `@iscc/lib`; Windows GHA →
@@ -84,19 +80,21 @@ iterations.
 ## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
 
 - v0.5.0 released; all 12 bindings meet core criteria; the 4 spec'd v0.6.0 feature issues are DONE;
-    the **Unicode chain is CLOSED at iter 161** (11 of 11 surfaces). Backlog: rubygems `@v2.1.0` pin
-    (162), ci-cd job-table gate (163), then the authorized majors one per step — xunit v3 (164),
-    Gradle wrapper 9.6.1 (165), JUnit 6.1.2 both JVM manifests (166), magnus 0.8 (**scoped 167** —
-    the *small* major first, so the two source rewrites stay separable), then `jni` 0.22 (budget a
-    scoping pass for its 778-line migration doc) — facts → [ledger](dep-refresh-ledger.md).
-    Trigger-only: go1.27 + the Go freeze table (~Aug 2026). HELD `low` by Titusz: v1.0.0 +
-    Semver-enforcing, npm OIDC (token good to 2026-09-16).
+    the **Unicode chain is CLOSED at iter 161** (11 of 11 surfaces). Backlog worked one major per
+    step: rubygems `@v2.1.0` pin (162), ci-cd job-table gate (163), xunit v3 (164), Gradle 9.6.1
+    (165), JUnit 6.1.2 (166), magnus 0.8 (167), `jni` 0.22 (**scoped 168** — one package; a crate
+    cannot compile half-migrated) — facts → [ledger](dep-refresh-ledger.md). **After 168 the
+    CID-schedulable dependency work is done.** Trigger-only: go1.27 + the Go freeze table (~Aug
+    2026). HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm OIDC (token to 2026-09-16).
 - **iters 115–123 DONE (detail in MEMORY-archive.md)**. **Root lesson: the CRAP regression gate is
     CI-ONLY** — a step adding a branch to a covered fn MUST refresh the baseline in it.
 - **iters 124–137 = the dependency-refresh slices, all 8 CLOSED** → ledger, gotchas, hold-backs,
     version-lookup commands: [dep-refresh ledger](dep-refresh-ledger.md); read it before scoping any
     dep step. Headline: **never move a consumer floor (MSRV, `go` directive,
     `required_ruby_version`, a published binding's compiler) inside a refresh slice** (iter 128).
+    Second headline (168): **a major's real design question is usually a behavioural contract the
+    new API would silently change** — find the built-in option that preserves it; never take the
+    library default and edit tests (jni 0.22's exception contract → ledger).
 - **Lint/formatter tool bumps and hook-config changes have their own playbook**:
     [lint tooling lessons](lint-tooling-lessons.md). Headline: **never make an exact file/finding
     count a pass/fail criterion** — it drifts with the CID agents' own commits; use the exit code.
