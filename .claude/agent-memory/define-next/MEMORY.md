@@ -100,7 +100,13 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     `decode_header` truncation (`as u8` narrows a multi-nibble varnibble before `TryFrom` →
     `262`→`6`=`Id`, so a malformed header canonicalizes). 175 scoped the `critical` codec.rs fix
     (`u8::try_from` for the three casts + `"MDFZAAAAAAAAAAAAAA"` rejection test); prerequisite for
-    Part 2.
+    Part 2. **175 pushed the whole batch → first CI run went RED on TWO check-runs, ONE real blocker
+    (176):** `Coverage + CRAP` (no `continue-on-error`) fails because `decode_header`'s fix took CC
+    12→16 (100% covered, crap 16 < 30) and `--fail-regression` rejects any rise vs
+    `.crap-baseline.json` → remedy is `mise run crap:baseline`, NOT a refactor. The `Semver` red is
+    `continue-on-error: true` (verified ci.yml L355) so it does NOT fail the workflow conclusion —
+    the `#[non_exhaustive]` break is expected+informational pre-1.0; don't "fix" it. Verified at
+    source: run `3cdb00a` overall CI conclusion=failure driven by coverage only.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published

@@ -1,61 +1,64 @@
 # Next Work Package
 
-## Step: Reject truncated varnibble header fields in `decode_header`
+## Step: Re-baseline the CRAP gate for `decode_header`'s covered complexity increase
 
 ## Goal
 
-Fix the open `critical` issue "`decode_header` truncates varnibble fields, canonicalizing malformed
-input": a multi-nibble header value wraps under `as u8` (version `257`→`1`, MainType `262`→`6`=`Id`)
-so a malformed string silently canonicalizes to a valid ISCC. This is the prerequisite the 174
-review named before the unpushed IDv1-decode batch can be pushed green.
+Get CI green on `develop`. The pushed IDv1 batch reds exactly one enforcing gate — the CRAP
+regression gate rejects `decode_header`'s cyclomatic increase (12→16, 100% covered) introduced by
+the reviewed critical `u8::try_from` fix. Re-baselining `.crap-baseline.json` clears it. (The
+`Semver (cargo-semver-checks)` red is a `continue-on-error: true` informational job, expected for
+the intentional `#[non_exhaustive]` on `Version` pre-1.0 — NOT part of this step.)
 
 ## Alternatives Considered
 
-- **Chosen:** the `critical` `decode_header` fix — a `critical` issue outranks everything, and the
-    handoff makes it the explicit gate for pushing the whole NEEDS_WORK batch.
-- **Rejected:** Part 2 `gen_iscc_id_v1` minting (issue #43) — the handoff states its prerequisite is
-    this fix landing green; scoping it now would ship on top of an unpushed, CI-unverified, buggy
-    batch.
+- **Chosen:** re-baseline CRAP for the legitimate, fully-covered `decode_header` growth — it is the
+    gate's own documented remedy (`mise run crap:baseline`), one generated file, zero source risk.
+- **Rejected:** refactor `decode_header` to lower its CC — churns a critical fix that just passed
+    review, hides four range-check branches that are inherent to the correctness fix, and re-opens
+    codec.rs for no correctness gain (16 < the absolute `--fail-above` 30 threshold; fully covered).
+- **Rejected (blocked):** start Part 2 `gen_iscc_id_v1` minting — CI-red-first; do not stack feature
+    work onto a red develop tip.
 
 ## Scope
 
-- **Modify**: `crates/iscc-lib/src/codec.rs` (the three narrowing casts at ~321-323 + one new
-    `#[cfg(test)]` case)
-- **Reference**: injected issues.md (`decode_header` critical entry) and handoff.md "Next"; the
-    `Version`/`validate_version` code at codec.rs:96-135 is already in this session
+- **Modify**: `.crap-baseline.json` (generated artifact — outside the 3-file budget)
+- **Reference**: `mise.toml` (`coverage`, `crap:baseline` tasks); `.github/workflows/ci.yml`
+    L364-410 (the enforcing gate invocation); `crates/iscc-lib/src/codec.rs` `decode_header`
 
 ## Not In Scope
 
-- `gen_iscc_id_v1` minting, the Go rename/deletion, or any Tier-1-count doc edits (issue #43, later
-    step).
-- The `iscc_clean` codec-input-cleaning divergence (separate open `normal` issue).
-- Touching `encode_header` or `validate_version` — the wrap happens only on the decode narrowing.
-- Rebuilding or re-verifying bindings; this is a pure core codec fix with no signature change.
+- **Do NOT touch `crates/iscc-lib/src/codec.rs`** — no refactor of the reviewed fix.
+- **Do NOT drop `#[non_exhaustive]` from `codec::Version`, allowlist the semver lint, or edit the
+    `semver` job.** Its red is informational-by-design pre-1.0; the spec mandates the marker.
+- Do NOT begin `gen_iscc_id_v1` minting, the Go rename, or the Tier-1 32→33 doc sweep.
+- Do NOT widen `.cargo-crap.toml` thresholds or the CRAP `--epsilon`.
 
 ## Implementation Notes
 
-- Replace `mtype_val as u8` / `stype_val as u8` / `version_val as u8` (codec.rs ~321-323) with a
-    range-checked conversion so a `u32` that does not fit `u8` is rejected *before* the enum
-    `TryFrom` runs. `u8::try_from(262)` fails, so it catches the wrap; `MainType::try_from` then
-    rejects in-`u8`-range-but-invalid values as today.
-- `IsccError` has no `From<TryFromIntError>`, so map the error explicitly, e.g.
-    `u8::try_from(mtype_val).map_err(|_| IsccError::InvalidInput(format!("invalid MainType: {mtype_val}")))?`
-    then feed into `MainType::try_from`. Keep the existing `InvalidInput` message style.
-- Add one `#[test]` in the existing `mod tests` (near the version-1 rejection tests at ~1128)
-    asserting both `iscc_decode("MDFZAAAAAAAAAAAAAA")` and `iscc_decompose("MDFZAAAAAAAAAAAAAA")`
-    return `Err` — on HEAD they wrongly return `(6,0,1,0,…)` and `["MAIAAAAAAAAAAAAA"]`.
-- Do not weaken any existing test; all 298 current cases plus the new one must pass.
+1. Regenerate: `mise run crap:baseline` (runs `cargo llvm-cov -p iscc-lib` then
+    `cargo crap … --format json --output .crap-baseline.json`). Requires cargo-llvm-cov (0.8.7) +
+    cargo-crap (0.2.2), both installed.
+2. `git diff .crap-baseline.json`: the only **semantic** change (`cyclomatic`/`coverage`/`crap`)
+    must be `decode_header` (~12→16). `line` fields for functions below the codec.rs edit may shift
+    — benign. If any *other* function's crap/cyclomatic moved, stop: coverage drifted; do not bake
+    it in.
+3. The gate compares current-vs-baseline, so a fresh baseline yields zero regression and all scores
+    stay < 30 → gate exits 0.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (298 existing + 1 new case) with the new rejection test green.
-- `iscc_decode("MDFZAAAAAAAAAAAAAA")` and `iscc_decompose("MDFZAAAAAAAAAAAAAA")` both return `Err`
-    (asserted by the new test), while `iscc_decode("ISCC:MAIGHFECJMOPMIAB")` still returns
-    `(6, 0, 1, 0, <8 bytes>)`.
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean.
-- `cargo fmt -p iscc-lib --check` clean.
+- `mise run coverage` then
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    exits 0.
+- `git diff --name-only` lists only `.claude/context/*` and `.crap-baseline.json` — NOT
+    `crates/iscc-lib/src/codec.rs` (asserts no refactor on the working tree).
+- In `.crap-baseline.json`, the `decode_header` entry's `cyclomatic` equals its current source value
+    and no other function's `cyclomatic`/`crap` differs from the prior committed baseline.
+- `cargo test -p iscc-lib` passes (no source change, sanity).
 
 ## Done When
 
-`decode_header` rejects any wrapped multi-nibble header before narrowing, the new rejection test and
-all existing codec/conformance tests pass, and clippy + fmt are clean.
+`mise run coverage` + the CI CRAP gate command exit 0 against the regenerated `.crap-baseline.json`
+with codec.rs untouched, so the `Coverage + CRAP` job goes green and the develop CI workflow
+conclusion returns to success (the informational semver red aside).
