@@ -97,7 +97,22 @@ iterations.
 - **A dep major can leave a *declaration* false without breaking anything** (172→173): uniffi 0.32
     pushed `iscc-uniffi`'s real floor to 1.91 via `cargo-platform`. Declaring the true floor on an
     **unpublished** crate is CID-doable and a 1-line step; moving the **root/published**
-    `rust-version` stays Titusz's call. After 173 the backlog is fully human/trigger-gated → IDLE.
+    `rust-version` stays Titusz's call.
+- **2026-07-28 (174): out-of-loop commit `2c4e487` REOPENED scope AFTER a review IDLE/NONE handoff**
+    — target grew to 33 Tier 1 symbols + experimental **ISCC-IDv1** on core + all 11 surfaces (issue
+    #43). The 173 handoff still said "emit NONE"; it was **stale** (update-state `e157270`
+    reassessed at `2c4e487`). Trust the fresh state.md over an IDLE handoff whenever a non-`cid()`
+    commit sits between the last `cid(review)` and now.
+- **ISCC-IDv1 (#43) decomposes into Part 1 then Part 2 — spec says so explicitly.** Part 1 = codec
+    accepts Version 1 for MainType `Id` only (`codec::Version` gains `V1`+`#[non_exhaustive]`;
+    `decode_header`/`encode_header`/`encode_component` gate on `Id`). **One core `codec.rs` edit
+    flips 10 of 11 surfaces at once** because py/napi/wasm/ffi/jni/rb/uniffi all call the core
+    `iscc_decode`/`iscc_decompose`; only Go is a separate port (already did its accept out-of-loop).
+    Part 2 = new symbol `gen_iscc_id_v1(timestamp:u64, hub_id:u16, realm:u8)` (Part 2 depends on
+    Part 1's encode path). Adding `#[non_exhaustive]` to `Version` IS a semver-major
+    (`enum_marked_non_exhaustive`) — advance must write an `**API-BREAK:**` handoff note; not gated
+    (semver job is `continue-on-error`). **No `decode_iscc_id_v1`** (Titusz). Differential test is
+    Python-only; no new JSON fixture (one 16-char constant, pinned inline per surface).
 - **Closed phases: 115–123 (features) and the dep slices 124–137 + 162–172** — detail in
     MEMORY-archive.md + the [dep-refresh ledger](dep-refresh-ledger.md) (read before any dep step).
     Lessons that still bite: the CRAP regression gate is **CI-only**; **never move a consumer

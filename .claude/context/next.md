@@ -1,72 +1,74 @@
 # Next Work Package
 
-## Step: Declare `iscc-uniffi`'s real rustc floor instead of inheriting a false one
+## Step: Rust core codec accepts ISCC-IDv1 (Version 1) for MainType `Id`
 
 ## Goal
 
-Close the `normal` issue "`iscc-uniffi` no longer builds on the declared MSRV 1.85" by giving
-`crates/iscc-uniffi/Cargo.toml` an explicit `rust-version = "1.91"`, so the crate states the floor
-its own dependency graph imposes. This is the last CID-doable v0.6.0 release-readiness criterion.
+Make the shipped generic `iscc_decode` / `iscc_decompose` accept MainType `Id` with Version 1
+instead of raising `invalid Version: 1`, restoring drop-in parity with `iscc_core`. This is Part 1
+of issue #43 (ISCC-IDv1) — the load-bearing, symbol-free half. Because every native binding (py,
+napi, wasm, ffi, jni, rb, uniffi→swift/kotlin, dotnet) calls the core codec, this single-file core
+change flips 10 of 11 surfaces at once; Go already did its own accept out-of-loop.
 
 ## Alternatives Considered
 
-- **Chosen:** the per-crate `rust-version` declaration — the only open `normal` issue that is
-    neither human- nor trigger-gated, and the last thing between the tree and the human's v0.6.0 "no
-    unblocked `normal` issue" criterion.
-- **Rejected:** adding a guard (CI job or pytest anchor) that recomputes each crate's floor from the
-    dependency graph and compares it to the declared `rust-version` — a new enforcing policy gate,
-    and MSRV verification is explicitly tracked as a `low`, human-gated v1.0.0 prerequisite.
+- **Chosen:** Part 1 codec change — the spec says it "can land as its own work package ahead of any
+    new function," it is the prerequisite for `gen_iscc_id_v1`, and it is a small attributable diff
+    on top of the unpushed/CI-unverified HEAD.
+- **Rejected:** Part 2 `gen_iscc_id_v1` minting — depends on `encode_component`/`encode_header`
+    accepting Version 1 (i.e. on this step), and fans out a new symbol across 11 surfaces; too large
+    and out of order.
 
 ## Scope
 
-- **Modify**: `crates/iscc-uniffi/Cargo.toml` (one line + an evergreen comment)
-- **Reference**: root `Cargo.toml` L17 + L44-46 (the workspace floor and the existing
-    contributor-floor comment style), `.claude/context/issues.md` (the MSRV entry)
+- **Modify**: `crates/iscc-lib/src/codec.rs` — add `#[non_exhaustive]` and a `V1 = 1` variant to the
+    `Version` enum in the same change; make `decode_header`, `encode_header`, `encode_component`
+    accept Version 1 **only** when MainType is `Id`, and keep rejecting Version > 0 for every other
+    MainType; add/update the in-file `#[cfg(test)]` cases (the existing `Version::try_from(1)`
+    assertion at ~line 1045 will need to change to match the chosen design).
+- **Reference**: `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)" (Part
+    1 + "Codec changes this requires"); `crates/iscc-lib/src/lib.rs:264` (`iscc_decode` returns
+    `(u8,u8,u8,u8,Vec<u8>)`); issue #43 in `issues.md`.
 
 ## Not In Scope
 
-- Touching the root `Cargo.toml` `rust-version = "1.85"`. That is the published MSRV promise and
-    Titusz's call — it must read `1.85` on the working tree when this step is done.
-- Any other crate's `rust-version` (all seven others correctly inherit the workspace value).
-- Adding an MSRV CI job, a `rust-toolchain.toml`, or any floor-checking script/test.
-- Trying to keep the floor at 1.85 by dropping uniffi default features or pinning `cargo-platform` /
-    `cargo_metadata` down — the raised source-build floor was accepted in decisions.md (2026-07-28),
-    so do not re-open it.
-- Editing `issues.md` (review owns issue resolution) or `Cargo.lock`.
+- `gen_iscc_id_v1` minting or `IsccIdResult` — that is Part 2, a separate step.
+- Any binding crate, `packages/go` rename, docs, or the Python differential test.
+- Adding realm variants to `SubType` (spec forbids it — realm travels as a raw nibble).
+- The separate codec input-cleaning (`iscc_clean`) `normal` issue.
+- Acquiring any time/clock dependency.
 
 ## Implementation Notes
 
-- Replace `rust-version.workspace = true` (line 5) with `rust-version = "1.91"` and add a short
-    comment above it saying the floor is set by the transitive `cargo-platform` 0.3.3 (floor 1.91)
-    reached through `uniffi` → `cargo_metadata`, that the crate is `publish = false`, and that the
-    published `iscc-lib` MSRV stays 1.85. Keep the key at the same position in the `[package]` table
-    so `taplo fmt` leaves it alone.
-- Floor verified while scoping, do not re-derive:
-    `cargo tree --locked -p iscc-uniffi -i cargo-platform -e no-dev --target all` =
-    `cargo-platform v0.3.3 → cargo_metadata v0.23.1 → uniffi v0.32.0 → iscc-uniffi`; registry
-    manifests declare `rust-version = "1.86.0"` and `"1.91"`.
-- `resolver = "2"` is not MSRV-aware, so this is a truthful metadata declaration only — no
-    resolution, lockfile, or build behaviour changes. Local stable is 1.97.1, well above 1.91.
-- Expected new behaviour: `cargo +1.85.0 check -p iscc-uniffi --locked` still fails, but now with
-    cargo's explicit "requires rustc 1.91 or newer" message instead of a confusing dependency
-    resolution error. That is the point of the change, not a regression.
-- No docs surface mentions an MSRV (grep of `docs/`, `README.md`, package `CLAUDE.md` files found
-    none), and `crates/iscc-uniffi/` has no `CLAUDE.md` — do not create one.
+- The version gate is MainType-aware, so it cannot live purely in the context-free `TryFrom<u8>`:
+    decode `mtype` first (already done at `decode_header:296`), then validate the version against
+    it. Pick the simplest design (e.g. a small `decode_version(mtype, val)` helper, or accept `V1`
+    in `TryFrom` and reject non-`Id` V1 in the three functions) — document whichever you choose.
+- Realm 0 header = `0x6010`, realm 1 = `0x6110`; only the nibble value is written/read, so both
+    realms round-trip and match the reference numerically. Do not special-case realm.
+- Non-`Id` MainType with Version 1 must still error with the existing `invalid Version:`-style
+    message.
+- **API-BREAK:** adding `#[non_exhaustive]` to `Version` is itself a SemVer-major
+    (`cargo-semver-checks` would report `enum_marked_non_exhaustive`), taken deliberately in the 0.x
+    window. Record this as an `**API-BREAK:**` note in the advance handoff — `cargo-semver-checks`
+    is not installed locally and the CI `semver` job is `continue-on-error`, so it is a written
+    record, not a gate result.
 
 ## Verification
 
-- `grep -n 'rust-version = "1.91"' crates/iscc-uniffi/Cargo.toml` matches and
-    `grep -c 'rust-version.workspace' crates/iscc-uniffi/Cargo.toml` is `0`.
-- `grep -n 'rust-version = "1.85"' Cargo.toml` still matches on the working tree (root floor
-    unchanged).
-- `cargo +1.85.0 check -p iscc-lib --locked` exits 0 (published crate still builds on the declared
-    MSRV).
-- `cargo check --workspace --locked` exits 0 on stable, and `git status --porcelain Cargo.lock` is
-    empty (no lockfile churn).
-- `mise run lint` exits 0 (`cargo fmt --check`, clippy `-D warnings`, ruff).
-- `mise run check` exits 0 (all prek hooks, incl. `taplo fmt` and TOML validation).
+- `cargo test -p iscc-lib` passes, including a new case asserting
+    `iscc_decode("ISCC:MAIGHFECJMOPMIAB")` returns `(6, 0, 1, 0, <8-byte body>)` and the same via
+    the no-prefix form.
+- A new `#[cfg(test)]` case asserts `decode_header`/`iscc_decode` reject Version 1 for a non-`Id`
+    MainType (e.g. a Meta header with version nibble 1 errors).
+- `iscc_decompose("ISCC:MAIGHFECJMOPMIAB")` succeeds (no `invalid Version: 1`).
+- `grep -n '#\[non_exhaustive\]' crates/iscc-lib/src/codec.rs` shows the attribute on
+    `enum Version`, and the enum has a `V1 = 1` variant.
+- `cargo clippy -p iscc-lib -- -D warnings` clean.
+- `cargo fmt -p iscc-lib --check` clean.
 
 ## Done When
 
-All six verification checks pass on the working tree with `crates/iscc-uniffi/Cargo.toml` declaring
-its own `rust-version = "1.91"` and the root workspace floor still at `1.85`.
+`cargo test -p iscc-lib` (with the new decode cases), clippy, and fmt all pass, and the core codec
+accepts MainType `Id` Version 1 through `iscc_decode`/`iscc_decompose` while still rejecting Version
+\> 0 for every other MainType.
