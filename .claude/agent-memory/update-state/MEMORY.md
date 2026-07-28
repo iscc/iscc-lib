@@ -86,25 +86,27 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: 2c4e487, iter 174)
+## Current State (assessed-at: 2916519, iter 175)
 
-- **BIG SCOPE CHANGE at 174:** an **out-of-loop, non-`cid()`** commit `2c4e487` ("iscc_decode:
-    normalize unit sequences before decoding", authored "CID Agent") rewrote `target.md` + EVERY
-    binding spec to demand **33 Tier 1 symbols** (adds `gen_iscc_id_v1`) and **experimental
-    ISCC-IDv1 on core + all 11 surfaces**. It ALSO changed 471 lines of real code (core `lib.rs`
-    `iscc_decode` normalize/`iscc_normalize`, Go `codec.go` accept `MTId`+`VSV1`, `ci.yml` blake3
-    wasm32_simd guard, `.pyi`, new `tests/test_iscc_decode_conformance.py`). **This is the
-    "always-diff-out-of-loop-commits" pattern — it flipped 8 sections met→partially-met with a
-    NON-cid title.** Lesson: a non-`cid()` commit CAN carry both target AND code; never assume.
-- **IDv1 is BARELY STARTED:** `gen_iscc_id_v1` exists NOWHERE (only a Go comment in `iscc_id.go`);
-    Rust `codec::Version` (codec.rs:99-109) STILL rejects non-V0 (`invalid Version:`); only Go's
-    `IsccDecode` accepts `VSV1` for `MTId`. Go rename NOT done — `EncodeIsccID`/`DecodeIsccID`/
-    `IsccIDv1Result` still in `packages/go/iscc_id.go`, no `GenIsccIDV1`.
-- **origin/develop = `ab2d0e1` (173 review) is GREEN (45/23/0); HEAD `2c4e487` is 2 commits ahead,
-    471-line code delta UNPUSHED → CI has NOT run on it.** Report as unverified.
-- **Issues jumped 8→11 (4 normal, 7 low).** New normals: "ISCC-IDv1 unsupported outside Go" [human],
-    "iai text benchmarks ASCII-only" [review]. "Codec input cleaning diverges" [review] partly
-    addressed by unpushed HEAD but still open.
+- **SCOPE CONTEXT (still live from 174):** out-of-loop non-`cid()` commit `2c4e487` rewrote
+    `target.md` + EVERY binding spec to demand **33 Tier 1 symbols** (adds `gen_iscc_id_v1`) +
+    experimental ISCC-IDv1 on core + all 11 surfaces. Lesson stays: a non-`cid()` commit CAN carry
+    both target AND code.
+- **174 advance LANDED core IDv1 DECODE:** `codec::Version` is now `#[non_exhaustive] {V0,V1}`
+    (codec.rs:103-116) + `validate_version` (127-133) permits `V1` only for `MainType::Id`, so
+    `iscc_decode`/`iscc_decompose` accept `Id` Version 1 (oracle-matched). 7 new codec tests. **BUT
+    review = NEEDS_WORK, NOT pushed.**
+- **NEW `critical` (174 review):** `decode_header` (codec.rs:321-323) narrows fields with `as u8`
+    before `TryFrom`, so a multi-nibble malformed header wraps → canonicalizes to a valid ISCC
+    (`iscc_decode("MDFZAAAAAAAAAAAAAA")` accepted; `iscc_core` rejects). Adding `V1` made it
+    reachable. Fix = range-checked `u8::try_from` in `decode_header` + rejection test, scoped to
+    codec.rs. Prerequisite before the batch is pushable.
+- **`gen_iscc_id_v1` STILL exists NOWHERE** (only a Go comment). Go rename NOT done —
+    `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result` still in `packages/go/iscc_id.go`, no
+    `GenIsccIDV1`.
+- **origin/develop = `ab2d0e1` (173 review) is GREEN (45/23/0); HEAD `2916519` is 4 commits ahead,
+    576-line code delta (excl .claude) UNPUSHED → CI has NOT run on it.** Report as unverified.
+- **Issues 11→12: 1 critical, 4 normal, 7 low.** New critical = `decode_header` truncation [review].
 
 ## Durable Facts (carried, not per-iteration)
 
