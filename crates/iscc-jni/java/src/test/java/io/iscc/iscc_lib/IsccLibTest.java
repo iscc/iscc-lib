@@ -582,4 +582,126 @@ class IsccLibTest {
         assertEquals(1, decoded.length, "length index should be 1 for 64-bit");
         assertArrayEquals(digest, decoded.digest);
     }
+
+    // ── isccDecompose ────────────────────────────────────────────────────────
+
+    /** Verify isccDecompose splits a composite ISCC-CODE into its two units. */
+    @Test
+    void isccDecomposeReturnsStringArray() {
+        byte[] data = "Hello World".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String dataCode = IsccLib.genDataCodeV0(data, 64);
+        String instanceCode = IsccLib.genInstanceCodeV0(data, 64);
+        String isccCode = IsccLib.genIsccCodeV0(new String[] {dataCode, instanceCode}, false);
+        String[] units = IsccLib.isccDecompose(isccCode);
+        assertEquals("[Ljava.lang.String;", units.getClass().getName(),
+                "native must return a genuine String[]");
+        assertEquals(2, units.length, "Data+Instance composite should decompose into 2 units");
+        for (String unit : units) {
+            assertTrue(unit.length() > 0, "decomposed unit should not be empty");
+        }
+    }
+
+    // ── conformanceSelftest ──────────────────────────────────────────────────
+
+    /** Verify conformanceSelftest passes against the vendored test vectors. */
+    @Test
+    void conformanceSelftestReturnsTrue() {
+        assertTrue(IsccLib.conformanceSelftest(), "conformance selftest should pass");
+    }
+
+    // ── encodeBase64 ─────────────────────────────────────────────────────────
+
+    /** Verify encodeBase64 produces base64url (RFC 4648 §5) without padding. */
+    @Test
+    void encodeBase64KnownValue() {
+        byte[] data = "Hello".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals("SGVsbG8", IsccLib.encodeBase64(data));
+    }
+
+    // ── textRemoveNewlines ───────────────────────────────────────────────────
+
+    /** Verify textRemoveNewlines collapses a multi-line string to one line. */
+    @Test
+    void textRemoveNewlinesCollapsesToSingleLine() {
+        assertEquals("Hello World", IsccLib.textRemoveNewlines("Hello\nWorld"));
+    }
+
+    // ── algSimhash ───────────────────────────────────────────────────────────
+
+    /** Verify algSimhash of two complementary digests sets all bits (OR at n=2). */
+    @Test
+    void algSimhashKnownValue() {
+        byte[][] digests = {
+            {(byte) 0xF0, (byte) 0x0F, (byte) 0xF0, (byte) 0x0F},
+            {(byte) 0x0F, (byte) 0xF0, (byte) 0x0F, (byte) 0xF0},
+        };
+        byte[] expected = {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
+        assertArrayEquals(expected, IsccLib.algSimhash(digests));
+    }
+
+    /** Verify algSimhash of an empty digest list returns 32 zero bytes. */
+    @Test
+    void algSimhashEmptyInput() {
+        assertArrayEquals(new byte[32], IsccLib.algSimhash(new byte[0][]));
+    }
+
+    /** Verify algSimhash returns a single digest unchanged. */
+    @Test
+    void algSimhashSingleDigest() {
+        byte[] digest = {(byte) 0xAB, (byte) 0xCD, (byte) 0xEF, (byte) 0x01};
+        assertArrayEquals(digest, IsccLib.algSimhash(new byte[][] {digest}));
+    }
+
+    // ── algMinhash256 ────────────────────────────────────────────────────────
+
+    /** Verify algMinhash256 of empty features returns 32 bytes of 0xFF. */
+    @Test
+    void algMinhash256EmptyFeatures() {
+        byte[] expected = new byte[32];
+        java.util.Arrays.fill(expected, (byte) 0xFF);
+        assertArrayEquals(expected, IsccLib.algMinhash256(new int[0]));
+    }
+
+    /** Verify algMinhash256 is deterministic and returns a 32-byte digest. */
+    @Test
+    void algMinhash256Deterministic() {
+        int[] features = {100, 200, 300, 400, 500};
+        byte[] first = IsccLib.algMinhash256(features);
+        byte[] second = IsccLib.algMinhash256(features);
+        assertEquals(32, first.length, "digest should be 32 bytes");
+        assertArrayEquals(first, second, "same features should give same digest");
+    }
+
+    // ── algCdcChunks (positive) ──────────────────────────────────────────────
+
+    /** Verify algCdcChunks returns a genuine byte[][] whose chunks reassemble the input. */
+    @Test
+    void algCdcChunksSplitsAndReassembles() {
+        byte[] data = new byte[8192];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) i;
+        }
+        byte[][] chunks = IsccLib.algCdcChunks(data, false, 1024);
+        assertEquals("[[B", chunks.getClass().getName(), "native must return a genuine byte[][]");
+        assertTrue(chunks.length > 1, "8 KiB should split into multiple chunks");
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        for (byte[] chunk : chunks) {
+            out.write(chunk, 0, chunk.length);
+        }
+        assertArrayEquals(data, out.toByteArray(), "chunks must reassemble the input");
+    }
+
+    // ── softHashVideoV0 ──────────────────────────────────────────────────────
+
+    /** Verify softHashVideoV0 digest matches the body of genVideoCodeV0. */
+    @Test
+    void softHashVideoV0MatchesGenVideoCodeBody() {
+        int[][] frameSigs = {new int[380]};
+        byte[] digest = IsccLib.softHashVideoV0(frameSigs, 64);
+        assertEquals(8, digest.length, "bits=64 should produce an 8-byte digest");
+        String code = IsccLib.genVideoCodeV0(frameSigs, 64);
+        IsccDecodeResult decoded = IsccLib.isccDecode(code);
+        assertArrayEquals(decoded.digest, digest,
+                "soft hash digest should match the gen_video_code_v0 body");
+    }
 }

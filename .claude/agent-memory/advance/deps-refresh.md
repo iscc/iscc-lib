@@ -41,10 +41,14 @@ actions (97 `uses:` refs; upload/download-artifact@v4 must move together; setup-
     `unsafe from_raw` in the extractors.
 - `find_class`/`throw_new` take `AsRef<JNIStr>`, `new_object` takes `AsRef<MethodSignature>` —
     `&str` literals must become `jni_str!`/`jni_sig!`; dynamic msgs `JNIString::from(msg)`.
-    `jni::objects::JValue` deprecated → `jni::JValue`. `byte_array_from_slice` gone →
-    `JByteArray::new` + `set_region(&[i8])`. `push/pop_local_frame` →
-    `env.with_local_frame(16,   |env| ...)` per loop iteration (closure `E: From<Error>`, so helpers
-    return `jni::errors::Result`, not `Result<_, String>`).
+    `jni::objects::JValue` deprecated → `jni::JValue`.
+    `Env::byte_array_from_slice(&mut self, &[u8])` SURVIVES un-deprecated (0.22.4 env.rs:3349,
+    internally `JByteArray::new` + transmuted `set_region` — no extra alloc) and is THE `byte[]`
+    return path; iter 168 wrongly believed it removed and hand-rolled a `Vec<i8>`-copying helper,
+    reverted iter 169 (the deprecation note read belonged to the neighbouring
+    `set_object_array_element`). `push/pop_local_frame` → `env.with_local_frame(16, |env| ...)` per
+    loop iteration (closure `E: From<Error>`, so helpers return `jni::errors::Result`, not
+    `Result<_, String>`).
 - Exception contract preserved WITHOUT the policy: throw helpers keep `env.throw_new` +
     `Ok(T::default())` — pending exception survives `resolve` (`ThrowRuntimeExAndDefault` checks
     `exception_check` first, fires only on panic/unhandled Err). 82/82 Maven tests unchanged.

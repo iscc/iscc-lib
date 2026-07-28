@@ -110,22 +110,6 @@ fn extract_string_array(
     Ok(result)
 }
 
-/// Build a Java `byte[]` from a Rust byte slice.
-///
-/// Allocates a JVM byte array and copies the data via `set_region`. Java bytes
-/// are signed, so each `u8` is reinterpreted as `i8` (buffers are digest-sized).
-fn build_byte_array<'local>(
-    env: &mut Env<'local>,
-    bytes: &[u8],
-) -> jni::errors::Result<JByteArray<'local>> {
-    let arr = JByteArray::new(env, bytes.len())?;
-    if !bytes.is_empty() {
-        let signed: Vec<i8> = bytes.iter().map(|&b| b as i8).collect();
-        arr.set_region(env, 0, &signed)?;
-    }
-    Ok(arr)
-}
-
 /// Build a Java `String[]` from a slice of Rust strings.
 fn build_string_array<'local>(
     env: &mut Env<'local>,
@@ -736,7 +720,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_isccDecode<'local>(
                 Err(e) => return throw_and_default(env, &e.to_string()),
             };
             // Build a Java byte[] from the digest Vec<u8>
-            let byte_array = match build_byte_array(env, &digest) {
+            let byte_array = match env.byte_array_from_slice(&digest) {
                 Ok(a) => a,
                 Err(e) => return throw_and_default(env, &e.to_string()),
             };
@@ -862,7 +846,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algSimhash<'local>(
             }
             let refs: Vec<&[u8]> = digests.iter().map(|d| d.as_slice()).collect();
             match iscc_lib::alg_simhash(&refs) {
-                Ok(result) => match build_byte_array(env, &result) {
+                Ok(result) => match env.byte_array_from_slice(&result) {
                     Ok(a) => Ok(a),
                     Err(e) => throw_and_default(env, &e.to_string()),
                 },
@@ -891,7 +875,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algMinhash256<'local>(
             // Java has no unsigned int — cast jint (i32) to u32
             let u32_features: Vec<u32> = buf.iter().map(|&v| v as u32).collect();
             let result = iscc_lib::alg_minhash_256(&u32_features);
-            match build_byte_array(env, &result) {
+            match env.byte_array_from_slice(&result) {
                 Ok(a) => Ok(a),
                 Err(e) => throw_and_default(env, &e.to_string()),
             }
@@ -941,7 +925,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algCdcChunks<'local>(
                     // the result array (a JVM-side reference) before the frame
                     // pops.
                     if let Err(e) = env.with_local_frame(16, |env| -> jni::errors::Result<()> {
-                        let barr = build_byte_array(env, chunk)?;
+                        let barr = env.byte_array_from_slice(chunk)?;
                         arr.set_element(env, i, &barr)
                     }) {
                         return throw_and_default(env, &e.to_string());
@@ -971,7 +955,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_softHashVideoV0<'local>(
                 Err(e) => return throw_and_default(env, &e.to_string()),
             };
             match iscc_lib::soft_hash_video_v0(&frames, bits as u32) {
-                Ok(result) => match build_byte_array(env, &result) {
+                Ok(result) => match env.byte_array_from_slice(&result) {
                     Ok(a) => Ok(a),
                     Err(e) => throw_and_default(env, &e.to_string()),
                 },

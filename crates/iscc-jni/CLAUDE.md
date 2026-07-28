@@ -36,22 +36,22 @@ live in `src/lib.rs`. Do not split into submodules unless the file exceeds ~1500
 
 ## Rust-to-JNI Type Mapping
 
-| Rust / iscc-lib type  | JNI boundary type          | Java type       | Notes                                                                  |
-| --------------------- | -------------------------- | --------------- | ---------------------------------------------------------------------- |
-| `String`              | `JString`                  | `String`        | `JString::try_to_string(env)` for input, `env.new_string()` for output |
-| `Option<String>`      | `JString` (nullable)       | `String` (null) | Check `.is_null()` before `try_to_string()`                            |
-| `&[u8]` / `Vec<u8>`   | `JByteArray`               | `byte[]`        | Extract via `env.convert_byte_array()`, return via `build_byte_array`  |
-| `&[i32]` / `Vec<i32>` | `JIntArray`                | `int[]`         | Extract via `extract_int_array`                                        |
-| `Vec<Vec<i32>>`       | `JObjectArray<JIntArray>`  | `int[][]`       | Extract via `extract_int_array_2d`                                     |
-| `Vec<String>`         | `JObjectArray<JString>`    | `String[]`      | Extract via `extract_string_array`, build via `build_string_array`     |
-| `Vec<Vec<u8>>`        | `JObjectArray<JByteArray>` | `byte[][]`      | Build with `JObjectArray::<JByteArray>::new` + `set_element`           |
-| `u32`                 | `jint`                     | `int`           | Cast `jint as u32`; Java has no unsigned int                           |
-| `u8`                  | `jint`                     | `int`           | Validate range 0-255 before casting                                    |
-| `bool`                | `jboolean`                 | `boolean`       | `jboolean` is Rust `bool` (jni-sys 0.4); pass through directly         |
-| `usize`               | `jint`                     | `int`           | Validate non-negative before casting                                   |
-| `jlong`               | `jlong`                    | `long`          | Used for opaque pointers (streaming hashers)                           |
-| `Result<T>`           | throws in Java             | exception       | `throw_and_default` -> `IllegalArgumentException`                      |
-| struct result         | `JObject`                  | custom class    | Construct via `env.new_object()` with a `jni_sig!` signature           |
+| Rust / iscc-lib type  | JNI boundary type          | Java type       | Notes                                                                            |
+| --------------------- | -------------------------- | --------------- | -------------------------------------------------------------------------------- |
+| `String`              | `JString`                  | `String`        | `JString::try_to_string(env)` for input, `env.new_string()` for output           |
+| `Option<String>`      | `JString` (nullable)       | `String` (null) | Check `.is_null()` before `try_to_string()`                                      |
+| `&[u8]` / `Vec<u8>`   | `JByteArray`               | `byte[]`        | Extract via `env.convert_byte_array()`, return via `env.byte_array_from_slice()` |
+| `&[i32]` / `Vec<i32>` | `JIntArray`                | `int[]`         | Extract via `extract_int_array`                                                  |
+| `Vec<Vec<i32>>`       | `JObjectArray<JIntArray>`  | `int[][]`       | Extract via `extract_int_array_2d`                                               |
+| `Vec<String>`         | `JObjectArray<JString>`    | `String[]`      | Extract via `extract_string_array`, build via `build_string_array`               |
+| `Vec<Vec<u8>>`        | `JObjectArray<JByteArray>` | `byte[][]`      | Build with `JObjectArray::<JByteArray>::new` + `set_element`                     |
+| `u32`                 | `jint`                     | `int`           | Cast `jint as u32`; Java has no unsigned int                                     |
+| `u8`                  | `jint`                     | `int`           | Validate range 0-255 before casting                                              |
+| `bool`                | `jboolean`                 | `boolean`       | `jboolean` is Rust `bool` (jni-sys 0.4); pass through directly                   |
+| `usize`               | `jint`                     | `int`           | Validate non-negative before casting                                             |
+| `jlong`               | `jlong`                    | `long`          | Used for opaque pointers (streaming hashers)                                     |
+| `Result<T>`           | throws in Java             | exception       | `throw_and_default` -> `IllegalArgumentException`                                |
+| struct result         | `JObject`                  | custom class    | Construct via `env.new_object()` with a `jni_sig!` signature                     |
 
 ## Build Commands
 
@@ -181,8 +181,9 @@ initializer in `IsccLib` triggers `NativeLoader.load()` automatically on first c
 - **Do not return raw Rust types** -- all data must be converted to `#[repr(transparent)]` JNI
     reference types (`JString`, `JByteArray`, `JObject`); returning Rust `String` or `Vec` is
     undefined behavior
-- **Do not use `Vec<u8>` for byte returns** -- use the `build_byte_array` helper to create a
-    `JByteArray` owned by the JVM
+- **Do not use `Vec<u8>` for byte returns** -- use `env.byte_array_from_slice()` to create a
+    `JByteArray` owned by the JVM (zero-copy on the Rust side: it writes the `&[u8]` directly via
+    `set_region`)
 - **Do not skip local frame management** -- loops that create JNI local references (strings, arrays)
     must wrap each iteration in `with_local_frame` to avoid reference table overflow
 - **Do not panic across JNI** -- any panic in Rust crashes the JVM; always convert errors to Java
