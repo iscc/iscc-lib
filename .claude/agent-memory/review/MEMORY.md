@@ -47,7 +47,9 @@ and regeneration majors), `gha-workflow-reviews.md` (release.yml, action bumps, 
     STAGE it. Never stage `iterations.jsonl`; keep inline code spans on ONE line
 - **No-op / human-handoff iteration (111)**: verify scope is empty, still scan `@{upstream}..HEAD`;
     HUMAN-REVIEW spec amendments + `low` left → **HUMAN REVIEW REQUESTED**, never `**IDLE**`
-    (all-`low` only). Verdict still PASS; push the batch
+    (all-`low` only). Verdict still PASS; push the batch. Same call when the last CID-doable issue
+    closes and the only `normal` left is **trigger-gated on an upstream release** (173, go1.27):
+    strict IDLE still fails, so escalate rather than burn a `Step: NONE` cycle
 - **Unicode freeze-rule work has its own playbook → `unicode-reviews.md`** — read it before any diff
     under `utils/unicode16*`, `unicode_boundary.json` or `scripts/gen_unicode16_*`: `U+FFFF`
     sentinel, no bare `.to_lowercase()`, the `mise run unicode:sweep` gate (a bare script run
@@ -100,11 +102,15 @@ and regeneration majors), `gha-workflow-reviews.md` (release.yml, action bumps, 
 - **An MSRV claim is locally decidable**: `cargo +1.85.0 check -p <crate> --locked`. A
     **normal**-dep major can raise the source-build floor via a transitive `rust-version` (172:
     uniffi 0.32 → `cargo-platform` 1.91 broke `iscc-uniffi`; `iscc-lib` untouched, so it was
-    accepted); read each new transitive's `~/.cargo/registry/src/*/<crate>-<ver>/Cargo.toml`. A
+    accepted). To check a **declared** floor is exactly right (173) walk the non-dev resolve graph
+    from `cargo metadata --locked` and take the max `rust_version` — one shot, beats reading each
+    `~/.cargo/registry/src/*/<crate>-<ver>/Cargo.toml`; a per-crate override then makes cargo emit
+    `<crate>@<ver> requires rustc X` instead of a resolution error, which is the point of it. A
     **dev-dep/bench-harness** major (171) is `--no-run` + `-- --test` +
     `cargo tree -i <dep> -e no-dev --target all` printing nothing. A PUBLISHED binding's toolchain
     bump moves the **consumer floor** (167); a DATA-TABLE dep needs an exhaustive differential;
-    prove a gitignored native artifact was rebuilt with `strings <artifact> | grep -o '<dep>-[0-9.]*'`
+    prove a gitignored native artifact was rebuilt with
+    `strings <artifact> | grep -o '<dep>-[0-9.]*'`
 - **Other bump-type shortcuts → `dep-refresh-reviews.md`**: committed-lockfile / `--locked-mode`
     (170 — a WARM `dotnet restore` validates NOTHING); build-tool WRAPPER or committed BINARY blob
     (165 — publisher checksum AND independent regeneration, never the diff); test-FRAMEWORK major

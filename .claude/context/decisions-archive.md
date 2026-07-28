@@ -569,3 +569,23 @@ behind Go for no reason. **Consequence:** criterion 3 can close for 10 of 11 bin
 documented, dated gap. The freeze table is needed in Go either way — go1.27 fixes Go's *missing*
 16.0 knowledge, not its need to strip post-16.0 characters. **Context:** interactive session
 2026-07-26, ruling on the parked point 3 of the Unicode issue.
+
+## 2026-07-26 — `rubygems/configure-rubygems-credentials` is pinned to the exact tag `@v2.1.0`, not a SHA
+
+**Decision:** the only unpinned `uses:` in the repo moves from `@main` to `@v2.1.0` with an inline
+`# exact tag:` comment, mirroring the `astral-sh/setup-uv@v9.0.0` precedent. The repo's
+tags-never-SHAs convention (`decisions.md` 2026-07-25) stands; this does not become the first
+SHA-pinned action. **Why:** branch → tag is where the real risk reduction is. The step mints the
+OIDC credential with gem-publish authority, but 97 other `uses:` refs in `release.yml` are already
+mutable floating majors, including the `checkout` and `upload-artifact` steps that build and carry
+the very artifact being published — a compromise there is equally fatal, so SHA-pinning this one
+step buys little while splitting the convention. Upstream publishes no floating `v2`, and `main` is
+*ahead of* `v2.1.0`, so this is a small rollback to the newest release, not a major bump. The step
+passes no `with:` keys, so the form is purely a trust-anchor choice with no input-compatibility
+risk. **Alternatives:** a SHA pin as upstream's README recommends — rejected for the
+convention-split reason above, and it needs a manual bump process the repo has nowhere else; leave
+`@main` because every upstream example shows it — rejected, upstream's own NOTE advises consumers
+against floating refs. **Consequence:** verification stays static (`workflow_dispatch`-only) plus
+the first real gem publish. If SHA pinning is ever adopted it should be adopted repo-wide, not for
+this step alone. **Context:** interactive session 2026-07-26, ruling on the parked `[review]` issue
+from iteration 140.

@@ -16,25 +16,6 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
-## `iscc-uniffi` no longer builds on the declared MSRV 1.85 `normal` [review]
-
-uniffi 0.32 (iteration 172) pulls `cargo_metadata 0.23.1` (`rust-version = "1.86.0"`) and
-`cargo-platform 0.3.3` (`rust-version = "1.91"`) into `iscc-uniffi`'s **default, non-dev**
-dependency graph, so `cargo +1.85.0 check -p iscc-uniffi --locked` now fails at resolution
-(`cargo_metadata@0.23.1 requires rustc 1.86.0`). The pre-bump graph topped out at 1.83.
-`crates/iscc-uniffi/Cargo.toml` inherits `rust-version.workspace = true` (`1.85`), so that
-declaration is false for this crate.
-
-Consumers are unaffected and nothing is red: `iscc-uniffi` is `publish = false`, the only published
-crate still passes `cargo +1.85.0 check -p iscc-lib --locked`, and every CI job builds on stable.
-
-Resolved when the crate states its real floor instead of inheriting a false one — an explicit
-per-crate `rust-version` on `crates/iscc-uniffi` (true floor 1.91, set by `cargo-platform`) is the
-small fix. Raising the *root* declaration is Titusz's call: that is the published MSRV promise. Any
-future MSRV CI job must check `-p iscc-lib`, never `--workspace`.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
-
 ## go1.27 bump reds the Go boundary suite unless the freeze table lands with it `normal` [review]
 
 **Trigger-on-bump record — do not scope a step until go1.27 is available (~Aug 2026).**
@@ -126,7 +107,8 @@ MSRV becomes part of the stability commitment.
 **Scope when it lands:** add a CI job on `dtolnay/rust-toolchain@1.85` running
 `cargo check -p iscc-lib`. It must skip dev-dependencies (`cargo check`, not `cargo test`) — the
 dev-dependency graph needs rustc 1.86 by design (criterion 0.8, landed 171), and that is not an MSRV
-violation.
+violation. It must also never use `--workspace`: `crates/iscc-uniffi` declares its own
+`rust-version = "1.91"` (iteration 173, `publish = false`), which is truthful, not a violation.
 
 Resolved when either the job exists and passes, or `rust-version` is dropped/raised deliberately.
 

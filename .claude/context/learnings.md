@@ -107,14 +107,14 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     checked" are the same green (read `action-inputs: resolved R of T`, not the job status), and
     "transport failure degrades to a warning" is NOT met by `except OSError` (`IncompleteRead` is an
     `HTTPException`, captive-portal HTML raises `yaml.YAMLError`)
-- **A rustc floor travels the dependency graph — measure it, don't argue it** (171/172):
-    `cargo tree -i <dep> -e no-dev --target all` = "nothing to print" proves a dev-only major's
-    floor (criterion 0.8, 1.86) leaves `rust-version` alone; without `--target all` it hides
-    platform-gated transitives. A **normal**-dep major is the opposite: uniffi 0.32's
-    `cargo_metadata 0.23.1` (1.86) + `cargo-platform 0.3.3` (1.91) broke `iscc-uniffi` on the
-    inherited 1.85 while `-p iscc-lib` stayed fine. Read each new transitive's `rust-version`
-    (`~/.cargo/registry/src/*/<crate>-<ver>/Cargo.toml`) and settle it by building — **the 1.85
-    toolchain is installed**: `cargo +1.85.0 check -p <crate> --locked`
+- **A rustc floor travels the dependency graph — measure it, don't argue it** (171/172/173): the
+    floor IS the **max `rust_version` over the non-dev resolve graph**, computable in one
+    `cargo metadata --locked` walk (`cargo tree -i <dep> -e no-dev --target all` printing nothing
+    proves a major is dev-only; without `--target all` it hides platform-gated transitives). uniffi
+    0.32's `cargo-platform 0.3.3` (1.91) broke `iscc-uniffi` on the inherited 1.85 while
+    `-p iscc-lib` stayed fine; a **per-crate `rust-version`** override (173) then makes cargo say
+    `iscc-uniffi@0.5.0 requires rustc 1.91` instead of a resolution error. Settle by building —
+    **1.85 is installed**: `cargo +1.85.0 check -p <crate> --locked`
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with both `--fail-regression` and a
