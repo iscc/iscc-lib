@@ -41,8 +41,13 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
     job-table parity (163). The last three are **prek hook + a pytest**, and the pytest is what
     makes it a CI gate (a hook's `files:` sees only changed paths).
 - **Red with NO code change:** cargo-deny (live advisory DB). **Fails open:** the release.yml static
-    gate (job log must show zero `warning: skipped`). **Informational:** cargo-semver-checks. A "no
-    floating branch ref" assertion in `check_release_workflow.py` is NOT a gap — it is new policy.
+    gate (job log must show zero `warning: skipped`). A "no floating branch ref" assertion in
+    `check_release_workflow.py` is NOT a gap — it is new policy.
+- **cargo-semver-checks IS an ENFORCING red check-run** (exit 100, non-success conclusion), NOT
+    "informational" — corrected at 176. It diffs the crate's WHOLE public API vs the LAST RELEASE
+    (0.5.0), so a Tier-2 change still trips it: marking public `enum Version` `#[non_exhaustive]`
+    fired `enum_marked_non_exhaustive` "semver requires new major version". `mise run check` does
+    NOT run it → a green local check proves nothing about semver.
 
 ## Codebase Landmarks
 
@@ -86,27 +91,29 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: 2916519, iter 175)
+## Current State (assessed-at: dcc45a2, iter 176)
 
-- **SCOPE CONTEXT (still live from 174):** out-of-loop non-`cid()` commit `2c4e487` rewrote
-    `target.md` + EVERY binding spec to demand **33 Tier 1 symbols** (adds `gen_iscc_id_v1`) +
-    experimental ISCC-IDv1 on core + all 11 surfaces. Lesson stays: a non-`cid()` commit CAN carry
-    both target AND code.
-- **174 advance LANDED core IDv1 DECODE:** `codec::Version` is now `#[non_exhaustive] {V0,V1}`
-    (codec.rs:103-116) + `validate_version` (127-133) permits `V1` only for `MainType::Id`, so
-    `iscc_decode`/`iscc_decompose` accept `Id` Version 1 (oracle-matched). 7 new codec tests. **BUT
-    review = NEEDS_WORK, NOT pushed.**
-- **NEW `critical` (174 review):** `decode_header` (codec.rs:321-323) narrows fields with `as u8`
-    before `TryFrom`, so a multi-nibble malformed header wraps → canonicalizes to a valid ISCC
-    (`iscc_decode("MDFZAAAAAAAAAAAAAA")` accepted; `iscc_core` rejects). Adding `V1` made it
-    reachable. Fix = range-checked `u8::try_from` in `decode_header` + rejection test, scoped to
-    codec.rs. Prerequisite before the batch is pushable.
-- **`gen_iscc_id_v1` STILL exists NOWHERE** (only a Go comment). Go rename NOT done —
+- **CI IS RED on develop.** The iters 172–175 IDv1-decode batch was PUSHED at 175 (origin/develop =
+    HEAD-code tip `3cdb00a`); CI ran on it for the FIRST time and **failed 2 enforcing gates**
+    (check-runs: 45/23names/**4 failures = 2 job types**): (1) **Semver** — `enum Version` now
+    `#[non_exhaustive]` (codec.rs:103) trips `enum_marked_non_exhaustive`, exit 100; (2) **CRAP** —
+    `decode_header` CRAP +4.0 (12→16, CC 16, 100% covered), `--fail-regression` rejects the rise vs
+    `.crap-baseline.json`. NEITHER visible to local `mise run check`. This is the classic "review's
+    green local check ≠ green CI" miss. TOP priority = get CI green.
+- **HEAD `dcc45a2` = cid(log) only; its code == origin/develop**
+    (`git diff origin/develop..HEAD --   . ':!.claude'` empty), so the red DOES cover HEAD — no
+    unpushed-code gap this time.
+- **175 fixed the critical `decode_header` truncation** (range-checked `u8::try_from`, reviewed
+    PASS, issue deleted). But the SAME fix is what raised `decode_header` CC → the CRAP red.
+- **`gen_iscc_id_v1` minting STILL exists NOWHERE** (only comments). Go rename NOT done —
     `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result` still in `packages/go/iscc_id.go`, no
-    `GenIsccIDV1`.
-- **origin/develop = `ab2d0e1` (173 review) is GREEN (45/23/0); HEAD `2916519` is 4 commits ahead,
-    576-line code delta (excl .claude) UNPUSHED → CI has NOT run on it.** Report as unverified.
-- **Issues 11→12: 1 critical, 4 normal, 7 low.** New critical = `decode_header` truncation [review].
+    `GenIsccIDV1`. 32/33 Tier-1 symbols.
+- **Issues 12→11: 0 critical, 4 normal, 7 low** (resolved critical deleted). The new CI redness is
+    NOT yet an issue.
+- **SCOPE CONTEXT (still live from 174):** out-of-loop non-`cid()` commit `2c4e487` rewrote
+    `target.md` + EVERY binding spec to demand **33 Tier 1 symbols** (`gen_iscc_id_v1`) +
+    experimental ISCC-IDv1 on core + all 11 surfaces. Lesson: a non-`cid()` commit CAN carry both
+    target AND code.
 
 ## Durable Facts (carried, not per-iteration)
 
