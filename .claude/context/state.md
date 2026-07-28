@@ -1,148 +1,129 @@
-<!-- assessed-at: fb9452f4eac5bfbe565fb4230559d841c51a13fe -->
+<!-- assessed-at: 2c4e4871cb1a0b4976ff33b5c9f822adccd84bdc -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.6.0 endgame — dependency refresh finished, one new `normal` issue in the way
+## Phase: v0.6.0 — new ISCC-IDv1 scope opened; first partial step landed out-of-loop and is unpushed/CI-unverified
 
-Iteration 172 landed `uniffi` 0.31 → 0.32 as a pure regeneration of the checked-in Swift and Kotlin
-bindings, which closed and deleted the release-gating dependency-refresh issue: every authorized
-major has now landed. The bump surfaced one defect — `iscc-uniffi` no longer builds on the declared
-MSRV 1.85 — filed as `normal` and CID-doable, so it is now the last thing between the tree and the
-human's v0.6.0 release criteria. CI is green over every line of code.
+An out-of-loop human/agent commit (`2c4e487`, non-`cid()`) rewrote `target.md` and every binding
+spec to require **33 Tier 1 symbols** and **experimental ISCC-IDv1 support on the core plus all 11
+surfaces**, then landed a partial first step: `iscc_decode` now normalizes unit sequences (core +
+Go) and Go's `IsccDecode` accepts MainType `ID` Version 1. `gen_iscc_id_v1` exists nowhere, the Rust
+core codec still rejects Version 1, and Go still carries the old names the target says to rename or
+delete. The whole 471-line code delta sits ahead of `origin/develop` and CI has not run on it.
 
 ## Rust Core Crate
 
-**Status**: met, except the human-held v1.0.0 cut
+**Status**: partially met (was met at 32 symbols; new IDv1 scope is largely unmet)
 
-- Nothing under `crates/iscc-lib/src`, `tests` or `benches` moved since a7e84c8: 32 Tier 1 symbols,
-    342 `#[test]`, all 10 `gen_*_v0` conformant, no `unsafe` outside the FFI crates. All four
-    Unicode criteria still met (declared 16.0.0 + sentinel freeze, `Final_Sigma` case freeze,
-    boundary vectors on 11 of 11 surfaces, fail-closed sweep gate).
-- Only unmet target line: `crate is >= 1.0.0`. Version is **0.5.0**; that cut is human-gated and
-    explicitly out of scope for v0.6.0. `cargo-semver-checks` runs informational.
-- Root `Cargo.toml` `rust-version = "1.85"` unchanged and still true for `iscc-lib`
-    (`cargo +1.85.0 check -p iscc-lib --locked` passes per the 172 review); it is now false for the
-    unpublished `iscc-uniffi`, which inherits it — see Other Bindings.
-- The two stale claims in `specs/rust-core.md` L149-157 were corrected in place at 172 (the Go
-    `Final_Sigma` defect is fixed and no longer "tracked in issues.md"). No known spec drift left in
-    this section.
+- 32 of the 33 targeted Tier 1 symbols present; **`gen_iscc_id_v1` is absent** (only a Go code
+    comment references it). All 10 `gen_*_v0` conformant, no `unsafe` outside FFI, Unicode criteria
+    unchanged.
+- **IDv1 decode unmet in core:** `codec::Version` (codec.rs:99-109) still rejects any non-V0 with
+    `invalid Version: {value}`, so `iscc_decode`/`iscc_decompose` do not accept MainType `ID`
+    Version 1.
+- HEAD reworked `iscc_decode` to normalize a unit sequence into its composite before decoding
+    (matching `iscc_core.iscc_decode`), adding `iscc_normalize`, 4 tests, and removing the old
+    trailing-byte-rejection test. **Unpushed and not CI-verified.**
+- Only other unmet line remains `crate is >= 1.0.0` (0.5.0, human-gated). `rust-version = "1.85"`
+    still true for `iscc-lib`.
 
 ## Python Bindings
 
-**Status**: met
+**Status**: partially met — 32/33 symbols
 
-- 32 Tier 1 symbols, `IsccResult`, streaming hashers, 12 `.detach(` GIL sites, abi3-py310 wheels
-    incl. aarch64; 441 collected pytest tests. Nothing under `crates/iscc-py/` moved since 531caf4.
-- The 17.8M-comparison Unicode sweep deliberately stays out of `pytest` / `mise run test` / pre-push
-    — do not wire it in.
+- `crates/iscc-py` still exports 32 symbols with `IsccResult`, streaming hashers, 12 `.detach(` GIL
+    sites, abi3-py310 wheels. **No `gen_iscc_id_v1`; no Version-1 ID decode** (inherits core).
+- HEAD updated the `iscc_decode` docstring in `_lowlevel.pyi` and added
+    `tests/test_iscc_decode_conformance.py` (108 lines, differential vs `iscc_core`) — unpushed,
+    CI-unverified.
 
 ## Node.js Bindings
 
-**Status**: met — Unicode-gated since 153
+**Status**: partially met — 32/33 symbols
 
-- `crates/iscc-napi` exports all 32 symbols with streaming classes; untouched.
-- `__tests__/unicode_boundary.test.mjs`: `node:test`, metadata guard + 12 vectors, zero skips.
+- `crates/iscc-napi` exports 32 symbols with streaming classes, Unicode-gated. **No
+    `gen_iscc_id_v1`, no Version-1 ID decode.** Crate untouched this iteration.
 
 ## WASM Bindings
 
-**Status**: met — Unicode-gated since 151
+**Status**: partially met — 32/33 symbols
 
-- `crates/iscc-wasm` exports all 32 symbols; `SumHasher` wrapper present; the `blake3 wasm32_simd`
-    dep is intentional feature-unification (do not prune). Untouched.
-- `tests/unicode_boundary.rs`: 3 `#[wasm_bindgen_test]` fns via `include_str!`, zero skips.
+- `crates/iscc-wasm` exports 32 symbols, `SumHasher` wrapper, Unicode-gated. **No `gen_iscc_id_v1`,
+    no Version-1 ID decode.**
+- HEAD added a CI guard (`ci.yml`) asserting the `blake3 wasm32_simd` feature stays enabled — good
+    hardening, but unpushed/CI-unverified.
 
 ## C FFI
 
-**Status**: met — Unicode-gated at 159
+**Status**: partially met — 32/33 symbols
 
-- 47 `#[unsafe(no_mangle)]` externs in `crates/iscc-ffi/src/lib.rs`; untouched since ea69169.
-- `tests/unicode_boundary_vectors.h` (tracked, generated) is consumed by both
-    `crates/iscc-ffi/tests/test_iscc.c` and `packages/cpp/tests/test_iscc.cpp` from one artifact.
+- 47 `#[unsafe(no_mangle)]` externs in `crates/iscc-ffi/src/lib.rs`, Unicode-gated; untouched. **No
+    `gen_iscc_id_v1`, no Version-1 ID decode.**
 
 ## Other Bindings (Java, Kotlin, C#, C++, Go, Ruby, Swift)
 
-**Status**: met — every surface Unicode-gated; only the two generated UniFFI bindings moved
+**Status**: partially met — Go started IDv1, others at 32/33 with no IDv1
 
-- `uniffi` 0.32 regenerated `packages/swift/Sources/IsccLib/iscc_uniffi.swift` and
-    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (the C header came out
-    byte-identical, so it is not in the commit). `crates/iscc-uniffi/src` is untouched since 7742d7f
-    — no hand edits, public API of both bindings unchanged.
-- **New `normal` defect:** uniffi 0.32 pulls `cargo_metadata` 0.23.1 (1.86) and `cargo-platform`
-    0.3.3 (1.91) into `iscc-uniffi`'s default non-dev graph, so that crate's real floor is 1.91
-    while it inherits `rust-version.workspace = true` (1.85). `publish = false`, consumers and CI
-    unaffected; the manifest declaration is simply false.
-- `crates/iscc-jni` (jni 0.22, 33 natives, all JUnit-covered), `crates/iscc-rb` (magnus 0.8.2),
-    `packages/{cpp,dotnet,go}` unchanged. Every ecosystem carries a lockfile since 170.
-- Propagation invariant holds: `git ls-files -- '*data.json' '*unicode_boundary.json'` = 8 tracked
-    paths, matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py`.
-- go1.27 remains a standing tripwire (upstream at rc2, no final tag): the bump reds 5 Go boundary
-    cases unless the 731-range freeze table lands in the same step.
+- **Go:** `IsccDecode` in `codec.go` now accepts MainType `ID` Version 1 and normalizes unit
+    sequences — the decode half of IDv1. But the target's rename is **not** done: `EncodeIsccID`,
+    `DecodeIsccID`, and `IsccIDv1Result` still exist in `packages/go/iscc_id.go`; there is no
+    `GenIsccIDV1`. Unpushed/CI-unverified.
+- **Java, Kotlin, C#, C++, Ruby, Swift:** each still at 32 symbols, no `gen_iscc_id_v1`, no
+    Version-1 ID decode. Crates untouched; uniffi 0.32 and MSRV fixes from 172-173 remain in place.
+- Propagation invariant holds: `git ls-files -- '*data.json' '*unicode_boundary.json'` = 8 paths ==
+    `VENDORED_COPIES`.
 
 ## Documentation
 
-**Status**: met
+**Status**: partially met
 
-- Nothing under `docs/` moved since 2840c7f (161): 23 pages across `zensical.toml` nav,
-    `ORDERED_PAGES` and `docs/llms.txt`; 11 `docs/howto/*.md`; 12 crate/package READMEs; 12
-    crate/package `CLAUDE.md`. `docs/unicode.md` names all 11 gated surfaces.
-- All known doc/spec drift is closed: Ruby `CLAUDE.md` (170), `specs/java-bindings.md` (human),
-    `specs/kotlin-bindings.md` and `specs/rust-core.md` (172).
-- Remaining cosmetic item is human-owned: `Add programming language logos to docs site` (`low`).
+- HEAD added a Go IDv1 how-to note (`docs/howto/go.md` +13, `packages/go/README.md` +4). The rest of
+    the docs site (23 pages, 12 READMEs, 12 CLAUDE.md) is unchanged and met.
+- Tabbed multi-language examples do not yet cover an IDv1 surface, and the IDv1 scope is only
+    partially documented.
 
 ## Benchmarks
 
-**Status**: met
+**Status**: met (existence), with a known gate-blindness gap
 
-- 12 criterion bench functions in `crates/iscc-lib/benches/benchmarks.rs` (criterion 0.8.2) +
-    `benches/iai_benches.rs` (iai-callgrind 0.16, 11 fns / 16 cases); 18 pytest-benchmark fixtures;
-    documented speedups 1.3x-158x.
-- `.iai-baseline.json` and `.crap-baseline.json` byte-untouched (CRAP still 105 entries) — correct,
-    since no `iscc-lib` core source moved.
+- 12 criterion fns + iai (11 fns/16 cases) + 18 pytest-benchmark fixtures; baselines untouched.
+- Open `normal` issue: the iai text benchmarks are ASCII-only, so the >10% perf gate is blind to the
+    Unicode freeze path — a gate-coverage gap, not a missing benchmark.
 
 ## CI/CD and Publishing
 
-**Status**: met on dependency freshness; release-readiness blocked by one open `normal` issue
+**Status**: dependency freshness met; HEAD code unverified; release-readiness blocked by IDv1 scope
 
-- **CI GREEN.** `origin/develop` = `d78ea63` (the 172 review commit): check-runs API reports **45
-    runs, 23 distinct names, 0 non-success**. HEAD `fb9452f` is one commit ahead and is a
-    `cid(log):` commit touching only `.claude/`, so the green run covers every line of code in the
-    tree.
-- Job shape unchanged since 170: 21 job keys → 22 jobs → 23 check names; gated job-table parity
-    holds. `release.yml` untouched — zero `@main` refs, 97 `uses:`, 8 registry toggles,
-    `workflow_dispatch`-only.
-- **Dependency freshness is now met**: both authorized majors landed — criterion 0.8 at 171, uniffi
-    0.32 at 172 — and the dependency-refresh issue was deleted. Root `Cargo.toml` now carries
-    **zero** `# held:` and **zero** `authorized …` pin comments; the uniffi comment records the
-    correct (locally verifiable) Swift recipe instead of the previously falsified claim.
-- PR **#44** `develop` → `main` ("Release 0.6.0") is OPEN; version **0.5.0**, version-consistency
-    gate green in CI.
-- Enforcing gates unchanged: iai perf (>10% Ir), coverage + CRAP (`--fail-regression` is CI-only, so
-    a green `mise run check` proves nothing), `cargo-deny` (live advisory DB — can red with no code
-    change), docs page-list parity, `unicode-sweep`, CI job-table parity.
-- Outstanding confirmation from 172: the macOS `swift` job ran green on `d78ea63`, so the Linux-only
-    local Swift verification is now backed by CI.
+- **CI GREEN only up to `origin/develop` = `ab2d0e1`** (173 review): check-runs API reports 45 runs,
+    23 names, 0 non-success. **HEAD `2c4e487` is 2 commits ahead with a 471-line, 11-file code delta
+    (core `lib.rs`, Go, `ci.yml`, `.pyi`, new tests) that CI has NOT run.** Next push is its first
+    CI exposure; treat all HEAD code as unverified.
+- Dependency freshness met (criterion 0.8 at 171, uniffi 0.32 at 172); zero `# held:`/`authorized`
+    pin comments in root `Cargo.toml`. Job shape unchanged (21 keys → 22 jobs → 23 names).
+- PR **#44** `develop` → `main` OPEN; version **0.5.0**.
+- v0.6.0 release-readiness criterion "no `critical`/`normal` issue open that is not blocked on human
+    or upstream" is **unmet**: the new ISCC-IDv1 `normal` issue and the codec-cleaning `normal`
+    issue are CID-doable and open.
 
 ## Open Issues
 
-**8 entries in `issues.md` — 2 `normal`, 6 `low`, zero `critical`, zero HUMAN REVIEW REQUESTED.**
-Composition changed at 172 even though the count did not: the dependency-refresh entry was deleted,
-the uniffi MSRV entry was added.
+**11 entries — 4 `normal`, 7 `low`, zero `critical`, zero HUMAN REVIEW REQUESTED** (up from 8; the
+out-of-loop commit added the IDv1 scope issues).
 
-- **NORMAL:** `iscc-uniffi` no longer builds on the declared MSRV 1.85 (`[review]`, CID-doable, not
-    blocked on anyone); the go1.27 tripwire (parked on an upstream final release, ~Aug 2026).
-- **LOW:** upstream `iscc-core#137` thread, the three gate-script remainders deferred at 146, v1.0.0
-    (HELD), MSRV asserted but never verified (a v1.0.0 prerequisite, `[human]`), npm OIDC (deferred
-    for v0.6.0), docs language logos.
-- v0.6.0 requires "no `critical` or `normal` issue open that is not blocked on the human or on an
-    upstream release". go1.27 qualifies as blocked; the MSRV floor issue does not.
+- **NORMAL:** ISCC-IDv1 unsupported outside Go + Go uses superseded names (`[human]`, the big new
+    scope); codec input cleaning diverges from `iscc_clean` (`[review]` — partly addressed by the
+    unpushed HEAD `iscc_decode` rework, still open); iai text benchmarks ASCII-only (`[review]`);
+    go1.27 tripwire (`[review]`, blocked on upstream final tag).
+- **LOW:** upstream `iscc-core#137` thread, 88-bit ISCC-IDv0 upstream mint, gate-script remainders,
+    v1.0.0 cut (HELD), MSRV asserted-not-verified, npm OIDC (deferred), docs language logos.
 
 ## Next Milestone
 
-Correct the `iscc-uniffi` MSRV declaration so the crate states its real floor instead of inheriting
-a false workspace value — the only CID-doable `normal` issue and the last unmet v0.6.0
-release-readiness criterion. Raising the *root* `rust-version` is explicitly the human's call. After
-that the backlog is entirely human-gated (v1.0.0 cut and its MSRV-verification prerequisite, npm
-OIDC, docs logos, the upstream thread) or trigger-gated (go1.27), and the loop is at IDLE pending
-the human's release cut.
+Deliver experimental ISCC-IDv1 across the core and all 11 surfaces per the expanded `target.md`:
+`gen_iscc_id_v1` for minting plus generic `iscc_decode`/`iscc_decompose` acceptance of MainType `ID`
+Version 1, and the Go rename (`EncodeIsccID` → `GenIsccIDV1`, delete
+`DecodeIsccID`/`IsccIDv1Result`). First, the out-of-loop HEAD code (`iscc_decode` normalization + Go
+Version-1 accept + WASM CI guard) must be pushed and pass CI — it is currently unverified. The
+codec-cleaning and IDv1 `normal` issues are the last CID-doable v0.6.0 release-readiness blockers.

@@ -86,55 +86,46 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: fb9452f, iter 173)
+## Current State (assessed-at: 2c4e487, iter 174)
 
-- **IN_PROGRESS — CI green.** `origin/develop` == `d78ea63` (172 review): **45 check-runs, 23 names,
-    0 non-success** (incl. `Swift (swift build, swift test)`). HEAD `fb9452f` is 1 commit ahead and
-    is a `.claude`-only `cid(log):` commit, so green covers all code. PR **#44 (develop→main) OPEN**
-    (v0.6.0 NOT shipped; **0.5.0**).
-- **`target.md` carries a "Current Release Milestone — v0.6.0" section** (human, 1b7b792) with
-    explicit ready-for-release criteria — always diff `target.md`.
-- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces); slice history 163-172 →
-    `dep-refresh-survey.md`. Every target section now reports **met** except Rust core's `>= 1.0.0`
-    (human-gated) and CI/CD's release-readiness, which is now an *issue-list* gate (see below).
-- **DEP REFRESH IS DONE (172).** uniffi 0.31 → **0.32** landed as a pure regeneration (`Cargo.lock`
-    0.32.0; only `.swift` + `.kt` changed — the generated `.h` came out byte-identical;
-    `crates/iscc-uniffi/src` untouched since 7742d7f) and **the whole dep-refresh issue was
-    deleted**. Root `Cargo.toml` now has **zero `# held:` AND zero `authorized …`** comments; the
-    uniffi comment records the correct Swift recipe (falsified claim gone).
-- **v0.6.0 now hinges on the issue list, not on deps**: its criterion "no `critical`/`normal` issue
-    open that is not blocked on the human or upstream" is unmet because of the NEW `normal`
-    `[review]` issue — **`iscc-uniffi` no longer builds on the declared MSRV 1.85** (uniffi 0.32
-    pulls `cargo_metadata` 0.23.1 / `cargo-platform` 0.3.3 into its default non-dev graph → real
-    floor 1.91; `publish = false`, `-p iscc-lib` still passes at 1.85, nothing red). Fix = explicit
-    per-crate `rust-version`; raising the ROOT declaration is the human's call.
-- **All doc-drift surfaces are CLOSED** (Ruby 170, Java spec human, Kotlin+rust-core specs 172) —
-    but keep diffing a crate's CLAUDE.md + spec after any dep bump; that rot recurs.
-- **Every ecosystem now has a lockfile** (170 closed the .NET gap: tracked `packages.lock.json`,
-    `--locked-mode` restore); a .NET bump needs `--force-evaluate` in the same commit.
+- **BIG SCOPE CHANGE at 174:** an **out-of-loop, non-`cid()`** commit `2c4e487` ("iscc_decode:
+    normalize unit sequences before decoding", authored "CID Agent") rewrote `target.md` + EVERY
+    binding spec to demand **33 Tier 1 symbols** (adds `gen_iscc_id_v1`) and **experimental
+    ISCC-IDv1 on core + all 11 surfaces**. It ALSO changed 471 lines of real code (core `lib.rs`
+    `iscc_decode` normalize/`iscc_normalize`, Go `codec.go` accept `MTId`+`VSV1`, `ci.yml` blake3
+    wasm32_simd guard, `.pyi`, new `tests/test_iscc_decode_conformance.py`). **This is the
+    "always-diff-out-of-loop-commits" pattern — it flipped 8 sections met→partially-met with a
+    NON-cid title.** Lesson: a non-`cid()` commit CAN carry both target AND code; never assume.
+- **IDv1 is BARELY STARTED:** `gen_iscc_id_v1` exists NOWHERE (only a Go comment in `iscc_id.go`);
+    Rust `codec::Version` (codec.rs:99-109) STILL rejects non-V0 (`invalid Version:`); only Go's
+    `IsccDecode` accepts `VSV1` for `MTId`. Go rename NOT done — `EncodeIsccID`/`DecodeIsccID`/
+    `IsccIDv1Result` still in `packages/go/iscc_id.go`, no `GenIsccIDV1`.
+- **origin/develop = `ab2d0e1` (173 review) is GREEN (45/23/0); HEAD `2c4e487` is 2 commits ahead,
+    471-line code delta UNPUSHED → CI has NOT run on it.** Report as unverified.
+- **Issues jumped 8→11 (4 normal, 7 low).** New normals: "ISCC-IDv1 unsupported outside Go" [human],
+    "iai text benchmarks ASCII-only" [review]. "Codec input cleaning diverges" [review] partly
+    addressed by unpushed HEAD but still open.
+
+## Durable Facts (carried, not per-iteration)
+
+- **`target.md` carries a "Current Release Milestone — v0.6.0" section** — always diff `target.md`.
+    Unicode work FINISHED (161, 11/11 surfaces). Dep refresh DONE (172, uniffi 0.32 + criterion 0.8;
+    root `Cargo.toml` has **zero `# held:`/`authorized …`** comments). `iscc-uniffi/Cargo.toml`
+    declares `rust-version = "1.91"` (real floor); other 7 crates inherit workspace 1.85. PR **#44
+    develop→main OPEN**, version **0.5.0**.
 - **Review policy widened at 171:** `review` may correct a *mechanically checkable fact* (version,
-    path, file list, count) in a sub-spec under `.claude/context/specs/` with NO escalation;
-    `target.md` and rationale/criteria/scope still need the human. So stale spec FACTS are now
-    CID-doable — report them as actionable, not human-gated.
-- **Propagation invariant:** `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** paths,
-    matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (152 drift gate, rides
-    `python-test`); gate discovers by basename, generated artifacts stay OUT, a 13th vector costs 12
-    suites.
+    path, count) in a sub-spec under `.claude/context/specs/` with NO escalation; `target.md` +
+    rationale/criteria/scope still need the human. Stale spec FACTS = report as actionable.
+- **Every ecosystem has a lockfile** (170: .NET `packages.lock.json`, `--locked-mode`; a .NET bump
+    needs `--force-evaluate` same commit). Propagation invariant:
+    `git ls-files -- '*data.json'   '*unicode_boundary.json'` = **8** == `VENDORED_COPIES` in
+    `tests/test_vendored_fixtures.py`.
 - **Loop infra (162):** `ARTIFACT_BUDGETS` in `tools/cid.py` caps **state 200**; `decisions.md`
     rotates into `decisions-archive.md` (**grep BOTH**) — dirty `decisions*.md` = runner, not crash.
-- **`specs/rust-core.md` L149-157 was FIXED at 172** by `review` under the widened policy (Go
-    `Final_Sigma` prose now correct, no longer claims an issues.md entry);
-    `specs/kotlin-bindings.md` no longer pins a uniffi version in prose. No known spec drift left —
-    but re-diff `specs/` anyway.
-- **Issues: 8** (2 `normal`, 6 `low`, 0 critical, **zero HUMAN REVIEW REQUESTED**; 155 lines — count
-    headers, NOT priority tags: lines 3-4 are a legend that inflates a naive `grep -c`). "declared
-    MSRV asserted but never verified" (`low`, `[human]`, v1.0.0 prerequisite — CID must not act
-    unprompted) is a SEPARATE entry from the new uniffi-MSRV `normal`. go1.27 is its OWN entry
-    (tripwire, upstream at rc2); npm OIDC DEFERRED. Never carry an issue count forward — re-grep
-    every iteration (7→10→8→8→8→8 over 167-173); **the count can hold steady while the composition
-    flips** (172 deleted the dep entry and added the MSRV one).
-- **Don't re-flag as DONE**: uniffi 0.32 172, criterion 0.8 171, .NET lockfile 170, JNI cleanup 169,
-    jni 0.22 168, magnus 0.8 167, JUnit 6.1.2 166, Gradle 9.6.1 165 (≤164 → archive).
+- **Issue count: never carry forward** — re-grep `^## ` headers every iteration (lines 3-4 are a
+    legend that inflates a naive `grep -c`); count held 8 over 167-173 while composition flipped.
+- **Don't re-flag as DONE**: uniffi 0.32 172, criterion 0.8 171, .NET lockfile 170, JNI 169, jni
+    0.22 168, magnus 0.8 167, JUnit 166, Gradle 165 (≤164 → archive).
 
 ## Gotchas
 
