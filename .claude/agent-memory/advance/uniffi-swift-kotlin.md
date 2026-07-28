@@ -14,6 +14,9 @@ Detail moved out of MEMORY.md index. See also [[ci-gates]] for the swift/kotlin 
 - `uniffi = "0.32"` (workspace dep, since iter 172). Proc macro approach only: `#[uniffi::export]`,
     `#[derive(uniffi::Record)]`, `#[derive(uniffi::Object)]`, `#[uniffi::constructor]`. No UDL
     files, no build.rs. Uses `uniffi::setup_scaffolding!()`. `publish = false`.
+- **Declares its own `rust-version = "1.91"`** (iter 173, deliberate — do NOT revert to
+    `rust-version.workspace = true`): uniffi → cargo_metadata 0.23.1 → cargo-platform 0.3.3 imposes
+    rustc 1.91 on the non-dev graph. Published `iscc-lib` MSRV stays 1.85 (decisions.md 2026-07-28).
 - 0.32 CLI: `--library` is a deprecated-but-accepted boolean flag; the cdylib is the positional
     `source` arg (library mode auto-detected). Both CLAUDE.md recipes still parse verbatim.
 - **Raw bindgen output is NOT hook-clean**: trailing whitespace on blank lines (all 3 files) +
