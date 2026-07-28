@@ -19,9 +19,9 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
     `cargo crap --baseline .crap-baseline.json --fail-regression --fail-above`.
 - `--fail-regression` blocks a baselined fn's CRAP rising; `--fail-above` blocks ANY fn over
     `threshold=30.0` incl new fns.
-- `.crap-baseline.json` (repo root, COMMITTED, NOT gitignored): `{$schema, version, entries}`, 97
-    fns/10 src files. Regen: `cargo crap ... --format json --output .crap-baseline.json` (NO
-    `--sort` in 0.2.2).
+- `.crap-baseline.json` (repo root, COMMITTED, NOT gitignored): `{$schema, version, entries}`, 107
+    fns (iter 176). Regen via `mise run crap:baseline`
+    (`cargo crap ... --format json --output .crap-baseline.json`, NO `--sort` in 0.2.2).
 - GOTCHA: never pipe `cargo crap` into `tail`/`head` to check exit — `$?` = pager, masks exit 1;
     redirect to a file first. (Same gotcha applies to `cargo deny`.)
 - GOTCHA (iter 122): cargo-llvm-cov/cargo-crap are NOT preinstalled in the CID session env. The
@@ -31,6 +31,13 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
 - GUARD GAP: the CRAP regression gate runs ONLY in CI (not in `mise run check`/pre-commit). Any
     change adding a branch/loop to a covered fn MUST refresh `.crap-baseline.json` in the SAME step
     (`mise run crap:baseline`), else the next CI push goes red (iter 121→122 incident).
+- STALE-BASELINE gotcha (iter 176): if the refresh lags multiple source-changing iters, a later
+    "re-baseline for fn X" step actually bakes in the WHOLE accumulated batch, not just X — a
+    define-next hypothesis of "only one fn moved" will be wrong (baseline last touched iter 121,
+    then the 172-175 IDv1 batch moved 6+ fns). Prove the deltas are real source changes, NOT
+    nondeterministic coverage flap, by running `cargo llvm-cov`+`cargo crap` TWICE and diffing the
+    JSON: identical scores = deterministic → safe to bake in. Map each moved fn to a reviewed
+    commit.
 - `.cargo-crap.toml`: `threshold=30.0`, `missing="pessimistic"`, `exclude` globs MUST list
     `crates/iscc-lib/benches/**` (built-in excludes are repo-root only → harness leaks at CRAP ~42).
 

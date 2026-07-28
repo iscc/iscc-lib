@@ -5,7 +5,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_meta_code_v0",
-      "line": 300,
+      "line": 326,
       "cyclomatic": 22.0,
       "coverage": 91.76470588235294,
       "crap": 22.27032281701608
@@ -13,7 +13,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_iscc_code_v0",
-      "line": 866,
+      "line": 892,
       "cyclomatic": 20.0,
       "coverage": 93.67088607594937,
       "crap": 20.101411855857243
@@ -21,18 +21,18 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "iscc_decompose",
-      "line": 484,
+      "line": 519,
       "cyclomatic": 18.0,
-      "coverage": 86.15384615384616,
-      "crap": 18.860067364588073
+      "coverage": 96.92307692307692,
+      "crap": 18.009438324988622
     },
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "decode_header",
-      "line": 267,
-      "cyclomatic": 12.0,
+      "line": 292,
+      "cyclomatic": 16.0,
       "coverage": 100.0,
-      "crap": 12.0
+      "crap": 16.0
     },
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
@@ -101,7 +101,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "decode_varnibble_from_bytes",
-      "line": 206,
+      "line": 229,
       "cyclomatic": 9.0,
       "coverage": 84.21052631578947,
       "crap": 9.318851144481703
@@ -117,7 +117,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_length",
-      "line": 311,
+      "line": 346,
       "cyclomatic": 9.0,
       "coverage": 100.0,
       "crap": 9.0
@@ -149,7 +149,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "soft_hash_image_v0",
-      "line": 527,
+      "line": 553,
       "cyclomatic": 8.0,
       "coverage": 92.10526315789474,
       "crap": 8.03149147105992
@@ -165,10 +165,26 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "soft_hash_codes_v0",
-      "line": 738,
+      "line": 764,
       "cyclomatic": 7.0,
       "coverage": 83.87096774193549,
       "crap": 7.205599006411332
+    },
+    {
+      "file": "./crates/iscc-lib/src/codec.rs",
+      "function": "encode_header",
+      "line": 263,
+      "cyclomatic": 7.0,
+      "coverage": 100.0,
+      "crap": 7.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/lib.rs",
+      "function": "iscc_normalize",
+      "line": 220,
+      "cyclomatic": 7.0,
+      "coverage": 100.0,
+      "crap": 7.0
     },
     {
       "file": "./crates/iscc-lib/src/simhash.rs",
@@ -197,15 +213,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_varnibble",
-      "line": 168,
-      "cyclomatic": 6.0,
-      "coverage": 100.0,
-      "crap": 6.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/codec.rs",
-      "function": "encode_header",
-      "line": 240,
+      "line": 191,
       "cyclomatic": 6.0,
       "coverage": 100.0,
       "crap": 6.0
@@ -213,7 +221,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_units",
-      "line": 382,
+      "line": 417,
       "cyclomatic": 6.0,
       "coverage": 100.0,
       "crap": 6.0
@@ -221,7 +229,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "soft_hash_audio_v0",
-      "line": 627,
+      "line": 653,
       "cyclomatic": 6.0,
       "coverage": 100.0,
       "crap": 6.0
@@ -235,14 +243,6 @@
       "crap": 6.0
     },
     {
-      "file": "./crates/iscc-lib/src/lib.rs",
-      "function": "iscc_decode",
-      "line": 226,
-      "cyclomatic": 5.0,
-      "coverage": 85.18518518518519,
-      "crap": 5.0812884214804654
-    },
-    {
       "file": "./crates/iscc-lib/src/cdc.rs",
       "function": "alg_cdc_chunks_unchecked",
       "line": 191,
@@ -253,7 +253,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "decode_length",
-      "line": 355,
+      "line": 390,
       "cyclomatic": 5.0,
       "coverage": 100.0,
       "crap": 5.0
@@ -261,7 +261,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "decode_units",
-      "line": 405,
+      "line": 440,
       "cyclomatic": 5.0,
       "coverage": 100.0,
       "crap": 5.0
@@ -277,7 +277,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_sum_code_v0",
-      "line": 993,
+      "line": 1019,
       "cyclomatic": 5.0,
       "coverage": 100.0,
       "crap": 5.0
@@ -301,7 +301,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "transpose_matrix",
-      "line": 463,
+      "line": 489,
       "cyclomatic": 4.0,
       "coverage": 92.3076923076923,
       "crap": 4.007282658170232
@@ -309,7 +309,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "array_split",
-      "line": 604,
+      "line": 630,
       "cyclomatic": 4.0,
       "coverage": 93.33333333333333,
       "crap": 4.004740740740741
@@ -317,7 +317,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_mixed_code_v0",
-      "line": 780,
+      "line": 806,
       "cyclomatic": 4.0,
       "coverage": 94.73684210526315,
       "crap": 4.002332701559994
@@ -332,8 +332,24 @@
     },
     {
       "file": "./crates/iscc-lib/src/codec.rs",
+      "function": "Version::try_from",
+      "line": 112,
+      "cyclomatic": 4.0,
+      "coverage": 100.0,
+      "crap": 4.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_component",
-      "line": 455,
+      "line": 490,
+      "cyclomatic": 4.0,
+      "coverage": 100.0,
+      "crap": 4.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/lib.rs",
+      "function": "iscc_decode",
+      "line": 264,
       "cyclomatic": 4.0,
       "coverage": 100.0,
       "crap": 4.0
@@ -341,7 +357,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "soft_hash_video_v0",
-      "line": 686,
+      "line": 712,
       "cyclomatic": 4.0,
       "coverage": 100.0,
       "crap": 4.0
@@ -373,7 +389,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_data_code_v0",
-      "line": 810,
+      "line": 836,
       "cyclomatic": 3.0,
       "coverage": 90.47619047619048,
       "crap": 3.007774538386783
@@ -381,7 +397,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_image_code_v0",
-      "line": 585,
+      "line": 611,
       "cyclomatic": 3.0,
       "coverage": 92.3076923076923,
       "crap": 3.0040964952207556
@@ -389,7 +405,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_video_code_v0",
-      "line": 715,
+      "line": 741,
       "cyclomatic": 3.0,
       "coverage": 93.75,
       "crap": 3.002197265625
@@ -404,8 +420,8 @@
     },
     {
       "file": "./crates/iscc-lib/src/codec.rs",
-      "function": "Version::try_from",
-      "line": 106,
+      "function": "validate_version",
+      "line": 127,
       "cyclomatic": 3.0,
       "coverage": 100.0,
       "crap": 3.0
@@ -437,7 +453,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "json_to_data_url",
-      "line": 283,
+      "line": 309,
       "cyclomatic": 3.0,
       "coverage": 100.0,
       "crap": 3.0
@@ -445,7 +461,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "flatten_8x8",
-      "line": 482,
+      "line": 508,
       "cyclomatic": 3.0,
       "coverage": 100.0,
       "crap": 3.0
@@ -469,7 +485,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "compute_median",
-      "line": 496,
+      "line": 522,
       "cyclomatic": 2.0,
       "coverage": 87.5,
       "crap": 2.0078125
@@ -477,7 +493,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_audio_code_v0",
-      "line": 668,
+      "line": 694,
       "cyclomatic": 2.0,
       "coverage": 92.3076923076923,
       "crap": 2.0018206645425582
@@ -485,7 +501,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_text_code_v0",
-      "line": 445,
+      "line": 471,
       "cyclomatic": 2.0,
       "coverage": 93.33333333333333,
       "crap": 2.0011851851851854
@@ -501,7 +517,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_instance_code_v0",
-      "line": 840,
+      "line": 866,
       "cyclomatic": 2.0,
       "coverage": 94.11764705882352,
       "crap": 2.0008141664970487
@@ -517,7 +533,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "extract_bits",
-      "line": 124,
+      "line": 147,
       "cyclomatic": 2.0,
       "coverage": 100.0,
       "crap": 2.0
@@ -613,22 +629,6 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "get_bit",
-      "line": 117,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/codec.rs",
-      "function": "bits_to_u32",
-      "line": 134,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/codec.rs",
-      "function": "bytes_to_bits",
       "line": 140,
       "cyclomatic": 1.0,
       "coverage": 100.0,
@@ -636,8 +636,24 @@
     },
     {
       "file": "./crates/iscc-lib/src/codec.rs",
+      "function": "bits_to_u32",
+      "line": 157,
+      "cyclomatic": 1.0,
+      "coverage": 100.0,
+      "crap": 1.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/codec.rs",
+      "function": "bytes_to_bits",
+      "line": 163,
+      "cyclomatic": 1.0,
+      "coverage": 100.0,
+      "crap": 1.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/codec.rs",
       "function": "bits_to_bytes",
-      "line": 148,
+      "line": 171,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -645,7 +661,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_base32",
-      "line": 427,
+      "line": 462,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -653,7 +669,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "decode_base32",
-      "line": 432,
+      "line": 467,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -661,7 +677,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_base64",
-      "line": 442,
+      "line": 477,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -677,7 +693,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "soft_hash_text_v0",
-      "line": 430,
+      "line": 456,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -685,7 +701,7 @@
     {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "bits_to_bytes",
-      "line": 508,
+      "line": 534,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
