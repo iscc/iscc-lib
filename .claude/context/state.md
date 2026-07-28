@@ -1,28 +1,33 @@
-<!-- assessed-at: 312524a66e30f64df9de0ab2e9d9dab021d6075e -->
+<!-- assessed-at: 1b7b792540ab32061829dede24ecb7537316e28f -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Post-dependency-refresh cleanup — JNI debt closed, one static-evidence dep slice and one doc fix left for CID
+## Phase: v0.6.0 endgame — two authorized dependency majors are the last release criterion
 
-Iteration 169 closed both `normal` issues the 168 review had filed against `crates/iscc-jni`: the
-hand-rolled byte-array helper is gone and all 33 natives now have JUnit callers. Open issues fell 10
-→ 8 (3 `normal`, 5 `low`). CI is green over the whole tree; the every-10th `audit` role is due this
-iteration.
+The human unblocked the loop on 2026-07-28: `target.md` now names **v0.6.0** as the active
+milestone, both held dependency majors (`criterion` 0.8, `uniffi` 0.32) are authorized as separate
+steps, and the spec drift the loop could not fix itself was corrected by hand. Iteration 170 closed
+the last floating-dependency surface (.NET lock file). CI is green; open issues are down to 2
+`normal` (one of them the release-gating dependency issue) and 6 `low`.
 
 ## Rust Core Crate
 
 **Status**: met, except the human-held v1.0.0 cut
 
-- Nothing under `crates/iscc-lib/`, `benches/` or `.claude/context/specs/` moved since 8ea3e02: 32
-    Tier 1 symbols, 342 `#[test]`, all 10 `gen_*_v0` conformant, no `unsafe` outside the FFI crates.
-- All four Unicode criteria remain MET: declared 16.0.0 + sentinel freeze, the `Final_Sigma` case
-    freeze, boundary vectors on 11 of 11 surfaces, and the fail-closed differential sweep gate.
-- Only unmet target line: `crate is >= 1.0.0`. Version is **0.5.0**; the cut is human-gated and
-    HELD. `cargo-semver-checks` runs informational.
-- `specs/rust-core.md` L149-157 stays STALE (claims the Go `Final_Sigma` defect unfixed, and a
-    `str::to_lowercase()` equivalence falsified by measurement at 156). Human-owned, not edited.
+- No source under `crates/iscc-lib/`, `benches/` or `tests/` moved since 8ea3e02: 32 Tier 1 symbols,
+    342 `#[test]`, all 10 `gen_*_v0` conformant, no `unsafe` outside the FFI crates. All four
+    Unicode criteria still met (declared 16.0.0 + sentinel freeze, `Final_Sigma` case freeze,
+    boundary vectors on 11 of 11 surfaces, fail-closed differential sweep gate).
+- Only unmet target line: `crate is >= 1.0.0`. Version is **0.5.0**; that cut is human-gated and
+    explicitly out of scope for v0.6.0. `cargo-semver-checks` runs informational.
+- Root `Cargo.toml` no longer carries any `# held:` pin. The two rationale comments now read
+    `authorized 2026-07-28 (pending bump)` — the versions themselves are unchanged (`Cargo.lock`:
+    criterion **0.7.0**, uniffi **0.31.2**), so neither bump has landed.
+- `specs/rust-core.md` L149-157 stays STALE (claims the Go `Final_Sigma` defect unfixed; a
+    `str::to_lowercase()` equivalence falsified by measurement at 156). Now correctable without
+    escalation under the widened review policy, but nobody has filed it.
 
 ## Python Bindings
 
@@ -58,38 +63,34 @@ iteration.
 
 ## Other Bindings (Java, Kotlin, C#, C++, Go, Ruby, Swift)
 
-**Status**: met — every surface Unicode-gated; the Java bridge was the only source to move
+**Status**: met — every surface Unicode-gated; only `packages/dotnet` changed
 
-- **JNI is the sole changed source.** `grep -rn "build_byte_array\|Vec<i8>" crates/iscc-jni/`
-    returns nothing — the 168 allocation regression is gone, replaced by **5**
-    `env.byte_array_from_slice` sites. `src/lib.rs` is **1152 lines**, 33 `Java_*` natives, still
-    under the ~1500-line split threshold its `CLAUDE.md` sets.
-- `IsccLibTest.java` grew 29 → **40** `@Test` methods (93 JVM tests total with
-    `UnicodeBoundaryTest`); the seven previously untested natives now have Java callers, so the
-    JUnit surface covers all 33. Both JNI issues filed at 168 are resolved and deleted.
-- Root `Cargo.toml` pins `jni = "0.22"` (lock 0.22.4); **2 inline `# held:` pins left** (criterion
-    0.8, uniffi 0.32).
-- `crates/iscc-rb` (magnus 0.8.2 since 167), `crates/iscc-uniffi` (32 exports, 21 tests,
-    `publish=false`), `packages/dotnet` (xunit.v3) and `packages/{cpp,go,kotlin,swift}` unchanged;
-    Kotlin's 9 + 3 sources and the Java fixture plumbing untouched.
+- **.NET reproducibility gap closed (170).** `packages/dotnet/Iscc.Lib.Tests/packages.lock.json` is
+    tracked, the three test `PackageReference` entries are exact (`18.8.1` / `3.2.2` / `3.1.5`), and
+    a repo-wide grep for a floating `Version="…*"` finds nothing. Every ecosystem now has a
+    lockfile.
+- `crates/iscc-jni` (jni 0.22, 1152 lines, 33 natives, all JUnit-covered), `crates/iscc-rb` (magnus
+    0.8.2), `crates/iscc-uniffi` (32 exports, 21 tests, `publish=false`) and
+    `packages/{cpp,go,kotlin,swift}` are unchanged since 169.
+- `uniffi` 0.32 will regenerate the two checked-in bindings
+    (`packages/swift/Sources/IsccLib/iscc_uniffi.swift`,
+    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt`). Kotlin verifies locally;
+    Swift does not — the `swift` CI job is its only verification.
 - Propagation invariant holds: `git ls-files -- '*data.json' '*unicode_boundary.json'` = 8 tracked
     paths, matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py`.
-- go1.27 remains a standing tripwire issue (not schedulable until go1.27 ships, ~Aug 2026): the bump
-    reds 5 Go boundary cases unless the 731-range freeze table lands in the same step.
+- go1.27 remains a standing tripwire (upstream at rc2, no final tag): the bump reds 5 Go boundary
+    cases unless the 731-range freeze table lands in the same step.
 
 ## Documentation
 
 **Status**: met
 
-- Nothing under `docs/` moved since 2840c7f (iteration 161): 23 pages across `zensical.toml` nav,
+- Nothing under `docs/` moved since 2840c7f (161): 23 pages across `zensical.toml` nav,
     `ORDERED_PAGES` and `docs/llms.txt`; 11 `docs/howto/*.md`; 12 crate/package READMEs; 12
     crate/package `CLAUDE.md`. `docs/unicode.md` names all 11 gated surfaces.
-- `crates/iscc-jni/CLAUDE.md` was corrected in the same step as the code (type table + "don't" list
-    now teach `env.byte_array_from_slice()`).
-- Two surfaces still teach removed APIs (verified stale, one open `normal` issue):
-    `crates/iscc-rb/CLAUDE.md:108` (`RString::from_slice`) and `specs/java-bindings.md` ("`jni`
-    crate (v0.21)" L22, "~1060 lines" L13 and L32 — actual 1152). The spec half carries the only
-    open **HUMAN REVIEW REQUESTED** marker; the Ruby half needs no authorization.
+- **The doc-drift issue is fully resolved.** `crates/iscc-rb/CLAUDE.md:108` now teaches
+    `ruby.str_from_slice(&bytes)` (170), and the human deleted both stale claims in
+    `specs/java-bindings.md` — greps for `v0.21` and `1060` there are empty.
 - Remaining cosmetic item is human-owned: `Add programming language logos to docs site` (`low`).
 
 ## Benchmarks
@@ -99,49 +100,47 @@ iteration.
 - 12 criterion benches (criterion 0.7) + `benches/iai_benches.rs` (iai-callgrind 0.16, 11 fns / 16
     cases); 18 pytest-benchmark fixtures; documented speedups 1.3x-158x.
 - `.iai-baseline.json` and `.crap-baseline.json` byte-untouched (CRAP still 105 entries) — correct,
-    since no `iscc-lib` core source moved.
+    since no `iscc-lib` core source moved. The criterion 0.8 bump touches these two bench targets.
 
 ## CI/CD and Publishing
 
-**Status**: partially met — green, with only human-held publishing work left
+**Status**: partially met — green, with the v0.6.0 dependency work outstanding
 
-- **CI GREEN and it covers HEAD.** `origin/develop` = `d06e024` (the 169 review commit carrying the
-    JNI change): check-runs API reports **45 runs, 23 distinct names, 0 non-success**. HEAD
-    `312524a` is one `cid(log)` commit ahead, and its diff against the remote tip outside `.claude/`
-    is empty. Working tree is clean.
-- Job shape unchanged: 21 job keys → 22 jobs → 23 check names (`python-test` is a `[3.10, 3.14]`
-    matrix; `python` is an `if: always()` aggregator). No workflow file changed since 21bb004
-    (iteration 162): zero `@main` action refs, 97 `uses:` in `release.yml`, 8 registry toggles,
-    `workflow_dispatch`-only.
-- PR **#44** `develop` → `main` ("Release 0.6.0") still OPEN — not shipped; version **0.5.0**,
+- **CI GREEN.** `origin/develop` = `6ee27dc` (the 170 review commit): check-runs API reports **45
+    runs, 23 distinct names, 0 non-success**. HEAD `1b7b792` is two commits ahead; its only
+    non-`.claude` change is the **comment-only** pin-rationale edit in root `Cargo.toml`, so the
+    green run covers every line of code in the tree. Working tree is clean.
+- Job shape changed for the first time since 162: the `dotnet` job gained a
+    `dotnet restore … --locked-mode` step and build/test now pass `--no-restore`. Job *count* is
+    unchanged (21 job keys → 22 jobs → 23 check names), so the gated job-table parity still holds.
+- `release.yml` untouched: zero `@main` action refs, 97 `uses:`, 8 registry toggles,
+    `workflow_dispatch`-only. Action freshness was re-probed 2026-07-28 across all 25 distinct
+    `uses:` refs and is a confirmed no-op — that bullet is gone from the dependency issue.
+- PR **#44** `develop` → `main` ("Release 0.6.0") is OPEN; version **0.5.0**,
     `scripts/version_sync.py` 21 targets consistent.
 - Enforcing gates unchanged: iai perf (>10% Ir), coverage + CRAP (`--fail-regression` is CI-only, so
     a green `mise run check` proves nothing), `cargo-deny` (live advisory DB — can red with no code
     change), docs page-list parity, `unicode-sweep`, CI job-table parity.
-- Dependency freshness: zero Rust majors left to schedule. The issue body lists three items —
-    `uniffi` 0.32 and `criterion` 0.8 (human-gated: binding regeneration / MSRV policy) and the
-    `release.yml` action refresh, which is CID-doable but on static evidence only, since that
-    workflow never runs in CI.
-- Reproducibility gap, observed by two roles and still unfiled: `packages/dotnet` is the only
-    ecosystem with no lockfile, its two test packages floating on `3.*` / `18.*`. The 168 review
-    parked it for the audit pass; audits have run at iterations 130/140/150/160, so 170 is due.
+- Dependency freshness is the one unmet criterion: `criterion` 0.7 → 0.8 and `uniffi` 0.31 → 0.32,
+    both authorized, both still pending.
 
 ## Open Issues
 
-**8 entries in `issues.md` — 3 `normal`, 5 `low`, zero `critical`, one HUMAN REVIEW REQUESTED
-marker** (inside the doc-drift issue). Down from 10: the 169 review deleted both JNI entries.
+**8 entries in `issues.md` — 2 `normal`, 6 `low`, zero `critical`, and now zero HUMAN REVIEW
+REQUESTED markers.**
 
-- **NORMAL:** dependency refresh (3 items, above); binding docs teaching removed APIs; the go1.27
-    tripwire.
-- **LOW / CID skips:** upstream `iscc-core#137` thread (human-only), the three gate-script
-    remainders deferred at 146 (trigger-contingent), v1.0.0 (HELD), npm OIDC (ruled out for v0.6.0),
-    docs language logos.
+- **NORMAL:** the dependency refresh (release-gating, two authorized steps); the go1.27 tripwire
+    (parked on an upstream final release).
+- **LOW:** upstream `iscc-core#137` thread, the three gate-script remainders deferred at 146, v1.0.0
+    (HELD), **MSRV asserted but never verified** (new — a v1.0.0 prerequisite, `[human]`, CID must
+    not act unprompted), npm OIDC (deferred for v0.6.0), docs language logos.
+- Loop policy widened at HEAD: `review` may now correct a *mechanically checkable fact* (version,
+    path, file list, count) in a sub-spec under `.claude/context/specs/` without escalation;
+    `target.md` and anything touching rationale/criteria/scope still need the human.
 
 ## Next Milestone
 
-Two `normal` items are CID-actionable: the `release.yml` action-freshness pass — the last
-schedulable slice of the v0.6.0 dependency issue, verifiable only through
-`scripts/check_release_workflow.py` and tag existence, never through a CI run — and the Ruby half of
-the doc-drift issue. Beyond those, the backlog is human-gated (v1.0.0 cut, npm OIDC, docs logos, the
-upstream thread, the `specs/java-bindings.md` edit), and the unfiled `packages/dotnet` lockfile gap
-is waiting on the audit due this iteration.
+Close the dependency refresh issue — the last remaining v0.6.0 release criterion. Both items are
+authorized and independently schedulable, and the issue body carries the binding constraints for
+each. Everything else in the backlog is human-gated (v1.0.0 cut and its MSRV prerequisite, npm OIDC,
+docs logos, the upstream thread) or parked on upstream (go1.27).
