@@ -7,8 +7,15 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 ## Architecture
 
 - Hub-and-spoke: `iscc-lib` (pure Rust core) → binding crates (py, napi, wasm, ffi, jni, rb,
-    uniffi), each depending only on the core. Tier 1 = 32 symbols `pub use`d at crate root; Tier 2
-    is `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
+    uniffi), each depending only on the core. Tier 1 = 33 symbols `pub use`d at crate root (was 32;
+    `gen_iscc_id_v1` + `IsccIdResult` added iter 177, #43 Part 2 — docs/count text still reads 32 by
+    design, a separate sweep step); Tier 2 is `pub(crate)`, never crosses FFI. `packages/go` is NOT
+    a binding — a pure-Go reimplementation
+- **The reference `gen_iscc_id_v1` needs no built wheel to oracle-check** — it is pure Python:
+    `uv run --python 3.13 --no-project --with iscc-core python -c "import iscc_core as ic; ic.gen_iscc_id_v1(ts,hub,realm)"`.
+    Core `gen_iscc_id_v1` matches it byte-for-byte across realm{0,1}×hub{0,4095}×ts{0,2^52-1}
+    (`MA…`/`ME…` prefix = the realm nibble). The "needs rebuilt wheel" caveat is only for the Python
+    *binding* differential, not the reference oracle
 
 ## Reference Implementation
 
