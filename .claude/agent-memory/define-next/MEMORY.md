@@ -94,14 +94,15 @@ iterations.
 ## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
 
 - v0.5.0 released; all 12 bindings meet core criteria; the 4 spec'd v0.6.0 feature issues are DONE;
-    the **Unicode chain is CLOSED at 161**. **After 168 the CID-schedulable dependency work is
-    done**; 169 scoped the JNI debt review filed against 168 (byte-array regression + 7 untested
-    natives, batched). **At 170 the `release.yml` action pass turned out to be a no-op** (every ref
-    in all three workflows already on its publisher's latest major — recipe in
-    [release.yml static gates](release-yml-static-gates.md)), so 170 scoped the unfiled
-    `packages/dotnet` lockfile gap plus the Ruby doc-drift line as a ride-along. Trigger-only:
-    go1.27 + the Go freeze table (~Aug 2026). HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm
-    OIDC (token to 2026-09-16).
+    the **Unicode chain is CLOSED at 161**. 169 scoped the JNI debt from 168; 170 closed the
+    `packages/dotnet` lockfile gap (the `release.yml` action pass was a measured no-op — recipe in
+    [release.yml static gates](release-yml-static-gates.md)).
+- **2026-07-28 the human unblocked v0.6.0**: `target.md` names it the active milestone and the
+    release ships when the dependency issue closes. Both held majors are authorized as **separate**
+    steps — 171 scoped `criterion` 0.8 (local, cheap), `uniffi` 0.32 is the last one (Swift verified
+    only by CI). Facts for both → [dep-refresh ledger](dep-refresh-ledger.md). Trigger-only: go1.27
+    \+ the Go freeze table (~Aug 2026). HELD `low` by Titusz: v1.0.0 + Semver-enforcing, the MSRV
+    verification job (a v1.0.0 prerequisite — never move `rust-version` in a dep step), npm OIDC.
 - **Closed phases: 115–123 (features) and the dep slices 124–137 + 162–168** — detail in
     MEMORY-archive.md and the [dep-refresh ledger](dep-refresh-ledger.md) (read it before any dep
     step). Lessons that still bite: the CRAP regression gate is **CI-only** (a new branch in a

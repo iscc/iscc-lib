@@ -261,12 +261,36 @@ Facts settled while scoping (all from the `.crate` tarball, read-only):
     `set_region`), and `push/pop_local_frame` (gone → `with_local_frame`). **Not** deprecated:
     `new_string`, `new_object`, `new_object_array`, `find_class`, `convert_byte_array`, `throw_new`.
 
-## Remaining after major bump E
+## Major bump F — criterion 0.7 → 0.8, bench dev-dep (scoped iter 171)
 
-`release.yml` GHA refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` move as a pair;
-nothing in it is exercised by a CID push → human-timed) and `uniffi` 0.32 (Swift+Kotlin regen — the
-"no Swift toolchain" veto died at 161, so re-scope it on evidence). Both are human/release-gated:
-after jni 0.22 the CID-schedulable dependency work is **done**.
+Titusz **authorized both held majors on 2026-07-28** (`criterion` 0.8, `uniffi` 0.32) as separate
+steps, and v0.6.0 ships when the dependency issue closes. criterion first — it is 1 manifest + the
+lockfile and every reacting gate runs locally. Measured while scoping (sparse index + `.crate`):
+
+- 0.8.2 latest, none of 0.8.x yanked, `rust-version = "1.86"`. Feature names unchanged
+    (`html_reports`, `async`, `cargo_bench_support`, `real_blackbox`).
+- **The one BREAKING entry in 0.8.0 is "Drop async-std support"** — unused here. `BenchmarkId`,
+    `Bencher`, `Criterion`, `Throughput`, `criterion_group!`, `criterion_main!` all survive, so
+    `benches/benchmarks.rs` should need no edit. `benches/iai_benches.rs` names criterion only in
+    doc comments — it links iai-callgrind, not criterion.
+- **New transitive dep on unix/windows: `alloca` 0.4.0 (MIT) + a `cc` build dep** (0.8's
+    memory-layout randomisation). MIT is already in `deny.toml`'s allow list → no gate edit, but the
+    lock gains crates so `mise run audit` belongs in the criteria.
+- The rustc-1.86 floor is a *contributor/bench* floor: criterion is a dev-dep of `iscc-lib` only,
+    and a dev-dep is never built by a downstream consumer → `rust-version = "1.85"` must NOT move
+    (also an open `low` `[human]` MSRV issue). Every Rust CI job is `dtolnay/rust-toolchain@stable`.
+- No docs, README, howto or workflow names the criterion version — the doc surface is zero (the
+    "criterion 0.7" strings live only in agent memories, each agent's own to update).
+
+## Remaining after major bump F
+
+`release.yml` GHA refs are a **confirmed no-op** as of 2026-07-28 (all 25 `uses:` refs current) and
+that bullet is gone from the issue. Only `uniffi` 0.32 remains: regenerate
+`packages/swift/Sources/IsccLib/iscc_uniffi.swift` +
+`packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` as a *pure* regeneration; read
+the 0.32 changelog first and re-scope if `crates/iscc-uniffi/src` needs edits. Kotlin verifies
+locally, Swift only via the `swift` CI job (the "no Swift toolchain" veto died at 161 — a local
+toolchain install is possible, see the propagation ledger).
 
 ## Handy version-lookup commands
 
