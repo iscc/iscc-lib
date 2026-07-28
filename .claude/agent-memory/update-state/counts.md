@@ -24,13 +24,13 @@ command give a different number.
 | UniFFI exports                   | 32           | same Tier 1 surface as every other binding                                                                 |
 | CRAP baseline `entries`          | 105          | `.crap-baseline.json`                                                                                      |
 | iai baseline entries             | 16           | 11 bench fns                                                                                               |
-| criterion benches                | 12           | criterion 0.7                                                                                              |
+| criterion benches                | 12           | criterion **0.8.2** since 171; one `criterion_group!` in `benches/benchmarks.rs`                           |
 | version_sync targets             | 21           | `scripts/version_sync.py --check` — the authoritative set of version-synced files                          |
 | tracked fixture copies           | 8            | `git ls-files -- '*data.json' '*unicode_boundary.json'` == `VENDORED_COPIES`                               |
 | documented speedups              | 1.3x-158x    |                                                                                                            |
 | iscc-rb `define_*` registrations | 33           | covers the 32-symbol Tier 1 surface                                                                        |
 | iscc-jni natives                 | 33           | `grep -oE 'fn Java_[A-Za-z0-9_]+'`; `grep -c 'extern "system"'` gives **34** (one non-`Java_` fn)          |
-| `crates/iscc-jni/src/lib.rs`     | 1168 lines   | was ~1060 pre-jni-0.22; `specs/java-bindings.md` still hardcodes the old number                            |
+| `crates/iscc-jni/src/lib.rs`     | 1168 lines   | was ~1060 pre-jni-0.22; the stale number in `specs/java-bindings.md` was fixed by hand at 171              |
 
 ## JVM test suites — annotations are NOT cases
 

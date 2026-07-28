@@ -3,7 +3,7 @@
 Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-archive.md` (gate
 internals, release internals, closed milestones), `counts.md` (artifact counts + how to reproduce
 them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-gates.md`,
-`lint-tooling.md`, `env-gotchas.md`. **Size budget: under 140 lines** — archive detail eagerly.
+`lint-tooling.md`, `env-gotchas.md`. **Size budget: under 150 lines** — archive detail eagerly.
 
 ## Exploration Shortcuts
 
@@ -17,9 +17,9 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
     `audit` role) shows up. **A non-OK status does NOT mean no work: corroborate with `git log`**
     (fingerprints → `MEMORY-archive.md`). Conversely **work with NO jsonl entry**: out-of-loop
     `cid(loop):` commits land between iterations — always diff them.
-- **Audit cadence is NOT reliable**: jsonl entries at **130/140/150/160** but **none at 170**
-    (iteration verdict IDLE). Never park a finding "for the next audit" — check the jsonl, and if
-    the audit skipped, the finding is still unfiled. It commits only `cid(audit): metrics snapshot`.
+- **Audit cadence is NOT reliable**: jsonl entries at **130/140/150/160** but **none at 170** (that
+    iteration was IDLE). Never park a finding "for the next audit" — if the audit skipped, the
+    finding is still unfiled. It commits only `cid(audit): metrics snapshot`.
 - **ALWAYS `git status --porcelain` too.** A TIMEOUT role dies before committing but **leaves its
     written file dirty** (155: a 440-line `next.md`). Treat as an unverified lead, not fact.
 - **Counts + the glob/grep trap for each → `counts.md`** (12 READMEs, 12 CLAUDE.md, 23 docs pages,
@@ -60,10 +60,10 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`), now
     gated. `streaming.rs`: `DataHasher`/`InstanceHasher` at crate root, `SumHasher` via
     `streaming::` only. iscc-wasm's `blake3 wasm32_simd` dep is feature-unification — **don't
-    prune**. `iscc-py` has **12** `.detach(` sites. `benches/`: 12 criterion (0.7) + iai 0.16 (11
-    fns, 16 cases). `src/utils/` holds two generated data modules (→ `unicode-contract.md`). Pin
-    rationale in root `Cargo.toml`: **zero `# held:` since 171**, 2 `authorized …` comments instead
-    — grep BOTH.
+    prune**. `iscc-py` has **12** `.detach(` sites. Benches live in **`crates/iscc-lib/benches/`**
+    (NOT a root `benches/`): 12 criterion fns (0.8.2) + iai 0.16 (11 fns, 16 cases). `src/utils/`
+    holds two generated data modules (→ `unicode-contract.md`). Pin rationale in root `Cargo.toml`:
+    **zero `# held:` since 171**, 1 `authorized …` comment left (uniffi) — grep BOTH.
 - **Ruff/prek/mdformat → `lint-tooling.md`.** ruff **0.16.0** since 137; local prek is a strict
     SUPERSET of CI. Probe hooks with `prek run <hook> --files <f>`.
 - **Dependency-pin inventory + slice history** → `dep-refresh-survey.md`. All GHA refs CURRENT
@@ -83,28 +83,28 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
     passes may cover a SUBSET.
 - **Spec checkboxes are NOT a progress signal** — most sit at 0/N though MET; spec *prose* rots.
 - **Ask whether a fixture is a DECLARED INPUT of the build system.** Gradle/MSBuild can report
-    UP-TO-DATE and skip a suite; only a mutate-then-rerun probe exposes it. All 12 probed, CI
-    immune.
+    UP-TO-DATE and skip a suite; only mutate-then-rerun exposes it. All 12 probed, CI immune.
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: 1b7b792, iter 171)
+## Current State (assessed-at: c9069a0, iter 172)
 
-- **IN_PROGRESS — CI green.** `origin/develop` == `6ee27dc` (170 review): **45 check-runs, 23 names,
-    0 non-success**. HEAD `1b7b792` is 2 commits ahead; the only non-`.claude` change is a
-    **comment-only** root `Cargo.toml` edit, so green still covers all code. Tree CLEAN. PR **#44
-    (develop→main) OPEN** (v0.6.0 NOT shipped; **0.5.0**).
-- **HEAD is a human `cid(loop):` commit (2026-07-28) that reset the goal.** `target.md` gained a
-    **"Current Release Milestone — v0.6.0"** section with explicit ready-for-release criteria; both
-    dep majors AUTHORIZED; `specs/java-bindings.md` drift fixed by hand. Always diff `target.md` — a
-    milestone section can appear with no code change.
-- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces); slice history 163-170 →
+- **IN_PROGRESS — CI green.** `origin/develop` == `bc13859` (171 review): **45 check-runs, 23 names,
+    0 non-success**. HEAD `c9069a0` is 1 commit ahead and is a `.claude`-only `cid(log):` commit, so
+    green covers all code. Tree CLEAN. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped;
+    **0.5.0**).
+- **`target.md` carries a "Current Release Milestone — v0.6.0" section** (added by the human at
+    1b7b792) with explicit ready-for-release criteria. Always diff `target.md` — a milestone section
+    can appear with no code change.
+- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces); slice history 163-171 →
     `dep-refresh-survey.md`. Rust core met except `>= 1.0.0`; all sections met except CI/CD.
-- **DEP REFRESH = THE LAST v0.6.0 CRITERION**, 2 items, both authorized, neither landed
-    (`Cargo.lock` still criterion **0.7.0** / uniffi **0.31.2**): criterion 0.8 keeps
-    `rust-version = "1.85"` (dev-dep only); uniffi 0.32 must be a PURE REGENERATION of the two
-    checked-in bindings — Kotlin verifies locally, **Swift only via the `swift` CI job**. The
-    `release.yml` action bullet is GONE (re-probed no-op 2026-07-28, all 25 `uses:` current).
+- **DEP REFRESH = THE LAST v0.6.0 CRITERION, now ONE item.** criterion 0.8 LANDED at 171
+    (`Cargo.lock` **0.8.2**, `rust-version = "1.85"` untouched, zero bench-source edits, baselines
+    byte-identical) and its half was deleted from the issue. Remaining: **uniffi 0.31 → 0.32**
+    (`Cargo.lock` still **0.31.2**) as a PURE REGENERATION of the two checked-in bindings.
+- **Swift IS locally verifiable** (swift.org Debian 12 6.1.2 tarball, `packages/swift/CLAUDE.md`) —
+    corrected in issues.md at 171, but the root `Cargo.toml` comment above `uniffi = "0.31"` still
+    repeats the falsified claim. Only 1 `authorized …` pin comment left (criterion's is plain now).
 - **Both doc-drift surfaces are CLOSED** (Ruby 170, Java spec by the human) — but keep diffing a
     crate's CLAUDE.md + spec after any dep bump; that rot recurs.
 - **170 closed the .NET lockfile gap** (the audit never fired): `packages.lock.json` tracked, 3
@@ -123,13 +123,14 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
     wrong twice over); criterion boxes unchecked though all four hold. Under the 171 policy the
     factual half is now correctable by `review` — nobody has filed it.
-- **Issues: 8** (2 `normal`, 6 `low`, 0 critical, **zero HUMAN REVIEW REQUESTED**; 178 lines — count
-    headers, NOT priority tags: lines 3-4 are a legend that inflates a naive `grep -c`). New at 171:
-    "declared MSRV asserted but never verified" (`low`, `[human]`, v1.0.0 prerequisite — CID must
-    not act unprompted). go1.27 is its OWN entry (tripwire, upstream at rc2); npm OIDC DEFERRED.
-    Never carry an issue count forward — re-grep every iteration (7→10→8→8 over 167-171).
-- **Don't re-flag as DONE**: .NET lockfile 170, JNI cleanup 169, jni 0.22 168, magnus 0.8 167, JUnit
-    6.1.2 166, Gradle 9.6.1 165, dotnet xunit v3 164, ci-cd job table 163 (≤162 → archive).
+- **Issues: 8** (2 `normal`, 6 `low`, 0 critical, **zero HUMAN REVIEW REQUESTED**; 174 lines — count
+    headers, NOT priority tags: lines 3-4 are a legend that inflates a naive `grep -c`). "declared
+    MSRV asserted but never verified" (`low`, `[human]`, v1.0.0 prerequisite — CID must not act
+    unprompted). go1.27 is its OWN entry (tripwire, upstream at rc2); npm OIDC DEFERRED. Never carry
+    an issue count forward — re-grep every iteration (7→10→8→8→8 over 167-172); the count can hold
+    steady while an entry SHRINKS in place (171 deleted only criterion from the dep entry).
+- **Don't re-flag as DONE**: criterion 0.8 171, .NET lockfile 170, JNI cleanup 169, jni 0.22 168,
+    magnus 0.8 167, JUnit 6.1.2 166, Gradle 9.6.1 165, dotnet xunit v3 164 (≤163 → archive).
 
 ## Gotchas
 
