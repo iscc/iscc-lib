@@ -24,21 +24,21 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 - `mise` for tools/tasks, `uv` for the Python env, `prek` for hooks; never use `mise` in CI — call
     tools directly. Pre-push-**only** gates: clippy `-D warnings`, cargo test, pytest, `ty check`
-- **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (iter 133):
-    inline `# /// script` metadata, `uv run --script <path>`, and `[tool.ty.src] exclude` **only if
-    it imports a non-project dep** (a stdlib-only generator needs no exclusion — iter 159). A dep a
-    *pytest* test imports in-process cannot be PEP 723 and must be a dev-group dep (142, `pyyaml`).
-    Generated Rust must be data-only + rustfmt-stable; generated C must be ASCII + LF + one trailing
-    newline, or the prek hygiene hooks rewrite it and break the regeneration-no-op gate
+- **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (133):
+    inline `# /// script` metadata, `uv run --script <path>`, `[tool.ty.src] exclude` **only if it
+    imports a non-project dep** (159). A dep a *pytest* test imports in-process must be a dev-group
+    dep (142, `pyyaml`). Generated Rust must be data-only + rustfmt-stable; generated C must be
+    ASCII + LF + one trailing newline, or the prek hygiene hooks rewrite it and break the
+    regeneration-no-op gate
 - **Every "not locally verifiable" toolchain claim so far has been false**: `cmake` via
     `uv run --with cmake cmake …` (configure into a fresh gitignored `build-*/`, never the stale
     `packages/cpp/build/`), `swift` via swift.org's Debian 12 tarball (`packages/swift/CLAUDE.md`),
     and the release-only Kotlin publish — `gradlew publishMavenPublicationToStagingRepository`
     writes to `build/staging-deploy` and skips signing without `MAVEN_GPG_PASSPHRASE`, so the whole
     release path runs offline and credential-free
-- **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
-    dies until `apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner@0.16.1`
-    (pin-matched to the dep)
+- **Perf-gate tooling installs on demand, NOT in the devcontainer**: `mise run bench:iai:check` dies
+    until `apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner@0.16.1`
+    (pin-matched)
 - **A docs page lives in FOUR places — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
     `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`**
     (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
@@ -61,24 +61,22 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **Any Unicode differential MUST include multi-code-point sequences** — deleting a `Cn` code point
     changes ADJACENCY, mapping it does not, and a per-code-point sweep scores the superseded
     delete-filter design 0 failures; only `base_mark` / `jamo` / `sigma` expose it
-- **The differential sweep is a committed fail-closed gate since iter 157, hardened 158**:
-    `mise run unicode:sweep` + the `unicode-sweep` CI job — 1,112,064 scalars × 8 contexts × 2 fns
-    vs installed `iscc-core` on CPython 3.14, must print the byte-frozen
-    `TOTAL 17793024 comparisons, 0 divergences`. **Re-run it for every Unicode-table or toolchain
-    bump.** A bare `uv run scripts/unicode_sweep.py` REFUSES (only those two rebuild-first paths
-    supply `--rebuilt`)
-- **Boundary vectors: `crates/iscc-lib/tests/unicode_boundary.json`** (141; 12 vectors = 7
-    `text_clean` + 5 `text_collapse`; the 4 **sequence** ones from 149 are the only discriminators
-    of sentinel vs delete-filter, so a binding suite needs **no oracle column**). ASCII `\uXXXX`,
-    `data.json`-shaped, loader `tests/test_unicode_boundary.rs`, deliberately NOT merged into
-    `data.json`. **All 11 native surfaces + pure-Go gated as of iter 161**, so a new vector costs 12
-    suites: 8 read the canonical fixture, Go/Swift keep byte-identity-gated copies, C/C++ share ONE
-    generated header (`crates/iscc-ffi/tests/unicode_boundary_vectors.h`, gated by a pytest
-    `render(fixture) == tracked` anchor, NOT `VENDORED_COPIES`)
+- **The sweep is a committed fail-closed gate (157, hardened 158)**: `mise run unicode:sweep` + the
+    `unicode-sweep` CI job — 1,112,064 scalars × 8 contexts × 2 fns vs installed `iscc-core` on
+    CPython 3.14, must print the byte-frozen `TOTAL 17793024 comparisons, 0 divergences`; **re-run
+    for every Unicode-table or toolchain bump**. A bare `uv run scripts/unicode_sweep.py` REFUSES
+    (only those rebuild-first paths pass `--rebuilt`)
+- **Boundary vectors: `crates/iscc-lib/tests/unicode_boundary.json`** (141; 12 vectors, ASCII
+    `\uXXXX`, `data.json`-shaped, loader `tests/test_unicode_boundary.rs`, deliberately NOT merged
+    into `data.json`; the 4 **sequence** ones from 149 are the only sentinel-vs-delete-filter
+    discriminators, so a binding suite needs **no oracle column**). **All 11 native surfaces +
+    pure-Go gated since 161** — a new vector costs 12 suites: 8 read the canonical fixture, Go/Swift
+    keep byte-identity-gated copies, C/C++ share one generated header
+    (`crates/iscc-ffi/tests/unicode_boundary_vectors.h`, gated by a pytest anchor)
 - **A binding can pass a boundary vector for the WRONG reason** (150/161): `packages/go` has no
-    freeze rule, but its 15.0 tables make U+20C1/U+A7F1 `Cn`, so its category-`C` filter
-    coincidentally matches (go1.27 flips five cases red — see issues.md); Swift's `String ==` folds
-    canonical equivalence, so compare `unicodeScalars.map { $0.value }` arrays instead
+    freeze rule — its 15.0 tables make U+20C1/U+A7F1 `Cn`, so the category-`C` filter coincides
+    (go1.27 flips 5 cases red — see issues.md); Swift's `String ==` folds canonical equivalence, so
+    compare `unicodeScalars.map { $0.value }` arrays
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (141):
     cases swapped for ASCII no-ops stay green forever, hence the **ungated** guards on version, case
     counts and code points; probe each, and give any skip list a *stale-key* guard
@@ -98,9 +96,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     under `-Xcheck:jni` (`mvn test -DargLine="-Xcheck:jni -Djava.library.path=$PWD/target/debug"` —
     surefire's `argLine` is *overridden*, so re-supply the library path). All 33 have a caller since
     169
-- **A suite reading a fixture OUTSIDE its own build tree must declare it as a build input** (154):
-    Gradle's `Test` task tracks only its project tree, so a `unicode_boundary.json` edit left
-    `./gradlew test` `UP-TO-DATE` — a silent stale green. Fixed; detail → `learnings-archive.md`
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
@@ -114,8 +109,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **A csproj `Version="X"` is a FLOOR, not a pin** (170): NuGet resolves a direct `PackageReference`
     to the *lowest applicable* version — exactness comes from the committed `packages.lock.json`
     plus CI's `restore --locked-mode` (csproj drift → `NU1004`, tampered `resolved`/`contentHash` →
-    `NU1403`). A warm tree prints "All projects are up-to-date for restore" and validates NOTHING —
-    probe cold; bump only with `--force-evaluate`, same commit
+    `NU1403`). A warm tree prints "All projects are up-to-date" and validates NOTHING — probe cold
+- **A dev-dependency's rustc floor cannot reach consumers — prove it, don't argue it** (171):
+    `cargo tree -i <dep> -e no-dev --target all` printing "nothing to print" is the evidence that a
+    dev-only major (criterion 0.8, rustc 1.86) leaves `rust-version` alone. Without `--target all`,
+    `-i` silently hides platform-gated transitives (criterion 0.8's `winapi` via `page_size`)
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with both `--fail-regression` and a
@@ -165,7 +163,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     pre-bump tree (`git archive HEAD~1 | tar -x`) or — cheaper — derive it from the FIXTURE (166:
     per-function `data.json` vector counts + static `@Test` count). **`mvn test` silently reuses
     stale test classes** ("Nothing to compile"), so only `mvn clean test` proves the new framework
-    compiles
+    compiles. A **bench-harness** major is the same trap: `cargo bench --no-run` (CI's `bench` job)
+    only links — `cargo bench -p iscc-lib --bench benchmarks -- --test` runs every body once (171:
+    18 `Testing`/`Success`)
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the
     previous sha's in-flight run (`cancelled`, not `failure`); let it conclude when a Done-When
     needs green CI on a sha. Each develop commit triggers TWO runs (push + the open develop→main PR)

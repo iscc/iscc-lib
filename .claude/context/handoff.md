@@ -1,51 +1,51 @@
 # Handoff
 
-## 2026-07-28 — Bump criterion 0.7 → 0.8 (dev-dependency, bench harness only)
+## 2026-07-28 — Review of: Bump criterion 0.7 → 0.8 (dev-dependency, bench harness only)
 
-**Done:** Pinned `criterion = { version = "0.8", features = ["html_reports"] }` in the root
-workspace manifest and refreshed `Cargo.lock` via `cargo update -p criterion` (resolved 0.8.2). The
-four-line "authorized (pending bump)" comment was replaced with the evergreen dev-dependency/MSRV
-rationale; the `uniffi` comment block is untouched. Zero bench-source changes were needed —
-`benches/benchmarks.rs` compiles and runs unmodified under 0.8.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** A minimal, correctly scoped dependency major: two files (`Cargo.toml` pin +
+`Cargo.lock`), no bench-source edit needed, MSRV untouched. Every claim in the advance handoff
+re-derived and held, including the load-bearing one — criterion has no non-dev reachability, so its
+rustc-1.86 floor cannot reach a consumer.
 
-- `Cargo.toml`: criterion pin 0.7 → 0.8; stale authorization comment replaced with evergreen note
-    (dev-dep floor ≠ published MSRV). `rust-version = "1.85"` untouched (line 17).
-- `Cargo.lock`: criterion 0.7.0 → 0.8.2, criterion-plot 0.6.0 → 0.8.2; new transitives alloca 0.4.0,
-    page_size 0.6.0, winapi 0.3.9 + 2 gnu shims (windows-only). 47 insertions, 4 deletions — scoped
-    to criterion's resolution, nothing else moved.
-- `.claude/agent-memory/advance/MEMORY.md` + `deps-refresh.md`: criterion marked DONE iter 171;
-    uniffi 0.32 is the last remaining authorized major.
+**Verification:**
 
-**Verification:** (all six Done-When checks, each from a captured exit code)
+- [x] Root `Cargo.toml` pins `version = "0.8"` (line 47); `Cargo.lock` `criterion` → `0.8.2`
+- [x] `grep -n 'rust-version = "1.85"' Cargo.toml` → line 17, unchanged
+- [x] `cargo bench --no-run` → exit 0 (CI `bench` job command)
+- [x] `cargo bench -p iscc-lib --bench benchmarks -- --test` → exit 0, 18 `Testing` / 18 `Success`
+- [x] `mise run lint` → exit 0 (clippy `--workspace --all-targets -D warnings`, 187 files formatted)
+- [x] `mise run test` → exit 0 (all cargo suites + 441 pytest); `mise run audit` → exit 0
+    (`advisories ok, bans ok, licenses ok, sources ok`, cargo-deny 0.19.9, no `deny.toml` edit)
+- [x] Beyond next.md — `mise run check` → exit 0, 18 hooks Passed; tree clean
+- [x] Beyond next.md — lock delta reaches only criterion: `cargo tree -i` shows `alloca 0.4.0` and
+    `page_size 0.6.0` under `criterion 0.8.2` alone, `winapi` only under `page_size` (visible only
+    with `--target all`); `cargo tree -i criterion -e no-dev --target all` prints *nothing* — the
+    proof that the 1.86 floor is dev-only
+- [x] Beyond next.md — `iai_benches.rs` mentions criterion in doc comments only, so the iai gate is
+    untouched; leaving `.iai-baseline.json` / `.crap-baseline.json` alone was correct
 
-- [x] `grep 'criterion = '` → `version = "0.8"`; `Cargo.lock` entry `name = "criterion"` /
-    `version = "0.8.2"`
-- [x] `grep -n 'rust-version = "1.85"' Cargo.toml` → line 17 matches
-- [x] `cargo bench --no-run` → exit 0 (exact CI `bench` job command)
-- [x] `cargo bench -p iscc-lib --bench benchmarks -- --test` → exit 0, 18 `Testing …` / 18 `Success`
-    lines — every bench body executed once under the 0.8 harness
-- [x] `mise run lint` → exit 0 (clippy `--workspace --all-targets -D warnings`: no fresh
-    deprecations)
-- [x] `mise run test` → exit 0 (cargo tests + 441 pytest passed); `mise run audit` → exit 0
-    (`advisories ok, bans ok, licenses ok, sources ok` — cargo-deny 0.19.9 via binstall, alloca's
-    MIT already allow-listed, no `deny.toml` change)
-- [x] `mise run check` → exit 0, 18 hooks Passed
+**Issues found:** (none) — no gate circumvention across the full unpushed range
+(`@{upstream}..HEAD`, 5 commits incl. the human `cid(loop)` commit); no lint suppression, skipped
+test, threshold change or hook weakening. No API surface touched, no hot-path code moved.
 
-**Next:** `uniffi` 0.31 → 0.32 — the last authorized major and the last v0.6.0 release-gating item.
-Read the 0.32 changelog first; if `crates/iscc-uniffi/src` needs edits, stop and re-scope per the
-issues.md constraint. Regenerate both checked-in bindings (Swift + Kotlin) as a pure regeneration;
-Kotlin verifies locally via Gradle, Swift only via the `swift` CI job on the pushed commit.
+**Codex review:** Clean — no findings. Confirms consistent resolution, compiling tests, all bench
+cases executing, advisory check green, and that the 1.86 requirement is confined to dev targets.
+
+**Next:** `uniffi` 0.31 → 0.32 — the last authorized major and the last v0.6.0 release-gating
+dependency item. Read the 0.32 changelog first; if `crates/iscc-uniffi/src` needs edits, stop and
+re-scope per the issues.md constraint. Regenerate both checked-in bindings (Swift + Kotlin) as a
+pure regeneration. **Verify both locally**: Kotlin via Gradle, and Swift via the swift.org Debian 12
+6.1.2 tarball recipe in `packages/swift/CLAUDE.md` (~784 MB, no `sudo`) — I corrected the "Swift is
+not locally verifiable" claim in issues.md, which was false. CI's `swift` job stays the final
+confirmation on the pushed commit.
 
 **Notes:**
 
-- No hot-path change: criterion is the measuring harness, not measured code — no `iscc-lib` source
-    line moved, so `.iai-baseline.json` / `.crap-baseline.json` were correctly left alone (iai
-    benches don't link criterion at all).
-- The `cargo report future-incompatibilities` note that appears during builds is pre-existing and
-    unrelated: `proc-macro-error2 v2.0.1` via `iai-callgrind-macros` (confirmed with
-    `cargo tree -i`; already recorded in agent memory, no fixed release exists upstream).
-- next.md's implementation notes held exactly: `cc` was already in the lock (blake3 build-dep), so
-    the only new unix-relevant crate is alloca; `html_reports` survives under the same name; the
-    async-std drop is the sole 0.8 breaking change and is unused here.
+- issues.md: the criterion half of the dependency-refresh entry is deleted (resolved); the entry now
+    describes only the uniffi remainder.
+- The `proc-macro-error2 v2.0.1` future-incompat warning on every `cargo bench`/`cargo test` is
+    pre-existing (dev-only, via `iai-callgrind-macros`, no fixed release) — not introduced here.
+- After uniffi lands, the v0.6.0 dependency work is done; what remains for the release is the
+    human-gated set (semver-checks flip and MSRV job are v1.0.0 prerequisites, not v0.6.0).

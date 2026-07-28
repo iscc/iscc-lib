@@ -21,23 +21,19 @@ and user-facing behaviour in `docs/`.
 Planned for the **v0.6.0** release. No automated dependency updates are configured (no
 Dependabot/Renovate), so manifests drift between releases.
 
-Two items remain. Both were **authorized by Titusz on 2026-07-28** and are schedulable as separate
-steps:
+One item remains, **authorized by Titusz on 2026-07-28** (`criterion` 0.8 landed at iteration 171):
 
-- **`criterion` 0.7 → 0.8 — take it and keep `rust-version = "1.85"`.** This is not an MSRV policy
-    call: `criterion` is a dev-dependency of `crates/iscc-lib` only, consumed by the two `[[bench]]`
-    targets, and a dev-dependency is never built by downstream consumers, so its rustc-1.86 floor
-    cannot raise a consumer's MSRV. It raises only the contributor/bench toolchain floor, and every
-    Rust CI job runs `dtolnay/rust-toolchain@stable`. Do **not** edit `rust-version` in this step.
 - **`uniffi` 0.31 → 0.32 — regenerate, do not hand-edit.** Read the 0.32 changelog first: if the
     proc-macro surface changed such that `crates/iscc-uniffi/src` needs edits, stop and re-scope —
     that is a different step. Otherwise regenerate both checked-in bindings
     (`packages/swift/Sources/IsccLib/iscc_uniffi.swift`,
     `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt`); the diff must be a pure
-    regeneration. Kotlin is verifiable locally (Gradle/JVM). **Swift is not** — the Linux
-    devcontainer has no Swift toolchain, so the `swift` CI job is the verification, and the step is
-    not done until CI is green on the pushed commit. uniffi's runtime checksum check fails loudly on
-    a stale binding, so a missed regeneration reds the suites rather than passing silently.
+    regeneration. Kotlin is verifiable locally (Gradle/JVM); **so is Swift** —
+    `packages/swift/CLAUDE.md` documents the swift.org Debian 12 6.1.2 tarball (~784 MB, no `sudo`),
+    so "no Swift toolchain in the devcontainer" is not a reason to defer. The `swift` CI job stays
+    the final word: the step is not done until CI is green on the pushed commit. uniffi's runtime
+    checksum check fails loudly on a stale binding, so a missed regeneration reds the suites rather
+    than passing silently.
 
 GitHub Action refs are **current** — re-probed 2026-07-28 across all 25 distinct `uses:` refs in
 `.github/workflows/*.yml`: `git/matching-refs/tags/v<N+1>` is empty for all 23 versioned refs, and
@@ -147,8 +143,8 @@ MSRV-aware. The claim is therefore unfalsifiable today — tolerable at 0.5.0, n
 MSRV becomes part of the stability commitment.
 
 **Scope when it lands:** add a CI job on `dtolnay/rust-toolchain@1.85` running
-`cargo check -p iscc-lib`. It must skip dev-dependencies (`cargo check`, not `cargo test`) — once
-`criterion` 0.8 is in, the dev-dependency graph needs rustc 1.86 by design, and that is not an MSRV
+`cargo check -p iscc-lib`. It must skip dev-dependencies (`cargo check`, not `cargo test`) — the
+dev-dependency graph needs rustc 1.86 by design (criterion 0.8, landed 171), and that is not an MSRV
 violation.
 
 Resolved when either the job exists and passes, or `rust-version` is dropped/raised deliberately.

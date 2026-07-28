@@ -960,3 +960,8 @@ runs on `opus`. Deliberate — do not "unify" them.
     `(ch+Σ).lower()` ends in ς ⟺ `Cased ∧ ¬Case_Ignorable`; `("A"+ch+Σ).lower()` ⟺
     `Cased ∨ Case_Ignorable`. Audit such a table against category-only bounds — a behavioural
     generator is not its own oracle (bounds → `decisions.md` 2026-07-27)
+
+- **A suite reading a fixture OUTSIDE its own build tree must declare it as a build input** (154,
+    archived 171 — all 12 boundary suites closed): Gradle's `Test` task tracks only its project
+    tree, so a `unicode_boundary.json` edit left `./gradlew test` `UP-TO-DATE` — a silent stale
+    green. Fixed by declaring the fixture an explicit input.

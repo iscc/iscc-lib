@@ -264,9 +264,26 @@ no floor moved; lock delta (+jni-macros/simd_cesu8/simdutf8, -cesu8/thiserror 1.
 reaches only `iscc-jni`; review recipe → `binding-reviews.md` "JNI crate review". **.NET test-dep
 pin + committed `packages.lock.json` CLOSED iter 170** (below). **GHA action majors probed current
 2026-07-28** — `git/matching-refs/tags/v<N+1>` empty for all 23 versioned refs, both exact pins ==
-`releases/latest`; re-probe rather than trusting that snapshot. What is left: `uniffi` 0.32 and
-`criterion` 0.8, both human-gated. Watch for the slice-5 lesson in any published binding: a
-runtime/toolchain floor moving silently.
+`releases/latest`; re-probe rather than trusting that snapshot. **criterion 0.8 CLOSED iter 171**
+(below). What is left: `uniffi` 0.32, human-authorized as a pure regeneration. Watch for the slice-5
+lesson in any published binding: a runtime/toolchain floor moving silently.
+
+## criterion 0.7 → 0.8 (dev-dep / bench-harness major, iter 171) — ~12 min
+
+Two files only (root `Cargo.toml` pin + `Cargo.lock`); zero bench-source edits were needed.
+
+- Slice-3 gate set (`mise run lint` / `test` / `check` / `audit` + `cargo bench --no-run`) PLUS
+    **`cargo bench -p iscc-lib --bench benchmarks -- --test`** — `--no-run` only links, `--test`
+    executes every bench body once (18 `Testing` / 18 `Success`). Demand that for any harness major.
+- **The load-bearing check for a dev-dep floor claim**:
+    `cargo tree -i criterion -e no-dev   --target all` must print *nothing* — that, not prose about
+    dev-dependency semantics, is why `rust-version = "1.85"` may stay. Use `--target all` for the
+    reachability of the NEW lock entries too, or platform-gated ones are invisible (`winapi` under
+    `page_size` under criterion; `alloca` is the only new unix-relevant crate).
+- No `.iai-baseline.json` / `.crap-baseline.json` refresh: `benches/iai_benches.rs` names criterion
+    in doc comments only (`harness = false`, separate binary), and no `iscc-lib` source line moved.
+- `cargo deny` is not preinstalled — `cargo binstall cargo-deny@0.19.9` first (advance leaves it on
+    PATH; `cargo-deny --version` confirms before you trust a green `mise run audit`).
 
 ## .NET lockfile / `--locked-mode` gate (iter 170) — ~10 min
 
