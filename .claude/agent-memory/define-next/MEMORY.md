@@ -28,6 +28,10 @@ iterations.
     `## Goal`.
 - **A remembered "supported versions" range is a docs ceiling, not an enforced one — read the
     constant out of the tool's own artifact** (165; recipe → [ledger](dep-refresh-ledger.md)).
+- **A "remaining item" in an issue body can already be done — probe the external source before
+    scoping it** (170: state.md, handoff and issues.md all still listed the `release.yml` action
+    refresh; one `gh api` loop showed zero refs behind). The freshness fact rots in the *opposite*
+    direction from most: it can only become true again when an upstream ships a major.
 - **Any upstream-API claim I put in Implementation Notes must be read out of
     `~/.cargo/registry/src/*/<crate>-<ver>/`, with enough context lines to see which item an
     attribute belongs to** — at 168 a `#[deprecated]` note two functions above got attributed to
@@ -65,6 +69,8 @@ iterations.
     — recipe → [propagation ledger](unicode-fixture-propagation.md)).
 - `uniffi-bindgen`: `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen`. UniFFI
     0.31.0; SPM module name MUST be `iscc_uniffiFFI`; no `const`/`usize`/borrowed/generic exports.
+- `dotnet` 8.0.423 is on `$PATH` with nuget.org reachable, so .NET restore/test steps are locally
+    verifiable; only `packages/dotnet` had no committed lockfile as of 170.
 - cargo-crap 0.2.2, cargo-llvm-cov 0.8.7, valgrind 3.19 + iai-callgrind-runner ARE installed.
     cargo-deny is NOT preinstalled but installs via `cargo binstall cargo-deny@0.19.9 --force`.
 
@@ -90,9 +96,12 @@ iterations.
 - v0.5.0 released; all 12 bindings meet core criteria; the 4 spec'd v0.6.0 feature issues are DONE;
     the **Unicode chain is CLOSED at 161**. **After 168 the CID-schedulable dependency work is
     done**; 169 scoped the JNI debt review filed against 168 (byte-array regression + 7 untested
-    natives, batched). Then: the static-evidence `release.yml` action pass, the Ruby doc-drift line,
-    then nothing. Trigger-only: go1.27 + the Go freeze table (~Aug 2026). HELD `low` by Titusz:
-    v1.0.0 + Semver-enforcing, npm OIDC (token to 2026-09-16).
+    natives, batched). **At 170 the `release.yml` action pass turned out to be a no-op** (every ref
+    in all three workflows already on its publisher's latest major — recipe in
+    [release.yml static gates](release-yml-static-gates.md)), so 170 scoped the unfiled
+    `packages/dotnet` lockfile gap plus the Ruby doc-drift line as a ride-along. Trigger-only:
+    go1.27 + the Go freeze table (~Aug 2026). HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm
+    OIDC (token to 2026-09-16).
 - **Closed phases: 115–123 (features) and the dep slices 124–137 + 162–168** — detail in
     MEMORY-archive.md and the [dep-refresh ledger](dep-refresh-ledger.md) (read it before any dep
     step). Lessons that still bite: the CRAP regression gate is **CI-only** (a new branch in a

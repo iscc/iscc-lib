@@ -138,6 +138,25 @@ Probed live before scoping; all figures verified at HEAD:
     to hair-split `@main` from `@stable` — that is a **new policy gate and needs Titusz**, so the
     step stayed a one-line edit.
 
+## Action freshness — fully current as of 2026-07-28 (iter 170)
+
+The "`release.yml` action refresh" bullet in the dependency issue is **already satisfied**; do not
+scope it again without re-probing. Two-command recipe (read-only, ~20 s):
+
+```bash
+grep -rhoE "uses: *[^ ]+@[^ ]+" .github/workflows/*.yml | sed 's/uses: *//' | sort | uniq -c
+gh api repos/<o>/<r>/releases/latest --jq .tag_name          # latest published major
+gh api repos/<o>/<r>/git/matching-refs/tags/v<N+1> --jq length  # 0 ⇒ no newer major exists
+```
+
+Result at that date: 24 distinct refs across `ci.yml`, `docs.yml`, `release.yml`; every floating
+major (`checkout@v7`, `download-artifact@v8`, `upload-artifact@v7`, `setup-java@v5`,
+`setup-node@v7`, `setup-python@v7`, `setup-dotnet@v6`, `cache@v6`, `action-gh-release@v3`,
+`rust-cache@v2`, `setup-go@v7`, `deploy-pages@v5`, `upload-pages-artifact@v5`, `codeql-action@v4`,
+`install-action@v2`, `cargo-semver-checks-action@v2`) is the publisher's latest, `v<N+1>` returns
+zero refs for each, and both exact pins (`setup-uv@v9.0.0`, `configure-rubygems-credentials@v2.1.0`)
+equal `releases/latest`. It can only go stale when an upstream ships a new major.
+
 ## Related
 
 - GHA `uses:` refresh facts and the "floating `@vN` is a convention, not a guarantee" rule live in
