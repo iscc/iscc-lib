@@ -94,10 +94,16 @@ impl TryFrom<u8> for SubType {
 }
 
 /// ISCC version identifier.
+///
+/// `V1` exists only for the experimental ISCC-IDv1 (MainType `Id`); every other
+/// MainType permits only `V0`. This enum is `#[non_exhaustive]` so future
+/// versions can be added without a further SemVer-major break.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Version {
     V0 = 0,
+    V1 = 1,
 }
 
 impl TryFrom<u8> for Version {
@@ -106,8 +112,25 @@ impl TryFrom<u8> for Version {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::V0),
+            1 => Ok(Self::V1),
             _ => Err(IsccError::InvalidInput(format!("invalid Version: {value}"))),
         }
+    }
+}
+
+/// Validate a MainType/Version combination.
+///
+/// Version 1 is accepted only for MainType `Id` (the experimental ISCC-IDv1);
+/// every other MainType permits only Version 0. This is the MainType-aware gate
+/// the context-free `Version::try_from` cannot express: `try_from` maps the raw
+/// nibble, while this function rejects a Version-1 header on any non-`Id` type.
+fn validate_version(mtype: MainType, version: Version) -> IsccResult<()> {
+    match (mtype, version) {
+        (_, Version::V0) | (MainType::Id, Version::V1) => Ok(()),
+        (_, other) => Err(IsccError::InvalidInput(format!(
+            "invalid Version: {} for MainType {mtype:?}",
+            other as u8
+        ))),
     }
 }
 
@@ -243,6 +266,8 @@ pub fn encode_header(
     version: Version,
     length: u32,
 ) -> IsccResult<Vec<u8>> {
+    validate_version(mtype, version)?;
+
     let mut bits = Vec::new();
     bits.extend(encode_varnibble(mtype as u32)?);
     bits.extend(encode_varnibble(stype as u32)?);
@@ -296,6 +321,7 @@ pub fn decode_header(data: &[u8]) -> IsccResult<(MainType, SubType, Version, u32
     let mtype = MainType::try_from(mtype_val as u8)?;
     let stype = SubType::try_from(stype_val as u8)?;
     let version = Version::try_from(version_val as u8)?;
+    validate_version(mtype, version)?;
 
     Ok((mtype, stype, version, length, tail))
 }
@@ -1041,8 +1067,81 @@ mod tests {
 
     #[test]
     fn test_version_try_from() {
-        assert!(Version::try_from(0).is_ok());
-        assert!(Version::try_from(1).is_err());
+        assert_eq!(Version::try_from(0).unwrap(), Version::V0);
+        assert_eq!(Version::try_from(1).unwrap(), Version::V1);
+        assert!(Version::try_from(2).is_err());
+    }
+
+    // ---- ISCC-IDv1 Version 1 acceptance tests ----
+
+    #[test]
+    fn test_iscc_decode_idv1_realm0() {
+        // Reference: iscc_core.iscc_decode("ISCC:MAIGHFECJMOPMIAB")
+        //   -> (6, 0, 1, 0, b'c\x94\x82K\x1c\xf6 \x01')
+        let expected_body = vec![0x63, 0x94, 0x82, 0x4b, 0x1c, 0xf6, 0x20, 0x01];
+        let with_prefix = crate::iscc_decode("ISCC:MAIGHFECJMOPMIAB").unwrap();
+        assert_eq!(with_prefix, (6, 0, 1, 0, expected_body.clone()));
+        // Same result via the bare (no-prefix) form.
+        let no_prefix = crate::iscc_decode("MAIGHFECJMOPMIAB").unwrap();
+        assert_eq!(no_prefix, (6, 0, 1, 0, expected_body));
+    }
+
+    #[test]
+    fn test_decompose_idv1_accepts_version1() {
+        // A single ISCC-IDv1 unit must decompose without "invalid Version: 1".
+        let result = iscc_decompose("ISCC:MAIGHFECJMOPMIAB").unwrap();
+        assert_eq!(result, vec!["MAIGHFECJMOPMIAB"]);
+    }
+
+    #[test]
+    fn test_decode_header_idv1_version1() {
+        // Header 0x6010 = MainType Id (6), realm 0, Version 1, length 0.
+        let raw = decode_base32("MAIGHFECJMOPMIAB").unwrap();
+        let (mtype, stype, version, length, tail) = decode_header(&raw).unwrap();
+        assert_eq!(mtype, MainType::Id);
+        assert_eq!(stype, SubType::None); // realm 0 travels as the nibble 0
+        assert_eq!(version, Version::V1);
+        assert_eq!(length, 0);
+        assert_eq!(tail.len(), 8);
+    }
+
+    #[test]
+    fn test_encode_decode_header_idv1_roundtrip() {
+        // Realm 1 (operational) travels as the SubType nibble 1 (cosmetically Image).
+        let header = encode_header(MainType::Id, SubType::Image, Version::V1, 0).unwrap();
+        let (mtype, stype, version, length, _tail) = decode_header(&header).unwrap();
+        assert_eq!(mtype, MainType::Id);
+        assert_eq!(stype, SubType::Image);
+        assert_eq!(version, Version::V1);
+        assert_eq!(length, 0);
+    }
+
+    #[test]
+    fn test_encode_header_rejects_version1_for_non_id() {
+        // Version 1 is only valid for MainType Id; a Meta header must reject it.
+        let result = encode_header(MainType::Meta, SubType::None, Version::V1, 1);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid Version"));
+    }
+
+    #[test]
+    fn test_decode_header_rejects_version1_for_non_id() {
+        // Craft a Meta header (MainType 0) with version nibble 1 and length 1.
+        // varnibble(0)=0000 mtype, varnibble(0)=0000 stype, varnibble(1)=0001 version,
+        // varnibble(1)=0001 length -> bits 0000 0000 0001 0001 = 0x00 0x11
+        let raw = [0x00u8, 0x11u8];
+        let result = decode_header(&raw);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid Version"));
+    }
+
+    #[test]
+    fn test_iscc_decode_rejects_version1_for_non_id() {
+        // The Tier 1 iscc_decode must also reject a non-Id Version-1 header.
+        let iscc = encode_base32(&[0x00u8, 0x11u8]);
+        let result = crate::iscc_decode(&iscc);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid Version"));
     }
 
     #[test]

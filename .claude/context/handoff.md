@@ -1,76 +1,57 @@
 # Handoff
 
-> **HUMAN REVIEW REQUESTED**: the last CID-doable issue is closed, so v0.6.0's release-readiness
-> criterion ("no `critical`/`normal` issue open that is not blocked on the human or on an upstream
-> release") is now **met**. Every remaining backlog entry is human-gated (v0.6.0 cut, v1.0.0, the
-> MSRV CI job, npm OIDC, the upstream `iscc-core#137` thread, docs logos) or trigger-gated (go1.27,
-> ~Aug 2026). The loop has no actionable work; cutting v0.6.0 from PR #44 is Titusz's call.
+## 2026-07-28 — Rust core codec accepts ISCC-IDv1 (Version 1) for MainType `Id`
 
-## 2026-07-28 — Review of: Declare `iscc-uniffi`'s real rustc floor instead of inheriting a false one
+**Done:** Added `#[non_exhaustive]` + a `V1 = 1` variant to `codec::Version`, and a MainType-aware
+`validate_version` gate so `decode_header`/`encode_header` (and `encode_component` transitively)
+accept Version 1 **only** for MainType `Id`, still rejecting Version > 0 for every other MainType.
+`iscc_decode`/`iscc_decompose` now handle `ISCC:MAIGHFECJMOPMIAB` instead of raising
+`invalid Version: 1`. Part 1 of issue #43; no new Tier 1 symbols.
 
-**Verdict:** PASS
+**Files changed:**
 
-**Summary:** A four-line, single-file metadata change that does exactly what next.md asked:
-`crates/iscc-uniffi/Cargo.toml` now declares `rust-version = "1.91"` with an evergreen comment
-naming the transitive cause, replacing the false inherited `1.85`. All six next.md criteria pass, I
-re-derived the floor independently, and the root workspace MSRV promise is untouched. Perfect scope
-discipline — one non-test/non-doc file.
+- `crates/iscc-lib/src/codec.rs`: `Version` enum gains `#[non_exhaustive]` + `V1 = 1`; `TryFrom<u8>`
+    maps `1 → V1`; new private `validate_version(mtype, version)` helper; called in `encode_header`
+    (top) and `decode_header` (after enum decode). Updated `test_version_try_from`; added 7 tests
+    (IDv1 realm-0 decode with/without prefix, decompose, header decode, realm-1 roundtrip, and three
+    non-`Id` Version-1 rejection cases through `encode_header`/`decode_header`/`iscc_decode`).
 
 **Verification:**
 
-- [x] `grep -n 'rust-version = "1.91"' crates/iscc-uniffi/Cargo.toml` → `8:rust-version = "1.91"`;
-    `grep -c 'rust-version.workspace'` on that file → `0`. The other 7 crates still inherit
-    (`ffi/lib/napi/py/wasm/jni/rb` all at `rust-version.workspace = true`)
-- [x] Root floor unchanged — `grep -n 'rust-version = "1.85"' Cargo.toml` → `17:...`
-- [x] `cargo +1.85.0 check -p iscc-lib --locked` → exit 0 (published crate still builds on 1.85)
-- [x] `cargo check --workspace --locked` → exit 0 on stable 1.97.1;
-    `git status --porcelain Cargo.lock` empty (no lockfile churn)
-- [x] `mise run lint` → exit 0 (clippy `-D warnings` clean, 187 files formatted)
-- [x] `mise run check` → exit 0, 18 prek hooks Passed, no file rewritten by a hook
+- `cargo test -p iscc-lib` → **298 passed, 0 failed** (incl. all 7 new codec cases). The pinned
+    vector `iscc_decode("ISCC:MAIGHFECJMOPMIAB")` returns the tuple
+    `(6, 0, 1, 0, <8-byte body 0x6394824b1cf62001>)` — byte-identical to the reference — both
+    prefixed and bare.
+- `cargo clippy -p iscc-lib --all-targets -- -D warnings` → clean (only the pre-existing
+    proc-macro-error2 future-incompat dependency note).
+- `cargo fmt -p iscc-lib --check` → clean (exit 0).
+- `mise run check` → all 18 prek hooks Passed.
+- `grep -n '#\[non_exhaustive\]' codec.rs` → present on `enum Version`; enum has `V1 = 1`.
 
-**Probes beyond next.md (3 of 3):**
+**API-BREAK:** Adding `#[non_exhaustive]` to `codec::Version` is itself a SemVer-major
+(`cargo-semver-checks` would report `enum_marked_non_exhaustive`), taken deliberately in the 0.x
+window per next.md and specs/rust-core.md "Codec changes this requires". `cargo-semver-checks` is
+not installed locally and the CI `semver` job is `continue-on-error`, so this is a written record,
+not a gate result. Adding the `V1` variant is also additive-major but subsumed by the same window.
 
-- **The declaration is effective:** `cargo +1.85.0 check -p iscc-uniffi --locked` now exits 101 with
-    `iscc-uniffi@0.5.0 requires rustc 1.91`, not a bare dependency-resolution error. Intended.
-- **The declared floor is exactly right, not a guess:** a `cargo metadata --locked` walk of
-    `iscc-uniffi`'s 93-package **non-dev** graph gives max `rust_version` = **1.91**, from
-    `cargo-platform 0.3.3` alone (next below it: askama 0.16 at 1.88, `cargo_metadata` at 1.86). So
-    the comment's stated cause is accurate and the value is neither over- nor under-stated.
-- **Nothing else assumes uniform inheritance:** no script, workflow, `mise.toml` task, doc page or
-    README mentions `rust-version`/MSRV, so the per-crate override breaks no gate and leaves no
-    stale doc claim. `specs/rust-core.md` "API Stability & Performance Invariants" states no MSRV,
-    so resolving the `[review]` issue needed no spec edit.
-
-**Issues found:**
-
-- (none) — no gate weakening anywhere in the unpushed range (`@{upstream}..HEAD`, 4 commits; the
-    only non-`.claude/` change in the whole range is this one Cargo.toml), no API break, no
-    benchmarked path touched, no dead code.
-- Resolved and deleted: `iscc-uniffi` no longer builds on the declared MSRV 1.85 (`normal`,
-    `[review]`). Its one durable side-fact — a future MSRV CI job must use `-p iscc-lib`, never
-    `--workspace` — was folded into the surviving `low` MSRV issue so it is not lost.
-
-**Codex review:** clean. Its only statement: "The manifest now accurately declares the effective
-Rust version required by the locked UniFFI dependency graph without changing the published core
-crate's MSRV. No functional regressions were identified." Nothing actionable.
-
-**Next:** There is no CID-doable step left. If the loop runs again, define-next should emit
-`## Step: NONE` naming the human-gated backlog rather than manufacturing work — do **not** scope the
-MSRV CI job (`low`, human-gated v1.0.0 prerequisite), the go1.27 freeze table (park until go1.27 has
-a final tag), npm OIDC (deferred by Titusz for v0.6.0) or the v1.0.0 cut. For Titusz, the sequence
-is: merge PR #44 `develop` → `main`, cut v0.6.0 via the `/release` skill, then decide the two v1.0.0
-prerequisites (flip `cargo-semver-checks` from `continue-on-error` to enforcing, and add the 1.85
-`cargo check -p iscc-lib` job).
+**Next:** Part 2 — `gen_iscc_id_v1(timestamp, hub_id, realm)` minting + `IsccIdResult`, which now
+has its prerequisite (encode path accepts Version 1 for `Id`). That step fans a new symbol across 11
+surfaces and is out of order/scope for a single package.
 
 **Notes:**
 
-- `resolver = "2"` is not MSRV-aware, so this changed no resolution, lockfile or build behaviour on
-    stable — it is a truthfulness fix to metadata, exactly as scoped.
-- `cargo +1.85.0 check --workspace` fails by design now; that is the correct signal, not a
-    regression. Only `-p iscc-lib` is the MSRV promise.
-- CI has not yet seen this commit; the push below is its first run. The change cannot affect any CI
-    job (all build on stable), so a red run would point at something else.
-- The runner's `decisions.md` → `decisions-archive.md` rotation was left uncommitted in the working
-    tree; it is staged with this review commit. No new decision was recorded — this step is the
-    direct implementation of the 2026-07-28 "uniffi 0.32 accepted with a raised source-build floor"
-    entry, not a fresh judgment call.
+- Design chosen: a single `validate_version` helper rather than folding the gate into `TryFrom<u8>`
+    (which is context-free and cannot see the MainType). `TryFrom` maps the raw nibble; the helper
+    rejects non-`Id` V1. Realm is NOT special-cased — it travels as the raw `SubType` nibble, so
+    realm 0 decodes to `SubType::None` and realm 1 to `SubType::Image` (cosmetic), both round-trip
+    numerically, per spec. `#[non_exhaustive]` on an in-crate enum does not force wildcard match
+    arms inside the crate, so existing exhaustive matches on `Version` still compile.
+- **OUT OF SCOPE — pre-existing CI break for review:**
+    `cargo test -p iscc-lib --no-default-features` (a CI `rust`-job step, ci.yml:42) fails to
+    **compile**: `lib.rs:2072` (`test_iscc_decode_rejects_uncomposable_sequence`) calls
+    `gen_meta_code_v0`/`gen_text_code_v0` without a
+    `#[cfg(feature = "meta-code")]`/`text-processing` gate. Verified this fails identically on
+    pristine HEAD `codec.rs` (temporarily swapped it in, still failed, restored mine), so it is
+    independent of this change — a latent break in the unpushed HEAD range. Not fixed (lib.rs is
+    outside this package's codec.rs scope). Default-feature `cargo test`, clippy, fmt, and
+    `--all-features` build all pass.
