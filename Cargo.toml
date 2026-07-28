@@ -41,11 +41,10 @@ napi-build = "2"
 wasm-bindgen = "0.2"
 wasm-bindgen-test = "0.3"
 serde-wasm-bindgen = "0.6"
-# authorized 2026-07-28 (pending bump): take criterion 0.8 and keep rust-version = "1.85".
-# criterion is a dev-dependency of iscc-lib only, consumed by the two [[bench]] targets, and a
-# dev-dependency is never built by downstream consumers — its rustc 1.86 floor raises the
-# contributor/bench toolchain floor, not the published MSRV. See issues.md.
-criterion = { version = "0.7", features = ["html_reports"] }
+# criterion is a dev-dependency of iscc-lib only, consumed by the `benchmarks` bench target;
+# a dev-dependency is never built by downstream consumers, so its rustc-1.86 floor is a
+# contributor/bench toolchain floor, not the published MSRV (rust-version stays 1.85).
+criterion = { version = "0.8", features = ["html_reports"] }
 iai-callgrind = "0.16"
 tempfile = "3"
 jni = "0.22"

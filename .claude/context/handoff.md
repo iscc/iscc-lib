@@ -1,83 +1,51 @@
 # Handoff
 
-> **RESOLVED BY HUMAN 2026-07-28** — the escalation raised at iteration 170 is answered and the loop
-> is unblocked. Titusz authorized both held dependency majors (`criterion` 0.8, `uniffi` 0.32),
-> corrected `specs/java-bindings.md` directly, and set the active goal to **v0.6.0 ready for
-> release** (see `target.md` → "Current Release Milestone"). Read the dependency issue in
-> `issues.md` before scoping either bump — each carries binding constraints and they are two
-> separate steps. The go1.27 tripwire stays parked on upstream.
+## 2026-07-28 — Bump criterion 0.7 → 0.8 (dev-dependency, bench harness only)
 
-## 2026-07-28 — Review of: Pin the .NET test dependencies and commit a NuGet lock file
+**Done:** Pinned `criterion = { version = "0.8", features = ["html_reports"] }` in the root
+workspace manifest and refreshed `Cargo.lock` via `cargo update -p criterion` (resolved 0.8.2). The
+four-line "authorized (pending bump)" comment was replaced with the evergreen dev-dependency/MSRV
+rationale; the `uniffi` comment block is untouched. Zero bench-source changes were needed —
+`benches/benchmarks.rs` compiles and runs unmodified under 0.8.
 
-**Verdict:** PASS
+**Files changed:**
 
-**Summary:** The last floating dependency surface in the repo is closed: three exact pins, a
-committed `packages.lock.json`, and a CI restore in `--locked-mode` with `--no-restore` on build and
-test. I re-derived the gate rather than trusting it — the exact CI sequence runs green on a cold
-tree, and two independent mutations (csproj drift, tampered lock entry) both red it. The Ruby doc
-line now matches `crates/iscc-rb/src/lib.rs` verbatim.
+- `Cargo.toml`: criterion pin 0.7 → 0.8; stale authorization comment replaced with evergreen note
+    (dev-dep floor ≠ published MSRV). `rust-version = "1.85"` untouched (line 17).
+- `Cargo.lock`: criterion 0.7.0 → 0.8.2, criterion-plot 0.6.0 → 0.8.2; new transitives alloca 0.4.0,
+    page_size 0.6.0, winapi 0.3.9 + 2 gnu shims (windows-only). 47 insertions, 4 deletions — scoped
+    to criterion's resolution, nothing else moved.
+- `.claude/agent-memory/advance/MEMORY.md` + `deps-refresh.md`: criterion marked DONE iter 171;
+    uniffi 0.32 is the last remaining authorized major.
 
-**Verification:**
+**Verification:** (all six Done-When checks, each from a captured exit code)
 
-- [x] No floating range in the test csproj — `grep -E 'Version="[^"]*\*"'` exits 1
-- [x] Lock file tracked; all three direct refs have `type: Direct` and `resolved` == csproj
-    `Version` (18.8.1 / 3.2.2 / 3.1.5), and the lock's Direct set equals the csproj ref set exactly
-- [x] `dotnet restore … --locked-mode` exits 0, `git status --porcelain packages/dotnet` empty; lock
-    md5 unchanged. Also verified **cold** (fresh `git archive` tree, no `obj/`) — the warm run only
-    prints "All projects are up-to-date for restore" and proves nothing
-- [x] `cargo build -p iscc-ffi` + `dotnet test … -e LD_LIBRARY_PATH=…` → **Failed: 0, Passed: 104,
-    Total: 104**, matching decisions.md 2026-07-27
-- [x] `grep -n "RString::from_slice" crates/iscc-rb/CLAUDE.md` exits 1; line 108 teaches
-    `ruby.str_from_slice(&bytes)` — confirmed against `src/lib.rs` (5 call sites via `Ruby::get()`)
-    and magnus 0.8.2 `r_string.rs:145`
-- [x] `mise run check` → exit 0, 18 hooks Passed, tracked tree unchanged
+- [x] `grep 'criterion = '` → `version = "0.8"`; `Cargo.lock` entry `name = "criterion"` /
+    `version = "0.8.2"`
+- [x] `grep -n 'rust-version = "1.85"' Cargo.toml` → line 17 matches
+- [x] `cargo bench --no-run` → exit 0 (exact CI `bench` job command)
+- [x] `cargo bench -p iscc-lib --bench benchmarks -- --test` → exit 0, 18 `Testing …` / 18 `Success`
+    lines — every bench body executed once under the 0.8 harness
+- [x] `mise run lint` → exit 0 (clippy `--workspace --all-targets -D warnings`: no fresh
+    deprecations)
+- [x] `mise run test` → exit 0 (cargo tests + 441 pytest passed); `mise run audit` → exit 0
+    (`advisories ok, bans ok, licenses ok, sources ok` — cargo-deny 0.19.9 via binstall, alloca's
+    MIT already allow-listed, no `deny.toml` change)
+- [x] `mise run check` → exit 0, 18 hooks Passed
 
-**Extra probes (3 of 3 budget):**
-
-- **Mutation 1** (csproj drift, lock untouched, cold): NuGet errored `NU1004` — "the package
-    reference xunit.v3 version has changed" — exit **1**. **Mutation 2** (tampered transitive
-    `resolved` in the lock): `NU1403`, package content hash validation failed, exit **1**. Both
-    halves of the gate bite.
-- **Exact CI sequence replayed cold** in a throwaway tree: locked restore, then build and test with
-    `--no-restore` — 0 warnings, 0 errors, 104 passed, lock byte-identical after. `--no-restore`
-    does not skip compilation, and a plain (unlocked) restore does not rewrite the committed lock.
-- **Action-freshness claim re-derived independently** (it drove an issues.md edit, so I did not take
-    it on the handoff's word): 25 distinct `uses:` refs, `git/matching-refs/tags/v<N+1>` empty for
-    all 23 versioned ones, both exact pins == their publisher's `releases/latest`. Confirmed no-op.
-
-**Issues found:**
-
-- (none) Scope is exactly next.md's list — 3 non-test/non-doc files, no `Not In Scope` item touched
-    (`release.yml`, `specs/java-bindings.md`, `issues.md`, other ecosystems' lockfiles all
-    untouched). Gate-integrity scan over all unpushed commits: no suppression, skip, threshold
-    change or hook weakening; no Tier 1/2 API change; no benchmarked path.
-
-**Issues updated:** the dependency entry lost the `release.yml` action bullet and records the
-2026-07-28 probe evidence instead. (The doc-drift entry this review left open was resolved by the
-human later the same day and deleted — see the banner above.)
-
-**Codex review:** Clean — "The locked NuGet restore succeeds, and the updated no-restore build/test
-flow passes all 104 .NET tests. No actionable regressions were found."
-
-**Next:** Two authorized steps stand between HEAD and v0.6.0, in this order:
-
-1. **`criterion` 0.7 → 0.8** — the smaller of the two and fully verifiable locally. Keep
-    `rust-version = "1.85"` untouched; the issue explains why this is not an MSRV change.
-2. **`uniffi` 0.31 → 0.32** — read the 0.32 changelog first and re-scope if `crates/iscc-uniffi/src`
-    needs edits. Regenerate both checked-in bindings; the diff must be a pure regeneration. Kotlin
-    verifies locally, Swift does not — the `swift` CI job is the verification.
-
-Closing the dependency issue is the last v0.6.0 criterion. The doc-drift issue is gone: the human
-applied the fix (jni 0.22, both line-count claims deleted rather than restated).
+**Next:** `uniffi` 0.31 → 0.32 — the last authorized major and the last v0.6.0 release-gating item.
+Read the 0.32 changelog first; if `crates/iscc-uniffi/src` needs edits, stop and re-scope per the
+issues.md constraint. Regenerate both checked-in bindings (Swift + Kotlin) as a pure regeneration;
+Kotlin verifies locally via Gradle, Swift only via the `swift` CI job on the pushed commit.
 
 **Notes:**
 
-- **go1.27 is at rc2 upstream** (`refs/tags/go1.27rc1`, `go1.27rc2`; no final tag). When the final
-    lands, the tripwire issue becomes schedulable and must land the 731-range freeze table in
-    `packages/go/utils.go` in the *same* step. `go-version-file: packages/go/go.mod` means nothing
-    flips without a deliberate bump — CI will not surprise you.
-- The .NET lock file carries a prek-added trailing newline that NuGet never rewrites; a version bump
-    must run `dotnet restore … --force-evaluate` in the same commit or CI reds with `NU1004`.
-- `learnings.md` was at its 199-line ceiling; the behavioural-UCD entry (156, fully superseded by
-    the vendored gated table) moved to `learnings-archive.md` to make room. No decisions.md entry —
-    this was a routine reproducibility pass with no trade-off a reader could not reconstruct.
+- No hot-path change: criterion is the measuring harness, not measured code — no `iscc-lib` source
+    line moved, so `.iai-baseline.json` / `.crap-baseline.json` were correctly left alone (iai
+    benches don't link criterion at all).
+- The `cargo report future-incompatibilities` note that appears during builds is pre-existing and
+    unrelated: `proc-macro-error2 v2.0.1` via `iai-callgrind-macros` (confirmed with
+    `cargo tree -i`; already recorded in agent memory, no fixed release exists upstream).
+- next.md's implementation notes held exactly: `cc` was already in the lock (blake3 build-dep), so
+    the only new unix-relevant crate is alloca; `html_reports` survives under the same name; the
+    async-std drop is the sole 0.8 breaking change and is unused here.

@@ -27,8 +27,8 @@ A–E) CLOSED iter 137. xunit.v3 + Test.Sdk 18.x DONE iter 164 (see below). Grad
 (see below). jni 0.22 DONE iter 168 (see below). .NET test-dep pin + lockfile DONE iter 170 (see
 below). Action-freshness pass probed NO-OP 2026-07-28: all 25 distinct `uses:` refs across the three
 workflow files are on their publisher's latest major (`matching-refs/tags/v<N+1>` empty for all 23
-versioned refs; both exact pins == `releases/latest`). Remaining (all human/major-gated): criterion
-0.8, uniffi 0.32 (see Held-back section).
+versioned refs; both exact pins == `releases/latest`). criterion 0.8 DONE iter 171 (see Held-back
+section). Remaining: uniffi 0.32 (see Held-back section).
 
 ## .NET test-dep pin + NuGet lockfile (iter 170 — DONE)
 
@@ -130,9 +130,15 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
 
 ## Held-back workspace majors (`# held:` comments in root Cargo.toml, iter 126)
 
-- **criterion 0.7** pinned; 0.8 needs rustc 1.86 > workspace MSRV 1.85 (MSRV raise = human policy
-    decision at the v1.0.0 cut). 0.6+ deprecated `criterion::black_box` — benches use
-    `std::hint::black_box` instead (deprecation is a clippy `-D warnings` hard error).
+- **criterion 0.8** DONE iter 171 (0.7 → 0.8.2, authorized by Titusz 2026-07-28): pin edit +
+    `cargo update -p criterion` only — zero bench-source changes (only 0.8 BREAKING entry is
+    async-std drop, unused; `html_reports` feature survives). Lock delta: criterion + criterion-plot
+    updated, +alloca 0.4.0/page_size 0.6.0 (memory-layout randomisation) + 3 windows-only winapi
+    shims — all MIT/allow-listed, `mise run audit` green without `deny.toml` edits.
+    `rust-version = "1.85"` deliberately untouched (dev-dep floor ≠ published MSRV).
+    `cargo bench -p iscc-lib --bench benchmarks -- --test` runs all 18 bench bodies once — use it
+    after any harness bump, `--no-run` alone only proves compilation. 0.6+ deprecated
+    `criterion::black_box` — benches use `std::hint::black_box` (clippy `-D warnings` hard error).
 - **jni 0.22** DONE iter 168 (see section above); no `GlobalRef`/`AutoLocal`/`Executor` usage
     existed in the crate, so only the `EnvUnowned`/`Env` + typed-array parts of the migration guide
     applied.
