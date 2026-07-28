@@ -42,42 +42,6 @@ release. Re-check when bumping `iai-callgrind` (which must stay in lockstep with
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness"
 
-## JNI `build_byte_array` re-implements a non-deprecated upstream helper `normal` [review]
-
-`crates/iscc-jni/src/lib.rs` grew a hand-rolled `build_byte_array` at iteration 168 because next.md
-listed `Env::byte_array_from_slice` as deprecated in jni 0.22. It is **not**: jni-0.22.4
-`src/env.rs:3349-3360` carries no `#[deprecated]` attribute (the note that was read belongs to
-`set_object_array_element` two functions above), and its body is exactly `JByteArray::new` +
-`set_region` over a *transmuted* `&[i8]` — no allocation.
-
-The local helper instead collects a fresh `Vec<i8>` per call, adding one allocation and one full
-copy to every returned `byte[]`. Worst case is `algCdcChunks`, which calls it once per chunk (≈1000
-allocations per MiB of input); `isccDecode`, `algSimhash`, `algMinhash256` and `softHashVideoV0`
-return digest-sized arrays where the cost is negligible.
-
-Fix: call `env.byte_array_from_slice(bytes)` at the four sites (or reduce the helper to a delegating
-one-liner) and update the two `crates/iscc-jni/CLAUDE.md` rows that teach `build_byte_array`.
-Resolved when `Vec<i8>` no longer appears in the crate,
-`mvn clean test -f crates/iscc-jni/java/pom.xml` still reports 82/82, and
-`cargo clippy -p iscc-jni --all-targets -- -D warnings` exits 0.
-
-## Seven of the 33 JNI natives have no Java test `normal` [review]
-
-`IsccLib.java` declares 33 native methods; `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/`
-never calls seven of them — `conformanceSelftest`, `encodeBase64`, `textRemoveNewlines`,
-`isccDecompose`, `algSimhash`, `algMinhash256`, `softHashVideoV0`. The jni 0.21→0.22 migration
-rewrote all 33 signatures, so a green 82-test suite proved only 26 of them; the seven were verified
-by hand at review time and work, but nothing guards them.
-
-Two of the gaps are structural, not cosmetic: `conformanceSelftest` is the only `jboolean` return in
-the crate (jni-sys 0.4 changed that alias to Rust `bool`), and `isccDecompose` is one of three
-functions returning a JVM-allocated array whose *element class* Java never checks — HotSpot does not
-type-check native return values, so a wrong array class survives element reads. Assert
-`getClass().getName()` (`[Ljava.lang.String;`, `[[B`) in at least one test.
-
-Resolved when every native declared in `IsccLib.java` is called by at least one JUnit test and
-`mvn clean test -f crates/iscc-jni/java/pom.xml` is green.
-
 ## Binding docs teach APIs the code no longer uses `normal` [review]
 
 Two doc surfaces drifted during the dependency refresh and now teach removed APIs to agents:
@@ -86,8 +50,7 @@ Two doc surfaces drifted during the dependency refresh and now teach removed API
     into a Ruby string; `crates/iscc-rb/src/lib.rs` has used `ruby.str_from_slice` since the magnus
     0.8 bump (iteration 167).
 - `.claude/context/specs/java-bindings.md` says the binding uses "the `jni` crate (v0.21)" (line 22)
-    and describes `src/lib.rs` as "~1060 lines" in two places; it is jni 0.22 and 1168 lines since
-    iteration 168.
+    and describes `src/lib.rs` as "~1060 lines" in two places; it is jni 0.22 and 1152 lines.
 
 **HUMAN REVIEW REQUESTED**: the second bullet edits a human-owned spec file. The Ruby doc fix needs
 no authorization. Resolved when both files match the code.

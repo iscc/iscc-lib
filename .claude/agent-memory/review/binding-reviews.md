@@ -140,28 +140,35 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 - `pom.xml` sets no `project.build.sourceEncoding`; non-ASCII in comments is pre-existing and
     harmless, non-ASCII in *string literals* would be platform-dependent.
 
-### JNI crate review — beyond `mvn clean test` (iter 168, ~12 min)
+### JNI crate review — beyond `mvn clean test` (iters 168–169, ~12 min)
 
-- Baseline: `cargo build -p iscc-jni` then `mvn clean test -f crates/iscc-jni/java/pom.xml` = **82
-    tests** (69 `IsccLibTest` + 13 `UnicodeBoundaryTest`); the totals are fixture-derived, so they
-    cannot move while `java/` and `data.json` are untouched.
+- Baseline: `cargo build -p iscc-jni` then `mvn clean test -f crates/iscc-jni/java/pom.xml` = **93
+    tests** (80 `IsccLibTest` + 13 `UnicodeBoundaryTest`) since 169; the totals are fixture- and
+    `@Test`-derived, so they cannot move while `java/` and `data.json` are untouched.
     `strings target/debug/libiscc_jni.so |   grep -oE 'jni(-sys)?-0\.[0-9.]+'` proves which jni
     version is actually linked.
-- **The suite calls only 26 of the 33 natives** — `conformanceSelftest`, `encodeBase64`,
-    `textRemoveNewlines`, `isccDecompose`, `algSimhash`, `algMinhash256`, `softHashVideoV0` are
-    never invoked (filed as an issue at 168). Probe them yourself:
-    `javac -cp crates/iscc-jni/java/target/classes -d /tmp/p Probe.java` then
-    `java -Xcheck:jni -cp "crates/iscc-jni/java/target/classes:/tmp/p" -Djava.library.path=target/debug Probe`
-    (`target/classes` exists after a `mvn test` run). `-Xcheck:jni` printed zero warnings at 168.
+- **Native coverage CLOSED at 169 — all 33 have a JUnit caller.** Re-assert it, don't assume; a grep
+    loop misses a renamed native, so parse instead:
+    `re.findall(r'native\s+[\w\[\]<>., ]+?\s+(\w+)\s*\(', IsccLib.java)` and check each name for
+    `IsccLib.<name>(` across `java/src/test/**/*.java`. Expect 33 declared, 0 uncovered.
+- **Run the suite under `-Xcheck:jni` on any marshalling change** —
+    `mvn test -f crates/iscc-jni/java/pom.xml -DargLine="-Xcheck:jni -Djava.library.path=$PWD/target/debug"`;
+    surefire's `argLine` is **overridden, not merged**, so the library path must be repeated or
+    every test errors with `UnsatisfiedLinkError`. Grep the log for `WARNING: JNI` /
+    `FATAL ERROR in   native`; zero at 168 and 169. (The older standalone `Probe.java` route via
+    `javac -cp crates/iscc-jni/java/target/classes` still works and is only needed for natives the
+    suite cannot reach.)
 - **HotSpot type-checks nothing a native returns** — assert `getClass().getName()` is
     `[Ljava.lang.String;` / `[[B` / `[B`, and stress the five `with_local_frame` sites past the ~512
     local-ref limit (2 MiB through `algCdcChunks` → 1025 chunks, 5000-char `slidingWindow`, 1000
     codes through `genMixedCodeV0`, 1000 sigs through `genVideoCodeV0`).
 - **Verify every `#[deprecated]` claim next.md makes against the vendored crate source** —
     `~/.cargo/registry/src/index.crates.io-*/jni-0.22.4/src/env.rs`. At 168 `byte_array_from_slice`
-    (env.rs:3350) was NOT deprecated though next.md said so; `get_string`, `get_array_length`,
-    `get_int_array_region`, `get_/set_object_array_element` were, and `push_/pop_local_frame` were
-    removed outright. The error policy is at `src/errors/policy.rs:188`.
+    (env.rs:3350) was NOT deprecated though next.md said so — it is the zero-copy `byte[]` return
+    path (`JByteArray::new` + transmuted `set_region`, no `Vec`), restored at 169; `get_string`,
+    `get_array_length`, `get_int_array_region`, `get_/set_object_array_element` were, and
+    `push_/pop_local_frame` were removed outright. The error policy is at
+    `src/errors/policy.rs:188`.
 
 ### Vendored-copy propagation slice (iter 150 — Python + pure-Go; moved from MEMORY.md index)
 

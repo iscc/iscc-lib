@@ -29,22 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-26 — Go skips the Unicode-16 boundary vectors until go1.27
-
-**Decision:** `packages/go` skips the Unicode 16.0 boundary conformance vectors with an explicit
-tracking note and issue, rather than vendoring the 15.0→16.0 assigned delta. The vectors are enabled
-for Go once go1.27 ships (Unicode 17 tables in stdlib and `x/text`, ~Aug 2026), at which point Go
-also needs the 731-range freeze table so post-16.0 characters are still removed. **Why:**
-`packages/go` is an independent pure-Go implementation on Unicode 15.0 tables (`x/text` gates its
-17.0 tables behind `//go:build go1.27`), so it cannot pass the vectors today. go1.27 is weeks out,
-which makes a vendored 5,813-code-point delta table throwaway code with its own generator and drift
-surface. **Alternatives:** vendor the 15.0→16.0 assigned delta with 16.0 categories now — rejected
-on throwaway cost; block criterion 3 until go1.27 — rejected, it would park the other ten bindings
-behind Go for no reason. **Consequence:** criterion 3 can close for 10 of 11 bindings; Go carries a
-documented, dated gap. The freeze table is needed in Go either way — go1.27 fixes Go's *missing*
-16.0 knowledge, not its need to strip post-16.0 characters. **Context:** interactive session
-2026-07-26, ruling on the parked point 3 of the Unicode issue.
-
 ## 2026-07-26 — `rubygems/configure-rubygems-credentials` is pinned to the exact tag `@v2.1.0`, not a SHA
 
 **Decision:** the only unpinned `uses:` in the repo moves from `@main` to `@v2.1.0` with an inline

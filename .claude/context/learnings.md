@@ -99,11 +99,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     greps out the dep version actually linked in (167). CI rebuilds first, so this is local-only
 - **The JVM type-checks nothing a native method returns** (168): an `Object[]` returned where
     `String[]` is declared survives every element read — assert `getClass().getName()` and probe
-    under `java -Xcheck:jni`; the Maven suite calls only 26 of the 33 JNI natives
+    under `-Xcheck:jni` (`mvn test -DargLine="-Xcheck:jni -Djava.library.path=$PWD/target/debug"` —
+    surefire's `argLine` is *overridden*, so re-supply the library path). All 33 have a caller since
+    169
 - **A suite reading a fixture OUTSIDE its own build tree must declare it as a build input** (154):
     Gradle's `Test` task tracks only its project tree, so a `unicode_boundary.json` edit left
-    `./gradlew test` `UP-TO-DATE` — a silent stale green. Fixed, and all 12 suites probed (Gradle
-    was the only offender); the per-build-system detail → `learnings-archive.md`
+    `./gradlew test` `UP-TO-DATE` — a silent stale green. Fixed; detail → `learnings-archive.md`
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
@@ -182,19 +183,17 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `next.md` and per-agent `MEMORY*.md` — so one non-conforming file rejects the whole batch even
     though staged-only `git commit` passed. Unblock by reformatting + amending
 - **Never write an exact count, a substring `grep -c`, an unverified CLI flag, or an unverified
-    `#[deprecated]` claim into a verification criterion** (iter 139: `ruff format --check` saw 155
-    files, not 153. Iter 148: `--fail-above   30.0` is a `cargo crap` syntax error. Iter 168: a
-    "must not appear" grep banned `Env::byte_array_from_slice`, undeprecated in jni 0.22.4 — the
-    note read belonged to a neighbouring fn — so a zero-copy helper got re-implemented with an extra
-    alloc). Confirm the attribute in `~/.cargo/registry/src/*/<crate>-<ver>/`; assert the *gate*
-    (exit code) and anchor greps; copy gate invocations from `ci.yml`, never from memory
+    `#[deprecated]` claim into a verification criterion** (139: `ruff format --check` saw 155 files,
+    not 153. 148: `--fail-above   30.0` is a `cargo crap` syntax error. 168: a "must not appear"
+    grep banned the *undeprecated* `Env::byte_array_from_slice`, costing a zero-copy path, reverted
+    169). Confirm the attribute in `~/.cargo/registry/src/*/<crate>-<ver>/`; assert the *gate* (exit
+    code) and anchor greps; copy gate invocations from `ci.yml`, never from memory
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
     (142: a prescribed rule that could not resolve `wheels-*`; 143: two false Unicode safety claims
     shipped verbatim into published docs). advance implements the *intent* and documents any
     deviation; review re-derives every quantitative or "never/always" claim from its source
-- **next.md must never task advance with editing `issues.md`** (iter 135): advance's protocol
-    forbids writing it and review owns issue progress/resolution. A slice-progress ledger paragraph
-    belongs in the handoff Notes for review to append — advance correctly refused and quoted it
+- **next.md must never task advance with editing `issues.md`** (135): advance's protocol forbids
+    writing it and review owns issue resolution — a progress paragraph goes in the handoff Notes
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test
