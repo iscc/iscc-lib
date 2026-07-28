@@ -24,9 +24,30 @@ to resolve action"). `releases/latest` proves a release exists, NOT that a float
 — confirm via `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Slice 8 (ruff 0.16, sub-slices
 A–E) CLOSED iter 137. xunit.v3 + Test.Sdk 18.x DONE iter 164 (see below). Gradle wrapper 8.12.1 →
 9.6.1 DONE iter 165 (see below). JUnit 6.1.2 DONE iter 166 (see below). magnus 0.8 DONE iter 167
-(see below). Remaining (all human/major-gated): `release.yml` actions (97 `uses:` refs;
-upload/download-artifact@v4 must move together; setup-uv there needs `@v9.0.0` too; only truly
-validated by a release run), jni 0.22.
+(see below). jni 0.22 DONE iter 168 (see below). Remaining (all human/major-gated): `release.yml`
+actions (97 `uses:` refs; upload/download-artifact@v4 must move together; setup-uv there needs
+`@v9.0.0` too; only truly validated by a release run).
+
+## jni 0.22 (iter 168 — DONE)
+
+- jni 0.22.4 (0.22.0/0.22.1 yanked), `rust-version = 1.85` == workspace MSRV — no floor move.
+    jni-sys 0.4 makes `jboolean = bool` (drop all `!= 0` conversions). Lock delta:
+    +jni-macros/simd_cesu8/simdutf8, −cesu8/thiserror 1.x/windows-sys 0.45 stack, all jni-only.
+- `EnvOutcome::resolve::<P>()` requires `T: Default` — raw `jstring`/`jobject` aliases implement
+    nothing, so extern fns must RETURN the `#[repr(transparent)]` wrappers (`JString<'local>`,
+    `JObject`, `JByteArray`, `JObjectArray<_, E>`); ABI-identical, Java-invisible.
+- 0.22 removed `From<JObject> for JString` — take element-typed `JObjectArray<'local, JString>`
+    (`<JIntArray>`, `<JByteArray>`) params so `get_element` returns the right type; kills every
+    `unsafe from_raw` in the extractors.
+- `find_class`/`throw_new` take `AsRef<JNIStr>`, `new_object` takes `AsRef<MethodSignature>` —
+    `&str` literals must become `jni_str!`/`jni_sig!`; dynamic msgs `JNIString::from(msg)`.
+    `jni::objects::JValue` deprecated → `jni::JValue`. `byte_array_from_slice` gone →
+    `JByteArray::new` + `set_region(&[i8])`. `push/pop_local_frame` →
+    `env.with_local_frame(16,   |env| ...)` per loop iteration (closure `E: From<Error>`, so helpers
+    return `jni::errors::Result`, not `Result<_, String>`).
+- Exception contract preserved WITHOUT the policy: throw helpers keep `env.throw_new` +
+    `Ok(T::default())` — pending exception survives `resolve` (`ThrowRuntimeExAndDefault` checks
+    `exception_check` first, fires only on panic/unhandled Err). 82/82 Maven tests unchanged.
 
 ## JUnit 6.1.2 (iter 166 — DONE)
 
@@ -94,9 +115,9 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
 - **criterion 0.7** pinned; 0.8 needs rustc 1.86 > workspace MSRV 1.85 (MSRV raise = human policy
     decision at the v1.0.0 cut). 0.6+ deprecated `criterion::black_box` — benches use
     `std::hint::black_box` instead (deprecation is a clippy `-D warnings` hard error).
-- **jni 0.21**; 0.22 is a wholesale API rework (JNIEnv → EnvUnowned/Env, GlobalRef → Global,
-    AutoLocal → Auto, closure-based thread attachment, mandatory ErrorPolicy) that rewrites
-    `crates/iscc-jni/src/lib.rs` per upstream `docs/0.22-MIGRATION.md`. Dedicated step.
+- **jni 0.22** DONE iter 168 (see section above); no `GlobalRef`/`AutoLocal`/`Executor` usage
+    existed in the crate, so only the `EnvUnowned`/`Env` + typed-array parts of the migration guide
+    applied.
 - **magnus 0.8** DONE iter 167 (0.7 → 0.8.2): mechanical — `magnus::exception::runtime_error()` →
     `ruby.exception_runtime_error()` (5 sites) and `RString::from_slice(&b)` →
     `ruby.str_from_slice(&b)` (5 sites), handle via `Ruby::get().expect("called from Ruby")`.

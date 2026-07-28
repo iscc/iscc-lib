@@ -46,10 +46,7 @@ serde-wasm-bindgen = "0.6"
 criterion = { version = "0.7", features = ["html_reports"] }
 iai-callgrind = "0.16"
 tempfile = "3"
-# held: jni 0.22 is a wholesale API rework (JNIEnv -> EnvUnowned/Env, GlobalRef -> Global,
-# AutoLocal -> Auto, closure-based thread attachment, mandatory ErrorPolicy) that rewrites
-# crates/iscc-jni/src/lib.rs per upstream docs/0.22-MIGRATION.md. Needs a dedicated step.
-jni = "0.21"
+jni = "0.22"
 magnus = { version = "0.8", features = ["rb-sys"] }
 # held: uniffi 0.32 requires regenerating and re-verifying the Swift + Kotlin bindings; the
 # Linux devcontainer has no Swift toolchain, so the result cannot be validated locally.

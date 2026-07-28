@@ -36,7 +36,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 
 ## Build and Tooling
 
-- `cargo build -p iscc-jni` before `mvn test -f crates/iscc-jni/java/pom.xml` (native lib prereq)
+- `cargo build -p iscc-jni` before `mvn clean test -f crates/iscc-jni/java/pom.xml` (native lib
+    prereq; plain `mvn test` reuses stale classes). jni 0.22 API facts → deps-refresh.md
 - CI `.github/workflows/ci.yml`: 21 jobs (version-check, rust, python-test, python, nodejs, wasm,
     c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver, coverage, audit,
     release-workflow, unicode-sweep). `bench` = `cargo bench --no-run`; `swift` on macos-14;
@@ -49,7 +50,7 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     branch-adding change. Full mechanics + gotchas → ci-gates.md
 - Audit rule: advisory with patched release → `cargo update -p <crate>`, never `deny.toml` `ignore`
 - Dependency refresh (iters 124-140; xunit.v3 164, Gradle 9.6.1 165, JUnit 6.1.2 166, magnus 0.8
-    iter 167): manifests current; held majors (criterion 0.8, jni 0.22, uniffi 0.32) carry `# held:`
+    167, jni 0.22 168): manifests current; held majors (criterion 0.8, uniffi 0.32) carry `# held:`
     in root Cargo.toml; ruff 0.16 (`ruff format` covers Markdown fences); prek ruff hooks carry
     `pyi` in `types_or` (CI parity — prek types `.pyi` as `pyi`, NOT `python`); NEVER blanket
     `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`. Detail + prek staged-probe
