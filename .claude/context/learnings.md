@@ -16,8 +16,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so output tracks
     `unicodedata.unidata_version`; iscc-core#137). Always name the interpreter:
     `uv run --python 3.13 --no-project --with iscc-core …`
-- Any dependency shipping DATA TABLES (Unicode, locale, tz) must be proven output-neutral by a
-    **differential sweep** (`mise run unicode:sweep`), never by a green vector suite — every
+- Any dependency shipping DATA TABLES (Unicode, locale, tz) needs a **differential sweep**
+    (`mise run unicode:sweep`) to prove output-neutrality, never a green vector suite — every
     `data.json` vector predates Unicode 16
 
 ## Tooling
@@ -58,10 +58,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     which pre-substitutes each `Σ` with σ/ς decided from vendored `Cased`/`Case_Ignorable` tables
     (`utils/unicode16_case.rs`, regen `scripts/gen_unicode16_case.py`) and only then delegates to
     std. The rule is NOT "no `Cased` char follows": `ΑΣ,Β` → `αςβ`, `ΑΣ.Β` → `ασβ`
-- **A UCD *derived* property a runtime does not expose can be recovered behaviourally** (156):
-    `(ch+Σ).lower()` ends in ς ⟺ `Cased ∧ ¬Case_Ignorable`; `("A"+ch+Σ).lower()` ⟺
-    `Cased ∨ Case_Ignorable`. Audit such a table against category-only bounds — a behavioural
-    generator is not its own oracle (bounds → `decisions.md` 2026-07-27)
 - **Any Unicode differential MUST include multi-code-point sequences** — deleting a `Cn` code point
     changes ADJACENCY, mapping it does not, and a per-code-point sweep scores the superseded
     delete-filter design 0 failures; only `base_mark` / `jamo` / `sigma` expose it
@@ -115,6 +111,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     checked" are the same green (read `action-inputs: resolved R of T`, not the job status), and
     "transport failure degrades to a warning" is NOT met by `except OSError` (`IncompleteRead` is an
     `HTTPException`, captive-portal HTML raises `yaml.YAMLError`)
+- **A csproj `Version="X"` is a FLOOR, not a pin** (170): NuGet resolves a direct `PackageReference`
+    to the *lowest applicable* version — exactness comes from the committed `packages.lock.json`
+    plus CI's `restore --locked-mode` (csproj drift → `NU1004`, tampered `resolved`/`contentHash` →
+    `NU1403`). A warm tree prints "All projects are up-to-date for restore" and validates NOTHING —
+    probe cold; bump only with `--force-evaluate`, same commit
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with both `--fail-regression` and a

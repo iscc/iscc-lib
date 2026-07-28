@@ -21,12 +21,13 @@ and user-facing behaviour in `docs/`.
 Planned for the **v0.6.0** release. No automated dependency updates are configured (no
 Dependabot/Renovate), so manifests drift between releases.
 
-Three items remain. `uniffi` 0.32 and `criterion` 0.8 are human-gated: uniffi needs the Swift +
-Kotlin bindings regenerated and re-verified (no Swift toolchain assumption may be baked in), and
-criterion needs rustc 1.86 > the declared `rust-version = "1.85"`, i.e. an MSRV policy call. The
-`release.yml` action refresh is CID-doable on static evidence (per the 2026-07-25 decision) but is
-never exercised by a CI run, so it must lean on `scripts/check_release_workflow.py` and
-`--check-action-inputs` rather than on a green pipeline.
+Two items remain, both human-gated. `uniffi` 0.32 needs the Swift + Kotlin bindings regenerated and
+re-verified (no Swift toolchain assumption may be baked in); `criterion` 0.8 needs rustc 1.86 > the
+declared `rust-version = "1.85"`, i.e. an MSRV policy call. GitHub Action refs are **current** —
+re-probed 2026-07-28 across all 25 distinct `uses:` refs in `.github/workflows/*.yml`:
+`git/matching-refs/tags/v<N+1>` is empty for all 23 versioned refs, and both exact pins equal their
+publisher's `releases/latest`. Re-probe before assuming drift; do not scope an action bump on a
+release note alone.
 
 **Constraints that still bind:** wheels stay `abi3-py310`; PyO3 bumps only together with
 re-verifying `gil_used = true` semantics and the `py.detach` call sites; `rb_sys` in `Gemfile.lock`
@@ -42,18 +43,14 @@ release. Re-check when bumping `iai-callgrind` (which must stay in lockstep with
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness"
 
-## Binding docs teach APIs the code no longer uses `normal` [review]
+## The Java binding spec teaches a jni version and file size the code no longer matches `normal` [review]
 
-Two doc surfaces drifted during the dependency refresh and now teach removed APIs to agents:
+`.claude/context/specs/java-bindings.md` says the binding uses "the `jni` crate (v0.21)" (line 22)
+and describes `src/lib.rs` as "~1060 lines" (lines 13 and 32); the crate is on `jni = "0.22"` and
+the file is 1152 lines.
 
-- `crates/iscc-rb/CLAUDE.md:108` still presents `RString::from_slice` as the way to copy a slice
-    into a Ruby string; `crates/iscc-rb/src/lib.rs` has used `ruby.str_from_slice` since the magnus
-    0.8 bump (iteration 167).
-- `.claude/context/specs/java-bindings.md` says the binding uses "the `jni` crate (v0.21)" (line 22)
-    and describes `src/lib.rs` as "~1060 lines" in two places; it is jni 0.22 and 1152 lines.
-
-**HUMAN REVIEW REQUESTED**: the second bullet edits a human-owned spec file. The Ruby doc fix needs
-no authorization. Resolved when both files match the code.
+**HUMAN REVIEW REQUESTED**: this edits a human-owned spec file, so CID must not fix it unprompted.
+Resolved when the spec matches the code.
 
 **Spec:** `.claude/context/specs/java-bindings.md` → "Why JNI (not JNA or Panama FFI)"
 

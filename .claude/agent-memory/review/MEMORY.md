@@ -101,13 +101,18 @@ entries in `MEMORY-archive.md`.
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see `gate-reviews.md` Audit)
 - **Dependency refresh (v0.6.0)**: per-slice gates, hold-backs, reflexes → `dep-refresh-reviews.md`.
-    **Nine slices + xunit.v3 + Gradle 9.6.1 + JUnit 6.1.2 + magnus 0.8 + jni 0.22 CLOSED**; left:
-    `release.yml` actions (uniffi 0.32 / criterion 0.8 are human-gated). A toolchain bump in a
-    PUBLISHED binding moves the **consumer floor** — re-derive it from the crate's own
-    README/`Cargo.toml`, never from a `# held:` comment (167: the comment claimed a Ruby 3.2+ floor
-    magnus 0.8 never had); a DATA-TABLE dep needs an exhaustive differential (all 50 vendored
-    vectors predate Unicode 16). **Prove a gitignored native artifact was rebuilt against the
-    bump**: `strings <artifact> | grep -o '<dep>-[0-9.]*'`
+    **Nine slices + xunit.v3 + Gradle 9.6.1 + JUnit 6.1.2 + magnus 0.8 + jni 0.22 + the .NET
+    lockfile CLOSED**; only uniffi 0.32 / criterion 0.8 left, both human-gated (action majors probed
+    current 2026-07-28 — re-probe, never trust the snapshot). A toolchain bump in a PUBLISHED
+    binding moves the **consumer floor** — re-derive it from the crate's own README/`Cargo.toml`,
+    never from a `# held:` comment (167: the comment claimed a Ruby 3.2+ floor magnus 0.8 never
+    had); a DATA-TABLE dep needs an exhaustive differential (all 50 vendored vectors predate Unicode
+    16). **Prove a gitignored native artifact was rebuilt against the bump**:
+    `strings <artifact> | grep -o '<dep>-[0-9.]*'`
+- **Committed-lockfile / `--locked-mode` gate (170, ~10 min)**: a WARM `dotnet restore` prints "All
+    projects are up-to-date for restore" and validates NOTHING — replay the CI sequence cold in a
+    `git archive` tree, then mutate BOTH halves (csproj `Version` → `NU1004`, a lock
+    `resolved`/`contentHash` → `NU1403`) → `dep-refresh-reviews.md`
 - **Build-tool WRAPPER major / any committed BINARY blob (165, ~15 min)**: never review it by
     reading the diff — pin the blob to the publisher's checksum AND regenerate it in a throwaway
     dir, then diff every artifact; also probe the release-only publish task →

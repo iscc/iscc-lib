@@ -261,10 +261,35 @@ corrected floor facts → `binding-reviews.md` "Ruby Binding Review"; lock delta
 magnus-macros + magnus's own build-dep `rb-sys-env` 0.1.2→0.2.3, all reaching only `iscc-rb` per
 `cargo tree -i`). **jni 0.22 CLOSED iter 168** — 0.22.4, `rust-version = 1.85` == workspace MSRV so
 no floor moved; lock delta (+jni-macros/simd_cesu8/simdutf8, -cesu8/thiserror 1.x/windows-sys 0.45)
-reaches only `iscc-jni`; review recipe → `binding-reviews.md` "JNI crate review". What is left:
-`release.yml` GHA refs (not CI-exercised, but CID-doable on static evidence per the 2026-07-25
-decision), `uniffi` 0.32 and `criterion` 0.8 (both human-gated). Watch for the slice-5 lesson in any
-published binding: a runtime/toolchain floor moving silently.
+reaches only `iscc-jni`; review recipe → `binding-reviews.md` "JNI crate review". **.NET test-dep
+pin + committed `packages.lock.json` CLOSED iter 170** (below). **GHA action majors probed current
+2026-07-28** — `git/matching-refs/tags/v<N+1>` empty for all 23 versioned refs, both exact pins ==
+`releases/latest`; re-probe rather than trusting that snapshot. What is left: `uniffi` 0.32 and
+`criterion` 0.8, both human-gated. Watch for the slice-5 lesson in any published binding: a
+runtime/toolchain floor moving silently.
+
+## .NET lockfile / `--locked-mode` gate (iter 170) — ~10 min
+
+- **A WARM restore proves nothing**: with `obj/` present it prints "All projects are up-to-date for
+    restore" and exits 0 without validating. Replay the CI sequence cold in a throwaway tree:
+
+```
+git archive HEAD | tar -x -C /tmp/dnprobe
+rm -rf /tmp/dnprobe/packages/dotnet/*/obj /tmp/dnprobe/packages/dotnet/*/bin
+C=/tmp/dnprobe/packages/dotnet/Iscc.Lib.Tests
+dotnet restore $C/Iscc.Lib.Tests.csproj --locked-mode
+dotnet build   $C/Iscc.Lib.Tests.csproj --no-restore
+dotnet test    $C/ --no-restore -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug
+```
+
+- **Mutate both halves**: csproj `Version=` drift with the lock untouched → `NU1004`, exit 1; a
+    tampered transitive `resolved`/`contentHash` in the lock → `NU1403`, exit 1.
+- A csproj `Version="3.2.2"` is a **floor** (NuGet takes the lowest applicable), so the lock file is
+    what makes it exact — check `type: Direct` + `resolved` == csproj for every ref, and that the
+    lock's Direct set *equals* the csproj ref set (a missing ref is invisible otherwise).
+- `--no-restore` does NOT skip compilation (`--no-build` would); a plain unlocked restore does not
+    rewrite the committed lock, so prek's trailing newline survives. `--locked-mode` accepts a
+    referenced project with zero `PackageReference`s and no lock file (`Iscc.Lib`).
 
 ## JVM test-framework major (iter 166, JUnit 5.14.4 → 6.1.2, Gradle + Maven) — ~10 min
 

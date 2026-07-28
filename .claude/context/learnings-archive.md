@@ -953,3 +953,10 @@ runs on `opus`. Deliberate — do not "unify" them.
 - **A markdown-table parity gate must anchor to its own section** (163): `specs/ci-cd.md` carries 14
     backticked first-column rows under `## Version Management` that a whole-file scan would read as
     bogus job rows — so the real file, not the fixture, is what proves the anchor load-bearing
+
+## Behavioural recovery of a UCD derived property (archived at 170 — the table is vendored and gated)
+
+- **A UCD *derived* property a runtime does not expose can be recovered behaviourally** (156):
+    `(ch+Σ).lower()` ends in ς ⟺ `Cased ∧ ¬Case_Ignorable`; `("A"+ch+Σ).lower()` ⟺
+    `Cased ∨ Case_Ignorable`. Audit such a table against category-only bounds — a behavioural
+    generator is not its own oracle (bounds → `decisions.md` 2026-07-27)
