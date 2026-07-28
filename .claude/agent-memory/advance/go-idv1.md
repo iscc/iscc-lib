@@ -24,13 +24,18 @@ metadata:
     overflow", `hub_id>=1<<12` "HUB-ID overflow", `realm∉{0,1}` "Realm-ID must be 0 (test) or 1
     (operational)". Body = `(ts<<12)|hub_id`, be_bytes, then
     `encode_component(Id, SubType::try_from(realm)?, V1, 64, &digest)` + "ISCC:". Golden
-    `gen_iscc_id_v1(1751831876325218,1,0)=="ISCC:MAIGHFECJMOPMIAB"`. Tier 1 now 33 symbols. STILL
-    PENDING: 11-surface binding fan-out, Go `EncodeIsccID` rename/`DecodeIsccID` deletion, Python
-    differential test vs iscc_core (needs rebuilt wheel), 32→33 doc/count sweep.
-- KNOWN pre-existing CI break (iter 174, out of scope):
-    `cargo test -p iscc-lib --no-default-features` fails to COMPILE — `lib.rs:2072`
-    `test_iscc_decode_rejects_uncomposable_sequence` calls `gen_meta_code_v0`/`gen_text_code_v0`
-    without a feature gate. Reds ci.yml:42 `rust` job.
+    `gen_iscc_id_v1(1751831876325218,1,0)=="ISCC:MAIGHFECJMOPMIAB"`. Tier 1 now 33 symbols.
+- Python binding DONE (iter 178, #43):
+    `#[pyfunction] gen_iscc_id_v1(timestamp, hub_id=0,   realm_id=0)` in `crates/iscc-py/src/lib.rs`
+    (returns `PyDict{"iscc"}`, no `py.detach`, Err→ `PyValueError`) + module reg; `_lowlevel.pyi`
+    stub; `__init__.py` `IsccIdResult(IsccResult)` + wrapper + re-export + `__all__`. Differential
+    test `tests/test_iscc_id_v1.py` vs installed `iscc_core` (grid ts×hub×realm{0,1} + golden +
+    validation). Ref sig `(timestamp=None, hub_id=0,   realm_id=0)` — `realm_id` maps to core
+    `realm`; NEVER pass `timestamp=None` (ref reads clock).
+- STILL PENDING (#43): remaining 10 binding surfaces (napi, wasm, ffi, jni, rb, uniffi, dotnet, cpp
+    - Go rename), Go `EncodeIsccID` rename/`DecodeIsccID` deletion, 32→33 doc/count sweep.
+- The iter-174 "no-default-features fails to COMPILE" note was a PHANTOM (review iter 177): that
+    test is already `#[cfg(feature = "meta-code")]`-gated; all feature combos pass. No work owed.
 - Go CI job runs only `go test`+`go vet` — no gofmt gate. The go1.26 gofmt alignment drift in
     codec_test.go + conformance.go was fixed (gofmt -w) in iter 147; tree is gofmt-clean now.
 - `TextCollapse` (utils.go) uses per-call `cases.Lower(language.Und)` for Final_Sigma conformance

@@ -317,6 +317,24 @@ def gen_sum_code_v0(
         is True.
     """
 
+def gen_iscc_id_v1(
+    timestamp: int, hub_id: int = 0, realm_id: int = 0
+) -> dict[str, Any]:
+    """Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
+
+    Packs a 52-bit microsecond UTC ``timestamp`` and a 12-bit ``hub_id``
+    (0-4095) into a 64-bit ISCC-ID unit, encoded with ``realm_id`` as SubType.
+    Clock-free: the caller supplies ``timestamp``. There is no dedicated
+    decoder — use ``iscc_decode``.
+
+    :param timestamp: Microsecond UTC timestamp since the UNIX epoch (< 2**52).
+    :param hub_id: HUB-ID in range 0-4095 (default 0).
+    :param realm_id: ID realm — 0 (test) or 1 (operational) (default 0).
+    :return: Dict with ``iscc`` key.
+    :raises ValueError: If ``timestamp`` >= 2**52, ``hub_id`` >= 2**12, or
+        ``realm_id`` is not 0 or 1.
+    """
+
 def soft_hash_video_v0(frame_sigs: Sequence[Sequence[int]], bits: int = 64) -> bytes:
     """Compute a similarity-preserving hash from video frame signatures.
 

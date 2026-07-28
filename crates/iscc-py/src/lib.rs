@@ -366,6 +366,24 @@ fn gen_sum_code_v0(
     Ok(dict.into())
 }
 
+/// Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
+///
+/// Returns a dict with key: `iscc`.
+#[pyfunction]
+#[pyo3(signature = (timestamp, hub_id=0, realm_id=0))]
+fn gen_iscc_id_v1(
+    py: Python<'_>,
+    timestamp: u64,
+    hub_id: u16,
+    realm_id: u8,
+) -> PyResult<Py<PyAny>> {
+    let r = iscc_lib::gen_iscc_id_v1(timestamp, hub_id, realm_id)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    Ok(dict.into())
+}
+
 /// Run all conformance tests against vendored test vectors.
 ///
 /// Returns `True` if all tests pass, `False` if any fail.
@@ -721,6 +739,7 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(gen_instance_code_v0, m)?)?;
     m.add_function(wrap_pyfunction!(gen_iscc_code_v0, m)?)?;
     m.add_function(wrap_pyfunction!(gen_sum_code_v0, m)?)?;
+    m.add_function(wrap_pyfunction!(gen_iscc_id_v1, m)?)?;
     m.add_function(wrap_pyfunction!(conformance_selftest, m)?)?;
     m.add_function(wrap_pyfunction!(text_clean, m)?)?;
     m.add_function(wrap_pyfunction!(text_remove_newlines, m)?)?;

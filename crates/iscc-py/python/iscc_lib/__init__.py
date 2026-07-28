@@ -32,6 +32,7 @@ from iscc_lib._lowlevel import (
     gen_image_code_v0 as _gen_image_code_v0,
     gen_instance_code_v0 as _gen_instance_code_v0,
     gen_iscc_code_v0 as _gen_iscc_code_v0,
+    gen_iscc_id_v1 as _gen_iscc_id_v1,
     gen_meta_code_v0 as _gen_meta_code_v0,
     gen_mixed_code_v0 as _gen_mixed_code_v0,
     gen_sum_code_v0 as _gen_sum_code_v0,
@@ -191,6 +192,12 @@ class SumCodeResult(IsccResult):
     units: list[str] | None
 
 
+class IsccIdResult(IsccResult):
+    """Result of gen_iscc_id_v1."""
+
+    iscc: str
+
+
 # ── Wrapper functions ────────────────────────────────────────────────────────
 
 
@@ -280,6 +287,11 @@ def gen_sum_code_v0(
 ) -> SumCodeResult:
     """Generate Data-Code + Instance-Code + ISCC-CODE from a file path in a single pass."""
     return SumCodeResult(_gen_sum_code_v0(os.fspath(path), bits, wide, add_units))
+
+
+def gen_iscc_id_v1(timestamp: int, hub_id: int = 0, realm_id: int = 0) -> IsccIdResult:
+    """Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental)."""
+    return IsccIdResult(_gen_iscc_id_v1(timestamp, hub_id, realm_id))
 
 
 # ── Streaming hashers ──────────────────────────────────────────────────────
@@ -393,6 +405,7 @@ __all__ = [
     "InstanceCodeResult",
     "InstanceHasher",
     "IsccCodeResult",
+    "IsccIdResult",
     "IsccResult",
     "MetaCodeResult",
     "MixedCodeResult",
@@ -413,6 +426,7 @@ __all__ = [
     "gen_image_code_v0",
     "gen_instance_code_v0",
     "gen_iscc_code_v0",
+    "gen_iscc_id_v1",
     "gen_meta_code_v0",
     "gen_mixed_code_v0",
     "gen_sum_code_v0",
