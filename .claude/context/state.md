@@ -1,38 +1,35 @@
-<!-- assessed-at: 8ea3e025dd25d9cb17851e253085f33ec6df4882 -->
+<!-- assessed-at: cd899f3ef28f670dc15b744f61947f9db40c7cc8 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All target sections met except human-held publishing items; one Rust dependency major is the last CID-schedulable work
+## Phase: Dependency refresh exhausted of CID-schedulable majors; backlog is now review-filed cleanup plus human-held publishing items
 
-Iteration 167 took the Ruby slice of the authorized dependency refresh: workspace `magnus 0.7 → 0.8`
-with both deprecated `old-api` families migrated to their `Ruby`-handle equivalents. Tracked changes
-touch four files (`Cargo.toml`, `Cargo.lock`, `crates/iscc-rb/src/lib.rs`,
-`crates/iscc-rb/CLAUDE.md`) and no test, fixture or Gemfile moved. CI is green over the whole tree.
+Iteration 168 migrated `crates/iscc-jni` from jni 0.21 to 0.22 — the last Rust dependency major the
+loop could schedule. It passed with notes and the review filed three fresh `normal` issues against
+the crate it just touched, so the open-issue count went 7 → 10 while the dependency issue shrank to
+three human/static-evidence items. CI is green over the whole tree.
 
 ## Rust Core Crate
 
 **Status**: met, except the human-held v1.0.0 cut
 
-- Nothing under `crates/iscc-lib/`, `benches/` or `specs/` moved since 1c18b68: 32 Tier 1 symbols,
-    342 `#[test]`, all 10 `gen_*_v0` conformant against `tests/data.json`, no `unsafe` outside the
-    FFI crates.
+- Nothing under `crates/iscc-lib/`, `benches/` or `.claude/context/specs/` moved since 8ea3e02: 32
+    Tier 1 symbols, 342 `#[test]`, all 10 `gen_*_v0` conformant, no `unsafe` outside the FFI crates.
 - All four Unicode criteria remain MET: declared 16.0.0 + sentinel freeze, the `Final_Sigma` case
     freeze, boundary vectors on 11 of 11 surfaces, and the fail-closed differential sweep gate.
 - Only unmet target line: `crate is >= 1.0.0`. Version is **0.5.0**; the cut is human-gated and
     HELD. `cargo-semver-checks` runs informational.
 - `specs/rust-core.md` L149-157 stays STALE (claims the Go `Final_Sigma` defect unfixed, and a
-    `str::to_lowercase()` equivalence falsified by measurement at 156); criterion checkboxes
-    unchecked though all four hold. Human-owned file, not edited.
+    `str::to_lowercase()` equivalence falsified by measurement at 156). Human-owned, not edited.
 
 ## Python Bindings
 
 **Status**: met
 
 - 32 Tier 1 symbols, `IsccResult`, streaming hashers, 12 `.detach(` GIL sites, abi3-py310 wheels
-    incl. aarch64. Nothing under `crates/iscc-py/` or `tests/` moved this iteration.
-- 441 collected pytest tests, all inside the green `python-test` matrix run.
+    incl. aarch64; 441 collected pytest tests. Nothing under `crates/iscc-py/` or `tests/` moved.
 - The 17.8M-comparison Unicode sweep deliberately stays out of `pytest` / `mise run test` / pre-push
     — do not wire it in.
 
@@ -49,51 +46,50 @@ touch four files (`Cargo.toml`, `Cargo.lock`, `crates/iscc-rb/src/lib.rs`,
 
 - `crates/iscc-wasm` exports all 32 symbols; `SumHasher` wrapper present; the `blake3 wasm32_simd`
     dep is intentional feature-unification (do not prune). Untouched.
-- `tests/unicode_boundary.rs`: 3 `#[wasm_bindgen_test]` fns via `include_str!`, zero skips; runs
-    under `wasm-pack test --node` in the CI `wasm` job.
+- `tests/unicode_boundary.rs`: 3 `#[wasm_bindgen_test]` fns via `include_str!`, zero skips.
 
 ## C FFI
 
 **Status**: met — Unicode-gated at 159
 
 - 47 `#[unsafe(no_mangle)]` externs in `crates/iscc-ffi/src/lib.rs`; untouched.
-- `tests/unicode_boundary_vectors.h` (tracked, generated) is consumed by two tests —
-    `crates/iscc-ffi/tests/test_iscc.c` and `packages/cpp/tests/test_iscc.cpp` — from a single
-    artifact, with no vendored copy and no public-interface leak.
+- `tests/unicode_boundary_vectors.h` (tracked, generated) is consumed by both
+    `crates/iscc-ffi/tests/test_iscc.c` and `packages/cpp/tests/test_iscc.cpp` from one artifact.
 
 ## Other Bindings (Java, Kotlin, C#, C++, Go, Ruby, Swift)
 
-**Status**: met — every surface Unicode-gated
+**Status**: met — every surface Unicode-gated; the Java bridge moved this iteration
 
-- **The Ruby surface moved this iteration.** Root `Cargo.toml` pins
-    `magnus = { version = "0.8", features = ["rb-sys"] }`, `Cargo.lock` resolves magnus **0.8.2**,
-    and the `# held: magnus` comment is gone (3 inline holds left: criterion 0.8, jni 0.22, uniffi
-    0.32). `crates/iscc-rb/src/lib.rs` has zero `magnus::exception::` and zero `RString::from_slice`
-    call sites; 33 `define_*` registrations still cover the full 32-symbol surface. Test files,
-    `Gemfile*` and fixtures are byte-untouched.
-- Doc drift, observed not filed: `crates/iscc-rb/CLAUDE.md:108` still teaches `RString::from_slice`
-    as the pattern for copying slices into Ruby strings, while the code now uses
-    `ruby.str_from_slice`. The architecture line in the same file was updated to "Magnus 0.8".
-- No other binding source moved: Kotlin 9 + 3 `@Test` sources (→ 9 + 13 cases), Java 29 + 3 (→ 69 +
-    13 = 82 cases) on JUnit 6.1.2 since 166; `crates/iscc-jni`, `crates/iscc-uniffi` (32 exports, 21
-    tests, `publish=false`), `packages/dotnet` (xunit.v3 3.x since 164) and
-    `packages/{cpp,go,swift}` all unchanged.
+- **Java/JNI is the only source that changed.** Root `Cargo.toml` pins `jni = "0.22"`, `Cargo.lock`
+    resolves **0.22.4**, and the `# held: jni` comment is gone — **2 inline holds left** (criterion
+    0.8, uniffi 0.32). `crates/iscc-jni/src/lib.rs` (1168 lines) carries 33 `Java_*` natives with
+    zero `JNIEnv` / `GlobalRef` / `AutoLocal` call sites.
+- The migration hand-rolled a `build_byte_array` (1 `Vec<i8>`, 4 call sites) that duplicates the
+    non-deprecated `Env::byte_array_from_slice` with an extra alloc + copy per returned `byte[]`;
+    worst on `algCdcChunks`. Filed as a `normal` issue at 168.
+- No Java, Kotlin or fixture source moved: Java 29 + 3 `@Test` sources (69 + 13 = 82 cases) on JUnit
+    6.1.2, Kotlin 9 + 3 sources (9 + 13 cases). 7 of the 33 natives are still called by no JUnit
+    test — a whole-crate signature rewrite went green on 26 of 33. Filed at 168.
+- `crates/iscc-rb` (magnus 0.8.2 since 167), `crates/iscc-uniffi` (32 exports, 21 tests,
+    `publish=false`), `packages/dotnet` (xunit.v3) and `packages/{cpp,go,swift}` all unchanged.
 - Propagation invariant holds: `git ls-files -- '*data.json' '*unicode_boundary.json'` = 8 tracked
-    paths, matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py`. A 13th boundary vector
-    costs 12 suites at once.
-- The go1.27 hazard remains its own tracked issue: go1.27 ships Unicode 17.0 tables, so
-    `packages/go` (177 `func Test`) reacquires the `Final_Sigma` defect unless a freeze lands with
-    the bump. The skip map stays unconditional by standing ruling; the red is the intended trigger.
+    paths, matching `VENDORED_COPIES` in `tests/test_vendored_fixtures.py`.
+- go1.27 is now its own tracked `normal` issue (was a bullet inside the dependency issue): the bump
+    reds 5 Go boundary cases unless the 731-range freeze table lands in the same step. Standing
+    tripwire, not schedulable until go1.27 exists (~Aug 2026).
 
 ## Documentation
 
 **Status**: met
 
-- Nothing under `docs/` moved (latest docs commit is 2840c7f, iteration 161). Page-list machinery
-    unchanged: 23 documentation pages across `zensical.toml` nav, `ORDERED_PAGES` and
-    `docs/llms.txt`; 11 `docs/howto/*.md`; 12 crate/package READMEs; 12 crate/package `CLAUDE.md`.
-    `docs/unicode.md` names all 11 gated surfaces.
-- Remaining item is cosmetic and human-owned: `Add programming language logos to docs site` (`low`).
+- Nothing under `docs/` moved (latest docs commit 2840c7f, iteration 161): 23 pages across
+    `zensical.toml` nav, `ORDERED_PAGES` and `docs/llms.txt`; 11 `docs/howto/*.md`; 12 crate/package
+    READMEs; 12 crate/package `CLAUDE.md`. `docs/unicode.md` names all 11 gated surfaces.
+- Two doc surfaces teach APIs the code no longer uses (filed at 168 as one `normal` issue):
+    `crates/iscc-rb/CLAUDE.md:108` (`RString::from_slice`) and `specs/java-bindings.md` ("jni crate
+    (v0.21)", "~1060 lines" — actual 1168). The spec half carries a **HUMAN REVIEW REQUESTED**
+    marker; that is the first such marker open in several iterations.
+- Remaining cosmetic item is human-owned: `Add programming language logos to docs site` (`low`).
 
 ## Benchmarks
 
@@ -108,46 +104,45 @@ touch four files (`Cargo.toml`, `Cargo.lock`, `crates/iscc-rb/src/lib.rs`,
 
 **Status**: partially met — green, with only human-held publishing work left
 
-- **CI GREEN and it covers HEAD.** `origin/develop` = `90bde13` (the 167 review commit carrying the
-    magnus bump): check-runs API reports **45 runs, 23 distinct names, 0 non-success** — so the
-    `ruby` job really did compile and test against magnus 0.8.2. HEAD `8ea3e02` is one `cid(log)`
-    commit ahead and `git diff --stat origin/develop..HEAD -- . ':!.claude'` is empty. Working tree
-    clean; all four roles of 167 logged OK.
+- **CI GREEN and it covers HEAD.** `origin/develop` = `5bf5a26` (the 168 review commit carrying the
+    jni bump): check-runs API reports **45 runs, 23 distinct names, 0 non-success**, so the `java`
+    and `kotlin` jobs really did build and test against jni 0.22.4. HEAD `cd899f3` is one `cid(log)`
+    commit ahead and `git diff --stat origin/develop..HEAD -- . ':!.claude'` is empty.
+- Working tree is **not clean**: the runner's `decisions.md` → `decisions-archive.md` rotation (16
+    lines) is uncommitted. Context-only, no source impact — grep BOTH files for rulings.
 - Job shape unchanged: 21 job keys → 22 jobs → 23 check names (`python-test` is a `[3.10, 3.14]`
-    matrix; `python` is an `if: always()` aggregator). No workflow file changed this iteration (last
-    workflow commit 21bb004, iteration 162): zero `@main` action refs; 97 `uses:` refs in
-    `release.yml`; 8 registry toggles; `workflow_dispatch`-only. The `specs/ci-cd.md` job table
-    stays exhaustive and gated from two places (prek hook + `test_check_ci_job_table.py`).
+    matrix; `python` is an `if: always()` aggregator). No workflow file changed since 21bb004
+    (iteration 162): zero `@main` action refs, 97 `uses:` in `release.yml`, 8 registry toggles,
+    `workflow_dispatch`-only.
 - PR **#44** `develop` → `main` ("Release 0.6.0") still OPEN — not shipped; version **0.5.0**,
     `scripts/version_sync.py` 21 targets consistent.
 - Enforcing gates unchanged: iai perf (>10% Ir), coverage + CRAP (`--fail-regression` is CI-only, so
     a green `mise run check` proves nothing), `cargo-deny` (live advisory DB — can red with no code
     change), docs page-list parity, `unicode-sweep`, CI job-table parity.
-- Dependency freshness: the issue body now lists **`jni` 0.22 as the single remaining
-    CID-schedulable major** — ten ecosystem slices are closed. Everything else in the issue is
-    human/release-gated (release.yml action bumps, uniffi 0.32, criterion 0.8).
-- Reproducibility gap, observed not filed: `packages/dotnet` is the only ecosystem with no lockfile
-    (Cargo, uv, Gemfile, Gradle all pin) and its two test packages float on `3.*` / `18.*`.
+- Dependency freshness: **zero Rust majors left to schedule**. The issue body now lists three items
+    — `uniffi` 0.32 and `criterion` 0.8 (both human-gated: binding regeneration / MSRV policy), and
+    the `release.yml` action refresh, which is CID-doable but only on static evidence since that
+    workflow never runs in CI.
+- Reproducibility gap, observed and still unfiled by anyone: `packages/dotnet` is the only ecosystem
+    with no lockfile, its two test packages floating on `3.*` / `18.*`. The 168 review deferred it
+    to the audit pass due at iteration 170.
 
 ## Open Issues
 
-**7 entries in `issues.md` — 2 `normal`, 5 `low`, zero `critical`, zero `HUMAN REVIEW REQUESTED`.**
-Count unchanged at 167; only the magnus bullet inside the dependency issue was struck.
+**10 entries in `issues.md` — 5 `normal`, 5 `low`, zero `critical`, one HUMAN REVIEW REQUESTED
+marker** (inside the doc-drift issue). Count rose from 7: the 168 review filed three, and go1.27 was
+promoted out of the dependency issue into its own entry.
 
-- **NORMAL:** dependency review/refresh (one schedulable item left: `jni` 0.22 in
-    `crates/iscc-jni/src/lib.rs` — `JNIEnv` → `EnvUnowned`/`Env`, `GlobalRef` → `Global`,
-    `AutoLocal` → `Auto`, closure-based attachment and a mandatory per-function `ErrorPolicy` across
-    ~41 sites); `go1.27` reds the Go boundary suite unless the freeze lands with it (a standing
-    tripwire, not schedulable work).
-- **LOW / CID skips:** update the upstream `iscc-core#137` thread (human-only), the three
-    gate-script remainders deferred at 146 (trigger-contingent), v1.0.0 (HELD), docs language logos,
-    npm OIDC (ruled out for v0.6.0).
+- **NORMAL:** dependency refresh (3 items, above); JNI `build_byte_array` regression; 7 untested JNI
+    natives; binding docs teaching removed APIs; the go1.27 tripwire.
+- **LOW / CID skips:** upstream `iscc-core#137` thread (human-only), the three gate-script
+    remainders deferred at 146 (trigger-contingent), v1.0.0 (HELD), docs language logos, npm OIDC
+    (ruled out for v0.6.0).
 
 ## Next Milestone
 
-Every target section except CI/CD is met and CI is green over the whole tree. The only
-CID-schedulable work left is the last authorized dependency major: the `jni` 0.22 migration of
-`crates/iscc-jni/src/lib.rs`, which unlike the nine mechanical slices before it is a real
-source-level API rework touching the Java and Kotlin surfaces. Whether it lands as one package or
-needs slicing is define-next's call. Beyond that the backlog is human-held (v1.0.0 cut, npm OIDC,
-docs logos, the upstream thread).
+The dependency refresh no longer supplies work. What is left that CID can act on is the debt the 168
+review left behind in `crates/iscc-jni` — a fresh allocation regression and a test surface that
+proves only 26 of 33 natives — plus the Ruby doc-drift half and, as the last dependency item, the
+static-evidence `release.yml` action-freshness pass. Everything beyond that is human-gated (v1.0.0
+cut, npm OIDC, docs logos, the upstream thread, the `specs/java-bindings.md` edit).

@@ -29,6 +29,8 @@ command give a different number.
 | tracked fixture copies           | 8            | `git ls-files -- '*data.json' '*unicode_boundary.json'` == `VENDORED_COPIES`                               |
 | documented speedups              | 1.3x-158x    |                                                                                                            |
 | iscc-rb `define_*` registrations | 33           | covers the 32-symbol Tier 1 surface                                                                        |
+| iscc-jni natives                 | 33           | `grep -oE 'fn Java_[A-Za-z0-9_]+'`; `grep -c 'extern "system"'` gives **34** (one non-`Java_` fn)          |
+| `crates/iscc-jni/src/lib.rs`     | 1168 lines   | was ~1060 pre-jni-0.22; `specs/java-bindings.md` still hardcodes the old number                            |
 
 ## JVM test suites — annotations are NOT cases
 
