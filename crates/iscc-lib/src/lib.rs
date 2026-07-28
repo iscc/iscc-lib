@@ -2065,6 +2065,10 @@ mod tests {
     }
 
     /// A unit sequence that cannot compose into an ISCC-CODE is rejected.
+    // `meta-code` implies `text-processing`, so this single gate excludes the test
+    // under `--no-default-features` (and `--features text-processing` alone), where
+    // `gen_meta_code_v0`/`gen_text_code_v0` are compiled out.
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_iscc_decode_rejects_uncomposable_sequence() {
         // Meta + Text has neither a Data-Code nor an Instance-Code, so

@@ -19,6 +19,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) needs a **differential sweep**
     (`mise run unicode:sweep`) to prove output-neutrality, never a green vector suite — every
     `data.json` vector predates Unicode 16
+- **Widening a decode gate re-exposes latent truncation** (174): `decode_header` narrows each
+    varnibble with `as u8` before `TryFrom`, so a multi-nibble value wraps (version `257`→`1`,
+    MainType `262`→`6`=`Id`) and a MALFORMED header silently canonicalizes to a valid ISCC
+    (`iscc_decompose("MDFZAAAAAAAAAAAAAA")` → `["MAIAAAAAAAAAAAAA"]`; `iscc_core` rejects it). When
+    reviewing a codec header-gate change, probe a wrapped multi-nibble header — a valid-vector
+    oracle proves nothing about it
 
 ## Tooling
 
@@ -176,25 +182,20 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     are fully met → `learnings-archive.md`
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central, `gh api`)
-- **Human-handoff vs IDLE (iter 111)**: if the remaining `normal` issues are all
-    `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all `low`) is NOT met — flag
-    `**HUMAN REVIEW REQUESTED**` (runner "pause") instead, without churn
-- **Pre-push mdformat blocks on non-conforming context files**: the hook runs mdformat with
-    `--wrap 100` + `--number` in an isolated env, over every file in the push range — incl.
-    `next.md` and per-agent `MEMORY*.md` — so one non-conforming file rejects the whole batch even
-    though staged-only `git commit` passed. Unblock by reformatting + amending
+- **Pre-push mdformat blocks on non-conforming context files**: the hook runs mdformat
+    (`--wrap 100 --number`, isolated env) over every file in the push range — incl. `next.md` and
+    per-agent `MEMORY*.md` — so one non-conforming file rejects the whole batch even though
+    staged-only `git commit` passed. Unblock by reformatting + amending
 - **Never write an exact count, a substring `grep -c`, an unverified CLI flag, or an unverified
-    `#[deprecated]` claim into a verification criterion** (139: `ruff format --check` saw 155 files,
-    not 153. 148: `--fail-above   30.0` is a `cargo crap` syntax error. 168: a "must not appear"
-    grep banned the *undeprecated* `Env::byte_array_from_slice`, costing a zero-copy path, reverted
-    169). Confirm the attribute in `~/.cargo/registry/src/*/<crate>-<ver>/`; assert the *gate* (exit
-    code) and anchor greps; copy gate invocations from `ci.yml`, never from memory
+    `#[deprecated]` claim into a verification criterion** (139: `ruff format --check` saw 155 not
+    153; 148: `--fail-above   30.0` is a `cargo crap` syntax error; 168: a "must not appear" grep
+    banned the *undeprecated* `Env::byte_array_from_slice`, reverted 169). Confirm the attribute in
+    `~/.cargo/registry/src/*/<crate>-<ver>/`; assert the *gate* (exit code) and anchor greps; copy
+    gate invocations from `ci.yml`, never from memory
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
     (142: a prescribed rule that could not resolve `wheels-*`; 143: two false Unicode safety claims
     shipped verbatim into published docs). advance implements the *intent* and documents any
     deviation; review re-derives every quantitative or "never/always" claim from its source
-- **next.md must never task advance with editing `issues.md`** (135): advance's protocol forbids
-    writing it and review owns issue resolution — a progress paragraph goes in the handoff Notes
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test

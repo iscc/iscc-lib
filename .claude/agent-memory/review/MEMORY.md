@@ -38,6 +38,14 @@ and regeneration majors), `gha-workflow-reviews.md` (release.yml, action bumps, 
     `Env::byte_array_from_slice`; that grep criterion cost a zero-copy path)
 - **Advance agent idle claims**: verify remaining issue priorities independently — it may claim
     "only low-priority remain" when `normal` issues still exist
+- **A `--no-default-features` CI step catches COMPILE breaks the default gates miss** (174): a
+    `#[test]` calling a feature-gated fn (`gen_meta_code_v0`/`gen_text_code_v0`) fails to *compile*
+    under `cargo test -p iscc-lib --no-default-features` (+`--features text-processing`); gate the
+    test `#[cfg(feature = "meta-code")]`. Run the full CI feature matrix on any core change; both
+    `mise run check` and a default `cargo test` are blind to it
+- **Probe a WRAPPED multi-nibble header on any codec header-gate change** (174): `decode_header`
+    casts varnibbles `as u8` before `TryFrom`, so `MDFZAAAAAAAAAAAAAA` wraps to `Id`/V1 and
+    `iscc_decompose` silently rewrites it to `MAIAAAAAAAAAAAAA` (`iscc_core` rejects it) → learnings
 - Go `// indirect`, CI `find` cross-arch, prek stash conflict, and mode-only commits under
     `core.fileMode=false` → `review-patterns.md` "Gotchas"
 - **`\uXXXX` decodes to literal UTF-8 through Edit/Write and bash**, and **who may edit `issues.md`
