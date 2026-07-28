@@ -17,9 +17,8 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
     `audit` role) shows up. **A non-OK status does NOT mean no work: corroborate with `git log`**
     (fingerprints → `MEMORY-archive.md`). Conversely **work with NO jsonl entry**: out-of-loop
     `cid(loop):` commits land between iterations — always diff them.
-- **Audit cadence is NOT reliable**: jsonl entries at **130/140/150/160** but **none at 170** (that
-    iteration was IDLE). Never park a finding "for the next audit" — if the audit skipped, the
-    finding is still unfiled. It commits only `cid(audit): metrics snapshot`.
+- **Audit cadence is NOT reliable**: jsonl entries at 130/140/150/160 but **none at 170**. Never
+    park a finding "for the next audit". It commits only `cid(audit): metrics snapshot`.
 - **ALWAYS `git status --porcelain` too.** A TIMEOUT role dies before committing but **leaves its
     written file dirty** (155: a 440-line `next.md`). Treat as an unverified lead, not fact.
 - **Counts + the glob/grep trap for each → `counts.md`** (12 READMEs, 12 CLAUDE.md, 23 docs pages,
@@ -62,8 +61,8 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
     `streaming::` only. iscc-wasm's `blake3 wasm32_simd` dep is feature-unification — **don't
     prune**. `iscc-py` has **12** `.detach(` sites. Benches live in **`crates/iscc-lib/benches/`**
     (NOT a root `benches/`): 12 criterion fns (0.8.2) + iai 0.16 (11 fns, 16 cases). `src/utils/`
-    holds two generated data modules (→ `unicode-contract.md`). Pin rationale in root `Cargo.toml`:
-    **zero `# held:` since 171**, 1 `authorized …` comment left (uniffi) — grep BOTH.
+    holds two generated data modules (→ `unicode-contract.md`). Root `Cargo.toml` has **zero
+    `# held:` and zero `authorized …` comments since 172** — grep BOTH before claiming a hold.
 - **Ruff/prek/mdformat → `lint-tooling.md`.** ruff **0.16.0** since 137; local prek is a strict
     SUPERSET of CI. Probe hooks with `prek run <hook> --files <f>`.
 - **Dependency-pin inventory + slice history** → `dep-refresh-survey.md`. All GHA refs CURRENT
@@ -87,29 +86,32 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: c9069a0, iter 172)
+## Current State (assessed-at: fb9452f, iter 173)
 
-- **IN_PROGRESS — CI green.** `origin/develop` == `bc13859` (171 review): **45 check-runs, 23 names,
-    0 non-success**. HEAD `c9069a0` is 1 commit ahead and is a `.claude`-only `cid(log):` commit, so
-    green covers all code. Tree CLEAN. PR **#44 (develop→main) OPEN** (v0.6.0 NOT shipped;
-    **0.5.0**).
-- **`target.md` carries a "Current Release Milestone — v0.6.0" section** (added by the human at
-    1b7b792) with explicit ready-for-release criteria. Always diff `target.md` — a milestone section
-    can appear with no code change.
-- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces); slice history 163-171 →
-    `dep-refresh-survey.md`. Rust core met except `>= 1.0.0`; all sections met except CI/CD.
-- **DEP REFRESH = THE LAST v0.6.0 CRITERION, now ONE item.** criterion 0.8 LANDED at 171
-    (`Cargo.lock` **0.8.2**, `rust-version = "1.85"` untouched, zero bench-source edits, baselines
-    byte-identical) and its half was deleted from the issue. Remaining: **uniffi 0.31 → 0.32**
-    (`Cargo.lock` still **0.31.2**) as a PURE REGENERATION of the two checked-in bindings.
-- **Swift IS locally verifiable** (swift.org Debian 12 6.1.2 tarball, `packages/swift/CLAUDE.md`) —
-    corrected in issues.md at 171, but the root `Cargo.toml` comment above `uniffi = "0.31"` still
-    repeats the falsified claim. Only 1 `authorized …` pin comment left (criterion's is plain now).
-- **Both doc-drift surfaces are CLOSED** (Ruby 170, Java spec by the human) — but keep diffing a
-    crate's CLAUDE.md + spec after any dep bump; that rot recurs.
-- **170 closed the .NET lockfile gap** (the audit never fired): `packages.lock.json` tracked, 3
-    exact pins, `dotnet` job = `--locked-mode` restore + `--no-restore` build/test, job COUNT
-    unchanged. Every ecosystem now has a lockfile; a .NET bump needs `--force-evaluate` same commit.
+- **IN_PROGRESS — CI green.** `origin/develop` == `d78ea63` (172 review): **45 check-runs, 23 names,
+    0 non-success** (incl. `Swift (swift build, swift test)`). HEAD `fb9452f` is 1 commit ahead and
+    is a `.claude`-only `cid(log):` commit, so green covers all code. PR **#44 (develop→main) OPEN**
+    (v0.6.0 NOT shipped; **0.5.0**).
+- **`target.md` carries a "Current Release Milestone — v0.6.0" section** (human, 1b7b792) with
+    explicit ready-for-release criteria — always diff `target.md`.
+- **THE UNICODE WORK IS FINISHED** (161, 11 of 11 surfaces); slice history 163-172 →
+    `dep-refresh-survey.md`. Every target section now reports **met** except Rust core's `>= 1.0.0`
+    (human-gated) and CI/CD's release-readiness, which is now an *issue-list* gate (see below).
+- **DEP REFRESH IS DONE (172).** uniffi 0.31 → **0.32** landed as a pure regeneration (`Cargo.lock`
+    0.32.0; only `.swift` + `.kt` changed — the generated `.h` came out byte-identical;
+    `crates/iscc-uniffi/src` untouched since 7742d7f) and **the whole dep-refresh issue was
+    deleted**. Root `Cargo.toml` now has **zero `# held:` AND zero `authorized …`** comments; the
+    uniffi comment records the correct Swift recipe (falsified claim gone).
+- **v0.6.0 now hinges on the issue list, not on deps**: its criterion "no `critical`/`normal` issue
+    open that is not blocked on the human or upstream" is unmet because of the NEW `normal`
+    `[review]` issue — **`iscc-uniffi` no longer builds on the declared MSRV 1.85** (uniffi 0.32
+    pulls `cargo_metadata` 0.23.1 / `cargo-platform` 0.3.3 into its default non-dev graph → real
+    floor 1.91; `publish = false`, `-p iscc-lib` still passes at 1.85, nothing red). Fix = explicit
+    per-crate `rust-version`; raising the ROOT declaration is the human's call.
+- **All doc-drift surfaces are CLOSED** (Ruby 170, Java spec human, Kotlin+rust-core specs 172) —
+    but keep diffing a crate's CLAUDE.md + spec after any dep bump; that rot recurs.
+- **Every ecosystem now has a lockfile** (170 closed the .NET gap: tracked `packages.lock.json`,
+    `--locked-mode` restore); a .NET bump needs `--force-evaluate` in the same commit.
 - **Review policy widened at 171:** `review` may correct a *mechanically checkable fact* (version,
     path, file list, count) in a sub-spec under `.claude/context/specs/` with NO escalation;
     `target.md` and rationale/criteria/scope still need the human. So stale spec FACTS are now
@@ -120,17 +122,19 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
     suites.
 - **Loop infra (162):** `ARTIFACT_BUDGETS` in `tools/cid.py` caps **state 200**; `decisions.md`
     rotates into `decisions-archive.md` (**grep BOTH**) — dirty `decisions*.md` = runner, not crash.
-- **`specs/rust-core.md` L149-157 is STALE** (Go `Final_Sigma` fixed 147; `str::to_lowercase` claim
-    wrong twice over); criterion boxes unchecked though all four hold. Under the 171 policy the
-    factual half is now correctable by `review` — nobody has filed it.
-- **Issues: 8** (2 `normal`, 6 `low`, 0 critical, **zero HUMAN REVIEW REQUESTED**; 174 lines — count
+- **`specs/rust-core.md` L149-157 was FIXED at 172** by `review` under the widened policy (Go
+    `Final_Sigma` prose now correct, no longer claims an issues.md entry);
+    `specs/kotlin-bindings.md` no longer pins a uniffi version in prose. No known spec drift left —
+    but re-diff `specs/` anyway.
+- **Issues: 8** (2 `normal`, 6 `low`, 0 critical, **zero HUMAN REVIEW REQUESTED**; 155 lines — count
     headers, NOT priority tags: lines 3-4 are a legend that inflates a naive `grep -c`). "declared
     MSRV asserted but never verified" (`low`, `[human]`, v1.0.0 prerequisite — CID must not act
-    unprompted). go1.27 is its OWN entry (tripwire, upstream at rc2); npm OIDC DEFERRED. Never carry
-    an issue count forward — re-grep every iteration (7→10→8→8→8 over 167-172); the count can hold
-    steady while an entry SHRINKS in place (171 deleted only criterion from the dep entry).
-- **Don't re-flag as DONE**: criterion 0.8 171, .NET lockfile 170, JNI cleanup 169, jni 0.22 168,
-    magnus 0.8 167, JUnit 6.1.2 166, Gradle 9.6.1 165, dotnet xunit v3 164 (≤163 → archive).
+    unprompted) is a SEPARATE entry from the new uniffi-MSRV `normal`. go1.27 is its OWN entry
+    (tripwire, upstream at rc2); npm OIDC DEFERRED. Never carry an issue count forward — re-grep
+    every iteration (7→10→8→8→8→8 over 167-173); **the count can hold steady while the composition
+    flips** (172 deleted the dep entry and added the MSRV one).
+- **Don't re-flag as DONE**: uniffi 0.32 172, criterion 0.8 171, .NET lockfile 170, JNI cleanup 169,
+    jni 0.22 168, magnus 0.8 167, JUnit 6.1.2 166, Gradle 9.6.1 165 (≤164 → archive).
 
 ## Gotchas
 
@@ -138,7 +142,9 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **mdformat**: always run `uv run prek run mdformat --files <f>` right after writing (bare
     `uv run mdformat` is NOT the hook), then **grep for `` `…  …` `` (2+ spaces inside backticks)**
     — a code span straddling a line break gets joined with the indent whitespace and corrupts the
-    path. Reword so each span fits on one line. Edge cases → `lint-tooling.md`.
+    path. **Also grep for `\`** — a `)` that reflows to the start of a continuation line becomes
+    `172\)` (escaped ordered-list marker). Reword so no span/paren straddles a break. Edge cases →
+    `lint-tooling.md`.
 - **Toolchain presence (and the `$PATH`-is-not-the-whole-story fallbacks), invisible exec bits,
     case-sensitive binding-API greps, csbindgen/UniFFI/JNA side effects, the Go probe recipe →
     `env-gotchas.md`.**

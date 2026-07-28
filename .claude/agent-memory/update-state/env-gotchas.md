@@ -17,6 +17,11 @@ command return a *confidently wrong* answer rather than an error.
 unbuildable**, and that mistake shaped scoping for ~6 iterations:
 
 - **Kotlin IS locally testable** via `./gradlew … --offline` (warm cache) despite no `gradle`.
+- **MSRV claims are locally verifiable** (found by `review` at 172): `rustup` here has the **1.85.0
+    toolchain installed**, so `cargo +1.85.0 check -p <crate> --locked` settles any "does it still
+    build on the declared MSRV" question without a CI job. Always scope it `-p iscc-lib` (the only
+    published crate), never `--workspace` — `iscc-uniffi` is `publish = false` and now floors at
+    1.91.
 - **C++ IS locally testable, two ways** (established 160-161): `uv run --with cmake cmake …` pulls
     the PyPI cmake wheel (4.4.0) and runs the full ASAN suite; *or* skip cmake entirely and compile
     `packages/cpp/tests/test_iscc.cpp` with plain `g++ -std=c++17 -Wall -Wextra -Wpedantic` plus

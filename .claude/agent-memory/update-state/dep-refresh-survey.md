@@ -102,11 +102,11 @@ moved: the four `wrapper`-task outputs (`gradle-wrapper.jar` + `.properties` + `
 Test totals unmoved (9 + 13 cases). The CI `kotlin` job downloads 9.6.1 on a fresh checkout — the
 green run on the review sha is the proof.
 
-**All 9 original slices plus the dotnet and Gradle-wrapper majors are CLOSED.** Remaining under the
-parent issue, authorized for CID one per step: **JUnit 6.x** (still 5.14.4 in BOTH
-`packages/kotlin/build.gradle.kts` and `crates/iscc-jni/java/pom.xml`; the platform artifacts
-renumber 1.14.x → 6.x, so the launcher pin stops being a 1.x number — two build systems,
-splittable), then `jni` 0.22 and `magnus` 0.8 (source rewrites, riskiest).
+**THE DEPENDENCY REFRESH IS COMPLETE (iter 172) and its issue is deleted.** Slices after the Gradle
+wrapper, one per iteration: JUnit 6.1.2 (166), `magnus` 0.8 (167), `jni` 0.22 (168), .NET exact pins
+\+ lockfile (170), `criterion` 0.8 (171), `uniffi` 0.32 (172). Nothing is authorized or pending — do
+not re-open this as a work item; a future bump needs a fresh human authorization in `target.md` or
+`issues.md`.
 
 ## Per-binding manifests
 
@@ -132,17 +132,20 @@ splittable), then `jni` 0.22 and `magnus` 0.8 (source rewrites, riskiest).
     `github.com/zeebo/blake3 v0.2.4`, `golang.org/x/text v0.40.0`, indirect
     `github.com/klauspost/cpuid/v2 v2.4.0` + `golang.org/x/sys v0.47.0`. All at latest published; no
     hold-back. Dep `go` directives (x/text 1.25.0, x/sys 1.25.0, cpuid 1.24.0) all sit below 1.26.1.
-- `packages/dotnet/*/*.csproj` — `net8.0` (support policy, never move in a refresh); test refs float
-    on `3.*` / `18.*` since iter 164. **The only ecosystem in the repo with no lockfile** (Cargo,
-    uv, Gemfile, Gradle all pin), so CI can resolve an unreviewed 3.x/18.x;
-    `RestorePackagesWithLockFile` is the fix if a float ever reds CI. Not filed as an issue — the
-    wildcard style is long-standing.
+- `packages/dotnet/*/*.csproj` — `net8.0` (support policy, never move in a refresh); test refs were
+    **pinned exactly at iter 170** with a tracked `Iscc.Lib.Tests/packages.lock.json` and a
+    `--locked-mode` restore in CI. Every ecosystem now has a lockfile; a .NET bump needs
+    `dotnet restore --force-evaluate` in the same commit or CI reds.
 
 ## Documented hold-backs (do not "fix" these)
 
-- Root `Cargo.toml`, 4 `# held:` comments: criterion 0.8 (needs rustc 1.86 vs `rust-version 1.85`),
-    jni 0.22 (wholesale iscc-jni API rework), magnus 0.8 (drops `old-api`, deprecates
-    `exception::runtime_error()` — 5 call sites), uniffi 0.32 (needs Swift/Kotlin regen). Plus a
-    `# note:` on pyo3 tying bumps to issue #41.
+- Root `Cargo.toml`: **zero `# held:` and zero `authorized …` comments as of iter 172** — all four
+    holds (criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32) landed at 171/168/167/172 and the
+    dep-refresh issue was deleted. What remains are explanatory pin comments, not holds: criterion's
+    records that its rustc-1.86 floor is dev-only, uniffi's records the Swift/Kotlin regen recipe.
+    Still present: a `# note:` on pyo3 tying bumps to issue #41.
+- **Fallout to remember:** uniffi 0.32 raised `iscc-uniffi`'s own non-dev floor to 1.91
+    (`cargo_metadata` 0.23.1, `cargo-platform` 0.3.3) while it inherits `rust-version = "1.85"` —
+    open `normal` issue. `-p iscc-lib` still checks clean on 1.85.
 - `pyproject.toml`: **zero** `# held:` comments — the `ruff<0.16` pin died at iter 137 when slice 8
     landed.
