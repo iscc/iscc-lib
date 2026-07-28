@@ -26,6 +26,23 @@ patterns natural to their ecosystem.
 - **Conformance parity**: every binding passes the same conformance test vectors, so developers can
     trust that switching languages doesn't change behavior
 
+## Current Release Milestone — v0.6.0
+
+The active goal. v0.6.0 is a maintenance-and-freshness release on top of `0.5.0`. **v1.0.0 comes
+after it and remains human-gated** — do not treat any v1.0.0 criterion below as v0.6.0 work.
+
+**Ready for release when:**
+
+- The dependency refresh issue in `issues.md` is closed. Its last two items are `criterion` 0.8 and
+    `uniffi` 0.32 — both authorized on 2026-07-28, each a separate step, with the binding
+    constraints recorded in that issue
+- `mise run version:check` passes and CI is green on `develop` at the commit to be released
+- No `critical` or `normal` issue is open that is not blocked on the human or on an upstream release
+
+Explicitly **out of scope for v0.6.0**: the npm OIDC migration (deferred by the human), the v1.0.0
+stability cut and its MSRV prerequisite, and the go1.27 tripwire (waiting on an upstream final
+release). The release itself is cut by the human via the `/release` skill — CID never cuts it.
+
 ## Rust Core Crate — `iscc-lib` on crates.io
 
 A pure Rust library (no binding dependencies) published to crates.io as

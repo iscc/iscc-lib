@@ -41,15 +41,18 @@ napi-build = "2"
 wasm-bindgen = "0.2"
 wasm-bindgen-test = "0.3"
 serde-wasm-bindgen = "0.6"
-# held: criterion 0.8 requires rustc 1.86; the workspace declares rust-version = "1.85".
-# Revisit when the MSRV is raised (a human policy decision for the v1.0.0 cut).
+# authorized 2026-07-28 (pending bump): take criterion 0.8 and keep rust-version = "1.85".
+# criterion is a dev-dependency of iscc-lib only, consumed by the two [[bench]] targets, and a
+# dev-dependency is never built by downstream consumers — its rustc 1.86 floor raises the
+# contributor/bench toolchain floor, not the published MSRV. See issues.md.
 criterion = { version = "0.7", features = ["html_reports"] }
 iai-callgrind = "0.16"
 tempfile = "3"
 jni = "0.22"
 magnus = { version = "0.8", features = ["rb-sys"] }
-# held: uniffi 0.32 requires regenerating and re-verifying the Swift + Kotlin bindings; the
-# Linux devcontainer has no Swift toolchain, so the result cannot be validated locally.
+# authorized 2026-07-28 (pending bump): uniffi 0.32 requires regenerating the checked-in Swift
+# and Kotlin bindings. Kotlin is verifiable locally; Swift is not (no Swift toolchain in the
+# Linux devcontainer) and is validated by the `swift` CI job instead. See issues.md.
 uniffi = "0.31"
 
 [profile.release]

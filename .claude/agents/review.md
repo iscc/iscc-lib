@@ -108,8 +108,11 @@ context limits: run this protocol through to the push step.
         resolves it. If resolved, delete the issue entry from issues.md in the commit step. If the
         resolved issue has a `**Spec:**` field and source `[human]`, update the referenced spec
         (target.md or sub-spec) as part of the resolution — the human authorized this by creating
-        the issue. If the source is `[review]`, `[advance]`, or `[audit]`, do NOT update the spec
-        without `HUMAN REVIEW REQUESTED` approval.
+        the issue. If the source is `[review]`, `[advance]`, or `[audit]`, you may still correct a
+        sub-spec under `.claude/context/specs/` when the edit only realigns a **mechanically
+        checkable fact** with the code (a dependency version, path, file list, or count) — that is
+        bookkeeping, not a design change. Anything touching rationale, acceptance criteria, or
+        scope, and any edit to `target.md`, needs `HUMAN REVIEW REQUESTED` approval.
 
 6. **Update learnings** — append new findings to `.claude/context/learnings.md`. Add entries under
     the appropriate section. Only add genuinely useful learnings — things that will help future
@@ -171,8 +174,15 @@ context limits: run this protocol through to the push step.
         progress).
     - **Advance agent issues**: if the advance handoff mentions out-of-scope problems, evaluate and
         add to issues.md if warranted.
-    - **Spec-rooted issues**: include `**Spec:**` field + `HUMAN REVIEW REQUESTED` for agent-sourced
-        issues. Do NOT modify target.md yourself.
+    - **Spec-rooted issues**: always include the `**Spec:**` field. Escalate with
+        `HUMAN REVIEW REQUESTED` when the fix would change **rationale, acceptance criteria, or
+        scope** — those are the human's call. A spec statement that is merely a *mechanically
+        checkable fact about the code* (a dependency version, path, file list, or count) is not a
+        design decision: file it as ordinary `[review]` work with no escalation, so a later step can
+        correct the spec against the code. Prefer deleting a fact that carries no design information
+        — a line count in a spec is drift by construction — over restating it. Do NOT modify
+        `target.md` yourself under either branch; sub-specs under `.claude/context/specs/` are
+        correctable, `target.md` is not.
     - **Upstream issues**: include `**Upstream:** iscc/iscc-core` + `HUMAN REVIEW REQUESTED` +
         concrete evidence. Do not file GitHub issues.
 

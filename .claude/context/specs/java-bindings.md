@@ -10,7 +10,7 @@ libraries bundled inside the JAR under `META-INF/native/`.
 
 1. **Rust JNI bridge** (`crates/iscc-jni/src/lib.rs`): `extern "system"` functions with JNI-mangled
     names that call `iscc-lib` core and return JNI types (`jstring`, `jobject`, `jbyteArray`).
-    Single file, ~1060 lines.
+    Single file.
 2. **Java wrapper** (`crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`): Static API class
     (`IsccLib`), result types (`SumCodeResult`, `IsccDecodeResult`), and automatic native library
     loader (`NativeLoader`). Provides idiomatic Java DX with Javadoc.
@@ -19,7 +19,7 @@ libraries bundled inside the JAR under `META-INF/native/`.
 
 - JNI is the standard, universally supported native interface for all JVM versions >= 8
 - No runtime dependency on third-party FFI library
-- Direct Rust-to-Java type marshalling via the `jni` crate (v0.21)
+- Direct Rust-to-Java type marshalling via the `jni` crate (v0.22)
 - Panama Foreign Function API requires Java 22+ — JNI ensures JDK 17+ (LTS) compatibility
 
 ## Crate/Package Structure
@@ -29,7 +29,7 @@ crates/iscc-jni/
 ├── Cargo.toml                              # cdylib, depends on iscc-lib + jni
 ├── README.md                               # Per-crate README for Maven Central
 ├── src/
-│   └── lib.rs                              # JNI bridge (~1060 lines)
+│   └── lib.rs                              # JNI bridge
 └── java/
     ├── pom.xml                             # Maven project (io.iscc:iscc-lib)
     └── src/

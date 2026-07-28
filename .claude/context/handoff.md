@@ -1,10 +1,11 @@
 # Handoff
 
-> **HUMAN REVIEW REQUESTED**: no CID-doable `normal` work remains. All three open `normal` issues
-> are now blocked on you or on an external release — uniffi 0.32 (binding regeneration) and
-> criterion 0.8 (MSRV policy call), the `specs/java-bindings.md` edit (human-owned spec), and the
-> go1.27 tripwire (go1.27 is still at rc2 upstream). Strict `**IDLE**` is not met, so the loop
-> pauses instead. See **Next:** for the two candidate moves.
+> **RESOLVED BY HUMAN 2026-07-28** — the escalation raised at iteration 170 is answered and the loop
+> is unblocked. Titusz authorized both held dependency majors (`criterion` 0.8, `uniffi` 0.32),
+> corrected `specs/java-bindings.md` directly, and set the active goal to **v0.6.0 ready for
+> release** (see `target.md` → "Current Release Milestone"). Read the dependency issue in
+> `issues.md` before scoping either bump — each carries binding constraints and they are two
+> separate steps. The go1.27 tripwire stays parked on upstream.
 
 ## 2026-07-28 — Review of: Pin the .NET test dependencies and commit a NuGet lock file
 
@@ -51,23 +52,23 @@ line now matches `crates/iscc-rb/src/lib.rs` verbatim.
     untouched). Gate-integrity scan over all unpushed commits: no suppression, skip, threshold
     change or hook weakening; no Tier 1/2 API change; no benchmarked path.
 
-**Issues updated:** the doc-drift entry lost its resolved Ruby bullet (now Java-spec-only, still
-`HUMAN REVIEW REQUESTED`); the dependency entry lost the `release.yml` action bullet and records the
-2026-07-28 probe evidence instead. Both remaining items there are human-gated.
+**Issues updated:** the dependency entry lost the `release.yml` action bullet and records the
+2026-07-28 probe evidence instead. (The doc-drift entry this review left open was resolved by the
+human later the same day and deleted — see the banner above.)
 
 **Codex review:** Clean — "The locked NuGet restore succeeds, and the updated no-restore build/test
 flow passes all 104 .NET tests. No actionable regressions were found."
 
-**Next:** There is no `normal` issue CID can schedule and no unmet gap in state.md that does not
-route through you. Two candidate moves, in order of my recommendation:
+**Next:** Two authorized steps stand between HEAD and v0.6.0, in this order:
 
-1. **Decide the two held Rust majors** — `criterion` 0.8 needs an MSRV call (it wants rustc 1.86 vs
-    the declared `rust-version = "1.85"`), and `uniffi` 0.32 needs authorization to regenerate the
-    Swift and Kotlin bindings. Either decision unblocks a concrete CID step immediately.
-2. **Authorize the `specs/java-bindings.md` correction** (jni 0.21 → 0.22, "~1060 lines" → 1152 at
-    lines 13/22/32) — a two-minute edit that closes the last `[review]` doc-drift entry.
+1. **`criterion` 0.7 → 0.8** — the smaller of the two and fully verifiable locally. Keep
+    `rust-version = "1.85"` untouched; the issue explains why this is not an MSRV change.
+2. **`uniffi` 0.31 → 0.32** — read the 0.32 changelog first and re-scope if `crates/iscc-uniffi/src`
+    needs edits. Regenerate both checked-in bindings; the diff must be a pure regeneration. Kotlin
+    verifies locally, Swift does not — the `swift` CI job is the verification.
 
-If neither is wanted now, the honest state is a paused loop, not idle work to invent.
+Closing the dependency issue is the last v0.6.0 criterion. The doc-drift issue is gone: the human
+applied the fix (jni 0.22, both line-count claims deleted rather than restated).
 
 **Notes:**
 

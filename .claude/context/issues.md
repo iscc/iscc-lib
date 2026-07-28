@@ -21,13 +21,28 @@ and user-facing behaviour in `docs/`.
 Planned for the **v0.6.0** release. No automated dependency updates are configured (no
 Dependabot/Renovate), so manifests drift between releases.
 
-Two items remain, both human-gated. `uniffi` 0.32 needs the Swift + Kotlin bindings regenerated and
-re-verified (no Swift toolchain assumption may be baked in); `criterion` 0.8 needs rustc 1.86 > the
-declared `rust-version = "1.85"`, i.e. an MSRV policy call. GitHub Action refs are **current** —
-re-probed 2026-07-28 across all 25 distinct `uses:` refs in `.github/workflows/*.yml`:
-`git/matching-refs/tags/v<N+1>` is empty for all 23 versioned refs, and both exact pins equal their
-publisher's `releases/latest`. Re-probe before assuming drift; do not scope an action bump on a
-release note alone.
+Two items remain. Both were **authorized by Titusz on 2026-07-28** and are schedulable as separate
+steps:
+
+- **`criterion` 0.7 → 0.8 — take it and keep `rust-version = "1.85"`.** This is not an MSRV policy
+    call: `criterion` is a dev-dependency of `crates/iscc-lib` only, consumed by the two `[[bench]]`
+    targets, and a dev-dependency is never built by downstream consumers, so its rustc-1.86 floor
+    cannot raise a consumer's MSRV. It raises only the contributor/bench toolchain floor, and every
+    Rust CI job runs `dtolnay/rust-toolchain@stable`. Do **not** edit `rust-version` in this step.
+- **`uniffi` 0.31 → 0.32 — regenerate, do not hand-edit.** Read the 0.32 changelog first: if the
+    proc-macro surface changed such that `crates/iscc-uniffi/src` needs edits, stop and re-scope —
+    that is a different step. Otherwise regenerate both checked-in bindings
+    (`packages/swift/Sources/IsccLib/iscc_uniffi.swift`,
+    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt`); the diff must be a pure
+    regeneration. Kotlin is verifiable locally (Gradle/JVM). **Swift is not** — the Linux
+    devcontainer has no Swift toolchain, so the `swift` CI job is the verification, and the step is
+    not done until CI is green on the pushed commit. uniffi's runtime checksum check fails loudly on
+    a stale binding, so a missed regeneration reds the suites rather than passing silently.
+
+GitHub Action refs are **current** — re-probed 2026-07-28 across all 25 distinct `uses:` refs in
+`.github/workflows/*.yml`: `git/matching-refs/tags/v<N+1>` is empty for all 23 versioned refs, and
+both exact pins equal their publisher's `releases/latest`. Re-probe before assuming drift; do not
+scope an action bump on a release note alone.
 
 **Constraints that still bind:** wheels stay `abi3-py310`; PyO3 bumps only together with
 re-verifying `gil_used = true` semantics and the `py.detach` call sites; `rb_sys` in `Gemfile.lock`
@@ -42,17 +57,6 @@ release. Re-check when bumping `iai-callgrind` (which must stay in lockstep with
 `iai-callgrind-runner`).
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness"
-
-## The Java binding spec teaches a jni version and file size the code no longer matches `normal` [review]
-
-`.claude/context/specs/java-bindings.md` says the binding uses "the `jni` crate (v0.21)" (line 22)
-and describes `src/lib.rs` as "~1060 lines" (lines 13 and 32); the crate is on `jni = "0.22"` and
-the file is 1152 lines.
-
-**HUMAN REVIEW REQUESTED**: this edits a human-owned spec file, so CID must not fix it unprompted.
-Resolved when the spec matches the code.
-
-**Spec:** `.claude/context/specs/java-bindings.md` → "Why JNI (not JNA or Panama FFI)"
 
 ## go1.27 bump reds the Go boundary suite unless the freeze table lands with it `normal` [review]
 
@@ -122,9 +126,32 @@ workspace (per the 1.0.0 decision). This is the one release allowed to break the
 afterward 1.x is locked under strict SemVer. Drive via the `/release` skill — do NOT let the CID
 loop cut this release autonomously.
 
-**Status (2026-06-18):** Titusz decided to **hold** the v1.0.0 cut and stay on 0.4.x for now — land
-the CRAP `--fail-above` and `cargo deny` hardening gates first, then flip the `cargo-semver-checks`
-gate to enforcing as part of the eventual cut.
+**Status (2026-07-28):** Titusz reaffirmed **not yet** — the project is working toward **v0.6.0**,
+and v1.0.0 comes after it. The two hardening gates the 2026-06-18 hold waited on have both landed
+and are enforcing (`ci.yml` → `cargo crap … --fail-regression --fail-above` with a committed
+`.crap-baseline.json`, and `Audit (cargo-deny)`), so they are no longer the blocker. What remains
+for the cut itself: flip `cargo-semver-checks` from `continue-on-error: true` to enforcing, and
+settle the MSRV question (see the MSRV issue below). Do not re-derive this hold from the gate status
+— it is a release-sequencing decision, not a technical one.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
+
+## The declared MSRV is asserted but never verified `low` [human]
+
+**Human-gated — a v1.0.0 prerequisite, not v0.6.0 work. CID must not act on this unprompted.**
+
+The workspace declares `rust-version = "1.85"` (root `Cargo.toml`, inherited by all 8 crates), but
+nothing tests that the crate actually builds on 1.85: every Rust job in `ci.yml` uses
+`dtolnay/rust-toolchain@stable`, there is no `rust-toolchain.toml`, and `resolver = "2"` is not
+MSRV-aware. The claim is therefore unfalsifiable today — tolerable at 0.5.0, not at v1.0.0, where
+MSRV becomes part of the stability commitment.
+
+**Scope when it lands:** add a CI job on `dtolnay/rust-toolchain@1.85` running
+`cargo check -p iscc-lib`. It must skip dev-dependencies (`cargo check`, not `cargo test`) — once
+`criterion` 0.8 is in, the dev-dependency graph needs rustc 1.86 by design, and that is not an MSRV
+violation.
+
+Resolved when either the job exists and passes, or `rust-version` is dropped/raised deliberately.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
 
