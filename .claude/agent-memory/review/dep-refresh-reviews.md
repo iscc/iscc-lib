@@ -255,11 +255,13 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
 
 All locally-verifiable slices are done (1-8; slice 8 closed iter 137). napi `package.json`
 (`@napi-rs/cli: ^3`) and dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked current iter 129
-— no edit needed. xunit.v3 3.x + Test.Sdk 18.x CLOSED iter 164 (below). What is left, all
-human/major-gated: `release.yml` GHA refs (not CI-exercised) and the deferred magnus 0.8 / jni 0.22
-migrations, each its own step. Gradle wrapper 9.6.1 CLOSED iter 165, JUnit 6.1.2 CLOSED iter 166
-(both below). Watch for the slice-5 lesson in any published binding: a runtime/toolchain floor
-moving silently.
+— no edit needed. xunit.v3 3.x + Test.Sdk 18.x CLOSED iter 164 (below). Gradle wrapper 9.6.1 CLOSED
+iter 165, JUnit 6.1.2 CLOSED iter 166 (both below), **magnus 0.8 CLOSED iter 167** (gates + the
+corrected floor facts → `binding-reviews.md` "Ruby Binding Review"; lock delta was magnus +
+magnus-macros + magnus's own build-dep `rb-sys-env` 0.1.2→0.2.3, all reaching only `iscc-rb` per
+`cargo tree -i`). What is left, all human/major-gated: `release.yml` GHA refs (not CI-exercised) and
+the `jni` 0.22 migration. Watch for the slice-5 lesson in any published binding: a runtime/toolchain
+floor moving silently.
 
 ## JVM test-framework major (iter 166, JUnit 5.14.4 → 6.1.2, Gradle + Maven) — ~10 min
 

@@ -49,7 +49,15 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 
 ## Ruby Binding Review
 
-- Magnus 0.7.1 pinned for Ruby 3.1 compat — 0.8 needs Ruby 3.2+
+- Magnus **0.8.2** since iter 167 (the old "0.8 needs Ruby 3.2+" note was wrong — 0.8's README says
+    Ruby 3.0-3.4 fully supported, MSRV 1.65; gemspec floor `>= 3.1.0`, CI 3.1, cross-gem 3.1/3.2/3.3
+    all fit). 0.8 drops `old-api`: `ruby.exception_runtime_error()` and `ruby.str_from_slice()`
+    replace `magnus::exception::*` / `RString::from_slice`; `RString::as_slice` is NOT deprecated
+- Gates (~8 min): `cargo clippy -p iscc-rb --all-targets -- -D warnings` + `mise run audit` +
+    `(cd crates/iscc-rb && bundle exec rake compile && bundle exec rake test)` — the `.so` is
+    gitignored and stale-prone, so confirm the linked dep with `strings lib/iscc_lib/iscc_rb.so`.
+    Suite total is dynamic (`test_conformance.rb`): 124 runs / 314 assertions at 167; it can only
+    move if a test file, `Gemfile*` or a fixture moved in the diff — check that instead of a floor
 - `function!` macro does NOT accept `&Ruby` — use `Ruby::get().expect("called from Ruby")`
 - Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate
 - Streaming classes: `#[magnus::wrap(class = "...")]` + `RefCell<Option<inner>>` for one-shot

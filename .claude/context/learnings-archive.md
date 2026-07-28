@@ -940,3 +940,10 @@ runs on `opus`. Deliberate — do not "unify" them.
 
 - **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (152):
     discovery is by basename, so keep the canonical filenames and register every tracked copy
+
+## Fixture-as-build-input, per build system (archived at 167 — all 12 suites probed)
+
+- Gradle's stale green is fixed with `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`;
+    NONE hashes contents only, so the varying absolute path never forces a re-run. Gradle was the
+    only offender: MSBuild `<Content Link=…>`, SwiftPM `.copy(...)` and the C/C++ *compile-time*
+    include (CMake depfiles) are safe by construction; CI is immune either way (fresh checkout).

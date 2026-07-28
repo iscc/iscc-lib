@@ -95,14 +95,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `0 passed` — only `wasm-pack test --node …` runs `#[wasm_bindgen_test]`, so clippy
     `--all-targets` proves compilation, never coverage. **Every gitignored native artifact goes
     stale silently** — Ruby `.so` (`rake compile`), napi `.node`, JNI `.so`; rebuild, then probe
-    `text_clean("a"+U+A7F1+"b") == "ab"` (stale → `aSb`). CI rebuilds first, so this is local-only
+    `text_clean("a"+U+A7F1+"b") == "ab"` (stale → `aSb`); after a dep bump, `strings <artifact>`
+    greps out the dep version actually linked in (167). CI rebuilds first, so this is local-only
 - **A suite reading a fixture OUTSIDE its own build tree must declare it as a build input** (154):
     Gradle's `Test` task tracks only its project tree, so a `unicode_boundary.json` edit left
-    `./gradlew test` `UP-TO-DATE` — a silent stale green (fixed with
-    `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`; NONE hashes contents only, so the
-    varying absolute path never forces a re-run). All 12 suites are probed and Gradle was the only
-    offender: MSBuild `<Content Link=…>`, SwiftPM `.copy(...)` and the C/C++ *compile-time* include
-    (CMake depfiles) are safe by construction; CI is immune either way (fresh checkout)
+    `./gradlew test` `UP-TO-DATE` — a silent stale green. Fixed, and all 12 suites probed (Gradle
+    was the only offender); the per-build-system detail → `learnings-archive.md`
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`

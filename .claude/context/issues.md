@@ -21,20 +21,22 @@ and user-facing behaviour in `docs/`.
 Planned for the **v0.6.0** release. No automated dependency updates are configured (no
 Dependabot/Renovate), so manifests drift between releases.
 
-All nine ecosystem and tooling slices are closed (Rust, Python, Rust direct pins, CI Actions, JVM,
-Go, Ruby, ruff 0.16 adoption, release-workflow Actions). What remains are the **major bumps**, all
-authorized by Titusz for CID on 2026-07-26 — **one per step**, gates green, no bundling:
+One CID-schedulable item is left, authorized by Titusz on 2026-07-26: **`jni` 0.22** in
+`crates/iscc-jni/src/lib.rs` — a wholesale API rework (`JNIEnv` → `EnvUnowned`/`Env`, `GlobalRef` →
+`Global`, `AutoLocal` → `Auto`, closure-based thread attachment, a mandatory per-function
+`ErrorPolicy`) across ~41 sites, per upstream `docs/0.22-MIGRATION.md`. It needs its own scoping
+pass; if it needs an upstream-behaviour ruling, park it and say so rather than guessing.
 
-- `jni` 0.22 (`crates/iscc-jni/src/lib.rs`) and `magnus` 0.8 (`crates/iscc-rb/src/lib.rs`) — real
-    API migrations and the riskiest items here; one crate per step. If either needs an
-    upstream-behaviour ruling, park it and say so rather than guessing.
+The rest of the refresh is human/release-gated: `release.yml` action bumps (never exercised by CI),
+`uniffi` 0.32 (requires regenerating and re-verifying the Swift + Kotlin bindings), `criterion` 0.8
+(needs rustc 1.86 > the declared `rust-version = "1.85"`).
 
-**Constraints that bind these steps:** PyO3 bumps only together with re-verifying `gil_used = true`
-semantics and the `py.detach` call sites; `rb_sys` in `Gemfile.lock` must match the
-`oxidize-rb/actions/cross-gem` Docker image tag (currently exact-pinned `0.9.123`); wheels stay
-`abi3-py310`; quality-gate CI tool pins bump together with their baselines. Never run
-`ruff@0.16 check --fix .` — it deletes load-bearing `# noqa` directives. All quality gates and
-conformance vectors must pass on the refreshed set.
+**Constraints that still bind:** wheels stay `abi3-py310`; PyO3 bumps only together with
+re-verifying `gil_used = true` semantics and the `py.detach` call sites; `rb_sys` in `Gemfile.lock`
+must match the `oxidize-rb/actions/cross-gem` Docker image tag (exact-pinned `0.9.123`);
+quality-gate CI tool pins bump together with their baselines. Never run `ruff@0.16 check --fix .` —
+it deletes load-bearing `# noqa` directives. All quality gates and conformance vectors must pass on
+the refreshed set.
 
 **Known upstream wart (not actionable):** the `proc-macro-error2 v2.0.1` future-incompat warning on
 every `cargo test` / `cargo bench` comes from `iai-callgrind-macros`, is dev-only, and has no fixed
