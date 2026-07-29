@@ -27,8 +27,15 @@ Detail moved out of MEMORY.md index. See also [[ci-gates]] for the swift/kotlin 
     generated files to satisfy hooks.
 - Generated `.kt` triggers one benign Kotlin compile warning (`Expression is unused` at the
     `IntegrityCheckingUniffiLib` reference in `uniffiEnsureInitialized`) — uniffi-intended, ignore.
-- 32 Tier 1 symbols, 11 result Records, `IsccUniError` enum (`#[derive(uniffi::Error)]` +
-    `From<iscc_lib::IsccError>`), DataHasher/InstanceHasher Objects.
+- 33 Tier 1 symbols (33rd = `gen_iscc_id_v1`+`IsccIdResult`, iter 186), 12 result Records,
+    `IsccUniError` enum (`#[derive(uniffi::Error)]` + `From<iscc_lib::IsccError>`),
+    DataHasher/InstanceHasher Objects. `gen_iscc_id_v1(u64,u16,u8)` passes exact-width types
+    straight to core — NO binding guard/narrowing (core validates ts→hub→realm). Adding it emitted a
+    fresh `FfiConverterUInt16` (first u16 param) in the swift binding.
+- **Swift bindgen dumps `.h`+`.modulemap` into the `--out-dir` (`Sources/IsccLib/`) but the
+    checked-in tree keeps `iscc_uniffiFFI.h` in `Sources/iscc_uniffiFFI/` and a hand-simplified
+    `module.modulemap` there.** After `generate`: `mv` the `.h` into `Sources/iscc_uniffiFFI/`, `rm`
+    the generated `iscc_uniffiFFI.modulemap` (never overwrite `module.modulemap`).
 - `crate-type = ["cdylib", "staticlib", "lib"]` — cdylib for dynamic, staticlib for XCFramework.
 - Streaming: `Mutex<Option<Inner>>` (like Ruby's `RefCell<Option<Inner>>` but thread-safe).
 - UniFFI doesn't support: `const` exports (use getter fns), `usize` (use u64), borrowed refs (owned

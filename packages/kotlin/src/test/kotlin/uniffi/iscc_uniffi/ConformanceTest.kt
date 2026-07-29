@@ -234,4 +234,37 @@ class ConformanceTest {
             assertEquals(outputs["iscc"].asString, result.iscc, "Failed vector: $name")
         }
     }
+
+    // -- gen_iscc_id_v1 --
+
+    /** Recover (timestamp, hubId, version, realm) from a decoded ISCC-IDv1. */
+    private fun decodeIdV1(iscc: String): List<Long> {
+        val decoded = isccDecode(iscc)
+        var n = 0L
+        for (byte in decoded.digest.take(8)) {
+            n = (n shl 8) or (byte.toLong() and 0xFF)
+        }
+        return listOf(n ushr 12, n and 0xFFF, decoded.version.toLong(), decoded.subtype.toLong())
+    }
+
+    @Test
+    fun testGenIsccIdV1() {
+        // Golden vector (matches iscc-core reference).
+        val golden = genIsccIdV1(1_751_831_876_325_218uL, 1u, 0u)
+        assertEquals("ISCC:MAIGHFECJMOPMIAB", golden.iscc)
+
+        val g = decodeIdV1(golden.iscc)
+        assertEquals(1_751_831_876_325_218L, g[0])
+        assertEquals(1L, g[1])
+        assertEquals(1L, g[2])
+        assertEquals(0L, g[3])
+
+        // Realm 1 + hub 4095 round-trip.
+        val alt = genIsccIdV1(1_751_831_876_325_218uL, 4095u, 1u)
+        val a = decodeIdV1(alt.iscc)
+        assertEquals(1_751_831_876_325_218L, a[0])
+        assertEquals(4095L, a[1])
+        assertEquals(1L, a[2])
+        assertEquals(1L, a[3])
+    }
 }

@@ -695,6 +695,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_iscc_uniffi_checksum_func_gen_iscc_code_v0(
     ): Int
+    external fun uniffi_iscc_uniffi_checksum_func_gen_iscc_id_v1(
+    ): Int
     external fun uniffi_iscc_uniffi_checksum_func_gen_meta_code_v0(
     ): Int
     external fun uniffi_iscc_uniffi_checksum_func_gen_mixed_code_v0(
@@ -804,6 +806,8 @@ internal object UniffiLib {
     external fun uniffi_iscc_uniffi_fn_func_gen_instance_code_v0(`data`: RustBuffer.ByValue,`bits`: Int,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
     external fun uniffi_iscc_uniffi_fn_func_gen_iscc_code_v0(`codes`: RustBuffer.ByValue,`wide`: Byte,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun uniffi_iscc_uniffi_fn_func_gen_iscc_id_v1(`timestamp`: Long,`hubId`: Short,`realm`: Byte,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
     external fun uniffi_iscc_uniffi_fn_func_gen_meta_code_v0(`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`meta`: RustBuffer.ByValue,`bits`: Int,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
@@ -993,6 +997,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_iscc_uniffi_checksum_func_gen_iscc_code_v0() != 7495) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_iscc_uniffi_checksum_func_gen_iscc_id_v1() != 32674) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_iscc_uniffi_checksum_func_gen_meta_code_v0() != 18926) {
@@ -1251,6 +1258,33 @@ public object FfiConverterUByte: FfiConverter<UByte, Byte> {
 
     override fun write(value: UByte, buf: ByteBuffer) {
         buf.put(value.toByte())
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterUShort: FfiConverter<UShort, Short> {
+    override fun lift(value: Short): UShort {
+        return value.toUShort()
+    }
+
+    fun lift(value: Int): UShort {
+        return value.toUShort()
+    }
+
+    override fun read(buf: ByteBuffer): UShort {
+        return lift(buf.getShort())
+    }
+
+    override fun lower(value: UShort): Short {
+        return value.toShort()
+    }
+
+    override fun allocationSize(value: UShort) = 2UL
+
+    override fun write(value: UShort, buf: ByteBuffer) {
+        buf.putShort(value.toShort())
     }
 }
 
@@ -2323,6 +2357,45 @@ public object FfiConverterTypeIsccCodeResult: FfiConverterRustBuffer<IsccCodeRes
 
 
 /**
+ * Result of `gen_iscc_id_v1`.
+ */
+data class IsccIdResult (
+    /**
+     * ISCC-IDv1 string (e.g., `"ISCC:MAIGHFECJMOPMIAB"`).
+     */
+    var `iscc`: kotlin.String
+
+){
+
+
+
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeIsccIdResult: FfiConverterRustBuffer<IsccIdResult> {
+    override fun read(buf: ByteBuffer): IsccIdResult {
+        return IsccIdResult(
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: IsccIdResult) = (
+            FfiConverterString.allocationSize(value.`iscc`)
+    )
+
+    override fun write(value: IsccIdResult, buf: ByteBuffer) {
+            FfiConverterString.write(value.`iscc`, buf)
+    }
+}
+
+
+
+/**
  * Result of `gen_meta_code_v0`.
  */
 data class MetaCodeResult (
@@ -3028,6 +3101,26 @@ public object FfiConverterSequenceSequenceInt: FfiConverterRustBuffer<List<List<
 
         FfiConverterSequenceString.lower(`codes`),
         FfiConverterBoolean.lower(`wide`),_status)
+}
+    )
+    }
+
+
+        /**
+         * Generate an ISCC-IDv1 from a timestamp, HUB-ID, and realm.
+         *
+         * Types match the core exactly (`u64`/`u16`/`u8`), so core performs the
+         * timestamp -> HUB-ID -> realm validation in order.
+         */
+    @Throws(IsccUniException::class) fun `genIsccIdV1`(`timestamp`: kotlin.ULong, `hubId`: kotlin.UShort, `realm`: kotlin.UByte): IsccIdResult {
+            return FfiConverterTypeIsccIdResult.lift(
+    uniffiRustCallWithError(IsccUniException) { _status ->
+    UniffiLib.uniffi_iscc_uniffi_fn_func_gen_iscc_id_v1(
+
+
+        FfiConverterULong.lower(`timestamp`),
+        FfiConverterUShort.lower(`hubId`),
+        FfiConverterUByte.lower(`realm`),_status)
 }
     )
     }

@@ -212,4 +212,36 @@ final class ConformanceTests: XCTestCase {
             XCTAssertEqual(result.iscc, outputs["iscc"] as! String, "Failed vector: \(name)")
         }
     }
+
+    // MARK: - gen_iscc_id_v1
+
+    /// Recover (timestamp, hubId, realm) from a decoded ISCC-IDv1.
+    func decodeIdV1(_ iscc: String) throws -> (timestamp: UInt64, hubId: UInt64, version: UInt8, realm: UInt8) {
+        let decoded = try isccDecode(iscc: iscc)
+        var n: UInt64 = 0
+        for byte in decoded.digest.prefix(8) {
+            n = (n << 8) | UInt64(byte)
+        }
+        return (n >> 12, n & 0xFFF, decoded.version, decoded.subtype)
+    }
+
+    func testGenIsccIdV1() throws {
+        // Golden vector (matches iscc-core reference).
+        let golden = try genIsccIdV1(timestamp: 1_751_831_876_325_218, hubId: 1, realm: 0)
+        XCTAssertEqual(golden.iscc, "ISCC:MAIGHFECJMOPMIAB")
+
+        let g = try decodeIdV1(golden.iscc)
+        XCTAssertEqual(g.timestamp, 1_751_831_876_325_218)
+        XCTAssertEqual(g.hubId, 1)
+        XCTAssertEqual(g.version, 1)
+        XCTAssertEqual(g.realm, 0)
+
+        // Realm 1 + hub 4095 round-trip.
+        let alt = try genIsccIdV1(timestamp: 1_751_831_876_325_218, hubId: 4095, realm: 1)
+        let a = try decodeIdV1(alt.iscc)
+        XCTAssertEqual(a.timestamp, 1_751_831_876_325_218)
+        XCTAssertEqual(a.hubId, 4095)
+        XCTAssertEqual(a.version, 1)
+        XCTAssertEqual(a.realm, 1)
+    }
 }

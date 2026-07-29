@@ -1,49 +1,47 @@
-## 2026-07-29 — Review of: Mint `gen_iscc_id_v1` on the Ruby (Magnus) surface
+## 2026-07-29 — Mint `gen_iscc_id_v1` on the uniffi surface (Swift + Kotlin)
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Added the `IsccIdResult` record + `gen_iscc_id_v1(u64,u16,u8)` export to the shared
+`iscc-uniffi` crate (types match core exactly — no binding guard/narrowing, so core does the ordered
+ts→hub→realm validation). Regenerated the checked-in Swift and Kotlin bindings, taking both surfaces
+from 32→33 accepted Tier 1 symbols (9th and 10th of 11 IDv1 fan-out surfaces, #43).
 
-**Summary:** The Ruby binding now exposes `gen_iscc_id_v1` (8th of 11 IDv1 fan-out surfaces, #43).
-The native fn validates the three semantic thresholds (`2^52`/`4096`/`2`) in ts→hub→realm order via
-a `checked()` helper before narrowing i64→(u64,u16,u8), matching the napi precedent and the
-reference order (`iscc_id.py:127-133`). All required tests pass and gates are clean. One real but
-pathological edge case (out-of-i64 args) is filed as a `[review]` issue — see Codex review.
+**Files changed:**
+
+- `crates/iscc-uniffi/src/lib.rs`: header docstring 32→33; new `IsccIdResult` Record; new
+    `gen_iscc_id_v1` export; in-crate golden+round-trip unit test.
+- `packages/swift/Sources/IsccLib/iscc_uniffi.swift` (regenerated — added `FfiConverterUInt16`,
+    `IsccIdResult`, `genIsccIdV1`).
+- `packages/swift/Sources/iscc_uniffiFFI/iscc_uniffiFFI.h` (regenerated — new FFI decl + checksum).
+- `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (regenerated).
+- `packages/swift/Tests/IsccLibTests/ConformanceTests.swift`,
+    `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt`: golden
+    (`ISCC:MAIGHFECJMOPMIAB`) + realm-1/hub-4095 round-trips via generic `iscc_decode` bit-math.
 
 **Verification:**
 
-- [x] `bundle exec rake compile:dev` then `bundle exec rake test` — re-run here: 129 runs, 368
-    assertions, 0 failures.
-- [x] Golden — `gen_iscc_id_v1(1_751_831_876_325_218, 1, 0).iscc == "ISCC:MAIGHFECJMOPMIAB"` (test
-    passes; matches core golden).
-- [x] Validation order first-fail-wins — `(1<<52, 4096, 2)`→timestamp, `(0, 4096, 2)`→hub,
-    `(0, 0, 2)`→realm; negatives rejected on each param. Order confirmed against reference.
-- [x] Round-trip — `iscc_decode` + `digest.unpack1("Q>")` bit-math recovers `(ts, hub, realm)`,
-    `vs == 1`. `iscc_decode` returns `version` as a plain Integer, so no enum widening needed.
-- [x] `cargo clippy -p iscc-rb --all-targets -- -D warnings` + `cargo fmt -p iscc-rb --check` clean;
-    `bundle exec standardrb` clean on both Ruby files; `mise run check` — all prek hooks Passed.
-- [x] (probe) Scope clean — 2 code files (`src/lib.rs`, `iscc_lib.rb`) + 1 test + 1 doc, all in
-    next.md's Modify/Create list; header docstring 32→33 own-file only per Not-In-Scope. No API
-    break, no hot path, no gate circumvention across `@{upstream}..HEAD`.
+- `cargo build/test/clippy -D warnings/fmt --check -p iscc-uniffi` — all clean; 22 unit tests pass
+    (incl. new `test_gen_iscc_id_v1`).
+- Swift: `swift test` (swift.org 6.1.2 Debian12 toolchain) — 13 tests, 0 failures;
+    `ConformanceTests` now 10 (was 9), `testGenIsccIdV1` passes.
+- Kotlin: `./gradlew test` BUILD SUCCESSFUL; `testGenIsccIdV1()` present in test-results XML, no
+    failure. (Only the two known-benign uniffi "Expression is unused" warnings.)
+- Regeneration no-op: re-ran both bindgen commands; `diff` modulo trailing-ws
+    (`sed 's/[[:space:]]*$//'`) is empty on all three generated files.
+- `mise run check` — all prek hygiene + parity hooks Passed (took 3 passes to reach the ws/EOF fixed
+    point on the generated files, as expected for third-party bindgen output; nothing hand-edited).
+- Grep gates: `genIsccIdV1` count = 1 in both swift/kotlin bindings; docstring reads "all 33 Tier 1
+    symbols".
 
-**Issues found:**
+**Next:** #43 fan-out — remaining minting surfaces are **dotnet** (C#) and **cpp** (both fixed-width
+FFI over `iscc_ffi`, so exempt from the wide-input marshalling gap). Then the deferred repo-wide
+Tier-1 32→33 doc/count sweep (issues.md) once all surfaces land.
 
-- (filed `[review]`, normal) Ruby validation order breaks for args `> i64::MAX`: Magnus narrows
-    Integer→i64 during marshalling, *before* the fn body, so `gen_iscc_id_v1(1<<52, 1<<100, 2)`
-    raises `RangeError` instead of reporting the earlier-invalid timestamp, and `(1<<70,0,0)` raises
-    `RangeError` where the docstring promises `RuntimeError`. Only triggers for values beyond
-    `i64::MAX` (≈9.2e18) — no realistic timestamp/hub/realm reaches it, so practical impact is nil.
+**Notes:**
 
-**Codex review:** One P2 finding, valid and confirmed live: arbitrary-precision args exceeding i64
-bypass the ordered validation during Magnus marshalling. Filed as the `[review]` issue above rather
-than blocking — the delivered work is correct for all realistic inputs, the advance agent faithfully
-implemented next.md's prescribed `i64` design, and the divergence needs a `2^100`-scale bignum to
-manifest. Fix belongs with a cross-surface pass (validate magnitude in Ruby, or accept
-`magnus::Integer`).
-
-**Next:** Continue #43 fan-out. Remaining minting surfaces: **uniffi** (Swift/Kotlin — higher-risk:
-one core edit + 3 regenerated checked-in artifacts), **dotnet** C# consumer, **cpp**. uniffi/dotnet
-use fixed-width FFI types so they are exempt from the Ruby marshalling gap, but confirm during their
-step. Then the deferred repo-wide Tier-1 32→33 doc/count sweep.
-
-**Notes:** #43 stays open (v0.6.0 blocker). Lesson recorded: any arbitrary-precision-input surface
-must validate magnitude *before* the native narrowing layer, not just before the codec narrowing —
-the "validate before narrowing" principle applies to the marshalling boundary too.
+- Swift bindgen dumps `iscc_uniffiFFI.h` + `iscc_uniffiFFI.modulemap` into `--out-dir`
+    (`Sources/IsccLib/`), but the tree keeps the header in `Sources/iscc_uniffiFFI/` with a
+    hand-simplified `module.modulemap`. I moved the `.h` and discarded the generated modulemap
+    (recorded in advance memory).
+- Scope: 1 code file (`iscc-uniffi/src/lib.rs`) + 3 regenerated (generated, not counted) + 2 tests
+    (not counted). No API break; no hot path touched. Only the own-file docstring 32→33 was changed
+    per Not-In-Scope; repo-wide count sweep untouched.

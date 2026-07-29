@@ -481,6 +481,22 @@ fileprivate struct FfiConverterUInt8: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt16: FfiConverterPrimitive {
+    typealias FfiType = UInt16
+    typealias SwiftType = UInt16
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt16 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
     typealias FfiType = UInt32
     typealias SwiftType = UInt32
@@ -1358,6 +1374,65 @@ public func FfiConverterTypeIsccCodeResult_lower(_ value: IsccCodeResult) -> Rus
 
 
 /**
+ * Result of `gen_iscc_id_v1`.
+ */
+public struct IsccIdResult: Equatable, Hashable {
+    /**
+     * ISCC-IDv1 string (e.g., `"ISCC:MAIGHFECJMOPMIAB"`).
+     */
+    public var iscc: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * ISCC-IDv1 string (e.g., `"ISCC:MAIGHFECJMOPMIAB"`).
+         */iscc: String) {
+        self.iscc = iscc
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension IsccIdResult: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIsccIdResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IsccIdResult {
+        return
+            try IsccIdResult(
+                iscc: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: IsccIdResult, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.iscc, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIsccIdResult_lift(_ buf: RustBuffer) throws -> IsccIdResult {
+    return try FfiConverterTypeIsccIdResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIsccIdResult_lower(_ value: IsccIdResult) -> RustBuffer {
+    return FfiConverterTypeIsccIdResult.lower(value)
+}
+
+
+/**
  * Result of `gen_meta_code_v0`.
  */
 public struct MetaCodeResult: Equatable, Hashable {
@@ -2129,6 +2204,22 @@ public func genIsccCodeV0(codes: [String], wide: Bool)throws  -> IsccCodeResult 
 })
 }
 /**
+ * Generate an ISCC-IDv1 from a timestamp, HUB-ID, and realm.
+ *
+ * Types match the core exactly (`u64`/`u16`/`u8`), so core performs the
+ * timestamp -> HUB-ID -> realm validation in order.
+ */
+public func genIsccIdV1(timestamp: UInt64, hubId: UInt16, realm: UInt8)throws  -> IsccIdResult  {
+    return try  FfiConverterTypeIsccIdResult_lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_gen_iscc_id_v1(
+        FfiConverterUInt64.lower(timestamp),
+        FfiConverterUInt16.lower(hubId),
+        FfiConverterUInt8.lower(realm),uniffiCallStatus
+    )
+})
+}
+/**
  * Generate a Meta-Code from name, optional description, and optional metadata.
  */
 public func genMetaCodeV0(name: String, description: String?, meta: String?, bits: UInt32)throws  -> MetaCodeResult  {
@@ -2391,6 +2482,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_iscc_uniffi_checksum_func_gen_iscc_code_v0() != 7495) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_iscc_uniffi_checksum_func_gen_iscc_id_v1() != 32674) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_iscc_uniffi_checksum_func_gen_meta_code_v0() != 18926) {
