@@ -471,7 +471,20 @@ int main(void) {
         }
     }
 
-    /* 29. Unicode 16.0.0 boundary vectors — metadata guard + generated vectors */
+    /* 29. gen_iscc_id_v1 — golden vector */
+    result = iscc_gen_iscc_id_v1(1751831876325218ULL, 1, 0);
+    ASSERT_STR_EQ(result, "ISCC:MAIGHFECJMOPMIAB", "gen_iscc_id_v1(golden)");
+    iscc_free_string(result);
+
+    /* 30. gen_iscc_id_v1 — invalid realm returns NULL + sets error */
+    result = iscc_gen_iscc_id_v1(1751831876325218ULL, 1, 2);
+    ASSERT_NULL(result, "gen_iscc_id_v1(realm=2) returns NULL");
+    {
+        const char *err = iscc_last_error();
+        ASSERT_NOT_NULL(err, "iscc_last_error() non-NULL after gen_iscc_id_v1 error");
+    }
+
+    /* 31. Unicode 16.0.0 boundary vectors — metadata guard + generated vectors */
     {
         /* Via a local so -Waddress never sees a literal compared against NULL. */
         const char *unicode_version = ISCC_UNICODE_DATA_VERSION;

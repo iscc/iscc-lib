@@ -60,9 +60,20 @@ metadata:
     unvalidatable. napi sig CHANGED `(f64,u16,u8)`→`(f64,f64,f64)` (develop-only, no API-break).
     ffi/jni/rb/uniffi are typed-int surfaces (no JS coercion hazard) — do NOT copy this pattern
     there.
-- STILL PENDING (#43): minting on ffi (needs `iscc.h` regen + freshness gate), jni, rb, uniffi,
-    dotnet, cpp surfaces; per-surface decode enum widening (Python `VS` etc. to accept V1) +
-    round-trip test; 32→33 doc/count sweep. Go DONE 179, napi 180, wasm 181.
+- ffi binding DONE (iter 182, #43):
+    `#[unsafe(no_mangle)] pub unsafe extern "C" fn   iscc_gen_iscc_id_v1(timestamp: u64, hub_id: u16, realm: u8) -> *mut c_char`
+    in `crates/iscc-ffi/src/lib.rs` (after `iscc_gen_iscc_code_v0`), body
+    `clear_last_error()`+`result_to_c_string(iscc_lib::gen_iscc_id_v1(...).map(|r| r.iscc))`. TYPED
+    ints, NO `checked()` guard (core re-checks ranges), NO NULL guard (no ptr args). `# Safety` line
+    for consistency only. Regenerated committed `iscc.h` via
+    `cbindgen --config   crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h`
+    (never hand-edit; +21 lines, idempotent). C test `tests/test_iscc.c` tests 29 (golden) + 30
+    (realm=2 → ASSERT_NULL + last_error non-NULL); `ULL` suffix on the ts literal. csbindgen picks
+    up the symbol on build but `NativeMethods.g.cs` stays unused until the dotnet step (not
+    committed here).
+- STILL PENDING (#43): minting on jni, rb, uniffi, dotnet, cpp surfaces; per-surface decode enum
+    widening (Python `VS` etc. to accept V1) + round-trip test; 32→33 doc/count sweep. Go DONE 179,
+    napi 180, wasm 181, ffi 182.
 - The iter-174 "no-default-features fails to COMPILE" note was a PHANTOM (review iter 177): that
     test is already `#[cfg(feature = "meta-code")]`-gated; all feature combos pass. No work owed.
 - Go CI job runs only `go test`+`go vet` — no gofmt gate. The go1.26 gofmt alignment drift in

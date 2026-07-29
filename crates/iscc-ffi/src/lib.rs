@@ -592,6 +592,33 @@ pub unsafe extern "C" fn iscc_gen_iscc_code_v0(
     result_to_c_string(iscc_lib::gen_iscc_code_v0(&code_strs, wide).map(|r| r.iscc))
 }
 
+/// Generate an experimental ISCC-IDv1 from a timestamp, HUB-ID, and realm.
+///
+/// # Parameters
+///
+/// - `timestamp`: microseconds since the Unix epoch (must be `< 2^52`)
+/// - `hub_id`: HUB identifier (must be `< 2^12`)
+/// - `realm`: realm selector (`0` for testnet, `1` for the first operational mainnet)
+///
+/// # Returns
+///
+/// Heap-allocated ISCC string on success, `NULL` on error (out-of-range input).
+/// Caller must free with `iscc_free_string()`.
+///
+/// # Safety
+///
+/// Takes only scalar arguments; there are no pointer preconditions. Declared
+/// `unsafe` for consistency with the other `#[unsafe(no_mangle)]` exports.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_gen_iscc_id_v1(
+    timestamp: u64,
+    hub_id: u16,
+    realm: u8,
+) -> *mut c_char {
+    clear_last_error();
+    result_to_c_string(iscc_lib::gen_iscc_id_v1(timestamp, hub_id, realm).map(|r| r.iscc))
+}
+
 // ── Text utilities ──────────────────────────────────────────────────────────
 
 /// Clean and normalize text for display.

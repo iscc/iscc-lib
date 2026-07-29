@@ -365,6 +365,27 @@ char *iscc_gen_video_code_v0(const int32_t *const *frame_sigs,
  char *iscc_gen_iscc_code_v0(const char *const *codes, uintptr_t num_codes, bool wide);
 
 /**
+ * Generate an experimental ISCC-IDv1 from a timestamp, HUB-ID, and realm.
+ *
+ * # Parameters
+ *
+ * - `timestamp`: microseconds since the Unix epoch (must be `< 2^52`)
+ * - `hub_id`: HUB identifier (must be `< 2^12`)
+ * - `realm`: realm selector (`0` for testnet, `1` for the first operational mainnet)
+ *
+ * # Returns
+ *
+ * Heap-allocated ISCC string on success, `NULL` on error (out-of-range input).
+ * Caller must free with `iscc_free_string()`.
+ *
+ * # Safety
+ *
+ * Takes only scalar arguments; there are no pointer preconditions. Declared
+ * `unsafe` for consistency with the other `#[unsafe(no_mangle)]` exports.
+ */
+ char *iscc_gen_iscc_id_v1(uint64_t timestamp, uint16_t hub_id, uint8_t realm);
+
+/**
  * Clean and normalize text for display.
  *
  * Applies NFKC normalization, removes control characters (except newlines),
