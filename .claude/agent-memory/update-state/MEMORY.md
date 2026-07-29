@@ -100,22 +100,21 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: 825b74a, iter 179)
+## Current State (assessed-at: 40b72ce, iter 180)
 
-- **CI is GREEN on develop.** Real develop tip `dcbb0bb`: CI workflow run `conclusion: success`. The
-    `Semver` check-run reports `failure` but is `continue-on-error: true` → non-blocking (see the
-    corrected semver note above). The 176-178 "CI RED" was a phantom the handoff caught.
-- **`gen_iscc_id_v1` minting NOW ALSO on PYTHON** (iter 178, reviewed PASS): `__init__.py`, `.pyi`,
-    `src/lib.rs`, `tests/test_iscc_id_v1.py`. **Core + Python = 33/33; other 10 surfaces still
-    32/33.** Go rename NOT done — `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result` still in
-    `packages/go/iscc_id.go`, no `GenIsccIDV1`. Python IDv1 decode round-trip still gated by the
-    `VS` IntEnum (#43).
-- **HEAD `825b74a` = cid(log) 178 only; code == origin/develop** (diff excl `.claude` empty), green
+- **CI is GREEN on develop.** Real develop tip `2223d25`: all 23 check names pass except `Semver`
+    (`failure`, but `continue-on-error: true` → non-blocking; see corrected semver note above).
+- **`gen_iscc_id_v1` minting NOW ALSO on GO** (iter 179, reviewed PASS): `packages/go/iscc_id.go`
+    has `GenIsccIDV1(timestamp, hubID, realm)`; `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result`
+    DELETED (grep confirms none under `packages/go/`); decode via generic `IsccDecode` (accepts `Id`
+    V1). **Core + Python + Go = 33/33; other 9 surfaces still 32/33** (napi, wasm, ffi, jni, rb,
+    uniffi→Swift/Kotlin, dotnet, cpp).
+- **HEAD `40b72ce` = cid(log) 179 only; code == origin/develop** (diff excl `.claude` empty), green
     covers HEAD.
 - **Issues 11: 0 critical, 4 normal, 7 low.** Semver is NOT filed as an issue (correctly — it's
     non-blocking).
-- **Next work = IDv1 fan-out** to remaining 10 surfaces + Go rename + per-surface version-enum widen
-    (decode round-trip) + Tier-1 32→33 doc sweep. NOT a CI fix.
+- **Next work = IDv1 fan-out** to remaining 9 surfaces + per-surface version-enum widen (decode
+    round-trip, Python `VS` still V0-only) + Tier-1 32→33 doc sweep. NOT a CI fix.
 - **SCOPE CONTEXT (still live from 174):** out-of-loop non-`cid()` commit `2c4e487` rewrote
     `target.md` + EVERY binding spec to demand **33 Tier 1 symbols** (`gen_iscc_id_v1`) +
     experimental ISCC-IDv1 on core + all 11 surfaces. Lesson: a non-`cid()` commit CAN carry both
