@@ -1515,3 +1515,4 @@
 {"ts":"2026-07-29T01:16:45.516075+00:00","iteration":180,"role":"advance","status":"OK","turns":19,"cost_usd":1.142761,"duration_s":296.7,"peak_context":67689}
 {"ts":"2026-07-29T01:32:26.679037+00:00","iteration":180,"role":"review","status":"FAIL","turns":65,"cost_usd":5.051054,"duration_s":941.1,"peak_context":132873,"recovered":true}
 {"ts":"2026-07-29T01:32:27.885663+00:00","type":"iteration_summary","iteration":180,"verdict":"PASS_WITH_NOTES","turns_total":112,"cost_total":8.838615,"duration_total":1597.2,"peak_context":132873,"over_budget":{}}
+{"ts":"2026-07-29T01:45:36.157624+00:00","iteration":180,"role":"audit","status":"OK","turns":3,"cost_usd":1.027955,"duration_s":668.3,"peak_context":60571}
