@@ -143,7 +143,7 @@ technical debt introduced>
 - Every function you write must have a docstring.
 - Do not introduce `unsafe` code without documenting why it's necessary.
 - **Preserve the public API of `iscc-lib` (core crate).** The crate is stability-committed (v1.0.0+)
-    and used in downstream production. Do not change the signature, name, or type of any Tier 1 (32
+    and used in downstream production. Do not change the signature, name, or type of any Tier 1 (33
     symbols) or Tier 2 `codec` symbol in a backward-incompatible way. If a break is genuinely
     required by the work package, do NOT proceed silently — stop and flag `**API-BREAK:**` in the
     handoff with justification for human approval.

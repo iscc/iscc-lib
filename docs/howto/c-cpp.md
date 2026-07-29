@@ -456,6 +456,28 @@ for (const auto& unit : units) {
 }
 ```
 
+### ISCC-IDv1 (experimental)
+
+Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
+bits and the HUB-ID the low 12 bits; `realm` (0 = testnet, 1 = mainnet) becomes the SubType.
+ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
+
+```cpp
+#include <iscc/iscc.hpp>
+
+auto result = iscc::gen_iscc_id_v1(1751831876325218ULL, 1, 0);
+std::cout << result.iscc << std::endl; // "ISCC:MAIGHFECJMOPMIAB"
+
+// There is no dedicated decoder — recover the fields with iscc_decode and bit math:
+auto d = iscc::iscc_decode(result.iscc);
+uint64_t n = 0;
+for (int i = 0; i < 8; i++) n = (n << 8) | d.digest[i];
+uint64_t timestamp = n >> 12;            // 1751831876325218
+uint16_t hub_id = (uint16_t)(n & 0xFFF); // 1
+uint8_t realm = d.subtype;               // 0
+// d.version == 1 for ISCC-IDv1
+```
+
 ### Conformance verification
 
 Validate that the library produces correct results for all official test vectors:

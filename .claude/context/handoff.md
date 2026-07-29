@@ -1,39 +1,59 @@
-## 2026-07-29 — Review of: Widen Python `VS` IntEnum to accept ISCC-IDv1 decode
+## 2026-07-29 — Tier-1 32→33 doc/count sweep + `gen_iscc_id_v1` API-doc entries
 
-**Verdict:** PASS
+**Done:** Bumped every shipped-artifact Tier-1 symbol count from NN→33 (adding `gen_iscc_id_v1` to
+each breakdown), added a `gen_iscc_id_v1` per-symbol entry + field-extraction recipe to the four
+hand-maintained API pages, and added an "ISCC-IDv1 (experimental)" mint+decode example to the 9
+howto pages that lacked one. Docs-only; no source/signature/test changes. Closes the last CID-doable
+#43 / v0.6.0 release blocker.
 
-**Summary:** Added `V1 = 1` to the Python `VS` IntEnum so
-`iscc_lib.iscc_decode(gen_iscc_id_v1(...))` round-trips instead of raising `1 is not a valid VS`.
-One-line production edit plus two tests; faithful to next.md, no scope creep, no gate weakening.
-This closes the functional half of #43 — all 11 surfaces now both mint and decode ISCC-IDv1.
+**Files changed (18):**
+
+- Counts → 33: `crates/iscc-lib/CLAUDE.md`, `crates/iscc-wasm/CLAUDE.md`, `docs/ruby-api.md`,
+    `docs/java-api.md`, `notes/00-overview.md` (item-8, 22→33),
+    `notes/04-api-compatibility-safety.md` (32→33 + breakdown + code-comment),
+    `.claude/agents/advance.md`. Canonical breakdown taken from `specs/rust-core.md:693` (10 gen + 1
+    ISCC-IDv1 + 4 text + 4 algo + 1 soft + 2 enc + 3 codec + 5 const + 2 streaming + 1 diag = 33).
+- API entries: `docs/rust-api.md` (`gen_iscc_id_v1`), `docs/java-api.md` (`genIsccIdV1`),
+    `docs/ruby-api.md` (`gen_iscc_id_v1` + `IdCodeResult` result-class row), `docs/c-ffi-api.md`
+    (`iscc_gen_iscc_id_v1`).
+- Howto mint examples: `rust.md`, `python.md`, `nodejs.md`, `wasm.md`, `java.md`, `kotlin.md`,
+    `swift.md`, `dotnet.md`, `c-cpp.md` (go/ruby already had them).
 
 **Verification:**
 
-- [x] `iscc_decode(gen_iscc_id_v1(1751831876325218, 1, 0)["iscc"])` returns without raising, version
-    element equals `VS.V1` — confirmed directly (`decode: 6 1`) and by the new round-trip test.
-- [x] `pytest tests/test_iscc_id_v1.py tests/test_new_symbols.py` → **47 passed** (after
-    `maturin develop`).
-- [x] `VS.V1 == 1` and `VS.V0 == 0` both hold — confirmed directly and in `test_vs_values`.
-- [x] `ruff check crates/iscc-py tests` → All checks passed; `ruff format --check` → 25 files
-    already formatted.
-- [x] `mise run check` — all prek hooks Passed.
-- [x] (probe) Gate-circumvention scan of unpushed commits — pure Python wrapper edit, no
-    suppressions/skips/threshold or hook weakening, no native/Rust change (`src/lib.rs`,
-    `_lowlevel.pyi` untouched per Not-In-Scope), no API break (additive enum member).
+- [x] Stale-count grep (next.md cmd) → empty (exit 1).
+- [x] `grep -l gen_iscc_id_v1 rust-api ruby-api` + `genIsccIdV1 java-api` +
+    `iscc_gen_iscc_id_v1   c-ffi-api` → all four listed.
+- [x] `grep -riLE "gen_?iscc_?id_?v1" docs/howto/*.md` → no filenames (all 11 covered).
+- [x] `uv run zensical build` → "No issues found", exit 0.
+- [x] `mise run check` → exit 0, all 18 prek hooks Passed (incl. mdformat, Docs page list parity, CI
+    job table parity). Ran `mise run format` first; mdformat reflowed the new tables/prose to
+    `--wrap 100` and is now idempotent.
 
-**Issues found:**
+**Per-surface signatures used (verified against source, not guessed):** rust
+`gen_iscc_id_v1(u64,u16,u8)->IsccIdResult{iscc}`; python `gen_iscc_id_v1(ts,hub_id=0,realm_id=0)`,
+decode `vs==VS.V1`; napi/wasm bare-string return, `d.subtype`/`d.version==1`; java
+`genIsccIdV1(long,int,int)->String`; kotlin `genIsccIdV1(ULong,UShort,UByte)->IsccIdResult`; swift
+`genIsccIdV1(UInt64,UInt16,UInt8) throws`; dotnet
+`GenIsccIdV1(ulong,ushort,byte)->IsccIdResult {Iscc}`; c-ffi `iscc_gen_iscc_id_v1(u64,u16,u8)`; cpp
+`gen_iscc_id_v1(uint64_t,uint16_t,uint8_t)`. Golden
+`gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"` used consistently. Decode recipe:
+`ts=n>>12`, `hub=n&0xFFF`, `realm=subtype` on the 8-byte BE body; no dedicated decoder on any
+surface.
 
-- (none) — Python was the only surface with a version *enum*; the other 10 return a bare int/byte
-    and already decoded V1, so no fan-out remains for decode.
+**Next:** #43 is fully closed after this. Remaining open normals are `[review]`/upstream-blocked
+(Ruby wide-input validation order, codec `iscc_clean` divergence, iai ASCII benchmarks) — none
+release-gating. The codec `iscc_clean` two-surface (Rust + Go) drop-in gap is the most substantive
+follow-up.
 
-**Codex review:** Clean — confirms the V1 enum value is what was needed and the regression coverage
-is focused; the targeted suite passes (47 tests). No findings.
+**Notes:**
 
-**Next:** The remaining #43 item (v0.6.0 blocker) is the repo-wide **Tier-1 32→33 doc/count sweep**
-\+ `gen_iscc_id_v1` per-symbol API-doc entries (see the updated #43 issue). Mechanical and
-non-functional; a good dedicated sweep step. Watch the four-list parity check in
-`scripts/check_docs_nav.py` if a new docs page is added.
-
-**Notes:** Rebuilding the extension only reloads the updated wrapper — the `.so` binary is unchanged
-(no Rust source touched). The #43 issue has been rewritten to describe only the remaining doc/count
-problem; its minting/decode fan-out is complete.
+- wasm CLAUDE.md needed a small restructure (not a pure count bump): its "30 functions + 2 result
+    structs + 3 streaming" partition became "33 Tier 1 symbols + 3 result structs (added
+    `IsccIdResult`) + wasm-only `SumHasher`". No behaviour claim changed.
+- The two source files the #43 issue flagged as stale (`crates/iscc-uniffi/src/lib.rs:3`,
+    `crates/iscc-rb/src/lib.rs:7`) already read 33 — left untouched, confirmed by the empty grep.
+- `docs/java-api.md` "All 10 `gen*V0` methods return an ISCC string" left as-is — accurate:
+    `genIsccIdV1` is not a `*V0` method (though it also returns a String, so the sentence holds).
+- CI reminder: `zensical build` wipes `site/`, so `scripts/gen_llms_full.py` must run after it in
+    docs CI (not run here — no site artifact committed).

@@ -398,6 +398,30 @@ assert isinstance(vs, VS)
 `iscc_decode` returns a `tuple[MT, ST, VS, int, bytes]` with `IntEnum`-typed values for the header
 fields.
 
+### ISCC-IDv1 (experimental)
+
+Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
+bits and the HUB-ID the low 12 bits; `realm_id` (0 = testnet, 1 = mainnet) becomes the SubType.
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
+
+```python
+from iscc_lib import gen_iscc_id_v1, iscc_decode, VS
+
+result = gen_iscc_id_v1(1_751_831_876_325_218, 1, 0)
+print(result.iscc)  # "ISCC:MAIGHFECJMOPMIAB"
+
+# There is no dedicated decoder — recover the fields with iscc_decode and bit math:
+mt, st, vs, length, digest = iscc_decode(result.iscc)
+n = int.from_bytes(digest[:8], "big")
+timestamp = n >> 12  # 1751831876325218
+hub_id = n & 0xFFF  # 1
+realm = st  # 0
+assert vs == VS.V1  # ISCC-IDv1
+```
+
 ### Decompose
 
 Split a composite ISCC-CODE into its individual unit codes:

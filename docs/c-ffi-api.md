@@ -366,6 +366,47 @@ Each result must only be freed once.
 
 ---
 
+### iscc_gen_iscc_id_v1
+
+Mint an experimental ISCC-IDv1 from an explicit timestamp. ISCC-IDv1 is not part of ISO 24138 and
+may change in a minor release.
+
+```c
+char* iscc_gen_iscc_id_v1(
+    uint64_t timestamp,
+    uint16_t hub_id,
+    uint8_t realm
+);
+```
+
+| Parameter   | Type       | Description                                             |
+| ----------- | ---------- | ------------------------------------------------------- |
+| `timestamp` | `uint64_t` | Microsecond timestamp, 52-bit range (`0` to `2^52 - 1`) |
+| `hub_id`    | `uint16_t` | HUB-ID, 12-bit range (`0` to `4095`)                    |
+| `realm`     | `uint8_t`  | Realm selector, encoded as the SubType (`0` or `1`)     |
+
+Returns a heap-allocated ISCC-IDv1 string, or `NULL` on error (out-of-range input; call
+`iscc_last_error()` for the message). Free with `iscc_free_string()`.
+
+There is no dedicated decoder — recover the fields with `iscc_decode` and unpack the 8-byte
+big-endian digest. The decoded `version` is `1` for ISCC-IDv1:
+
+```c
+char *iscc = iscc_gen_iscc_id_v1(1751831876325218ULL, 1, 0);
+// iscc == "ISCC:MAIGHFECJMOPMIAB"
+
+IsccDecodeResult d = iscc_decode(iscc);      // d.version == 1
+uint64_t n = 0;
+for (size_t i = 0; i < 8; i++) n = (n << 8) | d.digest.data[i];
+uint64_t timestamp = n >> 12;                // 1751831876325218
+uint16_t hub_id = (uint16_t)(n & 0xFFF);     // 1
+uint8_t realm = d.subtype;                    // 0
+iscc_free_decode_result(d);
+iscc_free_string(iscc);
+```
+
+---
+
 ## Text Utilities
 
 Text processing functions for normalization and cleaning. All return heap-allocated strings. Free

@@ -28,11 +28,12 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 
 ## API Tier Rules
 
-**Tier 1 -- public API, bound in all languages (32 symbols at crate root):**
+**Tier 1 -- public API, bound in all languages (33 symbols at crate root):**
 
 - 10 gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
     `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
+- 1 ISCC-IDv1 mint function (experimental): `gen_iscc_id_v1`
 - 4 text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - 4 algorithm primitives: `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`
 - 1 soft hash: `soft_hash_video_v0`

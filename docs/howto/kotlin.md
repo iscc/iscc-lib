@@ -341,6 +341,29 @@ println("Digest: ${decoded.digest.joinToString("") { "%02x".format(it) }}")
 `isccDecode` returns a `DecodeResult` data class with `UByte` fields `maintype`, `subtype`,
 `version`, `length` (length index), and a `ByteArray` field `digest`.
 
+### ISCC-IDv1 (experimental)
+
+Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
+bits and the HUB-ID the low 12 bits; `realm` (0 = testnet, 1 = mainnet) becomes the SubType.
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
+
+```kotlin
+val result = genIsccIdV1(timestamp = 1751831876325218UL, hubId = 1u, realm = 0u)
+println(result.iscc) // "ISCC:MAIGHFECJMOPMIAB"
+
+// There is no dedicated decoder — recover the fields with isccDecode and bit math:
+val decoded = isccDecode(iscc = result.iscc)
+var n = 0UL
+for (i in 0 until 8) n = (n shl 8) or decoded.digest[i].toUByte().toULong()
+val timestamp = n shr 12       // 1751831876325218
+val hubId = n and 0xFFFUL      // 1
+val realm = decoded.subtype    // 0
+println(decoded.version.toInt() == 1) // true (ISCC-IDv1)
+```
+
 ### Decompose
 
 Split a composite ISCC-CODE into its individual unit codes:

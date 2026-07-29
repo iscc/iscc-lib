@@ -311,6 +311,29 @@ print("Digest: \(decoded.digest.map { String(format: "%02x", $0) }.joined())")
 `isccDecode` returns a `DecodeResult` struct with `UInt8` fields `maintype`, `subtype`, `version`,
 `length` (length index), and a `Data` field `digest`.
 
+### ISCC-IDv1 (experimental)
+
+Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
+bits and the HUB-ID the low 12 bits; `realm` (0 = testnet, 1 = mainnet) becomes the SubType.
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
+
+```swift
+let result = try genIsccIdV1(timestamp: 1751831876325218, hubId: 1, realm: 0)
+print(result.iscc) // "ISCC:MAIGHFECJMOPMIAB"
+
+// There is no dedicated decoder — recover the fields with isccDecode and bit math:
+let decoded = try isccDecode(iscc: result.iscc)
+var n: UInt64 = 0
+for byte in decoded.digest.prefix(8) { n = (n << 8) | UInt64(byte) }
+let timestamp = n >> 12       // 1751831876325218
+let hubId = UInt16(n & 0xFFF) // 1
+let realm = decoded.subtype   // 0
+print(decoded.version == 1)   // true (ISCC-IDv1)
+```
+
 ### Decompose
 
 Split a composite ISCC-CODE into its individual unit codes:
