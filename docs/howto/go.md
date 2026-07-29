@@ -391,16 +391,28 @@ for _, unit := range units {
 
 ### Experimental ISCC-IDv1
 
-`EncodeIsccID(realm uint8, hubID uint16, timestamp uint64) (string, error)` and
-`DecodeIsccID(code string) (*IsccIDv1Result, error)` encode and decode an 80-bit ISCC-IDv1 (a 52-bit
-microsecond timestamp plus a 12-bit HUB-ID).
+`GenIsccIDV1(timestamp uint64, hubID uint16, realm uint8) (*IsccIdResult, error)` mints an 80-bit
+ISCC-IDv1 (a 52-bit microsecond timestamp plus a 12-bit HUB-ID), matching iscc-core's
+`gen_iscc_id_v1`. The result carries a single `ISCC string` field, mirroring iscc-core's
+`{"iscc": ...}`.
 
-!!! warning "Go-only and experimental"
+There is no dedicated decoder — recover the fields with the generic `IsccDecode` and unpack the
+8-byte digest:
 
-    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release. It is currently implemented
-    **only in this pure-Go package** — the native bindings (Rust, Python, Node.js, WebAssembly, C, Java,
-    Ruby, Swift, Kotlin) reject Version 1 headers with `invalid Version: 1`, so an ISCC-IDv1 produced
-    here cannot yet be decoded by them.
+```go
+result, _ := iscc.GenIsccIDV1(1751831876325218, 1, 0)
+// result.ISCC == "ISCC:MAIGHFECJMOPMIAB"
+
+d, _ := iscc.IsccDecode(result.ISCC)
+n := binary.BigEndian.Uint64(d.Digest)
+timestamp := n >> 12       // 1751831876325218
+hubID := uint16(n & 0xFFF) // 1
+realm := d.Subtype         // 0
+```
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
 
 ### Other codec functions
 

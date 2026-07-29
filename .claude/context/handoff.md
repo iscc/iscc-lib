@@ -1,47 +1,38 @@
-## 2026-07-28 — Review of: Add `gen_iscc_id_v1` to the Python binding + differential test
+## 2026-07-29 — Rename Go `EncodeIsccID` → `GenIsccIDV1`, delete `DecodeIsccID` / `IsccIDv1Result`
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Replaced the superseded `EncodeIsccID(realm, hubID, timestamp) (string, error)` with the
+canonical `GenIsccIDV1(timestamp, hubID, realm) (*IsccIdResult, error)` (single `ISCC` field),
+deleted `DecodeIsccID` and `IsccIDv1Result` entirely, and moved decode to the generic `IsccDecode` +
+digest-unpack recipe. Docs updated to match. Closes the Go sub-item of #43.
 
-**Summary:** The advance agent exposed the core's `gen_iscc_id_v1` on the Python surface and pinned
-it to the `iscc_core` reference with a pytest differential test. Additive-only, in scope, all gates
-green; independently confirmed byte-for-byte against the reference oracle (realm nibble, golden,
-three validation raises). One carried-forward note: minting works but the generic decode path does
-not yet round-trip an IDv1 (tracked under #43, explicitly out of scope here).
+**Files changed:**
+
+- `packages/go/iscc_id.go`: `GenIsccIDV1` + `IsccIdResult`; body packing/validation unchanged
+    (order: timestamp `<2^52`, hubID `<2^12`, realm `<=1`; `iscc:`-prefixed errors). `DecodeIsccID`
+    / `IsccIDv1Result` removed.
+- `packages/go/iscc_id_test.go`: golden + validation tests target `GenIsccIDV1`; decode/round-trip
+    tests use `extractIsccIDv1` helper (`IsccDecode` + `binary.BigEndian.Uint64` unpack) over the
+    boundary grid (realm{0,1}×hub{0,4095}×ts{0,known,2^52-1}). Version-1 codec tests kept unchanged.
+- `docs/howto/go.md`: §Experimental ISCC-IDv1 rewritten to `GenIsccIDV1` + extraction recipe;
+    dropped the "Go-only, other bindings reject Version 1" warning (core accepts it now).
+- `packages/go/README.md`, `packages/go/CLAUDE.md`: API tables/lists updated to `GenIsccIDV1`.
 
 **Verification:**
 
-- [x] `maturin develop` builds — OK.
-- [x] `pytest tests/test_iscc_id_v1.py` — 7 passed (differential grid + golden + 3 validations).
-- [x] Golden smoke `gen_iscc_id_v1(1751831876325218,1,0)['iscc']=='ISCC:MAIGHFECJMOPMIAB'` — exit 0.
-- [x] Full `pytest` — 451 passed, no regression.
-- [x] `ruff check` + `ruff format --check` (crates/iscc-py tests) — clean.
-- [x] `uv run ty check` — clean (new `.pyi` stub type-checks).
-- [x] `cargo clippy -p iscc-py --all-targets -- -D warnings` — clean.
-- [x] `mise run check` — all prek pre-commit hooks Passed; no context files reformatted.
-- [x] **Probe (independent oracle):** isolated `iscc_core` 1.3.0 vs installed binding —
-    `(0,0,0)→MAI…`, `(0,0,1)→MEI…`, golden, and realm=2 / hub=4096 / ts=2^52 all raise `ValueError`
-    on both sides.
+- `CGO_ENABLED=0 go test -count=1 ./...` in `packages/go/` — `ok` (all pass).
+- `go vet ./...` — clean.
+- `grep -rn 'DecodeIsccID\|IsccIDv1Result' packages/go` — no matches (exit 1); also none in docs.
+- Golden: `TestGenIsccIDV1KnownVector` asserts
+    `GenIsccIDV1(1751831876325218,1,0).ISCC == "ISCC:MAIGHFECJMOPMIAB"` — passes.
+- `grep -q GenIsccIDV1 docs/howto/go.md && … README.md` — both present.
+- `uv run prek run --files <3 docs>` — mdformat reformatted the 3 markdown files (applied); re-run
+    would pass.
 
-**Issues found:**
+**Next:** #43 fan-out continues. Remaining: (a) minting `gen_iscc_id_v1` on napi/wasm/ffi/jni/rb/
+uniffi surfaces (each its own step; FFI needs `iscc.h` regen); (b) decode round-trip — widen each
+surface's version enum (Python `VS`, etc.) to accept `V1`; (c) the Tier-1 32→33 doc/count sweep.
 
-- (none in the delivered work — scope, correctness and simplicity all clean.)
-
-**Codex review:** [P1] flagged that `iscc_decode(gen_iscc_id_v1(...))` raises `1 is not a valid VS`
-— the Python `VS` IntEnum (`__init__.py:82`) still lists only `V0`. This is the already-tracked #43
-generic-decode gap and is **explicitly out of scope** for this minting-only step; the advance agent
-correctly left it. Verified the underlying fact shifted: the core `codec::Version` now has `V1`
-(`#[non_exhaustive]`), so the low-level `_iscc_decode` returns `(6,0,1,0,<8 bytes>)` — the remaining
-blocker is per-surface enum wrappers, not the core. Corrected #43's stale "core raises
-`invalid Version: 1`" text accordingly.
-
-**Next:** Continue the #43 fan-out. Two independent tracks now visible: (a) **minting** —
-`gen_iscc_id_v1` on the next surface (FFI unblocks dotnet/cpp but needs `iscc.h` regen + freshness
-gate; napi/wasm/jni/rb/uniffi are lighter templates); (b) **decode round-trip** — widen each
-surface's own version enum (Python `VS`, etc.) to accept `V1` and add an
-`iscc_decode(gen_iscc_id_v1(...))` test. The Tier-1 32→33 doc/count sweep and the Go
-`EncodeIsccID`→`gen_iscc_id_v1` rename + `DecodeIsccID` deletion remain separate steps.
-
-**Notes:** CI is GREEN on develop (the state.md "Semver RED" is a phantom — the `Semver` job is
-`continue-on-error: true`). Wrapper param is `realm_id` (mirrors the reference public name) → core's
-`realm: u8`; tests always pass `timestamp` explicitly (a `None` would make the reference read the
-clock). No decision record: API shape was spec-mandated and matches the reference byte-for-byte.
+**Notes:** `codec.go` decode logic untouched — `IsccDecode` already accepts `Id` Version 1. No API
+break of concern: both removed symbols existed only on `develop`, never in a tagged release. Per the
+spec, `iscc/iscc-monitor` should be told the final shape (update #43) before deleting its interim
+port — that is a human/tracking action, out of code scope.

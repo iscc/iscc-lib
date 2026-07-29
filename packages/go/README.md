@@ -82,19 +82,20 @@ Package-level functions that return typed result structs (e.g., `*MetaCodeResult
 
 ### Codec Operations
 
-| Function          | Description                                                      |
-| ----------------- | ---------------------------------------------------------------- |
-| `EncodeBase64`    | Encode bytes to base64                                           |
-| `JsonToDataUrl`   | Convert JSON string to `data:` URL                               |
-| `EncodeComponent` | Construct an ISCC unit from header fields and digest             |
-| `IsccDecode`      | Decode an ISCC unit string into header components + digest       |
-| `IsccDecompose`   | Decompose a composite ISCC-CODE into individual units            |
-| `EncodeIsccID`    | Encode realm, hub ID, timestamp as ISCC-IDv1 (experimental)      |
-| `DecodeIsccID`    | Decode an ISCC-IDv1 into realm, hub ID, timestamp (experimental) |
+| Function          | Description                                                    |
+| ----------------- | -------------------------------------------------------------- |
+| `EncodeBase64`    | Encode bytes to base64                                         |
+| `JsonToDataUrl`   | Convert JSON string to `data:` URL                             |
+| `EncodeComponent` | Construct an ISCC unit from header fields and digest           |
+| `IsccDecode`      | Decode an ISCC unit string into header components + digest     |
+| `IsccDecompose`   | Decompose a composite ISCC-CODE into individual units          |
+| `GenIsccIDV1`     | Mint an ISCC-IDv1 from timestamp, hub ID, realm (experimental) |
 
-ISCC-IDv1 is not part of ISO 24138 and is implemented **only in this pure-Go package**. The native
-`iscc-lib` bindings reject Version 1 headers, so an ISCC-IDv1 produced here cannot yet be decoded by
-them.
+ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
+`GenIsccIDV1(timestamp, hubID, realm)` returns an `*IsccIdResult` carrying a single `ISCC` field.
+There is no dedicated decoder — recover the fields with the generic `IsccDecode` and unpack the
+8-byte digest: `n := binary.BigEndian.Uint64(d.Digest)`, then `timestamp := n >> 12`,
+`hubID := uint16(n & 0xFFF)`, `realm := d.Subtype`.
 
 ### Streaming
 

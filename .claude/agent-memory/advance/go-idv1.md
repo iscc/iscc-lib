@@ -7,8 +7,12 @@ metadata:
 
 # Go ISCC-IDv1 + decode guards
 
-- Experimental ISCC-IDv1 in `packages/go/iscc_id.go` (`EncodeIsccID`/`DecodeIsccID`, iter 119, #43);
-    `codec.go` `decodeHeader` accepts Version=1 ONLY for MainType ID (`VSV1` const).
+- Experimental ISCC-IDv1 in `packages/go/iscc_id.go`. Iter 179 (#43): renamed to
+    `GenIsccIDV1(timestamp uint64, hubID uint16, realm uint8) (*IsccIdResult, error)` (single `ISCC`
+    field, `json:"iscc"`); `DecodeIsccID`/`IsccIDv1Result` DELETED (ref has no IDv1 decoder). Decode
+    via generic `IsccDecode` + unpack: `n:=binary.BigEndian.Uint64(d.Digest)`, `ts:=n>>12`,
+    `hub:=uint16(n&0xFFF)`, `realm:=d.Subtype`. `codec.go` `decodeHeader` accepts Version=1 ONLY for
+    MainType ID (`VSV1` const) — untouched.
 - Go `IsccDecode` (iter 120) and Rust Tier 1 `iscc_decode` (iter 121) both enforce EXACT body length
     — two-branch "too short"/"too long" guards.
 - Rust ISCC-IDv1 Part 1 DONE (iter 174, #43): `codec::Version` is now `#[non_exhaustive]` with
@@ -32,8 +36,9 @@ metadata:
     test `tests/test_iscc_id_v1.py` vs installed `iscc_core` (grid ts×hub×realm{0,1} + golden +
     validation). Ref sig `(timestamp=None, hub_id=0,   realm_id=0)` — `realm_id` maps to core
     `realm`; NEVER pass `timestamp=None` (ref reads clock).
-- STILL PENDING (#43): remaining 10 binding surfaces (napi, wasm, ffi, jni, rb, uniffi, dotnet, cpp
-    - Go rename), Go `EncodeIsccID` rename/`DecodeIsccID` deletion, 32→33 doc/count sweep.
+- STILL PENDING (#43): minting on napi, wasm, ffi, jni, rb, uniffi, dotnet, cpp surfaces;
+    per-surface decode enum widening (Python `VS` etc. to accept V1) + round-trip test; 32→33
+    doc/count sweep. Go rename DONE iter 179.
 - The iter-174 "no-default-features fails to COMPILE" note was a PHANTOM (review iter 177): that
     test is already `#[cfg(feature = "meta-code")]`-gated; all feature combos pass. No work owed.
 - Go CI job runs only `go test`+`go vet` — no gofmt gate. The go1.26 gofmt alignment drift in
