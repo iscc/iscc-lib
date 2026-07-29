@@ -17,6 +17,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `codec::Version` accepts `V1`, but each surface's own version enum (Python `VS` IntEnum) lists
     only `V0`, so `iscc_decode(gen_iscc_id_v1(...))` raises `1 is not a valid VS` — the #43 fan-out
     must widen every surface enum + add a round-trip test, not just add the minting fn
+- **Go's IDv1 surface is `GenIsccIDV1(timestamp, hubID, realm) (*IsccIdResult, error)` and has NO
+    decoder by design** (179 — ref has none): decode via generic `IsccDecode` + unpack
+    `n:=binary.BigEndian.Uint64(d.Digest)`, `ts=n>>12`, `hub=uint16(n&0xFFF)`, `realm=d.Subtype`.
+    The old `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result` existed only on `develop`, never tagged —
+    no API-break concern
 
 ## Reference Implementation
 

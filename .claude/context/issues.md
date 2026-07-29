@@ -16,7 +16,7 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
-## ISCC-IDv1 is unsupported outside Go, and Go uses superseded names `normal` [human]
+## ISCC-IDv1 is unsupported outside Go `normal` [human]
 
 GitHub: https://github.com/iscc/iscc-lib/issues/43 — **a v0.6.0 release blocker.**
 
@@ -28,10 +28,9 @@ drop-in-compatibility gap is **per-surface enum wrappers** that predate V1: the 
 `iscc_lib.iscc_decode` raises `1 is not a valid VS`. Every surface with its own version enum needs
 the same widening plus a round-trip test (`iscc_decode(gen_iscc_id_v1(...)["iscc"])`).
 
-Separately, the minting function `gen_iscc_id_v1` is missing everywhere, and `packages/go` carries
-the only implementation, under a superseded name and reversed parameter order (`EncodeIsccID`),
-alongside a `DecodeIsccID` / `IsccIDv1Result` pair that must be **deleted** rather than renamed —
-`iscc-core` has no IDv1 decoder and the generic path covers it.
+Separately, the minting function `gen_iscc_id_v1` is missing on napi/wasm/ffi/jni/rb/uniffi (Go and
+the Python binding now expose the canonical shape). `iscc-core` has no IDv1 decoder, so no surface
+gets one — the generic decode path covers it.
 
 Canonical definition, validation rules, codec changes, the `#[non_exhaustive]` requirement, the IDv0
 exclusion, test placement and the full "Verified when" list are in
@@ -53,8 +52,8 @@ Two repo-wide defects follow from the change:
     the four-list parity check in `scripts/check_docs_nav.py`.
 
 Resolved when the generic decode path accepts Version 1 on all 11 surfaces, `gen_iscc_id_v1` exists
-under the canonical name, Go's `DecodeIsccID` / `IsccIDv1Result` are gone, the pytest differential
-test against `iscc_core` passes, and no shipped-artifact Tier 1 count still reads 32.
+under the canonical name on every surface, the pytest differential test against `iscc_core` passes,
+and no shipped-artifact Tier 1 count still reads 32.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)"
 
