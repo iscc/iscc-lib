@@ -1,59 +1,59 @@
-## 2026-07-29 — Tier-1 32→33 doc/count sweep + `gen_iscc_id_v1` API-doc entries
+## 2026-07-29 — Review of: Tier-1 32→33 doc/count sweep + `gen_iscc_id_v1` API-doc entries
 
-**Done:** Bumped every shipped-artifact Tier-1 symbol count from NN→33 (adding `gen_iscc_id_v1` to
-each breakdown), added a `gen_iscc_id_v1` per-symbol entry + field-extraction recipe to the four
-hand-maintained API pages, and added an "ISCC-IDv1 (experimental)" mint+decode example to the 9
-howto pages that lacked one. Docs-only; no source/signature/test changes. Closes the last CID-doable
-#43 / v0.6.0 release blocker.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed (18):**
-
-- Counts → 33: `crates/iscc-lib/CLAUDE.md`, `crates/iscc-wasm/CLAUDE.md`, `docs/ruby-api.md`,
-    `docs/java-api.md`, `notes/00-overview.md` (item-8, 22→33),
-    `notes/04-api-compatibility-safety.md` (32→33 + breakdown + code-comment),
-    `.claude/agents/advance.md`. Canonical breakdown taken from `specs/rust-core.md:693` (10 gen + 1
-    ISCC-IDv1 + 4 text + 4 algo + 1 soft + 2 enc + 3 codec + 5 const + 2 streaming + 1 diag = 33).
-- API entries: `docs/rust-api.md` (`gen_iscc_id_v1`), `docs/java-api.md` (`genIsccIdV1`),
-    `docs/ruby-api.md` (`gen_iscc_id_v1` + `IdCodeResult` result-class row), `docs/c-ffi-api.md`
-    (`iscc_gen_iscc_id_v1`).
-- Howto mint examples: `rust.md`, `python.md`, `nodejs.md`, `wasm.md`, `java.md`, `kotlin.md`,
-    `swift.md`, `dotnet.md`, `c-cpp.md` (go/ruby already had them).
+**Summary:** The docs-only sweep bumped every shipped-artifact Tier-1 count to 33, added a
+`gen_iscc_id_v1` per-symbol entry + decode recipe to the four hand-maintained API pages, and added
+an "ISCC-IDv1 (experimental)" mint+decode example to the 9 howto pages that lacked one. Golden value
+and decode recipe verified against `iscc-core` 1.3.0; all next.md verification passes. Two Codex P2
+findings on factual doc claims — one (a fabricated wasm `IsccIdResult` struct) I fixed directly; the
+other (pre-existing c-ffi type-name/header mismatch) I filed as an issue.
 
 **Verification:**
 
-- [x] Stale-count grep (next.md cmd) → empty (exit 1).
-- [x] `grep -l gen_iscc_id_v1 rust-api ruby-api` + `genIsccIdV1 java-api` +
-    `iscc_gen_iscc_id_v1   c-ffi-api` → all four listed.
-- [x] `grep -riLE "gen_?iscc_?id_?v1" docs/howto/*.md` → no filenames (all 11 covered).
+- [x] Stale-count grep (next.md cmd) → empty (exit 1); broader `\b32\b`+word-form sweep also clean.
+- [x] API pages carry the entry — `gen_iscc_id_v1` (rust/ruby), `genIsccIdV1` (java),
+    `iscc_gen_iscc_id_v1` (c-ffi) all listed.
+- [x] All 11 howto pages reference IDv1 minting (`grep -riLE` prints no filenames).
 - [x] `uv run zensical build` → "No issues found", exit 0.
-- [x] `mise run check` → exit 0, all 18 prek hooks Passed (incl. mdformat, Docs page list parity, CI
-    job table parity). Ran `mise run format` first; mdformat reflowed the new tables/prose to
-    `--wrap 100` and is now idempotent.
+- [x] `mise run check` → all prek hooks Passed (mdformat, docs page-list parity, CI job parity).
+- [x] **Extra probe** — golden `gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"`
+    confirmed via `iscc-core`; decode recipe (`version==1`, `ts=n>>12`, `hub=n&0xFFF`,
+    `realm=subtype`; realm 1 → `MEIGH…`) verified; all 15 doc golden strings consistent.
+- [x] **Extra probe** — Rust `iscc_decode` returns `(u8,u8,u8,u8,Vec<u8>)`, matching the documented
+    5-tuple destructure; testnet/mainnet realm labels match `iscc_id.py:46`.
 
-**Per-surface signatures used (verified against source, not guessed):** rust
-`gen_iscc_id_v1(u64,u16,u8)->IsccIdResult{iscc}`; python `gen_iscc_id_v1(ts,hub_id=0,realm_id=0)`,
-decode `vs==VS.V1`; napi/wasm bare-string return, `d.subtype`/`d.version==1`; java
-`genIsccIdV1(long,int,int)->String`; kotlin `genIsccIdV1(ULong,UShort,UByte)->IsccIdResult`; swift
-`genIsccIdV1(UInt64,UInt16,UInt8) throws`; dotnet
-`GenIsccIdV1(ulong,ushort,byte)->IsccIdResult {Iscc}`; c-ffi `iscc_gen_iscc_id_v1(u64,u16,u8)`; cpp
-`gen_iscc_id_v1(uint64_t,uint16_t,uint8_t)`. Golden
-`gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"` used consistently. Decode recipe:
-`ts=n>>12`, `hub=n&0xFFF`, `realm=subtype` on the 8-byte BE body; no dedicated decoder on any
-surface.
+**Issues found:**
 
-**Next:** #43 is fully closed after this. Remaining open normals are `[review]`/upstream-blocked
-(Ruby wide-input validation order, codec `iscc_clean` divergence, iai ASCII benchmarks) — none
-release-gating. The codec `iscc_clean` two-surface (Rust + Go) drop-in gap is the most substantive
-follow-up.
+- **Fixed here:** `crates/iscc-wasm/CLAUDE.md` claimed `gen_iscc_id_v1` returns an `IsccIdResult`
+    struct and listed it as a 3rd result struct — the wasm surface returns `Result<String, JsError>`
+    (bare string) and no such struct exists. Corrected to "returns the ISCC string directly" and
+    restored the accurate "2 result structs / 3 streaming types" framing. (Codex P2 #2.)
+- **Filed (issues.md, `normal` [review]):** `docs/c-ffi-api.md` documents all FFI structs under
+    unprefixed names (`IsccDecodeResult`), but cbindgen emits `iscc_IsccDecodeResult` in `iscc.h`,
+    so no snippet — including the new IDv1 example — compiles verbatim. Pre-existing and page-wide,
+    not a regression from this sweep (the example follows the page's own convention). (Codex P2 #1.)
+
+**Codex review:** Both findings above are genuine and were verified against source. #2 was a
+this-iteration fabrication (fixed); #1 is a pre-existing whole-page gap (tracked). Codex found no
+issue with the count bumps or the API/howto entries.
+
+**Next:** #43 (ISCC-IDv1) is now **fully closed** — mint + decode on all 11 surfaces and the doc
+sweep are done. No v0.6.0 release blockers remain among CID-doable work. Remaining open `normal`
+issues are all non-release-gating: (1) Ruby `gen_iscc_id_v1` validation order for `> i64::MAX`
+inputs; (2) codec `iscc_clean` divergence (two-surface Rust+Go, the most substantive follow-up); (3)
+iai ASCII-only text benchmarks; (4) the new c-ffi-api type-name gap. The go1.27 boundary-table bump
+stays trigger-gated (~Aug 2026). Suggest define-next pick the codec `iscc_clean` gap or the Ruby
+validation-order fix.
 
 **Notes:**
 
-- wasm CLAUDE.md needed a small restructure (not a pure count bump): its "30 functions + 2 result
-    structs + 3 streaming" partition became "33 Tier 1 symbols + 3 result structs (added
-    `IsccIdResult`) + wasm-only `SumHasher`". No behaviour claim changed.
-- The two source files the #43 issue flagged as stale (`crates/iscc-uniffi/src/lib.rs:3`,
-    `crates/iscc-rb/src/lib.rs:7`) already read 33 — left untouched, confirmed by the empty grep.
-- `docs/java-api.md` "All 10 `gen*V0` methods return an ISCC string" left as-is — accurate:
-    `genIsccIdV1` is not a `*V0` method (though it also returns a String, so the sentence holds).
-- CI reminder: `zensical build` wipes `site/`, so `scripts/gen_llms_full.py` must run after it in
-    docs CI (not run here — no site artifact committed).
+- The wasm **howto** example was already correct (treats the return as a string) — only the
+    per-crate CLAUDE.md prose was wrong; the two are now consistent.
+- Scope was clean: docs/notes/agent-prose only, no source/test/signature changes. next.md's
+    `**Fan-out:**` valve covers the >3-file docs edit; each surface got a mechanically identical
+    count bump + template example (wasm CLAUDE.md's struct-count restructure was the only
+    non-mechanical edit and was honestly flagged in the advance handoff).
+- learnings.md compressed 202→197 lines (under budget); resolved #43 sweep issue deleted.
+- CI reminder unchanged: `zensical build` wipes `site/`, so `gen_llms_full.py` must run after it in
+    docs CI.

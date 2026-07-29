@@ -8,17 +8,16 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 - Hub-and-spoke: `iscc-lib` (pure Rust core) → binding crates (py, napi, wasm, ffi, jni, rb,
     uniffi), each depending only on the core. Tier 1 = 33 symbols `pub use`d at crate root (33rd =
-    `gen_iscc_id_v1`+`IsccIdResult`, iter 177; most docs/count text still reads 32 pending a sweep
-    step); Tier 2 is `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go
-    reimplementation
+    `gen_iscc_id_v1`+`IsccIdResult`, iter 177; docs/count sweep to 33 done, iter 190); Tier 2 is
+    `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
 - **`gen_iscc_id_v1` is pure Python — oracle-check with no built wheel** (`--with iscc-core`,
     `MA…`/`ME…` = realm nibble); core + py match byte-for-byte over
     realm{0,1}×hub{0,4095}×ts{0,2^52-1} (178). NO dedicated decoder on any surface (ref has none).
     **Minting ≠ decode round-trip**: core `codec::Version` accepts `V1`, but a surface with its OWN
     version enum makes `iscc_decode(gen_iscc_id_v1(...))` raise `1 is not a valid VS`. Python was
     the *only* enum surface (widened `VS.V1 = 1` + round-trip, iter 189); the other 10 return a bare
-    int/byte version. Decode fan-out now COMPLETE on all 11 — #43's remaining half is a doc/count
-    sweep (issues.md)
+    int/byte version. Decode fan-out COMPLETE on all 11; #43 doc/count sweep done (190) — IDv1 for
+    v0.6.0 fully closed
 - **IDv1 validation ORDER is normative on every surface** (spec rust-core.md §Validation; ref order
     `iscc_id.py:127-133` ts→hub→realm, "first failing check wins", asserted even for MULTI-invalid
     inputs). A wide-int binding (napi/wasm/jni) MUST validate the three SEMANTIC thresholds
@@ -29,18 +28,14 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     out-of-narrowing values → delegate ordering to core safely; only wide-input surfaces need
     in-order binding checks. **Ruby (185) narrows Integer→`i64` in Magnus marshalling BEFORE the fn
     body** → `RangeError` order break for `> i64::MAX` only (issues.md; fix: validate in Ruby)
-- **IDv1 minting fan-out COMPLETE at 188** (179 Go, 180 napi, 181 wasm, 182 ffi, 184 jni, 185 rb,
-    186 uniffi=Swift+Kotlin, 187 dotnet C# `GenIsccIdV1(ulong,ushort,byte)`, 188 cpp header-only
-    `gen_iscc_id_v1(uint64_t,uint16_t,uint8_t)`→`IsccIdResult`): exact-width **unsigned** args mean
-    callers can't overflow → no Ruby-style marshalling gap, no binding guard; surface fn mirrors
-    `gen_text_code_v0`/`GenMetaCodeV0`; decode round-trips via each surface's `iscc_decode`
-    returning a bare int/`byte` `version` (NO enum-widening, no result-type change), then bit-math
-    `ts=n>>12`, `hub=n&0xFFF`, `realm=SubType` on the 8-byte BE body. ffi/dotnet have NO
-    `checked()`/NULL guard beyond `ConsumeNativeString` (core re-checks in ts→hub→realm order; a
-    no-binding-guard passthrough can't reorder, unlike jni's earlier partial guard). **`iscc-ffi`'s
-    csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** → pre-push clippy
-    fails "files were modified"; regen+commit it (like `iscc.h`) in the SAME FFI-symbol step, never
-    "the dotnet step"
+- **IDv1 minting fan-out COMPLETE (179-188), docs sweep 190**: exact-width **unsigned** surface args
+    (`u64/u16/u8` or lang equivalent) mean callers can't overflow → no Ruby-style marshalling gap,
+    no binding guard needed (core re-checks ts→hub→realm; a no-guard passthrough can't reorder,
+    unlike jni's earlier partial guard). Decode is bit-math on `iscc_decode`'s bare-int `version`
+    (NO enum-widening except Python), `ts=n>>12`/`hub=n&0xFFF`/`realm=SubType` on the 8-byte BE
+    body. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build**
+    → pre-push clippy fails "files were modified"; regen+commit it (like `iscc.h`) in the SAME
+    FFI-symbol step, never "the dotnet step"
 
 ## Reference Implementation
 

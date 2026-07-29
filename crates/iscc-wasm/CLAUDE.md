@@ -140,14 +140,14 @@ wasm-pack test --node crates/iscc-wasm --test unit
 
 ## Exported API Surface
 
-All 33 Tier 1 symbols are bound (including `gen_iscc_id_v1`), plus 3 result structs and the
-wasm-only `SumHasher` streaming type. Every `#[wasm_bindgen]` export in `lib.rs` maps 1:1 to an
-`iscc_lib` public symbol:
+All 33 Tier 1 symbols are bound (including `gen_iscc_id_v1`), plus 2 result structs and 3 streaming
+types. Every `#[wasm_bindgen]` export in `lib.rs` maps 1:1 to an `iscc_lib` public symbol:
 
 - **10 gen functions:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
     `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
-- **1 ISCC-IDv1 mint function (experimental):** `gen_iscc_id_v1` (returns `IsccIdResult`)
+- **1 ISCC-IDv1 mint function (experimental):** `gen_iscc_id_v1` (returns the ISCC string directly,
+    not a wrapper struct)
 - **4 text utils:** `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - **4 algorithm primitives:** `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`
 - **5 constants:** `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
@@ -158,8 +158,7 @@ wasm-only `SumHasher` streaming type. Every `#[wasm_bindgen]` export in `lib.rs`
 - **3 codec:** `encode_component`, `iscc_decode` (with `IsccDecodeResult` struct), `iscc_decompose`
 - **1 diagnostic:** `conformance_selftest` (feature-gated behind `conformance` Cargo feature)
 - **2 result structs:** `WasmSumCodeResult` (returned by `gen_sum_code_v0`, with `iscc`, `datahash`,
-    `filesize`, and optional `units` fields) and `IsccIdResult` (returned by `gen_iscc_id_v1`, with
-    a single `iscc` field)
+    `filesize`, and optional `units` fields) and `IsccDecodeResult` (returned by `iscc_decode`)
 - **3 streaming types:** `DataHasher`, `InstanceHasher`, `SumHasher`
 
 `DataHasher`, `InstanceHasher`, and `SumHasher` are bound as `#[wasm_bindgen]` structs with

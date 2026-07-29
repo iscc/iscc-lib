@@ -16,6 +16,21 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
+## `docs/c-ffi-api.md` type names don't match the generated `iscc.h` `normal` [review]
+
+The page documents every FFI struct under an unprefixed name (`IsccDecodeResult`, `IsccByteBuffer`,
+`IsccByteBufferArray`, …), but cbindgen prefixes exported types in `crates/iscc-ffi/include/iscc.h`
+— the real declarations are `iscc_IsccDecodeResult`, `iscc_IsccByteBuffer`, etc. (typedef at
+`iscc.h:79/104`; no unprefixed alias exists). So every C snippet on the page — including the
+`iscc_gen_iscc_id_v1` decode example added in iter 190 (`IsccDecodeResult d = iscc_decode(...)`,
+`docs/c-ffi-api.md:398`) — fails to compile verbatim against the header produced by the documented
+generation command. This is a pre-existing, page-wide convention, not a regression from the IDv1
+sweep, which is why the sweep step (docs-only, example follows page style) was accepted.
+
+Resolved when the page's type names match the generated header (either rename all snippets to the
+`iscc_`-prefixed forms, or emit an unprefixed alias in the cbindgen config and document that) and a
+representative example compiles against `crates/iscc-ffi/include/iscc.h`.
+
 ## Ruby `gen_iscc_id_v1` breaks validation order for arguments exceeding i64 `normal` [review]
 
 The Ruby native fn (`crates/iscc-rb/src/lib.rs`) takes its three params as `i64`, so Magnus narrows
@@ -39,33 +54,6 @@ Resolved when out-of-range params raise `RuntimeError` in ts→hub→realm order
 e.g. validate magnitude in `lib/iscc_lib.rb` before the native call, or accept `magnus::Integer` and
 range-check before `to_i64`. Add a test asserting `(1<<52, 1<<100, 2)` reports timestamp and
 `(1<<70, 0, 0)` raises `RuntimeError`. Check uniffi's Ruby-analogue surfaces when they land.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)"
-
-## ISCC-IDv1 Tier-1 32→33 doc/count sweep `normal` [human]
-
-GitHub: https://github.com/iscc/iscc-lib/issues/43 — **a v0.6.0 release blocker.**
-
-The functional half of #43 is complete: `gen_iscc_id_v1` mints on **all 11 surfaces** and every
-surface both mints and decodes ISCC-IDv1. Python's `VS` IntEnum was the last rejecting decode
-surface — widened to `V1 = 1` with a round-trip test (iter 189). What remains is the repo-wide
-**doc/count sweep**, two mechanical, non-functional defects:
-
-- The Tier 1 symbol count reads 32 across `docs/`, `notes/`, per-crate and per-package `CLAUDE.md`
-    and `README.md`, and in three non-Markdown sources: `crates/iscc-uniffi/src/lib.rs:3`,
-    `crates/iscc-rb/src/lib.rs:7` (`Symbols (32 of 32):`, whose enumerated list also needs the new
-    name) and `.claude/agents/advance.md:146`, which wraps as `Tier 1 (32\nsymbols)` so a
-    `grep "32 symbols"` reports it clean. Four sites were already stale beforehand
-    (`crates/iscc-wasm/CLAUDE.md`, `docs/java-api.md`, `notes/00-overview.md`, an archive file).
-    `specs/*.md` and `target.md` are already at 33; historical records (`iterations.jsonl`,
-    `state.md`, agent memory) are out of scope — no role may rewrite them.
-- Hand-maintained per-symbol API docs lack the `gen_iscc_id_v1` entry and the field-extraction
-    recipe: `docs/rust-api.md`, `docs/java-api.md`, `docs/ruby-api.md`, `docs/c-ffi-api.md` and the
-    11 `docs/howto/*.md` pages. `docs/api.md` is mkdocstrings autodoc. A new docs page would drag in
-    the four-list parity check in `scripts/check_docs_nav.py`.
-
-Resolved when no shipped-artifact Tier 1 count still reads 32 and the per-symbol API docs carry the
-`gen_iscc_id_v1` entry + field-extraction recipe.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)"
 
