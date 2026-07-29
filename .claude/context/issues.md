@@ -54,9 +54,10 @@ drop-in-compatibility gap is **per-surface enum wrappers** that predate V1: the 
 `iscc_lib.iscc_decode` raises `1 is not a valid VS`. Every surface with its own version enum needs
 the same widening plus a round-trip test (`iscc_decode(gen_iscc_id_v1(...)["iscc"])`).
 
-Separately, the minting function `gen_iscc_id_v1` is missing on **cpp only** (Go, Python, napi,
-wasm, ffi, jni, rb, uniffi=Swift+Kotlin and dotnet now expose the canonical shape). `iscc-core` has
-no IDv1 decoder, so no surface gets one — the generic decode path covers it.
+The minting function `gen_iscc_id_v1` now exists on **all 11 surfaces** (Go, Python, napi, wasm,
+ffi, jni, rb, uniffi=Swift+Kotlin, dotnet, cpp — cpp landed iter 188), so the minting fan-out is
+complete. `iscc-core` has no IDv1 decoder, so no surface gets one — the generic decode path covers
+it.
 
 Canonical definition, validation rules, codec changes, the `#[non_exhaustive]` requirement, the IDv0
 exclusion, test placement and the full "Verified when" list are in

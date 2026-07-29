@@ -27,8 +27,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     out-of-narrowing values → delegate ordering to core safely; only wide-input surfaces need
     in-order binding checks. **Ruby (185) narrows Integer→`i64` in Magnus marshalling BEFORE the fn
     body** → `RangeError` order break for `> i64::MAX` only (issues.md; fix: validate in Ruby)
-- **IDv1 fan-out** (done: 179 Go, 180 napi, 182 ffi, 184 jni, 185 rb, 186 uniffi=Swift+Kotlin, 187
-    dotnet C# `GenIsccIdV1(ulong,ushort,byte)`; owed cpp): exact-width **unsigned** args mean
+- **IDv1 minting fan-out COMPLETE at 188** (179 Go, 180 napi, 181 wasm, 182 ffi, 184 jni, 185 rb,
+    186 uniffi=Swift+Kotlin, 187 dotnet C# `GenIsccIdV1(ulong,ushort,byte)`, 188 cpp header-only
+    `gen_iscc_id_v1(uint64_t,uint16_t,uint8_t)`→`IsccIdResult`): exact-width **unsigned** args mean
     callers can't overflow → no Ruby-style marshalling gap, no binding guard; surface fn mirrors
     `gen_text_code_v0`/`GenMetaCodeV0`; decode round-trips via each surface's `iscc_decode`
     returning a bare int/`byte` `version` (NO enum-widening, no result-type change), then bit-math
