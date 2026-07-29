@@ -16,6 +16,31 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
+## JS-number IDv1 minting silently coerces invalid inputs instead of throwing `normal` [review]
+
+`gen_iscc_id_v1` on the napi surface (`crates/iscc-napi/src/lib.rs`) takes `timestamp: f64` and lets
+napi coerce `hub_id`/`realm` from JS numbers, so out-of-contract inputs silently mint a valid but
+**wrong** ID instead of throwing — a collision hazard. Verified at HEAD (iter 180):
+
+- `timestamp` of `-1`, `NaN`, or `0.9` → `as u64` saturates/truncates to `0` →
+    `ISCC:MAIAAAAAAAAAAAAB`
+- `hub_id` of `0.9` or `2**32` → JS ToUint32 → `0` → `ISCC:MAIGHFECJMOPMIAA`
+- `realm` of `0.9` → truncates to `0` → mints a realm-0 code
+
+Core (`gen_iscc_id_v1`, `crates/iscc-lib/src/lib.rs:1064`) only guards the high end
+(`timestamp >= 2^52`, `hub_id >= 2^12`, `realm ∉ {0,1}`); the low/non-integral end is unguarded, and
+`f64 as u64` truncation happens in the napi wrapper before core sees it. Go and Python are
+unaffected (integer param types reject the same inputs). The `f64` timestamp choice is deliberate
+(avoids a JS `BigInt`) and correct for valid inputs — the fix is to validate finiteness,
+integrality, and range in the wrapper before narrowing, not to change the type. **Applies to the
+whole #43 JS-number fan-out**: wasm will inherit the same pattern, so settle the validation approach
+once here.
+
+Resolved when the napi (and any other JS-number) `gen_iscc_id_v1` rejects non-finite, non-integral,
+and out-of-range `timestamp`/`hub_id`/`realm` with a thrown error, covered by a test.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)"
+
 ## ISCC-IDv1 is unsupported outside Go `normal` [human]
 
 GitHub: https://github.com/iscc/iscc-lib/issues/43 — **a v0.6.0 release blocker.**

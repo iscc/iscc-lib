@@ -325,3 +325,15 @@ one as unproven.
     body corrected.
 - **Oracle needs no wheel**: `uv run --python 3.13 --no-project --with iscc-core python -c "..."` —
     the reference `gen_iscc_id_v1` is pure Python. Cross-check the binding against it directly.
+- **napi minting landed iter 180** —
+    `#[napi(js_name="gen_iscc_id_v1")] (timestamp: f64, hub_id: u16,   realm: u8) -> Result<String>`,
+    `.map(|r| r.iscc)`. napi `iscc_decode` returns `version: u8`, so the decode round-trip works
+    with NO enum widening (Go same). Reviewed PASS_WITH_NOTES.
+- **JS-number surfaces silently coerce garbage → probe every f64/JS-number minting fn** (Codex P2,
+    180): `f64 as u64` truncates/saturates (`-1`/`NaN`/`0.9` → `0`) and napi's `u16`/`u8` params
+    coerce via JS ToUint32 (`0.9`→0, `2**32`→0), so invalid input mints a *different valid* ID
+    instead of throwing. Core only guards the HIGH end (≥2^52 / ≥2^12 / realm∉{0,1}). Run the 6-case
+    node probe (`-1`,`NaN`,`0.9` ts; `0.9`,`2**32` hub; `0.9` realm) — all should throw, currently
+    don't. Filed as a normal `[review]` issue; **wasm will inherit this**, so expect the validation
+    fix there. A minting slice that only covers next.md's high-end cases is still PASS_WITH_NOTES,
+    not NEEDS_WORK (experimental fn, out of the slice's stated scope).
