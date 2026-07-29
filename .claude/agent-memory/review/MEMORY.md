@@ -96,9 +96,11 @@ and regeneration majors), `gha-workflow-reviews.md` (release.yml, action bumps, 
     and standing traps (`cargo test -p iscc-wasm` = 0 tests; the **Gradle UP-TO-DATE stale green**;
     verify a generated artifact by **decoding it back**) → `binding-reviews.md`
 - **Every "not locally verifiable" toolchain claim has been FALSE so far** — `cmake` (160), `swift`
-    via swift.org's Debian 12 tarball (161; persists at `/tmp/swifttc`), the release-only Gradle
-    publish (165), MSRV via the installed **1.85.0 toolchain** (172). CMake sets no `-Wall`, so back
-    "no warning" with `g++ -Wall -Wextra -c`
+    via swift.org's Debian 12 tarball (161; `/tmp/swifttc` does NOT survive between sessions — a
+    re-download is ~5min, so for a pure uniffi *regen* slice like 186 accept Swift by transitivity:
+    bindings byte-identical to fresh regen + the Rust golden test + Codex's own Kotlin run), the
+    release-only Gradle publish (165), MSRV via the installed **1.85.0 toolchain** (172). CMake sets
+    no `-Wall`, so back "no warning" with `g++ -Wall -Wextra -c`
 - **Ruby-only / Kotlin-only / published-`.pyi`** command sets → `binding-reviews.md` "Per-binding
     review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if

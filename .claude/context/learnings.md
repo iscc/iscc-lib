@@ -29,11 +29,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     in-order binding checks. **Ruby (185) narrows Integer→`i64` in Magnus marshalling BEFORE the fn
     body**, so args `> i64::MAX` raise `RangeError` ahead of ordered `checked()` — order +
     `RuntimeError` contract break for pathological inputs only (issues.md; fix: validate in Ruby)
-- **IDv1 fan-out** (done: 179 Go, 180 napi, 182 ffi, 184 jni, 185 rb; owed uniffi, dotnet, cpp):
-    surface fn mirrors `gen_text_code_v0`; decode round-trips via each surface's `iscc_decode`
-    returning a bare int `version` (NO enum-widening, so no `IsccDecodeResult` change), then
-    bit-math `ts=n>>12`, `hub=n&0xFFF`, `realm=SubType` on the 8-byte BE body. ffi has NO
-    `checked()`/NULL guard (core re-checks). **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
+- **IDv1 fan-out** (done: 179 Go, 180 napi, 182 ffi, 184 jni, 185 rb, 186 uniffi=Swift+Kotlin; owed
+    dotnet, cpp): uniffi took `(u64,u16,u8)` straight through to core (exact-width **unsigned** args
+    mean callers can't overflow → no Ruby-style marshalling gap, no binding guard needed); surface
+    fn mirrors `gen_text_code_v0`; decode round-trips via each surface's `iscc_decode` returning a
+    bare int `version` (NO enum-widening, so no `IsccDecodeResult` change), then bit-math
+    `ts=n>>12`, `hub=n&0xFFF`, `realm=SubType` on the 8-byte BE body. ffi has NO `checked()`/NULL
+    guard (core re-checks). **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
     `NativeMethods.g.cs` on EVERY build** → pre-push clippy fails "files were modified";
     regen+commit it (like `iscc.h`) in the SAME FFI-symbol step, never "the dotnet step"
 - **JS-number validation (napi/wasm DONE; decisions.md 2026-07-29)**: `f64` params validated
