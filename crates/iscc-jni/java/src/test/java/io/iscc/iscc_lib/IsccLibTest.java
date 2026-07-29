@@ -453,6 +453,31 @@ class IsccLibTest {
                 "units[1] should be an Instance-Code (starts with ISCC:IA)");
     }
 
+    // ── gen_iscc_id_v1 (experimental) ────────────────────────────────────────
+
+    /** Verify genIsccIdV1 mints the frozen cross-surface golden value. */
+    @Test
+    void genIsccIdV1Golden() {
+        assertEquals("ISCC:MAIGHFECJMOPMIAB", IsccLib.genIsccIdV1(1751831876325218L, 1, 0));
+    }
+
+    /** Verify genIsccIdV1 throws IllegalArgumentException for an out-of-range realm. */
+    @Test
+    void genIsccIdV1InvalidRealm() {
+        assertThrows(
+                IllegalArgumentException.class, () -> IsccLib.genIsccIdV1(1751831876325218L, 1, 2));
+    }
+
+    /** Verify a minted ISCC-IDv1 round-trips through isccDecode at Version 1. */
+    @Test
+    void genIsccIdV1DecodeRoundtrip() {
+        String iscc = IsccLib.genIsccIdV1(1751831876325218L, 1, 0);
+        IsccDecodeResult decoded = IsccLib.isccDecode(iscc);
+        assertEquals(6, decoded.maintype, "maintype should be 6 (ISCC-ID)");
+        assertEquals(0, decoded.subtype, "subtype should be 0 (realm)");
+        assertEquals(1, decoded.version, "version should be 1 (IDv1)");
+    }
+
     // ── Negative jint validation ─────────────────────────────────────────────
 
     /** Verify textTrim throws IllegalArgumentException for negative nbytes. */

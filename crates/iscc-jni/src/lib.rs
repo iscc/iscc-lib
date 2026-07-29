@@ -483,6 +483,45 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0<'local>(
         .resolve::<ThrowRuntimeExAndDefault>()
 }
 
+/// Mint an experimental ISCC-IDv1 from an explicit timestamp, hub ID, and realm.
+///
+/// `timestamp` is microseconds since the Unix epoch (`< 2^52`), `hubId` a hub
+/// identifier (0–65535), and `realm` a realm identifier (0–255). Returns the
+/// ISCC string. Throws `IllegalArgumentException` on out-of-range values.
+///
+/// The `jint` parameters are range-validated before narrowing to the core's
+/// `u16`/`u8` because a raw `jint` can wrap into the valid range (e.g. 65537
+/// truncates to 1). `timestamp as u64` needs no guard: a negative `jlong` maps
+/// to a huge value the core rejects, and every valid timestamp is a positive
+/// `long`. The core re-validates the semantic ranges and returns `Err` on
+/// failure.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genIsccIdV1<'local>(
+    mut unowned: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    timestamp: jlong,
+    hub_id: jint,
+    realm: jint,
+) -> JString<'local> {
+    unowned
+        .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            if !(0..=i32::from(u16::MAX)).contains(&hub_id) {
+                return throw_and_default(env, "hubId must be in range 0-65535");
+            }
+            if !(0..=i32::from(u8::MAX)).contains(&realm) {
+                return throw_and_default(env, "realm must be in range 0-255");
+            }
+            match iscc_lib::gen_iscc_id_v1(timestamp as u64, hub_id as u16, realm as u8) {
+                Ok(result) => match env.new_string(result.iscc) {
+                    Ok(s) => Ok(s),
+                    Err(e) => throw_and_default(env, &e.to_string()),
+                },
+                Err(e) => throw_and_default(env, &e.to_string()),
+            }
+        })
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 // ── Text utilities ──────────────────────────────────────────────────────────
 
 /// Clean and normalize text for display.
