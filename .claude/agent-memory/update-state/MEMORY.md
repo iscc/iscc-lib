@@ -84,18 +84,23 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 13474ec, iter 192)
+## Current State (assessed-at: 13c08ca, iter 193)
 
-- **CI GREEN on the PUSHED tip only.** Real tip `origin/develop=b2f56b6` (iter 190 doc-sweep): 23
-    names pass except `Semver` (`continue-on-error`). **HEAD `13474ec` is NOT covered by green** —
-    iter 191 codec `iscc_clean` advance (`2537e18`) is NEEDS_WORK and UNPUSHED. The origin..HEAD
-    code diff = 4 files (codec.rs, lib.rs, codec_clean.rs, .crap-baseline.json) that never ran
-    through CI. Classic "NEEDS_WORK advance sits at HEAD uncovered" trap — report the gap.
-- **In-flight NEEDS_WORK (iter 191, `2537e18`):** shared `iscc_clean` helper routes the four Rust
-    codec-input sites; faithful port + fixes 3 divergences, BUT `iscc_decompose` now returns
-    `Ok([])` for inputs that clean to `""` (`"   "`, `"-"`, `"iscc:"`, `"----"`) — fresh Tier-1
-    regression vs reference. Fix = empty-cleaned-code guard + tests (reviewer-scoped small).
-    `iscc_clean` at `codec.rs:529`; decode uses it at `codec.rs:560`.
+- **CI IS RED on develop — the ENFORCING iai Perf gate fired.** Real tip `origin/develop=e80cda5`
+    (iter 192; HEAD `13c08ca` only adds an `iterations.jsonl` line, so e80cda5 covers HEAD's code).
+    check-SUITE `GitHub Actions=failure`: **`Perf (iai-callgrind)=failure` is NOT
+    continue-on-error** (ci.yml:298, only `semver` at 355 is). The iter 191/192 `iscc_clean` routing
+    raised two composite benches past 10%: `bench_iscc_code.four_units` +36.82% (11,968→16,375 Ir),
+    `bench_mixed_code.two_codes` +18.30% (10,460→12,374). Run 30445408022.
+- **THE TRAP that bit iter 192 review:** `mise run check` does NOT run
+    `scripts/iai_regression.py   --check` (CI-only) — the reviewer PASSed on green `mise run check`
+    while the enforcing iai gate was red. When an advance touches a HOT codec/gen path, the iai
+    comparison is the gate that matters and only CI shows it. ALWAYS pull `Perf (iai-callgrind)`
+    conclusion from the check-runs API, never infer perf-green from a review PASS.
+- **`iscc_clean` regression NOW CLOSED (empty-input side):** guard at `codec.rs:558` returns
+    `Err(InvalidInput("Empty ISCC string"))` when cleaned==""; `fn iscc_clean` at `codec.rs:532`
+    routes all four codec-input sites. `iscc_decompose` empty-`Ok([])` gap is fixed. The REMAINING
+    problem is the perf cost of that routing, not correctness.
 - **#43 IDv1 FULLY CLOSED — do NOT re-flag any part.** All 11 surfaces MINT + DECODE IDv1 = 33/33
     (mint fan-out cpp @188; decode Python `VS` enum `V1=1` @189). Iter 190 landed the repo-wide
     Tier-1 32→33 doc/count sweep + `gen_iscc_id_v1` per-symbol entries in the four

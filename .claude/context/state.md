@@ -1,29 +1,31 @@
-<!-- assessed-at: 13474ec -->
+<!-- assessed-at: 13c08ca -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.6.0 — IDv1 (#43) fully closed; codec `iscc_clean` Rust routing in-flight (NEEDS_WORK regression at HEAD, unpushed); CI green on pushed tip
+## Phase: v0.6.0 — CI RED on develop: the iscc_clean routing (iters 191/192) regressed two iai perf benches >10%; the ENFORCING Perf gate blocks green
 
-Iteration 191 attempted to route the four Rust codec-input sites through a shared `iscc_clean`
-helper. The port is faithful and fixes the three documented divergences, but the reviewer caught a
-correctness regression in the Tier-1 `iscc_decompose` (empty-cleaned input silently returns `Ok([])`
-instead of erroring) → NEEDS_WORK. That advance commit (`2537e18`) is **unpushed and sits at HEAD**;
-green CI still only covers the last-clean tip `b2f56b6`. #43 IDv1 remains fully closed on core + all
-11 surfaces; the remaining v0.6.0 blockers are CID-doable `normal` `[review]` issues.
+The `iscc_clean` refactor landed (empty-cleaned guard fixed the `iscc_decompose` regression,
+reviewer PASS iter 192) and is pushed. But routing every codec-input site through `iscc_clean` added
+instruction cost to the composite `gen_iscc_code_v0` / `gen_mixed_code_v0` paths — the CI-only
+`iai-callgrind` regression check (not run by `mise run check`, so the reviewer missed it) now FAILS.
+#43 IDv1 stays fully closed on core + all 11 surfaces.
 
 ## Rust Core Crate
 
-**Status**: partially met — feature-complete but HEAD carries an unpushed Tier-1 regression
+**Status**: partially met — feature-complete; `iscc_clean` routing landed but introduced a perf
+regression that reds CI
 
 - 33/33 Tier 1 symbols; `gen_iscc_id_v1` oracle-matched; IDv1 decode via generic `iscc_decode`. All
     10 `gen_*_v0` conformant, no `unsafe` outside FFI, Unicode criteria met.
-- **In-flight NEEDS_WORK (`2537e18`, unpushed):** the shared `iscc_clean` helper now routes the four
-    codec-input sites, but `iscc_decompose` returns `Ok([])` for inputs that clean to `""` (`"   "`,
-    `"-"`, `"iscc:"`, `"----"`) where the reference and HEAD~1 errored — a fresh divergence in a
-    stability-committed Tier-1 API. Fix is small: guard the empty cleaned code + tests. Not covered
-    by green CI (green tip = `b2f56b6`, pre-`iscc_clean`).
+- `iscc_clean` (`codec.rs:532`) now routes the four codec-input sites and rejects empty-cleaned
+    input (`"Empty ISCC string"`, line 558) — closes the earlier `iscc_decompose` `Ok([])` gap.
+- **New regression, live on develop:** the routing costs `bench_iscc_code.four_units` +36.82%
+    (11,968→16,375 Ir) and `bench_mixed_code.two_codes` +18.30% (10,460→12,374 Ir), both past the
+    10% iai gate. The composite gen functions now call `iscc_clean` per component. Fix = reduce the
+    per-component cleaning overhead or re-baseline with justification (baseline change is human/gate
+    territory, not a silent bump).
 - Semver check-run reds (`enum_marked_non_exhaustive` on `enum Version`) but `continue-on-error`.
 - `crate >= 1.0.0` unmet (0.5.0, human-gated).
 
@@ -45,9 +47,9 @@ green CI still only covers the last-clean tip `b2f56b6`. #43 IDv1 remains fully 
 
 **Status**: met — 33/33 symbols
 
-- `crates/iscc-wasm` exports `gen_iscc_id_v1` with the same ordered validation guard; the
-    `wasm-pack` test covers golden `ISCC:MAIGHFECJMOPMIAB`, decode round-trip, invalid throws. The
-    `wasm32_simd` blake3 feature is intact.
+- `crates/iscc-wasm` exports `gen_iscc_id_v1` with the same ordered validation guard; `wasm-pack`
+    test covers golden `ISCC:MAIGHFECJMOPMIAB`, decode round-trip, invalid throws. `wasm32_simd`
+    blake3 feature intact.
 
 ## C FFI
 
@@ -77,8 +79,8 @@ green CI still only covers the last-clean tip `b2f56b6`. #43 IDv1 remains fully 
 **Status**: met — 33/33 symbols
 
 - Shared `crates/iscc-uniffi` exports `gen_iscc_id_v1` + `IsccIdResult`; core takes exact-width
-    `(u64,u16,u8)` (core validates). 22 unit tests incl. golden + round-trip. Regenerated
-    `genIsccIdV1` in both `packages/swift` and `packages/kotlin`.
+    `(u64,u16,u8)`. 22 unit tests incl. golden + round-trip. Regenerated `genIsccIdV1` in both
+    `packages/swift` and `packages/kotlin`.
 
 ## C# / .NET Bindings
 
@@ -93,7 +95,6 @@ green CI still only covers the last-clean tip `b2f56b6`. #43 IDv1 remains fully 
 
 - `packages/cpp/include/iscc/iscc.hpp` mints via `gen_iscc_id_v1(uint64_t, uint16_t, uint8_t)` +
     `IsccIdResult`. Golden matches `iscc_core`; 72 assertions under cmake/ASAN; CI green.
-    `DecodeResult.version` raw `uint8_t` → decodes V1.
 
 ## Documentation
 
@@ -103,27 +104,27 @@ green CI still only covers the last-clean tip `b2f56b6`. #43 IDv1 remains fully 
     shipped artifacts. `gen_iscc_id_v1` per-symbol entries in `docs/{rust,java,ruby,c-ffi}-api.md`;
     all 11 `docs/howto/*.md` carry an IDv1 mint+decode example.
 - Open `normal` `[review]`: `docs/c-ffi-api.md` documents FFI structs under unprefixed names
-    (`IsccDecodeResult`) but cbindgen emits `iscc_IsccDecodeResult`, so no snippet compiles
-    verbatim. Pre-existing, page-wide.
+    (`IsccDecodeResult`) but cbindgen emits `iscc_IsccDecodeResult`. Pre-existing, page-wide.
 
 ## Benchmarks
 
-**Status**: met (existence), with a known gate-blindness gap
+**Status**: met (existence) — the perf gate just caught a real regression (see CI)
 
-- 12 criterion fns + iai (11 fns/16 cases) + 18 pytest-benchmark fixtures; baselines untouched.
-- Open `normal` `[review]`: iai text benchmarks are ASCII-only, so the >10% perf gate is blind to
-    the Unicode freeze path.
+- 12 criterion fns + iai (11 fns/16 cases) + 18 pytest-benchmark fixtures. The iai gate FIRED on the
+    `iscc_clean` routing (2 benches >10%) — working as designed; the committed baseline is now
+    stricter than HEAD's actual cost.
+- Open `normal` `[review]`: iai text benchmarks are ASCII-only, so the gate is blind to the Unicode
+    freeze path.
 
 ## CI/CD and Publishing
 
-**Status**: met on the pushed tip; HEAD not covered by green
+**Status**: NOT met — CI RED on develop; the Perf gate blocks
 
-- **CI GREEN on `origin/develop` = `b2f56b6`**: all 23 check names pass except the
-    cargo-semver-checks run, which is `continue-on-error: true` (expected non-blocking red).
-- **HEAD `13474ec` is NOT covered by green:** unpushed commits include `2537e18` (advance) whose
-    codec.rs/lib.rs/tests changes carry the NEEDS_WORK regression above. The origin..HEAD code diff
-    (excluding `.claude`) = 4 files (codec.rs, lib.rs, codec_clean.rs, .crap-baseline.json). This
-    code has never run through CI.
+- **CI check-suite FAILING on `origin/develop` = `e80cda5`** (which covers HEAD's code — the only
+    unpushed commit `13c08ca` touches `iterations.jsonl` alone). `Perf (iai-callgrind)` = `failure`,
+    an ENFORCING job (NOT `continue-on-error`): `bench_iscc_code.four_units` +36.82% and
+    `bench_mixed_code.two_codes` +18.30%. `Semver` also reds but is `continue-on-error` (expected).
+    All other 21 check names pass. Run: actions/runs/30445408022.
 - Dependency freshness met (criterion 0.8, uniffi 0.32); zero `# held:`/`authorized` pins in root
     `Cargo.toml`. Job shape unchanged (21 keys → 22 jobs → 23 names).
 - PR **#44** `develop` → `main` OPEN; version **0.5.0**.
@@ -135,18 +136,19 @@ green CI still only covers the last-clean tip `b2f56b6`. #43 IDv1 remains fully 
 unchanged this cycle.
 
 - **NORMAL (all `[review]`):** c-ffi-api type names vs generated `iscc.h`; Ruby `gen_iscc_id_v1`
-    validation order for `> i64::MAX`; Go codec input cleaning diverges from `iscc_clean` (the Rust
-    half is the in-flight NEEDS_WORK work above); iai ASCII-only text benchmarks; go1.27 tripwire
-    (upstream-blocked, ~Aug 2026).
+    validation order for `> i64::MAX`; Go codec input cleaning diverges from `iscc_clean` (Rust half
+    now landed — Go half unblocked, must replicate the empty-cleaned guard); iai ASCII-only text
+    benchmarks; go1.27 tripwire (upstream-blocked, ~Aug 2026).
 - **LOW:** upstream `iscc-core#137` thread, 88-bit ISCC-IDv0 upstream mint, gate-script remainders,
     v1.0.0 cut (HELD), MSRV asserted-not-verified, npm OIDC (deferred), docs language logos.
 
 ## Next Milestone
 
-**No CI fix needed — CI is green on the pushed tip.** The immediate goal is closing the codec
-`iscc_clean` empty-cleaned-input regression in `iscc_decompose` so the in-flight Rust routing at
-HEAD can land clean and be pushed under green CI; the reviewer scoped the fix as a small empty-input
-guard + tests. After that, the Go half of the same divergence and the remaining three CID-doable
-`normal` `[review]` issues (c-ffi-api type names, Ruby wide-input validation order, iai ASCII-only
-benchmarks) gate v0.6.0 release readiness. go1.27 stays upstream-blocked; the release cut is
-human-gated.
+**Fix the red Perf (iai-callgrind) gate first — CI is failing on develop.** The `iscc_clean` routing
+raised `gen_iscc_code_v0` and `gen_mixed_code_v0` instruction cost past the 10% threshold on two
+benches; the fix is either trimming the per-component cleaning overhead in those composite paths or
+a justified baseline update (a baseline bump masks a real 20-37% cost increase, so prefer the code
+fix). Nothing else can go green until this lands. After CI is green, the Go `iscc_clean` port and
+the remaining CID-doable `normal` `[review]` issues (c-ffi-api type names, Ruby wide-input
+validation, iai ASCII-only benches) gate v0.6.0 readiness; go1.27 stays upstream-blocked; the
+release cut is human-gated.
