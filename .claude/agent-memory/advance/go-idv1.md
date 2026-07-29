@@ -71,9 +71,21 @@ metadata:
     (realm=2 → ASSERT_NULL + last_error non-NULL); `ULL` suffix on the ts literal. csbindgen picks
     up the symbol on build but `NativeMethods.g.cs` stays unused until the dotnet step (not
     committed here).
-- STILL PENDING (#43): minting on jni, rb, uniffi, dotnet, cpp surfaces; per-surface decode enum
-    widening (Python `VS` etc. to accept V1) + round-trip test; 32→33 doc/count sweep. Go DONE 179,
-    napi 180, wasm 181, ffi 182.
+- dotnet binding DONE (iter 187, #43): C#
+    `public static IsccIdResult GenIsccIdV1(ulong timestamp,   ushort hubId, byte realm)` in
+    `packages/dotnet/Iscc.Lib/IsccLib.cs` (before `GenDataCodeV0`), mirrors `GenMetaCodeV0`:
+    `unsafe { byte* r = NativeMethods.iscc_gen_iscc_id_v1(...); return new   IsccIdResult(ConsumeNativeString(r)); }`.
+    `ConsumeNativeString` already throws `IsccException(GetLastError())` on NULL → no binding
+    guard (exact-width unsigned args; core re-checks). `IsccIdResult(string Iscc)` record in
+    `Results.cs`. NO enum widening — `DecodeResult.Version` is raw `byte`, V1 round-trips today. The
+    P/Invoke decl `NativeMethods.g.cs:293` was ALREADY present (committed in the ffi step's
+    csbindgen output), so NO regen — `git diff --quiet -- NativeMethods.g.cs` stays clean after
+    `cargo build -p iscc-ffi`. Tests in `SmokeTests.cs` (golden + out-of-range-ts throws + decode
+    round-trip); 107 pass. Verify: `cargo build -p iscc-ffi` then
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e   LD_LIBRARY_PATH=$(pwd)/target/debug`.
+- STILL PENDING (#43): minting on cpp surface only; 32→33 doc/count sweep
+    (`packages/dotnet/CLAUDE.md`/`README.md`, docs API pages, issues.md). Go DONE 179, napi 180,
+    wasm 181, ffi 182, jni 184, rb 185, uniffi(Swift+Kotlin) 186, dotnet 187.
 - The iter-174 "no-default-features fails to COMPILE" note was a PHANTOM (review iter 177): that
     test is already `#[cfg(feature = "meta-code")]`-gated; all feature combos pass. No work owed.
 - Go CI job runs only `go test`+`go vet` — no gofmt gate. The go1.26 gofmt alignment drift in

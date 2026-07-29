@@ -31,6 +31,9 @@ public sealed record InstanceCodeResult(string Iscc);
 /// <summary>Result of GenIsccCodeV0.</summary>
 public sealed record IsccCodeResult(string Iscc);
 
+/// <summary>Result of GenIsccIdV1 — experimental ISCC-IDv1.</summary>
+public sealed record IsccIdResult(string Iscc);
+
 /// <summary>Result of GenSumCodeV0 — composite ISCC-CODE with file metadata.</summary>
 public sealed record SumCodeResult(
     string Iscc,
