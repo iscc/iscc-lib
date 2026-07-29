@@ -16,8 +16,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     **Minting ≠ decode round-trip**: core `codec::Version` accepts `V1`, but a surface with its OWN
     version enum makes `iscc_decode(gen_iscc_id_v1(...))` raise `1 is not a valid VS`. Python was
     the *only* enum surface (widened `VS.V1 = 1` + round-trip, iter 189); the other 10 return a bare
-    int/byte version. Decode fan-out COMPLETE on all 11; #43 doc/count sweep done (190) — IDv1 for
-    v0.6.0 fully closed
+    int/byte version. Decode fan-out COMPLETE on all 11; #43 doc/count sweep done (190), IDv1 closed
 - **IDv1 validation ORDER is normative on every surface** (spec rust-core.md §Validation; ref order
     `iscc_id.py:127-133` ts→hub→realm, "first failing check wins", asserted even for MULTI-invalid
     inputs). A wide-int binding (napi/wasm/jni) MUST validate the three SEMANTIC thresholds
@@ -45,15 +44,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) needs a **differential sweep**
     (`mise run unicode:sweep`) to prove output-neutrality, not a green vector suite (every
     `data.json` vector predates Unicode 16)
-- **A widened decode gate re-exposes latent truncation** (174 → fixed 175): `decode_header`'s
-    `as u8` before `TryFrom` let a multi-nibble value wrap (version `257`→`1`, MainType
-    `262`→`6`=`Id`) so a MALFORMED header canonicalized to a valid ISCC; now `u8::try_from`-gated.
-    Probe a wrapped header (`"MDFZAAAAAAAAAAAAAA"`) on any codec header-gate change
-- **`decode_base32("")` returns `Ok(empty)`, not an error** (191): any input-cleaning helper that
-    can yield `""` (blank/dash-only/`"iscc:"`) must guard for empty BEFORE decode, or
-    `iscc_decompose` silently returns `Ok([])` for malformed input the reference errors on. Probe
-    the empty/garbage forms on any change to codec input cleaning — the differential tests only
-    exercise VALID inputs
+- **A widened decode gate re-exposes latent truncation** (174/175): `decode_header`'s `as u8` before
+    `TryFrom` let a multi-nibble value wrap (`257`→`1`, `262`→`Id`) so a malformed header
+    canonicalized to valid; now `u8::try_from`-gated. Probe `"MDFZAAAAAAAAAAAAAA"` on header gates
+- **`decode_base32("")` returns `Ok(empty)`, not an error** (191; empty guard in `iscc_clean` 192):
+    a cleaning helper that can yield `""` (blank/dash-only/`"iscc:"`) must reject empty before
+    decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage
+    forms on any codec-cleaning change
 
 ## Tooling
 
@@ -173,9 +170,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `mvn clean test` proves the new framework compiles. A **bench-harness** major:
     `cargo bench   --no-run` only links — `cargo bench -p iscc-lib --bench benchmarks -- --test`
     runs each body once (171)
-- **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the
-    previous sha's in-flight run (`cancelled`, not `failure`); let it conclude when a Done-When
-    needs green CI on a sha. Each develop commit triggers TWO runs (push + the open develop→main PR)
+- **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the prior
+    sha's in-flight run (`cancelled`, not `failure`); wait for green on the exact sha. Each develop
+    commit triggers TWO runs (push + the open develop→main PR)
 
 ## CID Process
 

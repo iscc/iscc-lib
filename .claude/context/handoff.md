@@ -1,43 +1,46 @@
-## 2026-07-29 — Reject empty-cleaned codec input to close the `iscc_decompose` regression
+## 2026-07-29 — Review of: Reject empty-cleaned codec input to close the `iscc_decompose` regression
 
-**Done:** Added an empty-cleaned-input guard inside `codec::iscc_clean` — it now returns
-`Err(InvalidInput("Empty ISCC string"))` when the cleaned result is `""`. This protects all four
-call sites (`iscc_decompose`, `iscc_normalize`, `gen_iscc_code_v0`, `gen_mixed_code_v0`) at once and
-closes the HEAD regression where `iscc_decompose("   ")` etc. silently returned `Ok([])`.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-lib/src/codec.rs`: `iscc_clean` restructured to bind a `cleaned` value, then guard
-    for `is_empty()` before returning `Ok`. Logic for valid inputs (multibase dash-preservation,
-    scheme check, malformed-colon) is unchanged; only the empty case is newly rejected.
-- `crates/iscc-lib/tests/codec_clean.rs`: added 4 tests asserting `Err(InvalidInput)` for `"   "`,
-    `"-"`, `"iscc:"`, `"----"` across `iscc_decompose`, `iscc_decode` (routes through the private
-    `iscc_normalize`), `gen_iscc_code_v0`, and `gen_mixed_code_v0`.
-- `.crap-baseline.json`: regenerated — `iscc_clean` cyclomatic 6→7 (crap 6→7, 100% covered),
-    `iscc_decompose` line 559→570. No epsilon/threshold change.
+**Summary:** The advance agent added an empty-cleaned-input guard inside `codec::iscc_clean` that
+returns `Err(InvalidInput("Empty ISCC string"))` when the cleaned result is `""`, protecting all
+four call sites at once. Clean, minimal, matches the reference contract, and closes the HEAD
+regression. The in-flight Rust `iscc_clean` routing (iters 191 + 192) is now a green PASS and pushes
+under CI.
 
 **Verification:**
 
-- `cargo test -p iscc-lib` — all pass, 0 failed (codec_clean 10/10, incl. the 4 new empty-input
-    tests; existing valid-input differential cases still green).
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt -p iscc-lib --check`
-    clean (fmt reformatted the `_ =>` arm with braces + semicolon — cosmetic only).
-- `mise run coverage` + `mise run crap:baseline` — baseline regenerated; `.cargo-crap.toml`
-    untouched (threshold 30.0).
-- `mise run check` (prek all-files) — all hooks Passed.
+- [x] `cargo test -p iscc-lib` — all pass, 0 failed (codec_clean 10/10 incl. 4 new empty-input
+    tests)
+- [x] New tests assert `Err(InvalidInput)` for `"   "`/`"-"`/`"iscc:"`/`"----"` across
+    `iscc_decompose`, `iscc_decode` (→ private `iscc_normalize`), `gen_iscc_code_v0`,
+    `gen_mixed_code_v0`
+- [x] Valid-input differential cases still green (hyphenated→4 units, padded/lowercase-scheme→1;
+    multibase `u`-prefixed dashes preserved)
+- [x] `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt --check` clean
+- [x] `mise run check` (prek all-files) — all hooks Passed; `.crap-baseline.json` regenerated
+    (`iscc_clean` cyclo 6→7, 100% covered); `.cargo-crap.toml` untouched (threshold 30.0)
+- [x] **Probe (extra):** reference `iscc_decode` IndexErrors on all four forms + `""` — guard now
+    matches parity exactly (ref `iscc_clean` errors on `"   "` directly, on the others downstream)
 
-**Next:** The Go half of the codec `iscc_clean` divergence (issues.md — non-mechanical port of the
-four `packages/go` sites) is now unblocked. It MUST NOT copy the empty-input gap: replicate this
-empty-cleaned guard in the Go port. The Ruby `gen_iscc_id_v1` validation-order fix remains the last
-`normal` codec-adjacent item.
+**Issues found:** (none) — diff touches only the 2 in-scope source/test files + the two generated
+baselines; no gate weakening in the full `origin/develop..HEAD` unpushed range; no API break
+(`iscc_clean` is `pub(crate)`; tightening decode validation is settled non-breaking, decision
+2026-07-24).
+
+**Codex review:** Clean — "correctly rejects inputs whose cleaned representation is empty without
+changing valid-input behavior; full suite and clippy pass." No actionable findings.
+
+**Next:** The Go `iscc_clean` port (issues.md, `normal`) is now fully unblocked — the Rust half is
+complete. It MUST replicate this empty-cleaned guard (reject a cleaned `""` before decode) so
+`isccDecompose` does not inherit the `Ok([])` gap. The Ruby `gen_iscc_id_v1` validation-order fix
+(`normal`) and the ASCII-only iai benchmark gap (`normal`) remain the other CID-doable items.
 
 **Notes:**
 
-- Error message is a fixed `"Empty ISCC string"` (does not mirror Python's IndexError text, per
-    next.md — only that the input errors matters).
-- `iscc_normalize` is private (not Tier 1), so the empty-input test for it is driven through its
-    public entry point `iscc_decode`. Confirmed `gen_*_v0` sites error via the same guard now rather
-    than only downstream via `decode_header([])` / the `< 2` unit-count check.
-- `iscc_decompose("")` (truly empty string) was `Ok([])` at HEAD~1 too — it is now also rejected by
-    this guard, which tightens behavior toward the reference (not a behavior the step required, but
-    consistent and correct).
+- Error message is a fixed `"Empty ISCC string"` (does not mirror Python's IndexError text — only
+    that the input errors matters, per next.md).
+- `iscc_decompose("")` (truly empty) was `Ok([])` at HEAD~1 too; the guard now rejects it,
+    tightening toward the reference — consistent, not required by the step.
+- learnings.md trimmed 202→199 (empty-input entry updated to note the 192 guard; two historical
+    entries compressed). No new decision needed — routine fix under a settled decision.

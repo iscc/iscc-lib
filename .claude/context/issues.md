@@ -82,8 +82,9 @@ it separately if ever wanted.
 
 Resolved when a shared Go `isccClean` helper is routed through all four Go sites and a differential
 test covers the dash, whitespace and lowercase-scheme forms for `isccDecompose`, decode,
-`genIsccCodeV0` and `genMixedCodeV0`. (Rust surface: landed iter 191 but has an outstanding
-empty-input regression — see handoff NEEDS_WORK; the Go port must not copy that gap.)
+`genIsccCodeV0` and `genMixedCodeV0`. (Rust surface fully landed: iter 191 routing + iter 192
+empty-cleaned guard; the Go port must replicate that empty guard — reject a cleaned `""` before
+decode, else `isccDecompose` silently returns an empty slice for `"   "`/`"-"`/`"iscc:"`/`"----"`.)
 
 **Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations"
 
