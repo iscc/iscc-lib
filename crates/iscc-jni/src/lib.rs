@@ -486,15 +486,16 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0<'local>(
 /// Mint an experimental ISCC-IDv1 from an explicit timestamp, hub ID, and realm.
 ///
 /// `timestamp` is microseconds since the Unix epoch (`< 2^52`), `hubId` a hub
-/// identifier (0–65535), and `realm` a realm identifier (0–255). Returns the
-/// ISCC string. Throws `IllegalArgumentException` on out-of-range values.
+/// identifier (0–4095), and `realm` a realm identifier (`0` = testnet,
+/// `1` = mainnet). Returns the ISCC string. Throws `IllegalArgumentException`
+/// on out-of-range values.
 ///
-/// The `jint` parameters are range-validated before narrowing to the core's
-/// `u16`/`u8` because a raw `jint` can wrap into the valid range (e.g. 65537
-/// truncates to 1). `timestamp as u64` needs no guard: a negative `jlong` maps
-/// to a huge value the core rejects, and every valid timestamp is a positive
-/// `long`. The core re-validates the semantic ranges and returns `Err` on
-/// failure.
+/// The three parameters are validated against their SEMANTIC thresholds in
+/// `timestamp` → `hubId` → `realm` order — the normative cross-surface
+/// validation order, where the first failing check wins — *before* narrowing
+/// to the core's `u64`/`u16`/`u8`. Validating in the wrapper (rather than
+/// deferring wide-narrowing guards to the core) ensures multi-invalid inputs
+/// report the same field the reference implementation reports.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genIsccIdV1<'local>(
     mut unowned: EnvUnowned<'local>,
@@ -505,11 +506,14 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genIsccIdV1<'local>(
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
-            if !(0..=i32::from(u16::MAX)).contains(&hub_id) {
-                return throw_and_default(env, "hubId must be in range 0-65535");
+            if !(0..4_503_599_627_370_496).contains(&timestamp) {
+                return throw_and_default(env, "timestamp must be in range 0 to 2^52 - 1");
             }
-            if !(0..=i32::from(u8::MAX)).contains(&realm) {
-                return throw_and_default(env, "realm must be in range 0-255");
+            if !(0..4096).contains(&hub_id) {
+                return throw_and_default(env, "hubId (hub) must be in range 0-4095");
+            }
+            if !(0..2).contains(&realm) {
+                return throw_and_default(env, "realm must be 0 (testnet) or 1 (mainnet)");
             }
             match iscc_lib::gen_iscc_id_v1(timestamp as u64, hub_id as u16, realm as u8) {
                 Ok(result) => match env.new_string(result.iscc) {

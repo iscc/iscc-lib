@@ -478,6 +478,32 @@ class IsccLibTest {
         assertEquals(1, decoded.version, "version should be 1 (IDv1)");
     }
 
+    /**
+     * Verify multi-invalid inputs report the normative winning field (ts → hub → realm order, first
+     * failing check wins). An out-of-range timestamp wins over an out-of-range hub; an out-of-range
+     * hub wins over an out-of-range realm.
+     */
+    @Test
+    void genIsccIdV1ValidationOrder() {
+        // timestamp = 2^52 (out of range), hub = 65536 (out of range): timestamp must win.
+        IllegalArgumentException tsFirst =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> IsccLib.genIsccIdV1(1L << 52, 65536, 0));
+        assertTrue(
+                tsFirst.getMessage().contains("timestamp"),
+                "timestamp check must win over hub: " + tsFirst.getMessage());
+
+        // timestamp valid, hub = 4096 (out of range), realm = 256 (out of range): hub must win.
+        IllegalArgumentException hubFirst =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> IsccLib.genIsccIdV1(0L, 4096, 256));
+        assertTrue(
+                hubFirst.getMessage().contains("hub"),
+                "hub check must win over realm: " + hubFirst.getMessage());
+    }
+
     // ── Negative jint validation ─────────────────────────────────────────────
 
     /** Verify textTrim throws IllegalArgumentException for negative nbytes. */
