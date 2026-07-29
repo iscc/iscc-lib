@@ -25,9 +25,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `checked(v, thresh, name)?` ×3 (`crates/iscc-napi/src/lib.rs:329-331`). A *wide narrowing guard*
     (hub 0-65535, realm 0-255) that skips the ts check and defers to core is WRONG: `(2^52,65536,0)`
     reports hub not ts, `(0,4096,256)` reports realm not hub — reference-divergent (183, jni
-    NEEDS_WORK). Go/ffi take exact-width types so callers can't pass out-of-narrowing values → they
-    delegate ordering to core safely; only wide-input surfaces need in-order binding checks
-- **IDv1 fan-out** (179 Go, 180 napi, 182 ffi; owed jni-redo, rb, uniffi, dotnet, cpp): JNI
+    NEEDS_WORK; **fixed 184** — jni now validates `2^52`/`4096`/`2` in order before narrowing, ref
+    order confirmed at `iscc_id.py:127-133` ts→hub→realm). Go/ffi take exact-width types so callers
+    can't pass out-of-narrowing values → they delegate ordering to core safely; only wide-input
+    surfaces need in-order binding checks
+- **IDv1 fan-out** (179 Go, 180 napi, 182 ffi, 184 jni; owed rb, uniffi, dotnet, cpp): JNI
     `genIsccIdV1(long ts, int hubId, int realm) -> String` mirrors `genTextCodeV0`; `isccDecode`
     returns `version` as a plain `int`, so the decode round-trip works with NO enum-widening (no
     `IsccDecodeResult` change); jni docs carry no numeric count. Go

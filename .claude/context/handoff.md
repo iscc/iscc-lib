@@ -1,36 +1,40 @@
-## 2026-07-29 — Redo JNI `gen_iscc_id_v1` with ordered semantic validation
+## 2026-07-29 — Review of: Redo JNI `gen_iscc_id_v1` with ordered semantic validation
 
-**Done:** Replaced the wide-narrowing guard block in the JNI `genIsccIdV1` wrapper with three
-semantic-threshold checks in the normative ts→hub→realm order (first failing check wins), mirroring
-the napi `checked(v, thresh, name)` precedent. Added one multi-invalid ordering test. Completes the
-7th of 11 IDv1 fan-out surfaces (issue #43, v0.6.0 blocker).
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-jni/src/lib.rs`: `genIsccIdV1` now validates `timestamp` (`0..2^52`), then `hubId`
-    (`0..4096`), then `realm` (`0..2`) BEFORE narrowing to `(u64,u16,u8)`. Messages name the field
-    (`"timestamp"`, `"hubId (hub)"`, `"realm"`). Doc comment rewritten to describe the ordered
-    checks.
-- `crates/iscc-jni/java/.../IsccLibTest.java`: added `genIsccIdV1ValidationOrder` — asserts
-    `(1L<<52, 65536, 0)` throws naming **timestamp** (not hub) and `(0L, 4096, 256)` throws naming
-    **hub** (not realm).
+**Summary:** The iteration-183 NEEDS_WORK is resolved. The JNI `genIsccIdV1` wrapper now validates
+the three semantic thresholds (`2^52`/`4096`/`2`) in the normative ts→hub→realm order *before*
+narrowing to `(u64,u16,u8)`, mirroring the napi precedent. One multi-invalid ordering test was
+added. Completes the 7th of 11 IDv1 fan-out surfaces (#43).
 
 **Verification:**
 
-- `cargo fmt -p iscc-jni --check` clean; `cargo clippy -p iscc-jni --all-targets -- -D warnings`
-    clean.
-- `cargo build -p iscc-jni && mvn clean test` — 97 tests, 0 failures (84 IsccLibTest incl. the new
-    ordering test + golden/realm/round-trip; 13 UnicodeBoundaryTest). Golden still mints
-    `ISCC:MAIGHFECJMOPMIAB` and round-trips at Version 1.
-- `mise run check` — all prek pre-commit hooks Passed (exit 0).
+- [x] `cargo fmt -p iscc-jni --check` clean; `cargo clippy -p iscc-jni --all-targets -- -D warnings`
+    clean — re-run here, both clean.
+- [x] `cargo build -p iscc-jni && mvn clean test` — 97 tests, 0 failures (84 IsccLibTest incl. new
+    ordering test + golden/realm/round-trip; 13 UnicodeBoundaryTest).
+- [x] New ordering test proves `(1L<<52, 65536, 0)`→timestamp and `(0L, 4096, 256)`→hub — asserted
+    in `genIsccIdV1ValidationOrder`.
+- [x] `mise run check` — all prek pre-commit hooks Passed.
+- [x] (probe) Reference order confirmed at `iscc_id.py:127-133`: `timestamp>=2^52` → `hub_id>=2^12`
+    → `realm_id not in (0,1)`, first-raise wins — exactly the wrapper's order. Golden
+    `ISCC:MAIGHFECJMOPMIAB` still mints (covered by passing tests).
 
-**Next:** Resume the #43 fan-out on **rb** (Magnus). Carry the same lesson: any wide-int binding
-surface (rb/dotnet if they take wider-than-needed ints) must validate the three semantic thresholds
-(`2^52`/`4096`/`2`) in ts→hub→realm order in the binding before narrowing. Go/ffi are exempt
-(exact-width types). Remaining surfaces after rb: uniffi (Swift/Kotlin), dotnet C# consumer, cpp.
-Then the deferred Tier-1 32→33 doc/count sweep.
+**Issues found:**
 
-**Notes:** No API break, no hot path touched. Scope clean: 1 core file (budget 3) + 1 test file
-(excluded). The `hubId (hub)` message wording keeps a distinct substring per field while satisfying
-the test's `contains("hub")` assertion. No `IsccDecodeResult` change — JNI `isccDecode` already
-returns `version` as a plain int, so the round-trip works without enum widening.
+- (none) — scope clean: 1 core file (budget 3) + 1 excluded test file. No API break, no hot path.
+    The wrapper additionally rejects negative `timestamp` (the ref, on unbounded Python ints, never
+    sees one) — correct hardening, not a divergence.
+
+**Codex review:** Clean — "enforces the specified timestamp→hub→realm validation order with correct
+semantic bounds before narrowing. Rust checks and all 97 Java tests pass." No findings.
+
+**Next:** Resume the #43 fan-out on **rb** (Magnus). Carry the wide-int lesson: any binding surface
+taking wider-than-needed ints (rb/dotnet) must validate the three semantic thresholds
+(`2^52`/`4096`/`2`) in ts→hub→realm order in the binding *before* narrowing — Go/ffi are exempt
+(exact-width types). Remaining #43 surfaces after rb: uniffi (Swift/Kotlin), dotnet C# consumer,
+cpp. Then the deferred Tier-1 32→33 doc/count sweep.
+
+**Notes:** #43 remains open (v0.6.0 blocker) — 4 minting surfaces + doc sweep left. No decision
+entry needed: this applies the established "validate before narrowing" pattern (decisions.md
+2026-07-29), not a new trade-off.

@@ -10,7 +10,7 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     run in `publish-npm-lib`. FFI constant count in module docstring must match additions (now 5)
 - .NET + Swift bindings fully complete (32/32 Tier 1, CI, version sync, docs, release)
 
-## IDv1 fan-out slices — probe validation ORDER (183)
+## IDv1 fan-out slices — probe validation ORDER (183; jni fixed 184)
 
 - Spec (rust-core.md §Validation, criterion ~L542) makes ts→hub→realm ordering **normative on every
     surface**, "first failing check wins", asserted even for MULTI-invalid inputs. A wide-int
@@ -21,7 +21,10 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     ts). **Always probe two multi-invalid inputs** — next.md's Impl Notes prescribed the flawed
     narrowing guard, so the golden/single-field tests pass while ordering silently diverges. Go/ffi
     exact-width types make out-of-narrowing values unrepresentable → they delegate ordering to core
-    safely
+    safely. **184 jni redo verified**: reference order is `iscc_id.py:127-133`
+    (`timestamp>=2^52`→`hub_id>=2^12`→`realm not in (0,1)`, first-raise wins); confirm the two
+    multi-invalid probes assert the WINNING field's substring (msg `"hubId (hub)"` satisfies
+    `contains("hub")`). jni takes `jlong`/`jint`, so also reject negative before narrowing
 
 ## Binding Propagation Shortcuts
 
