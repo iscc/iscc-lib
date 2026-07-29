@@ -102,7 +102,14 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     `iscc_clean` now GUARDS empty-cleaned result → `Err(InvalidInput("Empty ISCC string"))` (else
     `iscc_decompose("   ")`/`"-"`/`"iscc:"`/`"----"` silently `Ok([])` since
     `decode_base32("")`=Ok). Go port MUST replicate this guard, not copy the gap. Empty-input
-    assertions live in `tests/codec_clean.rs`
+    assertions live in `tests/codec_clean.rs`. Iter 193: `iscc_clean` returns `Cow<'_,str>`
+    (allocation-free borrow when no scheme + no dash), `gen_iscc_code_v0.cleaned` is now
+    `Vec<Cow<'_,str>>` — cut the 191/192 perf regression (four_units +36.82%→+11.71%, mixed
+    +18.30%→+6.95% GREEN). BUT four_units STILL red: probe proved the residual ~+11.71% is INTRINSIC
+    scanning cost of reference-correct cleaning (trim + 2× memchr per code), NOT allocation
+    (strip_prefix-only iscc_clean = +2.6%). std memchr beats a scalar single-pass, so unfixable
+    without a baseline bump (human/gate, next.md-forbidden here). iscc_clean cyclo 7→9 in
+    `.crap-baseline.json`
 - ISCC-IDv1 #43 COMPLETE (iter 190): Part 1 codec `Version` V1 (174) + Part 2 minting on all 11
     surfaces (178-188) + Tier-1 32→33 doc/count sweep + per-surface API/howto entries (190). Tier-1
     count is now 33 in ALL shipped-artifact docs (canonical breakdown `specs/rust-core.md:693`); no

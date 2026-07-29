@@ -891,10 +891,10 @@ pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<InstanceCodeRe
 /// wide-mode code.
 pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<IsccCodeResult> {
     // Step 1: Clean inputs — strip scheme prefix, dashes, and whitespace
-    let cleaned: Vec<String> = codes
+    let cleaned: Vec<std::borrow::Cow<'_, str>> = codes
         .iter()
         .map(|c| codec::iscc_clean(c))
-        .collect::<IsccResult<Vec<String>>>()?;
+        .collect::<IsccResult<Vec<_>>>()?;
 
     // Step 2: Validate minimum count
     if cleaned.len() < 2 {

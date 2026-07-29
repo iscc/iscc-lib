@@ -5,6 +5,7 @@
 //! available to Rust consumers but not exposed through FFI bindings.
 
 use crate::{IsccError, IsccResult};
+use std::borrow::Cow;
 
 // ---- Type Enums ----
 
@@ -529,28 +530,39 @@ pub fn encode_component(
 /// or when the cleaned result is empty (mirrors the reference erroring on empty
 /// input; `decode_base32("")` returns `Ok(empty)`, so an empty code would
 /// otherwise be silently accepted as a zero-unit ISCC).
-pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<String> {
-    let parts: Vec<&str> = iscc.trim().split(':').map(str::trim).collect();
-    let cleaned = match parts.as_slice() {
-        [code] => {
-            // Preserve dashes for multibase-encoded inputs; strip them otherwise.
-            let is_multibase = matches!(code.chars().next(), Some('f' | 'b' | 'v' | 'z' | 'u'));
-            if is_multibase {
-                (*code).to_string()
+pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<Cow<'_, str>> {
+    let trimmed = iscc.trim();
+    let cleaned: Cow<'_, str> = match trimmed.split_once(':') {
+        None => {
+            // Single part, no scheme prefix. Preserve dashes for multibase-encoded
+            // inputs; strip them otherwise. Borrow when nothing needs removing.
+            let is_multibase = matches!(
+                trimmed.as_bytes().first(),
+                Some(b'f' | b'b' | b'v' | b'z' | b'u')
+            );
+            if is_multibase || !trimmed.contains('-') {
+                Cow::Borrowed(trimmed)
             } else {
-                code.replace('-', "")
+                Cow::Owned(trimmed.replace('-', ""))
             }
         }
-        [scheme, code] => {
+        Some((scheme, rest)) => {
+            let scheme = scheme.trim();
+            let code = rest.trim();
+            // A second colon means the string is malformed (more than one part).
+            if code.contains(':') {
+                return Err(IsccError::InvalidInput(format!(
+                    "Malformed ISCC string: {iscc}"
+                )));
+            }
             if !scheme.eq_ignore_ascii_case("iscc") {
                 return Err(IsccError::InvalidInput(format!("Invalid scheme: {scheme}")));
             }
-            code.replace('-', "")
-        }
-        _ => {
-            return Err(IsccError::InvalidInput(format!(
-                "Malformed ISCC string: {iscc}"
-            )));
+            if code.contains('-') {
+                Cow::Owned(code.replace('-', ""))
+            } else {
+                Cow::Borrowed(code)
+            }
         }
     };
 
