@@ -16,6 +16,31 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
+## `bench_iscc_code.four_units` iai regression is intrinsic to reference-correct cleaning `critical` [review]
+
+**HUMAN REVIEW REQUESTED** — a perf-baseline/dependency decision the CID loop must not make
+autonomously (baseline moves are human/gate territory per next.md iter 193 and state.md).
+
+CI `Perf (iai-callgrind)` is RED on develop and blocks all other work. Routing codec input through
+the reference-correct `codec::iscc_clean` (iters 191/192) raised `bench_iscc_code.four_units` from
+11,968 → 13,369 Ir (**+11.71%**, over the 10% gate). Iter 193 made `iscc_clean` return `Cow` and
+removed both per-component allocations — this greened `bench_mixed_code.two_codes` (+18.30% →
++6.95%) and cut four_units from +36.82% → +11.71%, but a residual remains that is **intrinsic
+scanning cost, not allocation** (verified: reference `codec.py:644` does exactly this; the pre-191
+baseline was set for cheaper-but-non-conformant `strip_prefix("ISCC:")`-only code). The two std
+`memchr` scans (`split_once(':')` + `contains('-')`) are irreducible: a scalar single-pass measured
+*worse* (13,499), and a single SIMD pass needs the out-of-scope `memchr` crate.
+
+Resolved when the human picks one and it lands: **(A, recommended)** bump `.iai-baseline.json`
+four_units (~11,968 → ~13,400) with a justification recorded in decisions.md — the cost is genuine
+and intrinsic to a deliberate, already-accepted correctness fix, and absolute cost is negligible
+(13,369 Ir vs 7M+ for real hashing); **(B)** authorize adding the `memchr` crate for a `memchr2`
+single-pass (touches 2 `Cargo.toml` + Cargo.lock + `deny.toml` audit gate); or **(C)** revert
+191/192 (reopens the codec cleaning divergence — not recommended). The iter-193 `Cow` commit
+(`5ffa5cb`) is correct and strictly better regardless of choice; it should stay.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
+
 ## `docs/c-ffi-api.md` type names don't match the generated `iscc.h` `normal` [review]
 
 The page documents every FFI struct under an unprefixed name (`IsccDecodeResult`, `IsccByteBuffer`,

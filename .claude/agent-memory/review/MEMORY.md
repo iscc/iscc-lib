@@ -13,6 +13,12 @@ sweep + differential gates, boundary vectors), `codex-integration.md`. Stale →
     never assert the hook count, it drifts. Pre-push hooks (clippy, cargo test, pytest, `ty`, ruff
     `S`/`C901`) are NOT in it — verify clippy with
     `cargo clippy --workspace --all-targets -- -D warnings`. Added files must be ≤256kb
+- **`mise run bench:iai:check` is NOT in `mise run check`** (CI-only enforcing Perf gate): run it
+    explicitly on ANY benchmarked hot-path change (codec `iscc_clean`/decode, text utils, cdc) —
+    iter 191's +36% four_units regression slipped past a green-`check` review (192) into RED CI. A
+    *correctness* change can raise iai cost irreducibly (191/192 reference-correct clean = 2 std
+    memchr scans); removing allocs won't restore a baseline set for cheaper-but-wrong code → the fix
+    is a deliberate baseline regen (human/gate, escalate) → detail `gate-reviews.md`
 - **Pre-push needs `iscc_lib` built** (`ty check`/`pytest` import it) — run
     `uv run maturin develop --release` in `crates/iscc-py` BEFORE `git push` → `binding-reviews.md`
 - Proper scoping, NOT circumvention: `[tool.ty.src] exclude` for Python importing non-venv packages
@@ -31,20 +37,17 @@ sweep + differential gates, boundary vectors), `codex-integration.md`. Stale →
     number, test spec, expected value and count from source → `review-patterns.md` "Claim-Probing"
 - `iscc_decompose` returns units WITHOUT "ISCC:" prefix — cross-check doc examples. **Docs site
     URL** is `https://lib.iscc.codes/`, NOT `https://iscc-lib.iscc.io/` (advance gets this wrong)
-- **A docs-only sweep can FABRICATE a per-surface return type** (190): `iscc-wasm/CLAUDE.md`
-    invented an `IsccIdResult` struct though wasm `gen_iscc_id_v1` returns bare
-    `Result<String, JsError>`. Grep each binding's `src/lib.rs` for the ACTUAL return type of any
-    newly-documented symbol — not the CLAUDE.md/howto prose (Codex catches these). c-ffi doc uses
-    UNPREFIXED type names; `iscc.h` cbindgen prefixes `iscc_` (page-wide, issues.md)
-- **A `#[deprecated]` claim in next.md is a hypothesis like any other** (168) — read the attribute
-    in `~/.cargo/registry/src/index.crates.io-*/<crate>-<ver>/src/` (jni 0.22.4 never deprecated
-    `Env::byte_array_from_slice`; that grep criterion cost a zero-copy path)
-- **On ANY codec input-cleaning change, probe empty/garbage inputs** (191 NEEDS_WORK): a helper that
-    can yield `""` (blank/`"-"`/`"iscc:"`) makes `iscc_decompose` silently return `Ok([])` because
-    `decode_base32("")` is `Ok(empty)`, not an error — a Tier-1 silent-acceptance regression the
-    differential tests (valid inputs only) miss. Compare against `HEAD~1` (those forms errored) and
-    the reference. Codex catches this class; the advance's "decode_base32 rejects it" claim was
-    false
+- **A docs-only sweep can FABRICATE a per-surface return type** (190): grep each binding's
+    `src/lib.rs` for the ACTUAL return type of any newly-documented symbol, not the CLAUDE.md/howto
+    prose (wasm `gen_iscc_id_v1` returns bare `Result<String,JsError>`, not an invented struct;
+    Codex catches these). A `#[deprecated]`/attribute claim in next.md is a hypothesis too — read it
+    in `~/.cargo/registry/src/index.crates.io-*/<crate>-<ver>/src/` (168: jni 0.22.4 never
+    deprecated `Env::byte_array_from_slice`; that grep criterion cost a zero-copy path)
+- **On ANY codec input-cleaning change, probe empty/garbage inputs** (191): a helper that yields
+    `""` (blank/`"-"`/`"iscc:"`) makes `iscc_decompose` silently return `Ok([])`
+    (`decode_base32("")` is `Ok(empty)`, not an error) — a Tier-1 silent-acceptance regression
+    valid-input differential tests miss. Compare against `HEAD~1` + reference; 192 added the empty
+    guard (learnings)
 - **Advance agent idle claims**: verify remaining issue priorities independently — it may claim
     "only low-priority remain" when `normal` issues still exist
 - **A `--no-default-features` CI step catches COMPILE breaks the default gates miss** (174): a

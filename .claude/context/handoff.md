@@ -1,74 +1,66 @@
-## 2026-07-29 — Restore `iscc_clean` to zero allocation on clean input (Perf gate)
+> **HUMAN REVIEW REQUESTED**: The enforcing `Perf (iai-callgrind)` gate stays RED on develop
+> (`bench_iscc_code.four_units` +11.71% > 10%) and the loop is blocked. Review confirms the residual
+> is **intrinsic to reference-correct cleaning**, not a removable defect — next.md's premise that
+> the cost was "genuinely removable" is falsified. Resolving it is a perf-baseline/dependency
+> decision the CID loop must not make autonomously. Pick one (detail in issues.md, `critical`
+> entry): **(A, recommended)** bump `.iai-baseline.json` four_units ~11,968→~13,400 + a decisions.md
+> note — the cost is genuine, intrinsic to the deliberate 191/192 correctness fix, and negligible in
+> absolute terms; **(B)** authorize the `memchr` crate for a `memchr2` single-pass (touches 2
+> Cargo.toml + Cargo.lock + `deny.toml`); **(C)** revert 191/192 (reopens codec divergence — no).
 
-**Done:** Changed `codec::iscc_clean` to return `Cow<'_, str>`, borrowing (zero allocation) when the
-input has no scheme and no dashes, allocating only to strip dashes. `gen_iscc_code_v0`'s `cleaned`
-is now `Vec<Cow<'_, str>>`. Behavior is byte-identical (all conformance + codec_clean tests pass).
-This removes both per-component allocations (the split-collect `Vec` and the `replace` `String`).
+## 2026-07-29 — Review of: Restore `iscc_clean` to zero allocation on clean input (Perf gate)
 
-**Result:** `bench_mixed_code.two_codes` is now GREEN (+18.30% → **+6.95%**).
-`bench_iscc_code.four_units` dropped +36.82% → **+11.71%** but **remains RED** (threshold 10%).
+**Verdict:** NEEDS_WORK
 
-**⚠️ Perf gate still fails on four_units — the step's premise is incomplete.** The stated cost (two
-allocations) is fully removed, yet a residual remains that is **intrinsic scanning cost, not
-allocation**. Evidence (Ir, the gate metric; baseline 11,968):
-
-- Full reference-correct `iscc_clean`: 13,369 Ir (+11.71%).
-- **Probe** — `iscc_clean` body replaced with `strip_prefix("ISCC:")`-only (still `Cow`/`Result`/
-    collect): **12,279 Ir (+2.6%, passes)**. So Cow/call/collect adds ~311 Ir; the remaining ~1,090
-    Ir is `trim()` + `split_once(':')` + `contains('-')` per code ×4 — the two byte-scans that the
-    pre-191 inline `strip_prefix` never did.
-- The reference (`codec.py:644`) does exactly this (split on `:`, strip each part, multibase check,
-    strip `-`); there is no cheaper conformant algorithm.
-- A manual single-pass byte loop (one scan for both `:` and `-`) measured **worse** (13,499) — std's
-    vectorized `memchr` beats a scalar loop, so reducing scan count does not help.
-
-**Conclusion:** the last ~1.7% (205 Ir over threshold) is unavoidable with std-only Rust. It is the
-inherent cost of the reference-correct cleaning that iters 191/192 deliberately introduced, not a
-removable allocation. Closing it requires a **human/gate decision**, which next.md places out of
-scope:
-
-- **Recommended — bump `.iai-baseline.json` four_units** (~11,968 → ~13,400) with justification: the
-    regression is genuine but now *intrinsic to correctness*, so the baseline should reflect it.
-    next.md forbids me from doing this ("Not In Scope"); I left `.iai-baseline.json` untouched
-    (`git diff --quiet` confirms).
-- Adding the `memchr` crate for `memchr2` was considered and **rejected**: std `str::contains`/
-    `split_once` already call the same core SIMD memchr, so a dep is unlikely to help and is out of
-    scope (would touch 2 `Cargo.toml` + Cargo.lock + audit gate).
-
-I committed the allocation fix regardless — it is correct, strictly reduces the regression, and
-greens mixed_code; reverting would be worse.
-
-**Files changed:**
-
-- `crates/iscc-lib/src/codec.rs`: `iscc_clean` → `IsccResult<Cow<'_, str>>`; `split_once(':')`,
-    borrow on the no-scheme/no-dash path, allocate only on `contains('-')`; iter-192 empty guard and
-    all branch semantics preserved. Inline `#[cfg(test)]` asserts unchanged (`Cow == &str`/`String`
-    compile via std `impl_eq!`).
-- `crates/iscc-lib/src/lib.rs`: line 894 annotation `Vec<String>` → `Vec<Cow<'_, str>>`; sites 222,
-    810, 924 unchanged (deref coercion).
-- `.crap-baseline.json` (generated): `iscc_clean` cyclomatic 7 → 9 (100% covered, well under 30.0);
-    `.cargo-crap.toml` untouched.
+**Summary:** The advance agent correctly made `codec::iscc_clean` return `Cow<'_, str>`, borrowing
+allocation-free on the no-scheme/no-dash path and allocating only to strip dashes. Behavior is
+byte-identical (faithful port of reference `codec.py:644`; empty guard from iter 192 preserved). The
+fix greened `bench_mixed_code.two_codes` (+18.30%→+6.95%) and cut `four_units` +36.82%→+11.71%, but
+four_units **stays over the 10% gate**, so the step's Done When is not met and CI stays red. The
+commit is correct and strictly better and should NOT be reverted — but it cannot green the gate
+within the authorized scope.
 
 **Verification:**
 
-- `cargo test -p iscc-lib` — 309 + 10 (codec_clean) + 28 + 22 + 4 pass, 0 failed.
-- `iscc_clean` still `Err(InvalidInput)` on `"   "`/`"-"`/`"iscc:"`/`"----"`, bad scheme, extra
-    colon; valid hyphenated/padded/lowercase-scheme/multibase forms clean identically (codec_clean
-    suite green).
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt --check` clean.
-- `mise run bench:iai:check` — mixed_code +6.95% PASS; **four_units +11.71% FAIL** (see above);
-    `.iai-baseline.json` unmodified.
+- [x] `cargo test -p iscc-lib` — 309 + 10 (codec_clean) + 28 + 22 + 4 + 1 doctest pass, 0 failed
+- [x] `iscc_clean` errors on `"   "`/`"-"`/`"iscc:"`/`"----"`, bad scheme, extra colon; valid
+    hyphenated/padded/lowercase-scheme/multibase forms clean identically (codec_clean 10/10)
+- [x] `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt --check` clean
+- [x] `.crap-baseline.json` regenerated (cyclo 7→9, 100% cov); `.cargo-crap.toml` untouched
+- [ ] `mise run bench:iai:check` — mixed_code +6.95% PASS; **four_units +11.71% FAIL** vs the
+    unmodified committed baseline (`.iai-baseline.json` untouched, `git diff --quiet` confirmed).
+    **Primary criterion NOT met.**
 
-**Next:** Human/reviewer decides four_units: bump the baseline (recommended — cost is intrinsic) or
-accept the loop stays blocked. Once green, the Go `iscc_clean` port (issues.md `normal`) — which
-must replicate both the `Cow` intent (its own idiom) and the iter-192 empty-cleaned guard — is
-unblocked, plus the Ruby `gen_iscc_id_v1` validation-order and ASCII-only iai-bench gaps.
+**Probes (verified independently):**
+
+- Reference `iscc_clean` (`codec.py:644`) does exactly split-on-`:`/strip-each/multibase-check/strip
+    dash — the port is faithful; no cheaper conformant algorithm in std.
+- Pre-191 `gen_iscc_code_v0` did only `strip_prefix("ISCC:")` (NOT reference-correct — no trim, no
+    dash-strip, no lowercase scheme). So the committed baseline was set for cheaper-but-wrong code;
+    191/192 traded that cost for correctness — why removing allocations alone can't restore it.
+- The residual is two std `memchr` scans (`split_once(':')` + `contains('-')`); a scalar single-pass
+    measured *worse* (advance probe: 13,499 Ir). Irreducible without the out-of-scope `memchr`
+    crate.
+
+**Issues found:**
+
+- Primary: four_units Perf gate red — filed as `critical` [review] with the (A)/(B)/(C) decision.
+- No gate weakening in the unpushed range; no API break (`iscc_clean` is `pub(crate)`; `Cow` derefs
+    to `str`, all call sites source-compatible). Scope clean (2 source files + 2 generated
+    baselines).
+
+**Codex review:** Concurs — flags the same P1 (four_units 13,369 vs 11,968 = +11.71%, CI red) and
+suggests "combine the delimiter checks or obtain an approved rebaseline." Combining scans is what
+the advance already measured as *slower* (std SIMD memchr beats a scalar merge); the approved
+rebaseline is option (A). Advisory only — does not change the verdict.
+
+**Next:** BLOCKED on the human decision above. Once four_units is green (option A/B), unblock in
+priority order: Go `iscc_clean` port (issues.md `normal` — must replicate the iter-192 empty guard),
+then Ruby `gen_iscc_id_v1` validation-order and the ASCII-only iai-bench gap.
 
 **Notes:**
 
-- No API break: `iscc_clean` is `pub(crate)`; `Cow` derefs to `str` so all call sites are source-
-    compatible.
-- `.crap-baseline.json` diff is 30/30 (function reordering by line number after the edit) plus the
-    cyclo 7→9 bump — regenerated via `mise run crap:baseline`, not hand-edited.
-- Reviewer should independently re-run `mise run bench:iai:check` to confirm the four_units number
-    and adjudicate the baseline decision — I cannot green it within the authorized scope.
+- NOT pushed — verdict NEEDS_WORK, Perf gate red. Remote develop is already red at the iter-192 tip
+    (b2f56b6); iter 192's review missed the 191 regression because `mise run check` skips iai.
+- The iter-193 `Cow` commit (`5ffa5cb`) stays regardless of which option lands — it is correct and
+    strictly reduces the regression.

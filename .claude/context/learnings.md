@@ -15,26 +15,21 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     realm{0,1}×hub{0,4095}×ts{0,2^52-1} (178). NO dedicated decoder on any surface (ref has none).
     **Minting ≠ decode round-trip**: core `codec::Version` accepts `V1`, but a surface with its OWN
     version enum makes `iscc_decode(gen_iscc_id_v1(...))` raise `1 is not a valid VS`. Python was
-    the *only* enum surface (widened `VS.V1 = 1` + round-trip, iter 189); the other 10 return a bare
-    int/byte version. Decode fan-out COMPLETE on all 11; #43 doc/count sweep done (190), IDv1 closed
-- **IDv1 validation ORDER is normative on every surface** (spec rust-core.md §Validation; ref order
-    `iscc_id.py:127-133` ts→hub→realm, "first failing check wins", asserted even for MULTI-invalid
-    inputs). A wide-int binding (napi/wasm/jni) MUST validate the three SEMANTIC thresholds
-    (`2^52`/`4096`/`2`) in that order IN THE BINDING before narrowing — napi does
-    `checked(v,thresh,   name)?` ×3. A *wide narrowing guard* (hub 0-65535, realm 0-255) that skips
-    the ts check and defers to core is WRONG: `(2^52,65536,0)` reports hub not ts (183 jni
-    NEEDS_WORK, **fixed 184**). Exact-width surfaces (Go/ffi/dotnet, uniffi) can't pass
-    out-of-narrowing values → delegate ordering to core safely; only wide-input surfaces need
-    in-order binding checks. **Ruby (185) narrows Integer→`i64` in Magnus marshalling BEFORE the fn
-    body** → `RangeError` order break for `> i64::MAX` only (issues.md; fix: validate in Ruby)
-- **IDv1 minting fan-out COMPLETE (179-188), docs sweep 190**: exact-width **unsigned** surface args
-    (`u64/u16/u8` or lang equivalent) mean callers can't overflow → no Ruby-style marshalling gap,
-    no binding guard needed (core re-checks ts→hub→realm; a no-guard passthrough can't reorder,
-    unlike jni's earlier partial guard). Decode is bit-math on `iscc_decode`'s bare-int `version`
-    (NO enum-widening except Python), `ts=n>>12`/`hub=n&0xFFF`/`realm=SubType` on the 8-byte BE
-    body. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build**
-    → pre-push clippy fails "files were modified"; regen+commit it (like `iscc.h`) in the SAME
-    FFI-symbol step, never "the dotnet step"
+    the *only* enum surface (widened `VS.V1 = 1` + round-trip, 189); other 10 return bare int/byte.
+    Decode fan-out COMPLETE on all 11; #43 doc/count sweep done (190), IDv1 closed
+- **IDv1 validation ORDER is normative** (spec rust-core.md §Validation; ref `iscc_id.py:127-133`
+    ts→hub→realm, "first failing check wins", even for MULTI-invalid inputs). Wide-int bindings
+    (napi/wasm/jni) MUST check the three SEMANTIC thresholds (`2^52`/`4096`/`2`) in that order IN
+    THE BINDING before narrowing (a wide *narrowing* guard that skips ts is WRONG: `(2^52,65536,0)`
+    reports hub not ts — 183 jni fixed 184). Exact-width surfaces delegate safely. **Ruby (185)
+    narrows Integer→`i64` in Magnus marshalling BEFORE the body** → `RangeError` order break for
+    `> i64::MAX` only (issues.md open; fix: validate in Ruby)
+- **IDv1 minting fan-out COMPLETE (179-190)**: exact-width **unsigned** args (`u64/u16/u8`) can't
+    overflow → no binding guard (core re-checks ts→hub→realm; passthrough can't reorder). Decode is
+    bit-math on `iscc_decode`'s bare-int version, `ts=n>>12`/`hub=n&0xFFF`/`realm=SubType` on the
+    8-byte BE body. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on
+    EVERY build** → pre-push clippy fails "files were modified"; regen+commit it (like `iscc.h`) in
+    the SAME FFI-symbol step, never "the dotnet step"
 
 ## Reference Implementation
 
@@ -49,8 +44,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     canonicalized to valid; now `u8::try_from`-gated. Probe `"MDFZAAAAAAAAAAAAAA"` on header gates
 - **`decode_base32("")` returns `Ok(empty)`, not an error** (191; empty guard in `iscc_clean` 192):
     a cleaning helper that can yield `""` (blank/dash-only/`"iscc:"`) must reject empty before
-    decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage
-    forms on any codec-cleaning change
+    decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage on
+    cleaning
 
 ## Tooling
 
@@ -132,7 +127,15 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     new branch in a covered fn — or merely **moving lines below the edit point** — is green locally,
     red in CI unless the baseline moves in the SAME step (never widen epsilon/threshold)
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
-    load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`
+    load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`.
+    **NOT in `mise run check`** — a benchmarked hot-path change (codec `iscc_clean`, text utils)
+    needs `mise run bench:iai:check` run explicitly (iter 191's +36% four_units regression slipped
+    past a green `check` into red develop CI). A committed baseline reflects the code AT baseline
+    time: a *correctness* change to a hot path can raise cost irreducibly (191/192 reference-correct
+    `iscc_clean` = two std `memchr` scans `split_once(':')`+`contains('-')`; a scalar single-pass is
+    *slower*, a single SIMD pass needs the out-of-scope `memchr` crate), so removing allocations
+    alone won't restore a baseline set for cheaper-but-wrong code — regen the baseline in the SAME
+    step
 - **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, two dev-only
     iai-callgrind advisories ignored) + `audit` CI job (`cargo-deny@0.19.9`) + `mise run audit`;
     reads Cargo.lock so green locally is authoritative. A yanked crate/fresh RustSec advisory reds
