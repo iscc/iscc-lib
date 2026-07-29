@@ -110,6 +110,15 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     DON'T overwrite swift `.modulemap` (hand-simplified); bindgen is 3rd-party → verify regen no-op
     modulo trailing-ws not `git status`. Swift test via swift.org debian12 toolchain, Kotlin via
     `./gradlew test`. Remaining after: dotnet C#, cpp, + 32→33 doc sweep.
+- **187 scoped dotnet C#** (10th of 11 surfaces): FFI `iscc_gen_iscc_id_v1(u64,u16,u8)` returns just
+    the ISCC **string** (`result_to_c_string(...map(|r| r.iscc))`) — like all gen fns; the P/Invoke
+    decl already exists (`NativeMethods.g.cs:293`, FFI build side-effect iter 182, do NOT regen).
+    Idiomatic wrapper mirrors `GenMetaCodeV0`: add `IsccIdResult(string Iscc)` to `Results.cs`,
+    method to `IsccLib.cs`. Exact-width unsigned args → NO binding guard (core validates); NULL→
+    `ConsumeNativeString` throws `IsccException`. C# `DecodeResult.Version` is raw `byte` (no enum)
+    → generic decode already accepts V1, round-trip works with no widening. `dotnet test` verifiable
+    locally. Only cpp (`iscc.hpp` header-only, needs `uv run --with cmake cmake`) + 32→33 doc sweep
+    left.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published
