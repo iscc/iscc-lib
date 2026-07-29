@@ -1,16 +1,15 @@
-<!-- assessed-at: 40b72ced8d9bd25d40f5f72f0d3f48910ee04375 -->
+<!-- assessed-at: 61807f35b3c4616288f7598cc2dd4d9704fc65b4 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.6.0 — `gen_iscc_id_v1` minting now on core + Python + Go; CI is GREEN
+## Phase: v0.6.0 — `gen_iscc_id_v1` minting now on core + Python + Go + Node.js; CI is GREEN
 
-Iteration 179 finished the Go IDv1 sub-item (reviewed PASS): the superseded
-`EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result` are gone, replaced by the canonical
-`GenIsccIDV1(timestamp, hubID, realm)`, with decode via the generic `IsccDecode` path. Core, Python
-and Go now carry all 33 targeted Tier 1 symbols; **9 language surfaces still lack IDv1 minting.** CI
-is GREEN on `develop` (the `Semver` red is `continue-on-error`/informational).
+Iteration 180 landed the napi (Node.js) IDv1 minting slice (reviewed PASS_WITH_NOTES): napi now
+exports `gen_iscc_id_v1` at 33/33 Tier 1 symbols. Core, Python, Go and Node.js carry all 33 targeted
+symbols; **8 language surfaces still lack IDv1 minting.** CI is GREEN on `develop` (the `Semver` red
+is `continue-on-error`/informational).
 
 ## Rust Core Crate
 
@@ -35,10 +34,14 @@ is GREEN on `develop` (the `Semver` red is `continue-on-error`/informational).
 
 ## Node.js Bindings
 
-**Status**: partially met — 32/33 symbols
+**Status**: met — 33/33 symbols
 
-- `crates/iscc-napi` exports 32 symbols with streaming classes, Unicode-gated. IDv1 decode inherits
-    from core; **no `gen_iscc_id_v1`.** Untouched.
+- `crates/iscc-napi/src/lib.rs:313` exports `gen_iscc_id_v1(timestamp: f64, hub_id, realm)` (iter
+    180), golden vector oracle-confirmed, `index.d.ts` declaration + `__tests__/iscc_id_v1.test.mjs`
+    round-trip. Streaming classes and Unicode gate intact.
+- **Known gap (open `normal` issue):** the `f64`/JS-number path silently coerces invalid inputs
+    (negative/NaN/non-integral/overflow) into valid-but-wrong IDs instead of throwing. Out of scope
+    for the minting slice; the JS-number validation approach is to be settled on the wasm slice.
 
 ## WASM Bindings
 
@@ -52,13 +55,14 @@ is GREEN on `develop` (the `Semver` red is `continue-on-error`/informational).
 **Status**: partially met — 32/33 symbols
 
 - 47 `#[unsafe(no_mangle)]` externs in `crates/iscc-ffi/src/lib.rs`, Unicode-gated. IDv1 decode
-    inherits from core; **no `gen_iscc_id_v1`.** Untouched.
+    inherits from core; **no `gen_iscc_id_v1`** (adding it needs `iscc.h` regen + freshness gate).
+    Untouched.
 
 ## Other Bindings (Go, Java, Kotlin, C#, C++, Ruby, Swift)
 
 **Status**: partially met — Go IDv1 complete; other 6 at 32/33 with no IDv1 minting
 
-- **Go: DONE.** `packages/go/iscc_id.go` now has `GenIsccIDV1(timestamp uint16..., realm)`; no
+- **Go: DONE.** `packages/go/iscc_id.go` has `GenIsccIDV1(timestamp, hubID, realm)`; no
     `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result` remain anywhere under `packages/go/`.
     `IsccDecode` accepts MainType `Id` Version 1 for decode round-trip.
 - **Java, Kotlin, C#, C++, Ruby, Swift:** each at 32 symbols, no `gen_iscc_id_v1`. Untouched; uniffi
@@ -71,7 +75,7 @@ is GREEN on `develop` (the `Semver` red is `continue-on-error`/informational).
 **Status**: partially met
 
 - Docs site (23 pages, 12 READMEs, 12 CLAUDE.md) met; `docs/howto/go.md` + `packages/go/README.md`
-    updated to `GenIsccIDV1`.
+    on `GenIsccIDV1`.
 - Tabbed multi-language examples do not yet cover a non-Go IDv1 surface; Tier-1 count text still
     reads 32 in stale sites (separate 32→33 sweep step under #43).
 
@@ -87,20 +91,22 @@ is GREEN on `develop` (the `Semver` red is `continue-on-error`/informational).
 
 **Status**: met (CI green); dependency freshness met; release-readiness still open
 
-- **CI GREEN on `origin/develop` = `2223d25`:** all 23 check names pass except
-    `Semver (cargo-semver-checks)` which is `continue-on-error: true` (informational until v1.0.0) —
-    expected non-blocking red, not a CI failure. HEAD `40b72ce` is the `cid(log)` commit;
-    `git diff origin/develop..HEAD -- . ':!.claude'` is empty, so green covers HEAD.
+- **CI GREEN on `origin/develop` = `9bec4aa`:** check-suite conclusion `success`; all 23 check names
+    pass except `Semver (cargo-semver-checks)` which is `continue-on-error: true` (informational
+    until v1.0.0) — expected non-blocking red, not a CI failure. HEAD `61807f3` adds only `cid(log)`
+    - `cid(audit)` commits; `git diff origin/develop..HEAD -- . ':!.claude'` is empty, so green covers
+        HEAD.
 - Dependency freshness met (criterion 0.8 at 171, uniffi 0.32 at 172); zero `# held:`/`authorized`
     pin comments in root `Cargo.toml`. Job shape unchanged (21 keys → 22 jobs → 23 names).
 - PR **#44** `develop` → `main` OPEN; version **0.5.0**.
-- v0.6.0 "no `critical`/`normal` issue open" criterion **unmet**: 0 critical, 4 open `normal`.
+- v0.6.0 "no `critical`/`normal` issue open" criterion **unmet**: 0 critical, 5 open `normal`.
 
 ## Open Issues
 
-**11 entries — 0 `critical`, 4 `normal`, 7 `low`, zero HUMAN REVIEW REQUESTED.**
+**12 entries — 0 `critical`, 5 `normal`, 7 `low`, zero HUMAN REVIEW REQUESTED.**
 
-- **NORMAL:** ISCC-IDv1 unsupported outside Go (`[human]`, the live v0.6.0 work — Go now done, 9
+- **NORMAL:** JS-number IDv1 minting coerces invalid inputs instead of throwing (`[review]`, filed
+    iter 180); ISCC-IDv1 unsupported outside Go (`[human]`, the live v0.6.0 work — Go+Node done, 8
     surfaces remain); codec input cleaning diverges from `iscc_clean` (`[review]`); iai text
     benchmarks ASCII-only (`[review]`); go1.27 tripwire (`[review]`, blocked on upstream).
 - **LOW:** upstream `iscc-core#137` thread, 88-bit ISCC-IDv0 upstream mint, gate-script remainders,
@@ -109,7 +115,8 @@ is GREEN on `develop` (the `Semver` red is `continue-on-error`/informational).
 ## Next Milestone
 
 **CI is green — no CI fix needed.** Continue the #43 IDv1 fan-out: propagate experimental
-`gen_iscc_id_v1` minting from core to the remaining 9 language surfaces (napi, wasm, ffi, jni, rb,
-uniffi→Swift/Kotlin, dotnet, cpp), widen each surface's own version enum so
-`iscc_decode(gen_iscc_id_v1(...))` round-trips (Python `VS`, etc.), and run the Tier-1 32→33
-doc/count sweep — the last CID-doable v0.6.0 release-readiness blockers.
+`gen_iscc_id_v1` minting from core to the remaining 8 language surfaces (wasm, ffi, jni, rb,
+uniffi→Swift/Kotlin, dotnet, cpp), settling the JS-number input-validation approach on the wasm
+slice; widen each surface's version enum so `iscc_decode(gen_iscc_id_v1(...))` round-trips (Python
+`VS`, etc.); and run the Tier-1 32→33 doc/count sweep — the last CID-doable v0.6.0 release-readiness
+blockers.
