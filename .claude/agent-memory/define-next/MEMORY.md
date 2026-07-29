@@ -95,30 +95,12 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     phantom recurs every iteration the semver check-run is red — verify workflow *conclusion* at the
     source each time, never trust a state.md "red" derived from check-run status. 177 and 178 both
     skipped a phantom "fix CI" step and went to #43 fan-out.
-- **ISCC-IDv1 (#43): core DONE (33 symbols), fanning out per-surface** →
-    [idv1 fan-out facts](iscc-idv1-fanout.md). Golden
-    `gen_iscc_id_v1(1751831876325218,1,0)=="ISCC:MAIGHFECJMOPMIAB"`; validation ts≥2^52/hub≥2^12/
-    realm∉{0,1}; no dedicated decoder. Each surface is its OWN step (tech wraps differently). Done:
-    178 Python, 179 Go rename, 180 napi, 181 wasm + JS-number validation, 182 ffi, 184 jni, 185 rb.
-    **186 scoped uniffi (Swift+Kotlin) as ONE fan-out step** — one core edit
-    `crates/iscc-uniffi/src/lib.rs` (`IsccIdResult` record + export `(u64,u16,u8)` straight to core,
-    **NO checked() guard** — exact-width types = ffi/Go pattern, core does ts→hub→realm order) then
-    regen 3 checked-in artifacts (swift `iscc_uniffi.swift`+`iscc_uniffiFFI.h`, kotlin
-    `iscc_uniffi.kt`) via
-    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen --   generate` (swift
-    `--language swift`, kotlin `--language kotlin --no-format`). uniffi camelCases `genIsccIdV1`;
-    DON'T overwrite swift `.modulemap` (hand-simplified); bindgen is 3rd-party → verify regen no-op
-    modulo trailing-ws not `git status`. Swift test via swift.org debian12 toolchain, Kotlin via
-    `./gradlew test`. Remaining after: dotnet C#, cpp, + 32→33 doc sweep.
-- **187 scoped dotnet C#** (10th of 11 surfaces): FFI `iscc_gen_iscc_id_v1(u64,u16,u8)` returns just
-    the ISCC **string** (`result_to_c_string(...map(|r| r.iscc))`) — like all gen fns; the P/Invoke
-    decl already exists (`NativeMethods.g.cs:293`, FFI build side-effect iter 182, do NOT regen).
-    Idiomatic wrapper mirrors `GenMetaCodeV0`: add `IsccIdResult(string Iscc)` to `Results.cs`,
-    method to `IsccLib.cs`. Exact-width unsigned args → NO binding guard (core validates); NULL→
-    `ConsumeNativeString` throws `IsccException`. C# `DecodeResult.Version` is raw `byte` (no enum)
-    → generic decode already accepts V1, round-trip works with no widening. `dotnet test` verifiable
-    locally. Only cpp (`iscc.hpp` header-only, needs `uv run --with cmake cmake`) + 32→33 doc sweep
-    left.
+- **ISCC-IDv1 (#43): core DONE (33 symbols); each surface its OWN step (tech wraps differently)** →
+    [idv1 fan-out facts](iscc-idv1-fanout.md) has golden/validation + per-surface slice recipes.
+    Done: 178 Python, 179 Go rename, 180 napi, 181 wasm+JS-number validation, 182 ffi, 184 jni, 185
+    rb, 186 uniffi (Swift+Kotlin, one step), 187 dotnet C#, **188 cpp (LAST minting surface)**.
+    **After 188: ALL 11 minting surfaces done — ONLY the Tier-1 32→33 doc/count sweep remains** (its
+    exact stale sites incl. 3 non-Markdown are enumerated in issues.md #43 + the fanout file).
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published

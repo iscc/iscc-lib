@@ -85,7 +85,33 @@ must widen it + round-trip test.
     recipe. rb's OWN header docstring `Symbols (32 of 32)` is bumped to 33 in-step (it enumerates
     names); the repo-wide sweep is still separate.
 
-## Remaining after 185
+- **186 = uniffi (Swift+Kotlin), ONE fan-out step:** one core edit `crates/iscc-uniffi/src/lib.rs`
+    (`IsccIdResult` record + export `(u64,u16,u8)` straight to core, **NO checked() guard** —
+    exact-width = ffi/Go pattern, core does ts→hub→realm) then regen 3 checked-in artifacts (swift
+    `iscc_uniffi.swift`+`iscc_uniffiFFI.h`, kotlin `iscc_uniffi.kt`) via
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate` (swift
+    `--language swift`, kotlin `--language kotlin --no-format`). uniffi camelCases `genIsccIdV1`;
+    DON'T overwrite swift `.modulemap` (hand-simplified); bindgen 3rd-party → verify regen no-op
+    modulo trailing-ws, not `git status`. Swift test via swift.org debian12 toolchain, Kotlin
+    `./gradlew test`.
 
-uniffi→Swift/Kotlin (1 core edit + 3 regen artifacts), dotnet (C# consumer + regen
-`NativeMethods.g.cs`), cpp, + the 32→33 doc/count sweep.
+- **187 = dotnet C#:** FFI returns just the ISCC **string**; P/Invoke decl already exists
+    (`NativeMethods.g.cs:293`, FFI build side-effect 182, do NOT regen). Mirror `GenMetaCodeV0`: add
+    `IsccIdResult(string Iscc)` to `Results.cs`, method to `IsccLib.cs`. Exact-width unsigned → NO
+    binding guard; NULL→`ConsumeNativeString` throws `IsccException`. `DecodeResult.Version` raw
+    `byte` → round-trip needs no widening. `dotnet test` verifiable locally.
+
+- **188 = cpp (LAST minting surface):** header-only `packages/cpp/include/iscc/iscc.hpp` — add
+    `struct IsccIdResult { std::string iscc; }` + inline `gen_iscc_id_v1(uint64_t,uint16_t,uint8_t)`
+    mirroring `gen_meta_code_v0` (delegate `iscc_gen_iscc_id_v1` at `iscc.h:386`,
+    `detail::UniqueString` + `check_ptr` throws `IsccError` on NULL). Exact-width → NO guard;
+    `DecodeResult.version` raw `uint8_t` → round-trip passes as-is. No FFI change →
+    `cargo build -p   iscc-ffi` leaves `iscc.h`+`NativeMethods.g.cs` clean. Build/test:
+    `uv run --with cmake cmake -B packages/cpp/build -DFFI_LIB_DIR=target/debug packages/cpp` then
+    build, `LD_LIBRARY_PATH=target/debug ./packages/cpp/build/tests/test_iscc`
+    (`N passed, 0   failed`). Tests: golden, realm=2 throws, decode round-trip `.version==1`.
+
+## Remaining after 188
+
+ALL 11 minting surfaces done. Only the Tier-1 32→33 doc/count sweep (item (d) above) remains for
+#43.
