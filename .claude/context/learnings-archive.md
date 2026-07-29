@@ -972,3 +972,19 @@ runs on `opus`. Deliberate — do not "unify" them.
     to the *lowest applicable* version — exactness comes from the committed `packages.lock.json`
     plus CI's `restore --locked-mode` (csproj drift → `NU1004`, tampered `resolved`/`contentHash` →
     `NU1403`). A warm tree prints "All projects are up-to-date" and validates NOTHING — probe cold
+
+## Unicode freeze phase — completed-phase operational notes (archived iter 183)
+
+- **`str::to_lowercase()` decides `Final_Sigma` from the COMPILER's Unicode tables** (iter 156):
+    rustc 1.97/17.0 moved U+0295 `Ll`→`Lo`, so a bare `.to_lowercase()` made hash output a function
+    of rustc. `text_collapse` uses `to_lowercase_unicode16`, pre-substituting each `Σ` with σ/ς from
+    vendored `Cased`/`Case_Ignorable` tables (`utils/unicode16_case.rs`, regen
+    `scripts/gen_unicode16_case.py`). Rule is NOT "no `Cased` follows": `ΑΣ,Β`→`αςβ`, `ΑΣ.Β`→`ασβ`
+- **Any Unicode differential MUST include multi-code-point sequences** — deleting a `Cn` code point
+    changes ADJACENCY, mapping it does not; a per-code-point sweep scores the superseded
+    delete-filter design 0 failures (only `base_mark`/`jamo`/`sigma` expose it)
+- **The sweep is a committed fail-closed gate (157, hardened 158)**: `mise run unicode:sweep` + the
+    `unicode-sweep` CI job — 1,112,064 scalars × 8 contexts × 2 fns vs installed `iscc-core` on
+    CPython 3.14, must print byte-frozen `TOTAL 17793024 comparisons, 0 divergences`; **re-run for
+    every Unicode-table or toolchain bump**. Bare `uv run scripts/unicode_sweep.py` REFUSES (only
+    rebuild-first `--rebuilt` paths pass)

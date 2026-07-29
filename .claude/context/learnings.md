@@ -18,7 +18,19 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     version enum (Python `VS` lists only `V0`) makes `iscc_decode(gen_iscc_id_v1(...))` raise
     `1 is   not a valid VS` — its #43 slice must widen the enum + round-trip test; **napi**
     (`version: u8`, 180) and **Go** return a bare int, no widening
-- **IDv1 fan-out** (179 Go, 180 napi, 182 ffi; owed jni, rb, uniffi, dotnet, cpp): Go
+- **IDv1 validation ORDER is normative on every surface** (spec rust-core.md §Validation, criterion
+    ~L542): ts→hub→realm, "first failing check wins", asserted cross-surface even for MULTI-invalid
+    inputs. A wide-int binding (napi/wasm/jni) MUST validate the three SEMANTIC thresholds
+    (`2^52`/`4096`/`2`) in that order IN THE BINDING before narrowing — napi does this with
+    `checked(v, thresh, name)?` ×3 (`crates/iscc-napi/src/lib.rs:329-331`). A *wide narrowing guard*
+    (hub 0-65535, realm 0-255) that skips the ts check and defers to core is WRONG: `(2^52,65536,0)`
+    reports hub not ts, `(0,4096,256)` reports realm not hub — reference-divergent (183, jni
+    NEEDS_WORK). Go/ffi take exact-width types so callers can't pass out-of-narrowing values → they
+    delegate ordering to core safely; only wide-input surfaces need in-order binding checks
+- **IDv1 fan-out** (179 Go, 180 napi, 182 ffi; owed jni-redo, rb, uniffi, dotnet, cpp): JNI
+    `genIsccIdV1(long ts, int hubId, int realm) -> String` mirrors `genTextCodeV0`; `isccDecode`
+    returns `version` as a plain `int`, so the decode round-trip works with NO enum-widening (no
+    `IsccDecodeResult` change); jni docs carry no numeric count. Go
     `GenIsccIDV1(ts,hub,realm) (*IsccIdResult, error)`, decode `IsccDecode` +
     `n:=BigEndian.Uint64(Digest)` (`ts=n>>12`,`hub=n&0xFFF`,`realm=Subtype`). napi/wasm bare-string;
     ffi `iscc_gen_iscc_id_v1(u64,u16,u8)`, NO `checked()`/NULL guard (core re-checks), regen
@@ -66,19 +78,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `uv run --script scripts/gen_unicode16_unassigned.py`); the *unchanged* category-`C` filter then
     removes it, and `U+FFFF` is permanently `Cn`/`ccc=0`/undecomposable. Never "fix" one binding to
     match another
-- **`str::to_lowercase()` decides `Final_Sigma` from the COMPILER's Unicode tables** (iter 156):
-    rustc 1.97/17.0 moved U+0295 `Ll`→`Lo`, so a bare `.to_lowercase()` made hash output a function
-    of rustc. `text_collapse` uses `to_lowercase_unicode16`, pre-substituting each `Σ` with σ/ς from
-    vendored `Cased`/`Case_Ignorable` tables (`utils/unicode16_case.rs`, regen
-    `scripts/gen_unicode16_case.py`). Rule is NOT "no `Cased` follows": `ΑΣ,Β`→`αςβ`, `ΑΣ.Β`→`ασβ`
-- **Any Unicode differential MUST include multi-code-point sequences** — deleting a `Cn` code point
-    changes ADJACENCY, mapping it does not; a per-code-point sweep scores the superseded
-    delete-filter design 0 failures (only `base_mark`/`jamo`/`sigma` expose it)
-- **The sweep is a committed fail-closed gate (157, hardened 158)**: `mise run unicode:sweep` + the
-    `unicode-sweep` CI job — 1,112,064 scalars × 8 contexts × 2 fns vs installed `iscc-core` on
-    CPython 3.14, must print byte-frozen `TOTAL 17793024 comparisons, 0 divergences`; **re-run for
-    every Unicode-table or toolchain bump**. Bare `uv run scripts/unicode_sweep.py` REFUSES (only
-    rebuild-first `--rebuilt` paths pass)
+- **`Final_Sigma` / sequence / fail-closed sweep-gate notes** (Unicode freeze phase, met) →
+    `learnings-archive.md`; re-run `mise run unicode:sweep` on any Unicode-table or toolchain bump
 - **Boundary vectors: `crates/iscc-lib/tests/unicode_boundary.json`** (141; 12 vectors, ASCII
     `\uXXXX`, `data.json`-shaped, loader `tests/test_unicode_boundary.rs`, NOT merged into
     `data.json`; the 4 **sequence** ones from 149 are the only sentinel-vs-delete-filter

@@ -10,6 +10,19 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     run in `publish-npm-lib`. FFI constant count in module docstring must match additions (now 5)
 - .NET + Swift bindings fully complete (32/32 Tier 1, CI, version sync, docs, release)
 
+## IDv1 fan-out slices — probe validation ORDER (183)
+
+- Spec (rust-core.md §Validation, criterion ~L542) makes ts→hub→realm ordering **normative on every
+    surface**, "first failing check wins", asserted even for MULTI-invalid inputs. A wide-int
+    binding (napi/wasm/jni, and rb/dotnet if they take wider-than-needed ints) must validate the
+    three SEMANTIC thresholds (`2^52`/`4096`/`2`) in that order IN THE BINDING before narrowing —
+    napi does `checked(v,thresh,name)?` ×3. A *wide narrowing guard* (hub 0-65535, realm 0-255) that
+    skips ts and defers to core is WRONG → 183 jni NEEDS_WORK (`(2^52,65536,0)` reported hub not
+    ts). **Always probe two multi-invalid inputs** — next.md's Impl Notes prescribed the flawed
+    narrowing guard, so the golden/single-field tests pass while ordering silently diverges. Go/ffi
+    exact-width types make out-of-narrowing values unrepresentable → they delegate ordering to core
+    safely
+
 ## Binding Propagation Shortcuts
 
 - napi-rs: `npm test` + clippy + `mise run check`
