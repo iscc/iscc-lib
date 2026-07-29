@@ -1,67 +1,73 @@
 # Next Work Package
 
-## Step: Mint `gen_iscc_id_v1` on the C FFI surface
+## Step: Mint `gen_iscc_id_v1` on the JNI (Java) surface
 
 ## Goal
 
-Continue the #43 ISCC-IDv1 fan-out: expose `iscc_gen_iscc_id_v1` from `crates/iscc-ffi`, regenerate
-the committed C header, and cover it with the golden vector — the first of the 6 remaining typed-int
-surfaces, and the one that gates the header-freshness CI check.
+Continue the #43 IDv1 fan-out: expose the experimental `gen_iscc_id_v1` minting function on the
+Java/JNI surface (7th of 11), bringing `crates/iscc-jni` to 33 usable Tier 1 symbols. This is a live
+v0.6.0 release blocker (issue "ISCC-IDv1 is unsupported outside Go").
 
 ## Alternatives Considered
 
-- **Chosen:** FFI IDv1 minting — the handoff-designated next fan-out surface; it also underpins the
-    downstream dotnet/cpp surfaces and is the only one needing `iscc.h` regen + a freshness gate.
-- **Rejected:** jni IDv1 minting — equally ready, but the handoff sequences ffi first; deferring it
-    keeps one surface per step and the header gate exercised now rather than later.
+- **Chosen:** JNI IDv1 minting — the handoff's explicit next surface and the next typed-int slice;
+    unblocks one of the 5 remaining fan-out surfaces with a self-contained, well-precedented change.
+- **Rejected:** the Tier-1 32→33 doc/count sweep — deliberately deferred until the fan-out completes
+    (issues.md scopes it as its own slice); running it now would churn count text while symbols are
+    still landing.
 
 ## Scope
 
-- **Modify**: `crates/iscc-ffi/src/lib.rs` — add the `iscc_gen_iscc_id_v1` extern
-- **Modify**: `crates/iscc-ffi/include/iscc.h` — regenerate via cbindgen (generated artifact)
-- **Modify**: `crates/iscc-ffi/tests/test_iscc.c` — add golden + error assertions (test file)
-- **Reference**: `crates/iscc-ffi/src/lib.rs:290-307` (meta pattern), `:571-593` (numeric-arg
-    pattern), `result_to_c_string` at `:118`; `crates/iscc-lib/src/lib.rs:1064` (core signature);
-    `crates/iscc-ffi/tests/test_iscc.c:94-155` (main structure)
+- **Modify**: `crates/iscc-jni/src/lib.rs` (add the `genIsccIdV1` JNI wrapper)
+- **Modify**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (native decl)
+- **Modify (test, excluded from budget)**:
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
+- **Reference**: `crates/iscc-jni/src/lib.rs:200-221` (`genTextCodeV0` String-returning pattern),
+    `crates/iscc-jni/CLAUDE.md` (type mapping, `_1` mangling, `throw_and_default`),
+    `.claude/context/specs/rust-core.md` §"ISCC-IDv1 Operations" (signature, validation, golden)
 
 ## Not In Scope
 
-- Any other surface (jni, rb, uniffi, dotnet, cpp) — each is its own step.
-- The Tier-1 32→33 doc/count sweep across stale sites (separate #43 step). The ffi CLAUDE.md/README
-    carry no numeric count, so no doc edit is needed here.
-- Touching `packages/dotnet` csbindgen output — the new symbol is unused there; regenerate it in the
-    dotnet step.
-- Any decode/version-enum change — FFI decode already inherits core's generic path (no wrapper
-    enum).
+- The Tier-1 32→33 doc/count sweep across CLAUDE.md/README/docs — separate #43 slice. jni docs carry
+    no numeric symbol count, so no doc edit is needed here (mirrors the ffi slice).
+- Any enum-widening or decode change: JNI `isccDecode` already returns `version` as a plain `int`,
+    so `iscc_decode(gen_iscc_id_v1(...))` round-trips today — do NOT touch `IsccDecodeResult` or the
+    decode path.
+- The other 4 remaining surfaces (rb, uniffi→Swift/Kotlin, dotnet C# consumer, cpp).
+- Adding a "now"/clock convenience — the core is clock-free; `timestamp` stays a required argument.
 
 ## Implementation Notes
 
-- Signature:
-    `pub unsafe extern "C" fn iscc_gen_iscc_id_v1(timestamp: u64, hub_id: u16, realm: u8)   -> *mut c_char`.
-    Typed ints, no JS-coercion hazard — core `gen_iscc_id_v1` re-checks all ranges; do NOT add a
-    `checked()` guard (that pattern is napi/wasm-only).
-- Body mirrors the other gens: `clear_last_error();` then
-    `result_to_c_string(iscc_lib::gen_iscc_id_v1(timestamp, hub_id, realm).map(|r| r.iscc))`. No
-    pointer args → no NULL guard needed. Add the `# Safety` doc line for consistency (`no_mangle`).
-- Regenerate the header verbatim with the CI command:
-    `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output   crates/iscc-ffi/include/iscc.h`
-    — do not hand-edit `iscc.h`.
-- C test: assert golden `iscc_gen_iscc_id_v1(1751831876325218ULL, 1, 0) == "ISCC:MAIGHFECJMOPMIAB"`
-    (use `ASSERT_STR_EQ`, `iscc_free_string` after), and one error case (e.g. `realm = 2` →
-    `ASSERT_NULL` + `iscc_last_error()` non-NULL).
+- Java signature: `public static native String genIsccIdV1(long timestamp, int hubId, int realm);`
+    JNI Rust name `Java_io_iscc_iscc_1lib_IsccLib_genIsccIdV1` (note the `_1` for `iscc_lib`).
+- Params arrive as `jlong`/`jint`/`jint`. **Narrowing hazard — validate before casting to core's
+    `(u64, u16, u8)`:** a `jint` can wrap into the valid range (`65537 as u16 == 1` would masquerade
+    as a valid hub). Reject via `throw_and_default` when `hubId` is outside `0..=u16::MAX` or
+    `realm` outside `0..=u8::MAX`, THEN cast. `timestamp as u64` needs no guard: a negative `jlong`
+    maps to a huge value core rejects, and every valid ts (`< 2^52`) is a positive `long`. Core's
+    `gen_iscc_id_v1` re-validates the semantic ranges (ts/hub/realm) in order and returns `Err` →
+    `throw_and_default` maps it to `IllegalArgumentException`.
+- Body mirrors `genTextCodeV0`: call `iscc_lib::gen_iscc_id_v1(ts, hub, realm)`, on `Ok` return
+    `env.new_string(result.iscc)`, on `Err` `throw_and_default(env, &e.to_string())`.
+- Tests (JUnit `@Test`): golden
+    `assertEquals("ISCC:MAIGHFECJMOPMIAB", IsccLib.genIsccIdV1(   1751831876325218L, 1, 0))`; realm
+    error
+    `assertThrows(IllegalArgumentException.class,   () -> IsccLib.genIsccIdV1(1751831876325218L, 1, 2))`;
+    round-trip decoding the golden via `IsccLib.isccDecode(...)` asserting `version == 1`,
+    `subtype == 0` (realm), `maintype == 6`.
 
 ## Verification
 
-- `cargo build -p iscc-ffi` succeeds; `cargo clippy -p iscc-ffi --all-targets -- -D warnings` clean;
-    `cargo fmt -p iscc-ffi --check` clean.
-- Re-running the cbindgen command above leaves `git diff --exit-code crates/iscc-ffi/include/iscc.h`
-    empty (header committed and fresh), and `iscc.h` contains `iscc_gen_iscc_id_v1`.
-- `gcc -o /tmp/test_iscc crates/iscc-ffi/tests/test_iscc.c -I crates/iscc-ffi/include -L   target/debug -liscc_ffi -lpthread -ldl -lm`
-    compiles, and `LD_LIBRARY_PATH=target/debug /tmp/test_iscc` exits 0 with the golden + error
-    assertions passing.
-- `mise run check` (prek hooks) passes.
+- `cargo build -p iscc-jni` clean; `cargo clippy -p iscc-jni --all-targets -- -D warnings` clean;
+    `cargo fmt -p iscc-jni --check` clean.
+- `cd crates/iscc-jni/java && mvn clean test` passes (run `cargo build -p iscc-jni` first; surefire
+    sets `java.library.path` to `target/debug`) — new golden, realm-error, and decode round-trip
+    tests plus all prior tests green.
+- `mise run check` — all prek pre-commit hooks pass.
+- (probe) Golden `ISCC:MAIGHFECJMOPMIAB` for `(1751831876325218, 1, 0)` matches the frozen
+    cross-surface `iscc-core` oracle value.
 
 ## Done When
 
-`iscc_gen_iscc_id_v1` is exported from the FFI crate, `iscc.h` is fresh and committed, and the C
-test program passes the golden vector and error case with all gates green.
+`genIsccIdV1` is exported from `IsccLib`, mints the golden ISCC, throws on invalid realm, its output
+round-trips through `isccDecode` at Version 1, and all cargo + mvn + prek gates pass.

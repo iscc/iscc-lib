@@ -37,13 +37,16 @@ must widen it + round-trip test.
 ## Done slices
 
 - **178 = Python:** reference-parity anchor + diff test.
+
 - **179 = Go rename (b):** `GenIsccIDV1(timestamp,hubID,realm)→*IsccIdResult{ISCC}`; decode extracts
     via `binary.BigEndian.Uint64(d.Digest)` → `>>12`/`&0xFFF`/`d.Subtype`. Old `EncodeIsccID` etc.
     were develop-only (no API break).
+
 - **180 = napi:** bare-`string` return (mirrors `gen_meta_code_v0`, NOT object form),
     `timestamp:   f64` (valid ts \<2^52 exact in f64, avoids napi u64→BigInt);
     `index.d.ts`/`index.js` are napi-build-generated (don't hand-edit); napi CLAUDE.md/README carry
     no count.
+
 - **181 = wasm + settle JS-number validation:** handoff routed wasm here to fix the coercion
     approach once. Both napi AND wasm `iscc_decode` return `version:u8` → NO widening, minting-only.
     **JS-number coercion fix (issues.md `normal`) bundled** — napi u16/u8 params coerce garbage
@@ -53,7 +56,19 @@ must widen it + round-trip test.
     (experimental, develop-only). wasm test = Rust `#[wasm_bindgen_test]` via
     `wasm-pack test --node crates/iscc-wasm --features conformance`.
 
-## Remaining after 181
+- **182 = ffi:** `iscc_gen_iscc_id_v1(u64,u16,u8)`, typed ints NO `checked()` (core re-checks),
+    regen `iscc.h` via cbindgen + git-diff-empty freshness gate. **Surprise:** `iscc-ffi`'s
+    csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build → pre-push clippy
+    rejects the push; ANY future FFI-symbol step must regen+commit `NativeMethods.g.cs` in-step too.
 
-ffi (needs `iscc.h` regen + freshness gate), jni, rb, uniffi→Swift/Kotlin, dotnet, cpp, + the 32→33
+- **183 = jni (scoped):** `genIsccIdV1(long ts,int hubId,int realm)→String`, Rust name
+    `Java_..._genIsccIdV1` (`_1`!). **JNI DOES need a pre-narrow guard** (unlike ffi): `jint as u16`
+    wraps (`65537→1`) so validate `hubId∈0..=u16::MAX`, `realm∈0..=u8::MAX` before cast; `ts as u64`
+    is safe (negative→huge→core rejects). Decode round-trips WITHOUT enum-widening (JNI
+    `IsccDecodeResult.version` is a plain `int`). jni README/CLAUDE carry no numeric count → no doc
+    edit. Body mirrors `genTextCodeV0`; `throw_and_default` on `Err`.
+
+## Remaining after 183
+
+rb, uniffi→Swift/Kotlin, dotnet (C# consumer + regen `NativeMethods.g.cs`), cpp, + the 32→33
 doc/count sweep.
