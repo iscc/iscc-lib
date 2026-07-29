@@ -9,7 +9,11 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 
 - **Authoritative CI status** (sandbox `gh run list` is STALE — old ancestor SHAs): `gh api` on
     `"repos/iscc/iscc-lib/commits/<tip-sha>/check-runs?per_page=100"` for the real origin/develop
-    tip — **QUOTE the path** (zsh globs `?`). Failed logs: `gh run view --log-failed`.
+    tip — **QUOTE the path** (zsh globs `?`). Failed logs: `gh run view --log-failed`. **BUT a
+    check-RUN `failure` does NOT mean CI failed** — a `continue-on-error: true` job (e.g. `Semver`)
+    reds its check-run while the workflow run stays `success`. For the go/no-go verdict read the
+    **workflow run conclusion**: `gh api ".../actions/runs/<id>" --jq .conclusion` (or the
+    check-SUITE conclusion), then cross-check `continue-on-error` in ci.yml for any red check-run.
 - **Unpushed check**: `git log --oneline origin/develop..HEAD`, then
     `git diff --stat origin/develop..HEAD -- . ':!.claude'`. Empty = green CI covers HEAD.
     **NON-empty = it does NOT** — report the gap (bit at 148; fired for real at 162).
@@ -43,11 +47,16 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **Red with NO code change:** cargo-deny (live advisory DB). **Fails open:** the release.yml static
     gate (job log must show zero `warning: skipped`). A "no floating branch ref" assertion in
     `check_release_workflow.py` is NOT a gap — it is new policy.
-- **cargo-semver-checks IS an ENFORCING red check-run** (exit 100, non-success conclusion), NOT
-    "informational" — corrected at 176. It diffs the crate's WHOLE public API vs the LAST RELEASE
-    (0.5.0), so a Tier-2 change still trips it: marking public `enum Version` `#[non_exhaustive]`
-    fired `enum_marked_non_exhaustive` "semver requires new major version". `mise run check` does
-    NOT run it → a green local check proves nothing about semver.
+- **cargo-semver-checks is INFORMATIONAL, NOT enforcing — the `semver` job has
+    `continue-on-error: true`** (`ci.yml:355`, "Informational during the 0.4.0 -> 1.0.0 transition;
+    enforcing from v1.0.0"). Its check-run CAN report `failure` (exit 100) while the CI **workflow
+    run conclusion is `success`** — a `continue-on-error` job's red does NOT fail CI. **My prior
+    note "ENFORCING, corrected at 176" was WRONG and drove a 3-iteration phantom "CI RED"
+    (176-178).** To judge CI, read the **workflow run `conclusion`** via
+    `gh api ".../actions/runs/<id>" --jq .conclusion`, or the **check-SUITE** conclusion — NOT
+    individual check-RUN conclusions. It diffs the WHOLE public API vs the last release (0.5.0), so
+    `#[non_exhaustive]` on public `enum Version` trips `enum_marked_non_exhaustive` — but that stays
+    non-blocking until v1.0.0. `mise run check` does not run it (unchanged fact).
 
 ## Codebase Landmarks
 
@@ -91,25 +100,22 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: 2916ce4, iter 178)
+## Current State (assessed-at: 825b74a, iter 179)
 
-- **CI STILL RED on develop, ONE gate.** Real develop tip `98205f2`: check-runs API = 45 runs, **2
-    failures, ALL `Semver (cargo-semver-checks)`** — `enum Version` `#[non_exhaustive]` (codec.rs)
-    trips `enum_marked_non_exhaustive`, exit 100, enforcing vs the 0.5.0 baseline. Iter 177's
-    `gen_iscc_id_v1` is ADDITIVE (no new semver break) and did NOT clear the pre-existing one. Local
-    `mise run check` does NOT run semver → green local proves nothing. TOP priority = clear it.
-- **`gen_iscc_id_v1` minting NOW EXISTS in CORE** (iter 177, reviewed PASS): `lib.rs:1064`
-    `gen_iscc_id_v1(timestamp,hub_id,realm)->IsccResult<IsccIdResult>`, `IsccIdResult` at
-    `types.rs:95`, oracle-matched vs iscc-core 1.3.0. **Core = 33/33 Tier-1 symbols now.** BINDINGS
-    still 32/33 (untouched). Go rename NOT done — `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result`
-    still in `packages/go/iscc_id.go`, no `GenIsccIDV1`.
-- **HEAD `2916ce4` = cid(log) 177 only; code == origin/develop**
-    (`git diff origin/develop..HEAD   -- . ':!.claude'` empty), so the red covers HEAD — no
-    unpushed-code gap.
-- **Semver-red remedy is a DECISION, not a mechanical fix:** drop `#[non_exhaustive]`, configure/
-    allowlist the lint as an accepted pre-1.0 exception, or move the baseline. define-next scopes
-    it.
-- **Issues 11: 0 critical, 4 normal, 7 low.** The Semver CI redness is NOT yet an issue.
+- **CI is GREEN on develop.** Real develop tip `dcbb0bb`: CI workflow run `conclusion: success`. The
+    `Semver` check-run reports `failure` but is `continue-on-error: true` → non-blocking (see the
+    corrected semver note above). The 176-178 "CI RED" was a phantom the handoff caught.
+- **`gen_iscc_id_v1` minting NOW ALSO on PYTHON** (iter 178, reviewed PASS): `__init__.py`, `.pyi`,
+    `src/lib.rs`, `tests/test_iscc_id_v1.py`. **Core + Python = 33/33; other 10 surfaces still
+    32/33.** Go rename NOT done — `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result` still in
+    `packages/go/iscc_id.go`, no `GenIsccIDV1`. Python IDv1 decode round-trip still gated by the
+    `VS` IntEnum (#43).
+- **HEAD `825b74a` = cid(log) 178 only; code == origin/develop** (diff excl `.claude` empty), green
+    covers HEAD.
+- **Issues 11: 0 critical, 4 normal, 7 low.** Semver is NOT filed as an issue (correctly — it's
+    non-blocking).
+- **Next work = IDv1 fan-out** to remaining 10 surfaces + Go rename + per-surface version-enum widen
+    (decode round-trip) + Tier-1 32→33 doc sweep. NOT a CI fix.
 - **SCOPE CONTEXT (still live from 174):** out-of-loop non-`cid()` commit `2c4e487` rewrote
     `target.md` + EVERY binding spec to demand **33 Tier 1 symbols** (`gen_iscc_id_v1`) +
     experimental ISCC-IDv1 on core + all 11 surfaces. Lesson: a non-`cid()` commit CAN carry both
