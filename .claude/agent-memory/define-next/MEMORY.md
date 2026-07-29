@@ -99,8 +99,12 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     [idv1 fan-out facts](iscc-idv1-fanout.md) has golden/validation + per-surface slice recipes.
     Done: 178 Python, 179 Go rename, 180 napi, 181 wasm+JS-number validation, 182 ffi, 184 jni, 185
     rb, 186 uniffi (Swift+Kotlin, one step), 187 dotnet C#, **188 cpp (LAST minting surface)**.
-    **After 188: ALL 11 minting surfaces done — ONLY the Tier-1 32→33 doc/count sweep remains** (its
-    exact stale sites incl. 3 non-Markdown are enumerated in issues.md #43 + the fanout file).
+    **After 188: ALL 11 minting surfaces done.** Two #43 remnants: (a) decode-widening — **surveyed
+    189: ONLY Python's `VS` IntEnum rejects V1**; every other surface returns a bare int/byte
+    version (napi/wasm `version: u8`, jni `JValue::Int`, rb 5-elem array, uniffi/ffi assert
+    `version==1`, dotnet `byte Version`, cpp `uint8_t`, Go has `VSV1`) → 189 adds `V1=1` to Python
+    `VS`, NOT a fan-out; (b) the Tier-1 32→33 doc/count sweep (stale sites incl. 3 non-Markdown
+    enumerated in issues.md #43 + the fanout file) — the only remaining item after 189.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published
