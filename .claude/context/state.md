@@ -1,16 +1,16 @@
-<!-- assessed-at: b0d4c97 -->
+<!-- assessed-at: 7845114 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.6.0 — IDv1 mint+decode fan-out COMPLETE on core + all 11 surfaces; repo-wide 32→33 doc/count sweep remains; CI GREEN
+## Phase: v0.6.0 — IDv1 (#43) fully closed on core + all 11 surfaces; CI GREEN; remaining CID-doable `normal` issues gate release readiness
 
-Iteration 189 widened the Python `VS` IntEnum with `V1 = 1`, so `iscc_decode(gen_iscc_id_v1(...))`
-round-trips instead of raising `1 is not a valid VS`. Python was the only surface with a version
-*enum*; the other 10 return a bare int/byte and already decoded V1. Both halves of the IDv1
-functional work (mint + decode) are now done on all 11 surfaces. The one remaining #43 item is the
-mechanical repo-wide Tier-1 32→33 doc/count sweep. CI green.
+Iteration 190 landed the mechanical repo-wide Tier-1 32→33 doc/count sweep and added
+`gen_iscc_id_v1` per-symbol entries to the 4 hand-maintained API pages plus IDv1 mint+decode
+examples to all 11 howto pages (reviewed PASS_WITH_NOTES). Both halves of the IDv1 functional work
+(mint + decode) and the doc sweep are now done on all 11 surfaces — #43 is fully closed. The
+remaining v0.6.0 release blockers are CID-doable `normal` `[review]` issues, not functional gaps.
 
 ## Rust Core Crate
 
@@ -27,11 +27,9 @@ mechanical repo-wide Tier-1 32→33 doc/count sweep. CI green.
 
 **Status**: met — 33/33 symbols; IDv1 mint + decode both work
 
-- `crates/iscc-py` exports `gen_iscc_id_v1` (iter 178) with differential grid + golden + validation
-    tests. Retains `IsccResult`, streaming hashers, GIL `.detach(` sites, abi3-py310 wheels.
-- IDv1 decode now round-trips: `VS` IntEnum gained `V1 = 1`
-    (`crates/iscc-py/python/iscc_lib/__init__.py:86`) + round-trip test (iter 189, PASS). `.so`
-    binary unchanged — pure wrapper edit.
+- `crates/iscc-py` exports `gen_iscc_id_v1` (iter 178); `VS` IntEnum gained `V1 = 1` (iter 189) so
+    `iscc_decode(gen_iscc_id_v1(...))` round-trips. Retains `IsccResult`, streaming hashers, GIL
+    `.detach(` sites, abi3-py310 wheels.
 
 ## Node.js Bindings
 
@@ -47,115 +45,112 @@ mechanical repo-wide Tier-1 32→33 doc/count sweep. CI green.
 
 - `crates/iscc-wasm/src/lib.rs:371` exports `gen_iscc_id_v1` with the same ordered validation guard
     as napi; `wasm-pack test` covers golden `ISCC:MAIGHFECJMOPMIAB`, decode round-trip, invalid
-    throws. `SumHasher` wrapper, Unicode gate, `blake3 wasm32_simd` feature intact.
+    throws. Returns a bare string (no `IsccIdResult`); `blake3 wasm32_simd` feature intact.
 
 ## C FFI
 
-**Status**: met — 33/33 symbols (iter 182)
+**Status**: met — 33/33 symbols
 
 - 50 `#[unsafe(no_mangle)]` externs; `iscc_gen_iscc_id_v1(uint64_t, uint16_t, uint8_t)` at
     `crates/iscc-ffi/src/lib.rs:613` + committed `iscc.h:386`, regen idempotent (freshness gate
-    green). Golden + realm-error C tests. No `checked()` guard — core re-validates (exact-width).
-- cbindgen headers, `docs/howto/c-cpp.md`, `examples/iscc_sum.c` + CMake all present. Unicode-gated.
+    green). Golden + realm-error C tests. Core re-validates (exact-width).
+- cbindgen headers, `docs/howto/c-cpp.md`, `examples/iscc_sum.c` + CMake all present.
 
 ## Java Bindings (JNI)
 
-**Status**: met — 33/33 symbols (iter 184)
+**Status**: met — 33/33 symbols
 
-- `Java_..._genIsccIdV1` at `crates/iscc-jni/src/lib.rs:500` narrows to `(u64,u16,u8)` only *after*
+- `Java_..._genIsccIdV1` at `crates/iscc-jni/src/lib.rs:500` narrows to `(u64,u16,u8)` only after
     validating the 3 semantic thresholds (2^52/4096/2) in normative ts→hub→realm order. 4 mvn tests
-    incl. `genIsccIdV1ValidationOrder`. Java CI job green. jni = 33.
+    incl. `genIsccIdV1ValidationOrder`. Java CI job green.
 
 ## Ruby Bindings (Magnus)
 
-**Status**: met — 33/33 symbols (iter 185)
+**Status**: met — 33/33 symbols
 
 - `gen_iscc_id_v1(i64, i64, i64)` at `crates/iscc-rb/src/lib.rs:219` validates via `checked()`
-    (2^52/4096/2, ts→hub→realm) before narrowing to `(u64,u16,u8)`; module fn registered L526.
-    Golden, validation-order, round-trip tests.
-- Known pathological gap (filed `[review]`, normal): args `> i64::MAX` raise `RangeError` from
-    Magnus marshalling *before* the ordered `checked()` runs — no realistic input reaches it.
+    (2^52/4096/2, ts→hub→realm) before narrowing; module fn registered L526. Golden/validation/
+    round-trip tests.
+- Known pathological gap (open `normal` `[review]`): args `> i64::MAX` raise `RangeError` from
+    Magnus marshalling before the ordered `checked()` runs — no realistic input reaches it.
 
 ## Swift & Kotlin Bindings (uniffi)
 
-**Status**: met — 33/33 symbols (iter 186)
+**Status**: met — 33/33 symbols
 
 - Shared `crates/iscc-uniffi/src/lib.rs:286` exports `gen_iscc_id_v1` + `IsccIdResult`; core takes
-    exact-width unsigned `(u64,u16,u8)` straight through (core validates, no binding guard). 22 unit
-    tests incl. golden `ISCC:MAIGHFECJMOPMIAB` + round-trip. Regenerated `genIsccIdV1` in both
-    `packages/swift/.../iscc_uniffi.swift` and `packages/kotlin/.../iscc_uniffi.kt`.
+    exact-width unsigned `(u64,u16,u8)` (core validates, no binding guard). 22 unit tests incl.
+    golden + round-trip. Regenerated `genIsccIdV1` in both `packages/swift` and `packages/kotlin`.
 
 ## C# / .NET Bindings
 
-**Status**: met — 33/33 symbols (iter 187)
+**Status**: met — 33/33 symbols
 
 - `GenIsccIdV1(ulong, ushort, byte)` at `packages/dotnet/Iscc.Lib/IsccLib.cs:287` + `IsccIdResult`
-    record (`Results.cs:35`) over the generated `iscc_gen_iscc_id_v1` P/Invoke decl. Golden matches
-    `iscc_core` byte-for-byte; 107 dotnet tests. Exact-width args → exempt from Ruby wide-input gap.
+    record over the generated `iscc_gen_iscc_id_v1` P/Invoke decl. Golden matches `iscc_core`
+    byte-for-byte; 107 dotnet tests. Exact-width args → exempt from Ruby wide-input gap.
 
 ## C++ Bindings (cpp)
 
-**Status**: met — 33/33 symbols (iter 188)
+**Status**: met — 33/33 symbols
 
 - `packages/cpp/include/iscc/iscc.hpp:564` mints via `gen_iscc_id_v1(uint64_t, uint16_t, uint8_t)` +
-    `IsccIdResult` (`:211`) over the shipped `iscc_gen_iscc_id_v1` FFI symbol. Golden matches
-    `iscc_core` byte-for-byte; 72 C++ assertions pass under cmake/ASAN; CI job green. Fixed-width
-    FFI passthrough → exempt from wide-input gap; core re-validates. `DecodeResult.version` is raw
-    `uint8_t` (no enum), so cpp already decodes V1.
+    `IsccIdResult` over the shipped FFI symbol. Golden matches `iscc_core` byte-for-byte; 72 C++
+    assertions pass under cmake/ASAN; CI job green. `DecodeResult.version` is raw `uint8_t` → cpp
+    already decodes V1.
 
 ## Documentation
 
-**Status**: partially met
+**Status**: partially met — 32→33 sweep + IDv1 entries done; one doc-defect issue open
 
-- Docs site (23 pages, 12 READMEs, 12 CLAUDE.md) met; `docs/howto/ruby.md` + `docs/howto/go.md`
-    cover `gen_iscc_id_v1`.
-- Tabbed examples still do not present IDv1 uniformly; Tier-1 count text still reads 32 across many
-    shipped sites (per-crate/package CLAUDE.md + README, `docs/`, `notes/`,
-    `iscc-uniffi/src/lib.rs`, `iscc-rb/src/lib.rs`) — the deferred repo-wide 32→33 sweep, plus
-    `gen_iscc_id_v1` per-symbol API-doc entries in `docs/rust-api.md`, `docs/java-api.md`,
-    `docs/ruby-api.md`, `docs/c-ffi-api.md` and the 11 `docs/howto/*.md` pages (#43).
+- Docs site (23 pages, 12 READMEs, 12 CLAUDE.md) builds/deploys. Tier-1 count reads 33 across all
+    shipped artifacts (stale-32 grep clean). `gen_iscc_id_v1` per-symbol entries present in
+    `docs/{rust,java,ruby,c-ffi}-api.md`; all 11 `docs/howto/*.md` carry an IDv1 mint+decode
+    example.
+- Open `normal` `[review]` doc defect: `docs/c-ffi-api.md` documents FFI structs under unprefixed
+    names (`IsccDecodeResult`) but cbindgen emits `iscc_IsccDecodeResult`, so no snippet — including
+    the new IDv1 example — compiles verbatim. Pre-existing, page-wide, not a regression.
 
 ## Benchmarks
 
 **Status**: met (existence), with a known gate-blindness gap
 
 - 12 criterion fns + iai (11 fns/16 cases) + 18 pytest-benchmark fixtures; baselines untouched.
-- Open `normal` issue: iai text benchmarks are ASCII-only, so the >10% perf gate is blind to the
-    Unicode freeze path — a coverage gap, not a missing benchmark.
+- Open `normal` `[review]`: iai text benchmarks are ASCII-only, so the >10% perf gate is blind to
+    the Unicode freeze path — a coverage gap, not a missing benchmark.
 
 ## CI/CD and Publishing
 
 **Status**: met (CI green on develop); release-readiness still open
 
-- **CI GREEN on `origin/develop` = `718e442`** (Python VS-widen review commit): all 23 check names
-    pass except `Semver (cargo-semver-checks)` which is `continue-on-error: true` (informational
-    until v1.0.0) — expected non-blocking red, not a CI failure.
-- **HEAD `b0d4c97` is covered:** only unpushed commit is the `cid(log)` touching iterations.jsonl;
-    `git diff origin/develop..HEAD -- . ':!.claude'` is empty — green CI covers all HEAD code.
-- Dependency freshness met (criterion 0.8 at 171, uniffi 0.32 at 172); zero `# held:`/`authorized`
-    pin comments in root `Cargo.toml`. Job shape unchanged (21 keys → 22 jobs → 23 names).
+- **CI GREEN on `origin/develop` = `b2f56b6`** (IDv1 doc-sweep review commit): all 23 check names
+    pass except `Semver (cargo-semver-checks)` which is `continue-on-error: true` — expected
+    non-blocking red, not a CI failure.
+- **HEAD `7845114` is covered:** unpushed commits are only `cid(log)`/`cid(audit)` touching
+    iterations.jsonl + metrics.jsonl; `git diff origin/develop..HEAD -- . ':!.claude'` is empty.
+- Dependency freshness met (criterion 0.8 @171, uniffi 0.32 @172); zero `# held:`/`authorized` pins
+    in root `Cargo.toml`. Job shape unchanged (21 keys → 22 jobs → 23 names).
 - PR **#44** `develop` → `main` OPEN; version **0.5.0**.
-- v0.6.0 "no `critical`/`normal` issue open" criterion **unmet**: 0 critical, 5 open `normal`.
+- v0.6.0 "no `critical`/`normal` issue open (not human/upstream-blocked)" criterion **unmet**: 0
+    critical, 5 open `normal` — four are CID-doable `[review]`, one (go1.27) upstream-blocked.
 
 ## Open Issues
 
-**12 entries — 0 `critical`, 5 `normal`, 7 `low`, zero HUMAN REVIEW REQUESTED.** No new issue this
-cycle (Python VS-widen step found none).
+**12 entries — 0 `critical`, 5 `normal`, 7 `low`, zero HUMAN REVIEW REQUESTED.** Composition shifted
+this cycle: the resolved #43 IDv1 sweep issue was deleted; a new `docs/c-ffi-api.md` type-name gap
+was filed (`normal` `[review]`).
 
-- **NORMAL:** Ruby `gen_iscc_id_v1` validation order breaks for args > i64::MAX (`[review]`);
-    ISCC-IDv1 Tier-1 32→33 doc/count sweep (`[human]`, the remaining half of the IDv1 work —
-    mint+decode fan-out now complete on all 11 surfaces); codec input cleaning diverges from
-    `iscc_clean` (`[review]`); iai text benchmarks ASCII-only (`[review]`); go1.27 tripwire
-    (`[review]`, blocked on upstream).
+- **NORMAL (all `[review]`):** c-ffi-api type names vs generated `iscc.h`; Ruby `gen_iscc_id_v1`
+    validation order for `> i64::MAX`; codec input cleaning diverges from `iscc_clean` (most
+    substantive follow-up, Rust+Go); iai ASCII-only text benchmarks; go1.27 tripwire (upstream-
+    blocked, ~Aug 2026).
 - **LOW:** upstream `iscc-core#137` thread, 88-bit ISCC-IDv0 upstream mint, gate-script remainders,
     v1.0.0 cut (HELD), MSRV asserted-not-verified, npm OIDC (deferred), docs language logos.
 
 ## Next Milestone
 
-**CI is green — no CI fix needed.** The IDv1 mint+decode functional fan-out is complete on core +
-all 11 surfaces. The last CID-doable v0.6.0 release blocker is the mechanical repo-wide **Tier-1
-32→33 doc/count sweep**: stale `32` symbol counts across per-crate/package CLAUDE.md + README,
-`docs/`, `notes/`, and two Rust source comments, plus `gen_iscc_id_v1` per-symbol API-doc entries in
-`docs/rust-api.md`, `docs/java-api.md`, `docs/ruby-api.md`, `docs/c-ffi-api.md`, and uniform IDv1
-tabbed examples across the 11 `docs/howto/*.md` pages. Closing this clears the last non-human-gated
-v0.6.0 `normal` issue (the remaining four normals are `[review]`/upstream-blocked).
+**CI is green — no CI fix needed. IDv1 (#43) functional + doc work is fully closed on all 11
+surfaces.** The remaining v0.6.0 release blockers are the four CID-doable `normal` `[review]`
+issues; clearing them (plus the human-gated release cut itself) is what makes v0.6.0 releasable. The
+codec `iscc_clean` divergence is the most substantive; the c-ffi-api type-name gap and Ruby
+wide-input validation order are smaller, well-scoped fixes. go1.27 stays upstream-blocked.

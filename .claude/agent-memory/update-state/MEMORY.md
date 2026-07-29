@@ -84,23 +84,19 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: b0d4c97, iter 190)
+## Current State (assessed-at: 7845114, iter 191)
 
-- **CI GREEN on develop.** Real tip `718e442` (iter 189 Python VS-widen review): 23 names pass
-    except `Semver` (`continue-on-error`, reds on `enum_marked_non_exhaustive`). HEAD `b0d4c97` =
-    only unpushed is `cid(log)`; code diff vs origin EMPTY → green covers HEAD.
-- **ALL 11 surfaces now MINT + DECODE IDv1 = 33/33.** Mint fan-out done at cpp (188). Decode fan-out
-    done at 189: Python was the ONLY surface with a version ENUM (`VS` IntEnum
-    `crates/iscc-py/python/iscc_lib/__init__.py:82-86`, now has `V0=0, V1=1`); the other 10 return a
-    bare int/byte and already decoded V1. Pure wrapper edit, `.so` unchanged. **Both halves of IDv1
-    functional work COMPLETE — do NOT re-flag as pending.**
-- **#43 remaining = ONLY the repo-wide Tier-1 32→33 doc/count sweep** (mechanical, non-functional).
-    Issue retitled to "ISCC-IDv1 Tier-1 32→33 doc/count sweep" `[human]`. Stale `32` counts across
-    per-crate/package CLAUDE.md+README, `docs/`, `notes/`, `iscc-uniffi/src/lib.rs`,
-    `iscc-rb/src/lib.rs`; plus `gen_iscc_id_v1` API-doc entries in the four
-    `docs/{rust,java,ruby,c-ffi}-api.md` and the 11 `docs/howto/*.md` pages. **This is Next** — last
-    non-human-gated v0.6.0 `normal`. Scope origin: out-of-loop non-`cid()` `2c4e487` (174) demanded
-    33 Tier-1 symbols + IDv1 on core + all 11 surfaces.
+- **CI GREEN on develop.** Real tip `b2f56b6` (iter 190 IDv1 doc-sweep review): 23 names pass except
+    `Semver` (`continue-on-error`, reds on `enum_marked_non_exhaustive`). HEAD `7845114` = unpushed
+    are only `cid(log)`/`cid(audit)` (iterations.jsonl + metrics.jsonl); code diff vs origin EMPTY →
+    green covers HEAD.
+- **#43 IDv1 FULLY CLOSED — do NOT re-flag any part.** All 11 surfaces MINT + DECODE IDv1 = 33/33
+    (mint fan-out cpp @188; decode Python `VS` enum `V1=1` @189). Iter 190 landed the repo-wide
+    Tier-1 32→33 doc/count sweep + `gen_iscc_id_v1` per-symbol entries in the four
+    `docs/{rust,java,ruby,c-ffi}-api.md` + IDv1 mint+decode example in all 11 `docs/howto/*.md`.
+    Verified: stale-`32` Tier-1 grep clean, all 4 API pages + 11 howto pages carry the symbol.
+- **Golden IDv1:** `gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"` (realm 0).
+    Decode recipe: `version==1`, `ts=n>>12`, `hub=n&0xFFF`, `realm=subtype`; realm 1 → `MEIGH…`.
 - **Validation-order contract (normative, rust-core.md ~L542):** any WIDE-INT binding MUST validate
     thresholds `2^52`/`4096`/`2` in ts→hub→realm order BEFORE narrowing; "first failing check wins".
     Precedents napi:329, jni:500, rb:219. Go/ffi/uniffi/dotnet/cpp exempt (exact-width FFI). Ruby
@@ -109,8 +105,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     narrowing layer, not just before codec narrowing.
 - **dotnet gotcha:** csbindgen `build.rs` regenerates tracked `NativeMethods.g.cs` on EVERY build →
     pre-push clippy rejects push if uncommitted; any FFI-symbol step regens `iscc.h` +
-    `NativeMethods.g.cs` in-step. **Issues 12: 0 crit, 5 normal, 7 low** (first `## ` at L19); no
-    new issue 187/188.
+    `NativeMethods.g.cs` in-step. **Issues 12: 0 crit, 5 normal, 7 low** (first `## ` at L19).
+    Composition shifted @190: #43 sweep issue deleted, NEW `docs/c-ffi-api.md` type-name gap filed
+    (`normal` `[review]`) — cbindgen emits `iscc_IsccDecodeResult` but the page docs unprefixed
+    `IsccDecodeResult`, so no c-ffi snippet compiles verbatim (page-wide, pre-existing).
+- **v0.6.0 release blockers now = 4 CID-doable `normal` `[review]` issues** (c-ffi-api type names,
+    Ruby wide-input validation order, codec `iscc_clean` divergence [most substantive, Rust+Go], iai
+    ASCII-only benches) + go1.27 (upstream-blocked) + the human-gated release cut. No functional
+    IDv1 gap remains.
 
 ## Durable Facts (carried, not per-iteration)
 
