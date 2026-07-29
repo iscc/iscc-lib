@@ -388,3 +388,17 @@ authorized v0.6.0 dependency item. **Alternatives:** raise the workspace `rust-v
 that is the published MSRV promise and Titusz's call; pin the transitives back — rejected, uniffi
 0.32 requires them. **Context:** iteration 172; the now-false inherited declaration is filed as a
 `normal` issue proposing an explicit per-crate `rust-version` on `iscc-uniffi`.
+
+## 2026-07-29 — JS-number ISCC-IDv1 surfaces take all params as `f64` and validate before narrowing
+
+**Decision:** on the two JS-number surfaces (napi, wasm) `gen_iscc_id_v1` takes `timestamp`,
+`hub_id` and `realm` all as `f64` — not the core's `u16`/`u8` — and a per-file `checked()` rejects
+non-finite / non-integral / negative / out-of-range values before narrowing. **Why:** napi and wasm
+coerce a JS `number` into the declared integer type (ToUint32 / truncation) *before* the wrapper
+runs, so integer params make the low and non-integral end unvalidatable — an out-of-contract input
+would silently mint a valid-but-wrong ID (a collision hazard). Only `f64` preserves the original
+value for a range check. **Alternatives:** keep integer params and rely on core — rejected, core
+only guards the high end and never sees the pre-truncated value; a shared validation crate —
+rejected, ~5 duplicated lines beat a new crate boundary. **Scope:** JS-number surfaces only;
+ffi/jni/rb/uniffi are typed-int with no coercion hazard and must not copy the pattern. **Context:**
+iteration 181, #43 fan-out; resolves the napi coercion issue for both surfaces at once.

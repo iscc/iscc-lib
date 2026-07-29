@@ -21,10 +21,14 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **IDv1 fan-out conventions** (179 Go, 180 napi): Go
     `GenIsccIDV1(timestamp, hubID, realm)   (*IsccIdResult, error)`, decode via `IsccDecode` +
     `n:=binary.BigEndian.Uint64(d.Digest)` (`ts=n>>12`, `hub=uint16(n&0xFFF)`, `realm=d.Subtype`).
-    napi = bare-string + `timestamp: f64` (ts `<2^52` exact in f64, avoids JS `BigInt`; but
-    `f64 as u64` silently truncates garbage → validate, issues.md); `index.d.ts` camelCases the
-    param, cosmetic. Old Go `EncodeIsccID` etc. were `develop`-only (no API-break). napi
-    CLAUDE/README carry no count. Owed: wasm, ffi, jni, rb, uniffi, dotnet, cpp
+    napi/wasm = bare-string; `index.d.ts` camelCases the param, cosmetic. Old Go `EncodeIsccID` etc.
+    were `develop`-only (no API-break). napi CLAUDE/README carry no count. wasm DONE 181 (33
+    symbols). Owed: ffi, jni, rb, uniffi, dotnet, cpp
+- **JS-number validation settled once for the #43 fan-out (181)**: napi + wasm take ALL THREE params
+    as `f64`, validate (`!is_finite()`/`fract()!=0.0`/`<0.0`/`>=max` at `2^52`/`4096`/`2`) BEFORE
+    narrowing via a duplicated per-file `fn checked(f64,f64,&str)`. hub/realm are `f64` not
+    `u16`/`u8` because napi/wasm coerce (ToUint32/truncate) first. ffi/jni/rb/uniffi typed-int —
+    don't copy
 
 ## Reference Implementation
 
