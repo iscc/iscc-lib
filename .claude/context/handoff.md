@@ -1,40 +1,37 @@
-## 2026-07-29 — Review of: Redo JNI `gen_iscc_id_v1` with ordered semantic validation
+## 2026-07-29 — Mint `gen_iscc_id_v1` on the Ruby (Magnus) surface
 
-**Verdict:** PASS
+**Done:** Added the experimental `gen_iscc_id_v1` minting function to the Ruby binding (#43, 8th of
+11 IDv1 fan-out surfaces). The native fn takes three `i64` params and validates the semantic
+thresholds (`2^52`/`4096`/`2`) in ts→hub→realm order via a `checked()` helper *before* narrowing to
+`(u64,u16,u8)`, mirroring the napi precedent.
 
-**Summary:** The iteration-183 NEEDS_WORK is resolved. The JNI `genIsccIdV1` wrapper now validates
-the three semantic thresholds (`2^52`/`4096`/`2`) in the normative ts→hub→realm order *before*
-narrowing to `(u64,u16,u8)`, mirroring the napi precedent. One multi-invalid ordering test was
-added. Completes the 7th of 11 IDv1 fan-out surfaces (#43).
+**Files changed:**
+
+- `crates/iscc-rb/src/lib.rs`: `checked(i64, i64, name)` helper + `gen_iscc_id_v1` native fn
+    (returns `RHash` with key `"iscc"`); registered `_gen_iscc_id_v1` arity 3; header docstring
+    32→33 (own file only, per Not-In-Scope).
+- `crates/iscc-rb/lib/iscc_lib.rb`: `IdCodeResult < Result` class + positional
+    `self.gen_iscc_id_v1(timestamp, hub_id, realm)` wrapper.
+- `crates/iscc-rb/test/test_iscc_id.rb` (new): golden, round-trip (+corners), validation-order,
+    negative-rejection tests.
+- `docs/howto/ruby.md`: experimental IDv1 section with decode bit-math recipe + `IdCodeResult` row.
 
 **Verification:**
 
-- [x] `cargo fmt -p iscc-jni --check` clean; `cargo clippy -p iscc-jni --all-targets -- -D warnings`
-    clean — re-run here, both clean.
-- [x] `cargo build -p iscc-jni && mvn clean test` — 97 tests, 0 failures (84 IsccLibTest incl. new
-    ordering test + golden/realm/round-trip; 13 UnicodeBoundaryTest).
-- [x] New ordering test proves `(1L<<52, 65536, 0)`→timestamp and `(0L, 4096, 256)`→hub — asserted
-    in `genIsccIdV1ValidationOrder`.
-- [x] `mise run check` — all prek pre-commit hooks Passed.
-- [x] (probe) Reference order confirmed at `iscc_id.py:127-133`: `timestamp>=2^52` → `hub_id>=2^12`
-    → `realm_id not in (0,1)`, first-raise wins — exactly the wrapper's order. Golden
-    `ISCC:MAIGHFECJMOPMIAB` still mints (covered by passing tests).
+- `bundle exec rake compile:dev` then `bundle exec rake test` — 129 runs, 368 assertions, 0
+    failures.
+- Golden asserted: `gen_iscc_id_v1(1_751_831_876_325_218, 1, 0).iscc == "ISCC:MAIGHFECJMOPMIAB"`.
+- Validation order asserted first-fail-wins: `(1<<52, 4096, 2)`→timestamp, `(0, 4096, 2)`→hub,
+    `(0, 0, 2)`→realm; negatives rejected on each param.
+- Round-trip: `iscc_decode` + `digest.unpack1("Q>")` recovers `(ts, hub, realm)`, `vs == 1`.
+- `cargo fmt -p iscc-rb --check` + `cargo clippy -p iscc-rb --all-targets -- -D warnings` clean;
+    `bundle exec standardrb` clean on both Ruby files; `mise run check` — all prek hooks Passed.
 
-**Issues found:**
+**Next:** Continue #43 fan-out. Remaining surfaces: uniffi (Swift/Kotlin — higher-risk, one core
+edit + 3 regenerated checked-in artifacts), dotnet C# consumer, cpp. Then the deferred repo-wide
+Tier-1 32→33 doc/count sweep.
 
-- (none) — scope clean: 1 core file (budget 3) + 1 excluded test file. No API break, no hot path.
-    The wrapper additionally rejects negative `timestamp` (the ref, on unbounded Python ints, never
-    sees one) — correct hardening, not a divergence.
-
-**Codex review:** Clean — "enforces the specified timestamp→hub→realm validation order with correct
-semantic bounds before narrowing. Rust checks and all 97 Java tests pass." No findings.
-
-**Next:** Resume the #43 fan-out on **rb** (Magnus). Carry the wide-int lesson: any binding surface
-taking wider-than-needed ints (rb/dotnet) must validate the three semantic thresholds
-(`2^52`/`4096`/`2`) in ts→hub→realm order in the binding *before* narrowing — Go/ffi are exempt
-(exact-width types). Remaining #43 surfaces after rb: uniffi (Swift/Kotlin), dotnet C# consumer,
-cpp. Then the deferred Tier-1 32→33 doc/count sweep.
-
-**Notes:** #43 remains open (v0.6.0 blocker) — 4 minting surfaces + doc sweep left. No decision
-entry needed: this applies the established "validate before narrowing" pattern (decisions.md
-2026-07-29), not a new trade-off.
+**Notes:** Ruby Integers are arbitrary precision, so the binding must validate before narrowing —
+same lesson as napi/jni. The native fn rejects negatives (`value < 0`); the pure-Python ref never
+sees them (unbounded ints), so this is hardening, not divergence. No API break, no hot path. #43
+stays open (v0.6.0 blocker).

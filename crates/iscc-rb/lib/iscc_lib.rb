@@ -63,6 +63,9 @@ module IsccLib
   # Result from gen_sum_code_v0.
   class SumCodeResult < Result; end
 
+  # Result from gen_iscc_id_v1.
+  class IdCodeResult < Result; end
+
   # Generate a Meta-Code from name and optional metadata.
   #
   # @param name [String] content name (required, non-empty)
@@ -155,6 +158,21 @@ module IsccLib
   # @return [SumCodeResult] hash with iscc, datahash, filesize, and optionally units
   def self.gen_sum_code_v0(path, bits: 64, wide: false, add_units: false)
     SumCodeResult[_gen_sum_code_v0(path, bits, wide, add_units)]
+  end
+
+  # Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
+  #
+  # Packs a 52-bit microsecond UTC timestamp and a 12-bit HUB-ID into an
+  # ISCC-ID unit with realm as SubType and Version V1. There is no dedicated
+  # decoder — use iscc_decode to decode.
+  #
+  # @param timestamp [Integer] microsecond UTC timestamp (0 <= timestamp < 2^52)
+  # @param hub_id [Integer] HUB-ID (0 <= hub_id < 4096)
+  # @param realm [Integer] realm (0 = testnet, 1 = mainnet)
+  # @return [IdCodeResult] hash with iscc
+  # @raise [RuntimeError] if any parameter is negative or out of range
+  def self.gen_iscc_id_v1(timestamp, hub_id, realm)
+    IdCodeResult[_gen_iscc_id_v1(timestamp, hub_id, realm)]
   end
 
   # Streaming Data-Code generator (reopens native class).

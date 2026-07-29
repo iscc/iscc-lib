@@ -4,10 +4,10 @@
 //! under the `IsccLib` module. The pure Ruby wrapper in `lib/iscc_lib.rb`
 //! provides idiomatic result classes and keyword arguments.
 //!
-//! Symbols (32 of 32):
+//! Symbols (33 of 33):
 //! - `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
 //! - `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`
-//! - `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
+//! - `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`, `gen_iscc_id_v1`
 //! - `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 //! - `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`
 //! - `json_to_data_url`, `conformance_selftest`
@@ -185,6 +185,46 @@ fn gen_sum_code_v0(path: String, bits: u32, wide: bool, add_units: bool) -> Resu
     if let Some(units) = r.units {
         hash.aset("units", units)?;
     }
+    Ok(hash)
+}
+
+/// Validate an ISCC-IDv1 parameter before narrowing to a fixed-width integer.
+///
+/// Ruby Integers are arbitrary precision, so each parameter is taken as `i64`
+/// and checked here. Rejects negative and out-of-range (`>= max_exclusive`)
+/// values with a `RuntimeError` so an invalid Ruby Integer raises instead of
+/// being silently narrowed to a wrong ID.
+fn checked(value: i64, max_exclusive: i64, name: &str) -> Result<i64, Error> {
+    if value < 0 || value >= max_exclusive {
+        let ruby = Ruby::get().expect("called from Ruby");
+        return Err(Error::new(
+            ruby.exception_runtime_error(),
+            format!("Invalid {name}: {value}"),
+        ));
+    }
+    Ok(value)
+}
+
+/// Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
+///
+/// Packs a 52-bit microsecond UTC `timestamp` into the high bits and a 12-bit
+/// `hub_id` (0-4095) into the low bits, encoding the result as an ISCC-ID unit
+/// with `realm` (0 = testnet, 1 = mainnet) as SubType and Version `V1`. The
+/// three semantic thresholds are validated in `timestamp` → `hub_id` → `realm`
+/// order before narrowing, so the first failing check wins.
+///
+/// Returns a Ruby Hash with key: `iscc`. Raises `RuntimeError` if any parameter
+/// is negative, or if `timestamp >= 2^52`, `hub_id >= 2^12`, or `realm` is not
+/// `0` or `1`.
+fn gen_iscc_id_v1(timestamp: i64, hub_id: i64, realm: i64) -> Result<RHash, Error> {
+    let timestamp = checked(timestamp, 4_503_599_627_370_496, "timestamp")?; // 2^52
+    let hub_id = checked(hub_id, 4096, "hub_id")?;
+    let realm = checked(realm, 2, "realm")?;
+    let r = iscc_lib::gen_iscc_id_v1(timestamp as u64, hub_id as u16, realm as u8)
+        .map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
     Ok(hash)
 }
 
@@ -483,6 +523,7 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     module.define_module_function("_gen_instance_code_v0", function!(gen_instance_code_v0, 2))?;
     module.define_module_function("_gen_iscc_code_v0", function!(gen_iscc_code_v0, 2))?;
     module.define_module_function("_gen_sum_code_v0", function!(gen_sum_code_v0, 4))?;
+    module.define_module_function("_gen_iscc_id_v1", function!(gen_iscc_id_v1, 3))?;
 
     // Text utility functions
     module.define_module_function("text_clean", function!(text_clean, 1))?;

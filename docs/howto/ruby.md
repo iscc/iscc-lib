@@ -200,6 +200,35 @@ result = IsccLib.gen_sum_code_v0("example.bin", add_units: true)
 puts result["units"] # Array of unit code strings
 ```
 
+### ISCC-IDv1 (experimental)
+
+Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
+bits and the HUB-ID the low 12 bits; `realm` (0 = testnet, 1 = mainnet) becomes the SubType.
+
+!!! warning "Experimental"
+
+    The ISCC-IDv1 format is not yet part of ISO 24138 and may change.
+
+```ruby
+result = IsccLib.gen_iscc_id_v1(1_751_831_876_325_218, 1, 0)
+puts result.iscc # "ISCC:MAIGHFECJMOPMIAB"
+```
+
+Parameters (positional): `timestamp` (Integer, `0 <= timestamp < 2^52`), `hub_id` (Integer,
+`0 <= hub_id < 4096`), `realm` (Integer, `0` or `1`). Raises `RuntimeError` if any parameter is
+negative or out of range; checks run in `timestamp` → `hub_id` → `realm` order.
+
+There is no dedicated decoder — recover the fields with `iscc_decode` and bit math:
+
+```ruby
+mt, st, vs, li, digest = IsccLib.iscc_decode(result.iscc)
+n = digest.unpack1("Q>") # 64-bit big-endian body
+timestamp = n >> 12      # high 52 bits
+hub_id = n & 0xFFF       # low 12 bits
+realm = st               # SubType
+puts vs == 1             # true (Version V1)
+```
+
 ## Structured results
 
 Every `gen_*_v0` function returns a typed `Result` object (a `Hash` subclass) that supports both
@@ -240,6 +269,7 @@ Result types and their fields:
 | `InstanceCodeResult` | `iscc`, `datahash`, `filesize`                      |
 | `IsccCodeResult`     | `iscc`                                              |
 | `SumCodeResult`      | `iscc`, `datahash`, `filesize`, `units`?            |
+| `IdCodeResult`       | `iscc`                                              |
 
 Fields marked with `?` are optional and only present when the corresponding input was provided.
 
