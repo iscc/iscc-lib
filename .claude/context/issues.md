@@ -20,12 +20,13 @@ and user-facing behaviour in `docs/`.
 
 GitHub: https://github.com/iscc/iscc-lib/issues/43 — **a v0.6.0 release blocker.**
 
-`codec::Version` has only `V0` (`crates/iscc-lib/src/codec.rs:99-112`), so every surface rejects any
-ISCC-IDv1 — including through the already-shipped generic `iscc_decode` / `iscc_decompose`, which
-`iscc_core` handles fine (its `decode_header` does no version validation at all).
-`iscc_lib.iscc_decode("ISCC:MAIGHFECJMOPMIAB")` raises `invalid Version: 1` where
-`iscc_core.iscc_decode` returns `(6, 0, 1, 0, <8 bytes>)`. That is a live drop-in-compatibility gap
-in a shipped Tier 1 function, independent of any new symbol.
+The core `codec::Version` now has `V0` **and** `V1` (`#[non_exhaustive]`,
+`crates/iscc-lib/src/codec.rs:104-106`), so the core generic decode already accepts version 1 — the
+low-level `_iscc_decode("ISCC:MAIGHFECJMOPMIAB")` returns `(6, 0, 1, 0, <8 bytes>)`. The remaining
+drop-in-compatibility gap is **per-surface enum wrappers** that predate V1: the Python `VS` IntEnum
+(`crates/iscc-py/python/iscc_lib/__init__.py:82-85`) still defines only `V0`, so
+`iscc_lib.iscc_decode` raises `1 is not a valid VS`. Every surface with its own version enum needs
+the same widening plus a round-trip test (`iscc_decode(gen_iscc_id_v1(...)["iscc"])`).
 
 Separately, the minting function `gen_iscc_id_v1` is missing everywhere, and `packages/go` carries
 the only implementation, under a superseded name and reversed parameter order (`EncodeIsccID`),

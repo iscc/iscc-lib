@@ -11,25 +11,25 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `gen_iscc_id_v1` + `IsccIdResult` added iter 177, #43 Part 2 — docs/count text still reads 32 by
     design, a separate sweep step); Tier 2 is `pub(crate)`, never crosses FFI. `packages/go` is NOT
     a binding — a pure-Go reimplementation
-- **The reference `gen_iscc_id_v1` needs no built wheel to oracle-check** — it is pure Python:
-    `uv run --python 3.13 --no-project --with iscc-core python -c "import iscc_core as ic; ic.gen_iscc_id_v1(ts,hub,realm)"`.
-    Core `gen_iscc_id_v1` matches it byte-for-byte across realm{0,1}×hub{0,4095}×ts{0,2^52-1}
-    (`MA…`/`ME…` prefix = the realm nibble). The "needs rebuilt wheel" caveat is only for the Python
-    *binding* differential, not the reference oracle
+- **`gen_iscc_id_v1` is pure Python — oracle-check with no built wheel** (`--with iscc-core`,
+    `MA…`/`ME…` = realm nibble); core + py binding match byte-for-byte over
+    realm{0,1}×hub{0,4095}×ts{0,2^52-1} (178). **Minting ≠ decode round-trip**: core
+    `codec::Version` accepts `V1`, but each surface's own version enum (Python `VS` IntEnum) lists
+    only `V0`, so `iscc_decode(gen_iscc_id_v1(...))` raises `1 is not a valid VS` — the #43 fan-out
+    must widen every surface enum + add a round-trip test, not just add the minting fn
 
 ## Reference Implementation
 
 - **`iscc-core` output is not stable across CPython versions** (5,185 code points differ 3.13 vs
     3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so output tracks
-    `unicodedata.unidata_version`; iscc-core#137). Always name the interpreter:
-    `uv run --python 3.13 --no-project --with iscc-core …`
+    `unicodedata.unidata_version`; iscc-core#137). Always name the interpreter (`--python 3.13`)
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) needs a **differential sweep**
-    (`mise run unicode:sweep`) to prove output-neutrality, never a green vector suite — every
-    `data.json` vector predates Unicode 16
-- **A widened decode gate re-exposes latent truncation** (174 → fixed 175): `decode_header` used
-    `as u8` before `TryFrom`, so a multi-nibble value wrapped (version `257`→`1`, MainType
-    `262`→`6`=`Id`) and a MALFORMED header canonicalized to a valid ISCC; now `u8::try_from`-gated +
-    tested. Probe a wrapped header (`"MDFZAAAAAAAAAAAAAA"`) on any codec header-gate change
+    (`mise run unicode:sweep`) to prove output-neutrality, not a green vector suite (every
+    `data.json` vector predates Unicode 16)
+- **A widened decode gate re-exposes latent truncation** (174 → fixed 175): `decode_header`'s
+    `as u8` before `TryFrom` let a multi-nibble value wrap (version `257`→`1`, MainType
+    `262`→`6`=`Id`) so a MALFORMED header canonicalized to a valid ISCC; now `u8::try_from`-gated.
+    Probe a wrapped header (`"MDFZAAAAAAAAAAAAAA"`) on any codec header-gate change
 
 ## Tooling
 
@@ -43,14 +43,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     regeneration-no-op gate — and a **third-party** generator you cannot fix (uniffi bindgen, 172)
     always trips it, so verify that no-op modulo `sed 's/[[:space:]]*$//'`, never by `git status`
 - **Every "not locally verifiable" toolchain claim so far has been false**: `cmake` via
-    `uv run --with cmake cmake …` (configure into a fresh gitignored `build-*/`, never the stale
-    `packages/cpp/build/`), `swift` via swift.org's Debian 12 tarball (`packages/swift/CLAUDE.md`),
-    and the release-only Kotlin publish — `gradlew publishMavenPublicationToStagingRepository`
-    writes to `build/staging-deploy` and skips signing without `MAVEN_GPG_PASSPHRASE`, so the whole
-    release path runs offline and credential-free
+    `uv run --with cmake cmake …` (configure into a fresh gitignored `build-*/`, not stale
+    `packages/cpp/build/`), `swift` via swift.org's Debian 12 tarball, and the release-only Kotlin
+    publish — `gradlew publishMavenPublicationToStagingRepository` writes to `build/staging-deploy`
+    and skips signing without `MAVEN_GPG_PASSPHRASE`, so the release path runs offline + keyless
 - **Perf-gate tooling installs on demand, NOT in the devcontainer**: `mise run bench:iai:check` dies
-    until `apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner@0.16.1`
-    (pin-matched)
+    until `apt-get install valgrind` + `cargo binstall iai-callgrind-runner@0.16.1` (pin-matched)
 - **A docs page lives in FOUR places — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
     `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`**
     (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
@@ -65,11 +63,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     removes it, and `U+FFFF` is permanently `Cn`/`ccc = 0`/undecomposable. Never "fix" one binding
     to match another
 - **`str::to_lowercase()` decides `Final_Sigma` from the COMPILER's Unicode tables** (iter 156):
-    rustc 1.97 ships 17.0, which moved U+0295 `Ll`→`Lo`, so a bare `.to_lowercase()` made hash
-    output a function of the rustc version. `text_collapse` lowercases via `to_lowercase_unicode16`,
-    which pre-substitutes each `Σ` with σ/ς decided from vendored `Cased`/`Case_Ignorable` tables
-    (`utils/unicode16_case.rs`, regen `scripts/gen_unicode16_case.py`) and only then delegates to
-    std. The rule is NOT "no `Cased` char follows": `ΑΣ,Β` → `αςβ`, `ΑΣ.Β` → `ασβ`
+    rustc 1.97/17.0 moved U+0295 `Ll`→`Lo`, so a bare `.to_lowercase()` made hash output a function
+    of rustc. `text_collapse` uses `to_lowercase_unicode16`, pre-substituting each `Σ` with σ/ς from
+    vendored `Cased`/`Case_Ignorable` tables (`utils/unicode16_case.rs`, regen
+    `scripts/gen_unicode16_case.py`). Rule is NOT "no `Cased` follows": `ΑΣ,Β`→`αςβ`, `ΑΣ.Β`→`ασβ`
 - **Any Unicode differential MUST include multi-code-point sequences** — deleting a `Cn` code point
     changes ADJACENCY, mapping it does not, and a per-code-point sweep scores the superseded
     delete-filter design 0 failures; only `base_mark` / `jamo` / `sigma` expose it
@@ -79,19 +76,18 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     for every Unicode-table or toolchain bump**. A bare `uv run scripts/unicode_sweep.py` REFUSES
     (only those rebuild-first paths pass `--rebuilt`)
 - **Boundary vectors: `crates/iscc-lib/tests/unicode_boundary.json`** (141; 12 vectors, ASCII
-    `\uXXXX`, `data.json`-shaped, loader `tests/test_unicode_boundary.rs`, deliberately NOT merged
-    into `data.json`; the 4 **sequence** ones from 149 are the only sentinel-vs-delete-filter
+    `\uXXXX`, `data.json`-shaped, loader `tests/test_unicode_boundary.rs`, NOT merged into
+    `data.json`; the 4 **sequence** ones from 149 are the only sentinel-vs-delete-filter
     discriminators, so a binding suite needs **no oracle column**). **All 11 native surfaces +
     pure-Go gated since 161** — a new vector costs 12 suites: 8 read the canonical fixture, Go/Swift
-    keep byte-identity-gated copies, C/C++ share one generated header
-    (`crates/iscc-ffi/tests/unicode_boundary_vectors.h`, gated by a pytest anchor)
+    keep byte-identity copies, C/C++ share one generated header
+    (`crates/iscc-ffi/tests/unicode_boundary_vectors.h`, pytest-anchored)
 - **A binding can pass a boundary vector for the WRONG reason** (150/161): `packages/go` has no
     freeze rule — its 15.0 tables make U+20C1/U+A7F1 `Cn`, so the category-`C` filter coincides
     (go1.27 flips 5 cases red — see issues.md); Swift's `String ==` folds canonical equivalence, so
     compare `unicodeScalars.map { $0.value }` arrays
-- **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (141):
-    cases swapped for ASCII no-ops stay green forever, hence the **ungated** guards on version, case
-    counts and code points; probe each, and give any skip list a *stale-key* guard
+- **A data-driven fixture is self-referential — assert CONTENT, not shape** (141): ASCII no-op swaps
+    stay green forever, so **ungate** guards on version, case counts, code points + skip-list keys
 - **Per-algorithm internals**, normalization order, `data.json` shape/counts, API-parameter facts,
     **ISCC-IDv1**, the three codec rules (all test-pinned) → `learnings-archive.md`
 
@@ -128,19 +124,18 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     **1.85 is installed**: `cargo +1.85.0 check -p <crate> --locked`
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
-- **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with both `--fail-regression` and a
-    **bare** `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax
-    error); the baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`).
-    **CI-ONLY gap:** a new branch in a covered fn — or merely **moving lines below the edit point**
-    — is green locally and red in CI unless the baseline moves in the SAME step (never widen
-    epsilon/threshold)
+- **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
+    `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
+    baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a
+    new branch in a covered fn — or merely **moving lines below the edit point** — is green locally,
+    red in CI unless the baseline moves in the SAME step (never widen epsilon/threshold)
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
     load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`
 - **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, two dev-only
     iai-callgrind advisories ignored) + `audit` CI job (`cargo-deny@0.19.9`) + `mise run audit`;
-    reads Cargo.lock, so green locally is authoritative. A yanked crate or fresh RustSec advisory
-    reds it on ANY push with no code change — fix with `cargo update -p <crate>` (confirm dev-only
-    reach: `cargo tree -i <crate> -e no-dev` = empty), NOT a `deny.toml` ignore
+    reads Cargo.lock so green locally is authoritative. A yanked crate/fresh RustSec advisory reds
+    it on ANY push with no code change — fix with `cargo update -p <crate>` (confirm dev-only:
+    `cargo tree -i <crate> -e no-dev` empty), NOT a `deny.toml` ignore
 - **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
     dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = the tag misses). `.pyi` is
     tagged `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed iter 139).
@@ -148,18 +143,16 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     test against the real tree. Formatter caveats → `learnings-archive.md`
 - **A binding-toolchain bump can silently raise the *consumer* floor** — in a *published* binding
     that is Titusz's call (floor: Kotlin 2.3+; `mavenLocal` recipe + the four docs → the archive)
-- **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`. Read
-    it before touching `pom.xml` / `build.gradle.kts`, or before calling a Gradle error a failure.
-    Gradle 9 writes `build/reports/problems` at the END of every build, so a *concurrent* build (a
-    background Codex run) makes `clean` fail "Unable to delete directory … New files were found" —
-    re-run sequentially before believing it (165)
+- **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`; read
+    before touching `pom.xml` / `build.gradle.kts`. Gradle 9 writes `build/reports/problems` at the
+    END of every build, so a *concurrent* build (a background Codex run) makes `clean` fail "Unable
+    to delete directory" — re-run sequentially before believing it (165)
 - **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
-    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (the `releases/latest`
-    endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` and
+    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (`releases/latest`
+    proves a release exists, not that `@vN` resolves); `astral-sh/setup-uv` +
     `rubygems/configure-rubygems-credentials` publish only exact tags. **Measure what a branch pin
-    drops:** `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by` — a PR title understates it
-    (162: `@main` was 31 commits + a rebuilt `dist/` ahead of `v2.1.0`). Majors →
-    `.claude/agent-memory/advance/deps-refresh.md`
+    drops:** `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by` (162: `@main` was 31 commits
+    \+ a rebuilt `dist/` ahead of `v2.1.0`). Majors → `.claude/agent-memory/advance/deps-refresh.md`
 - **An action-major bump is statically verifiable far past "the tag exists"** — the `inputs`/
     `outputs` diff is automated (`--check-action-inputs`); what stays manual is every intervening
     major's *default* changes (recipe + the two silent biters → `learnings-archive.md`)
@@ -191,12 +184,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     (`--wrap 100 --number`, isolated env) over every file in the push range — incl. `next.md` and
     per-agent `MEMORY*.md` — so one non-conforming file rejects the whole batch even though
     staged-only `git commit` passed. Unblock by reformatting + amending
-- **Never write an exact count, a substring `grep -c`, an unverified CLI flag, or an unverified
-    `#[deprecated]` claim into a verification criterion** (139: `ruff format --check` saw 155 not
-    153; 148: `--fail-above   30.0` is a `cargo crap` syntax error; 168: a "must not appear" grep
-    banned the *undeprecated* `Env::byte_array_from_slice`, reverted 169). Confirm the attribute in
-    `~/.cargo/registry/src/*/<crate>-<ver>/`; assert the *gate* (exit code) and anchor greps; copy
-    gate invocations from `ci.yml`, never from memory
+- **Never write an exact count, substring `grep -c`, unverified CLI flag, or unverified
+    `#[deprecated]` claim into a criterion** (139: `ruff format --check` saw 155 not 153; 148:
+    `--fail-above 30.0` is a `cargo crap` syntax error; 168: a "must not appear" grep banned the
+    *undeprecated* `Env::byte_array_from_slice`, reverted 169). Confirm attributes in
+    `~/.cargo/registry/src/*/<crate>-<ver>/`; assert the *gate* (exit code); copy gate lines from
+    `ci.yml`
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
     (142: a prescribed rule that could not resolve `wheels-*`; 143: two false Unicode safety claims
     shipped verbatim into published docs). advance implements the *intent* and documents any

@@ -1,40 +1,47 @@
-## 2026-07-28 — Add `gen_iscc_id_v1` to the Python binding + differential test
+## 2026-07-28 — Review of: Add `gen_iscc_id_v1` to the Python binding + differential test
 
-**Done:** Exposed the core's `gen_iscc_id_v1` on the Python surface (the `iscc-core` drop-in) and
-pinned it to the reference with a pytest differential test. Additive-only; no other #43 surface, no
-doc/count sweep, no core change.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `crates/iscc-py/src/lib.rs`: added
-    `#[pyfunction] gen_iscc_id_v1(timestamp, hub_id=0,   realm_id=0)` returning `PyDict{"iscc"}`
-    (Err→`PyValueError`, no `py.detach`), registered in `#[pymodule]`.
-- `crates/iscc-py/python/iscc_lib/__init__.py`: import `_gen_iscc_id_v1`,
-    `IsccIdResult(IsccResult)`, public wrapper, re-export, `__all__` (2 entries).
-- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: docstring-only stub (no trailing `...`).
-- `tests/test_iscc_id_v1.py` (new): differential vs installed `iscc_core` over ts×hub×realm{0,1},
-    golden, defaults, and 3 validation cases.
+**Summary:** The advance agent exposed the core's `gen_iscc_id_v1` on the Python surface and pinned
+it to the `iscc_core` reference with a pytest differential test. Additive-only, in scope, all gates
+green; independently confirmed byte-for-byte against the reference oracle (realm nibble, golden,
+three validation raises). One carried-forward note: minting works but the generic decode path does
+not yet round-trip an IDv1 (tracked under #43, explicitly out of scope here).
 
 **Verification:**
 
-- `maturin develop -m crates/iscc-py/Cargo.toml` — built OK.
-- `pytest tests/test_iscc_id_v1.py` — 7 passed. Full `pytest` — 451 passed, no regression.
-- Golden smoke: `gen_iscc_id_v1(1751831876325218,1,0)['iscc']=='ISCC:MAIGHFECJMOPMIAB'` — exit 0.
-- `ruff check` + `ruff format --check` (crates/iscc-py tests) — clean.
-- `uv run ty check` — clean. `cargo clippy -p iscc-py --all-targets -- -D warnings` — clean.
-- `mise run check` — all prek pre-commit hooks Passed; no context files reformatted.
-- Ref signature confirmed via oracle: `iscc_core.gen_iscc_id_v1` is
-    `(timestamp=None, hub_id=0,   realm_id=0)`; golden and `(0,0,1)→ISCC:MEIAAAAAAAAAAAAA` match.
+- [x] `maturin develop` builds — OK.
+- [x] `pytest tests/test_iscc_id_v1.py` — 7 passed (differential grid + golden + 3 validations).
+- [x] Golden smoke `gen_iscc_id_v1(1751831876325218,1,0)['iscc']=='ISCC:MAIGHFECJMOPMIAB'` — exit 0.
+- [x] Full `pytest` — 451 passed, no regression.
+- [x] `ruff check` + `ruff format --check` (crates/iscc-py tests) — clean.
+- [x] `uv run ty check` — clean (new `.pyi` stub type-checks).
+- [x] `cargo clippy -p iscc-py --all-targets -- -D warnings` — clean.
+- [x] `mise run check` — all prek pre-commit hooks Passed; no context files reformatted.
+- [x] **Probe (independent oracle):** isolated `iscc_core` 1.3.0 vs installed binding —
+    `(0,0,0)→MAI…`, `(0,0,1)→MEI…`, golden, and realm=2 / hub=4096 / ts=2^52 all raise `ValueError`
+    on both sides.
 
-**Next:** Continue the #43 fan-out — next cleanest reference-parity surface is FFI (`iscc-ffi`,
-unblocks dotnet/cpp, needs `iscc.h` regen + freshness gate), then napi/wasm/jni/rb/uniffi, the Go
-`EncodeIsccID`→`gen_iscc_id_v1` rename + `DecodeIsccID` deletion, and finally the Tier-1 32→33
-doc/count sweep.
+**Issues found:**
 
-**Notes:**
+- (none in the delivered work — scope, correctness and simplicity all clean.)
 
-- Wrapper param is `realm_id` (mirrors the reference's public name); it maps to the core's
-    `realm: u8`. Tests always pass `timestamp` explicitly — `timestamp=None` would make the
-    reference call the system clock.
-- No `py.detach` (trivial compute), matching `gen_iscc_code_v0`.
-- Tier 1 is 33 symbols in code; doc/count text still reads 32 by design (separate sweep step).
+**Codex review:** [P1] flagged that `iscc_decode(gen_iscc_id_v1(...))` raises `1 is not a valid VS`
+— the Python `VS` IntEnum (`__init__.py:82`) still lists only `V0`. This is the already-tracked #43
+generic-decode gap and is **explicitly out of scope** for this minting-only step; the advance agent
+correctly left it. Verified the underlying fact shifted: the core `codec::Version` now has `V1`
+(`#[non_exhaustive]`), so the low-level `_iscc_decode` returns `(6,0,1,0,<8 bytes>)` — the remaining
+blocker is per-surface enum wrappers, not the core. Corrected #43's stale "core raises
+`invalid Version: 1`" text accordingly.
+
+**Next:** Continue the #43 fan-out. Two independent tracks now visible: (a) **minting** —
+`gen_iscc_id_v1` on the next surface (FFI unblocks dotnet/cpp but needs `iscc.h` regen + freshness
+gate; napi/wasm/jni/rb/uniffi are lighter templates); (b) **decode round-trip** — widen each
+surface's own version enum (Python `VS`, etc.) to accept `V1` and add an
+`iscc_decode(gen_iscc_id_v1(...))` test. The Tier-1 32→33 doc/count sweep and the Go
+`EncodeIsccID`→`gen_iscc_id_v1` rename + `DecodeIsccID` deletion remain separate steps.
+
+**Notes:** CI is GREEN on develop (the state.md "Semver RED" is a phantom — the `Semver` job is
+`continue-on-error: true`). Wrapper param is `realm_id` (mirrors the reference public name) → core's
+`realm: u8`; tests always pass `timestamp` explicitly (a `None` would make the reference read the
+clock). No decision record: API shape was spec-mandated and matches the reference byte-for-byte.

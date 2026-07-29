@@ -310,3 +310,18 @@ one as unproven.
 - `.build/` is gitignored since iter 161; a bare `swift build` can no longer dirty the tree.
 - `try!` / `as!` / `!` force-unwraps in these test files mirror `ConformanceTests.swift` and are
     fine — a crash is a test failure. Not a review finding.
+
+## #43 ISCC-IDv1 fan-out (Part 2, started iter 177–178)
+
+- **Python `gen_iscc_id_v1` landed iter 178** — `#[pyfunction]` returning `PyDict{"iscc"}`,
+    `IsccIdResult(IsccResult)` wrapper, `_lowlevel.pyi` stub. Reviewed clean. Golden
+    `gen_iscc_id_v1(1751831876325218,1,0)["iscc"] == "ISCC:MAIGHFECJMOPMIAB"`; realm nibble MA=0 /
+    ME=1.
+- **Minting ≠ decode round-trip** (Codex P1, iter 178): core `codec::Version` now has `V1`
+    (`#[non_exhaustive]`) so low-level `_iscc_decode` returns `(6,0,1,0,<8b>)`, but each surface's
+    OWN version enum (Python `VS` IntEnum, `__init__.py:82`) lists only `V0` → `iscc_decode(...)`
+    raises `1 is not a valid VS`. A minting-only step legitimately leaves this; the decode
+    round-trip is a separate #43 track needing the enum widened + a round-trip test per surface. #43
+    body corrected.
+- **Oracle needs no wheel**: `uv run --python 3.13 --no-project --with iscc-core python -c "..."` —
+    the reference `gen_iscc_id_v1` is pure Python. Cross-check the binding against it directly.
