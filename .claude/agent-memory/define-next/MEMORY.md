@@ -99,12 +99,16 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     [idv1 fan-out facts](iscc-idv1-fanout.md) has golden/validation + per-surface slice recipes.
     Done: 178 Python, 179 Go rename, 180 napi, 181 wasm+JS-number validation, 182 ffi, 184 jni, 185
     rb, 186 uniffi (Swift+Kotlin, one step), 187 dotnet C#, **188 cpp (LAST minting surface)**.
-    **After 188: ALL 11 minting surfaces done.** Two #43 remnants: (a) decode-widening — **surveyed
-    189: ONLY Python's `VS` IntEnum rejects V1**; every other surface returns a bare int/byte
-    version (napi/wasm `version: u8`, jni `JValue::Int`, rb 5-elem array, uniffi/ffi assert
-    `version==1`, dotnet `byte Version`, cpp `uint8_t`, Go has `VSV1`) → 189 adds `V1=1` to Python
-    `VS`, NOT a fan-out; (b) the Tier-1 32→33 doc/count sweep (stale sites incl. 3 non-Markdown
-    enumerated in issues.md #43 + the fanout file) — the only remaining item after 189.
+    **After 188: ALL 11 minting surfaces done.** Decode-widening done 189 (ONLY Python's `VS`
+    IntEnum rejected V1; every other surface returns a bare int/byte version). **190 scoped the LAST
+    #43 item: Tier-1 doc/count sweep + API-doc entries** (docs-only fan-out, all targets outside the
+    3-file code budget). **PROBED at scope time: two source files issues.md #43 lists as stale
+    (`iscc-uniffi/src/lib.rs:3`, `iscc-rb/src/lib.rs:7`) ALREADY read 33** (rb's list carries
+    `gen_iscc_id_v1`) — the issue text is stale on them. Remaining count sites are all Markdown
+    reading 22/30/32: `iscc-lib/CLAUDE.md`, `iscc-wasm/CLAUDE.md`, `docs/ruby-api.md`,
+    `docs/java-api.md`, `notes/00-overview.md` (reads **22**), `notes/04-…`, `advance.md:146`.
+    API-doc `gen_iscc_id_v1` entry missing on `docs/{rust,java,ruby,c-ffi}-api.md`; only `go.md` +
+    `ruby.md` howto pages cover IDv1 (9 of 11 need an example).
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published
