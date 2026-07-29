@@ -99,12 +99,17 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     [idv1 fan-out facts](iscc-idv1-fanout.md). Golden
     `gen_iscc_id_v1(1751831876325218,1,0)=="ISCC:MAIGHFECJMOPMIAB"`; validation ts≥2^52/hub≥2^12/
     realm∉{0,1}; no dedicated decoder. Each surface is its OWN step (tech wraps differently). Done:
-    178 Python, 179 Go rename, 180 napi, 181 wasm + JS-number validation, 182 ffi
-    (`iscc_gen_iscc_id_v1(u64,u16,u8)` typed-int, NO checked() guard; regen iscc.h via cbindgen CI
-    cmd + git-diff-empty gate; C golden+error in test_iscc.c;
-    `result_to_c_string(r.map(|x|x.iscc))`; cbindgen ON PATH; ffi CLAUDE.md/README carry NO count so
-    no doc edit; dotnet csbindgen untouched). Remaining: jni, rb, uniffi→Swift/Kotlin, dotnet, cpp,
-    \+ 32→33 doc sweep.
+    178 Python, 179 Go rename, 180 napi, 181 wasm + JS-number validation, 182 ffi, 184 jni, 185 rb.
+    **186 scoped uniffi (Swift+Kotlin) as ONE fan-out step** — one core edit
+    `crates/iscc-uniffi/src/lib.rs` (`IsccIdResult` record + export `(u64,u16,u8)` straight to core,
+    **NO checked() guard** — exact-width types = ffi/Go pattern, core does ts→hub→realm order) then
+    regen 3 checked-in artifacts (swift `iscc_uniffi.swift`+`iscc_uniffiFFI.h`, kotlin
+    `iscc_uniffi.kt`) via
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen --   generate` (swift
+    `--language swift`, kotlin `--language kotlin --no-format`). uniffi camelCases `genIsccIdV1`;
+    DON'T overwrite swift `.modulemap` (hand-simplified); bindgen is 3rd-party → verify regen no-op
+    modulo trailing-ws not `git status`. Swift test via swift.org debian12 toolchain, Kotlin via
+    `./gradlew test`. Remaining after: dotnet C#, cpp, + 32→33 doc sweep.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published

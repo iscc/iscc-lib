@@ -1,66 +1,78 @@
 # Next Work Package
 
-## Step: Mint `gen_iscc_id_v1` on the Ruby (Magnus) surface
+## Step: Mint `gen_iscc_id_v1` on the uniffi surface (Swift + Kotlin)
 
 ## Goal
 
-Add the experimental `gen_iscc_id_v1` minting function to the Ruby binding (issue #43, a v0.6.0
-release blocker), completing the 8th of 11 IDv1 fan-out surfaces. Ruby is a wide-int surface, so it
-must validate the three semantic thresholds in normative ts→hub→realm order *before* narrowing.
+Complete the ISCC-IDv1 fan-out (#43) on the shared UniFFI scaffolding: one core edit in
+`crates/iscc-uniffi/src/lib.rs` regenerates the checked-in Swift and Kotlin bindings, taking those
+two surfaces from 32 to 33 accepted Tier 1 symbols. Leaves only dotnet (C#) and cpp before the
+repo-wide 32→33 doc sweep.
 
 ## Alternatives Considered
 
-- **Chosen:** Ruby `gen_iscc_id_v1` — the handoff's designated next surface; applies the fresh
-    "validate before narrowing" pattern (napi/wasm/jni) while it is well-understood.
-- **Rejected:** uniffi (Swift/Kotlin) minting — higher-risk single step (one core edit plus three
-    regenerated checked-in artifacts); do it after the simpler rb surface. The 32→33 doc sweep is
-    lower value while minting surfaces remain unshipped.
+- **Chosen:** uniffi (Swift+Kotlin) — one coherent core edit advances **two** of the three remaining
+    surfaces at once; it is the handoff-flagged higher-risk item (regenerated checked-in artifacts),
+    best done while the IDv1 pattern is fresh.
+- **Rejected:** dotnet C# consumer — lower risk but advances only one surface, and its FFI P/Invoke
+    decl already exists; it and cpp are cleanly deferrable to later single-surface steps.
 
 ## Scope
 
-- **Modify**: `crates/iscc-rb/src/lib.rs` (native fn + `init` registration + header docstring),
-    `crates/iscc-rb/lib/iscc_lib.rb` (idiomatic wrapper + result class), `docs/howto/ruby.md` (IDv1
-    section with the decode bit-math recipe)
-- **Create**: `crates/iscc-rb/test/test_iscc_id.rb` (golden + round-trip + validation-order tests)
-- **Reference**: `crates/iscc-napi/src/lib.rs:301-335` (`checked`/`gen_iscc_id_v1` validation
-    precedent), `crates/iscc-lib/src/lib.rs:1064-1140` (core fn + golden/round-trip/ordering tests),
-    spec `rust-core.md` "ISCC-IDv1 Operations" (validation order, test placement)
+- **Fan-out:** add the `gen_iscc_id_v1` export to the shared `iscc-uniffi` crate, applied to the
+    Swift and Kotlin surfaces via regenerated bindings.
+- **Modify**: `crates/iscc-uniffi/src/lib.rs` (add `IsccIdResult` record + `gen_iscc_id_v1` export;
+    update the header docstring line 3 "all 32 Tier 1 symbols" → 33 — own-file only)
+- **Regenerate (generated, not counted)**: `packages/swift/Sources/IsccLib/iscc_uniffi.swift`,
+    `packages/swift/Sources/iscc_uniffiFFI/iscc_uniffiFFI.h`,
+    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt`
+- **Tests (not counted)**: `packages/swift/Tests/IsccLibTests/ConformanceTests.swift`,
+    `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt`
+- **Reference**: `specs/rust-core.md` → "ISCC-IDv1 Operations" (esp. "Regenerated bindings are part
+    of their step"); `crates/iscc-uniffi/src/lib.rs` (mirror `gen_text_code_v0`); package CLAUDE.md
+    regen commands
 
 ## Not In Scope
 
-- The repo-wide Tier-1 32→33 doc/count sweep (separate step) — only fix `src/lib.rs`'s **own**
-    header docstring (`Symbols (32 of 32)` → 33, add the new name) since you edit that file.
-- No `decode_iscc_id_v1` and no Ruby version enum widening — `iscc_decode` returns `version` as a
-    plain Integer, so the decode round-trip already works with no wrapper change.
-- Do not touch other surfaces (uniffi/dotnet/cpp) or the codec.
+- The repo-wide Tier 1 32→33 doc/count sweep (issues.md) — separate step after all surfaces land.
+    Only touch the `iscc-uniffi/src/lib.rs:3` docstring in this file.
+- Any `checked()` / binding-side guard: uniffi passes `(u64, u16, u8)` straight through, so **core**
+    does the ordered validation (ffi/Go precedent). Do not narrow or pre-validate in the binding.
+- dotnet C# and cpp IDv1 minting; no `decode_iscc_id_v1`; no `SubType` realm variants.
 
 ## Implementation Notes
 
-- Ruby Integers are arbitrary precision. Take all three params as `i64` in the native fn and add a
-    `checked(value: i64, max_exclusive: i64, name) -> Result<i64, Error>` helper that rejects
-    `value < 0 || value >= max_exclusive` with a `RuntimeError`. Call it in order: `timestamp`
-    (`< 4_503_599_627_370_496` = 2^52) → `hub_id` (`< 4096`) → `realm` (`< 2`), then narrow
-    (`as u64/u16/u8`) and call `iscc_lib::gen_iscc_id_v1`. First failing check wins.
-- Native fn returns `RHash` with key `"iscc"` (mirror `gen_text_code_v0`); register as
-    `_gen_iscc_id_v1` with arity 3. Ruby wrapper `self.gen_iscc_id_v1(timestamp, hub_id, realm)`
-    (positional, reference order) wraps it in a new `IdCodeResult < Result` class.
-- Round-trip recipe for the docs + test: `mt, st, vs, li, digest = IsccLib.iscc_decode(iscc)`, then
-    `n = digest.unpack1("Q>")`, `timestamp = n >> 12`, `hub_id = n & 0xFFF`, `realm = st`;
-    `vs == 1`.
+- Add `#[derive(Debug, uniffi::Record)] pub struct IsccIdResult { pub iscc: String }` and
+    `#[uniffi::export] pub fn gen_iscc_id_v1(timestamp: u64, hub_id: u16, realm: u8) -> Result<IsccIdResult, IsccUniError>`
+    delegating to `iscc_lib::gen_iscc_id_v1(timestamp, hub_id, realm)`. Types match core exactly —
+    **no narrowing, no guard** — so core's ts→hub→realm validation order is exposed directly.
+- Regenerate with the CLAUDE.md commands: `cargo build -p iscc-uniffi`, then the swift and kotlin
+    `uniffi-bindgen generate` invocations. UniFFI camelCases to `genIsccIdV1`; the module name stays
+    `iscc_uniffiFFI`. The swift `.modulemap` is manually simplified — do not overwrite it.
+- Golden + round-trip tests (no oracle needed):
+    `genIsccIdV1(timestamp: 1_751_831_876_325_218,   hubId: 1, realm: 0).iscc == "ISCC:MAIGHFECJMOPMIAB"`;
+    then `iscc_decode` on that code, parse the 8-byte `digest` big-endian to a u64 `n`, assert
+    `n >> 12 == 1_751_831_876_325_218`, `n & 0xFFF == 1`, `version == 1`, `subtype(=realm) == 0`.
+    Add a realm-1 + hub-4095 round-trip.
+- The uniffi bindgen is a third-party generator: prek hygiene hooks may reflow the generated bytes,
+    so verify regeneration is a no-op **modulo trailing-whitespace**, not by strict `git status`
+    (learnings). Stage the regenerated files in the same commit.
 
 ## Verification
 
-- Rebuild the native ext first (`cd crates/iscc-rb && bundle exec rake compile:dev`), then
-    `bundle exec rake test` passes — new golden, round-trip, and validation-order tests included.
-- Golden: `IsccLib.gen_iscc_id_v1(1751831876325218, 1, 0).iscc == "ISCC:MAIGHFECJMOPMIAB"`.
-- Validation order asserted: `(1<<52, 4096, 2)`→timestamp msg, `(0, 4096, 2)`→hub msg,
-    `(0, 0, 2)`→realm msg (first-failing-check-wins).
-- Round-trip: `IsccLib.iscc_decode(IsccLib.gen_iscc_id_v1(1751831876325218,1,0).iscc)[2] == 1` and
-    the bit-math recovers `(1751831876325218, 1, 0)`.
-- `cargo clippy -p iscc-rb --all-targets -- -D warnings` and `cargo fmt -p iscc-rb --check` clean;
-    `bundle exec standardrb` clean on the modified/created Ruby files.
+- `cargo build -p iscc-uniffi` succeeds; `cargo test -p iscc-uniffi`,
+    `cargo clippy -p iscc-uniffi -- -D warnings` and `cargo fmt -p iscc-uniffi --check` all clean.
+- Swift suite passes incl. the new IDv1 test (swift.org toolchain recipe in
+    `packages/swift/CLAUDE.md`).
+- Kotlin suite passes incl. the new IDv1 test (`./gradlew test` in `packages/kotlin`).
+- `grep -c "genIsccIdV1" packages/swift/Sources/IsccLib/iscc_uniffi.swift` and the kotlin
+    `iscc_uniffi.kt` each return ≥ 1 (regenerated, not hand-edited).
+- Re-running both `uniffi-bindgen generate` commands leaves the tracked bindings unchanged modulo
+    trailing whitespace.
+- `crates/iscc-uniffi/src/lib.rs` header docstring reads "all 33 Tier 1 symbols".
 
 ## Done When
 
-Ruby exposes `gen_iscc_id_v1` with ordered ts→hub→realm validation, the golden/round-trip/ordering
-tests pass under `rake test`, and all lint/format checks are clean.
+Swift and Kotlin both mint `gen_iscc_id_v1` (golden `ISCC:MAIGHFECJMOPMIAB`) and round-trip it
+through generic `iscc_decode`, from freshly regenerated committed bindings, with all verification
+criteria passing.
