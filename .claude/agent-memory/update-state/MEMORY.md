@@ -90,20 +90,26 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN, not true (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 1d732fc, iter 188)
+## Current State (assessed-at: 34f4e0e, iter 189)
 
-- **CI GREEN on develop.** Real tip `2c78dbf` (iter 187 C# IDv1 review commit pushed): 23 names pass
-    except `Semver` (`continue-on-error`). HEAD `1d732fc` = only unpushed commit is the `cid(log)`;
-    code diff `origin/develop..HEAD -- . ':!.claude'` EMPTY → green covers HEAD.
-- **C# IDv1 (iter 187) = PASS + PUSHED.** `GenIsccIdV1(ulong, ushort, byte)` at
-    `packages/dotnet/Iscc.Lib/IsccLib.cs:287` + `IsccIdResult` record at `Results.cs:35` over the
-    generated `iscc_gen_iscc_id_v1` P/Invoke decl. Pure passthrough (delegates ordered validation to
-    core), exempt from Ruby wide-input gap. 107 dotnet tests. **dotnet=33.** csbindgen decl was
-    already generated at iter 182 — only the C# consumer+test were owed.
-- **10 surfaces mint IDv1 solidly** (core + Python+Go+Node+WASM+C FFI+Java+Ruby+Swift+Kotlin+C# =
-    33/33). **1 remains = 32: cpp only.** cpp header path is `packages/cpp/include/iscc/iscc.hpp`
-    (NOT `packages/cpp/include/iscc.hpp`); grep = 0 IDv1 there. C FFI: `iscc-ffi/src/lib.rs:613` →
-    50 externs, `iscc.h:386`, NO `checked()` (core re-validates).
+- **CI GREEN on develop.** Real tip `169793c` (iter 188 cpp IDv1 review commit pushed): 23 names
+    pass except `Semver` (`continue-on-error`). HEAD `34f4e0e` = only unpushed commit is the
+    `cid(log)`; code diff `origin/develop..HEAD -- . ':!.claude'` EMPTY → green covers HEAD.
+- **cpp IDv1 (iter 188) = PASS + PUSHED = 11th & FINAL minting surface.**
+    `gen_iscc_id_v1(uint64_t,   uint16_t, uint8_t)` at `packages/cpp/include/iscc/iscc.hpp:564` +
+    `IsccIdResult` struct (`:211`) over the shipped `iscc_gen_iscc_id_v1` FFI symbol (grep=3, was
+    0). 72 C++ assertions under cmake/ASAN. Fixed-width passthrough, exempt from Ruby wide-input
+    gap; `DecodeResult.version` is raw `uint8_t` so cpp already decodes V1. NO FFI/header regen
+    (symbol shipped iter 182).
+- **ALL 11 surfaces now mint IDv1 = 33/33 minting** (core + Python+Go+Node+WASM+C FFI+Java+Ruby+
+    Swift+Kotlin+C#+cpp). Minting fan-out COMPLETE. C FFI: `iscc-ffi/src/lib.rs:613` → 50 externs,
+    `iscc.h:386`, NO `checked()` (core re-validates).
+- **#43 remaining half = DECODE enum-widening + doc sweep** (NOT minting). Surfaces with their OWN
+    version enum still reject V1 decode: Python `VS` IntEnum
+    (`crates/iscc-py/python/iscc_lib/__init__.py:82-85`) defines only V0 →
+    `iscc_decode(gen_iscc_id_v1(...))` raises `1 is not a valid VS`. Each such surface needs V1
+    added + round-trip test. Core generic decode already accepts V1. cpp/ffi/dotnet use raw ints (no
+    enum) → already decode. This is the more functional gap; doc 32→33 sweep is the other.
 - **Ruby marshalling gap (normal `[review]` issue, iter 185):** Magnus narrows Ruby Integer→i64
     DURING arg marshalling, before the fn body — so args `> i64::MAX` raise `RangeError` before the
     ordered `checked()` runs. LESSON: any arbitrary-precision-input surface must validate magnitude
@@ -117,10 +123,10 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     `NativeMethods.g.cs` in-step. dotnet=33 as of 187.
 - **Issues 12: 0 crit, 5 normal, 7 low** (first `## ` at L19, no legend inflation). No new issue at
     187 (C# step found none).
-- **Next = cpp fan-out** (last minting surface, fixed-width FFI over iscc_ffi, exempt from
-    marshalling gap; needs `uv run --with cmake cmake` to verify) + Tier-1 32→33 doc sweep. NOT a CI
-    fix. Scope origin: out-of-loop non-`cid()` `2c4e487` (174) demanded 33 Tier-1 symbols + IDv1 on
-    core + all 11 surfaces.
+- **Next = #43 decode enum-widening** (Python VS IntEnum + any other own-enum surface; add V1 +
+    round-trip test) + Tier-1 32→33 doc sweep. Minting fan-out DONE. NOT a CI fix. Scope origin:
+    out-of-loop non-`cid()` `2c4e487` (174) demanded 33 Tier-1 symbols + IDv1 on core + all 11
+    surfaces.
 
 ## Durable Facts (carried, not per-iteration)
 
@@ -138,9 +144,9 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 - **Loop infra (162):** `ARTIFACT_BUDGETS` (`tools/cid.py`) caps state 200; `decisions.md` rotates
     into `decisions-archive.md` (grep BOTH) — dirty `decisions*.md` = runner, not crash.
 - **Issue count: never carry forward** — re-grep `^## ` headers each iteration (a legend can inflate
-    a naive `grep -c`); composition flips while the count holds. **Don't re-flag as DONE**: uniffi
-    C# IDv1 187, Swift+Kotlin IDv1 186, Ruby IDv1 185, JNI/Java IDv1 184, C FFI IDv1 182, uniffi
-    0.32 172, criterion 0.8 171 (≤170 → archive).
+    a naive `grep -c`); composition flips while the count holds. **Don't re-flag as DONE**: cpp IDv1
+    188, C# IDv1 187, Swift+Kotlin IDv1 186, Ruby IDv1 185, JNI/Java IDv1 184, C FFI IDv1 182,
+    uniffi 0.32 172, criterion 0.8 171 (≤170 → archive).
 
 ## Gotchas
 

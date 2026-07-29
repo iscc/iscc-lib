@@ -1,15 +1,16 @@
-<!-- assessed-at: 1d732fc -->
+<!-- assessed-at: 34f4e0e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.6.0 — IDv1 fan-out; core + 10 of 11 language surfaces mint IDv1; CI GREEN on develop
+## Phase: v0.6.0 — IDv1 minting fan-out COMPLETE on core + all 11 surfaces; decode enum-widening + doc sweep remain; CI GREEN
 
-Iteration 187 added idiomatic `GenIsccIdV1(ulong, ushort, byte)` + `IsccIdResult` to the C# (.NET)
-surface (PASS), advancing dotnet 32→33 Tier 1 symbols. Core plus 10 of 11 language surfaces now mint
-IDv1 (Python, Node, WASM, C FFI, Java, Go, Ruby, Swift, Kotlin, C#). One surface remains: C++, plus
-the deferred repo-wide Tier-1 32→33 doc/count sweep. Code is pushed and CI-green.
+Iteration 188 added idiomatic `iscc::gen_iscc_id_v1(uint64_t, uint16_t, uint8_t)` + `IsccIdResult`
+to the C++ header (PASS), the 11th and final minting surface. Core plus all 11 language surfaces now
+mint IDv1. Two #43 items remain before v0.6.0 release-readiness: per-surface decode enum-widening
+(surfaces with their own version enum still reject V1) and the repo-wide Tier-1 32→33 doc/count
+sweep. Code pushed, CI green.
 
 ## Rust Core Crate
 
@@ -24,11 +25,12 @@ the deferred repo-wide Tier-1 32→33 doc/count sweep. Code is pushed and CI-gre
 
 ## Python Bindings
 
-**Status**: met — 33/33 symbols
+**Status**: met — 33/33 symbols (minting); decode-widening pending
 
 - `crates/iscc-py` exports `gen_iscc_id_v1` (iter 178) with differential grid + golden + validation
     tests. Retains `IsccResult`, streaming hashers, GIL `.detach(` sites, abi3-py310 wheels.
-- IDv1 decode round-trip still gated by the Python `VS` IntEnum (tracked under #43); minting done.
+- IDv1 decode round-trip still gated by the Python `VS` IntEnum (defines only `V0`) — tracked as the
+    remaining functional half of #43; minting done.
 
 ## Node.js Bindings
 
@@ -89,18 +91,17 @@ the deferred repo-wide Tier-1 32→33 doc/count sweep. Code is pushed and CI-gre
 
 - `GenIsccIdV1(ulong, ushort, byte)` at `packages/dotnet/Iscc.Lib/IsccLib.cs:287` + `IsccIdResult`
     record (`Results.cs:35`) over the generated `iscc_gen_iscc_id_v1` P/Invoke decl. Golden matches
-    `iscc_core` byte-for-byte; 107 dotnet tests pass (+3 IDv1). Exact-width args → exempt from the
-    Ruby wide-input marshalling gap; pure passthrough delegates ordered validation to core.
+    `iscc_core` byte-for-byte; 107 dotnet tests. Exact-width args → exempt from Ruby wide-input gap.
 
 ## C++ Bindings (cpp)
 
-**Status**: partially met — usable at 32/33; no IDv1 minting
+**Status**: met — 33/33 symbols (iter 188)
 
-- `packages/cpp/include/iscc/iscc.hpp` has no `gen_iscc_id_v1` wrapper yet (grep = 0). Fixed-width
-    FFI over `iscc_ffi`, so exempt from the wide-input marshalling gap — last minting surface owed
-    for #43. cpp CI job (cmake/ASAN/test) green.
-- Propagation invariant holds: `git ls-files -- '*data.json' '*unicode_boundary.json'` = 8 ==
-    `VENDORED_COPIES`.
+- `packages/cpp/include/iscc/iscc.hpp:564` mints via `gen_iscc_id_v1(uint64_t, uint16_t, uint8_t)` +
+    `IsccIdResult` (`:211`) over the shipped `iscc_gen_iscc_id_v1` FFI symbol. Golden matches
+    `iscc_core` byte-for-byte; 72 C++ assertions pass under cmake/ASAN; CI job green. Fixed-width
+    FFI passthrough → exempt from wide-input gap; core re-validates. `DecodeResult.version` is raw
+    `uint8_t` (no enum), so cpp already decodes V1.
 
 ## Documentation
 
@@ -108,8 +109,11 @@ the deferred repo-wide Tier-1 32→33 doc/count sweep. Code is pushed and CI-gre
 
 - Docs site (23 pages, 12 READMEs, 12 CLAUDE.md) met; `docs/howto/ruby.md` + `docs/howto/go.md`
     cover `gen_iscc_id_v1`.
-- Tabbed examples still do not present IDv1 uniformly; Tier-1 count text still reads 32/30 in stale
-    sites (wasm CLAUDE.md "30 Tier 1", core CLAUDE.md "32") — separate 32→33 sweep step under #43.
+- Tabbed examples still do not present IDv1 uniformly; Tier-1 count text still reads 32 across many
+    shipped sites (per-crate/package CLAUDE.md + README, `docs/`, `notes/`,
+    `iscc-uniffi/src/lib.rs`, `iscc-rb/src/lib.rs`) — the deferred repo-wide 32→33 sweep, plus
+    `gen_iscc_id_v1` per-symbol API-doc entries in `docs/rust-api.md`, `docs/java-api.md`,
+    `docs/ruby-api.md`, `docs/c-ffi-api.md` and the 11 `docs/howto/*.md` pages (#43).
 
 ## Benchmarks
 
@@ -123,10 +127,10 @@ the deferred repo-wide Tier-1 32→33 doc/count sweep. Code is pushed and CI-gre
 
 **Status**: met (CI green on develop); release-readiness still open
 
-- **CI GREEN on `origin/develop` = `2c78dbf`** (C# IDv1 review commit): all 23 check names pass
+- **CI GREEN on `origin/develop` = `169793c`** (cpp IDv1 review commit): all 23 check names pass
     except `Semver (cargo-semver-checks)` which is `continue-on-error: true` (informational until
     v1.0.0) — expected non-blocking red, not a CI failure.
-- **HEAD `1d732fc` is covered:** only unpushed commit is the `cid(log)` touching iterations.jsonl;
+- **HEAD `34f4e0e` is covered:** only unpushed commit is the `cid(log)` touching iterations.jsonl;
     `git diff origin/develop..HEAD -- . ':!.claude'` is empty — green CI covers all HEAD code.
 - Dependency freshness met (criterion 0.8 at 171, uniffi 0.32 at 172); zero `# held:`/`authorized`
     pin comments in root `Cargo.toml`. Job shape unchanged (21 keys → 22 jobs → 23 names).
@@ -136,19 +140,21 @@ the deferred repo-wide Tier-1 32→33 doc/count sweep. Code is pushed and CI-gre
 ## Open Issues
 
 **12 entries — 0 `critical`, 5 `normal`, 7 `low`, zero HUMAN REVIEW REQUESTED.** No new issue this
-cycle (C# step found none).
+cycle (cpp step found none).
 
 - **NORMAL:** Ruby `gen_iscc_id_v1` validation order breaks for args > i64::MAX (`[review]`);
-    ISCC-IDv1 unsupported outside Go (`[human]`, live v0.6.0 work — core + 10 surfaces done, 1
-    remains: cpp); codec input cleaning diverges from `iscc_clean` (`[review]`); iai text benchmarks
-    ASCII-only (`[review]`); go1.27 tripwire (`[review]`, blocked on upstream).
+    ISCC-IDv1 unsupported outside Go (`[human]`, live v0.6.0 work — minting now done on all 11
+    surfaces; remaining half is decode enum-widening + doc sweep); codec input cleaning diverges
+    from `iscc_clean` (`[review]`); iai text benchmarks ASCII-only (`[review]`); go1.27 tripwire
+    (`[review]`, blocked on upstream).
 - **LOW:** upstream `iscc-core#137` thread, 88-bit ISCC-IDv0 upstream mint, gate-script remainders,
     v1.0.0 cut (HELD), MSRV asserted-not-verified, npm OIDC (deferred), docs language logos.
 
 ## Next Milestone
 
-**CI is green — no CI fix needed.** Finish the #43 IDv1 fan-out on the last surface — C++
-(`packages/cpp/include/iscc/iscc.hpp`), fixed-width FFI over `iscc_ffi`, so exempt from the
-wide-input marshalling gap. Then run the deferred repo-wide Tier-1 32→33 doc/count sweep
-(`gen_iscc_id_v1` API-doc entries, stale count text in wasm/core CLAUDE.md, per-crate README/CLAUDE
-counts). These are the last CID-doable v0.6.0 release-readiness blockers.
+**CI is green — no CI fix needed.** #43 minting fan-out is complete on all 11 surfaces. The two
+remaining #43 items are the last CID-doable v0.6.0 release blockers: (1) **decode enum-widening** —
+surfaces with their own version enum still reject IDv1 decode (Python `VS` IntEnum defines only
+`V0`, so `iscc_decode(gen_iscc_id_v1(...))` raises `1 is not a valid VS`); each such surface needs
+V1 added + a round-trip test. This is the more functional gap. (2) the repo-wide **Tier-1 32→33
+doc/count sweep** (stale `32` counts + `gen_iscc_id_v1` per-symbol API-doc entries).
