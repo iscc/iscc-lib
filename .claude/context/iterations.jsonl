@@ -1536,3 +1536,5 @@
 {"ts":"2026-07-29T04:27:29.865207+00:00","iteration":184,"role":"advance","status":"OK","turns":21,"cost_usd":1.133881,"duration_s":372.6,"peak_context":60301}
 {"ts":"2026-07-29T04:34:33.542561+00:00","iteration":184,"role":"review","status":"OK","turns":25,"cost_usd":1.596114,"duration_s":423.6,"peak_context":78763}
 {"ts":"2026-07-29T04:34:33.616869+00:00","type":"iteration_summary","iteration":184,"verdict":"PASS","turns_total":123,"cost_total":7.820722,"duration_total":1444.5,"peak_context":91876,"over_budget":{".claude/context/learnings.md":202}}
+{"ts":"2026-07-29T05:26:45.910258+00:00","iteration":185,"role":"review","status":"OK","turns":50,"cost_usd":3.372722,"duration_s":1051.8,"peak_context":104813}
+{"ts":"2026-07-29T05:26:45.963392+00:00","type":"iteration_summary","iteration":185,"verdict":"PASS_WITH_NOTES","turns_total":50,"cost_total":3.372722,"duration_total":1051.8,"peak_context":104813,"over_budget":{}}
