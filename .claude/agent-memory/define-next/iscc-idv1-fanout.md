@@ -73,7 +73,19 @@ must widen it + round-trip test.
     multi-invalid ordering test. Wide-int surfaces (jni, and rb/dotnet IF they take
     wider-than-needed ints) all need this; Go/ffi exact-width → delegate to core.
 
-## Remaining after 184
+- **185 = rb (Magnus):** wide-int surface. Take all 3 params as `i64` in the native fn, add a
+    `checked(v:i64, max_exclusive:i64, name)->Result<i64,Error>` helper rejecting `v<0||v>=max` with
+    `RuntimeError`, call in ts(2^52)→hub(4096)→realm(2) order BEFORE narrowing to `(u64,u16,u8)`.
+    Native returns `RHash{"iscc"}` mirroring `gen_text_code_v0`; register `_gen_iscc_id_v1` arity 3;
+    Ruby wrapper `self.gen_iscc_id_v1(ts,hub,realm)` (positional) + `IdCodeResult < Result`. **NO
+    enum-widening** — `iscc_decode` returns `version` as a plain Integer → round-trips already.
+    Tests live in the Ruby suite (golden/round-trip/order), NOT the Python differential file.
+    Rebuild `.so` (`rake compile:dev`) before `rake test` — cargo test does NOT run Magnus. Docs:
+    add IDv1 section to `docs/howto/ruby.md` with the `unpack1("Q>")`→`>>12`/`&0xFFF`/subtype
+    recipe. rb's OWN header docstring `Symbols (32 of 32)` is bumped to 33 in-step (it enumerates
+    names); the repo-wide sweep is still separate.
 
-rb, uniffi→Swift/Kotlin, dotnet (C# consumer + regen `NativeMethods.g.cs`), cpp, + the 32→33
-doc/count sweep.
+## Remaining after 185
+
+uniffi→Swift/Kotlin (1 core edit + 3 regen artifacts), dotnet (C# consumer + regen
+`NativeMethods.g.cs`), cpp, + the 32→33 doc/count sweep.

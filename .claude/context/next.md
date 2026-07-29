@@ -1,74 +1,66 @@
 # Next Work Package
 
-## Step: Redo JNI `gen_iscc_id_v1` with ordered semantic validation
+## Step: Mint `gen_iscc_id_v1` on the Ruby (Magnus) surface
 
 ## Goal
 
-**Reframe** of iteration 183's JNI slice (first NEEDS_WORK — same goal, corrected validation design,
-not a backtrack). Fix the `genIsccIdV1` wrapper so its input validation obeys the normative
-cross-surface order (ts→hub→realm, first failing check wins) for multi-invalid inputs, completing
-the 7th of 11 IDv1 fan-out surfaces. Live v0.6.0 blocker (issue #43, "ISCC-IDv1 unsupported outside
-Go"). The Java native decl, golden/realm/round-trip tests already exist locally (commit `8201277`,
-unpushed); only the Rust validation and one ordering test are owed.
+Add the experimental `gen_iscc_id_v1` minting function to the Ruby binding (issue #43, a v0.6.0
+release blocker), completing the 8th of 11 IDv1 fan-out surfaces. Ruby is a wide-int surface, so it
+must validate the three semantic thresholds in normative ts→hub→realm order *before* narrowing.
 
 ## Alternatives Considered
 
-- **Chosen:** JNI redo — an unpushed NEEDS_WORK slice on a release blocker; it must be resolved
-    before any new surface, else broken code strands the fan-out.
-- **Rejected:** advance to the Ruby (Magnus) surface — the handoff's *subsequent* step, but starting
-    it now leaves the JNI ordering bug unfixed and unpushed. Finish the in-flight slice first.
+- **Chosen:** Ruby `gen_iscc_id_v1` — the handoff's designated next surface; applies the fresh
+    "validate before narrowing" pattern (napi/wasm/jni) while it is well-understood.
+- **Rejected:** uniffi (Swift/Kotlin) minting — higher-risk single step (one core edit plus three
+    regenerated checked-in artifacts); do it after the simpler rb surface. The 32→33 doc sweep is
+    lower value while minting surfaces remain unshipped.
 
 ## Scope
 
-- **Modify**: `crates/iscc-jni/src/lib.rs` — replace the wide-narrowing guard block in
-    `Java_io_iscc_iscc_1lib_IsccLib_genIsccIdV1` with three semantic-threshold checks in
-    ts→hub→realm order; update the fn doc comment to describe the ordered checks.
-- **Modify (test, excluded from budget)**:
-    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` — add one multi-invalid
-    ordering test.
-- **Reference**: `crates/iscc-napi/src/lib.rs:328-335` (the `checked(v, thresh, name)` precedent),
-    `.claude/context/specs/rust-core.md` §Validation (~L542, normative order), learnings.md "IDv1
-    validation ORDER is normative".
+- **Modify**: `crates/iscc-rb/src/lib.rs` (native fn + `init` registration + header docstring),
+    `crates/iscc-rb/lib/iscc_lib.rb` (idiomatic wrapper + result class), `docs/howto/ruby.md` (IDv1
+    section with the decode bit-math recipe)
+- **Create**: `crates/iscc-rb/test/test_iscc_id.rb` (golden + round-trip + validation-order tests)
+- **Reference**: `crates/iscc-napi/src/lib.rs:301-335` (`checked`/`gen_iscc_id_v1` validation
+    precedent), `crates/iscc-lib/src/lib.rs:1064-1140` (core fn + golden/round-trip/ordering tests),
+    spec `rust-core.md` "ISCC-IDv1 Operations" (validation order, test placement)
 
 ## Not In Scope
 
-- The other 4 surfaces (rb, uniffi→Swift/Kotlin, dotnet C# consumer, cpp) and the Tier-1 32→33 doc
-    sweep — each its own #43 slice.
-- Any enum-widening or decode change: JNI `isccDecode` returns `version` as a plain `int`, so the
-    round-trip already works — do NOT touch `IsccDecodeResult`.
-- Changing the golden/realm/round-trip tests already present — keep them; only ADD the ordering
-    test.
+- The repo-wide Tier-1 32→33 doc/count sweep (separate step) — only fix `src/lib.rs`'s **own**
+    header docstring (`Symbols (32 of 32)` → 33, add the new name) since you edit that file.
+- No `decode_iscc_id_v1` and no Ruby version enum widening — `iscc_decode` returns `version` as a
+    plain Integer, so the decode round-trip already works with no wrapper change.
+- Do not touch other surfaces (uniffi/dotnet/cpp) or the codec.
 
 ## Implementation Notes
 
-- **The bug (183):** the wrapper guards `hubId` in `0..=65535` then `realm` in `0..=255` (wide
-    narrowing bounds) and skips the timestamp check, deferring semantic ranges to core. For
-    multi-invalid inputs this reports the wrong field: `(1L<<52, 65536, 0)` reports hub (ref:
-    timestamp); `(0, 4096, 256)` reports realm (ref: hub).
-- **Fix:** validate the three SEMANTIC thresholds IN the wrapper, in order, BEFORE narrowing —
-    mirroring napi. In ts→hub→realm order, `throw_and_default` when:
-    `timestamp < 0 || timestamp >= 4_503_599_627_370_496` (2^52), then `hubId < 0 || hubId >= 4096`,
-    then `realm < 0 || realm >= 2`. Only after all three pass, cast to `(u64, u16, u8)` and call
-    `iscc_lib::gen_iscc_id_v1`. This subsumes core's checks so single-invalid cases (realm=2) stay
-    rejected and existing tests stay green.
-- Message text must name the field so the ordering test can assert it — keep a distinct substring
-    per field (e.g. contains `"timestamp"`, `"hub"`, `"realm"` respectively).
-- **New ordering test** (JUnit `@Test`): assert `genIsccIdV1(1L<<52, 65536, 0)` throws with a
-    message naming **timestamp** (not hub), and `genIsccIdV1(0L, 4096, 256)` throws with a message
-    naming **hub** (not realm). Use `assertThrows(...).getMessage()` + `assertTrue(contains(...))`.
+- Ruby Integers are arbitrary precision. Take all three params as `i64` in the native fn and add a
+    `checked(value: i64, max_exclusive: i64, name) -> Result<i64, Error>` helper that rejects
+    `value < 0 || value >= max_exclusive` with a `RuntimeError`. Call it in order: `timestamp`
+    (`< 4_503_599_627_370_496` = 2^52) → `hub_id` (`< 4096`) → `realm` (`< 2`), then narrow
+    (`as u64/u16/u8`) and call `iscc_lib::gen_iscc_id_v1`. First failing check wins.
+- Native fn returns `RHash` with key `"iscc"` (mirror `gen_text_code_v0`); register as
+    `_gen_iscc_id_v1` with arity 3. Ruby wrapper `self.gen_iscc_id_v1(timestamp, hub_id, realm)`
+    (positional, reference order) wraps it in a new `IdCodeResult < Result` class.
+- Round-trip recipe for the docs + test: `mt, st, vs, li, digest = IsccLib.iscc_decode(iscc)`, then
+    `n = digest.unpack1("Q>")`, `timestamp = n >> 12`, `hub_id = n & 0xFFF`, `realm = st`;
+    `vs == 1`.
 
 ## Verification
 
-- `cargo clippy -p iscc-jni --all-targets -- -D warnings` clean; `cargo fmt -p iscc-jni --check`
-    clean.
-- `cargo build -p iscc-jni && cd crates/iscc-jni/java && mvn clean test` passes — prior
-    golden/realm/ round-trip tests plus the new ordering test green (surefire sets
-    `java.library.path` to `target/debug`).
-- New ordering test proves `(1L<<52, 65536, 0)`→timestamp and `(0L, 4096, 256)`→hub.
-- `mise run check` — all prek pre-commit hooks pass.
+- Rebuild the native ext first (`cd crates/iscc-rb && bundle exec rake compile:dev`), then
+    `bundle exec rake test` passes — new golden, round-trip, and validation-order tests included.
+- Golden: `IsccLib.gen_iscc_id_v1(1751831876325218, 1, 0).iscc == "ISCC:MAIGHFECJMOPMIAB"`.
+- Validation order asserted: `(1<<52, 4096, 2)`→timestamp msg, `(0, 4096, 2)`→hub msg,
+    `(0, 0, 2)`→realm msg (first-failing-check-wins).
+- Round-trip: `IsccLib.iscc_decode(IsccLib.gen_iscc_id_v1(1751831876325218,1,0).iscc)[2] == 1` and
+    the bit-math recovers `(1751831876325218, 1, 0)`.
+- `cargo clippy -p iscc-rb --all-targets -- -D warnings` and `cargo fmt -p iscc-rb --check` clean;
+    `bundle exec standardrb` clean on the modified/created Ruby files.
 
 ## Done When
 
-`genIsccIdV1` validates ts→hub→realm before narrowing, the multi-invalid ordering test asserts the
-correct winning field, the golden still mints `ISCC:MAIGHFECJMOPMIAB` and round-trips at Version 1,
-and all cargo + mvn + prek gates pass.
+Ruby exposes `gen_iscc_id_v1` with ordered ts→hub→realm validation, the golden/round-trip/ordering
+tests pass under `rake test`, and all lint/format checks are clean.
