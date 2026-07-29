@@ -49,6 +49,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `as u8` before `TryFrom` let a multi-nibble value wrap (version `257`→`1`, MainType
     `262`→`6`=`Id`) so a MALFORMED header canonicalized to a valid ISCC; now `u8::try_from`-gated.
     Probe a wrapped header (`"MDFZAAAAAAAAAAAAAA"`) on any codec header-gate change
+- **`decode_base32("")` returns `Ok(empty)`, not an error** (191): any input-cleaning helper that
+    can yield `""` (blank/dash-only/`"iscc:"`) must guard for empty BEFORE decode, or
+    `iscc_decompose` silently returns `Ok([])` for malformed input the reference errors on. Probe
+    the empty/garbage forms on any change to codec input cleaning — the differential tests only
+    exercise VALID inputs
 
 ## Tooling
 

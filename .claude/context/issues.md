@@ -57,36 +57,33 @@ range-check before `to_i64`. Add a test asserting `(1<<52, 1<<100, 2)` reports t
 
 **Spec:** `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)"
 
-## Codec input cleaning diverges from iscc-core `iscc_clean` `normal` [review]
+## Go codec input cleaning diverges from iscc-core `iscc_clean` `normal` [review]
 
-The reference routes codec input through `iscc_clean` (`reference/iscc-core/iscc_core/codec.py:644`,
-reached via `normalize_multiformat` at `:363`), which strips dashes and surrounding whitespace and
-accepts a case-insensitive `iscc:` scheme. Our codec does none of this, so documented-valid inputs
-raise. Verified live against `iscc_core` 1.3.0:
+The Rust half landed in iter 191 (shared `codec::iscc_clean` routed through all four Rust sites +
+`tests/codec_clean.rs`); the pure-Go port (`packages/go`) still has the four parallel gaps and keeps
+the issue open. The reference routes codec input through `iscc_clean`
+(`reference/iscc-core/iscc_core/codec.py:644`, reached via `normalize_multiformat` at `:363`), which
+strips dashes and surrounding whitespace and accepts a case-insensitive `iscc:` scheme. Go does none
+of this, so documented-valid inputs raise. Reference behaviour (verified live against `iscc_core`
+1.3.0):
 
-- `ISCC:KACY-PXW4-45FT-…` → reference returns 4 units, ours raises `invalid symbol at 4`
-- `"  ISCC:AAAYPXW445FTYNJ3  "` → reference returns 1 unit, ours raises `invalid length at 24`
-- `"iscc:AAAYPXW445FTYNJ3"` → reference returns 1 unit, ours raises `invalid symbol at 4`
+- `ISCC:KACY-PXW4-45FT-…` → 4 units (the hyphen-separated form is blessed by `codec.py:381-382`)
+- `"  ISCC:AAAYPXW445FTYNJ3  "` → 1 unit
+- `"iscc:AAAYPXW445FTYNJ3"` → 1 unit
 
-The reference docstring (`codec.py:381-382`) explicitly blesses the hyphen-separated form, so this
-is an unintended drop-in-compatibility gap, not a deliberate tightening — no decision record exists
-for it.
-
-Four Rust sites clean ad-hoc: `codec.rs:485` (`iscc_decompose`), `lib.rs:810` (`gen_mixed_code_v0`),
-`lib.rs:896` (`gen_iscc_code_v0`) and `lib.rs:222` (`iscc_normalize`, feeding `iscc_decode`). The
-fourth strips the prefix and dashes but not whitespace, and rejects a lowercase scheme — so
-`iscc_decode` matches only the dash form and still diverges on the other two. `packages/go` is a
-hand-written port with the same four gaps at `codec.go:482`, `code_content_mixed.go:23`,
-`code_iscc.go:27` and `codec.go:592` (`isccNormalize`) — two parallel fixes, not one.
+Four Go sites clean ad-hoc: `codec.go:482` (`isccDecompose`), `code_content_mixed.go:23`,
+`code_iscc.go:27` and `codec.go:592` (`isccNormalize`) — a hand-written, non-mechanical port, so it
+is a separate step from the Rust fix, not a fan-out of it.
 
 Porting subtlety: in the reference's no-colon branch (`codec.py:656-661`) dashes are stripped **only
-when the string is not multibase-prefixed**. An unconditional `.replace('-', "")` would corrupt
-`f`/`b`/`v`/`z`/`u`-prefixed input. Multiformat decoding itself stays a documented non-goal
-(`crates/iscc-lib/src/lib.rs:216-219`) — file it separately if ever wanted.
+when the string is not multibase-prefixed**. An unconditional dash strip would corrupt
+`f`/`b`/`v`/`z`/`u`-prefixed input. Multiformat decoding itself stays a documented non-goal — file
+it separately if ever wanted.
 
-Resolved when a shared private `iscc_clean` helper is routed through all four Rust sites and the
-four Go sites, and a differential test covers the dash, whitespace and lowercase-scheme forms for
-`iscc_decompose`, `iscc_decode`, `gen_iscc_code_v0` and `gen_mixed_code_v0`.
+Resolved when a shared Go `isccClean` helper is routed through all four Go sites and a differential
+test covers the dash, whitespace and lowercase-scheme forms for `isccDecompose`, decode,
+`genIsccCodeV0` and `genMixedCodeV0`. (Rust surface: landed iter 191 but has an outstanding
+empty-input regression — see handoff NEEDS_WORK; the Go port must not copy that gap.)
 
 **Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations"
 

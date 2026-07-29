@@ -39,6 +39,12 @@ sweep + differential gates, boundary vectors), `codex-integration.md`. Stale →
 - **A `#[deprecated]` claim in next.md is a hypothesis like any other** (168) — read the attribute
     in `~/.cargo/registry/src/index.crates.io-*/<crate>-<ver>/src/` (jni 0.22.4 never deprecated
     `Env::byte_array_from_slice`; that grep criterion cost a zero-copy path)
+- **On ANY codec input-cleaning change, probe empty/garbage inputs** (191 NEEDS_WORK): a helper that
+    can yield `""` (blank/`"-"`/`"iscc:"`) makes `iscc_decompose` silently return `Ok([])` because
+    `decode_base32("")` is `Ok(empty)`, not an error — a Tier-1 silent-acceptance regression the
+    differential tests (valid inputs only) miss. Compare against `HEAD~1` (those forms errored) and
+    the reference. Codex catches this class; the advance's "decode_base32 rejects it" claim was
+    false
 - **Advance agent idle claims**: verify remaining issue priorities independently — it may claim
     "only low-priority remain" when `normal` issues still exist
 - **A `--no-default-features` CI step catches COMPILE breaks the default gates miss** (174): a

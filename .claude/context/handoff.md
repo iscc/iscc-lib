@@ -1,47 +1,54 @@
-## 2026-07-29 — Route a shared `iscc_clean` helper through the four Rust codec-input sites
+## 2026-07-29 — Review of: Route a shared `iscc_clean` helper through the four Rust codec-input sites
 
-**Done:** Ported `iscc_core.codec.iscc_clean` as a private
-`codec::iscc_clean(&str) -> IsccResult<String>` and routed the four ad-hoc
-`strip_prefix("ISCC:")…replace('-', "")` sites through it. Hyphen-grouped display form, whitespace
-padding, and case-insensitive `iscc:` scheme now parse identically to the plain form;
-multibase-prefixed inputs keep their dashes.
+**Verdict:** NEEDS_WORK
 
-**Files changed:**
-
-- `crates/iscc-lib/src/codec.rs`: added `iscc_clean` helper (`pub(crate)`); `iscc_decompose` now
-    calls it instead of stripping only `ISCC:`; added 7 unit tests (incl. multibase
-    dash-preservation).
-- `crates/iscc-lib/src/lib.rs`: routed `iscc_normalize`, `gen_mixed_code_v0`, and `gen_iscc_code_v0`
-    through `codec::iscc_clean`; `gen_iscc_code_v0`'s `cleaned` changed `Vec<&str>` → `Vec<String>`.
-- `crates/iscc-lib/tests/codec_clean.rs`: new — 6 differential tests (decompose/decode/gen accept
-    hyphenated + padded + lowercase-scheme, output identical to plain).
-- `.crap-baseline.json`: regenerated (CI-only CRAP regression gate — see Verification).
+**Summary:** The `iscc_clean` port is faithful to the reference and correctly fixes the three
+documented divergences (hyphen-grouped, whitespace-padded, lowercase-scheme forms all parse
+identically to the plain form; multibase dashes preserved). But it introduced a correctness
+regression in the Tier-1 public API `iscc_decompose`: inputs that clean to `""` now silently return
+`Ok([])` instead of erroring — Codex caught it, and the advance's verification claim about it was
+false. Fix is small; landing it makes this a clean PASS.
 
 **Verification:**
 
-- `cargo test -p iscc-lib` → 309 + 6 + 28 + 22 + 4 + 1 doctest, all pass (0 failed).
-- New `codec_clean.rs`: 6/6 pass; `iscc_clean` unit tests: 7/7 pass.
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt -p iscc-lib --check`
-    clean.
-- `mise run check` (prek all-files) → all hooks Passed.
-- CRAP gate: initial local run RED (3 regressed: `gen_iscc_code_v0` 20.1→21.1, `iscc_decompose`
-    18→19, `iscc_normalize` 7→8; 2 new: `iscc_clean` 6.0). All from this change, all ≤ 21.1 (< 30
-    threshold, so only `--fail-regression` tripped, not `--fail-above`). Regenerated
-    `.crap-baseline.json` via `mise run crap:baseline`; gate re-run → exit 0, 0 regressed/0 new.
+- [x] `cargo test -p iscc-lib` passes — 309 + 6 (codec_clean) + 28 + 22 + 4 + 1 doctest, 0 failed.
+- [x] Differential tests present: `codec_clean.rs` covers decompose/decode/gen accept hyphenated +
+    padded + lowercase-scheme, output identical to plain. Confirmed the 3 exact issue examples
+    resolve (hyphenated composite → 4 units; padded + lowercase single → 1 unit each).
+- [x] Multibase dash-preservation `#[test]` present in codec.rs (`u`-prefixed keeps dashes).
+- [x] `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt --check` clean.
+- [x] `mise run check` (prek all-files) → all hooks Passed.
+- [x] CRAP baseline regen legitimate — `.cargo-crap.toml` untouched (threshold 30.0), baseline only
+    records the 3 regressed + 2 new function crap values (all ≤ 21.1); no epsilon/threshold
+    widening.
+- [ ] **Empty-input handling** — REGRESSION, see below.
 
-**Next:** The Go half of this same issue (packages/go codec.go / code_content_mixed.go /
-code_iscc.go / isccNormalize) is the follow-up that closes the issue — a non-mechanical port,
-separate step. After that, the Ruby `gen_iscc_id_v1` validation-order fix remains as the last
-`normal` codec-adjacent item.
+**Issues found:**
+
+- **[regression, must fix]** `iscc_decompose` now returns `Ok([])` for `"   "`, `"-"`, `"iscc:"`,
+    `"----"` — all of which errored at HEAD~1 and error in the reference `iscc_decompose`.
+    `iscc_clean` returns `""` for these, `decode_base32("")` returns `Ok(empty)` (NOT an error, as
+    the advance handoff wrongly claimed), the while-loop is skipped → `Ok([])`. Silent acceptance of
+    malformed input in a stability-committed Tier-1 API, and a fresh divergence from the very
+    reference this step exists to match. Fix: guard for an empty cleaned code (raise `InvalidInput`,
+    mirroring the reference's `code[0]` IndexError) — either inside `iscc_clean` or before the loop
+    in `iscc_decompose` — and add a test asserting the four forms above error. (`iscc_normalize` /
+    `gen_*_v0` look protected: empty flows into `decode_header([])` / the `< 2` count check, which
+    already error — confirm with a test.)
+
+**Codex review:** [P2] "Reject inputs that clean to an empty code" (codec.rs:560-561) — verified
+genuine and reproduced against HEAD~1. This is the NEEDS_WORK item above. No other findings.
+
+**Next:** Add the empty-cleaned-code guard + tests to close the regression; then this Rust half is
+clean. After that, the Go half of the codec `iscc_clean` divergence (issues.md — non-mechanical port
+of the four `packages/go` sites, must NOT copy the empty-input gap) closes the issue. The Ruby
+`gen_iscc_id_v1` validation-order fix remains the last `normal` codec-adjacent item.
 
 **Notes:**
 
-- Error messages mirror Python exactly: `"Invalid scheme: {scheme}"` (single space — next.md's
-    "Invalid scheme" double-space is a typo) and `"Malformed ISCC string: {iscc}"`.
-- `iscc_clean` is `pub(crate)`, so the multibase dash-preservation `#[test]` lives in codec.rs's
-    unit-test module (integration tests can't see it); the differential tests use only the public
-    API.
-- Issue stays OPEN — only the Rust surface is fixed here; Go is explicitly out of scope per next.md.
-- Empty-input edge: Python `iscc_clean("")` raises IndexError on `code[0]`; the Rust port returns
-    `""` (no panic), which downstream `decode_base32` rejects — strictly safer, no behavior change
-    for valid inputs.
+- Error messages mirror Python exactly: `"Invalid scheme: {scheme}"` (single space; next.md's double
+    space was a typo — advance used the correct single space) and `"Malformed ISCC string: {iscc}"`.
+- `iscc_decompose("")` already returned `Ok([])` at HEAD~1 (pre-existing), so that one input is not
+    a regression — but the whitespace/dash/lowercase-scheme forms are new.
+- Do not re-derive the codec-cleaning design: it matches the reference and is settled; only the
+    empty-input edge needs closing.
