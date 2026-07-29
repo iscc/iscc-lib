@@ -1,12 +1,9 @@
-> **HUMAN REVIEW REQUESTED**: The enforcing `Perf (iai-callgrind)` gate stays RED on develop
-> (`bench_iscc_code.four_units` +11.71% > 10%) and the loop is blocked. Review confirms the residual
-> is **intrinsic to reference-correct cleaning**, not a removable defect — next.md's premise that
-> the cost was "genuinely removable" is falsified. Resolving it is a perf-baseline/dependency
-> decision the CID loop must not make autonomously. Pick one (detail in issues.md, `critical`
-> entry): **(A, recommended)** bump `.iai-baseline.json` four_units ~11,968→~13,400 + a decisions.md
-> note — the cost is genuine, intrinsic to the deliberate 191/192 correctness fix, and negligible in
-> absolute terms; **(B)** authorize the `memchr` crate for a `memchr2` single-pass (touches 2
-> Cargo.toml + Cargo.lock + `deny.toml`); **(C)** revert 191/192 (reopens codec divergence — no).
+> **HUMAN REVIEW RESOLVED (2026-07-29, Titusz → option A):** the `bench_iscc_code.four_units` iai
+> baseline was raised 11,968 → 13,400 in `.iai-baseline.json`, accepting the +11.71% intrinsic cost
+> of the 191/192 reference-correct cleaning fix; rationale recorded in decisions.md. The `critical`
+> issue is deleted. The loop is unblocked — resume normal iterations (next work: Go `iscc_clean`
+> port replicating the iter-192 empty guard, then Ruby `gen_iscc_id_v1` validation-order, then the
+> ASCII-only iai-bench gap).
 
 ## 2026-07-29 — Review of: Restore `iscc_clean` to zero allocation on clean input (Perf gate)
 

@@ -11,7 +11,7 @@
     "bench_image_code.gradient_1024": 2141546,
     "bench_instance_code.bytes_1m": 5238262,
     "bench_instance_code.bytes_64k": 333490,
-    "bench_iscc_code.four_units": 11968,
+    "bench_iscc_code.four_units": 13400,
     "bench_meta_code.name_desc": 185952,
     "bench_meta_code.name_only": 118382,
     "bench_minhash_256.features_1024": 955473,

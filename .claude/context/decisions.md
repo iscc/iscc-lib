@@ -372,3 +372,17 @@ only guards the high end and never sees the pre-truncated value; a shared valida
 rejected, ~5 duplicated lines beat a new crate boundary. **Scope:** JS-number surfaces only;
 ffi/jni/rb/uniffi are typed-int with no coercion hazard and must not copy the pattern. **Context:**
 iteration 181, #43 fan-out; resolves the napi coercion issue for both surfaces at once.
+
+## 2026-07-29 — `bench_iscc_code.four_units` iai baseline raised 11,968 → 13,400 (accepted regression)
+
+**Decision:** the committed `.iai-baseline.json` four_units baseline is raised from 11,968 to 13,400
+Ir, accepting the +11.71% measured cost (13,369 Ir) of routing codec input through the
+reference-correct `codec::iscc_clean` (iters 191/192). **Why:** the pre-191 baseline was set for
+`strip_prefix("ISCC:")`-only cleaning that diverged from the reference (`codec.py:644`); 191/192
+traded that for conformance and the residual is intrinsic scanning cost (two std SIMD `memchr`
+scans), not removable waste — a scalar single-pass measured *worse* (13,499 Ir) and iter 193's `Cow`
+change already removed the allocation component. Absolute cost is negligible: 13,369 Ir against 7M+
+for real hashing. **Alternatives:** add the `memchr` crate for a single-pass `memchr2` — rejected, a
+new dependency + audit-gate surface for a micro-saving; revert 191/192 — rejected, reopens the codec
+cleaning divergence. **Context:** iteration 193, human-gated (Titusz picked option A) after the loop
+halted on the enforcing Perf gate.
