@@ -1,17 +1,16 @@
-<!-- assessed-at: 385a263 -->
+<!-- assessed-at: 796f39e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.6.0 — IDv1 fan-out; 8 of 11 surfaces mint IDv1; CI GREEN on develop
+## Phase: v0.6.0 — IDv1 fan-out; core + 9 of 11 language surfaces mint IDv1; CI GREEN on develop
 
-Iteration 185 added `gen_iscc_id_v1` to the Ruby (Magnus) surface (PASS_WITH_NOTES); code is pushed
-to `origin/develop` and CI-green. 8 surfaces now mint IDv1 (core + Python + Go + Node + WASM + C FFI
-
-- Java + Ruby). Three surfaces remain (uniffi→Swift/Kotlin, C#, C++), plus the Tier-1 32→33
-    doc/count sweep. One pathological Ruby edge case (>i64::MAX args) was filed as a `[review]`
-    issue.
+Iteration 186 added `gen_iscc_id_v1` (+ `IsccIdResult`) to the shared `iscc-uniffi` crate, advancing
+**both** Swift and Kotlin from 32→33 Tier 1 symbols in one core edit (PASS). Code is pushed to
+`origin/develop` and CI-green. Core plus 9 of 11 language surfaces now mint IDv1 (Python, Node,
+WASM, C FFI, Java, Go, Ruby, Swift, Kotlin). Two surfaces remain: C# (.NET) and C++, plus the
+deferred Tier-1 32→33 doc/count sweep.
 
 ## Rust Core Crate
 
@@ -72,20 +71,29 @@ to `origin/develop` and CI-green. 8 surfaces now mint IDv1 (core + Python + Go +
 
 - `gen_iscc_id_v1(i64, i64, i64)` at `crates/iscc-rb/src/lib.rs:219` validates via `checked()`
     (2^52/4096/2, ts→hub→realm) before narrowing to `(u64,u16,u8)`; module fn registered L526.
-    Golden `ISCC:MAIGHFECJMOPMIAB`, validation-order, round-trip tests (129 runs/368 assertions).
+    Golden, validation-order, round-trip tests (129 runs/368 assertions).
 - Known pathological gap (filed `[review]`, normal): args `> i64::MAX` raise `RangeError` from
     Magnus marshalling *before* the ordered `checked()` runs — no realistic input reaches it.
 
-## Other Bindings (Kotlin, C#, C++, Swift)
+## Swift & Kotlin Bindings (uniffi)
+
+**Status**: met — 33/33 symbols (iter 186)
+
+- Shared `crates/iscc-uniffi/src/lib.rs:286` exports `gen_iscc_id_v1` + `IsccIdResult`; core takes
+    exact-width unsigned `(u64,u16,u8)` straight through (core validates, no binding guard needed).
+    22 unit tests incl. `test_gen_iscc_id_v1` (golden `ISCC:MAIGHFECJMOPMIAB` + round-trip).
+- Regenerated `genIsccIdV1` in both `packages/swift/.../iscc_uniffi.swift` and
+    `packages/kotlin/.../iscc_uniffi.kt`; Swift + Kotlin conformance tests added. UniFFI checksum
+    stable; regen idempotent. Exact-width unsigned args → exempt from the Ruby i64 marshalling gap.
+
+## Other Bindings (C#, C++)
 
 **Status**: partially met — each usable at 32/33; no accepted IDv1 minting
 
-- **Swift/Kotlin (uniffi), C++ (cpp):** each at 32, no `gen_iscc_id_v1`. uniffi 0.32 (172) and MSRV
-    fix (173) in place. uniffi is a fixed-width FFI surface (exempt from the Ruby marshalling gap,
-    confirm at its step).
 - **C# (.NET):** `NativeMethods.g.cs` carries the regenerated `iscc_gen_iscc_id_v1` P/Invoke decl
     (FFI build side-effect, iter 182), but the idiomatic C# consumer + golden test are still owed —
-    32 usable.
+    32 usable. Fixed-width FFI, exempt from the wide-input marshalling gap.
+- **C++ (cpp):** 32, no `gen_iscc_id_v1` wrapper in `iscc.hpp` yet. Fixed-width FFI over `iscc_ffi`.
 - Propagation invariant holds: `git ls-files -- '*data.json' '*unicode_boundary.json'` = 8 ==
     `VENDORED_COPIES`.
 
@@ -93,8 +101,8 @@ to `origin/develop` and CI-green. 8 surfaces now mint IDv1 (core + Python + Go +
 
 **Status**: partially met
 
-- Docs site (23 pages, 12 READMEs, 12 CLAUDE.md) met; `docs/howto/ruby.md` now covers Ruby
-    `gen_iscc_id_v1` (iter 185) alongside `docs/howto/go.md`.
+- Docs site (23 pages, 12 READMEs, 12 CLAUDE.md) met; `docs/howto/ruby.md` + `docs/howto/go.md`
+    cover `gen_iscc_id_v1`.
 - Tabbed examples still do not present IDv1 uniformly; Tier-1 count text still reads 32/30 in stale
     sites (wasm CLAUDE.md "30 Tier 1", core CLAUDE.md "32") — separate 32→33 sweep step under #43.
 
@@ -110,10 +118,10 @@ to `origin/develop` and CI-green. 8 surfaces now mint IDv1 (core + Python + Go +
 
 **Status**: met (CI green on develop); release-readiness still open
 
-- **CI GREEN on `origin/develop` = `ca8b96e`** (Ruby IDv1 review commit): check-suite `success`; all
-    23 check names pass except `Semver (cargo-semver-checks)` which is `continue-on-error: true`
+- **CI GREEN on `origin/develop` = `f9b497e`** (uniffi IDv1 review commit): check-suite `success`;
+    all 23 check names pass except `Semver (cargo-semver-checks)` which is `continue-on-error: true`
     (informational until v1.0.0) — expected non-blocking red, not a CI failure.
-- **HEAD `385a263` is covered:** only unpushed commit is the `cid(log)` touching iterations.jsonl;
+- **HEAD `796f39e` is covered:** only unpushed commit is the `cid(log)` touching iterations.jsonl;
     `git diff origin/develop..HEAD -- . ':!.claude'` is empty — green CI covers all HEAD code.
 - Dependency freshness met (criterion 0.8 at 171, uniffi 0.32 at 172); zero `# held:`/`authorized`
     pin comments in root `Cargo.toml`. Job shape unchanged (21 keys → 22 jobs → 23 names).
@@ -122,22 +130,20 @@ to `origin/develop` and CI-green. 8 surfaces now mint IDv1 (core + Python + Go +
 
 ## Open Issues
 
-**12 entries — 0 `critical`, 5 `normal`, 7 `low`, zero HUMAN REVIEW REQUESTED.** One new `normal`
-`[review]` this cycle (Ruby >i64::MAX validation-order gap).
+**12 entries — 0 `critical`, 5 `normal`, 7 `low`, zero HUMAN REVIEW REQUESTED.** No new issue this
+cycle (uniffi step found none).
 
-- **NORMAL:** Ruby `gen_iscc_id_v1` validation order breaks for args > i64::MAX (`[review]`, new);
-    ISCC-IDv1 unsupported outside Go (`[human]`, live v0.6.0 work — 8 surfaces done, 3 remain:
-    uniffi→Swift/Kotlin, dotnet C#, cpp); codec input cleaning diverges from `iscc_clean`
-    (`[review]`); iai text benchmarks ASCII-only (`[review]`); go1.27 tripwire (`[review]`, blocked
-    on upstream).
+- **NORMAL:** Ruby `gen_iscc_id_v1` validation order breaks for args > i64::MAX (`[review]`);
+    ISCC-IDv1 unsupported outside Go (`[human]`, live v0.6.0 work — core + 9 language surfaces done,
+    2 remain: dotnet C#, cpp); codec input cleaning diverges from `iscc_clean` (`[review]`); iai
+    text benchmarks ASCII-only (`[review]`); go1.27 tripwire (`[review]`, blocked on upstream).
 - **LOW:** upstream `iscc-core#137` thread, 88-bit ISCC-IDv0 upstream mint, gate-script remainders,
     v1.0.0 cut (HELD), MSRV asserted-not-verified, npm OIDC (deferred), docs language logos.
 
 ## Next Milestone
 
-**CI is green — no CI fix needed.** Continue the #43 IDv1 fan-out to the three remaining surfaces
-(uniffi→Swift/Kotlin, dotnet C#, cpp) — the uniffi step is higher-risk (one core edit + regenerated
-checked-in artifacts); wide-int surfaces must validate the three semantic thresholds (2^52/4096/2)
-in ts→hub→realm order before narrowing (napi/wasm/jni/rb precedent), and any arbitrary-precision
-surface must validate magnitude *before* the marshalling narrow (Ruby lesson). Then run the deferred
-Tier-1 32→33 doc/count sweep — the last CID-doable v0.6.0 release-readiness blockers.
+**CI is green — no CI fix needed.** Finish the #43 IDv1 fan-out on the last two surfaces — dotnet
+(C#) and cpp — both fixed-width FFI over `iscc_ffi`, so exempt from the wide-input marshalling gap;
+the C# P/Invoke decl already exists. Then run the deferred repo-wide Tier-1 32→33 doc/count sweep
+(`gen_iscc_id_v1` API-doc entries, stale count text in wasm/core CLAUDE.md). These are the last
+CID-doable v0.6.0 release-readiness blockers.
