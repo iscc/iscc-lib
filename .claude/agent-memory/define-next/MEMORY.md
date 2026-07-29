@@ -109,13 +109,19 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     count/doc sweep (its own slice — see #43 for the exact sites incl. 3 non-Markdown). 178 = Python
     surface first (reference-parity anchor + diff test). Signature per binding follows reference
     `gen_iscc_id_v1(timestamp,hub_id,realm_id)` with each lang's casing; **timestamp REQUIRED (core
-    clock-free), never default to None/clock**. **179 = Go rename slice (b)**: new
-    `GenIsccIDV1(timestamp,hubID,realm)→*IsccIdResult{ISCC}`, DELETE `DecodeIsccID`/`IsccIDv1Result`
-    (Go decode already accepts V1; extract fields via `binary.BigEndian.Uint64(d.Digest)` →
-    `>>12`/`&0xFFF`/`d.Subtype`). Chosen over another minting surface: Go is the only surface with
-    actively-wrong must-delete API + a waiting `iscc/iscc-monitor` consumer. `iscc_id.go` sole
-    non-test/non-doc file; docs to sync: `docs/howto/go.md`, `packages/go/README.md`,
-    `packages/go/CLAUDE.md`.
+    clock-free), never default to None/clock**. **Not every surface needs enum-widening for decode
+    round-trip: napi's `iscc_decode` returns `version` as a bare `u8` (no version enum), so V1
+    already round-trips — minting-only step.** 180 = napi minting slice: bare-`string` return
+    (mirrors `gen_meta_code_v0`, NOT the object form), `timestamp: f64` param (valid ts \<2^52 exact
+    in f64, avoids napi's u64→BigInt), test via golden `MAIGHFECJMOPMIAB` + validation throws +
+    `iscc_decode` round-trip (maintype 6/version 1/subtype 0); `index.d.ts`/`index.js` are
+    napi-build-generated (don't hand-edit); napi CLAUDE.md/README carry no symbol count. **179 = Go
+    rename slice (b)**: new `GenIsccIDV1(timestamp,hubID,realm)→*IsccIdResult{ISCC}`, DELETE
+    `DecodeIsccID`/`IsccIDv1Result` (Go decode already accepts V1; extract fields via
+    `binary.BigEndian.Uint64(d.Digest)` → `>>12`/`&0xFFF`/`d.Subtype`). Chosen over another minting
+    surface: Go is the only surface with actively-wrong must-delete API + a waiting
+    `iscc/iscc-monitor` consumer. `iscc_id.go` sole non-test/non-doc file; docs to sync:
+    `docs/howto/go.md`, `packages/go/README.md`, `packages/go/CLAUDE.md`.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published
