@@ -95,20 +95,20 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     phantom recurs every iteration the semver check-run is red — verify workflow *conclusion* at the
     source each time, never trust a state.md "red" derived from check-run status. 177 and 178 both
     skipped a phantom "fix CI" step and went to #43 fan-out.
-- **ISCC-IDv1 (#43): core DONE (33 symbols); each surface its OWN step (tech wraps differently)** →
-    [idv1 fan-out facts](iscc-idv1-fanout.md) has golden/validation + per-surface slice recipes.
-    Done: 178 Python, 179 Go rename, 180 napi, 181 wasm+JS-number validation, 182 ffi, 184 jni, 185
-    rb, 186 uniffi (Swift+Kotlin, one step), 187 dotnet C#, **188 cpp (LAST minting surface)**.
-    **After 188: ALL 11 minting surfaces done.** Decode-widening done 189 (ONLY Python's `VS`
-    IntEnum rejected V1; every other surface returns a bare int/byte version). **190 scoped the LAST
-    #43 item: Tier-1 doc/count sweep + API-doc entries** (docs-only fan-out, all targets outside the
-    3-file code budget). **PROBED at scope time: two source files issues.md #43 lists as stale
-    (`iscc-uniffi/src/lib.rs:3`, `iscc-rb/src/lib.rs:7`) ALREADY read 33** (rb's list carries
-    `gen_iscc_id_v1`) — the issue text is stale on them. Remaining count sites are all Markdown
-    reading 22/30/32: `iscc-lib/CLAUDE.md`, `iscc-wasm/CLAUDE.md`, `docs/ruby-api.md`,
-    `docs/java-api.md`, `notes/00-overview.md` (reads **22**), `notes/04-…`, `advance.md:146`.
-    API-doc `gen_iscc_id_v1` entry missing on `docs/{rust,java,ruby,c-ffi}-api.md`; only `go.md` +
-    `ruby.md` howto pages cover IDv1 (9 of 11 need an example).
+- **ISCC-IDv1 (#43) FULLY CLOSED (iter 190 doc sweep landed, PASS_WITH_NOTES)**: core + all 11 mint
+    surfaces (178–188) + decode-widening (189, only Python needed `VS.V1`) + Tier-1 32→33 doc/count
+    sweep + `gen_iscc_id_v1` API/howto entries (190). #43 issue deleted. All doc artifacts read 33
+    (stale-32 grep clean); `notes/00-overview.md:153` now reads 33 (was 22 — that memory is now
+    stale). Per-surface recipes archived → [idv1 fan-out facts](iscc-idv1-fanout.md).
+- **v0.6.0 release readiness (191→): only CID-doable blocker left is "no `normal`/`critical` issue
+    open".** 4 open `normal` `[review]` gate it: (1) **codec `iscc_clean` divergence** — most
+    substantive, TWO-surface (Rust 4 sites + hand-ported Go 4 sites = TWO steps, not fan-out; issue
+    says "two parallel fixes"). 191 scoped the Rust half (shared private `iscc_clean` helper routed
+    through `codec.rs` iscc_decompose + `lib.rs` iscc_normalize/gen_mixed/gen_iscc_code). Ref
+    `codec.py:644`: trim→split(':')→1-part strips dashes only if first char NOT multibase
+    `f/b/v/z/u`, 2-part case-insensitive `iscc` scheme. (2) Ruby wide-input validation order
+    (`> i64::MAX` only, near-zero impact). (3) c-ffi-api doc type names vs `iscc_`-prefixed header.
+    (4) iai ASCII-only text benchmarks (needs valgrind machine). go1.27 tripwire upstream-blocked.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published
