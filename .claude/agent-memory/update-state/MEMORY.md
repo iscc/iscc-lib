@@ -84,23 +84,23 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 34f4e0e, iter 189)
+## Current State (assessed-at: b0d4c97, iter 190)
 
-- **CI GREEN on develop.** Real tip `169793c` (iter 188 cpp IDv1 review): 23 names pass except
-    `Semver` (`continue-on-error`). HEAD `34f4e0e` = only unpushed is `cid(log)`; code diff vs
-    origin EMPTY → green covers HEAD.
-- **ALL 11 surfaces now MINT IDv1 = 33/33 minting** (core + Python+Go+Node+WASM+C FFI+Java+Ruby+
-    Swift+Kotlin+C#+cpp). Fan-out COMPLETE. cpp landed 188: `iscc.hpp:564`
-    `gen_iscc_id_v1(uint64_t,uint16_t,uint8_t)` + `IsccIdResult`(`:211`) over the shipped FFI
-    symbol, 72 ASAN assertions, NO FFI/header regen (symbol shipped 182). C FFI:
-    `iscc-ffi/src/lib.rs:613`, 50 externs, `iscc.h:386`, no `checked()` (core re-validates).
-- **#43 remaining half = DECODE enum-widening + doc sweep** (NOT minting). Surfaces with their OWN
-    version enum still reject V1 decode: Python `VS` IntEnum
-    (`crates/iscc-py/python/iscc_lib/__init__.py:82-85`) defines only V0 →
-    `iscc_decode(gen_iscc_id_v1(...))` raises `1 is not a valid VS`; each such surface needs V1 +
-    round-trip test. cpp/ffi/dotnet use raw ints (no enum) → already decode. Core generic decode
-    accepts V1. **This is Next** (more functional than the doc 32→33 sweep). Scope origin: out-of-
-    loop non-`cid()` `2c4e487` (174) demanded 33 Tier-1 symbols + IDv1 on core + all 11 surfaces.
+- **CI GREEN on develop.** Real tip `718e442` (iter 189 Python VS-widen review): 23 names pass
+    except `Semver` (`continue-on-error`, reds on `enum_marked_non_exhaustive`). HEAD `b0d4c97` =
+    only unpushed is `cid(log)`; code diff vs origin EMPTY → green covers HEAD.
+- **ALL 11 surfaces now MINT + DECODE IDv1 = 33/33.** Mint fan-out done at cpp (188). Decode fan-out
+    done at 189: Python was the ONLY surface with a version ENUM (`VS` IntEnum
+    `crates/iscc-py/python/iscc_lib/__init__.py:82-86`, now has `V0=0, V1=1`); the other 10 return a
+    bare int/byte and already decoded V1. Pure wrapper edit, `.so` unchanged. **Both halves of IDv1
+    functional work COMPLETE — do NOT re-flag as pending.**
+- **#43 remaining = ONLY the repo-wide Tier-1 32→33 doc/count sweep** (mechanical, non-functional).
+    Issue retitled to "ISCC-IDv1 Tier-1 32→33 doc/count sweep" `[human]`. Stale `32` counts across
+    per-crate/package CLAUDE.md+README, `docs/`, `notes/`, `iscc-uniffi/src/lib.rs`,
+    `iscc-rb/src/lib.rs`; plus `gen_iscc_id_v1` API-doc entries in the four
+    `docs/{rust,java,ruby,c-ffi}-api.md` and the 11 `docs/howto/*.md` pages. **This is Next** — last
+    non-human-gated v0.6.0 `normal`. Scope origin: out-of-loop non-`cid()` `2c4e487` (174) demanded
+    33 Tier-1 symbols + IDv1 on core + all 11 surfaces.
 - **Validation-order contract (normative, rust-core.md ~L542):** any WIDE-INT binding MUST validate
     thresholds `2^52`/`4096`/`2` in ts→hub→realm order BEFORE narrowing; "first failing check wins".
     Precedents napi:329, jni:500, rb:219. Go/ffi/uniffi/dotnet/cpp exempt (exact-width FFI). Ruby
