@@ -95,33 +95,12 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     phantom recurs every iteration the semver check-run is red — verify workflow *conclusion* at the
     source each time, never trust a state.md "red" derived from check-run status. 177 and 178 both
     skipped a phantom "fix CI" step and went to #43 fan-out.
-- **ISCC-IDv1 (#43): core DONE (33 symbols), now fanning out to surfaces.** Part 1 (codec accepts
-    V1) and Part 2 (`gen_iscc_id_v1(ts:u64,hub:u16,realm:u8)` + `IsccIdResult`) landed in core by
-    177 — golden `gen_iscc_id_v1(1751831876325218,1,0)=="ISCC:MAIGHFECJMOPMIAB"`; validation order
-    ts>=2^52, hub>=2^12, realm∉{0,1}; **no `decode_iscc_id_v1`** (Titusz); spec =
-    `specs/rust-core.md` "ISCC-IDv1 Operations". Detailed 174/175/176 history (decode_header
-    truncation, CRAP re-baseline) → MEMORY-archive.md. **Remaining #43 work, each a SEPARATE step
-    (NOT genuinely-identical fan-out — every binding tech wraps differently: PyO3 dict / napi / wasm
-    / C ABI+iscc.h / JNI / Magnus / UniFFI-gen):** (a) `gen_iscc_id_v1` on each of 11 surfaces; (b)
-    Go rename `EncodeIsccID`→ `GenIsccIDV1`, DELETE `DecodeIsccID`/`IsccIDv1Result`; (c) Python
-    differential test vs `iscc_core` (dev-dep, imported directly like
-    `tests/test_iscc_decode_conformance.py`) — bundle with the Python binding step; (d) Tier-1 32→33
-    count/doc sweep (its own slice — see #43 for the exact sites incl. 3 non-Markdown). 178 = Python
-    surface first (reference-parity anchor + diff test). Signature per binding follows reference
-    `gen_iscc_id_v1(timestamp,hub_id,realm_id)` with each lang's casing; **timestamp REQUIRED (core
-    clock-free), never default to None/clock**. **Not every surface needs enum-widening for decode
-    round-trip: napi's `iscc_decode` returns `version` as a bare `u8` (no version enum), so V1
-    already round-trips — minting-only step.** 180 = napi minting slice: bare-`string` return
-    (mirrors `gen_meta_code_v0`, NOT the object form), `timestamp: f64` param (valid ts \<2^52 exact
-    in f64, avoids napi's u64→BigInt), test via golden `MAIGHFECJMOPMIAB` + validation throws +
-    `iscc_decode` round-trip (maintype 6/version 1/subtype 0); `index.d.ts`/`index.js` are
-    napi-build-generated (don't hand-edit); napi CLAUDE.md/README carry no symbol count. **179 = Go
-    rename slice (b)**: new `GenIsccIDV1(timestamp,hubID,realm)→*IsccIdResult{ISCC}`, DELETE
-    `DecodeIsccID`/`IsccIDv1Result` (Go decode already accepts V1; extract fields via
-    `binary.BigEndian.Uint64(d.Digest)` → `>>12`/`&0xFFF`/`d.Subtype`). Chosen over another minting
-    surface: Go is the only surface with actively-wrong must-delete API + a waiting
-    `iscc/iscc-monitor` consumer. `iscc_id.go` sole non-test/non-doc file; docs to sync:
-    `docs/howto/go.md`, `packages/go/README.md`, `packages/go/CLAUDE.md`.
+- **ISCC-IDv1 (#43): core DONE (33 symbols), fanning out per-surface** →
+    [idv1 fan-out facts](iscc-idv1-fanout.md). Golden
+    `gen_iscc_id_v1(1751831876325218,1,0)=="ISCC:MAIGHFECJMOPMIAB"`; validation ts≥2^52/hub≥2^12/
+    realm∉{0,1}; no dedicated decoder. Each surface is its OWN step (tech wraps differently). Done:
+    178 Python, 179 Go rename, 180 napi, 181 wasm + JS-number validation. Remaining: ffi (iscc.h
+    regen+gate), jni, rb, uniffi→Swift/Kotlin, dotnet, cpp, + 32→33 doc sweep.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published
