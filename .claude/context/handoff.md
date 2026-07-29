@@ -1,32 +1,39 @@
-## 2026-07-29 — Widen Python `VS` IntEnum to accept ISCC-IDv1 decode
+## 2026-07-29 — Review of: Widen Python `VS` IntEnum to accept ISCC-IDv1 decode
 
-**Done:** Added `V1 = 1` to the Python `VS` IntEnum so `iscc_lib.iscc_decode(gen_iscc_id_v1(...))`
-round-trips instead of raising `1 is not a valid VS`. This closes the functional half of #43's
-decode-widening — Python was the last surface rejecting V1 decode.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-py/python/iscc_lib/__init__.py`: added `V1 = 1` under `V0 = 0` in the `VS` IntEnum.
-    No other production edit — `iscc_decode` already calls `VS(vs)`.
-- `tests/test_iscc_id_v1.py`: added `test_iscc_decode_roundtrips_iscc_id_v1` (mints
-    `gen_iscc_id_v1(1751831876325218, 1, 0)`, decodes, asserts `MT.ID` and `VS.V1`/`== 1`); widened
-    the import to include `MT`, `VS`, `iscc_decode`.
-- `tests/test_new_symbols.py`: extended `test_vs_values` to assert `VS.V1 == 1` (kept `VS.V0 == 0`).
+**Summary:** Added `V1 = 1` to the Python `VS` IntEnum so
+`iscc_lib.iscc_decode(gen_iscc_id_v1(...))` round-trips instead of raising `1 is not a valid VS`.
+One-line production edit plus two tests; faithful to next.md, no scope creep, no gate weakening.
+This closes the functional half of #43 — all 11 surfaces now both mint and decode ISCC-IDv1.
 
 **Verification:**
 
-- Rebuilt the extension (`maturin develop -m crates/iscc-py/Cargo.toml`) — no Rust source change,
-    `.so` binary logically unchanged; rebuild only to load the updated wrapper.
-- `pytest tests/test_iscc_id_v1.py tests/test_new_symbols.py` → **47 passed**.
-- `ruff check crates/iscc-py tests` → All checks passed; `ruff format --check` → clean.
-- `mise run check` → all prek hooks Passed.
+- [x] `iscc_decode(gen_iscc_id_v1(1751831876325218, 1, 0)["iscc"])` returns without raising, version
+    element equals `VS.V1` — confirmed directly (`decode: 6 1`) and by the new round-trip test.
+- [x] `pytest tests/test_iscc_id_v1.py tests/test_new_symbols.py` → **47 passed** (after
+    `maturin develop`).
+- [x] `VS.V1 == 1` and `VS.V0 == 0` both hold — confirmed directly and in `test_vs_values`.
+- [x] `ruff check crates/iscc-py tests` → All checks passed; `ruff format --check` → 25 files
+    already formatted.
+- [x] `mise run check` — all prek hooks Passed.
+- [x] (probe) Gate-circumvention scan of unpushed commits — pure Python wrapper edit, no
+    suppressions/skips/threshold or hook weakening, no native/Rust change (`src/lib.rs`,
+    `_lowlevel.pyi` untouched per Not-In-Scope), no API break (additive enum member).
+
+**Issues found:**
+
+- (none) — Python was the only surface with a version *enum*; the other 10 return a bare int/byte
+    and already decoded V1, so no fan-out remains for decode.
+
+**Codex review:** Clean — confirms the V1 enum value is what was needed and the regression coverage
+is focused; the targeted suite passes (47 tests). No findings.
 
 **Next:** The remaining #43 item (v0.6.0 blocker) is the repo-wide **Tier-1 32→33 doc/count sweep**
-— stale `32` symbol counts across docs plus `gen_iscc_id_v1` API-doc entries. It is mechanical and
-non-functional; a good dedicated sweep step. With this change, all 11 surfaces both mint and decode
-ISCC-IDv1.
+\+ `gen_iscc_id_v1` per-symbol API-doc entries (see the updated #43 issue). Mechanical and
+non-functional; a good dedicated sweep step. Watch the four-list parity check in
+`scripts/check_docs_nav.py` if a new docs page is added.
 
-**Notes:** Pure Python wrapper fix, no native/Rust change (did not touch `src/lib.rs` or
-`_lowlevel.pyi`, per Not-In-Scope). Only Python has a version *enum*; the other 10 surfaces return a
-bare int/byte version and already decoded V1 — none touched. `ST`/realm already covers 0-7 so realm
-0/1 decode was never the blocker.
+**Notes:** Rebuilding the extension only reloads the updated wrapper — the `.so` binary is unchanged
+(no Rust source touched). The #43 issue has been rewritten to describe only the remaining doc/count
+problem; its minting/decode fan-out is complete.

@@ -15,8 +15,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `MA…`/`ME…` = realm nibble); core + py match byte-for-byte over
     realm{0,1}×hub{0,4095}×ts{0,2^52-1} (178). NO dedicated decoder on any surface (ref has none).
     **Minting ≠ decode round-trip**: core `codec::Version` accepts `V1`, but a surface with its OWN
-    version enum (Python `VS` lists only `V0`) makes `iscc_decode(gen_iscc_id_v1(...))` raise
-    `1 is not a valid VS` — that surface's #43 slice must widen the enum + round-trip (issues.md)
+    version enum makes `iscc_decode(gen_iscc_id_v1(...))` raise `1 is not a valid VS`. Python was
+    the *only* enum surface (widened `VS.V1 = 1` + round-trip, iter 189); the other 10 return a bare
+    int/byte version. Decode fan-out now COMPLETE on all 11 — #43's remaining half is a doc/count
+    sweep (issues.md)
 - **IDv1 validation ORDER is normative on every surface** (spec rust-core.md §Validation; ref order
     `iscc_id.py:127-133` ts→hub→realm, "first failing check wins", asserted even for MULTI-invalid
     inputs). A wide-int binding (napi/wasm/jni) MUST validate the three SEMANTIC thresholds

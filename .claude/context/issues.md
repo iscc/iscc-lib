@@ -42,28 +42,14 @@ range-check before `to_i64`. Add a test asserting `(1<<52, 1<<100, 2)` reports t
 
 **Spec:** `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)"
 
-## ISCC-IDv1 is unsupported outside Go `normal` [human]
+## ISCC-IDv1 Tier-1 32→33 doc/count sweep `normal` [human]
 
 GitHub: https://github.com/iscc/iscc-lib/issues/43 — **a v0.6.0 release blocker.**
 
-The core `codec::Version` now has `V0` **and** `V1` (`#[non_exhaustive]`,
-`crates/iscc-lib/src/codec.rs:104-106`), so the core generic decode already accepts version 1 — the
-low-level `_iscc_decode("ISCC:MAIGHFECJMOPMIAB")` returns `(6, 0, 1, 0, <8 bytes>)`. The remaining
-drop-in-compatibility gap is **per-surface enum wrappers** that predate V1: the Python `VS` IntEnum
-(`crates/iscc-py/python/iscc_lib/__init__.py:82-85`) still defines only `V0`, so
-`iscc_lib.iscc_decode` raises `1 is not a valid VS`. Every surface with its own version enum needs
-the same widening plus a round-trip test (`iscc_decode(gen_iscc_id_v1(...)["iscc"])`).
-
-The minting function `gen_iscc_id_v1` now exists on **all 11 surfaces** (Go, Python, napi, wasm,
-ffi, jni, rb, uniffi=Swift+Kotlin, dotnet, cpp — cpp landed iter 188), so the minting fan-out is
-complete. `iscc-core` has no IDv1 decoder, so no surface gets one — the generic decode path covers
-it.
-
-Canonical definition, validation rules, codec changes, the `#[non_exhaustive]` requirement, the IDv0
-exclusion, test placement and the full "Verified when" list are in
-`.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)".
-
-Two repo-wide defects follow from the change:
+The functional half of #43 is complete: `gen_iscc_id_v1` mints on **all 11 surfaces** and every
+surface both mints and decodes ISCC-IDv1. Python's `VS` IntEnum was the last rejecting decode
+surface — widened to `V1 = 1` with a round-trip test (iter 189). What remains is the repo-wide
+**doc/count sweep**, two mechanical, non-functional defects:
 
 - The Tier 1 symbol count reads 32 across `docs/`, `notes/`, per-crate and per-package `CLAUDE.md`
     and `README.md`, and in three non-Markdown sources: `crates/iscc-uniffi/src/lib.rs:3`,
@@ -78,9 +64,8 @@ Two repo-wide defects follow from the change:
     11 `docs/howto/*.md` pages. `docs/api.md` is mkdocstrings autodoc. A new docs page would drag in
     the four-list parity check in `scripts/check_docs_nav.py`.
 
-Resolved when the generic decode path accepts Version 1 on all 11 surfaces, `gen_iscc_id_v1` exists
-under the canonical name on every surface, the pytest differential test against `iscc_core` passes,
-and no shipped-artifact Tier 1 count still reads 32.
+Resolved when no shipped-artifact Tier 1 count still reads 32 and the per-symbol API docs carry the
+`gen_iscc_id_v1` entry + field-extraction recipe.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)"
 
