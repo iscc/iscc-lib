@@ -100,23 +100,23 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: 61807f3, iter 181)
+## Current State (assessed-at: d559cfc, iter 182)
 
-- **CI is GREEN on develop.** Real develop tip `9bec4aa`: check-SUITE conclusion `success`; all 23
+- **CI is GREEN on develop.** Real develop tip `ba9f2a8`: check-SUITE conclusion `success`; all 23
     check names pass except `Semver` (`failure`, but `continue-on-error: true` → non-blocking).
-- **`gen_iscc_id_v1` minting NOW ALSO on NODE.js/napi** (iter 180, PASS_WITH_NOTES):
-    `crates/iscc-napi/src/lib.rs:313` `gen_iscc_id_v1(timestamp: f64, hub_id, realm)`; napi
-    `iscc_decode` returns `version: u8` so NO enum-widen needed there. **Core + Python + Go + Node =
-    33/33; other 8 surfaces still 32/33** (wasm, ffi, jni, rb, uniffi→Swift/Kotlin, dotnet, cpp). Go
-    (179): `packages/go/iscc_id.go GenIsccIDV1`, no `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result`.
-- **NEW normal issue (180):** JS-number IDv1 minting silently coerces invalid inputs (neg/NaN/
-    non-integral/overflow) → valid-but-wrong IDs instead of throwing; `f64 as u64` truncates. Whole
-    JS-number fan-out affected; settle the validation approach on the WASM slice.
-- **HEAD `61807f3` = cid(log)180 + cid(audit) metrics only; code == origin/develop** (diff excl
-    `.claude` empty), green covers HEAD.
-- **Issues 12: 0 critical, 5 normal, 7 low.** Semver is NOT filed as an issue (non-blocking).
-- **Next work = IDv1 fan-out** to remaining 8 surfaces + per-surface version-enum widen (Python `VS`
-    still V0-only) + Tier-1 32→33 doc sweep. NOT a CI fix.
+- **`gen_iscc_id_v1` minting NOW ALSO on WASM** (iter 181, PASS): `crates/iscc-wasm/src/lib.rs:371`
+    `gen_iscc_id_v1(f64,f64,f64)` → 33 symbols. Same slice retrofitted napi's `f64` + `checked()`
+    validation guard (reject non-finite/non-integral/neg/ out-of-range before narrowing) —
+    **RESOLVED + DELETED the JS-number coercion issue** on both JS surfaces. `checked()`
+    deliberately duplicated ~5 lines/file (sanctioned over a shared crate). **Core + Python + Go +
+    Node + WASM = 33/33; other 7 surfaces still 32/33** (ffi, jni, rb, uniffi→Swift/Kotlin, dotnet,
+    cpp).
+- **HEAD `d559cfc` = cid(log)181 only; code == origin/develop** (diff excl `.claude` empty), green
+    covers HEAD. Dirty `decisions*.md` = runner rotation, not crash.
+- **Issues 11: 0 critical, 4 normal, 7 low.** Semver is NOT filed as an issue (non-blocking).
+- **Next work = IDv1 fan-out** to remaining 7 TYPED-INT surfaces (ffi first: `iscc.h` regen +
+    freshness gate; core re-checks ranges so NO JS-coercion pattern needed) + per-surface
+    version-enum widen (Python `VS` still V0-only) + Tier-1 32→33 doc sweep. NOT a CI fix.
 - **SCOPE CONTEXT (still live from 174):** out-of-loop non-`cid()` commit `2c4e487` rewrote
     `target.md` + EVERY binding spec to demand **33 Tier 1 symbols** (`gen_iscc_id_v1`) +
     experimental ISCC-IDv1 on core + all 11 surfaces. Lesson: a non-`cid()` commit CAN carry both
