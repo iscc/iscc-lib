@@ -219,7 +219,7 @@ pub fn encode_component(
 /// handles them in `normalize_multiformat` before this step.
 fn iscc_normalize(iscc: &str) -> IsccResult<String> {
     // Wide-mode detection reads the *original* header, before decomposition.
-    let clean = iscc.strip_prefix("ISCC:").unwrap_or(iscc).replace('-', "");
+    let clean = codec::iscc_clean(iscc)?;
     let raw = codec::decode_base32(&clean)?;
     let (mt, st, _, _, _) = codec::decode_header(&raw)?;
     let is_wide = mt == codec::MainType::Iscc && st == codec::SubType::Wide;
@@ -807,8 +807,8 @@ pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<MixedCodeResul
     let decoded: Vec<Vec<u8>> = codes
         .iter()
         .map(|code| {
-            let clean = code.strip_prefix("ISCC:").unwrap_or(code);
-            codec::decode_base32(clean)
+            let clean = codec::iscc_clean(code)?;
+            codec::decode_base32(&clean)
         })
         .collect::<IsccResult<Vec<Vec<u8>>>>()?;
 
@@ -890,11 +890,11 @@ pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<InstanceCodeRe
 /// 128-bit+ codes (Data + Instance) are provided, produces a 256-bit
 /// wide-mode code.
 pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<IsccCodeResult> {
-    // Step 1: Clean inputs — strip "ISCC:" prefix
-    let cleaned: Vec<&str> = codes
+    // Step 1: Clean inputs — strip scheme prefix, dashes, and whitespace
+    let cleaned: Vec<String> = codes
         .iter()
-        .map(|c| c.strip_prefix("ISCC:").unwrap_or(c))
-        .collect();
+        .map(|c| codec::iscc_clean(c))
+        .collect::<IsccResult<Vec<String>>>()?;
 
     // Step 2: Validate minimum count
     if cleaned.len() < 2 {

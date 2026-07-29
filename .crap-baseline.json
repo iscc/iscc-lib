@@ -14,17 +14,17 @@
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_iscc_code_v0",
       "line": 892,
-      "cyclomatic": 20.0,
+      "cyclomatic": 21.0,
       "coverage": 93.67088607594937,
-      "crap": 20.101411855857243
+      "crap": 21.111806571082614
     },
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "iscc_decompose",
-      "line": 519,
-      "cyclomatic": 18.0,
+      "line": 559,
+      "cyclomatic": 19.0,
       "coverage": 96.92307692307692,
-      "crap": 18.009438324988622
+      "crap": 19.010516158397817
     },
     {
       "file": "./crates/iscc-lib/src/codec.rs",
@@ -164,6 +164,14 @@
     },
     {
       "file": "./crates/iscc-lib/src/lib.rs",
+      "function": "iscc_normalize",
+      "line": 220,
+      "cyclomatic": 8.0,
+      "coverage": 100.0,
+      "crap": 8.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/lib.rs",
       "function": "soft_hash_codes_v0",
       "line": 764,
       "cyclomatic": 7.0,
@@ -182,14 +190,6 @@
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_header",
       "line": 263,
-      "cyclomatic": 7.0,
-      "coverage": 100.0,
-      "crap": 7.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/lib.rs",
-      "function": "iscc_normalize",
-      "line": 220,
       "cyclomatic": 7.0,
       "coverage": 100.0,
       "crap": 7.0
@@ -230,6 +230,14 @@
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_units",
       "line": 417,
+      "cyclomatic": 6.0,
+      "coverage": 100.0,
+      "crap": 6.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/codec.rs",
+      "function": "iscc_clean",
+      "line": 529,
       "cyclomatic": 6.0,
       "coverage": 100.0,
       "crap": 6.0
@@ -616,6 +624,14 @@
       "line": 47,
       "cyclomatic": 2.0,
       "coverage": 100.0,
+      "crap": 2.0
+    },
+    {
+      "file": "./crates/iscc-lib/tests/codec_clean.rs",
+      "function": "hyphenate",
+      "line": 10,
+      "cyclomatic": 1.0,
+      "coverage": null,
       "crap": 2.0
     },
     {

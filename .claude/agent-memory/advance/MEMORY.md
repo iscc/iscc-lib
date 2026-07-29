@@ -93,6 +93,12 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     `TryFrom<u8>`; delegates to `codec::encode_component`
 - `iscc_decode` strips "ISCC:" prefix + dashes, returns exact digest bytes as
     `(u8,u8,u8,u8,Vec<u8>)`
+- Rust codec input-cleaning (iter 191): private `codec::iscc_clean(&str)->IsccResult<String>` ports
+    `iscc_core.codec.iscc_clean` — trims ws, case-insensitive `iscc:` scheme, strips dashes UNLESS
+    first char is multibase prefix (`f/b/v/z/u`). Routed through 4 sites: `iscc_decompose`,
+    `iscc_normalize`, `gen_mixed_code_v0`, `gen_iscc_code_v0` (`cleaned` is now `Vec<String>`). Go
+    half of the same issue is NOT done (packages/go isccNormalize etc.). `iscc_clean` is
+    `pub(crate)` → its dedicated unit tests live in codec.rs, not integration tests
 - ISCC-IDv1 #43 COMPLETE (iter 190): Part 1 codec `Version` V1 (174) + Part 2 minting on all 11
     surfaces (178-188) + Tier-1 32→33 doc/count sweep + per-surface API/howto entries (190). Tier-1
     count is now 33 in ALL shipped-artifact docs (canonical breakdown `specs/rust-core.md:693`); no

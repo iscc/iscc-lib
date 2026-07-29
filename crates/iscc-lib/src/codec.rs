@@ -511,14 +511,54 @@ pub fn encode_component(
     Ok(encode_base32(&component))
 }
 
+/// Clean up an ISCC string to its bare base32 form.
+///
+/// Mirrors `iscc_core.codec.iscc_clean`: trims surrounding whitespace, removes an
+/// optional scheme prefix (matched case-insensitively against `iscc`), and strips
+/// the hyphen group separators of the canonical display form (e.g.
+/// `ISCC:KACY-PXW4-…`). A single-part input whose first character is a multibase
+/// prefix (`f`, `b`, `v`, `z`, `u`) keeps its dashes intact, since `-` may be
+/// significant in multibase-encoded data.
+///
+/// Returns the cleaned code with no scheme prefix and no dashes.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` when a two-part input uses a scheme other
+/// than `iscc` (case-insensitive), or when the input contains more than one colon.
+pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<String> {
+    let parts: Vec<&str> = iscc.trim().split(':').map(str::trim).collect();
+    match parts.as_slice() {
+        [code] => {
+            // Preserve dashes for multibase-encoded inputs; strip them otherwise.
+            let is_multibase = matches!(code.chars().next(), Some('f' | 'b' | 'v' | 'z' | 'u'));
+            if is_multibase {
+                Ok((*code).to_string())
+            } else {
+                Ok(code.replace('-', ""))
+            }
+        }
+        [scheme, code] => {
+            if !scheme.eq_ignore_ascii_case("iscc") {
+                return Err(IsccError::InvalidInput(format!("Invalid scheme: {scheme}")));
+            }
+            Ok(code.replace('-', ""))
+        }
+        _ => Err(IsccError::InvalidInput(format!(
+            "Malformed ISCC string: {iscc}"
+        ))),
+    }
+}
+
 /// Decompose a composite ISCC-CODE or ISCC sequence into individual ISCC-UNITs.
 ///
 /// Accepts a normalized ISCC-CODE or a concatenated sequence of ISCC-UNITs.
-/// The optional "ISCC:" prefix is stripped before decoding. Returns a list
-/// of base32-encoded ISCC-UNIT strings (without "ISCC:" prefix).
+/// The input is cleaned via [`iscc_clean`] (scheme prefix, dashes, whitespace)
+/// before decoding. Returns a list of base32-encoded ISCC-UNIT strings (without
+/// "ISCC:" prefix).
 pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
-    let clean = iscc_code.strip_prefix("ISCC:").unwrap_or(iscc_code);
-    let mut raw_code = decode_base32(clean)?;
+    let clean = iscc_clean(iscc_code)?;
+    let mut raw_code = decode_base32(&clean)?;
     let mut components = Vec::new();
 
     while !raw_code.is_empty() {
@@ -605,6 +645,69 @@ pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- iscc_clean tests ----
+
+    #[test]
+    fn test_iscc_clean_strips_scheme_and_dashes() {
+        // Canonical display form: scheme prefix + hyphen groups.
+        assert_eq!(
+            iscc_clean("ISCC:KACY-PXW4-45FT-YNJ3").unwrap(),
+            "KACYPXW445FTYNJ3"
+        );
+    }
+
+    #[test]
+    fn test_iscc_clean_case_insensitive_scheme() {
+        assert_eq!(
+            iscc_clean("iscc:KACYPXW445FTYNJ3").unwrap(),
+            "KACYPXW445FTYNJ3"
+        );
+        assert_eq!(
+            iscc_clean("Iscc:KACYPXW445FTYNJ3").unwrap(),
+            "KACYPXW445FTYNJ3"
+        );
+    }
+
+    #[test]
+    fn test_iscc_clean_trims_whitespace() {
+        assert_eq!(iscc_clean("  ISCC: KACY-PXW4  ").unwrap(), "KACYPXW4");
+    }
+
+    #[test]
+    fn test_iscc_clean_no_prefix() {
+        assert_eq!(
+            iscc_clean("KACY-PXW4-45FT-YNJ3").unwrap(),
+            "KACYPXW445FTYNJ3"
+        );
+    }
+
+    #[test]
+    fn test_iscc_clean_preserves_multibase_dashes() {
+        // A multibase-prefixed input (starts with 'u') must keep its dashes intact.
+        assert_eq!(iscc_clean("uABC-DEF").unwrap(), "uABC-DEF");
+        // Every multibase prefix is preserved verbatim.
+        for prefix in ['f', 'b', 'v', 'z', 'u'] {
+            let input = format!("{prefix}AA-BB");
+            assert_eq!(iscc_clean(&input).unwrap(), input);
+        }
+    }
+
+    #[test]
+    fn test_iscc_clean_rejects_bad_scheme() {
+        assert!(matches!(
+            iscc_clean("http:KACYPXW445FTYNJ3"),
+            Err(IsccError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn test_iscc_clean_rejects_extra_colon() {
+        assert!(matches!(
+            iscc_clean("ISCC:KACY:PXW4"),
+            Err(IsccError::InvalidInput(_))
+        ));
+    }
 
     // ---- Varnibble roundtrip tests ----
 
