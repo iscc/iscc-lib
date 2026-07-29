@@ -29,36 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-26 — Declared Unicode version stays 16.0.0, backported rather than lowered to 15.1.0
-
-**Decision:** the declared Unicode data version remains **16.0.0**. Lowering it to 15.1.0 to
-preserve CPython ≤ 3.13 output was proposed and **rejected by Titusz**. The upstream `iscc-core` fix
-backports 16.0.0 to older Pythons (`unicodedata2==16.0.0` for `python_version < '3.14'`), converging
-the whole supported range on one behaviour rather than pulling 3.14 back. **Why:** freezing upstream
-is a behavioural break for *someone* no matter which version is chosen, so "preserve the installed
-base" is not decisive. Measured facts behind the call: `iscc-core` declares
-`requires-python = ">=3.9,<4.0"`, which spans **four** Unicode versions (3.9/3.10 → 13.0, 3.11 →
-14.0, 3.12 → 15.0, 3.13 → 15.1, 3.14 → 16.0), with deltas of +838 / +4,489 / +627 / +5,185 newly
-retained code points. So the 3.14 break is the fifth instance of an ongoing non-determinism, not a
-new regression, and no freeze point restores compatibility with everything. Two further points
-decided it: the 15.1 → 16.0 delta contains **6 living scripts** (Gurung Khema, Kirat Rai, Todhri, Ol
-Onal, Garay, Sunuwar), and freezing at 15.1 would strip them entirely — so any document written
-wholly in one of those scripts collapses to `""` and all such documents collide on the same
-degenerate Text-Code, a correctness hazard rather than an aesthetic one; and the 3.13 cohort being
-protected is small in practice, since Unicode 16 shipped 2024-09 and CPython 3.14 shipped 2025-10,
-so little real content containing the 16.0 additions has been ISCC'd on 3.13. A large *code point*
-count was being weighted as if it were a large *content* count. **Alternatives:** freeze at 15.1.0 —
-rejected per above, though it does dominate 16.0.0 against every historical cohort (divergence 5,954
-/ 5,116 / 627 / 0 / 5,185 by CPython version, vs 11,139 / 10,301 / 5,812 / 5,185 / 0 for 16.0.0);
-freeze at 15.1.0 *and* pin the normalization crate to matching tables — rejected, it gives up free
-upgrades of table dependencies for a residual the sentinel design (below) eliminates anyway; add a
-`unicode_version` compatibility option so historical ISCCs stay reproducible — rejected, ISO
-conformance requires a single normative behaviour and it is exactly the API complexity Titusz ruled
-out. **Consequence:** ISCCs minted on CPython ≤ 3.13 for text containing Unicode 16.0 additions are
-not reproducible, by decision rather than by accident. Both `iscc-lib` and the upstream proposal
-declare 16.0.0. **Context:** interactive session 2026-07-26, after Titusz pushed back on the 15.1.0
-proposal.
-
 ## 2026-07-26 — The freeze rule maps unassigned code points to a noncharacter sentinel (SUPERSEDES the category override)
 
 **Decision:** **supersedes the category-override decision recorded earlier on 2026-07-26.** Code

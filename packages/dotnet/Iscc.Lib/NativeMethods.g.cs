@@ -271,6 +271,28 @@ namespace Iscc.Lib
         internal static extern byte* iscc_gen_iscc_code_v0(byte** codes, nuint num_codes, [MarshalAs(UnmanagedType.U1)] bool wide);
 
         /// <summary>
+        ///  Generate an experimental ISCC-IDv1 from a timestamp, HUB-ID, and realm.
+        ///
+        ///  # Parameters
+        ///
+        ///  - `timestamp`: microseconds since the Unix epoch (must be `&lt; 2^52`)
+        ///  - `hub_id`: HUB identifier (must be `&lt; 2^12`)
+        ///  - `realm`: realm selector (`0` for testnet, `1` for the first operational mainnet)
+        ///
+        ///  # Returns
+        ///
+        ///  Heap-allocated ISCC string on success, `NULL` on error (out-of-range input).
+        ///  Caller must free with `iscc_free_string()`.
+        ///
+        ///  # Safety
+        ///
+        ///  Takes only scalar arguments; there are no pointer preconditions. Declared
+        ///  `unsafe` for consistency with the other `#[unsafe(no_mangle)]` exports.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "iscc_gen_iscc_id_v1", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern byte* iscc_gen_iscc_id_v1(ulong timestamp, ushort hub_id, byte realm);
+
+        /// <summary>
         ///  Clean and normalize text for display.
         ///
         ///  Applies NFKC normalization, removes control characters (except newlines),

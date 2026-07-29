@@ -15,7 +15,12 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 - napi-rs: `npm test` + clippy + `mise run check`
 - WASM: `wasm-pack test --node` (with and without `--features conformance`) + clippy. To run one
     test file: `--test <name>` goes BEFORE the `--` (cargo arg); after `--` the runner rejects it
-- C FFI: `cargo test -p iscc-ffi` + clippy. Header tracked in git
+- C FFI: `cargo test -p iscc-ffi` + clippy. Header tracked in git. For a header/symbol change (182)
+    verify freshness by RE-RUNning cbindgen
+    (`cbindgen --config crates/iscc-ffi/cbindgen.toml --crate   iscc-ffi --output crates/iscc-ffi/include/iscc.h`)
+    → `git diff --exit-code iscc.h` must be empty, then compile+run the C test:
+    `gcc -o /tmp/test_iscc crates/iscc-ffi/tests/test_iscc.c -I   crates/iscc-ffi/include -L target/debug -liscc_ffi -lpthread -ldl -lm && LD_LIBRARY_PATH=target/debug /tmp/test_iscc`
+    (exit 0)
 - Java JNI: `cargo build -p iscc-jni` + clippy + `mvn test`
 - Ruby: `pushd crates/iscc-rb && bundle exec rake compile && bundle exec rake test; popd`
 - .NET: `cargo build -p iscc-ffi` + `dotnet build packages/dotnet/Iscc.Lib/` +

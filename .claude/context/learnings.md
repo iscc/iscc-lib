@@ -18,17 +18,15 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     version enum (Python `VS` lists only `V0`) makes `iscc_decode(gen_iscc_id_v1(...))` raise
     `1 is   not a valid VS` — its #43 slice must widen the enum + round-trip test; **napi**
     (`version: u8`, 180) and **Go** return a bare int, no widening
-- **IDv1 fan-out conventions** (179 Go, 180 napi): Go
-    `GenIsccIDV1(timestamp, hubID, realm)   (*IsccIdResult, error)`, decode via `IsccDecode` +
-    `n:=binary.BigEndian.Uint64(d.Digest)` (`ts=n>>12`, `hub=uint16(n&0xFFF)`, `realm=d.Subtype`).
-    napi/wasm = bare-string; `index.d.ts` camelCases the param, cosmetic. Old Go `EncodeIsccID` etc.
-    were `develop`-only (no API-break). napi CLAUDE/README carry no count. wasm DONE 181 (33
-    symbols). Owed: ffi, jni, rb, uniffi, dotnet, cpp
-- **JS-number validation settled once for the #43 fan-out (181)**: napi + wasm take ALL THREE params
-    as `f64`, validate (`!is_finite()`/`fract()!=0.0`/`<0.0`/`>=max` at `2^52`/`4096`/`2`) BEFORE
-    narrowing via a duplicated per-file `fn checked(f64,f64,&str)`. hub/realm are `f64` not
-    `u16`/`u8` because napi/wasm coerce (ToUint32/truncate) first. ffi/jni/rb/uniffi typed-int —
-    don't copy
+- **IDv1 fan-out** (179 Go, 180 napi, 182 ffi; owed jni, rb, uniffi, dotnet, cpp): Go
+    `GenIsccIDV1(ts,hub,realm) (*IsccIdResult, error)`, decode `IsccDecode` +
+    `n:=BigEndian.Uint64(Digest)` (`ts=n>>12`,`hub=n&0xFFF`,`realm=Subtype`). napi/wasm bare-string;
+    ffi `iscc_gen_iscc_id_v1(u64,u16,u8)`, NO `checked()`/NULL guard (core re-checks), regen
+    `iscc.h` via cbindgen. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs`
+    on EVERY build** → pre-push clippy fails "files were modified"; regen+commit it in the SAME
+    FFI-symbol step (like `iscc.h`), never "the dotnet step". Old Go `EncodeIsccID` develop-only
+- **JS-number validation (napi/wasm DONE; decisions.md 2026-07-29)**: `f64` params validated
+    (`!is_finite`/`fract`/range `2^52`/`4096`/`2`) before narrowing; typed-int surfaces don't copy
 
 ## Reference Implementation
 
