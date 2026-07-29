@@ -84,12 +84,18 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 7845114, iter 191)
+## Current State (assessed-at: 13474ec, iter 192)
 
-- **CI GREEN on develop.** Real tip `b2f56b6` (iter 190 IDv1 doc-sweep review): 23 names pass except
-    `Semver` (`continue-on-error`, reds on `enum_marked_non_exhaustive`). HEAD `7845114` = unpushed
-    are only `cid(log)`/`cid(audit)` (iterations.jsonl + metrics.jsonl); code diff vs origin EMPTY →
-    green covers HEAD.
+- **CI GREEN on the PUSHED tip only.** Real tip `origin/develop=b2f56b6` (iter 190 doc-sweep): 23
+    names pass except `Semver` (`continue-on-error`). **HEAD `13474ec` is NOT covered by green** —
+    iter 191 codec `iscc_clean` advance (`2537e18`) is NEEDS_WORK and UNPUSHED. The origin..HEAD
+    code diff = 4 files (codec.rs, lib.rs, codec_clean.rs, .crap-baseline.json) that never ran
+    through CI. Classic "NEEDS_WORK advance sits at HEAD uncovered" trap — report the gap.
+- **In-flight NEEDS_WORK (iter 191, `2537e18`):** shared `iscc_clean` helper routes the four Rust
+    codec-input sites; faithful port + fixes 3 divergences, BUT `iscc_decompose` now returns
+    `Ok([])` for inputs that clean to `""` (`"   "`, `"-"`, `"iscc:"`, `"----"`) — fresh Tier-1
+    regression vs reference. Fix = empty-cleaned-code guard + tests (reviewer-scoped small).
+    `iscc_clean` at `codec.rs:529`; decode uses it at `codec.rs:560`.
 - **#43 IDv1 FULLY CLOSED — do NOT re-flag any part.** All 11 surfaces MINT + DECODE IDv1 = 33/33
     (mint fan-out cpp @188; decode Python `VS` enum `V1=1` @189). Iter 190 landed the repo-wide
     Tier-1 32→33 doc/count sweep + `gen_iscc_id_v1` per-symbol entries in the four
@@ -109,10 +115,10 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     Composition shifted @190: #43 sweep issue deleted, NEW `docs/c-ffi-api.md` type-name gap filed
     (`normal` `[review]`) — cbindgen emits `iscc_IsccDecodeResult` but the page docs unprefixed
     `IsccDecodeResult`, so no c-ffi snippet compiles verbatim (page-wide, pre-existing).
-- **v0.6.0 release blockers now = 4 CID-doable `normal` `[review]` issues** (c-ffi-api type names,
-    Ruby wide-input validation order, codec `iscc_clean` divergence [most substantive, Rust+Go], iai
-    ASCII-only benches) + go1.27 (upstream-blocked) + the human-gated release cut. No functional
-    IDv1 gap remains.
+- **v0.6.0 release blockers = 5 open `normal` `[review]` issues** (c-ffi-api type names, Ruby
+    wide-input validation order, Go codec `iscc_clean` divergence [Rust half in-flight NEEDS_WORK],
+    iai ASCII-only benches, go1.27 [upstream-blocked]) + the human-gated release cut. No functional
+    IDv1 gap remains. Issue composition unchanged @191 (12: 0 crit, 5 normal, 7 low).
 
 ## Durable Facts (carried, not per-iteration)
 
