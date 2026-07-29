@@ -1,73 +1,74 @@
 # Next Work Package
 
-## Step: Mint `gen_iscc_id_v1` on the JNI (Java) surface
+## Step: Redo JNI `gen_iscc_id_v1` with ordered semantic validation
 
 ## Goal
 
-Continue the #43 IDv1 fan-out: expose the experimental `gen_iscc_id_v1` minting function on the
-Java/JNI surface (7th of 11), bringing `crates/iscc-jni` to 33 usable Tier 1 symbols. This is a live
-v0.6.0 release blocker (issue "ISCC-IDv1 is unsupported outside Go").
+**Reframe** of iteration 183's JNI slice (first NEEDS_WORK — same goal, corrected validation design,
+not a backtrack). Fix the `genIsccIdV1` wrapper so its input validation obeys the normative
+cross-surface order (ts→hub→realm, first failing check wins) for multi-invalid inputs, completing
+the 7th of 11 IDv1 fan-out surfaces. Live v0.6.0 blocker (issue #43, "ISCC-IDv1 unsupported outside
+Go"). The Java native decl, golden/realm/round-trip tests already exist locally (commit `8201277`,
+unpushed); only the Rust validation and one ordering test are owed.
 
 ## Alternatives Considered
 
-- **Chosen:** JNI IDv1 minting — the handoff's explicit next surface and the next typed-int slice;
-    unblocks one of the 5 remaining fan-out surfaces with a self-contained, well-precedented change.
-- **Rejected:** the Tier-1 32→33 doc/count sweep — deliberately deferred until the fan-out completes
-    (issues.md scopes it as its own slice); running it now would churn count text while symbols are
-    still landing.
+- **Chosen:** JNI redo — an unpushed NEEDS_WORK slice on a release blocker; it must be resolved
+    before any new surface, else broken code strands the fan-out.
+- **Rejected:** advance to the Ruby (Magnus) surface — the handoff's *subsequent* step, but starting
+    it now leaves the JNI ordering bug unfixed and unpushed. Finish the in-flight slice first.
 
 ## Scope
 
-- **Modify**: `crates/iscc-jni/src/lib.rs` (add the `genIsccIdV1` JNI wrapper)
-- **Modify**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (native decl)
+- **Modify**: `crates/iscc-jni/src/lib.rs` — replace the wide-narrowing guard block in
+    `Java_io_iscc_iscc_1lib_IsccLib_genIsccIdV1` with three semantic-threshold checks in
+    ts→hub→realm order; update the fn doc comment to describe the ordered checks.
 - **Modify (test, excluded from budget)**:
-    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
-- **Reference**: `crates/iscc-jni/src/lib.rs:200-221` (`genTextCodeV0` String-returning pattern),
-    `crates/iscc-jni/CLAUDE.md` (type mapping, `_1` mangling, `throw_and_default`),
-    `.claude/context/specs/rust-core.md` §"ISCC-IDv1 Operations" (signature, validation, golden)
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` — add one multi-invalid
+    ordering test.
+- **Reference**: `crates/iscc-napi/src/lib.rs:328-335` (the `checked(v, thresh, name)` precedent),
+    `.claude/context/specs/rust-core.md` §Validation (~L542, normative order), learnings.md "IDv1
+    validation ORDER is normative".
 
 ## Not In Scope
 
-- The Tier-1 32→33 doc/count sweep across CLAUDE.md/README/docs — separate #43 slice. jni docs carry
-    no numeric symbol count, so no doc edit is needed here (mirrors the ffi slice).
-- Any enum-widening or decode change: JNI `isccDecode` already returns `version` as a plain `int`,
-    so `iscc_decode(gen_iscc_id_v1(...))` round-trips today — do NOT touch `IsccDecodeResult` or the
-    decode path.
-- The other 4 remaining surfaces (rb, uniffi→Swift/Kotlin, dotnet C# consumer, cpp).
-- Adding a "now"/clock convenience — the core is clock-free; `timestamp` stays a required argument.
+- The other 4 surfaces (rb, uniffi→Swift/Kotlin, dotnet C# consumer, cpp) and the Tier-1 32→33 doc
+    sweep — each its own #43 slice.
+- Any enum-widening or decode change: JNI `isccDecode` returns `version` as a plain `int`, so the
+    round-trip already works — do NOT touch `IsccDecodeResult`.
+- Changing the golden/realm/round-trip tests already present — keep them; only ADD the ordering
+    test.
 
 ## Implementation Notes
 
-- Java signature: `public static native String genIsccIdV1(long timestamp, int hubId, int realm);`
-    JNI Rust name `Java_io_iscc_iscc_1lib_IsccLib_genIsccIdV1` (note the `_1` for `iscc_lib`).
-- Params arrive as `jlong`/`jint`/`jint`. **Narrowing hazard — validate before casting to core's
-    `(u64, u16, u8)`:** a `jint` can wrap into the valid range (`65537 as u16 == 1` would masquerade
-    as a valid hub). Reject via `throw_and_default` when `hubId` is outside `0..=u16::MAX` or
-    `realm` outside `0..=u8::MAX`, THEN cast. `timestamp as u64` needs no guard: a negative `jlong`
-    maps to a huge value core rejects, and every valid ts (`< 2^52`) is a positive `long`. Core's
-    `gen_iscc_id_v1` re-validates the semantic ranges (ts/hub/realm) in order and returns `Err` →
-    `throw_and_default` maps it to `IllegalArgumentException`.
-- Body mirrors `genTextCodeV0`: call `iscc_lib::gen_iscc_id_v1(ts, hub, realm)`, on `Ok` return
-    `env.new_string(result.iscc)`, on `Err` `throw_and_default(env, &e.to_string())`.
-- Tests (JUnit `@Test`): golden
-    `assertEquals("ISCC:MAIGHFECJMOPMIAB", IsccLib.genIsccIdV1(   1751831876325218L, 1, 0))`; realm
-    error
-    `assertThrows(IllegalArgumentException.class,   () -> IsccLib.genIsccIdV1(1751831876325218L, 1, 2))`;
-    round-trip decoding the golden via `IsccLib.isccDecode(...)` asserting `version == 1`,
-    `subtype == 0` (realm), `maintype == 6`.
+- **The bug (183):** the wrapper guards `hubId` in `0..=65535` then `realm` in `0..=255` (wide
+    narrowing bounds) and skips the timestamp check, deferring semantic ranges to core. For
+    multi-invalid inputs this reports the wrong field: `(1L<<52, 65536, 0)` reports hub (ref:
+    timestamp); `(0, 4096, 256)` reports realm (ref: hub).
+- **Fix:** validate the three SEMANTIC thresholds IN the wrapper, in order, BEFORE narrowing —
+    mirroring napi. In ts→hub→realm order, `throw_and_default` when:
+    `timestamp < 0 || timestamp >= 4_503_599_627_370_496` (2^52), then `hubId < 0 || hubId >= 4096`,
+    then `realm < 0 || realm >= 2`. Only after all three pass, cast to `(u64, u16, u8)` and call
+    `iscc_lib::gen_iscc_id_v1`. This subsumes core's checks so single-invalid cases (realm=2) stay
+    rejected and existing tests stay green.
+- Message text must name the field so the ordering test can assert it — keep a distinct substring
+    per field (e.g. contains `"timestamp"`, `"hub"`, `"realm"` respectively).
+- **New ordering test** (JUnit `@Test`): assert `genIsccIdV1(1L<<52, 65536, 0)` throws with a
+    message naming **timestamp** (not hub), and `genIsccIdV1(0L, 4096, 256)` throws with a message
+    naming **hub** (not realm). Use `assertThrows(...).getMessage()` + `assertTrue(contains(...))`.
 
 ## Verification
 
-- `cargo build -p iscc-jni` clean; `cargo clippy -p iscc-jni --all-targets -- -D warnings` clean;
-    `cargo fmt -p iscc-jni --check` clean.
-- `cd crates/iscc-jni/java && mvn clean test` passes (run `cargo build -p iscc-jni` first; surefire
-    sets `java.library.path` to `target/debug`) — new golden, realm-error, and decode round-trip
-    tests plus all prior tests green.
+- `cargo clippy -p iscc-jni --all-targets -- -D warnings` clean; `cargo fmt -p iscc-jni --check`
+    clean.
+- `cargo build -p iscc-jni && cd crates/iscc-jni/java && mvn clean test` passes — prior
+    golden/realm/ round-trip tests plus the new ordering test green (surefire sets
+    `java.library.path` to `target/debug`).
+- New ordering test proves `(1L<<52, 65536, 0)`→timestamp and `(0L, 4096, 256)`→hub.
 - `mise run check` — all prek pre-commit hooks pass.
-- (probe) Golden `ISCC:MAIGHFECJMOPMIAB` for `(1751831876325218, 1, 0)` matches the frozen
-    cross-surface `iscc-core` oracle value.
 
 ## Done When
 
-`genIsccIdV1` is exported from `IsccLib`, mints the golden ISCC, throws on invalid realm, its output
-round-trips through `isccDecode` at Version 1, and all cargo + mvn + prek gates pass.
+`genIsccIdV1` validates ts→hub→realm before narrowing, the multi-invalid ordering test asserts the
+correct winning field, the golden still mints `ISCC:MAIGHFECJMOPMIAB` and round-trips at Version 1,
+and all cargo + mvn + prek gates pass.

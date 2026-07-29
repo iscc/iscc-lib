@@ -61,14 +61,19 @@ must widen it + round-trip test.
     csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build → pre-push clippy
     rejects the push; ANY future FFI-symbol step must regen+commit `NativeMethods.g.cs` in-step too.
 
-- **183 = jni (scoped):** `genIsccIdV1(long ts,int hubId,int realm)→String`, Rust name
-    `Java_..._genIsccIdV1` (`_1`!). **JNI DOES need a pre-narrow guard** (unlike ffi): `jint as u16`
-    wraps (`65537→1`) so validate `hubId∈0..=u16::MAX`, `realm∈0..=u8::MAX` before cast; `ts as u64`
-    is safe (negative→huge→core rejects). Decode round-trips WITHOUT enum-widening (JNI
-    `IsccDecodeResult.version` is a plain `int`). jni README/CLAUDE carry no numeric count → no doc
-    edit. Body mirrors `genTextCodeV0`; `throw_and_default` on `Err`.
+- **183/184 = jni:** `genIsccIdV1(long ts,int hubId,int realm)→String`, Rust name
+    `Java_..._genIsccIdV1` (`_1`!). Golden+realm+round-trip tests + Java native decl landed 183
+    (`8201277`, unpushed). Decode round-trips WITHOUT enum-widening (JNI `IsccDecodeResult.version`
+    is a plain `int`). jni README/CLAUDE carry no numeric count → no doc edit. Body mirrors
+    `genTextCodeV0`; `throw_and_default` on `Err`. **183 NEEDS_WORK — wide-narrowing guard was
+    WRONG:** guarding `hubId∈0..=65535`, `realm∈0..=255` and skipping the ts check violates the
+    normative ts→hub→realm order for MULTI-invalid inputs (`(2^52,65536,0)` reports hub not ts;
+    `(0,4096,256)` reports realm not hub). **184 fix = validate the 3 SEMANTIC thresholds
+    (2^52/4096/2) in ts→hub→realm order BEFORE narrowing** (mirror napi's `checked`), + a
+    multi-invalid ordering test. Wide-int surfaces (jni, and rb/dotnet IF they take
+    wider-than-needed ints) all need this; Go/ffi exact-width → delegate to core.
 
-## Remaining after 183
+## Remaining after 184
 
 rb, uniffi→Swift/Kotlin, dotnet (C# consumer + regen `NativeMethods.g.cs`), cpp, + the 32→33
 doc/count sweep.
