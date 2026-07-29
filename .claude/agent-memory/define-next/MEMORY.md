@@ -100,6 +100,14 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     sweep + `gen_iscc_id_v1` API/howto entries (190). #43 issue deleted. All doc artifacts read 33
     (stale-32 grep clean); `notes/00-overview.md:153` now reads 33 (was 22 — that memory is now
     stale). Per-surface recipes archived → [idv1 fan-out facts](iscc-idv1-fanout.md).
+- **193: the `iscc_clean` routing (191/192) reds the ENFORCING iai Perf gate** — routing composite
+    `gen_iscc_code_v0`/`gen_mixed_code_v0` through it added a per-component `Vec` (split-collect) +
+    `String` (`replace`) alloc; pre-191 inline cleaning was zero-alloc (`strip_prefix`→`&str`).
+    Bench inputs are dash/scheme-free so the alloc is pure waste. Fix = `iscc_clean` returns
+    `Cow<'_,str>`, `split_once` not collect, `replace` only if `contains('-')`; pass the UNMODIFIED
+    committed baseline (never bump `.iai-baseline.json` to mask a removable cost). `mise run check`
+    skips iai (CI-only) so the reviewer missed it — a text/codec-hot-path step must flag
+    `bench:iai:check`.
 - **v0.6.0 release readiness (191→): only CID-doable blocker left is "no `normal`/`critical` issue
     open".** 4 open `normal` `[review]` gate it: (1) **codec `iscc_clean` divergence** — most
     substantive, TWO-surface (Rust 4 sites + hand-ported Go 4 sites = TWO steps, not fan-out; issue
