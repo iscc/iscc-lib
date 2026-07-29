@@ -1,75 +1,71 @@
 # Next Work Package
 
-## Step: Route a shared `iscc_clean` helper through the four Rust codec-input sites
+## Step: Reject empty-cleaned codec input to close the `iscc_decompose` regression
 
 ## Goal
 
-Close the Rust half of the "Codec input cleaning diverges from iscc-core `iscc_clean`" `normal`
-`[review]` issue: hyphen-separated (the canonical display form), whitespace-padded, and
-case-insensitive-`iscc:`-scheme inputs must parse instead of raising, matching the reference. This
-is the most substantive open v0.6.0 release blocker and affects real user input.
+Close the NEEDS_WORK regression at HEAD (`2537e18`, unpushed): after routing through the shared
+`iscc_clean` helper, `iscc_decompose` silently returns `Ok([])` for inputs that clean to `""`
+(`"   "`, `"-"`, `"iscc:"`, `"----"`) where both HEAD~1 and the reference error. Landing this makes
+the Rust `iscc_clean` routing a clean PASS so it can push under green CI.
 
 ## Alternatives Considered
 
-- **Chosen:** codec `iscc_clean` (Rust half) — real drop-in-compat bug; the hyphen-grouped form
-    (`ISCC:KACY-PXW4-…`) is how ISCCs are displayed, so users hit it constantly.
-- **Rejected:** Ruby `gen_iscc_id_v1` validation-order fix — the issue itself states practical
-    impact is nil (only `> i64::MAX` inputs, ~292K-year timestamps); lower user value than codec.
-- **Rejected here:** the Go half of this same issue — different language, non-mechanical port; it is
-    a separate step (see Not In Scope), so this step does not yet close the issue.
+- **Chosen:** guard empty-cleaned input — it is the sole blocker keeping the in-flight Rust routing
+    off `origin/develop`; a small, reviewer-specified fix that unblocks the whole work package.
+- **Rejected:** the Go half of the same `iscc_clean` divergence (issues.md) — it is a separate
+    non-mechanical port that must not copy this empty-input gap, so it can only start once the Rust
+    half lands clean and is pushed.
 
 ## Scope
 
-- **Modify**: `crates/iscc-lib/src/codec.rs` (add private `iscc_clean` helper; route
-    `iscc_decompose` at ~L520), `crates/iscc-lib/src/lib.rs` (route `iscc_normalize` ~L222,
-    `gen_mixed_code_v0` ~L810, `gen_iscc_code_v0` ~L894)
-- **Create**: `crates/iscc-lib/tests/codec_clean.rs` (differential tests) — outside the 3-file
-    budget
-- **Reference**: `reference/iscc-core/iscc_core/codec.py:644` (`iscc_clean`) and `:363`
-    (`normalize_multiformat` calls it); issue "Codec input cleaning diverges…" in issues.md
+- **Modify**: `crates/iscc-lib/src/codec.rs` — add the empty-cleaned-code guard
+- **Modify (tests, excl. budget)**: `crates/iscc-lib/tests/codec_clean.rs` — assert the four forms
+    error across all four codec-input sites
+- **Modify (generated, excl. budget)**: `.crap-baseline.json` — regen after the new branch/tests
+- **Reference**: `reference/iscc-core/iscc_core/codec.py:644` (`iscc_clean`, `code[0]` IndexError on
+    empty); handoff.md (regression detail); learnings.md (`decode_base32("")` returns `Ok(empty)`)
 
 ## Not In Scope
 
-- The Go port (`packages/go` codec.go / code_content_mixed.go / code_iscc.go / isccNormalize) — a
-    separate follow-up step; the issue stays open until both surfaces are fixed.
-- Multiformat (multibase-prefixed `f`/`b`/`v`/`z`/`u`) decode support — a documented non-goal
-    (`lib.rs:216-219`); `iscc_clean` must NOT corrupt such inputs but decode may still reject them.
-- Changing `iscc_normalize`'s compose logic or any `gen_*_v0` output for already-valid inputs.
+- The Go `iscc_clean` port (`packages/go`) — separate step, blocked on this landing.
+- Re-deriving or altering the codec-cleaning design — it matches the reference and is settled; only
+    the empty-input edge needs closing.
+- Any change to the multibase dash-preservation logic or the valid-input differential cases.
 
 ## Implementation Notes
 
-Port `iscc_clean(iscc) -> IsccResult<String>` faithfully (returns cleaned code, no `ISCC:` prefix,
-no dashes):
-
-1. `let s = iscc.trim();` then split on `':'`, trimming each part (mirror `part.strip()`).
-2. **1 part:** strip dashes **only if** the first char is NOT a multibase prefix (`f`,`b`,`v`,`z`,
-    `u`) — an unconditional `.replace('-', "")` would corrupt multibase input. Return as-is
-    otherwise.
-3. **2 parts:** scheme must equal `"iscc"` **case-insensitively**, else
-    `InvalidInput("Invalid  scheme: …")`; return the code with dashes stripped.
-4. **>2 parts:** `InvalidInput("Malformed ISCC string: …")`.
-
-Replace the four ad-hoc `strip_prefix("ISCC:")…replace('-', "")` snippets with a call to the helper.
-`gen_iscc_code_v0` holds `cleaned: Vec<&str>` (borrows) — switch to `Vec<String>` and adjust the
-length/borrow checks. In `iscc_normalize`, the wide-mode header read must use the cleaned string.
-`decode_base32` already uppercases, so lowercase-body parity needs no extra work.
-
-CRAP gate is CI-only and enforcing: adding branches to covered fns can red it even when green
-locally — if `mise run coverage` shows regressions, regenerate `.crap-baseline.json` via
-`mise run crap:baseline` in this same step (never widen the epsilon).
+- Put the guard **inside `codec::iscc_clean`** (codec.rs:529): after computing the cleaned string,
+    return `Err(IsccError::InvalidInput(...))` when it is empty. This is DRY — it protects all four
+    call sites (`iscc_decompose`, `iscc_normalize`, `gen_iscc_code_v0`, `gen_mixed_code_v0`) at
+    once, and mirrors the reference erroring on empty (IndexError in the one-part branch; downstream
+    for the `"iscc:"` two-part form). Alternatively guard before the loop in `iscc_decompose`, but
+    the single-site guard is preferred.
+- `decode_base32("")` returns `Ok(empty)`, NOT an error — do not rely on it to reject empty.
+- Error message can be a fixed string (e.g. `"Empty ISCC string"`); it need not match Python's
+    exception text verbatim, only that the input errors.
+- The other three sites already error on empty downstream (via `decode_header([])` / the `< 2` unit
+    count check); the guard just makes them error earlier and consistently — confirm with a test.
+- The existing valid-input differential cases (hyphenated / padded / lowercase-scheme) must stay
+    green — the guard only fires on a truly empty cleaned result.
+- Adding a branch to the covered `iscc_clean` shifts its CRAP value → regenerate
+    `.crap-baseline.json` via `mise run coverage` then `mise run crap:baseline`; do NOT widen the
+    epsilon or the 30.0 threshold in `.cargo-crap.toml`.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (existing suite + new `codec_clean.rs`).
-- New differential tests: for a valid multi-unit ISCC `s` from the existing tests,
-    `iscc_decompose(hyphenate(s)) == iscc_decompose(s)`,
-    `iscc_decode("  iscc:{s}  ")? ==   iscc_decode(s)?`, and `gen_iscc_code_v0`/`gen_mixed_code_v0`
-    accept the hyphenated + padded + lowercase-scheme forms with output identical to the plain form.
-- A `#[test]` asserts `iscc_clean` leaves dashes intact for a multibase-prefixed input (starts with
-    `u`).
-- `cargo clippy -p iscc-lib -- -D warnings` clean; `cargo fmt -p iscc-lib --check` clean.
+- `cargo test -p iscc-lib` passes (all existing tests + new empty-input assertions, 0 failed).
+- New tests in `codec_clean.rs` assert `iscc_decompose` returns `Err(InvalidInput)` for `"   "`,
+    `"-"`, `"iscc:"`, `"----"`, and that `iscc_normalize` / `gen_iscc_code_v0` / `gen_mixed_code_v0`
+    also error (not `Ok`) on a whitespace/dash-only form.
+- Existing valid-input differential cases still pass (hyphenated composite → 4 units; padded and
+    lowercase-scheme single → 1 unit each); multibase `u`-prefixed dashes still preserved.
+- `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt -p iscc-lib --check`
+    clean.
+- `mise run check` (prek all-files) passes; `.crap-baseline.json` regenerated with no
+    epsilon/threshold change (`.cargo-crap.toml` untouched).
 
 ## Done When
 
-The four Rust codec-input sites route through one `iscc_clean` helper, the dash/whitespace/
-lowercase-scheme forms parse with output identical to the plain form, and all checks above pass.
+All verification criteria pass and the four empty-cleaned forms error through every codec-input
+site.

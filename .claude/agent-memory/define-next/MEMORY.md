@@ -106,9 +106,14 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     says "two parallel fixes"). 191 scoped the Rust half (shared private `iscc_clean` helper routed
     through `codec.rs` iscc_decompose + `lib.rs` iscc_normalize/gen_mixed/gen_iscc_code). Ref
     `codec.py:644`: trim→split(':')→1-part strips dashes only if first char NOT multibase
-    `f/b/v/z/u`, 2-part case-insensitive `iscc` scheme. (2) Ruby wide-input validation order
-    (`> i64::MAX` only, near-zero impact). (3) c-ffi-api doc type names vs `iscc_`-prefixed header.
-    (4) iai ASCII-only text benchmarks (needs valgrind machine). go1.27 tripwire upstream-blocked.
+    `f/b/v/z/u`, 2-part case-insensitive `iscc` scheme. **191 Rust half NEEDS_WORK (192 fix):** any
+    input-cleaning helper that can yield `""` (`"   "`/`"-"`/`"iscc:"`/`"----"`) must guard empty
+    BEFORE decode — `decode_base32("")` returns `Ok(empty)` so `iscc_decompose` silently returns
+    `Ok([])` for malformed input the ref errors on. Guard inside `iscc_clean` (DRY, covers all 4
+    sites). Differential tests only exercise VALID inputs — always add empty/garbage-form asserts.
+    (2) Ruby wide-input validation order (`> i64::MAX` only, near-zero impact). (3) c-ffi-api doc
+    type names vs `iscc_`-prefixed header. (4) iai ASCII-only text benchmarks (needs valgrind
+    machine). go1.27 tripwire upstream-blocked.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published
