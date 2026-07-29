@@ -83,9 +83,23 @@ metadata:
     `cargo build -p iscc-ffi`. Tests in `SmokeTests.cs` (golden + out-of-range-ts throws + decode
     round-trip); 107 pass. Verify: `cargo build -p iscc-ffi` then
     `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e   LD_LIBRARY_PATH=$(pwd)/target/debug`.
-- STILL PENDING (#43): minting on cpp surface only; 32→33 doc/count sweep
-    (`packages/dotnet/CLAUDE.md`/`README.md`, docs API pages, issues.md). Go DONE 179, napi 180,
-    wasm 181, ffi 182, jni 184, rb 185, uniffi(Swift+Kotlin) 186, dotnet 187.
+- cpp binding DONE (iter 188, #43): header-only C++
+    `inline IsccIdResult gen_iscc_id_v1(uint64_t timestamp, uint16_t hub_id, uint8_t realm)` in
+    `packages/cpp/include/iscc/iscc.hpp` (Gen-functions section, before `gen_sum_code_v0`), mirrors
+    `gen_meta_code_v0`: `UniqueString(iscc_gen_iscc_id_v1(...))` + `check_ptr` (throws `IsccError`
+    on NULL) + `return IsccIdResult{s.to_string()}`. `struct IsccIdResult { std::string iscc; }`
+    after `IsccCodeResult`. NO default args, NO binding guard (exact-width unsigned → core re-checks
+    ts→hub→realm; a no-guard passthrough can't reorder). NO enum widening — `DecodeResult.version`
+    is raw `uint8_t`. Tests in `test_iscc.cpp` (golden + realm=2 throws + decode `.version==1`). FFI
+    symbol already shipped (iter 182) → `cargo build -p iscc-ffi` leaves `iscc.h` +
+    `NativeMethods.g.cs` clean. Build/run:
+    `uv run --with cmake cmake -B packages/cpp/build   -DFFI_LIB_DIR=target/debug packages/cpp` +
+    `cmake --build` + `LD_LIBRARY_PATH=target/debug   ./packages/cpp/build/tests/test_iscc` (72
+    pass).
+- MINTING FAN-OUT COMPLETE (all 11 surfaces): Go 179, napi 180, wasm 181, ffi 182, jni 184, rb 185,
+    uniffi(Swift+Kotlin) 186, dotnet 187, cpp 188. STILL PENDING (#43): the 32→33 doc/count sweep
+    (`packages/dotnet/CLAUDE.md`/`README.md` + other README/CLAUDE counts, docs API pages,
+    issues.md).
 - The iter-174 "no-default-features fails to COMPILE" note was a PHANTOM (review iter 177): that
     test is already `#[cfg(feature = "meta-code")]`-gated; all feature combos pass. No work owed.
 - Go CI job runs only `go test`+`go vet` — no gofmt gate. The go1.26 gofmt alignment drift in
