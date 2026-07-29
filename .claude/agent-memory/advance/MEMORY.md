@@ -98,7 +98,11 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     first char is multibase prefix (`f/b/v/z/u`). Routed through 4 sites: `iscc_decompose`,
     `iscc_normalize`, `gen_mixed_code_v0`, `gen_iscc_code_v0` (`cleaned` is now `Vec<String>`). Go
     half of the same issue is NOT done (packages/go isccNormalize etc.). `iscc_clean` is
-    `pub(crate)` → its dedicated unit tests live in codec.rs, not integration tests
+    `pub(crate)` → its dedicated unit tests live in codec.rs, not integration tests. Iter 192:
+    `iscc_clean` now GUARDS empty-cleaned result → `Err(InvalidInput("Empty ISCC string"))` (else
+    `iscc_decompose("   ")`/`"-"`/`"iscc:"`/`"----"` silently `Ok([])` since
+    `decode_base32("")`=Ok). Go port MUST replicate this guard, not copy the gap. Empty-input
+    assertions live in `tests/codec_clean.rs`
 - ISCC-IDv1 #43 COMPLETE (iter 190): Part 1 codec `Version` V1 (174) + Part 2 minting on all 11
     surfaces (178-188) + Tier-1 32→33 doc/count sweep + per-surface API/howto entries (190). Tier-1
     count is now 33 in ALL shipped-artifact docs (canonical breakdown `specs/rust-core.md:693`); no

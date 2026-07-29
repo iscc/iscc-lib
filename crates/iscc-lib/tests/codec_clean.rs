@@ -4,7 +4,7 @@
 //! and a case-insensitive `iscc:` scheme are all accepted and produce output
 //! identical to the plain (bare base32) form — matching `iscc_core`'s `iscc_clean`.
 
-use iscc_lib::{gen_iscc_code_v0, gen_mixed_code_v0, iscc_decode, iscc_decompose};
+use iscc_lib::{IsccError, gen_iscc_code_v0, gen_mixed_code_v0, iscc_decode, iscc_decompose};
 
 /// Insert a `-` every four characters to build the canonical hyphen-grouped form.
 fn hyphenate(s: &str) -> String {
@@ -92,4 +92,54 @@ fn uppercase_scheme_still_accepted() {
     let plain = iscc_decode(COMPOSITE).unwrap();
     let prefixed = iscc_decode(&format!("ISCC:{COMPOSITE}")).unwrap();
     assert_eq!(plain, prefixed);
+}
+
+/// Inputs that clean to an empty string. The reference `iscc_clean` errors on
+/// these (`code[0]` IndexError in the one-part branch; downstream for `"iscc:"`),
+/// and `decode_base32("")` returns `Ok(empty)`, so without an explicit guard
+/// `iscc_decompose` would silently return `Ok([])` for malformed input.
+const EMPTY_CLEANED: [&str; 4] = ["   ", "-", "iscc:", "----"];
+
+#[test]
+fn decompose_rejects_empty_cleaned_input() {
+    for input in EMPTY_CLEANED {
+        let result = iscc_decompose(input);
+        assert!(
+            matches!(result, Err(IsccError::InvalidInput(_))),
+            "iscc_decompose({input:?}) should error, got {result:?}"
+        );
+    }
+}
+
+#[test]
+fn decode_rejects_empty_cleaned_input() {
+    // `iscc_decode` routes through `iscc_normalize`, exercising the same guard.
+    for input in EMPTY_CLEANED {
+        let result = iscc_decode(input);
+        assert!(
+            matches!(result, Err(IsccError::InvalidInput(_))),
+            "iscc_decode({input:?}) should error, got {result:?}"
+        );
+    }
+}
+
+#[test]
+fn gen_iscc_code_rejects_empty_cleaned_unit() {
+    // A whitespace/dash-only unit must not be accepted as a valid ISCC-UNIT.
+    let units = ["   ", "----"];
+    let result = gen_iscc_code_v0(&units, false);
+    assert!(
+        matches!(result, Err(IsccError::InvalidInput(_))),
+        "gen_iscc_code_v0 should error on empty-cleaned units, got {result:?}"
+    );
+}
+
+#[test]
+fn gen_mixed_code_rejects_empty_cleaned_unit() {
+    let units = ["   ", "----", "iscc:", "-"];
+    let result = gen_mixed_code_v0(&units, 64);
+    assert!(
+        matches!(result, Err(IsccError::InvalidInput(_))),
+        "gen_mixed_code_v0 should error on empty-cleaned units, got {result:?}"
+    );
 }

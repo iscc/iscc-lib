@@ -21,7 +21,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "iscc_decompose",
-      "line": 559,
+      "line": 570,
       "cyclomatic": 19.0,
       "coverage": 96.92307692307692,
       "crap": 19.010516158397817
@@ -195,6 +195,14 @@
       "crap": 7.0
     },
     {
+      "file": "./crates/iscc-lib/src/codec.rs",
+      "function": "iscc_clean",
+      "line": 532,
+      "cyclomatic": 7.0,
+      "coverage": 100.0,
+      "crap": 7.0
+    },
+    {
       "file": "./crates/iscc-lib/src/simhash.rs",
       "function": "alg_simhash_inner",
       "line": 35,
@@ -230,14 +238,6 @@
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_units",
       "line": 417,
-      "cyclomatic": 6.0,
-      "coverage": 100.0,
-      "crap": 6.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/codec.rs",
-      "function": "iscc_clean",
-      "line": 529,
       "cyclomatic": 6.0,
       "coverage": 100.0,
       "crap": 6.0

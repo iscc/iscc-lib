@@ -525,29 +525,40 @@ pub fn encode_component(
 /// # Errors
 ///
 /// Returns `IsccError::InvalidInput` when a two-part input uses a scheme other
-/// than `iscc` (case-insensitive), or when the input contains more than one colon.
+/// than `iscc` (case-insensitive), when the input contains more than one colon,
+/// or when the cleaned result is empty (mirrors the reference erroring on empty
+/// input; `decode_base32("")` returns `Ok(empty)`, so an empty code would
+/// otherwise be silently accepted as a zero-unit ISCC).
 pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<String> {
     let parts: Vec<&str> = iscc.trim().split(':').map(str::trim).collect();
-    match parts.as_slice() {
+    let cleaned = match parts.as_slice() {
         [code] => {
             // Preserve dashes for multibase-encoded inputs; strip them otherwise.
             let is_multibase = matches!(code.chars().next(), Some('f' | 'b' | 'v' | 'z' | 'u'));
             if is_multibase {
-                Ok((*code).to_string())
+                (*code).to_string()
             } else {
-                Ok(code.replace('-', ""))
+                code.replace('-', "")
             }
         }
         [scheme, code] => {
             if !scheme.eq_ignore_ascii_case("iscc") {
                 return Err(IsccError::InvalidInput(format!("Invalid scheme: {scheme}")));
             }
-            Ok(code.replace('-', ""))
+            code.replace('-', "")
         }
-        _ => Err(IsccError::InvalidInput(format!(
-            "Malformed ISCC string: {iscc}"
-        ))),
+        _ => {
+            return Err(IsccError::InvalidInput(format!(
+                "Malformed ISCC string: {iscc}"
+            )));
+        }
+    };
+
+    if cleaned.is_empty() {
+        return Err(IsccError::InvalidInput("Empty ISCC string".to_string()));
     }
+
+    Ok(cleaned)
 }
 
 /// Decompose a composite ISCC-CODE or ISCC sequence into individual ISCC-UNITs.
