@@ -1,15 +1,15 @@
-<!-- assessed-at: 3f0387e -->
+<!-- assessed-at: df26743 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.6.0 — IDv1 fan-out; JNI minting attempt NEEDS_WORK (unpushed). 6 of 11 surfaces mint IDv1; CI GREEN on develop
+## Phase: v0.6.0 — IDv1 fan-out; 7 of 11 surfaces mint IDv1; CI GREEN on develop
 
-Iteration 183 attempted `gen_iscc_id_v1` on the JNI (Java) surface. The code is committed locally
-(`8201277`) but reviewed **NEEDS_WORK** and **not pushed**: the wrapper's input validation violates
-the normative cross-surface validation order (ts→hub→realm). 6 surfaces mint IDv1
-(core+Python+Go+Node+WASM+C FFI); the JNI redo plus 4 more (Ruby, Kotlin/Swift, C#, C++) remain.
+Iteration 184 redid the JNI (Java) `genIsccIdV1` with the normative ts→hub→realm ordered validation
+and review PASSED it; the code is pushed to `origin/develop` and CI-green. 7 surfaces now mint IDv1
+(core + Python + Go + Node + WASM + C FFI + Java). Four typed-int/consumer surfaces remain (Ruby,
+Kotlin/Swift via uniffi, C#, C++), plus the Tier-1 32→33 doc/count sweep.
 
 ## Rust Core Crate
 
@@ -35,8 +35,8 @@ the normative cross-surface validation order (ts→hub→realm). 6 surfaces mint
 **Status**: met — 33/33 symbols
 
 - `crates/iscc-napi/src/lib.rs:328` exports `gen_iscc_id_v1(timestamp: f64, hub_id, realm)`, golden
-    oracle-confirmed, `index.d.ts` + round-trip test. JS-number coercion resolved (iter 181): `f64`
-    \+ ordered semantic `checked()` guard (2^52/4096/2, ts→hub→realm) before narrowing.
+    oracle-confirmed, `index.d.ts` + round-trip test. `f64` + ordered semantic `checked()` guard
+    (2^52/4096/2, ts→hub→realm) before narrowing.
 
 ## WASM Bindings
 
@@ -56,17 +56,22 @@ the normative cross-surface validation order (ts→hub→realm). 6 surfaces mint
     (exact-width types).
 - cbindgen headers, `docs/howto/c-cpp.md`, `examples/iscc_sum.c` + CMake all present. Unicode-gated.
 
-## Other Bindings (Java, Kotlin, C#, C++, Ruby, Swift)
+## Java Bindings (JNI)
+
+**Status**: met — 33/33 symbols (iter 184)
+
+- `Java_..._genIsccIdV1` at `crates/iscc-jni/src/lib.rs:500` narrows to `(u64,u16,u8)` only *after*
+    validating the 3 semantic thresholds (2^52/4096/2) in normative ts→hub→realm order — the
+    napi/wasm precedent. 4 new mvn tests: golden `ISCC:MAIGHFECJMOPMIAB`, invalid-realm, decode
+    round-trip, `genIsccIdV1ValidationOrder` (multi-invalid ordering). Java CI job green.
+
+## Other Bindings (Kotlin, C#, C++, Ruby, Swift)
 
 **Status**: partially met — each usable at 32/33; no accepted IDv1 minting
 
-- **Java (jni):** `genIsccIdV1` present in the tree (`crates/iscc-jni/src/lib.rs:499`,
-    `IsccLib.java`, 3 new mvn tests) but the slice is **NEEDS_WORK and unpushed** — wrapper uses
-    wide narrowing guards (hub 0-65535, realm 0-255) and skips the timestamp check, so multi-invalid
-    inputs report the wrong field vs the normative ts→hub→realm order (rust-core.md ~L542). Redo
-    owed; counts 32 usable.
 - **Ruby (rb), Swift/Kotlin (uniffi), C++ (cpp):** each at 32, no `gen_iscc_id_v1`. uniffi 0.32
-    (172) and MSRV fix (173) in place.
+    (172) and MSRV fix (173) in place. rb/uniffi are wide-int surfaces → owe the ordered
+    ts→hub→realm validation-before-narrowing (rust-core.md ~L542) like napi/wasm/jni.
 - **C# (.NET):** `NativeMethods.g.cs` carries the regenerated `iscc_gen_iscc_id_v1` P/Invoke decl
     (FFI build side-effect, iter 182), but the idiomatic C# consumer + golden test are still owed —
     32 usable.
@@ -95,12 +100,12 @@ the normative cross-surface validation order (ts→hub→realm). 6 surfaces mint
 
 **Status**: met (CI green on develop); release-readiness still open
 
-- **CI GREEN on `origin/develop` = `5516c00`** (unchanged this cycle): check-suite `success`; all 23
+- **CI GREEN on `origin/develop` = `0284177`** (JNI redo pushed): check-suite `success`; all 23
     check names pass except `Semver (cargo-semver-checks)` which is `continue-on-error: true`
     (informational until v1.0.0) — expected non-blocking red, not a CI failure.
-- **HEAD `3f0387e` is NOT covered by CI:** the JNI IDv1 commits are unpushed and
-    `git diff origin/develop..HEAD -- . ':!.claude'` is non-empty (75 lines of JNI code,
-    NEEDS_WORK). That code is a rejected work-in-progress, not merged state.
+- **HEAD `df26743` is covered:** the only unpushed commit is the `cid(log)` touching
+    iterations.jsonl; `git diff origin/develop..HEAD -- . ':!.claude'` is empty — green CI covers
+    all HEAD code.
 - Dependency freshness met (criterion 0.8 at 171, uniffi 0.32 at 172); zero `# held:`/`authorized`
     pin comments in root `Cargo.toml`. Job shape unchanged (21 keys → 22 jobs → 23 names).
 - PR **#44** `develop` → `main` OPEN; version **0.5.0**.
@@ -109,19 +114,20 @@ the normative cross-surface validation order (ts→hub→realm). 6 surfaces mint
 ## Open Issues
 
 **11 entries — 0 `critical`, 4 `normal`, 7 `low`, zero HUMAN REVIEW REQUESTED.** No new issue this
-cycle (review chose to fix the JNI ordering bug in the next iteration rather than file it).
+cycle.
 
-- **NORMAL:** ISCC-IDv1 unsupported outside Go (`[human]`, the live v0.6.0 work — 6 surfaces done,
-    JNI in progress, 4 remain); codec input cleaning diverges from `iscc_clean` (`[review]`); iai
-    text benchmarks ASCII-only (`[review]`); go1.27 tripwire (`[review]`, blocked on upstream).
+- **NORMAL:** ISCC-IDv1 unsupported outside Go (`[human]`, the live v0.6.0 work — 7 surfaces done, 4
+    remain: rb, uniffi→Swift/Kotlin, dotnet C#, cpp); codec input cleaning diverges from
+    `iscc_clean` (`[review]`); iai text benchmarks ASCII-only (`[review]`); go1.27 tripwire
+    (`[review]`, blocked on upstream).
 - **LOW:** upstream `iscc-core#137` thread, 88-bit ISCC-IDv0 upstream mint, gate-script remainders,
     v1.0.0 cut (HELD), MSRV asserted-not-verified, npm OIDC (deferred), docs language logos.
 
 ## Next Milestone
 
-**CI is green — no CI fix needed.** Redo the JNI `gen_iscc_id_v1` slice with napi-style ordered
-semantic validation (validate 2^52/4096/2 thresholds in ts→hub→realm order *before* narrowing, plus
-a multi-invalid-input ordering test), then continue the #43 fan-out to the remaining typed-int
-surfaces (rb, uniffi→Swift/Kotlin, dotnet C# consumer, cpp), widen each surface's version enum so
-`iscc_decode(gen_iscc_id_v1(...))` round-trips, and run the Tier-1 32→33 doc/count sweep — the last
-CID-doable v0.6.0 release-readiness blockers.
+**CI is green — no CI fix needed.** Continue the #43 IDv1 fan-out to the remaining surfaces (Ruby
+via Magnus, uniffi→Swift/Kotlin, dotnet C# consumer, cpp) — each wide-int surface (rb, uniffi,
+dotnet) must validate the three semantic thresholds (2^52/4096/2) in ts→hub→realm order *before*
+narrowing (napi/wasm/jni precedent), widen each version enum so `iscc_decode(gen_iscc_id_v1(...))`
+round-trips, and run the deferred Tier-1 32→33 doc/count sweep — the last CID-doable v0.6.0
+release-readiness blockers.

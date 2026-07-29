@@ -90,30 +90,30 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN, not true (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 3f0387e, iter 184)
+## Current State (assessed-at: df26743, iter 185)
 
-- **CI GREEN on develop.** Real tip `5516c00` UNCHANGED (iter 183 pushed nothing): SUITE `success`,
-    23 names pass except `Semver` (`continue-on-error`).
-- **JNI IDv1 attempt (iter 183) = NEEDS_WORK + UNPUSHED.** `genIsccIdV1` IS in the tree
-    (`iscc-jni/src/lib.rs:499`, `IsccLib.java`, 3 mvn tests) but rejected: wide narrowing guards +
-    skipped ts check → wrong field on multi-invalid input vs normative order. Redo owed; **jni = 32
-    usable.** Lesson: `git diff origin/develop..HEAD -- . ':!.claude'` was NON-EMPTY (75 lines) → a
-    NEEDS_WORK advance commit STAYS in local history unreverted and green does NOT cover HEAD.
-- **6 surfaces mint IDv1 solidly** (core+Python+Go+Node+WASM+C FFI = 33/33). Other 5 = 32 (jni redo,
-    rb, uniffi→Swift/Kotlin, dotnet C# consumer, cpp). C FFI: `iscc-ffi/src/lib.rs:613` → 50
-    externs, `iscc.h:386`, NO `checked()` (core re-validates, exact-width).
-- **Validation-order contract (normative, rust-core.md ~L542):** any WIDE-INT binding
-    (jni/rb/dotnet) MUST validate the 3 semantic thresholds `2^52`/`4096`/`2` in ts→hub→realm order
-    BEFORE narrowing; "first failing check wins". Precedent `iscc-napi/src/lib.rs:329-331`. Go/ffi
-    exempt (exact-width).
+- **CI GREEN on develop.** Real tip `0284177` (iter 184 JNI redo pushed): SUITE `success`, 23 names
+    pass except `Semver` (`continue-on-error`). HEAD `df26743` = only unpushed commit is the
+    `cid(log)` (iterations.jsonl); code diff `origin/develop..HEAD -- . ':!.claude'` EMPTY → green
+    covers HEAD.
+- **JNI IDv1 redo (iter 184) = PASS + PUSHED.** `genIsccIdV1` at `iscc-jni/src/lib.rs:500` narrows
+    to `(u64,u16,u8)` AFTER validating 2^52/4096/2 in ts→hub→realm order (napi/wasm precedent). 4
+    mvn tests incl. `genIsccIdV1ValidationOrder`. **jni = 33.** (iter-183 NEEDS_WORK resolved.)
+- **7 surfaces mint IDv1 solidly** (core+Python+Go+Node+WASM+C FFI+Java = 33/33). Other 4 = 32 (rb,
+    uniffi→Swift/Kotlin, dotnet C# consumer, cpp). C FFI: `iscc-ffi/src/lib.rs:613` → 50 externs,
+    `iscc.h:386`, NO `checked()` (core re-validates, exact-width).
+- **Validation-order contract (normative, rust-core.md ~L542):** any WIDE-INT binding (rb/dotnet,
+    and jni DONE) MUST validate the 3 semantic thresholds `2^52`/`4096`/`2` in ts→hub→realm order
+    BEFORE narrowing; "first failing check wins". Precedents `iscc-napi/src/lib.rs:329-331`,
+    `iscc-jni/src/lib.rs:500`. Go/ffi exempt (exact-width).
 - **dotnet gotcha:** csbindgen `build.rs` regenerates tracked `NativeMethods.g.cs` on EVERY build →
     pre-push clippy hook rejects push if uncommitted. Any FFI-symbol step regens `iscc.h` AND
     `NativeMethods.g.cs` in-step. C# consumer + golden test still owed → dotnet = 32.
 - **Issues 11: 0 crit, 4 normal, 7 low** (first `## ` at L19, no legend inflation). No new issue
     183\.
-- **Next = redo jni (ordered validation), then rb→uniffi→dotnet→cpp fan-out** + version-enum widen
-    (Python `VS` still V0-only) + Tier-1 32→33 doc sweep. NOT a CI fix. Scope origin: out-of-loop
-    non-`cid()` `2c4e487` (174) demanded 33 Tier-1 symbols + IDv1 on core + all 11 surfaces.
+- **Next = rb→uniffi→dotnet→cpp fan-out** + version-enum widen (Python `VS` still V0-only) + Tier-1
+    32→33 doc sweep. NOT a CI fix. Scope origin: out-of-loop non-`cid()` `2c4e487` (174) demanded 33
+    Tier-1 symbols + IDv1 on core + all 11 surfaces.
 
 ## Durable Facts (carried, not per-iteration)
 
@@ -131,8 +131,8 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 - **Loop infra (162):** `ARTIFACT_BUDGETS` (`tools/cid.py`) caps state 200; `decisions.md` rotates
     into `decisions-archive.md` (grep BOTH) — dirty `decisions*.md` = runner, not crash.
 - **Issue count: never carry forward** — re-grep `^## ` headers each iteration (a legend can inflate
-    a naive `grep -c`); composition flips while the count holds. **Don't re-flag as DONE**: C FFI
-    IDv1 182, uniffi 0.32 172, criterion 0.8 171 (≤170 → archive).
+    a naive `grep -c`); composition flips while the count holds. **Don't re-flag as DONE**: JNI/Java
+    IDv1 184, C FFI IDv1 182, uniffi 0.32 172, criterion 0.8 171 (≤170 → archive).
 
 ## Gotchas
 
