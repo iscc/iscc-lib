@@ -90,22 +90,20 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN, not true (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 796f39e, iter 187)
+## Current State (assessed-at: 1d732fc, iter 188)
 
-- **CI GREEN on develop.** Real tip `f9b497e` (iter 186 uniffi IDv1 review commit pushed): SUITE
-    `success`, 23 names pass except `Semver` (`continue-on-error`). HEAD `796f39e` = only unpushed
-    commit is the `cid(log)`; code diff `origin/develop..HEAD -- . ':!.claude'` EMPTY → green covers
-    HEAD.
-- **uniffi IDv1 (iter 186) = PASS + PUSHED.** `gen_iscc_id_v1`+`IsccIdResult` at
-    `iscc-uniffi/src/lib.rs:286`; core takes exact-width unsigned `(u64,u16,u8)` straight through,
-    NO binding guard. One core edit → BOTH Swift+Kotlin 32→33. Regen `genIsccIdV1` in
-    `packages/swift/Sources/IsccLib/iscc_uniffi.swift:2212` AND
-    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (NOTE kotlin path is
-    `packages/kotlin/src/...`, NOT `.../lib/src/...`). 22 unit tests. UniFFI checksum stable, regen
-    idempotent. **Swift=Kotlin=33.**
-- **10 surfaces mint IDv1 solidly** (core + Python+Go+Node+WASM+C FFI+Java+Ruby+Swift+Kotlin =
-    33/33). 2 remain = 32: dotnet C# consumer, cpp. C FFI: `iscc-ffi/src/lib.rs:613` → 50 externs,
-    `iscc.h:386`, NO `checked()` (core re-validates, exact-width).
+- **CI GREEN on develop.** Real tip `2c78dbf` (iter 187 C# IDv1 review commit pushed): 23 names pass
+    except `Semver` (`continue-on-error`). HEAD `1d732fc` = only unpushed commit is the `cid(log)`;
+    code diff `origin/develop..HEAD -- . ':!.claude'` EMPTY → green covers HEAD.
+- **C# IDv1 (iter 187) = PASS + PUSHED.** `GenIsccIdV1(ulong, ushort, byte)` at
+    `packages/dotnet/Iscc.Lib/IsccLib.cs:287` + `IsccIdResult` record at `Results.cs:35` over the
+    generated `iscc_gen_iscc_id_v1` P/Invoke decl. Pure passthrough (delegates ordered validation to
+    core), exempt from Ruby wide-input gap. 107 dotnet tests. **dotnet=33.** csbindgen decl was
+    already generated at iter 182 — only the C# consumer+test were owed.
+- **10 surfaces mint IDv1 solidly** (core + Python+Go+Node+WASM+C FFI+Java+Ruby+Swift+Kotlin+C# =
+    33/33). **1 remains = 32: cpp only.** cpp header path is `packages/cpp/include/iscc/iscc.hpp`
+    (NOT `packages/cpp/include/iscc.hpp`); grep = 0 IDv1 there. C FFI: `iscc-ffi/src/lib.rs:613` →
+    50 externs, `iscc.h:386`, NO `checked()` (core re-validates).
 - **Ruby marshalling gap (normal `[review]` issue, iter 185):** Magnus narrows Ruby Integer→i64
     DURING arg marshalling, before the fn body — so args `> i64::MAX` raise `RangeError` before the
     ordered `checked()` runs. LESSON: any arbitrary-precision-input surface must validate magnitude
@@ -116,12 +114,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     (exact-width FFI types).
 - **dotnet gotcha:** csbindgen `build.rs` regenerates tracked `NativeMethods.g.cs` on EVERY build →
     pre-push clippy hook rejects push if uncommitted. Any FFI-symbol step regens `iscc.h` AND
-    `NativeMethods.g.cs` in-step. C# consumer + golden test still owed → dotnet = 32.
+    `NativeMethods.g.cs` in-step. dotnet=33 as of 187.
 - **Issues 12: 0 crit, 5 normal, 7 low** (first `## ` at L19, no legend inflation). No new issue at
-    186 (uniffi step found none).
-- **Next = dotnet→cpp fan-out** (both fixed-width FFI over iscc_ffi, exempt from marshalling gap; C#
-    P/Invoke decl already exists) + Tier-1 32→33 doc sweep. NOT a CI fix. Scope origin: out-of-loop
-    non-`cid()` `2c4e487` (174) demanded 33 Tier-1 symbols + IDv1 on core + all 11 surfaces.
+    187 (C# step found none).
+- **Next = cpp fan-out** (last minting surface, fixed-width FFI over iscc_ffi, exempt from
+    marshalling gap; needs `uv run --with cmake cmake` to verify) + Tier-1 32→33 doc sweep. NOT a CI
+    fix. Scope origin: out-of-loop non-`cid()` `2c4e487` (174) demanded 33 Tier-1 symbols + IDv1 on
+    core + all 11 surfaces.
 
 ## Durable Facts (carried, not per-iteration)
 
@@ -140,8 +139,8 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     into `decisions-archive.md` (grep BOTH) — dirty `decisions*.md` = runner, not crash.
 - **Issue count: never carry forward** — re-grep `^## ` headers each iteration (a legend can inflate
     a naive `grep -c`); composition flips while the count holds. **Don't re-flag as DONE**: uniffi
-    Swift+Kotlin IDv1 186, Ruby IDv1 185, JNI/Java IDv1 184, C FFI IDv1 182, uniffi 0.32 172,
-    criterion 0.8 171 (≤170 → archive).
+    C# IDv1 187, Swift+Kotlin IDv1 186, Ruby IDv1 185, JNI/Java IDv1 184, C FFI IDv1 182, uniffi
+    0.32 172, criterion 0.8 171 (≤170 → archive).
 
 ## Gotchas
 
