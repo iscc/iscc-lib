@@ -298,21 +298,38 @@ pub fn iscc_decompose(iscc_code: String) -> napi::Result<Vec<String>> {
     iscc_lib::iscc_decompose(&iscc_code).map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
+/// Validate a JS-number ISCC-IDv1 parameter before narrowing to an integer.
+///
+/// napi coerces JS numbers into integer Rust types before the wrapper runs, so
+/// each parameter is taken as `f64` and checked here. Rejects non-finite,
+/// non-integral, negative, and out-of-range (`>= max_exclusive`) values so an
+/// invalid JS number throws instead of being silently truncated to a wrong ID.
+fn checked(value: f64, max_exclusive: f64, name: &str) -> napi::Result<f64> {
+    if !value.is_finite() || value.fract() != 0.0 || value < 0.0 || value >= max_exclusive {
+        return Err(napi::Error::from_reason(format!("Invalid {name}: {value}")));
+    }
+    Ok(value)
+}
+
 /// Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
 ///
 /// Packs a 52-bit microsecond UTC `timestamp` into the high bits and a 12-bit
 /// `hub_id` (0-4095) into the low bits, encoding the result as an ISCC-ID unit
 /// with `realm` (0 = testnet, 1 = mainnet) as SubType and Version `V1`.
 ///
-/// `timestamp` is a JS `number` (valid values are `< 2^52`, exactly
-/// representable in `f64`). Throws if `timestamp >= 2^52`, `hub_id >= 2^12`, or
+/// All three parameters are JS `number`s (valid `timestamp` values are `< 2^52`,
+/// exactly representable in `f64`). Throws if any parameter is non-finite,
+/// non-integral, or negative, or if `timestamp >= 2^52`, `hub_id >= 2^12`, or
 /// `realm` is not `0` or `1`.
 ///
 /// **Experimental:** the ISCC-IDv1 format is not yet part of ISO 24138 and may
 /// change. There is no dedicated decoder — use `iscc_decode` to decode.
 #[napi(js_name = "gen_iscc_id_v1")]
-pub fn gen_iscc_id_v1(timestamp: f64, hub_id: u16, realm: u8) -> napi::Result<String> {
-    iscc_lib::gen_iscc_id_v1(timestamp as u64, hub_id, realm)
+pub fn gen_iscc_id_v1(timestamp: f64, hub_id: f64, realm: f64) -> napi::Result<String> {
+    let timestamp = checked(timestamp, 4_503_599_627_370_496.0, "timestamp")?; // 2^52
+    let hub_id = checked(hub_id, 4096.0, "hub_id")?;
+    let realm = checked(realm, 2.0, "realm")?;
+    iscc_lib::gen_iscc_id_v1(timestamp as u64, hub_id as u16, realm as u8)
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
 }

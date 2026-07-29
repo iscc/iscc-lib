@@ -46,9 +46,23 @@ metadata:
     validation-throws + decode round-trip); build `npm run build:debug` first. `index.d.ts`
     camelCases the param to `hubId` (cosmetic, positional call). napi CLAUDE.md/README carry NO
     symbol count → no doc edit.
-- STILL PENDING (#43): minting on wasm, ffi, jni, rb, uniffi, dotnet, cpp surfaces; per-surface
-    decode enum widening (Python `VS` etc. to accept V1) + round-trip test; 32→33 doc/count sweep.
-    Go rename DONE iter 179, napi DONE iter 180.
+- wasm binding DONE (iter 181, #43):
+    `#[wasm_bindgen] gen_iscc_id_v1(timestamp, hub_id, realm) ->   Result<String, JsError>` in
+    `crates/iscc-wasm/src/lib.rs` (after `iscc_decompose`), bare-string. wasm now 33 Tier 1 symbols.
+    `iscc_decode` returns `version: u8` → V1 round-trips, no enum widening. Rust
+    `#[wasm_bindgen_test]` in `tests/unit.rs`.
+- JS-NUMBER VALIDATION SETTLED (iter 181): both JS-number surfaces (napi + wasm) take ALL THREE
+    params as `f64` and validate via a per-file `fn checked(value: f64, max_exclusive: f64, name)`
+    BEFORE narrowing — rejects `!is_finite()`, `fract()!=0.0`, `<0.0`, `>=max_exclusive` (`2^52`=
+    `4_503_599_627_370_496.0`, hub `4096.0`, realm `2.0`). Fixes napi's silent `f64 as u64` truncate
+    (the `[review]` normal issue). Reason for `f64` on hub/realm too: napi/wasm coerce JS numbers to
+    `u16`/`u8` before the wrapper runs, so integer params make the low/non-integral end
+    unvalidatable. napi sig CHANGED `(f64,u16,u8)`→`(f64,f64,f64)` (develop-only, no API-break).
+    ffi/jni/rb/uniffi are typed-int surfaces (no JS coercion hazard) — do NOT copy this pattern
+    there.
+- STILL PENDING (#43): minting on ffi (needs `iscc.h` regen + freshness gate), jni, rb, uniffi,
+    dotnet, cpp surfaces; per-surface decode enum widening (Python `VS` etc. to accept V1) +
+    round-trip test; 32→33 doc/count sweep. Go DONE 179, napi 180, wasm 181.
 - The iter-174 "no-default-features fails to COMPILE" note was a PHANTOM (review iter 177): that
     test is already `#[cfg(feature = "meta-code")]`-gated; all feature combos pass. No work owed.
 - Go CI job runs only `go test`+`go vet` — no gofmt gate. The go1.26 gofmt alignment drift in

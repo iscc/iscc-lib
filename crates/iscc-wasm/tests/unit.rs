@@ -863,3 +863,51 @@ fn test_json_to_data_url_error_on_invalid_json() {
     let result = iscc_wasm::json_to_data_url("not json {{{");
     assert!(result.is_err(), "invalid JSON should error");
 }
+
+// ── gen_iscc_id_v1 ─────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_gen_iscc_id_v1_golden() {
+    // Golden vector shared across all bindings.
+    let iscc = iscc_wasm::gen_iscc_id_v1(1751831876325218.0, 1.0, 0.0).unwrap();
+    assert_eq!(iscc, "ISCC:MAIGHFECJMOPMIAB");
+}
+
+#[wasm_bindgen_test]
+fn test_gen_iscc_id_v1_round_trip() {
+    // Minted ISCC-IDv1 decodes to MainType Id (6), Version V1 (1), SubType realm.
+    let iscc = iscc_wasm::gen_iscc_id_v1(1751831876325218.0, 1.0, 0.0).unwrap();
+    let decoded = iscc_wasm::iscc_decode(&iscc).unwrap();
+    assert_eq!(decoded.maintype, 6, "MainType Id");
+    assert_eq!(decoded.version, 1, "Version V1");
+    assert_eq!(decoded.subtype, 0, "SubType realm 0");
+}
+
+#[wasm_bindgen_test]
+fn test_gen_iscc_id_v1_rejects_negative() {
+    assert!(iscc_wasm::gen_iscc_id_v1(-1.0, 1.0, 0.0).is_err());
+    assert!(iscc_wasm::gen_iscc_id_v1(1751831876325218.0, -1.0, 0.0).is_err());
+    assert!(iscc_wasm::gen_iscc_id_v1(1751831876325218.0, 1.0, -1.0).is_err());
+}
+
+#[wasm_bindgen_test]
+fn test_gen_iscc_id_v1_rejects_non_integral() {
+    assert!(iscc_wasm::gen_iscc_id_v1(0.9, 1.0, 0.0).is_err());
+    assert!(iscc_wasm::gen_iscc_id_v1(1751831876325218.0, 0.9, 0.0).is_err());
+    assert!(iscc_wasm::gen_iscc_id_v1(1751831876325218.0, 1.0, 0.9).is_err());
+}
+
+#[wasm_bindgen_test]
+fn test_gen_iscc_id_v1_rejects_non_finite() {
+    assert!(iscc_wasm::gen_iscc_id_v1(f64::NAN, 1.0, 0.0).is_err());
+    assert!(iscc_wasm::gen_iscc_id_v1(f64::INFINITY, 1.0, 0.0).is_err());
+    assert!(iscc_wasm::gen_iscc_id_v1(1751831876325218.0, f64::NAN, 0.0).is_err());
+}
+
+#[wasm_bindgen_test]
+fn test_gen_iscc_id_v1_rejects_out_of_range() {
+    // High-end validation (delegated to core) still throws.
+    assert!(iscc_wasm::gen_iscc_id_v1(4_503_599_627_370_496.0, 1.0, 0.0).is_err()); // 2^52
+    assert!(iscc_wasm::gen_iscc_id_v1(1751831876325218.0, 4096.0, 0.0).is_err());
+    assert!(iscc_wasm::gen_iscc_id_v1(1751831876325218.0, 1.0, 2.0).is_err());
+}

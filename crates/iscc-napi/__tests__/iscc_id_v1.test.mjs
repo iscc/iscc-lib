@@ -31,6 +31,29 @@ describe('gen_iscc_id_v1', () => {
         throws(() => gen_iscc_id_v1(1751831876325218, 1, 2));
     });
 
+    it('throws on negative inputs', () => {
+        throws(() => gen_iscc_id_v1(-1, 1, 0));
+        throws(() => gen_iscc_id_v1(1751831876325218, -1, 0));
+        throws(() => gen_iscc_id_v1(1751831876325218, 1, -1));
+    });
+
+    it('throws on non-integral inputs', () => {
+        throws(() => gen_iscc_id_v1(0.9, 1, 0));
+        throws(() => gen_iscc_id_v1(1751831876325218, 0.9, 0));
+        throws(() => gen_iscc_id_v1(1751831876325218, 1, 0.9));
+    });
+
+    it('throws on non-finite inputs', () => {
+        throws(() => gen_iscc_id_v1(NaN, 1, 0));
+        throws(() => gen_iscc_id_v1(Infinity, 1, 0));
+        throws(() => gen_iscc_id_v1(1751831876325218, NaN, 0));
+        throws(() => gen_iscc_id_v1(1751831876325218, 1, NaN));
+    });
+
+    it('throws on out-of-range hub_id via a large float', () => {
+        throws(() => gen_iscc_id_v1(1751831876325218, 2 ** 32, 0));
+    });
+
     it('round-trips through iscc_decode', () => {
         const decoded = iscc_decode(gen_iscc_id_v1(1751831876325218, 1, 0));
         strictEqual(decoded.maintype, 6);
