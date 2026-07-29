@@ -16,6 +16,32 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
+## Ruby `gen_iscc_id_v1` breaks validation order for arguments exceeding i64 `normal` [review]
+
+The Ruby native fn (`crates/iscc-rb/src/lib.rs`) takes its three params as `i64`, so Magnus narrows
+each Ruby Integer to `i64` **during argument marshalling, before** the ordered `checked()` helper
+runs. For arbitrary-precision inputs above `i64::MAX` this violates the normative ts→hub→realm
+first-failure order and the documented `RuntimeError` contract. Verified on `iscc_core` 1.3.0 parity
+build:
+
+- `gen_iscc_id_v1(1<<52, 1<<100, 2)` → reference reports `Timestamp overflow` (timestamp is the
+    first invalid field); Ruby raises `RangeError: bignum too big to convert into 'long long'`.
+- `gen_iscc_id_v1(1<<70, 0, 0)` → timestamp is out of range, contract says `RuntimeError`; Ruby
+    raises `RangeError`.
+
+All i64-representable inputs (every realistic timestamp — `< 2^63` µs ≈ 292K years — and every
+hub_id/realm) validate correctly in order, so practical impact is nil; this is a
+contract-conformance gap, not a functional bug. napi/wasm are exempt (f64 params hold the values
+before `checked`); jni/Go/ffi are exempt (statically-typed narrow args cannot exceed the width at
+the call site). Only Ruby's arbitrary-precision + implicit i64 marshalling exposes it.
+
+Resolved when out-of-range params raise `RuntimeError` in ts→hub→realm order for any magnitude —
+e.g. validate magnitude in `lib/iscc_lib.rb` before the native call, or accept `magnus::Integer` and
+range-check before `to_i64`. Add a test asserting `(1<<52, 1<<100, 2)` reports timestamp and
+`(1<<70, 0, 0)` raises `RuntimeError`. Check uniffi's Ruby-analogue surfaces when they land.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)"
+
 ## ISCC-IDv1 is unsupported outside Go `normal` [human]
 
 GitHub: https://github.com/iscc/iscc-lib/issues/43 — **a v0.6.0 release blocker.**

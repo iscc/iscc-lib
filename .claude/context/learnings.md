@@ -7,38 +7,35 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 ## Architecture
 
 - Hub-and-spoke: `iscc-lib` (pure Rust core) → binding crates (py, napi, wasm, ffi, jni, rb,
-    uniffi), each depending only on the core. Tier 1 = 33 symbols `pub use`d at crate root (was 32;
-    `gen_iscc_id_v1` + `IsccIdResult` added iter 177, #43 Part 2 — docs/count text still reads 32 by
-    design, a separate sweep step); Tier 2 is `pub(crate)`, never crosses FFI. `packages/go` is NOT
-    a binding — a pure-Go reimplementation
+    uniffi), each depending only on the core. Tier 1 = 33 symbols `pub use`d at crate root (33rd =
+    `gen_iscc_id_v1`+`IsccIdResult`, iter 177; most docs/count text still reads 32 pending a sweep
+    step); Tier 2 is `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go
+    reimplementation
 - **`gen_iscc_id_v1` is pure Python — oracle-check with no built wheel** (`--with iscc-core`,
     `MA…`/`ME…` = realm nibble); core + py match byte-for-byte over
     realm{0,1}×hub{0,4095}×ts{0,2^52-1} (178). NO dedicated decoder on any surface (ref has none).
     **Minting ≠ decode round-trip**: core `codec::Version` accepts `V1`, but a surface with its OWN
     version enum (Python `VS` lists only `V0`) makes `iscc_decode(gen_iscc_id_v1(...))` raise
-    `1 is   not a valid VS` — its #43 slice must widen the enum + round-trip test; **napi**
-    (`version: u8`, 180) and **Go** return a bare int, no widening
+    `1 is not a valid VS` — its #43 slice must widen the enum + round-trip test
 - **IDv1 validation ORDER is normative on every surface** (spec rust-core.md §Validation, criterion
     ~L542): ts→hub→realm, "first failing check wins", asserted cross-surface even for MULTI-invalid
     inputs. A wide-int binding (napi/wasm/jni) MUST validate the three SEMANTIC thresholds
     (`2^52`/`4096`/`2`) in that order IN THE BINDING before narrowing — napi does this with
     `checked(v, thresh, name)?` ×3 (`crates/iscc-napi/src/lib.rs:329-331`). A *wide narrowing guard*
     (hub 0-65535, realm 0-255) that skips the ts check and defers to core is WRONG: `(2^52,65536,0)`
-    reports hub not ts, `(0,4096,256)` reports realm not hub — reference-divergent (183, jni
-    NEEDS_WORK; **fixed 184** — jni now validates `2^52`/`4096`/`2` in order before narrowing, ref
-    order confirmed at `iscc_id.py:127-133` ts→hub→realm). Go/ffi take exact-width types so callers
-    can't pass out-of-narrowing values → they delegate ordering to core safely; only wide-input
-    surfaces need in-order binding checks
-- **IDv1 fan-out** (179 Go, 180 napi, 182 ffi, 184 jni; owed rb, uniffi, dotnet, cpp): JNI
-    `genIsccIdV1(long ts, int hubId, int realm) -> String` mirrors `genTextCodeV0`; `isccDecode`
-    returns `version` as a plain `int`, so the decode round-trip works with NO enum-widening (no
-    `IsccDecodeResult` change); jni docs carry no numeric count. Go
-    `GenIsccIDV1(ts,hub,realm) (*IsccIdResult, error)`, decode `IsccDecode` +
-    `n:=BigEndian.Uint64(Digest)` (`ts=n>>12`,`hub=n&0xFFF`,`realm=Subtype`). napi/wasm bare-string;
-    ffi `iscc_gen_iscc_id_v1(u64,u16,u8)`, NO `checked()`/NULL guard (core re-checks), regen
-    `iscc.h` via cbindgen. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs`
-    on EVERY build** → pre-push clippy fails "files were modified"; regen+commit it in the SAME
-    FFI-symbol step (like `iscc.h`), never "the dotnet step". Old Go `EncodeIsccID` develop-only
+    reports hub not ts — reference-divergent (183 jni NEEDS_WORK; **fixed 184**, ref order at
+    `iscc_id.py:127-133` ts→hub→realm). Go/ffi take exact-width types so callers can't pass
+    out-of-narrowing values → they delegate ordering to core safely; only wide-input surfaces need
+    in-order binding checks. **Ruby (185) narrows Integer→`i64` in Magnus marshalling BEFORE the fn
+    body**, so args `> i64::MAX` raise `RangeError` ahead of ordered `checked()` — order +
+    `RuntimeError` contract break for pathological inputs only (issues.md; fix: validate in Ruby)
+- **IDv1 fan-out** (done: 179 Go, 180 napi, 182 ffi, 184 jni, 185 rb; owed uniffi, dotnet, cpp):
+    surface fn mirrors `gen_text_code_v0`; decode round-trips via each surface's `iscc_decode`
+    returning a bare int `version` (NO enum-widening, so no `IsccDecodeResult` change), then
+    bit-math `ts=n>>12`, `hub=n&0xFFF`, `realm=SubType` on the 8-byte BE body. ffi has NO
+    `checked()`/NULL guard (core re-checks). **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
+    `NativeMethods.g.cs` on EVERY build** → pre-push clippy fails "files were modified";
+    regen+commit it (like `iscc.h`) in the SAME FFI-symbol step, never "the dotnet step"
 - **JS-number validation (napi/wasm DONE; decisions.md 2026-07-29)**: `f64` params validated
     (`!is_finite`/`fract`/range `2^52`/`4096`/`2`) before narrowing; typed-int surfaces don't copy
 
