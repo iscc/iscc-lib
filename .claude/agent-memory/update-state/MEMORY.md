@@ -47,16 +47,12 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **Red with NO code change:** cargo-deny (live advisory DB). **Fails open:** the release.yml static
     gate (job log must show zero `warning: skipped`). A "no floating branch ref" assertion in
     `check_release_workflow.py` is NOT a gap — it is new policy.
-- **cargo-semver-checks is INFORMATIONAL, NOT enforcing — the `semver` job has
-    `continue-on-error: true`** (`ci.yml:355`, "Informational during the 0.4.0 -> 1.0.0 transition;
-    enforcing from v1.0.0"). Its check-run CAN report `failure` (exit 100) while the CI **workflow
-    run conclusion is `success`** — a `continue-on-error` job's red does NOT fail CI. **My prior
-    note "ENFORCING, corrected at 176" was WRONG and drove a 3-iteration phantom "CI RED"
-    (176-178).** To judge CI, read the **workflow run `conclusion`** via
-    `gh api ".../actions/runs/<id>" --jq .conclusion`, or the **check-SUITE** conclusion — NOT
-    individual check-RUN conclusions. It diffs the WHOLE public API vs the last release (0.5.0), so
-    `#[non_exhaustive]` on public `enum Version` trips `enum_marked_non_exhaustive` — but that stays
-    non-blocking until v1.0.0. `mise run check` does not run it (unchanged fact).
+- **cargo-semver-checks is INFORMATIONAL, NOT enforcing — `semver` job is
+    `continue-on-error: true`** (`ci.yml:355`, enforcing only from v1.0.0). Its check-run CAN report
+    `failure` (exit 100: `enum_marked_non_exhaustive` on public `enum Version`) while the CI
+    **workflow-run/check-SUITE conclusion stays `success`**. To judge CI read the SUITE conclusion,
+    NOT individual check-RUNs. Prior note "ENFORCING, corrected at 176" was WRONG (drove a 3-iter
+    phantom "CI RED" 176-178). `mise run check` does not run it. Full detail → `quality-gates.md`.
 
 ## Codebase Landmarks
 
@@ -100,23 +96,26 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
 - **A "not verifiable in this container" claim is UNPROVEN, not true** (cmake, Kotlin, C++, Swift
     all fell to a second look) → `env-gotchas.md`.
 
-## Current State (assessed-at: d559cfc, iter 182)
+## Current State (assessed-at: c4b2e1d, iter 183)
 
-- **CI is GREEN on develop.** Real develop tip `ba9f2a8`: check-SUITE conclusion `success`; all 23
+- **CI is GREEN on develop.** Real develop tip `5516c00`: check-SUITE conclusion `success`; all 23
     check names pass except `Semver` (`failure`, but `continue-on-error: true` → non-blocking).
-- **`gen_iscc_id_v1` minting NOW ALSO on WASM** (iter 181, PASS): `crates/iscc-wasm/src/lib.rs:371`
-    `gen_iscc_id_v1(f64,f64,f64)` → 33 symbols. Same slice retrofitted napi's `f64` + `checked()`
-    validation guard (reject non-finite/non-integral/neg/ out-of-range before narrowing) —
-    **RESOLVED + DELETED the JS-number coercion issue** on both JS surfaces. `checked()`
-    deliberately duplicated ~5 lines/file (sanctioned over a shared crate). **Core + Python + Go +
-    Node + WASM = 33/33; other 7 surfaces still 32/33** (ffi, jni, rb, uniffi→Swift/Kotlin, dotnet,
-    cpp).
-- **HEAD `d559cfc` = cid(log)181 only; code == origin/develop** (diff excl `.claude` empty), green
+- **`gen_iscc_id_v1` minting NOW ALSO on C FFI** (iter 182, PASS): `iscc-ffi/src/lib.rs:613`
+    `iscc_gen_iscc_id_v1(u64,u16,u8)` → 50 externs; `iscc.h:386` regenerated (freshness gate green);
+    golden + realm-error C tests; NO `checked()` (core re-validates ranges). **Core + Python + Go +
+    Node + WASM + C FFI = 33/33 (6 surfaces); other 5 still 32/33** (jni, rb, uniffi→Swift/Kotlin,
+    dotnet, cpp).
+- **dotnet gotcha (handoff 182):** `iscc-ffi`'s csbindgen `build.rs` regenerates the tracked
+    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` on EVERY build — pre-push clippy hook rebuilds it
+    and REJECTS the push if uncommitted. Any FFI-symbol step MUST regen `iscc.h` AND
+    `NativeMethods.g.cs` in-step. The C# consumer wrapper + golden test are still owed in the dotnet
+    step (P/Invoke decl alone doesn't make the surface usable → count dotnet at 32).
+- **HEAD `c4b2e1d` = cid(log)182 only; code == origin/develop** (diff excl `.claude` empty), green
     covers HEAD. Dirty `decisions*.md` = runner rotation, not crash.
 - **Issues 11: 0 critical, 4 normal, 7 low.** Semver is NOT filed as an issue (non-blocking).
-- **Next work = IDv1 fan-out** to remaining 7 TYPED-INT surfaces (ffi first: `iscc.h` regen +
-    freshness gate; core re-checks ranges so NO JS-coercion pattern needed) + per-surface
-    version-enum widen (Python `VS` still V0-only) + Tier-1 32→33 doc sweep. NOT a CI fix.
+- **Next work = IDv1 fan-out** to remaining 5 TYPED-INT surfaces (jni next per handoff; core
+    re-checks ranges so NO JS-coercion pattern needed) + per-surface version-enum widen (Python `VS`
+    still V0-only) + Tier-1 32→33 doc sweep. NOT a CI fix.
 - **SCOPE CONTEXT (still live from 174):** out-of-loop non-`cid()` commit `2c4e487` rewrote
     `target.md` + EVERY binding spec to demand **33 Tier 1 symbols** (`gen_iscc_id_v1`) +
     experimental ISCC-IDv1 on core + all 11 surfaces. Lesson: a non-`cid()` commit CAN carry both
@@ -140,8 +139,7 @@ them), `dep-refresh-survey.md` (pin inventory), `unicode-contract.md`, `quality-
     rotates into `decisions-archive.md` (**grep BOTH**) — dirty `decisions*.md` = runner, not crash.
 - **Issue count: never carry forward** — re-grep `^## ` headers every iteration (lines 3-4 are a
     legend that inflates a naive `grep -c`); count held 8 over 167-173 while composition flipped.
-- **Don't re-flag as DONE**: uniffi 0.32 172, criterion 0.8 171, .NET lockfile 170, JNI 169, jni
-    0.22 168, magnus 0.8 167, JUnit 166, Gradle 165 (≤164 → archive).
+- **Don't re-flag as DONE**: C FFI IDv1 182, uniffi 0.32 172, criterion 0.8 171 (≤170 → archive).
 
 ## Gotchas
 
