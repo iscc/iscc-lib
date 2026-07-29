@@ -109,7 +109,13 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     count/doc sweep (its own slice — see #43 for the exact sites incl. 3 non-Markdown). 178 = Python
     surface first (reference-parity anchor + diff test). Signature per binding follows reference
     `gen_iscc_id_v1(timestamp,hub_id,realm_id)` with each lang's casing; **timestamp REQUIRED (core
-    clock-free), never default to None/clock**.
+    clock-free), never default to None/clock**. **179 = Go rename slice (b)**: new
+    `GenIsccIDV1(timestamp,hubID,realm)→*IsccIdResult{ISCC}`, DELETE `DecodeIsccID`/`IsccIDv1Result`
+    (Go decode already accepts V1; extract fields via `binary.BigEndian.Uint64(d.Digest)` →
+    `>>12`/`&0xFFF`/`d.Subtype`). Chosen over another minting surface: Go is the only surface with
+    actively-wrong must-delete API + a waiting `iscc/iscc-monitor` consumer. `iscc_id.go` sole
+    non-test/non-doc file; docs to sync: `docs/howto/go.md`, `packages/go/README.md`,
+    `packages/go/CLAUDE.md`.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published

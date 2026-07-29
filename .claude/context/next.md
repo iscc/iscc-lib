@@ -1,74 +1,67 @@
 # Next Work Package
 
-## Step: Add `gen_iscc_id_v1` to the Python binding + differential test
+## Step: Rename Go `EncodeIsccID` → `GenIsccIDV1` and delete `DecodeIsccID` / `IsccIDv1Result`
 
 ## Goal
 
-Begin the #43 Part 2 fan-out by exposing the core's `gen_iscc_id_v1` on the Python surface (the
-flagship drop-in for `iscc-core`) and pinning it to the reference with a pytest differential test —
-a named resolution criterion of issue "ISCC-IDv1 is unsupported outside Go". CI is already GREEN on
-develop (the state.md "Semver RED" is a phantom: the `Semver` job is `continue-on-error: true`,
-ci.yml L355, and both runs on tip `98205f2` concluded `success`), so no "fix CI" step is owed.
+Complete the Go surface of #43: replace the superseded `EncodeIsccID(realm, hubID, timestamp)` with
+the canonical `GenIsccIDV1(timestamp, hubID, realm)` returning `*IsccIdResult`, and **delete**
+`DecodeIsccID` and `IsccIDv1Result` (the reference has no IDv1 decoder; generic `IsccDecode` covers
+it). Unblocks the waiting `iscc/iscc-monitor` port and removes the only actively-wrong IDv1 API.
 
 ## Alternatives Considered
 
-- **Chosen:** Python binding for `gen_iscc_id_v1` — the reference-parity anchor; its differential
-    infrastructure (`iscc_core` dev-dep, `tests/test_iscc_decode_conformance.py`) already exists, so
-    this is the strongest correctness signal and the cleanest template for the remaining surfaces.
-- **Rejected — one "11-surface fan-out" step (handoff suggestion):** each binding tech uses a
-    different wrapper pattern (PyO3 dict vs napi vs wasm vs C ABI vs JNI vs Magnus vs UniFFI), so it
-    is NOT genuinely-identical fan-out and blows the file budget. Each surface is its own step.
-- **Rejected — FFI first (unblocks cpp/dotnet):** heavier (C ABI + `iscc.h` regen + freshness gate),
-    a poor first template; do it after the reference-parity Python anchor lands.
+- **Chosen:** Go rename — the only surface carrying superseded, must-delete API; a single-file
+    non-test change that fully closes one #43 sub-item and has a concrete downstream consumer.
+- **Rejected:** `gen_iscc_id_v1` minting on the napi/wasm surface — also #43, but one of 10 additive
+    minting slices with no removal urgency; the Go divergence is the higher-value fix now.
 
 ## Scope
 
-- **Modify**: `crates/iscc-py/src/lib.rs` (add `#[pyfunction] gen_iscc_id_v1` returning
-    `PyDict{"iscc"}`, register in `#[pymodule]`); `crates/iscc-py/python/iscc_lib/__init__.py`
-    (import as `_gen_iscc_id_v1`, add `IsccIdResult(IsccResult)` with `iscc: str`, public wrapper,
-    re-export, `__all__`); `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` (stub, docstring-only
-    body)
-- **Create**: `tests/test_iscc_id_v1.py` (differential test — does not count toward budget)
-- **Reference**: `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)";
-    `gen_iscc_code_v0` wrapper pattern (lib.rs:332, __init__.py:270);
-    `tests/test_iscc_decode_conformance.py` (import-`iscc_core` differential pattern);
-    `crates/iscc-py/CLAUDE.md` ("adding a Tier 1 function")
+- **Modify**: `packages/go/iscc_id.go` (only non-test/non-doc file)
+- **Modify (tests, excluded from budget)**: `packages/go/iscc_id_test.go`
+- **Modify (docs, excluded from budget)**: `docs/howto/go.md` (§Experimental ISCC-IDv1, ~L392–403),
+    `packages/go/README.md` (API table ~L92–93), `packages/go/CLAUDE.md` (codec-function list ~L80)
+- **Reference**: `.claude/context/specs/go-bindings.md` → "ISCC-IDv1 Support" (canonical Go shape,
+    field-extraction recipe, golden vector); `packages/go/codec.go` (`IsccDecode` result fields:
+    `Subtype uint8`, `Digest []byte`)
 
 ## Not In Scope
 
-- The Tier-1 32→33 count/doc sweep — a separate #43 step; do NOT edit any "32 symbols" text or
-    `docs/**`, `notes/**`, `README`/`CLAUDE.md` count strings here.
-- Any other binding surface (napi, wasm, ffi, jni, rb, uniffi, dotnet, cpp, go) or the Go rename.
-- Any core (`crates/iscc-lib`) change — `gen_iscc_id_v1`/`IsccIdResult` already exist there.
-- A "now"/clock convenience or a `decode_iscc_id_v1` — both deliberately excluded by spec.
+- Adding `gen_iscc_id_v1` to any other surface (napi/wasm/ffi/jni/rb/uniffi) — each is its own step.
+- Widening the Python `VS` enum or any other decode-round-trip work.
+- The Tier-1 32→33 doc/count sweep and the `iscc_clean` codec-cleaning issue.
+- Touching `codec.go` decode logic — `IsccDecode` already accepts `Id` Version 1 (do not change it).
 
 ## Implementation Notes
 
-- Signature mirrors the reference: `gen_iscc_id_v1(timestamp, hub_id=0, realm_id=0)`. **`timestamp`
-    is required — no clock default** (core is clock-free). Wrapper returns `IsccIdResult`. Call core
-    as `iscc_lib::gen_iscc_id_v1(timestamp, hub_id, realm_id)`; map `Err` → `PyValueError`. No
-    `py.detach` (trivial compute). `realm_id` maps to the core's `realm: u8`; `hub_id: u16`,
-    `timestamp: u64`.
-- `_lowlevel.pyi` stub body is a docstring only — no trailing `...` (ruff PIE790/PYI048).
-- Differential test: `import iscc_core`, assert
-    `iscc_lib.gen_iscc_id_v1(ts,hub,realm)["iscc"] ==   iscc_core.gen_iscc_id_v1(ts, hub, realm)["iscc"]`
-    over a small grid of explicit timestamps × hub × realm∈{0,1} (never pass `timestamp=None` —
-    the reference would call the clock). Include the golden
-    `gen_iscc_id_v1(1751831876325218, 1, 0)["iscc"] == "ISCC:MAIGHFECJMOPMIAB"`, assert `realm_id=2`
-    raises `ValueError`, and verify both `result["iscc"]` and `result.iscc` access.
+- New signature: `GenIsccIDV1(timestamp uint64, hubID uint16, realm uint8) (*IsccIdResult, error)`.
+    Body packing and validation stay exactly as current `EncodeIsccID` — keep validation order
+    (timestamp `< 2^52`, hubID `< 2^12`, realm `<= 1`) and the `iscc:`-prefixed error idiom.
+- Add a new struct `IsccIdResult` with one exported field `ISCC string` carrying the `iscc` JSON
+    tag; return it wrapping `"ISCC:" + encodeBase32(component)`. Delete both `IsccIDv1Result` and
+    `DecodeIsccID` entirely.
+- Field-extraction recipe (document + use in the round-trip test): `d, _ := IsccDecode(code)`, then
+    `n := binary.BigEndian.Uint64(d.Digest)`, `timestamp := n >> 12`, `hubID := uint16(n & 0xFFF)`,
+    `realm := d.Subtype`.
+- Rewrite `iscc_id_test.go`: keep the golden-vector and validation tests against `GenIsccIDV1`;
+    convert the decode/round-trip tests to `IsccDecode` + the extraction recipe over the boundary
+    grid (hubID 0/4095, realm 0/1, max 52-bit timestamp). Keep the existing `IsccDecode`/
+    `IsccDecompose`/`decodeHeader` Version-1 tests unchanged.
+- Update the three docs to describe `GenIsccIDV1` + the extraction recipe; drop the "Go-only, other
+    bindings reject Version 1" warning wording in `docs/howto/go.md` (core now accepts it).
 
 ## Verification
 
-- `maturin develop -m crates/iscc-py/Cargo.toml` builds, then `pytest tests/test_iscc_id_v1.py`
-    passes (differential vs installed `iscc_core` + golden + validation).
-- `python -c "from iscc_lib import gen_iscc_id_v1, IsccIdResult; assert gen_iscc_id_v1(1751831876325218,1,0)['iscc']=='ISCC:MAIGHFECJMOPMIAB'"`
-    exits 0.
-- `pytest` (full Python suite) still passes — no regression.
-- `ruff check crates/iscc-py tests` and `ruff format --check crates/iscc-py tests` clean.
-- `uv run ty check` clean (the new `.pyi` stub type-checks).
-- `cargo clippy -p iscc-py --all-targets -- -D warnings` clean.
+- `CGO_ENABLED=0 go test -count=1 ./...` passes in `packages/go/`.
+- `go vet ./...` clean in `packages/go/`.
+- `! grep -rq 'DecodeIsccID\|IsccIDv1Result' packages/go` (symbols fully removed from the tree).
+- A Go test asserts `GenIsccIDV1(1751831876325218, 1, 0).ISCC == "ISCC:MAIGHFECJMOPMIAB"`.
+- `grep -q GenIsccIDV1 docs/howto/go.md && grep -q GenIsccIDV1 packages/go/README.md` (docs
+    updated).
 
 ## Done When
 
-`gen_iscc_id_v1` is importable from `iscc_lib`, returns an `IsccIdResult` matching `iscc_core`
-byte-for-byte, and all lint/type/clippy/pytest gates stay clean.
+All verification checks pass: Go exposes `GenIsccIDV1` returning `*IsccIdResult`, `DecodeIsccID` /
+`IsccIDv1Result` are gone, the golden vector round-trips through `IsccDecode`, and the three docs
+describe the new shape and extraction recipe.
