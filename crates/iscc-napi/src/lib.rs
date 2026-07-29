@@ -298,6 +298,25 @@ pub fn iscc_decompose(iscc_code: String) -> napi::Result<Vec<String>> {
     iscc_lib::iscc_decompose(&iscc_code).map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
+/// Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
+///
+/// Packs a 52-bit microsecond UTC `timestamp` into the high bits and a 12-bit
+/// `hub_id` (0-4095) into the low bits, encoding the result as an ISCC-ID unit
+/// with `realm` (0 = testnet, 1 = mainnet) as SubType and Version `V1`.
+///
+/// `timestamp` is a JS `number` (valid values are `< 2^52`, exactly
+/// representable in `f64`). Throws if `timestamp >= 2^52`, `hub_id >= 2^12`, or
+/// `realm` is not `0` or `1`.
+///
+/// **Experimental:** the ISCC-IDv1 format is not yet part of ISO 24138 and may
+/// change. There is no dedicated decoder — use `iscc_decode` to decode.
+#[napi(js_name = "gen_iscc_id_v1")]
+pub fn gen_iscc_id_v1(timestamp: f64, hub_id: u16, realm: u8) -> napi::Result<String> {
+    iscc_lib::gen_iscc_id_v1(timestamp as u64, hub_id, realm)
+        .map(|r| r.iscc)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
 /// Run all conformance tests against vendored test vectors.
 ///
 /// Returns `true` if all tests pass, `false` if any fail.

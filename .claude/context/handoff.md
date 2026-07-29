@@ -1,42 +1,36 @@
-## 2026-07-29 — Review of: Rename Go `EncodeIsccID` → `GenIsccIDV1`, delete `DecodeIsccID` / `IsccIDv1Result`
+## 2026-07-29 — Mint `gen_iscc_id_v1` on the Node.js (napi) binding
 
-**Verdict:** PASS
+**Done:** Added the experimental `gen_iscc_id_v1` minting export to `crates/iscc-napi` (bare-string
+convention, `f64` timestamp), bringing the napi surface from 32 to 33 Tier 1 symbols. No
+version-enum widening needed — napi's `iscc_decode` returns `version` as a bare `u8`, so V1 decode
+round-trips today.
 
-**Summary:** The advance agent replaced the superseded `EncodeIsccID(realm, hubID, timestamp)` with
-the canonical `GenIsccIDV1(timestamp, hubID, realm) (*IsccIdResult, error)`, deleted `DecodeIsccID`
-and `IsccIDv1Result`, and moved decode to the generic `IsccDecode` + digest-unpack recipe. One
-non-test/non-doc file touched (scope-clean), tests use the real golden vector, all gates green.
+**Files changed:**
+
+- `crates/iscc-napi/src/lib.rs`: added `#[napi(js_name = "gen_iscc_id_v1")]` wrapper
+    `(timestamp: f64, hub_id: u16, realm: u8) -> napi::Result<String>` delegating to
+    `iscc_lib::gen_iscc_id_v1(... as u64, ...).map(|r| r.iscc)`.
+- `crates/iscc-napi/__tests__/iscc_id_v1.test.mjs` (new): golden vector, realm-1 accept, three
+    validation-throws (ts=2^52, hub=4096, realm=2), and `iscc_decode` round-trip.
 
 **Verification:**
 
-- [x] `CGO_ENABLED=0 go test -count=1 ./...` in `packages/go/` — `ok`, all pass.
-- [x] `go vet ./...` — clean (exit 0).
-- [x] `! grep -rq 'DecodeIsccID\|IsccIDv1Result' packages/go` — no matches (also none in `docs/`).
-- [x] Golden `TestGenIsccIDV1KnownVector`:
-    `GenIsccIDV1(1751831876325218,1,0).ISCC ==   "ISCC:MAIGHFECJMOPMIAB"` — PASS (ran `-run`
-    verbose).
-- [x] `grep -q GenIsccIDV1 docs/howto/go.md && … README.md` — both present.
-- [x] `mise run check` — all prek pre-commit hooks Passed; no context files reformatted.
-- [x] **Probe:** `TestGenIsccIDV1KnownVectorExtraction` round-trips the golden vector through the
-    documented `IsccDecode` + `binary.BigEndian.Uint64` recipe back to (ts, hub, realm) — PASS.
+- `npm run build:debug` — compiled clean.
+- `npm test` — **158 pass / 0 fail** (existing suites + new `iscc_id_v1.test.mjs`).
+- Golden `gen_iscc_id_v1(1751831876325218, 1, 0) === "ISCC:MAIGHFECJMOPMIAB"` — holds.
+- `index.d.ts:149` declares
+    `export declare function gen_iscc_id_v1(timestamp: number, hubId: number, realm: number): string`.
+- Round-trip: `iscc_decode(...)` → `maintype 6`, `version 1`, `subtype 0` — asserted, passes.
+- `cargo clippy -p iscc-napi --all-targets -- -D warnings` — clean.
+- `cargo fmt -p iscc-napi --check` — clean.
+- `mise run check` (prek pre-commit, all files) — all hooks Passed.
 
-**Issues found:**
+**Next:** #43 fan-out continues — mint `gen_iscc_id_v1` on the remaining surfaces: wasm, ffi (needs
+`iscc.h` regen + freshness gate), jni, rb, uniffi (one per step). Then the Tier-1 32→33 doc/count
+sweep across the stale sites named in #43.
 
-- (none material) — Minor: the `docs/howto/go.md` §Experimental snippet uses `binary.BigEndian`
-    without showing the `encoding/binary` import in that block. Illustrative howto snippet against a
-    stdlib package; not misleading, not filed.
-
-**Codex review:** Clean — "preserves the existing encoding and validation behavior while matching
-the specified signature and result shape; tests and documentation updated consistently, Go test and
-vet pass." No actionable findings.
-
-**Next:** #43 fan-out continues. (a) Mint `gen_iscc_id_v1` on napi/wasm/ffi/jni/rb/uniffi (each its
-own step; FFI needs `iscc.h` regen + freshness gate); (b) decode round-trip — widen each surface's
-version enum (Python `VS` IntEnum lists only `V0`) to accept `V1` + add an
-`iscc_decode(gen_iscc_id_v1(...))` test; (c) the Tier-1 32→33 doc/count sweep (see #43 for the exact
-stale sites incl. three non-Markdown sources). Go sub-item now fully closed.
-
-**Notes:** `codec.go` decode logic untouched — `IsccDecode` already accepts `Id` Version 1. No
-API-break: both removed symbols existed only on `develop`, never in a tagged release. Per the spec,
-`iscc/iscc-monitor` should be told the final Go shape (update #43) before deleting its interim port
-— a human/tracking action, out of code scope.
+**Notes:** napi CLAUDE.md/README carry no symbol count, so no doc edit needed here (per
+Not-In-Scope). `index.d.ts` shows the JS-idiomatic camelCase param `hubId` in the type declaration
+while the JS runtime call uses positional args, so this is cosmetic (napi-derive camelCases `.d.ts`
+param identifiers only; the runtime export name stays `gen_iscc_id_v1` via js_name).
+`index.js`/`index.d.ts`/`*.node` are gitignored build artifacts, not committed.

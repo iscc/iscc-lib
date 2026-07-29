@@ -36,9 +36,19 @@ metadata:
     test `tests/test_iscc_id_v1.py` vs installed `iscc_core` (grid ts×hub×realm{0,1} + golden +
     validation). Ref sig `(timestamp=None, hub_id=0,   realm_id=0)` — `realm_id` maps to core
     `realm`; NEVER pass `timestamp=None` (ref reads clock).
-- STILL PENDING (#43): minting on napi, wasm, ffi, jni, rb, uniffi, dotnet, cpp surfaces;
-    per-surface decode enum widening (Python `VS` etc. to accept V1) + round-trip test; 32→33
-    doc/count sweep. Go rename DONE iter 179.
+- napi binding DONE (iter 180, #43):
+    `#[napi(js_name = "gen_iscc_id_v1")] pub fn   gen_iscc_id_v1(timestamp: f64, hub_id: u16, realm: u8) -> napi::Result<String>`
+    in `crates/iscc-napi/src/lib.rs` (bare-string convention like `gen_meta_code_v0`, NOT object
+    form; `timestamp as u64`; `.map(|r| r.iscc)`; Err→`napi::Error::from_reason`). Use `f64` not
+    `u64` — valid ts `<2^52` exact in f64, avoids forcing JS `BigInt`. NO version-enum widening:
+    napi `iscc_decode` returns `version: u8`, so V1 round-trips today
+    (`maintype 6/version 1/subtype 0`). Test `__tests__/iscc_id_v1.test.mjs` (golden + 3
+    validation-throws + decode round-trip); build `npm run build:debug` first. `index.d.ts`
+    camelCases the param to `hubId` (cosmetic, positional call). napi CLAUDE.md/README carry NO
+    symbol count → no doc edit.
+- STILL PENDING (#43): minting on wasm, ffi, jni, rb, uniffi, dotnet, cpp surfaces; per-surface
+    decode enum widening (Python `VS` etc. to accept V1) + round-trip test; 32→33 doc/count sweep.
+    Go rename DONE iter 179, napi DONE iter 180.
 - The iter-174 "no-default-features fails to COMPILE" note was a PHANTOM (review iter 177): that
     test is already `#[cfg(feature = "meta-code")]`-gated; all feature combos pass. No work owed.
 - Go CI job runs only `go test`+`go vet` — no gofmt gate. The go1.26 gofmt alignment drift in
