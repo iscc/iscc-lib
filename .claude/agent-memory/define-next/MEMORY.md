@@ -99,8 +99,12 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     [idv1 fan-out facts](iscc-idv1-fanout.md). Golden
     `gen_iscc_id_v1(1751831876325218,1,0)=="ISCC:MAIGHFECJMOPMIAB"`; validation ts≥2^52/hub≥2^12/
     realm∉{0,1}; no dedicated decoder. Each surface is its OWN step (tech wraps differently). Done:
-    178 Python, 179 Go rename, 180 napi, 181 wasm + JS-number validation. Remaining: ffi (iscc.h
-    regen+gate), jni, rb, uniffi→Swift/Kotlin, dotnet, cpp, + 32→33 doc sweep.
+    178 Python, 179 Go rename, 180 napi, 181 wasm + JS-number validation, 182 ffi
+    (`iscc_gen_iscc_id_v1(u64,u16,u8)` typed-int, NO checked() guard; regen iscc.h via cbindgen CI
+    cmd + git-diff-empty gate; C golden+error in test_iscc.c;
+    `result_to_c_string(r.map(|x|x.iscc))`; cbindgen ON PATH; ffi CLAUDE.md/README carry NO count so
+    no doc edit; dotnet csbindgen untouched). Remaining: jni, rb, uniffi→Swift/Kotlin, dotnet, cpp,
+    \+ 32→33 doc sweep.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published

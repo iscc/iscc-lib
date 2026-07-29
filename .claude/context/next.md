@@ -1,77 +1,67 @@
 # Next Work Package
 
-## Step: Mint `gen_iscc_id_v1` on WASM + settle JS-number input validation (napi & wasm)
+## Step: Mint `gen_iscc_id_v1` on the C FFI surface
 
 ## Goal
 
-Add the experimental `gen_iscc_id_v1` minting export to `crates/iscc-wasm` (32→33 Tier 1 symbols)
-and settle the JS-number input-validation approach for the whole #43 JS-number fan-out, applying it
-to both the wasm and napi surfaces. This advances #43 ("ISCC-IDv1 unsupported outside Go") and
-resolves the `normal` issue "JS-number IDv1 minting silently coerces invalid inputs instead of
-throwing".
+Continue the #43 ISCC-IDv1 fan-out: expose `iscc_gen_iscc_id_v1` from `crates/iscc-ffi`, regenerate
+the committed C header, and cover it with the golden vector — the first of the 6 remaining typed-int
+surfaces, and the one that gates the header-freshness CI check.
 
 ## Alternatives Considered
 
-- **Chosen:** wasm minting + JS-number validation on both wasm & napi — the handoff explicitly
-    routes wasm next *because* the validation approach must be settled here before it is re-decided
-    per surface; napi already carries the open coercion issue, so fixing both while the design is
-    fresh is coherent and within the 3-file budget.
-- **Rejected:** the ffi minting slice — ffi is not a JS-number surface (no coercion hazard) and
-    needs an `iscc.h` regen + freshness gate; it can follow once the JS-number question is closed.
+- **Chosen:** FFI IDv1 minting — the handoff-designated next fan-out surface; it also underpins the
+    downstream dotnet/cpp surfaces and is the only one needing `iscc.h` regen + a freshness gate.
+- **Rejected:** jni IDv1 minting — equally ready, but the handoff sequences ffi first; deferring it
+    keeps one surface per step and the header gate exercised now rather than later.
 
 ## Scope
 
-- **Modify**: `crates/iscc-wasm/src/lib.rs` (add `gen_iscc_id_v1` with validation),
-    `crates/iscc-napi/src/lib.rs` (retrofit the same validation)
-- **Tests (outside budget)**: extend `crates/iscc-wasm/tests/unit.rs` (or a new tests file) and
-    `crates/iscc-napi/__tests__/iscc_id_v1.test.mjs` with the low/non-integral/non-finite cases
-- **Reference**: `crates/iscc-napi/src/lib.rs:313` (current napi export),
-    `crates/iscc-wasm/src/lib.rs` `iscc_decode`/`IsccDecodeResult` (`version: u8`), core
-    `crates/iscc-lib/src/lib.rs` `gen_iscc_id_v1` (high-end validation: ts≥2^52, hub≥2^12,
-    realm∉{0,1}), issues.md JS-number entry
+- **Modify**: `crates/iscc-ffi/src/lib.rs` — add the `iscc_gen_iscc_id_v1` extern
+- **Modify**: `crates/iscc-ffi/include/iscc.h` — regenerate via cbindgen (generated artifact)
+- **Modify**: `crates/iscc-ffi/tests/test_iscc.c` — add golden + error assertions (test file)
+- **Reference**: `crates/iscc-ffi/src/lib.rs:290-307` (meta pattern), `:571-593` (numeric-arg
+    pattern), `result_to_c_string` at `:118`; `crates/iscc-lib/src/lib.rs:1064` (core signature);
+    `crates/iscc-ffi/tests/test_iscc.c:94-155` (main structure)
 
 ## Not In Scope
 
-- The remaining minting surfaces (ffi, jni, rb, uniffi→Swift/Kotlin, dotnet, cpp) — separate steps.
-- The Tier-1 32→33 doc/count sweep (wasm CLAUDE.md/README, `docs/`, etc.) — its own #43 slice.
-- No version-enum widening: wasm & napi `iscc_decode` already return `version: u8`, so
-    `iscc_decode(gen_iscc_id_v1(...))` already round-trips.
-- Changing the core `gen_iscc_id_v1` signature or its high-end validation.
+- Any other surface (jni, rb, uniffi, dotnet, cpp) — each is its own step.
+- The Tier-1 32→33 doc/count sweep across stale sites (separate #43 step). The ffi CLAUDE.md/README
+    carry no numeric count, so no doc edit is needed here.
+- Touching `packages/dotnet` csbindgen output — the new symbol is unused there; regenerate it in the
+    dotnet step.
+- Any decode/version-enum change — FFI decode already inherits core's generic path (no wrapper
+    enum).
 
 ## Implementation Notes
 
-- **Take all three params as `f64`** on both surfaces (`timestamp`, `hub_id`, `realm`). napi/wasm
-    coerce JS numbers into `u16`/`u8` *before* our code runs (ToUint32/truncation), so integer param
-    types make the low/non-integral end unvalidatable — hence `f64` for all three. This changes the
-    napi signature from `(f64, u16, u8)`; `index.d.ts`/`index.js` are napi-build- generated — do not
-    hand-edit them.
-- Validate each param before narrowing: reject non-finite (`!x.is_finite()`), non-integral
-    (`x.fract() != 0.0`), and out-of-range with a thrown error. Ranges: `0.0 ≤ timestamp < 2^52`,
-    `0.0 ≤ hub_id < 4096.0`, `realm ∈ {0.0, 1.0}` (i.e. `0.0 ≤ realm < 2.0` with integrality). A
-    small local helper `fn checked(value: f64, max_exclusive: f64, name: &str) -> Result<..>` in
-    each file is fine (duplicating a ~4-line fn across two surfaces is acceptable).
-- After validation, narrow with `as u64/u16/u8` and delegate to
-    `iscc_lib::gen_iscc_id_v1(ts, hub, realm)`; map its error too (core re-checks the high end).
-- wasm returns `String` (bare, mirroring napi — `.map(|r| r.iscc)`); errors via `JsError::new`.
-- Golden (both surfaces): `gen_iscc_id_v1(1751831876325218, 1, 0) == "ISCC:MAIGHFECJMOPMIAB"`.
-- wasm tests are Rust `#[wasm_bindgen_test]` — pass `-1.0`, `f64::NAN`, `0.9` and assert
-    `.is_err()`; napi `.mjs` — pass `-1`, `NaN`, `0.9`, `2**32` and assert `throws(...)`. Keep the
-    existing napi high-end cases (ts=2^52, hub=4096, realm=2) — they still throw under the new
-    validation.
+- Signature:
+    `pub unsafe extern "C" fn iscc_gen_iscc_id_v1(timestamp: u64, hub_id: u16, realm: u8)   -> *mut c_char`.
+    Typed ints, no JS-coercion hazard — core `gen_iscc_id_v1` re-checks all ranges; do NOT add a
+    `checked()` guard (that pattern is napi/wasm-only).
+- Body mirrors the other gens: `clear_last_error();` then
+    `result_to_c_string(iscc_lib::gen_iscc_id_v1(timestamp, hub_id, realm).map(|r| r.iscc))`. No
+    pointer args → no NULL guard needed. Add the `# Safety` doc line for consistency (`no_mangle`).
+- Regenerate the header verbatim with the CI command:
+    `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output   crates/iscc-ffi/include/iscc.h`
+    — do not hand-edit `iscc.h`.
+- C test: assert golden `iscc_gen_iscc_id_v1(1751831876325218ULL, 1, 0) == "ISCC:MAIGHFECJMOPMIAB"`
+    (use `ASSERT_STR_EQ`, `iscc_free_string` after), and one error case (e.g. `realm = 2` →
+    `ASSERT_NULL` + `iscc_last_error()` non-NULL).
 
 ## Verification
 
-- `wasm-pack test --node crates/iscc-wasm --features conformance` passes, incl. new IDv1 golden,
-    validation-throw, and `iscc_decode` round-trip (maintype 6 / version 1 / subtype 0) cases.
-- `cd crates/iscc-napi && npm run build:debug && npm run test` passes, incl. new
-    low/non-integral/non-finite throw cases plus the retained high-end cases.
-- `cargo clippy -p iscc-wasm -p iscc-napi --all-targets -- -D warnings` clean.
-- `cargo fmt -p iscc-wasm -p iscc-napi --check` clean.
-- `iscc_wasm::gen_iscc_id_v1` is exported (wasm now at 33 Tier 1 symbols); on both surfaces a
-    non-finite / non-integral / negative / out-of-range input throws instead of minting a wrong ID.
-- `mise run check` — all prek pre-commit hooks pass.
+- `cargo build -p iscc-ffi` succeeds; `cargo clippy -p iscc-ffi --all-targets -- -D warnings` clean;
+    `cargo fmt -p iscc-ffi --check` clean.
+- Re-running the cbindgen command above leaves `git diff --exit-code crates/iscc-ffi/include/iscc.h`
+    empty (header committed and fresh), and `iscc.h` contains `iscc_gen_iscc_id_v1`.
+- `gcc -o /tmp/test_iscc crates/iscc-ffi/tests/test_iscc.c -I crates/iscc-ffi/include -L   target/debug -liscc_ffi -lpthread -ldl -lm`
+    compiles, and `LD_LIBRARY_PATH=target/debug /tmp/test_iscc` exits 0 with the golden + error
+    assertions passing.
+- `mise run check` (prek hooks) passes.
 
 ## Done When
 
-All verification criteria pass: wasm mints `gen_iscc_id_v1` (33 symbols) and both JS-number surfaces
-reject non-finite, non-integral, and out-of-range inputs with a thrown error covered by tests.
+`iscc_gen_iscc_id_v1` is exported from the FFI crate, `iscc.h` is fresh and committed, and the C
+test program passes the golden vector and error case with all gates green.
