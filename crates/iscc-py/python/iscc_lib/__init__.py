@@ -83,6 +83,7 @@ class VS(enum.IntEnum):
     """ISCC Version identifiers."""
 
     V0 = 0
+    V1 = 1
 
 
 # ── Algorithm configuration namespace ───────────────────────────────────────

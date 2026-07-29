@@ -12,7 +12,7 @@ reference read the system clock, which is not deterministic.
 import iscc_core
 import pytest
 
-from iscc_lib import IsccIdResult, IsccResult, gen_iscc_id_v1
+from iscc_lib import MT, VS, IsccIdResult, IsccResult, gen_iscc_id_v1, iscc_decode
 
 TIMESTAMPS = [0, 1, 1751831876325218, (1 << 52) - 1]
 HUB_IDS = [0, 1, 4095]
@@ -66,3 +66,12 @@ def test_gen_iscc_id_v1_rejects_hub_overflow():
     """Verify a hub_id at or beyond 2**12 raises ValueError."""
     with pytest.raises(ValueError):
         gen_iscc_id_v1(0, 4096, 0)
+
+
+def test_iscc_decode_roundtrips_iscc_id_v1():
+    """Verify iscc_decode accepts a minted ISCC-IDv1 and reports MT.ID / VS.V1."""
+    iscc = gen_iscc_id_v1(1751831876325218, 1, 0)["iscc"]
+    mt, _st, vs, _length, _digest = iscc_decode(iscc)
+    assert mt == MT.ID
+    assert vs == VS.V1
+    assert vs == 1

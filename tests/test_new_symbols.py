@@ -275,8 +275,9 @@ def test_st_text_alias():
 
 
 def test_vs_values():
-    """VS IntEnum has correct value."""
+    """VS IntEnum has correct values."""
     assert VS.V0 == 0
+    assert VS.V1 == 1
 
 
 # ── core_opts tests ──────────────────────────────────────────────────────────
