@@ -1,39 +1,48 @@
-## 2026-07-29 — Mint `gen_iscc_id_v1` on the C# (.NET) surface
+## 2026-07-29 — Review of: Mint `gen_iscc_id_v1` on the C# (.NET) surface
 
-**Done:** Added idiomatic C# `GenIsccIdV1(ulong, ushort, byte)` wrapper + `IsccIdResult` record over
-the already-generated `iscc_gen_iscc_id_v1` P/Invoke decl, taking the C# surface from 32→33 Tier 1
-symbols (10th of 11 IDv1 fan-out surfaces, #43). No FFI regen, no P/Invoke change.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/dotnet/Iscc.Lib/Results.cs`: added `public sealed record IsccIdResult(string Iscc);`.
-- `packages/dotnet/Iscc.Lib/IsccLib.cs`: added `GenIsccIdV1` mirroring `GenMetaCodeV0` — `unsafe`
-    call to `NativeMethods.iscc_gen_iscc_id_v1`, wrapped with `ConsumeNativeString` (throws
-    `IsccException(GetLastError())` on NULL). No binding-side range guard (exact-width unsigned
-    args; core re-validates ts→hub→realm).
-- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` (test, off-budget): golden, out-of-range-timestamp
-    error, and decode round-trip tests.
+**Summary:** The C# surface now mints IDv1 via idiomatic `GenIsccIdV1(ulong, ushort, byte)` +
+`IsccIdResult` record over the already-generated P/Invoke decl, advancing dotnet from 32→33 Tier 1
+symbols (10th of 11 IDv1 fan-out surfaces, #43). Clean, faithful to next.md, no scope creep, no gate
+weakening. Purely additive: 2 non-test source files + 1 test file.
 
 **Verification:**
 
-- `dotnet test packages/dotnet/Iscc.Lib.Tests` (LD_LIBRARY_PATH=target/debug): **Passed 107, Failed
-    0** (was 104; +3 new). dotnet 8.0 SDK.
-- Golden `GenIsccIdV1(1751831876325218, 1, 0).Iscc == "ISCC:MAIGHFECJMOPMIAB"` ✓.
-- `GenIsccIdV1(1UL << 52, 0, 0)` throws `IsccException` ✓.
-- Round-trip: `IsccDecode` → Maintype 6, Version 1, 8-byte Digest; `ts = body>>12`,
-    `hub = body&0xFFF`, `realm = Subtype` all equal inputs ✓.
-- `grep -c GenIsccIdV1 IsccLib.cs` = 1; `IsccIdResult` present in Results.cs ✓.
-- `git diff --quiet -- NativeMethods.g.cs` clean after `cargo build -p iscc-ffi` (P/Invoke
-    untouched) ✓.
-- `mise run check` — all 18 prek hygiene + parity + lint hooks Passed.
+- [x] `dotnet test packages/dotnet/Iscc.Lib.Tests` (LD_LIBRARY_PATH=target/debug) — **107 passed, 0
+    failed** (+3 new: golden, out-of-range-ts throws, decode round-trip).
+- [x] `GenIsccIdV1(1751831876325218, 1, 0).Iscc == "ISCC:MAIGHFECJMOPMIAB"` — matches `iscc_core`
+    1.3.0 oracle byte-for-byte (cross-checked, `--python 3.13`).
+- [x] `GenIsccIdV1(1UL << 52, 0, 0)` throws `IsccException` — covered by passing test.
+- [x] `grep -c GenIsccIdV1 IsccLib.cs` = 1; `IsccIdResult` present in `Results.cs`.
+- [x] `git diff --quiet -- NativeMethods.g.cs` clean after `cargo build -p iscc-ffi` (P/Invoke layer
+    untouched).
+- [x] `mise run check` — all prek hygiene + parity + lint hooks Passed; working tree clean after
+    (only runner-owned `iterations.jsonl` dirty).
+- [x] (probe) Scope + circumvention: `@{upstream}..HEAD` scan of all 4 unpushed commits clean — no
+    suppressions, no test skips, no threshold/hook weakening. No API break, no hot path.
+- [x] (probe) Validation order: dotnet has no binding guard, delegates entirely to core; core
+    reports ts→hub→realm first-failure (confirmed against reference for `(2^52, 5000, 0)` →
+    "Timestamp overflow"). A no-guard passthrough can't reorder — correct pattern, unlike jni's
+    earlier partial guard.
 
-**Next:** #43 has **one minting surface left**: C++ (`packages/cpp/include/iscc.hpp`) wrapper over
-the same fixed-width FFI (needs `uv run --with cmake cmake` to verify). After that lands, do the
-deferred repo-wide Tier-1 32→33 doc/count sweep (issues.md, `gen_iscc_id_v1` API-doc entries,
-`packages/dotnet/CLAUDE.md`/`README.md` counts). #43 stays open (v0.6.0 blocker).
+**Issues found:**
 
-**Notes:** No enum-widening needed — C# `DecodeResult.Version` is a raw `byte`, so the generic
-decode path already accepts Version 1 (confirmed by the passing round-trip). This surface is exempt
-from the open Ruby i64 marshalling gap: the FFI takes exact-width unsigned types, so callers cannot
-pass out-of-width values and core does the ordered range validation. Doc counts left untouched per
-Not-In-Scope.
+- (none) — exact-width unsigned args (`ulong`/`ushort`/`byte`) mean callers can't pass out-of-width
+    values, so dotnet is genuinely exempt from the open Ruby i64 marshalling gap. No enum-widening
+    needed (`DecodeResult.Version` is a raw `byte`). No new issue warranted.
+
+**Codex review:** Clean — no findings. Confirms correct delegation to the P/Invoke decl, native
+error handling via the established helper, correct result type, and 107 tests + warning-as-error
+release build pass.
+
+**Next:** #43 fan-out has **one minting surface left**: C++ (`packages/cpp/include/iscc.hpp`) over
+the same fixed-width FFI (needs `uv run --with cmake cmake` to verify). After it lands, do the
+deferred repo-wide Tier-1 32→33 doc/count sweep (issues.md `#43` first bullet enumerates every stale
+site, `gen_iscc_id_v1` API-doc entries, `packages/dotnet`/other `CLAUDE.md`+`README.md` counts). #43
+stays open (v0.6.0 blocker).
+
+**Notes:** dotnet is a pure passthrough (`unsafe` call + `ConsumeNativeString`, which throws on
+NULL), so it inherits core's ordered validation and needs no binding-side guard — matches the
+uniffi/ffi exact-width pattern. Doc counts left untouched per Not-In-Scope. Updated the #43 issue's
+minting enumeration to reflect cpp as the only remaining minting surface.

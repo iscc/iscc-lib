@@ -16,30 +16,28 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     realm{0,1}×hub{0,4095}×ts{0,2^52-1} (178). NO dedicated decoder on any surface (ref has none).
     **Minting ≠ decode round-trip**: core `codec::Version` accepts `V1`, but a surface with its OWN
     version enum (Python `VS` lists only `V0`) makes `iscc_decode(gen_iscc_id_v1(...))` raise
-    `1 is not a valid VS` — its #43 slice must widen the enum + round-trip test
-- **IDv1 validation ORDER is normative on every surface** (spec rust-core.md §Validation, criterion
-    ~L542): ts→hub→realm, "first failing check wins", asserted cross-surface even for MULTI-invalid
-    inputs. A wide-int binding (napi/wasm/jni) MUST validate the three SEMANTIC thresholds
-    (`2^52`/`4096`/`2`) in that order IN THE BINDING before narrowing — napi does this with
-    `checked(v, thresh, name)?` ×3 (`crates/iscc-napi/src/lib.rs:329-331`). A *wide narrowing guard*
-    (hub 0-65535, realm 0-255) that skips the ts check and defers to core is WRONG: `(2^52,65536,0)`
-    reports hub not ts — reference-divergent (183 jni NEEDS_WORK; **fixed 184**, ref order at
-    `iscc_id.py:127-133` ts→hub→realm). Go/ffi take exact-width types so callers can't pass
-    out-of-narrowing values → they delegate ordering to core safely; only wide-input surfaces need
+    `1 is not a valid VS` — that surface's #43 slice must widen the enum + round-trip (issues.md)
+- **IDv1 validation ORDER is normative on every surface** (spec rust-core.md §Validation; ref order
+    `iscc_id.py:127-133` ts→hub→realm, "first failing check wins", asserted even for MULTI-invalid
+    inputs). A wide-int binding (napi/wasm/jni) MUST validate the three SEMANTIC thresholds
+    (`2^52`/`4096`/`2`) in that order IN THE BINDING before narrowing — napi does
+    `checked(v,thresh,   name)?` ×3. A *wide narrowing guard* (hub 0-65535, realm 0-255) that skips
+    the ts check and defers to core is WRONG: `(2^52,65536,0)` reports hub not ts (183 jni
+    NEEDS_WORK, **fixed 184**). Exact-width surfaces (Go/ffi/dotnet, uniffi) can't pass
+    out-of-narrowing values → delegate ordering to core safely; only wide-input surfaces need
     in-order binding checks. **Ruby (185) narrows Integer→`i64` in Magnus marshalling BEFORE the fn
-    body**, so args `> i64::MAX` raise `RangeError` ahead of ordered `checked()` — order +
-    `RuntimeError` contract break for pathological inputs only (issues.md; fix: validate in Ruby)
-- **IDv1 fan-out** (done: 179 Go, 180 napi, 182 ffi, 184 jni, 185 rb, 186 uniffi=Swift+Kotlin; owed
-    dotnet, cpp): uniffi took `(u64,u16,u8)` straight through to core (exact-width **unsigned** args
-    mean callers can't overflow → no Ruby-style marshalling gap, no binding guard needed); surface
-    fn mirrors `gen_text_code_v0`; decode round-trips via each surface's `iscc_decode` returning a
-    bare int `version` (NO enum-widening, so no `IsccDecodeResult` change), then bit-math
-    `ts=n>>12`, `hub=n&0xFFF`, `realm=SubType` on the 8-byte BE body. ffi has NO `checked()`/NULL
-    guard (core re-checks). **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
-    `NativeMethods.g.cs` on EVERY build** → pre-push clippy fails "files were modified";
-    regen+commit it (like `iscc.h`) in the SAME FFI-symbol step, never "the dotnet step"
-- **JS-number validation (napi/wasm DONE; decisions.md 2026-07-29)**: `f64` params validated
-    (`!is_finite`/`fract`/range `2^52`/`4096`/`2`) before narrowing; typed-int surfaces don't copy
+    body** → `RangeError` order break for `> i64::MAX` only (issues.md; fix: validate in Ruby)
+- **IDv1 fan-out** (done: 179 Go, 180 napi, 182 ffi, 184 jni, 185 rb, 186 uniffi=Swift+Kotlin, 187
+    dotnet C# `GenIsccIdV1(ulong,ushort,byte)`; owed cpp): exact-width **unsigned** args mean
+    callers can't overflow → no Ruby-style marshalling gap, no binding guard; surface fn mirrors
+    `gen_text_code_v0`/`GenMetaCodeV0`; decode round-trips via each surface's `iscc_decode`
+    returning a bare int/`byte` `version` (NO enum-widening, no result-type change), then bit-math
+    `ts=n>>12`, `hub=n&0xFFF`, `realm=SubType` on the 8-byte BE body. ffi/dotnet have NO
+    `checked()`/NULL guard beyond `ConsumeNativeString` (core re-checks in ts→hub→realm order; a
+    no-binding-guard passthrough can't reorder, unlike jni's earlier partial guard). **`iscc-ffi`'s
+    csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** → pre-push clippy
+    fails "files were modified"; regen+commit it (like `iscc.h`) in the SAME FFI-symbol step, never
+    "the dotnet step"
 
 ## Reference Implementation
 
