@@ -17,7 +17,9 @@
 //! - Constants: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
 //!   IO_READ_SIZE, TEXT_NGRAM_SIZE
 
-use magnus::{Error, RArray, RHash, RString, Ruby, TryConvert, function, method, prelude::*};
+use magnus::{
+    Error, Integer, RArray, RHash, RString, Ruby, TryConvert, function, method, prelude::*,
+};
 use std::cell::RefCell;
 
 /// Map an `IsccError` to a Magnus `RuntimeError`.
@@ -190,19 +192,28 @@ fn gen_sum_code_v0(path: String, bits: u32, wide: bool, add_units: bool) -> Resu
 
 /// Validate an ISCC-IDv1 parameter before narrowing to a fixed-width integer.
 ///
-/// Ruby Integers are arbitrary precision, so each parameter is taken as `i64`
-/// and checked here. Rejects negative and out-of-range (`>= max_exclusive`)
-/// values with a `RuntimeError` so an invalid Ruby Integer raises instead of
-/// being silently narrowed to a wrong ID.
-fn checked(value: i64, max_exclusive: i64, name: &str) -> Result<i64, Error> {
-    if value < 0 || value >= max_exclusive {
-        let ruby = Ruby::get().expect("called from Ruby");
+/// Ruby Integers are arbitrary precision, so each parameter is taken as a
+/// `magnus::Integer` and range-checked here — converting in the signature
+/// would raise `RangeError` during argument marshalling for values beyond
+/// `i64`, breaking the normative `timestamp -> hub_id -> realm` first-failure
+/// order. Rejects negative and out-of-range (`>= max_exclusive`) values with
+/// a `RuntimeError` so an invalid Ruby Integer raises instead of being
+/// silently narrowed to a wrong ID.
+fn checked(value: Integer, max_exclusive: u64, name: &str) -> Result<u64, Error> {
+    let ruby = Ruby::get().expect("called from Ruby");
+    let v = value.to_u64().map_err(|_| {
+        Error::new(
+            ruby.exception_runtime_error(),
+            format!("Invalid {name}: out of range"),
+        )
+    })?;
+    if v >= max_exclusive {
         return Err(Error::new(
             ruby.exception_runtime_error(),
-            format!("Invalid {name}: {value}"),
+            format!("Invalid {name}: {v}"),
         ));
     }
-    Ok(value)
+    Ok(v)
 }
 
 /// Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
@@ -215,13 +226,13 @@ fn checked(value: i64, max_exclusive: i64, name: &str) -> Result<i64, Error> {
 ///
 /// Returns a Ruby Hash with key: `iscc`. Raises `RuntimeError` if any parameter
 /// is negative, or if `timestamp >= 2^52`, `hub_id >= 2^12`, or `realm` is not
-/// `0` or `1`.
-fn gen_iscc_id_v1(timestamp: i64, hub_id: i64, realm: i64) -> Result<RHash, Error> {
-    let timestamp = checked(timestamp, 4_503_599_627_370_496, "timestamp")?; // 2^52
+/// `0` or `1` — for any Integer magnitude, including values beyond `i64`.
+fn gen_iscc_id_v1(timestamp: Integer, hub_id: Integer, realm: Integer) -> Result<RHash, Error> {
+    let timestamp = checked(timestamp, 1u64 << 52, "timestamp")?;
     let hub_id = checked(hub_id, 4096, "hub_id")?;
     let realm = checked(realm, 2, "realm")?;
-    let r = iscc_lib::gen_iscc_id_v1(timestamp as u64, hub_id as u16, realm as u8)
-        .map_err(to_magnus_err)?;
+    let r =
+        iscc_lib::gen_iscc_id_v1(timestamp, hub_id as u16, realm as u8).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
     let hash = ruby.hash_new();
     hash.aset("iscc", r.iscc)?;

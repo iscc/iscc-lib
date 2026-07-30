@@ -31,32 +31,6 @@ Resolved when the page's type names match the generated header (either rename al
 `iscc_`-prefixed forms, or emit an unprefixed alias in the cbindgen config and document that) and a
 representative example compiles against `crates/iscc-ffi/include/iscc.h`.
 
-## Ruby `gen_iscc_id_v1` breaks validation order for arguments exceeding i64 `normal` [review]
-
-The Ruby native fn (`crates/iscc-rb/src/lib.rs`) takes its three params as `i64`, so Magnus narrows
-each Ruby Integer to `i64` **during argument marshalling, before** the ordered `checked()` helper
-runs. For arbitrary-precision inputs above `i64::MAX` this violates the normative ts→hub→realm
-first-failure order and the documented `RuntimeError` contract. Verified on `iscc_core` 1.3.0 parity
-build:
-
-- `gen_iscc_id_v1(1<<52, 1<<100, 2)` → reference reports `Timestamp overflow` (timestamp is the
-    first invalid field); Ruby raises `RangeError: bignum too big to convert into 'long long'`.
-- `gen_iscc_id_v1(1<<70, 0, 0)` → timestamp is out of range, contract says `RuntimeError`; Ruby
-    raises `RangeError`.
-
-All i64-representable inputs (every realistic timestamp — `< 2^63` µs ≈ 292K years — and every
-hub_id/realm) validate correctly in order, so practical impact is nil; this is a
-contract-conformance gap, not a functional bug. napi/wasm are exempt (f64 params hold the values
-before `checked`); jni/Go/ffi are exempt (statically-typed narrow args cannot exceed the width at
-the call site). Only Ruby's arbitrary-precision + implicit i64 marshalling exposes it.
-
-Resolved when out-of-range params raise `RuntimeError` in ts→hub→realm order for any magnitude —
-e.g. validate magnitude in `lib/iscc_lib.rb` before the native call, or accept `magnus::Integer` and
-range-check before `to_i64`. Add a test asserting `(1<<52, 1<<100, 2)` reports timestamp and
-`(1<<70, 0, 0)` raises `RuntimeError`. Check uniffi's Ruby-analogue surfaces when they land.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "ISCC-IDv1 Operations (Experimental)"
-
 ## Go codec input cleaning diverges from iscc-core `iscc_clean` `normal` [review]
 
 The Rust half landed in iter 191 (shared `codec::iscc_clean` routed through all four Rust sites +
@@ -200,3 +174,13 @@ package on npmjs.com before the token can be removed.
 
 README language logos added (iteration 3). Consider adding matching logos to `docs/index.md` and
 howto guide headers on the documentation site for visual consistency. Purely cosmetic follow-up.
+
+## JNI streaming-hasher functions dereference Java-supplied handle without null guard `low` [human]
+
+`dataHasherUpdate`/`dataHasherFinalize`/`instanceHasherUpdate`/`instanceHasherFinalize` in
+`crates/iscc-jni/src/lib.rs` dereference the `jlong` handle via `unsafe { &mut *(ptr as *mut …) }`
+with no `ptr != 0` guard (only the `*Free` functions check). A null or stale handle passed from Java
+is UB. Pre-existing (not introduced by the jni 0.22 migration) and mitigated by the Java wrapper
+owning the handle lifecycle, but a one-line `if ptr == 0` → throw guard per function would make the
+boundary robust against misuse of the public JNI surface. Surfaced during the PR #44 review sweep
+(2026-07-30).

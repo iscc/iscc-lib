@@ -220,6 +220,18 @@ pub fn encode_component(
 fn iscc_normalize(iscc: &str) -> IsccResult<String> {
     // Wide-mode detection reads the *original* header, before decomposition.
     let clean = codec::iscc_clean(iscc)?;
+
+    // Validate the two-character prefix against the reference allow-list before
+    // any decoding, exactly as `iscc_core.codec.iscc_normalize` does. Without
+    // this, a structurally decodable header with an invalid (MainType, SubType)
+    // combination (e.g. `MQ` = ID subtype 4) would be accepted.
+    let prefix: String = clean.to_uppercase().chars().take(2).collect();
+    if !codec::PREFIXES.contains(&prefix.as_str()) {
+        return Err(IsccError::InvalidInput(format!(
+            "ISCC starts with invalid prefix {prefix}"
+        )));
+    }
+
     let raw = codec::decode_base32(&clean)?;
     let (mt, st, _, _, _) = codec::decode_header(&raw)?;
     let is_wide = mt == codec::MainType::Iscc && st == codec::SubType::Wide;
@@ -2066,10 +2078,38 @@ mod tests {
     /// Error on invalid base32 characters.
     #[test]
     fn test_iscc_decode_invalid_base32() {
-        let result = iscc_decode("!!!INVALID!!!");
+        // Valid prefix `MA`, invalid base32 body — reaches the base32 decoder.
+        let result = iscc_decode("MAAA!!!!");
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("base32"), "expected base32 error: {err}");
+    }
+
+    /// Reference parity: `iscc_core.iscc_decode` validates the two-character
+    /// prefix before any decoding, so a structurally decodable header with an
+    /// invalid (MainType, SubType) combination must be rejected.
+    #[test]
+    fn test_iscc_decode_rejects_invalid_prefix() {
+        // ID subtype 4 with Version V1 decodes structurally but `MQ` is not a
+        // valid prefix; the reference raises "ISCC starts with invalid prefix MQ".
+        let err = iscc_decode("ISCC:MQIAAAAAAAAAAAAA")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("invalid prefix MQ"), "got: {err}");
+
+        // A prefix shorter than two characters is reported as-is, like the reference.
+        let err = iscc_decode("M").unwrap_err().to_string();
+        assert!(err.contains("invalid prefix M"), "got: {err}");
+
+        // Prefix rejection happens before base32 decoding, matching the reference.
+        let err = iscc_decode("!!!INVALID!!!").unwrap_err().to_string();
+        assert!(err.contains("invalid prefix !!"), "got: {err}");
+
+        // Reference parity: `iscc_decompose` does NOT prefix-check.
+        assert!(iscc_decompose("ISCC:MQIAAAAAAAAAAAAA").is_ok());
+
+        // Lowercase input with a valid prefix still decodes.
+        assert!(iscc_decode("iscc:maighfecjmopmiab").is_ok());
     }
 
     /// Known value from conformance vectors: Meta-Code "ISCC:AAAZXZ6OU74YAZIM".

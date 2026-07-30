@@ -457,6 +457,39 @@ pub fn decode_units(unit_id: u32) -> IsccResult<Vec<MainType>> {
     Ok(result)
 }
 
+// ---- Prefix Validation ----
+
+/// Valid two-character ISCC prefixes, mirroring `iscc_core.constants.PREFIXES`.
+/// Note: `MA` and `ME` are ambiguous between ID-V0 and ID-V1.
+pub(crate) const PREFIXES: [&str; 26] = [
+    "AA", // META-NONE
+    "CA", // SEMANTIC-TEXT
+    "CE", // SEMANTIC-IMAGE
+    "CI", // SEMANTIC-AUDIO
+    "CM", // SEMANTIC-VIDEO
+    "CQ", // SEMANTIC-MIXED
+    "EA", // CONTENT-TEXT
+    "EE", // CONTENT-IMAGE
+    "EI", // CONTENT-AUDIO
+    "EM", // CONTENT-VIDEO
+    "EQ", // CONTENT-MIXED
+    "GA", // DATA-NONE
+    "IA", // INSTANCE-NONE
+    "KA", // ISCC-TEXT
+    "KE", // ISCC-IMAGE
+    "KI", // ISCC-AUDIO
+    "KM", // ISCC-VIDEO
+    "KQ", // ISCC-MIXED
+    "KU", // ISCC-SUM
+    "KY", // ISCC-NONE
+    "K4", // ISCC-WIDE
+    "MA", // ID-PRIVATE-V0 / ID-REALM_0-V1 (ambiguous)
+    "ME", // ID-BITCOIN-V0 / ID-REALM_1-V1 (ambiguous)
+    "MI", // ID-ETHEREUM-V0
+    "MM", // ID-POLYGON-V0
+    "OA", // FLAKE-NONE
+];
+
 // ---- Base32 Encoding ----
 
 /// Encode bytes as base32 (RFC 4648, uppercase, no padding).

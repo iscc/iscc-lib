@@ -63,4 +63,19 @@ class TestIsccId < Minitest::Test
     assert_raises(RuntimeError) { IsccLib.gen_iscc_id_v1(0, -1, 0) }
     assert_raises(RuntimeError) { IsccLib.gen_iscc_id_v1(0, 0, -1) }
   end
+
+  def test_gen_iscc_id_v1_validation_order_bignum
+    # Values beyond i64 must not raise RangeError during argument marshalling;
+    # the first failing check still wins (timestamp before hub_id and realm).
+    err = assert_raises(RuntimeError) { IsccLib.gen_iscc_id_v1(1 << 52, 1 << 100, 2) }
+    assert_match(/timestamp/, err.message)
+
+    # A timestamp beyond u64 raises RuntimeError, not RangeError.
+    err = assert_raises(RuntimeError) { IsccLib.gen_iscc_id_v1(1 << 70, 0, 0) }
+    assert_match(/timestamp/, err.message)
+
+    # A hub_id beyond u64 reports hub_id once the timestamp is valid.
+    err = assert_raises(RuntimeError) { IsccLib.gen_iscc_id_v1(0, 1 << 100, 2) }
+    assert_match(/hub_id/, err.message)
+  end
 end

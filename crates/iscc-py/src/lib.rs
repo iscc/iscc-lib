@@ -9,7 +9,7 @@
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList};
+use pyo3::types::{PyBytes, PyDict, PyInt, PyList};
 
 /// Convert a Python sequence to a PyList, passing lists through unchanged.
 fn to_pylist<'py>(py: Python<'py>, obj: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyList>> {
@@ -366,18 +366,51 @@ fn gen_sum_code_v0(
     Ok(dict.into())
 }
 
+/// Validate an ISCC-IDv1 integer argument before narrowing to a fixed width.
+///
+/// Accepts an arbitrary-precision Python `int` so the normative
+/// `timestamp -> hub_id -> realm` check order is preserved even for values
+/// that exceed `u64`/`u16`/`u8` — PyO3 signature conversion would otherwise
+/// raise `OverflowError` for a later argument before an earlier check runs.
+/// A Python `int` that is negative or out of `u128` range is out of range for
+/// every parameter, so it maps to the parameter's own `ValueError`; non-int
+/// objects keep PyO3's conversion error (`TypeError`).
+fn checked_id_arg(value: &Bound<'_, PyAny>, max_exclusive: u128, msg: &str) -> PyResult<u128> {
+    let invalid =
+        || PyValueError::new_err(iscc_lib::IsccError::InvalidInput(msg.into()).to_string());
+    let v: u128 = match value.extract() {
+        Ok(v) => v,
+        Err(_) if value.is_instance_of::<PyInt>() => return Err(invalid()),
+        Err(e) => return Err(e),
+    };
+    if v >= max_exclusive {
+        return Err(invalid());
+    }
+    Ok(v)
+}
+
 /// Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
+///
+/// Validates `timestamp`, `hub_id`, and `realm_id` in that order on the
+/// Python integers before narrowing, so the first failing check wins for
+/// arbitrary-precision inputs (normative order, matching the reference).
+///
+/// All three arguments are required at this layer — defaults live in the
+/// Python wrapper, so an explicit `None` is rejected as a non-int instead of
+/// silently minting a hub/realm-0 identifier.
 ///
 /// Returns a dict with key: `iscc`.
 #[pyfunction]
-#[pyo3(signature = (timestamp, hub_id=0, realm_id=0))]
 fn gen_iscc_id_v1(
     py: Python<'_>,
-    timestamp: u64,
-    hub_id: u16,
-    realm_id: u8,
+    timestamp: &Bound<'_, PyAny>,
+    hub_id: &Bound<'_, PyAny>,
+    realm_id: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let r = iscc_lib::gen_iscc_id_v1(timestamp, hub_id, realm_id)
+    let timestamp = checked_id_arg(timestamp, 1u128 << 52, "Timestamp overflow")?;
+    let hub_id = checked_id_arg(hub_id, 1 << 12, "HUB-ID overflow")?;
+    let realm_id = checked_id_arg(realm_id, 2, "Realm-ID must be 0 (test) or 1 (operational)")?;
+    let r = iscc_lib::gen_iscc_id_v1(timestamp as u64, hub_id as u16, realm_id as u8)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;

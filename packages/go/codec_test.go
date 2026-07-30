@@ -776,6 +776,37 @@ func TestCodecIsccDecodeInvalidBase32(t *testing.T) {
 	}
 }
 
+// Reference parity: iscc_core.iscc_decode validates the two-character prefix
+// before any decoding, so a structurally decodable header with an invalid
+// (MainType, SubType) combination must be rejected.
+func TestCodecIsccDecodeRejectsInvalidPrefix(t *testing.T) {
+	// ID subtype 4 with Version V1 decodes structurally but MQ is not a valid
+	// prefix; the reference raises "ISCC starts with invalid prefix MQ".
+	_, err := IsccDecode("ISCC:MQIAAAAAAAAAAAAA")
+	if err == nil {
+		t.Fatal("expected error for invalid prefix MQ")
+	}
+	if !strings.Contains(err.Error(), "invalid prefix MQ") {
+		t.Errorf("expected invalid-prefix error, got: %v", err)
+	}
+
+	// A prefix shorter than two characters is reported as-is, like the reference.
+	_, err = IsccDecode("M")
+	if err == nil || !strings.Contains(err.Error(), "invalid prefix M") {
+		t.Errorf("expected invalid-prefix error for short input, got: %v", err)
+	}
+
+	// Reference parity: IsccDecompose does NOT prefix-check.
+	if _, err := IsccDecompose("MQIAAAAAAAAAAAAA"); err != nil {
+		t.Errorf("IsccDecompose must not prefix-check, got: %v", err)
+	}
+
+	// A valid prefix still decodes.
+	if _, err := IsccDecode("ISCC:MAIGHFECJMOPMIAB"); err != nil {
+		t.Errorf("valid IDv1 must still decode, got: %v", err)
+	}
+}
+
 // decodeResultEqual reports whether two decode results carry identical fields.
 func decodeResultEqual(a, b *DecodeResult) bool {
 	return a.Maintype == b.Maintype && a.Subtype == b.Subtype &&

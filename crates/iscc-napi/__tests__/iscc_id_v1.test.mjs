@@ -16,7 +16,8 @@ describe('gen_iscc_id_v1', () => {
     });
 
     it('accepts realm 1 (operational)', () => {
-        strictEqual(typeof gen_iscc_id_v1(1751831876325218, 1, 1), 'string');
+        // Reference golden: iscc_core.gen_iscc_id_v1(1751831876325218, 1, 1)
+        strictEqual(gen_iscc_id_v1(1751831876325218, 1, 1), 'ISCC:MEIGHFECJMOPMIAB');
     });
 
     it('throws on timestamp >= 2^52', () => {
