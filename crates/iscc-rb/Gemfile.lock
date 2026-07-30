@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    iscc-lib (0.5.0)
+    iscc-lib (0.6.0)
 
 GEM
   remote: https://rubygems.org/

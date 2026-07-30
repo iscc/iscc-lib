@@ -93,9 +93,9 @@ uv run pytest
 [tasks."test:install"]
 description = "Test published packages are installable from registries"
 usage = '''
-arg "[flags]" var=#true help="Flags forwarded to test_install.py (default: --version 0.5.0)"
+arg "[flags]" var=#true help="Flags forwarded to test_install.py (default: --version 0.6.0)"
 '''
-run = 'uv run scripts/test_install.py ${usage_flags:---version 0.5.0}'
+run = 'uv run scripts/test_install.py ${usage_flags:---version 0.6.0}'
 
 # --- Version ---
 
