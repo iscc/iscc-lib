@@ -14,7 +14,7 @@ if useLocalFramework {
     )
 } else {
     let releaseTag = "0.6.0"
-    let releaseChecksum = "c29d0ae780683039041824e91d18b7f7baf214e7d4618d8c3112dad053c1ebbe"
+    let releaseChecksum = "0cb2244ff2ab17ab9d20be5d9996d4d5841fd9406d4e23111a5d57c5c238ee63"
     binaryTarget = .binaryTarget(
         name: "iscc_uniffiFFI",
         url: "https://github.com/iscc/iscc-lib/releases/download/v\(releaseTag)/IsccLib.xcframework.zip",
