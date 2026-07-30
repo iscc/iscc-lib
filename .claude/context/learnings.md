@@ -36,9 +36,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **`iscc-core` output is not stable across CPython versions** (5,185 code points differ 3.13 vs
     3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so output tracks
     `unicodedata.unidata_version`; iscc-core#137). Always name the interpreter (`--python 3.13`)
-- Any dependency shipping DATA TABLES (Unicode, locale, tz) needs a **differential sweep**
-    (`mise run unicode:sweep`) to prove output-neutrality, not a green vector suite (every
-    `data.json` vector predates Unicode 16)
+- A dependency shipping DATA TABLES (Unicode, locale, tz) can change output without any `data.json`
+    vector catching it (every vector predates Unicode 16) — call out table-version changes in dep
+    bumps explicitly
 - **A widened decode gate re-exposes latent truncation** (174/175): `decode_header`'s `as u8` before
     `TryFrom` let a multi-nibble value wrap (`257`→`1`, `262`→`Id`) so a malformed header
     canonicalized to valid; now `u8::try_from`-gated. Probe `"MDFZAAAAAAAAAAAAAA"` on header gates
@@ -66,23 +66,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## ISCC Algorithm Knowledge
 
-- **Unicode data version — declared 16.0.0, enforced by a `U+FFFF` SENTINEL MAP** (129/148; deltas,
-    repro `Ɤ` U+A7CB → `issues.md`): `text_clean`/`text_collapse` **replace** code points unassigned
-    in 16.0.0 with `UNASSIGNED_SENTINEL` before normalization (vendored 731-range table, regen
-    `uv run --script scripts/gen_unicode16_unassigned.py`); the *unchanged* category-`C` filter then
-    removes it, and `U+FFFF` is permanently `Cn`/`ccc=0`/undecomposable. Never "fix" one binding to
-    match another
-- **`Final_Sigma` / sequence / fail-closed sweep-gate notes** (Unicode freeze phase, met) →
-    `learnings-archive.md`; re-run `mise run unicode:sweep` on any Unicode-table or toolchain bump
-- **Boundary vectors: `crates/iscc-lib/tests/unicode_boundary.json`** (141; 12 vectors, ASCII
-    `\uXXXX`, `data.json`-shaped, loader `tests/test_unicode_boundary.rs`, NOT merged into
-    `data.json`; the 4 **sequence** ones from 149 are the only sentinel-vs-delete-filter
-    discriminators → binding suites need **no oracle column**). **All 11 native surfaces + pure-Go
-    gated since 161** — a new vector costs 12 suites (8 read the canonical fixture, Go/Swift keep
-    byte-identity copies, C/C++ share `crates/iscc-ffi/tests/unicode_boundary_vectors.h`). **A
-    binding can pass for the WRONG reason** (150/161): `packages/go` has no freeze rule (15.0 tables
-    make U+20C1/U+A7F1 `Cn` → category-`C` filter coincides, go1.27 flips 5 red — issues.md); Swift
-    `String ==` folds canonical equivalence, so compare `unicodeScalars.map { $0.value }`
+- **Unicode 16.0.0 pin REMOVED 2026-07-30** (decisions.md 2026-07-30, human): sentinel map, frozen
+    `Final_Sigma`, boundary vectors (all 11 surfaces + pure-Go), sweep gate and `docs/unicode.md`
+    are gone; `text_clean`/`text_collapse` mirror the reference steps on whatever tables
+    dependencies ship. Freeze-era notes in learnings-archive.md and agent memories are historical —
+    do not resurrect them
 - **A data-driven fixture is self-referential — assert CONTENT, not shape** (141): ungate guards on
     version, case counts, code points + skip-list keys (ASCII no-op swaps stay green forever).
     **Per-algorithm internals**, normalization order, `data.json` counts, API-parameter facts,

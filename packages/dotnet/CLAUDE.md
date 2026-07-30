@@ -35,7 +35,6 @@ packages/dotnet/
     packages.lock.json                   # Committed NuGet lock file (CI restores with --locked-mode)
     SmokeTests.cs                        # End-to-end P/Invoke validation for every public method
     ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions
-    UnicodeBoundaryTests.cs              # Unicode 16.0.0 boundary vectors (canonical fixture linked via csproj)
     testdata/data.json                   # Vendored ISCC conformance test vectors
 ```
 

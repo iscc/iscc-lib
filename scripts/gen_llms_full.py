@@ -24,7 +24,6 @@ ORDERED_PAGES = [
     "howto/swift.md",
     "howto/kotlin.md",
     "architecture.md",
-    "unicode.md",
     "ecosystem.md",
     "rust-api.md",
     "api.md",

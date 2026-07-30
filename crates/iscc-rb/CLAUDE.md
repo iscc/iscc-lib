@@ -10,21 +10,20 @@ Magnus 0.8 bridge between Rust `iscc-lib` core and Ruby. Compiled as a native ex
 
 ## Key Files
 
-| File                            | Purpose                                                        |
-| ------------------------------- | -------------------------------------------------------------- |
-| `src/lib.rs`                    | Magnus bindings — `#[magnus::init]` entry point                |
-| `lib/iscc_lib.rb`               | Ruby API wrapper — Result classes, keyword args, native loader |
-| `lib/iscc_lib/version.rb`       | `IsccLib::VERSION` constant                                    |
-| `iscc-lib.gemspec`              | Gem specification (name: `iscc-lib`)                           |
-| `Rakefile`                      | Build tasks — `RbSys::ExtensionTask` with gemspec              |
-| `extconf.rb`                    | Extension config — must be at crate root (next to Cargo.toml)  |
-| `Gemfile` / `Gemfile.lock`      | Dependencies pinned to specific rb_sys version                 |
-| `.standard.yml`                 | Ruby linting config (standard gem + rubocop-minitest)          |
-| `test/test_smoke.rb`            | Smoke tests — all functions, constants, attribute access       |
-| `test/test_iscc_lib.rb`         | Streaming hasher tests — DataHasher, InstanceHasher            |
-| `test/test_conformance.rb`      | Conformance tests against data.json vectors                    |
-| `test/test_unicode_boundary.rb` | Unicode 16.0.0 boundary vectors for text_clean / text_collapse |
-| `test/test_helper.rb`           | Test setup — load path and minitest require                    |
+| File                       | Purpose                                                        |
+| -------------------------- | -------------------------------------------------------------- |
+| `src/lib.rs`               | Magnus bindings — `#[magnus::init]` entry point                |
+| `lib/iscc_lib.rb`          | Ruby API wrapper — Result classes, keyword args, native loader |
+| `lib/iscc_lib/version.rb`  | `IsccLib::VERSION` constant                                    |
+| `iscc-lib.gemspec`         | Gem specification (name: `iscc-lib`)                           |
+| `Rakefile`                 | Build tasks — `RbSys::ExtensionTask` with gemspec              |
+| `extconf.rb`               | Extension config — must be at crate root (next to Cargo.toml)  |
+| `Gemfile` / `Gemfile.lock` | Dependencies pinned to specific rb_sys version                 |
+| `.standard.yml`            | Ruby linting config (standard gem + rubocop-minitest)          |
+| `test/test_smoke.rb`       | Smoke tests — all functions, constants, attribute access       |
+| `test/test_iscc_lib.rb`    | Streaming hasher tests — DataHasher, InstanceHasher            |
+| `test/test_conformance.rb` | Conformance tests against data.json vectors                    |
+| `test/test_helper.rb`      | Test setup — load path and minitest require                    |
 
 ## Cross-Compilation (Critical Knowledge)
 

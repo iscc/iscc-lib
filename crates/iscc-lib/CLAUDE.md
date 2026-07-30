@@ -99,10 +99,7 @@ new() -> update(&[u8]) -> ... -> update(&[u8]) -> finalize(bits) -> IsccResult<*
 ## Conformance Rules
 
 - Correctness baseline: vendored `tests/data.json` from `iscc-core`
-- Second vector file: `tests/unicode_boundary.json` gates the declared Unicode data version (16.0.0
-    freeze rule for `text_clean`/`text_collapse`) and is the propagation source for every binding's
-    boundary conformance tests
-- Vendored copies of both vector files in per-language test trees are gated for byte-identity by
+- Vendored copies of `data.json` in per-language test trees are gated for byte-identity by
     `tests/test_vendored_fixtures.py` (repo root) — every new tracked copy must be registered there
 - 9 of 10 `gen_*_v0` functions must match `iscc-core` output for every test vector
     (`gen_sum_code_v0` has no conformance vectors — it composes Data-Code + Instance-Code
@@ -158,23 +155,11 @@ cargo bench -p iscc-lib                     # Criterion benchmarks
     `finalize()` or the next `update()`. This matches the Python `push()` / `prev_chunk` pattern.
 - **Conformance vector format** -- `data.json` inputs use `"stream:<hex>"` for byte data, JSON
     arrays for integer vectors, and plain strings for text. Read the test code for parsing patterns.
-- **Text normalization order matters** -- both `text_clean` and `text_collapse` first map code
-    points unassigned in Unicode 16.0.0 (the declared Unicode data version) to the noncharacter
-    sentinel `U+FFFF`, via the vendored range table in `utils/unicode16.rs` (regenerate with
-    `uv run --script scripts/gen_unicode16_unassigned.py`, never hand-edit). The unchanged
-    category-`C` filter then removes the sentinel exactly where the reference removes unassigned
-    code points -- preserving composition-blocking and `Final_Sigma` context -- while mapping into a
-    permanent noncharacter keeps output invariant under dependency Unicode-table upgrades. After the
-    sentinel map, `text_clean` applies NFKC, then control-char removal, then line collapsing.
-    `text_collapse` applies NFD, lowercase, filter C/M/P categories, then NFKC. Do not reorder these
-    steps.
-- **`Final_Sigma` is frozen at Unicode 16.0.0** -- `text_collapse` lowercases with
-    `to_lowercase_unicode16`, which decides the conditional `Σ` → `ς` mapping from the vendored
-    `Cased` / `Case_Ignorable` tables in `utils/unicode16_case.rs` (regenerate with
-    `uv run --script scripts/gen_unicode16_case.py`, never hand-edit) before delegating remaining
-    mappings to `str::to_lowercase()`. Plain `str::to_lowercase()` reads the *compiler's* Unicode
-    tables (rustc 1.97: 17.0, which reclassified `U+0295` from `Ll` to `Lo`), so using it directly
-    would make output a function of the rustc version. Do not replace the wrapper with a bare
-    `.to_lowercase()`.
+- **Text normalization order matters** -- `text_clean` applies NFKC, then control-char removal, then
+    line collapsing. `text_collapse` applies NFD, lowercase, filter C/M/P categories, then NFKC.
+    This mirrors the reference implementation step for step; do not reorder these steps. Unicode
+    data comes from the tables the dependencies ship (`unicode-normalization`,
+    `unicode-general-category`, and `str::to_lowercase()` from std), matching the reference's use of
+    whatever `unicodedata` its interpreter ships.
 - **JSON canonicalization** -- the crate uses `serde_json_canonicalizer` for RFC 8785 (JCS)
     compliant serialization of JSON metadata, matching iscc-core's `jcs.canonicalize()` behavior.

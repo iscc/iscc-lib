@@ -33,13 +33,6 @@ tasks.withType<Test> {
     val nativeLibDir = "${rootProject.rootDir}/../../target/debug"
     jvmArgs("-Djava.library.path=$nativeLibDir", "-Djna.library.path=$nativeLibDir")
     environment("LD_LIBRARY_PATH", nativeLibDir)
-    val fixtureDir = "${rootProject.rootDir}/../../crates/iscc-lib/tests"
-    systemProperty("iscc.fixtureDir", fixtureDir)
-    // The canonical fixture lives outside this Gradle project, so declare it as a task
-    // input; without this `./gradlew test` reports UP-TO-DATE and silently skips the
-    // boundary vectors after the fixture changes. PathSensitivity.NONE hashes contents
-    // only — the absolute path differs between checkouts and must not force a re-run.
-    inputs.file("$fixtureDir/unicode_boundary.json").withPathSensitivity(PathSensitivity.NONE)
 }
 
 publishing {

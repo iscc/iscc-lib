@@ -6,7 +6,6 @@
  */
 
 #include "iscc.h"
-#include "unicode_boundary_vectors.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -73,23 +72,6 @@ static int tests_failed = 0;
             tests_passed++; \
         } \
     } while (0)
-
-/* Run one section of Unicode 16.0.0 boundary vectors through an FFI text function,
- * asserting each output and freeing every returned string. */
-static void run_unicode_boundary_section(const char *section,
-                                         char *(*fn)(const char *),
-                                         const struct iscc_unicode_boundary_vector *vectors,
-                                         size_t count) {
-    size_t i;
-    for (i = 0; i < count; i++) {
-        char test_name[128];
-        char *actual = fn(vectors[i].input);
-        snprintf(test_name, sizeof(test_name), "unicode_boundary/%s/%s",
-                 section, vectors[i].name);
-        ASSERT_STR_EQ(actual, vectors[i].expected, test_name);
-        iscc_free_string(actual);
-    }
-}
 
 int main(void) {
     char *result;
@@ -482,24 +464,6 @@ int main(void) {
     {
         const char *err = iscc_last_error();
         ASSERT_NOT_NULL(err, "iscc_last_error() non-NULL after gen_iscc_id_v1 error");
-    }
-
-    /* 31. Unicode 16.0.0 boundary vectors — metadata guard + generated vectors */
-    {
-        /* Via a local so -Waddress never sees a literal compared against NULL. */
-        const char *unicode_version = ISCC_UNICODE_DATA_VERSION;
-        ASSERT_STR_EQ(unicode_version, "16.0.0",
-                      "unicode_boundary metadata: version == 16.0.0");
-        ASSERT_EQ(ISCC_TEXT_CLEAN_VECTOR_COUNT, 7,
-                  "unicode_boundary metadata: text_clean count == 7");
-        ASSERT_EQ(ISCC_TEXT_COLLAPSE_VECTOR_COUNT, 5,
-                  "unicode_boundary metadata: text_collapse count == 5");
-        run_unicode_boundary_section("text_clean", iscc_text_clean,
-                                     iscc_text_clean_vectors,
-                                     ISCC_TEXT_CLEAN_VECTOR_COUNT);
-        run_unicode_boundary_section("text_collapse", iscc_text_collapse,
-                                     iscc_text_collapse_vectors,
-                                     ISCC_TEXT_COLLAPSE_VECTOR_COUNT);
     }
 
     /* Summary */

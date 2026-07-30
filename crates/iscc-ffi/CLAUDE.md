@@ -23,7 +23,6 @@ crates/iscc-ffi/
     lib.rs           # All extern "C" functions, #[repr(C)] types, memory management
   tests/
     test_iscc.c      # C test program that links against the shared library
-    unicode_boundary_vectors.h  # Generated Unicode boundary vectors (do not edit by hand)
   examples/
     iscc_sum.c       # Streaming example: reads a file, produces ISCC-CODE
     CMakeLists.txt   # CMake build for the example
@@ -154,10 +153,6 @@ LD_LIBRARY_PATH=target/debug /tmp/test_iscc
 - Mirrors the Rust unit test cases with identical expected values
 - Reports pass/fail counts and exits non-zero on any failure
 - Every returned string/buffer is freed to validate the free functions
-- Unicode 16.0.0 boundary vectors come from the generated header `tests/unicode_boundary_vectors.h`
-    — regenerate with `uv run --script scripts/gen_ffi_boundary_vectors.py`, never hand-edit (the
-    pytest gate `tests/test_gen_ffi_boundary_vectors.py` at the repo root asserts regeneration is a
-    no-op)
 
 ## Safety Rules for `unsafe` Code
 

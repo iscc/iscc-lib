@@ -35,116 +35,26 @@ Four text processing functions are public Tier 1 API, callable from all bindings
 These functions exist internally today as `pub(crate)`. They become `pub` in `lib.rs` (not just the
 utils module).
 
-### Unicode data version is part of the conformance contract
+### Unicode handling follows the reference
 
-`text_clean` and `text_collapse` classify code points by Unicode general category, so their output
-depends on the Unicode data version of the underlying tables. That version is therefore part of the
-output contract, not an implementation detail: characters assigned after the declared version are
-`Unassigned` (category `Cn`), fall inside category `C`, and get stripped — so a table upgrade
-silently changes ISCCs for text containing newly assigned characters.
+`text_clean` and `text_collapse` apply the same processing steps as the reference implementation
+(`iscc-core`), in the same order, with no additional measures for compatibility across Unicode
+versions. Unicode data (normalization, general categories, case mapping) comes from the tables the
+toolchain and dependencies ship — exactly as `iscc-core` inherits whatever `unicodedata` its CPython
+interpreter ships. Output for characters whose classification changes between Unicode versions may
+therefore vary with dependency/toolchain versions, matching the reference's own behavior across
+CPython versions (its `requires-python` range spans Unicode 13.0 through 16.0).
 
-**Severity is bounded — the requirements below are the complete intended response.** Data-Code and
-Instance-Code are unaffected (they hash raw bytes, with no Unicode processing), and the units that
-are affected — Meta-Code and Text-Code — are similarity-preserving, so a single differing code point
-moves the code by a small Hamming distance and similarity matching keeps working; only
-exact-identifier equality changes. Newly assigned code points are also not present in text data at
-scale. Residual exposure is exact-match lookups on short inputs plus the exact `name` /
-`description` fields. Treat work beyond these requirements as scope creep — see `decisions.md`
-2026-07-26, "Unicode determinism is a bounded-severity issue".
+**Decided by Titusz 2026-07-30:** the Unicode 16.0.0 pin built for v0.6.0 (unassigned-to-`U+FFFF`
+freeze rule, frozen `Final_Sigma` tables, boundary vectors in every binding, differential sweep
+gate) was removed and is postponed until upstream decides how to handle Unicode version drift
+(<https://github.com/iscc/iscc-core/issues/137>). Do not reintroduce freeze tables, sentinels,
+boundary fixtures, or sweep gates without a new human decision.
 
-**Declared Unicode data version: 16.0.0** (decided by Titusz 2026-07-25; matches CPython 3.14's
-`unicodedata`). Requirements:
-
-1. **Freeze rule — map unassigned code points to the noncharacter sentinel `U+FFFF` before
-    normalization.** A code point unassigned in Unicode 16.0.0 is **replaced by `U+FFFF`**, not
-    deleted and not reclassified, using a vendored table of unassigned ranges (731 ranges covering
-    819,533 code points, generated from `unicodedata2==16.0.0` by a checked-in generator script).
-    The category filter of each function then stays **exactly as the reference defines it** — no
-    predicate change and no table lookup at the filter step — because `U+FFFF` is category `Cn` and
-    the reference's own category-`C` filter removes it.
-
-    Three properties make the sentinel correct, and each is load-bearing:
-
-    - **Conformance.** The sentinel occupies the replaced character's position through normalization
-        and case folding, so composition-blocking and `Final_Sigma` context match `iscc-core`
-        exactly. Deleting the character instead (the iteration-133 design) changes adjacency and
-        unblocks canonical composition, Hangul jamo composition and `Final_Sigma` — IEP-0003 defines
-        conformance as producing the same code as the reference implementation for the same input, so
-        that is non-conformance, not a wording problem.
-    - **Table-version invariance.** `U+FFFF` is a noncharacter: category `Cn`, `ccc = 0`, and no
-        decomposition — **permanently**, under Unicode's Noncharacter stability policy, so it can
-        never gain an assignment or a decomposition in any future version. Mapping *into* it
-        therefore severs all dependence on what tables a dependency ships. Leaving the original
-        character in place and merely reclassifying it does **not**: `U+A7F1` is unassigned in 16.0
-        but has a compatibility decomposition to `S` under 17.0, so it dissolves during NFKC before
-        any filter sees it and injects a spurious letter (`e U+A7F1 U+0301` → `eŚ`).
-    - **No ambiguity.** `U+FFFF` present in the input is itself unassigned in 16.0, so it maps to the
-        sentinel and is stripped — which is what the reference does with it.
-
-    Because `Cn ⊂ C`, removal of unassigned code points is already mandated by IEP-0003 Processing
-    step 4; the freeze rule fixes *which* code points count as unassigned and preserves *where*
-    removal happens. It does not add a step. Characters assigned in ≤ 16.0.0 are stable across
-    table versions (normalization by Unicode stability policy; general categories verified
-    empirically — zero reclassifications across 15.1 → 16 → 17). Implementations must assert that
-    their normalization library passes `U+FFFF` through unchanged; this is required of any
-    conformant normalizer, but it is the one assumption the design rests on.
-
-2. **Table dependencies must supply Unicode 16.0.0 or newer data.** Exact pins are not required —
-    the freeze rule guarantees the output — so the current `unicode-general-category` 1.1.0
-    (16.0.0) and `unicode-normalization` 0.1.25 (17.0.0) both qualify and may be upgraded freely.
-
-3. **Conformance vectors cover the 16.0.0 boundary** in every binding, so the declared version is
-    enforced by CI instead of being rediscovered by inspection: a character assigned in 16.0 that
-    must be retained (e.g. U+1FAE9), a 16.0 character with a canonical decomposition (e.g.
-    U+113C5), and a post-16.0 character the freeze rule must strip (e.g. U+20C1, assigned in
-    Unicode 17). The vendored `iscc-core/data.json` vectors all predate Unicode 16 and cannot catch
-    this class of drift.
-
-4. **A differential sweep proves exact equivalence to uniform Unicode 16.0.0 tables, over single
-    code points *and* sequences.** The sweep compares `text_clean` / `text_collapse` output against
-    a reference built on uniform 16.0.0 tables, and the divergence set must be **empty** — the
-    sentinel design achieves 0, so any nonzero result is a defect, not a residual to accept. The
-    single-code-point denominator is the **1,112,064 Unicode scalar values**, not 1,114,112 code
-    points: `text_clean` / `text_collapse` take `&str`, so the 2,048 surrogates `U+D800`–`U+DFFF`
-    are unrepresentable in the input and cannot be swept end-to-end (`char::from_u32` rejects
-    them). They need no separate check — they cannot reach the freeze rule. The sweep must cover
-    sequence classes as well — at minimum base+Cn+mark, jamo+Cn+jamo, Σ+Cn+cased and
-    Cn-between-marks — because **a per-code-point sweep is not sufficient**: the iteration-133
-    pre-filter scored 0 divergences on single code points while failing 42 of 140 sequence cases,
-    and a category override scored 1 and 10 respectively. Any change to a Unicode-table dependency
-    must re-run the full sweep and report the result; a green vector suite is not sufficient
-    evidence of output neutrality.
-
-The reference implementation does not pin a Unicode version yet: `iscc-core` inherits CPython's
-`unicodedata`, and since it declares `requires-python = ">=3.9,<4.0"` that spans **four** Unicode
-versions — 13.0.0 on 3.9/3.10, 14.0.0 on 3.11, 15.0.0 on 3.12, 15.1.0 on 3.13, 16.0.0 on 3.14, with
-deltas of +838 / +4,489 / +627 / +5,185 newly retained code points. `iscc-core` output has therefore
-never been deterministic across its own supported range; the 3.13 → 3.14 break is the fifth instance
-of an ongoing problem, not a new regression. The same architecture proposed here — a conditional
-`unicodedata2==16.0.0` dependency for Python < 3.14 plus the sentinel freeze rule — is proposed
-upstream in <https://github.com/iscc/iscc-core/issues/137> and converges the whole supported range
-on one behaviour. Per ISO 24138 Annex D the reference implementation is normative, so the
-`iscc-core` release adopting it settles the standard's answer.
-
-Exactly two divergence classes are accepted, and no others:
-
-- (a) **Runtimes whose tables predate 16.0.** The freeze rule cannot add knowledge the runtime
-    lacks. Applies to `iscc-core` before it adopts `unicodedata2`, and to `packages/go` until go1.27
-    (`decisions.md` 2026-07-26). Go's `unicode` package ships Unicode 15.0.0, so `packages/go`
-    strips characters *assigned* in 16.0 that must be retained — verified on `U+1FAE9` and
-    `U+113C5`, both of which `TextClean` drops. This class covers only the table-dependent boundary
-    vectors; it is **not** a licence to skip the `Final_Sigma` sequence vector, whose Go failure has
-    a different cause (see below).
-- (b) **Characters assigned between 15.1 and 16.0** hash differently than `iscc-core` on CPython ≤
-    3.13 produced historically — accepted by decision, not by accident (`decisions.md` 2026-07-26,
-    "Declared Unicode version stays 16.0.0"). Lowering the declared version to 15.1.0 to preserve
-    that output was considered and rejected: it would strip the 6 living scripts added in 16.0
-    (Gurung Khema, Kirat Rai, Todhri, Ol Onal, Garay, Sunuwar), collapsing any document written
-    wholly in one of them to `""` so that all such documents collide on one degenerate Text-Code.
-
-Divergence caused by the runtime's tables being *newer* than 16.0 is **not** accepted and must be
-zero — that is what requirement 1's sentinel and requirement 4's sweep exist to guarantee. Likewise
-adjacency-sensitive divergence on sequences containing unassigned code points is **not** accepted.
+Severity of the drift is bounded: Data-Code and Instance-Code hash raw bytes (no Unicode
+processing), and Meta-Code / Text-Code are similarity-preserving, so a differing code point moves
+the code by a small Hamming distance; only exact-identifier equality is affected. See `decisions.md`
+2026-07-26 ("Unicode determinism is a bounded-severity issue").
 
 **Case mapping must be context-sensitive in every implementation.** The reference lowercases with
 Python `str.lower()`, which applies the conditional `Final_Sigma` mapping (`Σ` → `ς` when preceded
@@ -164,32 +74,8 @@ implements the conditional mapping today — `packages/go`'s `TextCollapse` coll
 - [ ] `iscc_lib::text_collapse("café")` returns `"cafe"`
 - [ ] All four functions are accessible from Python bindings as `iscc_lib.text_clean()` etc.
 - [ ] All four functions are accessible from Node.js, WASM, and C FFI bindings
-- [ ] Code points unassigned in Unicode 16.0.0 are **mapped to `U+FFFF`** before normalization in
-    `text_clean` / `text_collapse` — not deleted, not reclassified — via a vendored range table with
-    a checked-in generator script, and the category filter is left exactly as the reference defines
-    it
-- [ ] The normalization library passes `U+FFFF` through unchanged (asserted by a test, since the
-    freeze rule depends on it)
-- [ ] Sequences containing an unassigned code point match `iscc-core` rather than composing:
-    `text_clean("e\u{0378}\u{0301}")` returns `U+0065 U+0301` (not `U+00E9`),
-    `text_clean("\u{1100}\u{0378}\u{1161}")` returns `U+1100 U+1161` (not `U+AC00`), and
-    `text_collapse("\u{0391}\u{03A3}\u{0378}\u{0392}")` returns `U+03B1 U+03C2 U+03B2` (final sigma,
-    not `U+03C3`)
-- [ ] A code point that is unassigned in 16.0 but *decomposes* under newer tables does not leak:
-    `text_clean("e\u{A7F1}\u{0301}")` returns `U+0065 U+0301`, **not** `U+0065 U+015A` — this is the
-    case a category override gets wrong
-- [ ] A conformance vector set covering the Unicode 16.0 boundary (retained 16.0 character,
-    decomposing 16.0 character, stripped post-16.0 character) is exercised by the Rust test suite
-    and by every binding's conformance test, except `packages/go` which skips the two
-    table-dependent cases with a tracking note until go1.27 (`decisions.md` 2026-07-26); the
-    post-16.0-stripped case needs no skip, since `U+20C1` is unassigned in Go's 15.0 tables too
-- [ ] `packages/go` lowercases with `cases.Lower(language.Und)` (already available via its existing
-    `golang.org/x/text` dependency) rather than `strings.ToLower`, so `TextCollapse("ΛΟΓΟΣ")`
-    returns `"λογος"`; only then is the `Final_Sigma` sequence vector enabled for Go
-- [ ] A full-code-space **and sequence-class** differential sweep shows **zero** divergence from a
-    uniform-Unicode-16.0.0-tables reference (0 of the 1,112,064 Unicode scalar values — surrogates
-    are excluded because `&str` cannot carry them — and 0 of the sequence cases); a
-    per-code-point-only sweep does not satisfy this criterion
+- [ ] `text_collapse` applies the conditional `Final_Sigma` mapping: `text_collapse("ΛΟΓΟΣ")`
+    returns `"λογος"` (not `"λογοσ"`) in the Rust core and in `packages/go`
 
 ## Algorithm Primitives
 

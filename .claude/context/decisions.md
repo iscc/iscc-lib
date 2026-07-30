@@ -386,3 +386,18 @@ for real hashing. **Alternatives:** add the `memchr` crate for a single-pass `me
 new dependency + audit-gate surface for a micro-saving; revert 191/192 — rejected, reopens the codec
 cleaning divergence. **Context:** iteration 193, human-gated (Titusz picked option A) after the loop
 halted on the enforcing Perf gate.
+
+## 2026-07-30 — Unicode 16.0.0 pin removed; version-drift measures postponed pending upstream
+
+**Decision:** All v0.6.0 Unicode-version compatibility measures are removed (human decision,
+Titusz): the `U+FFFF` sentinel freeze rule and vendored unassigned/case tables in the core, frozen
+`Final_Sigma` lowercasing, boundary vectors and their tests in all 11 surfaces, the differential
+sweep gate (script, mise task, CI job), and `docs/unicode.md`. `text_clean`/`text_collapse` now
+apply the reference's steps with whatever Unicode tables the dependencies ship. **Why:** the pin's
+complexity raised the risk of faulty third-party implementations and cost per-char table lookups,
+while the reference itself drifts across CPython versions — compatibility semantics belong upstream
+(iscc/iscc-core#137) and will be revisited once upstream decides. **Alternatives:** keep the pin —
+rejected by the human; pin without freeze trickery — rejected, still diverges from the unpinned
+reference. **Supersedes** the 2026-07-25/26 freeze-rule rulings; do not reintroduce any freeze
+mechanism without a new human decision. Agent memories describing the freeze design are stale.
+**Context:** interactive session 2026-07-30, this commit.

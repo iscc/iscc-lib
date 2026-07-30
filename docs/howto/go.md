@@ -291,11 +291,12 @@ error).
 
 !!! note "Unicode tables"
 
-    The pure-Go package filters characters using Go's built-in Unicode tables (Unicode 15.0 in Go 1.26)
-    and does not implement the [declared Unicode 16.0.0 freeze rule](../unicode.md), so `TextClean` and
-    `TextCollapse` may drop characters assigned after Unicode 15.0 that the native bindings retain. This
-    covers more than emoji — Latin-script additions such as `U+A7CB` (LATIN CAPITAL LETTER RAMS HORN)
-    are affected too. ASCII and the long-established repertoire of common scripts is unaffected.
+    The pure-Go package filters characters using Go's built-in Unicode tables (Unicode 15.0 in Go 1.26),
+    while the Rust core and its bindings use the tables their own dependencies ship. When the two table
+    sets differ, `TextClean` and `TextCollapse` may treat recently assigned characters differently than
+    the native bindings — this covers more than emoji; Latin-script additions such as `U+A7CB` (LATIN
+    CAPITAL LETTER RAMS HORN) are affected too. ASCII and the long-established repertoire of common
+    scripts is unaffected.
 
 ```go
 // Normalize text for display (NFKC, control char removal, line ending normalization)

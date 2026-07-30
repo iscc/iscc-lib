@@ -13,31 +13,30 @@ distributes via standard `go get`.
 
 ## File Layout
 
-| File                             | Purpose                                                                                            |
-| -------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `go.mod`                         | Module definition, Go version, dependencies                                                        |
-| `codec.go`                       | Type enums, varnibble encoding, header codec, base32/64, component encoding, ISCC decompose/decode |
-| `code_meta.go`                   | `GenMetaCodeV0` — Meta-Code from name/description/meta                                             |
-| `code_content_text.go`           | `GenTextCodeV0` — Content-Code for text via MinHash                                                |
-| `code_content_image.go`          | `GenImageCodeV0` — Content-Code for images via DCT                                                 |
-| `code_content_audio.go`          | `GenAudioCodeV0` — Content-Code for audio via multi-stage SimHash                                  |
-| `code_content_video.go`          | `GenVideoCodeV0` — Content-Code for video via WTA-Hash                                             |
-| `code_content_mixed.go`          | `GenMixedCodeV0` — Mixed Content-Code from multiple Content-Codes                                  |
-| `code_data.go`                   | `GenDataCodeV0` — Data-Code via CDC + MinHash; `DataHasher` streaming                              |
-| `code_instance.go`               | `GenInstanceCodeV0` — Instance-Code via BLAKE3; `InstanceHasher` streaming                         |
-| `code_iscc.go`                   | `GenIsccCodeV0` — composite ISCC-CODE assembly                                                     |
-| `code_sum.go`                    | `GenSumCodeV0` — single-pass file ISCC-SUM (Data + Instance + compose)                             |
-| `conformance.go`                 | `ConformanceSelftest` — validates all 9 gen functions against vendored vectors                     |
-| `utils.go`                       | `TextClean`, `TextCollapse`, `TextTrim`, `TextRemoveNewlines`                                      |
-| `simhash.go`                     | `AlgSimhash`, `SlidingWindow`                                                                      |
-| `minhash.go`                     | `AlgMinhash256` — 64-dimensional MinHash with bit-interleaved compression                          |
-| `dct.go`                         | `algDct` — fast DCT (Nayuki algorithm) for image hashing                                           |
-| `wtahash.go`                     | `AlgWtahash` — WTA-Hash with 256 permutation pairs                                                 |
-| `xxh32.go`                       | `xxh32` — xxHash32 implementation for text/data code features                                      |
-| `cdc.go`                         | `AlgCdcChunks` — Content-Defined Chunking (FastCDC gear hash)                                      |
-| `testdata/data.json`             | Vendored conformance vectors (embedded via `//go:embed`)                                           |
-| `testdata/unicode_boundary.json` | Vendored copy of the canonical Unicode 16.0 boundary fixture (embedded via `//go:embed`)           |
-| `*_test.go`                      | Tests (conformance + unit tests for every module)                                                  |
+| File                    | Purpose                                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `go.mod`                | Module definition, Go version, dependencies                                                        |
+| `codec.go`              | Type enums, varnibble encoding, header codec, base32/64, component encoding, ISCC decompose/decode |
+| `code_meta.go`          | `GenMetaCodeV0` — Meta-Code from name/description/meta                                             |
+| `code_content_text.go`  | `GenTextCodeV0` — Content-Code for text via MinHash                                                |
+| `code_content_image.go` | `GenImageCodeV0` — Content-Code for images via DCT                                                 |
+| `code_content_audio.go` | `GenAudioCodeV0` — Content-Code for audio via multi-stage SimHash                                  |
+| `code_content_video.go` | `GenVideoCodeV0` — Content-Code for video via WTA-Hash                                             |
+| `code_content_mixed.go` | `GenMixedCodeV0` — Mixed Content-Code from multiple Content-Codes                                  |
+| `code_data.go`          | `GenDataCodeV0` — Data-Code via CDC + MinHash; `DataHasher` streaming                              |
+| `code_instance.go`      | `GenInstanceCodeV0` — Instance-Code via BLAKE3; `InstanceHasher` streaming                         |
+| `code_iscc.go`          | `GenIsccCodeV0` — composite ISCC-CODE assembly                                                     |
+| `code_sum.go`           | `GenSumCodeV0` — single-pass file ISCC-SUM (Data + Instance + compose)                             |
+| `conformance.go`        | `ConformanceSelftest` — validates all 9 gen functions against vendored vectors                     |
+| `utils.go`              | `TextClean`, `TextCollapse`, `TextTrim`, `TextRemoveNewlines`                                      |
+| `simhash.go`            | `AlgSimhash`, `SlidingWindow`                                                                      |
+| `minhash.go`            | `AlgMinhash256` — 64-dimensional MinHash with bit-interleaved compression                          |
+| `dct.go`                | `algDct` — fast DCT (Nayuki algorithm) for image hashing                                           |
+| `wtahash.go`            | `AlgWtahash` — WTA-Hash with 256 permutation pairs                                                 |
+| `xxh32.go`              | `xxh32` — xxHash32 implementation for text/data code features                                      |
+| `cdc.go`                | `AlgCdcChunks` — Content-Defined Chunking (FastCDC gear hash)                                      |
+| `testdata/data.json`    | Vendored conformance vectors (embedded via `//go:embed`)                                           |
+| `*_test.go`             | Tests (conformance + unit tests for every module)                                                  |
 
 ## Dependencies
 
@@ -121,11 +120,6 @@ CI confirms the package has no cgo dependencies.
     meta, metahash, datahash, filesize, etc.)
 - Conformance tests that read from `../../crates/iscc-lib/tests/data.json` use `t.Skipf` or
     `t.Fatalf` if the file is missing (the embedded copy in `testdata/data.json` always works)
-- **`unicode_boundary_test.go`** — runs the Unicode 16.0 boundary vectors for
-    `TextClean`/`TextCollapse` from the embedded `testdata/unicode_boundary.json` (a byte-identical
-    copy of `crates/iscc-lib/tests/unicode_boundary.json`); skips exactly three table-dependent
-    cases (`U+1FAE9` in both functions, `U+113C5` in `TextClean`) until go1.27 ships Unicode 16/17
-    tables, per the 2026-07-26 ruling in decisions.md
 
 ### Unit tests
 

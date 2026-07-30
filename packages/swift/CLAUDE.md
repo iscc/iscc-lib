@@ -27,9 +27,7 @@ packages/swift/
   Tests/
     IsccLibTests/
       ConformanceTests.swift                 # data.json conformance vectors for 9 gen_*_v0 functions
-      UnicodeBoundaryTests.swift             # Unicode 16.0.0 boundary vectors (scalar comparison)
       data.json                              # Vendored ISCC conformance test vectors (SPM resource)
-      unicode_boundary.json                  # Vendored Unicode boundary vectors (SPM resource)
 ```
 
 ## Build Commands
@@ -60,17 +58,6 @@ swift test \
 - One test method per gen function (no `gen_sum_code_v0` vectors in data.json)
 - `decodeStream` helper converts `"stream:<hex>"` format to `Data`
 - Asserts exact ISCC string equality against expected outputs
-
-### Boundary tests (`UnicodeBoundaryTests.swift`)
-
-- 12 vectors from `unicode_boundary.json` (7 `text_clean` + 5 `text_collapse`) plus a metadata guard
-    pinning Unicode data version `16.0.0` and both vector counts
-- The fixture is a vendored copy of `crates/iscc-lib/tests/unicode_boundary.json`; byte-identity is
-    enforced by `tests/test_vendored_fixtures.py` at the repo root — refresh with `cp`, never by
-    editing
-- Asserts on Unicode **scalar arrays**, never `String ==`: Swift string equality folds canonical
-    equivalence (`"e" + U+0301 == U+00E9` is `true`), which would make three of the four sequence
-    vectors vacuous — they exist to distinguish the U+FFFF sentinel map from a delete filter
 
 ## Binding Generation
 

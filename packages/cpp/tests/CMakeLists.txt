@@ -14,10 +14,6 @@ option(SANITIZE_ADDRESS "Enable AddressSanitizer" OFF)
 add_executable(test_iscc test_iscc.cpp)
 target_link_libraries(test_iscc PRIVATE iscc::iscc)
 
-# Generated Unicode 16.0.0 boundary vectors (unicode_boundary_vectors.h) — test-only
-# include directory; never add this to the public iscc INTERFACE target.
-target_include_directories(test_iscc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../../crates/iscc-ffi/tests)
-
 # Link against the iscc_ffi shared library
 if(FFI_LIB_DIR)
     target_link_directories(test_iscc PRIVATE ${FFI_LIB_DIR})

@@ -10,9 +10,7 @@ timeout = 120
 
 [tool.ty.src]
 # Exclude Conan recipe — conan is not a project dependency.
-# Exclude the Unicode table generator — unicodedata2 is a PEP 723 generator-only
-# dependency (run via `uv run --script`), not a project dependency.
-exclude = ["packages/cpp/conanfile.py", "scripts/gen_unicode16_unassigned.py"]
+exclude = ["packages/cpp/conanfile.py"]
 
 [tool.ruff]
 # `iscc_lib` ships from `crates/iscc-py/python`, not the repo root. Listing it here makes isort

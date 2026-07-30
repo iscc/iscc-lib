@@ -27,7 +27,6 @@ Install: `pip install iscc-lib` (Python), `npm install @iscc/lib` (Node.js), `go
 - [Swift How-to](https://lib.iscc.codes/howto/swift.md): Guide to using iscc-lib from Swift
 - [Kotlin How-to](https://lib.iscc.codes/howto/kotlin.md): Guide to using iscc-lib from Kotlin
 - [Architecture](https://lib.iscc.codes/architecture.md): Hub-and-spoke model and internal modules
-- [Text and Unicode](https://lib.iscc.codes/unicode.md): Declared Unicode data version, freeze rule, and known divergences
 - [Ecosystem](https://lib.iscc.codes/ecosystem.md): Official and community implementations of the ISCC standard
 - [Rust API](https://lib.iscc.codes/rust-api.md): Rust API reference
 - [Python API](https://lib.iscc.codes/api.md): Python API reference

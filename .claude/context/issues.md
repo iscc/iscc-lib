@@ -106,64 +106,21 @@ Resolved when filed upstream and the outcome noted.
 
 **Upstream:** iscc/iscc-core
 
-## iai text benchmarks are ASCII-only, so the perf gate is blind to the Unicode freeze `normal` [review]
+## Track upstream decision on Unicode version drift `low` [human]
 
-`is_unassigned_in_unicode16` (`crates/iscc-lib/src/utils.rs`) runs a binary search over 731 ranges
-for every character in `text_clean` / `text_collapse`, with a single fast path:
-`cp < UNASSIGNED_RANGES[0].0` (`0x0378`). Every iai text input is pure ASCII — `synthetic_text()` in
-`crates/iscc-lib/benches/iai_benches.rs` repeats `"The quick brown fox jumps over the lazy dog. "`,
-and `bench_meta_code` uses `"Die Unendliche Geschichte"` — so `bench_text_code.chars_1000` and
-`bench_meta_code.*` never leave the fast path. The green `Perf (iai-callgrind)` gate is therefore no
-evidence that the freeze rule is cost-free for Greek, Cyrillic, CJK or Indic text, which pays ~10
-comparisons per character. `to_lowercase_unicode16`'s `Vec<char>` + `Vec<bool>` allocations are
-unmeasured for the same reason (they only run when the input contains `U+03A3`).
+**Human-only — CID must not act on this.** iscc-lib removed its Unicode 16.0.0 pin (sentinel freeze
+rule, frozen `Final_Sigma` tables, boundary vectors, differential sweep) on 2026-07-30 by decision
+of Titusz: the core now applies the same steps as the reference with whatever Unicode tables its
+dependencies ship, and cross-version compatibility measures are postponed until upstream decides how
+`iscc-core` will handle Unicode version drift.
 
-Resolved when at least one non-ASCII text case exists in `iai_benches.rs` (e.g. a CJK and a Greek
-`chars_1000` variant) with its entry in `.iai-baseline.json`, regenerated via
-`mise run bench:iai:baseline` on a valgrind-capable machine.
+<https://github.com/iscc/iscc-core/issues/137> tracks the upstream question (`iscc-core` output has
+never been deterministic across its declared `>=3.9,<4.0` range — Unicode 13.0/14.0/15.0/15.1/16.0
+by Python version; per ISO 24138 Annex D the reference is normative, so the release that addresses
+it settles the standard's answer). When upstream lands a mechanism, revisit whether iscc-lib adopts
+the same one.
 
-**Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
-
-## go1.27 bump reds the Go boundary suite unless the freeze table lands with it `normal` [review]
-
-**Trigger-on-bump record — do not scope a step until go1.27 is available (~Aug 2026).**
-
-Bumping `packages/go/go.mod` past `go 1.26.1` **must** land the 731-range freeze table in
-`packages/go/utils.go` in the *same* step. Go currently passes the two post-16.0 boundary vectors
-for the wrong reason: its Unicode 15.0 tables classify `U+20C1` and `U+A7F1` as `Cn`, so the
-category-`C` filter drops them, coinciding with the freeze rule's output by accident. Under go1.27
-both become assigned (`x/text`'s `tables17.0.0.go` is `//go:build go1.27`; the stdlib `unicode`
-tables move too), so 5 currently-green cases flip red — `text_clean` + `text_collapse` for `U+20C1`
-and `U+A7F1`, plus `text_clean/…_seq_ua7f1_no_decomposition_leak` — while the 3 documented skips
-become unnecessary.
-
-Do **not** version-gate the skip map to hide this; the red is the intended signal.
-`go-version-file: packages/go/go.mod` pins CI to the go.mod directive, so nothing flips without a
-deliberate bump.
-
-## Update the upstream iscc-core thread with the sentinel mechanism `low` [human]
-
-**Human-only — CID must not act on this.** The Unicode data version work is complete on this side:
-the sentinel freeze rule, the fail-closed differential sweep gate, boundary vectors on all 11 native
-surfaces plus pure-Go, and user documentation in `docs/unicode.md` all landed.
-
-<https://github.com/iscc/iscc-core/issues/137> still describes the earlier framings. The thread
-needs updating to propose the **sentinel** mechanism —
-`unicodedata2==16.0.0; python_version < '3.14'` + import shim, map unassigned code points to
-`U+FFFF` before `unicodedata.normalize` using the same 731 vendored ranges, leave the category-`C`
-filter alone, and add boundary vectors to `data.json`. Both the sequence-delta framing and the
-pre-normalization-removal framing should be withdrawn.
-
-Worth stating explicitly upstream: `iscc-core` output has never been deterministic across its
-declared `>=3.9,<4.0` range (Unicode 13.0/14.0/15.0/15.1/16.0 by Python version), so this is a
-determinism fix and the behavioural break it implies is accepted deliberately. Per ISO 24138 Annex D
-the reference implementation is normative, so the `iscc-core` release adopting this settles the
-standard's answer.
-
-Close this issue once the thread is updated.
-
-**Upstream:** iscc/iscc-core **Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version
-is part of the conformance contract"
+Close this issue when upstream has decided and a follow-up decision for iscc-lib is recorded.
 
 ## Gate-script remainders deliberately deferred at iteration 146 `low` [review]
 

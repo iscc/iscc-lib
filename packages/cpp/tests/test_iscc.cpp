@@ -7,8 +7,6 @@
 
 #include <iscc/iscc.hpp>
 
-#include "unicode_boundary_vectors.h"
-
 #include <cassert>
 #include <cstdio>
 #include <cstring>
@@ -71,17 +69,6 @@ static void assert_true(bool val, const char* name) {
         pass(name);
     } else {
         fail(name, "expected true, got false");
-    }
-}
-
-/// Run one section of Unicode 16.0.0 boundary vectors through a wrapper text function.
-static void run_unicode_boundary_section(const char* section,
-                                         std::string (*fn)(const std::string&),
-                                         const iscc_unicode_boundary_vector* vectors,
-                                         size_t count) {
-    for (size_t i = 0; i < count; ++i) {
-        std::string name = std::string("unicode_boundary/") + section + "/" + vectors[i].name;
-        assert_str_eq(fn(vectors[i].input), vectors[i].expected, name.c_str());
     }
 }
 
@@ -425,20 +412,6 @@ int main() {
     {
         auto dr = iscc::iscc_decode("ISCC:MAIGHFECJMOPMIAB");
         assert_eq(dr.version, 1, "gen_iscc_id_v1 decode version == 1");
-    }
-
-    // 39. Unicode 16.0.0 boundary vectors — metadata guard + generated vectors
-    {
-        assert_str_eq(ISCC_UNICODE_DATA_VERSION, "16.0.0",
-                      "unicode_boundary metadata: version == 16.0.0");
-        assert_eq(static_cast<size_t>(ISCC_TEXT_CLEAN_VECTOR_COUNT), 7,
-                  "unicode_boundary metadata: text_clean count == 7");
-        assert_eq(static_cast<size_t>(ISCC_TEXT_COLLAPSE_VECTOR_COUNT), 5,
-                  "unicode_boundary metadata: text_collapse count == 5");
-        run_unicode_boundary_section("text_clean", &iscc::text_clean,
-                                     iscc_text_clean_vectors, ISCC_TEXT_CLEAN_VECTOR_COUNT);
-        run_unicode_boundary_section("text_collapse", &iscc::text_collapse,
-                                     iscc_text_collapse_vectors, ISCC_TEXT_COLLAPSE_VECTOR_COUNT);
     }
 
     // Summary

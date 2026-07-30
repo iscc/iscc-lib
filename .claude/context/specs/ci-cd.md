@@ -37,7 +37,6 @@ merge.
 | `coverage`         | `cargo llvm-cov` LCOV + `cargo crap` annotations/SARIF + `--fail-regression --fail-above` gate (see below)                       |
 | `audit`            | `cargo deny check` per root `deny.toml` (advisories, bans, licenses, sources)                                                    |
 | `release-workflow` | `check_release_workflow.py --check-action-inputs`: `release.yml` `with:` keys vs published `action.yml`s                         |
-| `unicode-sweep`    | Release-build Python extension + `unicode_sweep.py --rebuilt` differential vs installed `iscc-core` on CPython 3.14              |
 
 `python-test` is a `['3.10', '3.14']` matrix and `python` is its `if: always()` aggregator (one
 stable required-check name), so the 21 job keys surface as 22 check names on a push. The first

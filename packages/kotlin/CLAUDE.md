@@ -27,7 +27,6 @@ packages/kotlin/
       iscc_uniffi.kt                        # UniFFI-generated Kotlin bindings (DO NOT EDIT)
     test/kotlin/uniffi/iscc_uniffi/
       ConformanceTest.kt                    # data.json conformance vectors for 9 gen_*_v0 functions
-      UnicodeBoundaryTest.kt                # Unicode 16.0.0 boundary vectors (canonical fixture via iscc.fixtureDir)
     test/resources/
       data.json                             # Vendored ISCC conformance test vectors
 ```

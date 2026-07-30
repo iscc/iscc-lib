@@ -106,11 +106,6 @@ The `cpp` job in `.github/workflows/ci.yml` runs on `ubuntu-latest`:
 - Error path tests verify that `iscc::IsccError` is thrown for invalid inputs and nonexistent files
 - Temporary files for `gen_sum_code_v0` tests are created in
     `std::filesystem::temp_directory_path()` and cleaned up after
-- Unicode 16.0.0 boundary vectors come from the generated header
-    `crates/iscc-ffi/tests/unicode_boundary_vectors.h` — regenerate with
-    `uv run --script scripts/gen_ffi_boundary_vectors.py`, never hand-edit. Its include directory is
-    set on the `test_iscc` target only (`tests/CMakeLists.txt`), never on the public `iscc`
-    INTERFACE target
 
 ## RAII Patterns
 

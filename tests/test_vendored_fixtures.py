@@ -17,7 +17,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).parent.parent
 
-FIXTURE_BASENAMES = {"data.json", "unicode_boundary.json"}
+FIXTURE_BASENAMES = {"data.json"}
 
 # Canonical fixture -> tracked vendored copies (repo-relative POSIX paths).
 VENDORED_COPIES = {
@@ -26,10 +26,6 @@ VENDORED_COPIES = {
         "packages/go/testdata/data.json",
         "packages/kotlin/src/test/resources/data.json",
         "packages/swift/Tests/IsccLibTests/data.json",
-    ],
-    "crates/iscc-lib/tests/unicode_boundary.json": [
-        "packages/go/testdata/unicode_boundary.json",
-        "packages/swift/Tests/IsccLibTests/unicode_boundary.json",
     ],
 }
 
@@ -43,7 +39,7 @@ PAIRS = [
 def tracked_fixture_paths():
     """Return repo-relative paths of all git-tracked conformance fixture files."""
     out = subprocess.run(
-        ["git", "ls-files", "-z", "--", "*data.json", "*unicode_boundary.json"],
+        ["git", "ls-files", "-z", "--", "*data.json"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -57,7 +53,7 @@ def tracked_fixture_paths():
 
 def test_table_is_not_vacuous():
     """Guard against an emptied or mistyped table collecting zero identity cases."""
-    assert len(PAIRS) >= 5
+    assert len(PAIRS) >= 4
     for canonical in VENDORED_COPIES:
         assert (REPO_ROOT / canonical).is_file(), f"canonical missing: {canonical}"
 
@@ -84,17 +80,4 @@ def test_no_unregistered_tracked_copy():
         "new copy in VENDORED_COPIES in this file (do not delete the file): "
         f"unregistered={sorted(tracked - registered)}, "
         f"gone={sorted(registered - tracked)}"
-    )
-
-
-def test_boundary_fixture_is_pure_ascii():
-    """Verify the boundary fixture stays pure ASCII (it stores \\uXXXX escapes).
-
-    A tool that decodes the escapes into literal UTF-8 would silently corrupt
-    the fixture while remaining valid JSON; this guard catches that directly.
-    """
-    fixture = REPO_ROOT / "crates/iscc-lib/tests/unicode_boundary.json"
-    assert fixture.read_bytes().isascii(), (
-        "unicode_boundary.json must contain only ASCII bytes "
-        "(\\uXXXX escapes, never literal non-ASCII characters)"
     )

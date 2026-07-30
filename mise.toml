@@ -152,17 +152,6 @@ description = "Regenerate the committed iai-callgrind regression baseline (.iai-
 depends = ["bench:iai"]
 run = "python3 scripts/iai_regression.py --update"
 
-# --- Unicode conformance ---
-
-[tasks."unicode:sweep"]
-description = "Differential sweep of text_clean/text_collapse against iscc-core on Unicode 16.0.0"
-# Rebuilds the Python extension first: the sweep measures whatever `.so` is installed,
-# and a stale one silently measures the previous commit.
-run = """
-uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml &&
-uv run scripts/unicode_sweep.py --rebuilt
-"""
-
 # --- Supply-chain audit ---
 
 [tasks.audit]
