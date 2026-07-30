@@ -2,8 +2,9 @@
 name: release
 description: >-
   End-to-end release workflow for iscc-lib. Bumps version, syncs manifests,
-  runs quality gates, commits, creates PR to main, and publishes to all
-  registries. Self-healing: diagnoses and fixes failures before retrying.
+  runs quality gates, commits, creates PR to main, publishes to all
+  registries, and writes consumer-facing GitHub release notes. Self-healing:
+  diagnoses and fixes failures before retrying.
 disable-model-invocation: false
 user-invocable: true
 argument-hint: <version> [--dry-run] [--skip-publish]
@@ -346,11 +347,52 @@ git pull --ff-only
 
 Ensure develop is up to date after the merge.
 
-## Phase 7: Post-Release Verification
+## Phase 7: Release Notes and Post-Release Verification
 
 If `--dry-run` or `--skip-publish`, skip this phase.
 
-### Step 7.1 — Verify registries
+### Step 7.1 — Write GitHub release notes
+
+The release workflow creates the GitHub Release with only auto-generated notes (PR credit + full
+changelog link). Replace them with notes written for **downstream consumers** — people deciding
+whether and how to upgrade — not for contributors.
+
+**Gather facts first — never write notes from memory:**
+
+1. Previous version: `git tag --sort=-v:refname | head -5` (the tag before `v<version>`).
+2. Commit range: `git log v<prev>..v<version> --oneline` — the `cid(advance)` commits carry the
+    feature-level messages.
+3. Breaking changes: the `cargo semver-checks` failures CI reported on develop **before** the
+    version bump name the exact breaking API changes (e.g. `enum_marked_non_exhaustive`). Also
+    check for renames/removals in non-Rust surfaces (Go, bindings) in the commit log.
+4. Issues closed by this release: `gh issue list --state closed --json number,title,closedAt` and
+    match against the release window.
+5. **Verify every claim against the code at the release tag** (grep the actual source) — work can
+    land and be fully reverted within one release window, so a commit message alone is not evidence
+    that a feature shipped.
+
+**Structure** (sections in this order; omit empty ones):
+
+- **Highlights** — headline features with API signatures where helpful, per-language availability,
+    experimental/stability caveats
+- **Breaking changes** — grouped per ecosystem; explicitly state which languages have none
+- **Conformance and robustness** — behavior changes vs the `iscc-core` reference (stricter
+    validation means previously-accepted inputs may now error — say so)
+- **Performance** — with the consumer-visible effect, not implementation detail
+- **Packaging and toolchains** — platform/wheel changes, MSRV, consumer version floors, dependency
+    migrations visible to consumers, security patches (RUSTSEC advisories)
+- **Published to** — registry list, docs link (`https://lib.iscc.codes/`), install-verification
+    command
+- **What's Changed** — preserve the auto-generated PR credit and `**Full Changelog**` link from the
+    existing release body, and add closed-issue references
+
+**Apply:** write the notes to a scratchpad file, then:
+
+```
+gh release edit v<version> --notes-file <path>
+```
+
+### Step 7.2 — Verify registries
 
 After the release workflow completes, verify each registry has the new version. For each registry,
 check availability and report pass/fail:
@@ -396,7 +438,7 @@ re-checking later with:
 uv run scripts/test_install.py --version <version>
 ```
 
-### Step 7.2 — Summary
+### Step 7.3 — Summary
 
 Print a final summary:
 
@@ -406,6 +448,7 @@ Release <version> complete!
   Commit:   <sha>
   Tag:      v<version>
   PR:       <url>
+  Notes:    https://github.com/iscc/iscc-lib/releases/tag/v<version>
 
   Registries:
     crates.io          <version>  OK
