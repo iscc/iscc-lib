@@ -128,3 +128,92 @@ learnings.md.
     `maturin develop -m crates/iscc-py/Cargo.toml` (maturin 1.12.4 via uv) + `uv run pytest` (286).
 - Explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:~697) MUST be preserved (PyO3
     0.28 silently flipped that default true→false).
+
+## v0.6.0 iters 115–119 detail (archived iteration 121 — done + CI-verified)
+
+- **iter 115: CI RED — enforcing `cargo-deny` caught RUSTSEC-2026-0204** (null-ptr deref in
+    `crossbeam-epoch`, dev-only via criterion→rayon→crossbeam-deque, never shipped). Fix:
+    `cargo update -p crossbeam-epoch` (0.9.18→0.9.20, patched `>= 0.9.20`, no manifest change).
+    **Fix-the-root-cause > suppress**: when a patched release exists, bump the lockfile — `ignore`
+    is the fallback only when unpatched. Verify the advisory `patched` range from
+    `rustsec/advisory-db/main/crates/<crate>/<ID>.md` before choosing bump vs ignore. Recurring: the
+    enforcing cargo-deny gate WILL periodically go red on fresh advisories vs dev/bench deps — each
+    is a CI-red-first priority.
+- **iter 116: #41 (Python text/video GIL) DONE** — single-file `crates/iscc-py/src/lib.rs`, wrap
+    compute in `py.detach(|| ...)`. Injected `py` param not exposed → signature/conformance-neutral,
+    no doc change. Video detach must open AFTER frame-sig extraction (borrowed `PyList_GetItem` ptrs
+    not free-threading-safe; module keeps `gil_used = true`). Verify via
+    `grep -c '\.detach(' lib.rs`.
+- **iter 117: #42 (WASM simd128) — NEEDS_WORK.** RUSTFLAGS `simd128` alone does NOT activate
+    blake3's wasm SIMD backend; `v128` opcode-counting is a FALSE-POSITIVE gate (LLVM
+    auto-vectorizes the portable path too). Verify the actual reference/source before asserting a
+    mechanism.
+- **iter 118: reframed #42 (first NEEDS_WORK → reframe, not repeat) DONE.** wasm SIMD backend gated
+    behind the `blake3/wasm32_simd` **Cargo feature** (`build.rs` emits `blake3_wasm32_simd` cfg
+    only when `is_wasm32() && CARGO_FEATURE_WASM32_SIMD`; `platform.rs detect()` returns
+    `WASM32_SIMD` unconditionally under that cfg). Fix = add
+    `blake3 = { workspace = true, features =   ["wasm32_simd"] }` to `crates/iscc-wasm/Cargo.toml`.
+    Both feature AND landed simd128 RUSTFLAGS required. Deterministic verify:
+    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -f   "{p} {f}" -i blake3 | grep -q wasm32_simd`.
+    No `unused_crate_dependencies` lint → no `use blake3 as _;` silencer needed.
+- **iter 119: #43 (Go ISCC-IDv1) DONE** — pure-Go, self-contained (`packages/go`). `codec.go` adds
+    `VSV1 Version = 1` + a MainType-ID-only Version=1 relaxation in `decodeHeader`; new `iscc_id.go`
+    (`EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result`). Algorithm from `iscc_id.py::gen_iscc_id_v1`:
+    `body=(timestamp<<12)|hubID`, big-endian 8 bytes, header MT=6/ST=realm/VS=1/len-index=0. Build
+    the ID header via internal `encodeHeader`/`encodeLength` — do NOT relax public
+    `EncodeComponent`. Vector: `EncodeIsccID(0,1,1751831876325218)` → `ISCC:MAIGHFECJMOPMIAB`. Go
+    tests run from `packages/go/` (separate module); CI `working-directory: packages/go` +
+    `CGO_ENABLED=0`.
+
+## Dependency-refresh slices 1–2 + aarch64 wheels (iters 123–125) — archived from MEMORY.md (iter 126)
+
+- **iter 123 (#49 aarch64 Python wheels, CI GREEN)**: 1 file `.github/workflows/release.yml` — added
+    `ubuntu-24.04-arm`/`aarch64`/`python3.10` `build-wheels` entry (native ARM, NOT QEMU) +
+    matrixified `test-wheels`. **Release-only infra → verification is STATIC** (pyyaml `safe_load`
+    via `uv run python` + grep presence + `mise run check`); CID can't dispatch a real ARM release.
+    Dev env: no actionlint/yamllint/system-pyyaml; pyyaml IS reachable via `uv run python`.
+- **iter 124 — dep-refresh slice 1 = pure `cargo update`** (Cargo.lock only, generated → 0 source
+    files). Caret ranges stayed put: `blake3 1.8.3→1.8.5`, `napi 3.8.3→3.11.0`,
+    `uniffi 0.31.0→0.31.2`, `wasm-bindgen 0.2.125→0.2.126`, ~100 transitive. Two real risks handled:
+    (a) cargo-deny can flip red on a new transitive license/advisory → `mise run audit`, prefer
+    `cargo update -p X --precise <patched>` over a deny.toml ignore; (b) iai perf gate (CI-only,
+    ≤10% Ir) can drift on blake3 → `mise run bench:iai:check`, refresh `.iai-baseline.json` via
+    `mise run bench:iai:baseline` in-step if legit. Dev env has cargo-deny 0.19.9 + libclang-14 +
+    valgrind, so `mise run test/lint/audit/bench:iai:check` all run locally.
+- **iter 125 — dep-refresh slice 2 = Python `uv.lock`**: `uv lock --upgrade` at repo ROOT
+    (regenerates `/uv.lock`, 2035 lines, generated → 0 source files). **Two separate uv projects:**
+    root `/uv.lock` (dev tools + `iscc-core` + zensical/docs — the real one) and
+    `crates/iscc-py/uv.lock` (7 lines, NO runtime deps → refresh is a no-op; don't touch). **Dev
+    deps are all UNCONSTRAINED** (`"ruff"`, `"pytest"`, `"ty"`, `"mdformat"`, `"zensical"`…), so
+    `--upgrade` pulls absolute latest → biggest risk is a tool major changing behavior. Handling:
+    pin the ONE offending tool back in `pyproject.toml` `[dependency-groups] dev` with an inline
+    hold-back comment (keeps the diff lockfile-only), NEVER disable a rule/skip a test/weaken a
+    gate. Verify: `uv lock --check` + `mise run test/lint/check` + docs (`uv run zensical build`,
+    `uv run python scripts/gen_llms_full.py`). CI Python job installs via `uv sync --group dev`;
+    `docs.yml` runs zensical. `iscc-core` conformance is vs vendored `data.json` (authoritative).
+    Landed with a documented `ruff<0.16` hold-back. uv 0.11.32.
+
+## Archived from MEMORY.md at iteration 138
+
+- **A stale in-repo comment is not worth blowing the file budget for** (iter 136, the `# held:` note
+    on the `ruff<0.16` pin): leave it for the step that retires the thing it annotates, and say so
+    in `## Not In Scope` so review reads it as deliberate, not missed.
+- **`core.fileMode=false` (9p Windows bind mount) means `chmod +x` alone never lands in a commit** —
+    `git update-index --chmod=+x <path>` is also required, run *after* `git add`, verified with
+    `git diff --cached --summary`. The `+x`/`-x` round-trip is safe to probe while scoping. (Also
+    recorded in the session-level `devcontainer-exec-bit.md` memory.)
+
+## Parked-work scoping lessons (archived iter 148 — no issue is parked on Titusz right now)
+
+- **A parked HUMAN REVIEW issue does not stall the loop — it re-prioritises it** (iters 134–139: the
+    Unicode ruling parked 2 criteria, so steps went to ruff slices, then hook parity, then
+    release.yml). If a blocked slice's only consumer is the parked propagation, take other backlog.
+- **When a propagation step is parked, its source artifact can usually still land** (iter 141: the
+    12-binding Unicode vector rollout was blocked on a human ruling + a Go decision, but the
+    Rust-core fixture + loader was ruling-independent as long as the vectors avoided the disputed
+    construct). Scope the artifact, name the parked half in `Not In Scope`, don't tick the spec box.
+- **A parked behaviour ruling does not block *documenting* the behaviour that already shipped** —
+    but the docs step must forbid the disputed claims by name in `Not In Scope` (iter 143: no
+    output-equivalence claim, no multi-code-point/sequence statements).
+- **A multi-part spec criterion slices along its own checkboxes** — `specs/rust-core.md`'s Unicode
+    contract → separate steps (core change / sweep proof / binding propagation), not one.

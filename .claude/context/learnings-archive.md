@@ -297,6 +297,10 @@ reference-only for humans.
     portable `ruby -e "puts Gem.user_dir"` for PATH resolution since `bundle` isn't on system PATH
 - Ruby `JSON.generate` silently ignores `sort_keys: true` — use `meta_val.sort.to_h` before
     `JSON.generate` for sorted-key output. Python `json.dumps(sort_keys=True)` works as expected
+- Gem dev-dependency work (iter 130): bundler has no `-C` flag — use
+    `(cd crates/iscc-rb && bundle …)` with `$(ruby -e "puts Gem.user_dir")/bin` on PATH. CI's
+    `ruby/setup-ruby` `bundler-cache: true` performs a **frozen** install, so prove Gemfile/lock
+    consistency locally with `BUNDLE_FROZEN=true bundle install --local`
 
 ## Go/wazero Bridge (OBSOLETE)
 
@@ -318,6 +322,14 @@ reference-only for humans.
 - **Ruby cross-gem action quirk**: `oxidize-rb/actions/cross-gem@v1` configure step greps
     `Gemfile.lock` in repo root (ignores `working-directory`). For subdirectory gems, symlink the
     lockfile: `ln -sf crates/iscc-rb/Gemfile.lock Gemfile.lock`
+- **Ruby gem dev deps** (iter 130, archived iter 134 — dep-refresh slice 7 done): `rb_sys` stays
+    pinned EXACTLY at 0.9.123 to match `tag: 0.9.123` of `oxidize-rb/actions/cross-gem` in
+    `release.yml` (that rb_sys pins `rake-compiler-dock = 1.10.0`); `minitest ~> 5.0` is held
+    because 6.0.x requires Ruby ≥ 3.2 vs the gem's declared 3.1.0 floor. Both reasons live in inline
+    `# held:` comments in `crates/iscc-rb/Gemfile`
+- **Windows GHA runners default to `pwsh`** (archived iter 154 — the cross-platform matrix is
+    settled): any `run:` step using bash syntax (`$(...)`, `$GITHUB_OUTPUT`, `grep`, `sed`) in a
+    cross-platform matrix MUST set `shell: bash`
 
 ## .NET Bindings (P/Invoke) — Completed Phase (Iteration 9)
 
@@ -555,3 +567,424 @@ reference-only for humans.
     mise tasks. Local 1.96.0 vs CI-stable Ir agree within 1.66%. KNOWN false-green edges (filed as
     [review] issue): single-bench `summary: 0` reads as improvement & passes (guard only catches
     ALL-zero); a baselined bench that stops emitting `.out` only warns, never fails.
+
+## CID Process (archived from learnings.md)
+
+- **Advisor tool evaluated and deferred (2026-07, full rationale)**: the Claude Code advisor
+    (`--advisor` / `advisorModel`) was assessed for the CID loop and rejected for now. A Fable 5
+    main model accepts only a Fable advisor and Fable is not currently offered as one, so `advance`
+    — the role that would benefit most — cannot use it. For the Opus roles the only pairing is
+    Opus-advising-Opus, which duplicates what the review role and the Codex second opinion already
+    provide, at extra cost (each advisor call re-reads the full transcript uncached and counts
+    against subscription limits, with model-driven, uncappable timing). Revisit when Fable 5 becomes
+    selectable as an advisor (`/advisor` picker no longer shows it as unavailable) — then Fable-main
+    \+ Fable-advisor on `advance` is the configuration worth testing.
+
+## CI/CD (archived from learnings.md)
+
+- **`cargo binstall` + `Swatinem/rust-cache` poisoning (iter 100)**: rust-cache restores install
+    metadata without the `~/.cargo/bin/<tool>` binary → plain `cargo binstall -y <tool>` skips and
+    the next call dies `no such command` → CI RED. Fix: add `--force` (gate strengthening, not
+    circumvention).
+
+## Feature Flags — blake3 WASM SIMD backend (archived iter 119, #42 met)
+
+- **blake3 WASM SIMD backend — RESOLVED (iters 117-118, #42)**: the `blake3/wasm32_simd` **Cargo
+    feature** (direct `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep on iscc-wasm,
+    feature-unification only) ACTIVATES the backend — build.rs emits `blake3_wasm32_simd` (→
+    `Platform::detect()` = `WASM32_SIMD`) from `CARGO_FEATURE_WASM32_SIMD` on wasm32 only (native
+    inert). Honest wiring proof:
+    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"` shows
+    `wasm32_simd`. The global `-C target-feature=+simd128` RUSTFLAGS is NOT required to compile the
+    backend (blake3's SIMD fns carry `#[target_feature(enable = "simd128")]`; a no-flag
+    `wasm-pack build` compiles + emits `v128`) — it broadens simd128 to the whole crate (auto-vec of
+    CDC/xxh32/minhash) and stays in CI/release; `--enable-simd` needed for wasm-opt. `v128`-opcode
+    counting ALONE is a FALSE-POSITIVE for "backend active" (LLVM auto-vec emits it too)
+
+## Algorithm — ISCC-IDv1 (archived iter 124, #43 met, Go-only)
+
+- **ISCC-IDv1** (`gen_iscc_id_v1`, experimental, NOT in ISO 24138): 64-bit body
+    `= (timestamp << 12) | hub_id`, timestamp = 52-bit µs-since-epoch (`< 2^52`), hub_id = low 12
+    bits (0–4095). Header nibbles: MainType=ID(6), SubType=realm_id (0=test/1=operational),
+    Version=1, length-index=0; body big-endian, base32, `ISCC:` prefix. Known vector:
+    `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub 1, ts 1751831876325218. Go-only port in
+    `packages/go/iscc_id.go` (built via internal `encodeHeader`/`encodeLength`, NOT public
+    `EncodeComponent`); other 11 bindings lack it. Rust core rejects ISCC-IDv1 at header level
+    (`codec::Version` is V0-only)
+
+## CI/CD — aarch64 Python wheels (archived iter 124, #49 met)
+
+- **Adding a Python wheel target (iter 123, #49)**: only the `build-wheels` + `test-wheels` matrices
+    need the new entry — `publish-pypi`'s "Download all artifacts" uses `pattern: wheels-*` +
+    `merge-multiple: true`, so any `wheels-${{ matrix.os }}-${{ matrix.target }}` artifact is
+    auto-collected and published (no publish-step edit). Native-ARM wheels build on
+    `ubuntu-24.04-arm` (free GH runner, no QEMU/`container:`). release.yml-only changes can't be
+    exercised by CID pushes (only `workflow_dispatch`+pypi) → verify statically: YAML parse + matrix
+    presence + artifact-name consistency across the build→test→publish chain
+
+## Documentation — "10 gen functions vs 9 conformance" (archived iter 124)
+
+- **"10 gen functions" vs "9 conformance functions"**: iscc-lib has 10 `gen_*_v0` functions, but
+    `data.json` conformance vectors cover only 9 (no gen_sum_code_v0). Files that test/benchmark
+    against data.json should say "9"; general library descriptions should say "10". Avoid blanket
+    "9→10" find-and-replace — it corrupts conformance-scoped files. iscc-core-ts also implements
+    only 9 (no gen_sum_code_v0) — verify external projects' function tables before claiming "all 10"
+
+## Feature Flags (archived iter 127 — section fully met, features stable since #42)
+
+- `iscc-lib` features: `default = ["meta-code"]`, `text-processing` (unicode deps), `meta-code`
+    (implies text-processing + JCS canonicalizer). Three deps are optional
+- When gating `pub(crate)` functions behind features, their tests must also be gated — clippy
+    `-D warnings` catches dead code in library builds even if test modules reference them
+- Gate individual test functions with `#[cfg(feature = "...")]`, not the whole `mod tests` block,
+    when the block contains both gated and ungated tests
+- `serde_json` stays non-optional because `conformance.rs` uses it for parsing data.json vectors
+- **`--no-default-features --all-targets` fails on the `benchmarks` bench** (pre-existing): benches
+    import `gen_meta_code_v0`/`gen_text_code_v0` needing `meta-code`/`text-processing`. Lib + tests
+    build fine. Scope clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`)
+    to avoid a false regression. CI never runs this combo
+- **blake3 WASM SIMD backend — RESOLVED (#42)**: activated by the `blake3/wasm32_simd` Cargo feature
+    (not `-C target-feature=+simd128`); `v128`-opcode counting alone is a FALSE-POSITIVE. Full
+    recipe under "Feature Flags — blake3 WASM SIMD backend" above
+
+## ISCC Algorithm Internals (archived iter 128 — all 10 gen\_\*\_v0 functions conformance-complete)
+
+Second batch archived iter 131 — settled API-parameter facts, all re-derivable from
+`crates/iscc-lib/src/`:
+
+- `META_TRIM_META` validation: pre-decode check (`META_TRIM_META * 4/3 + 256`) applies to ALL meta
+    strings (both Data-URL and JSON) as a fast-path optimization. Post-decode check on
+    `payload.len()` guarantees correctness. JSON boundary test overhead: `{"x":""}` = 8 bytes
+
+- `gen_image_code_v0` pixels parameter is a flat `&[u8]`, NOT `&[i32]`. Chromaprint provides `i32`
+    audio fingerprints (for `gen_audio_code_v0`), not image pixels
+
+- MainType Ord: MainType enum values are ordered for consistent processing. META=0, SEMANTIC=1,
+    CONTENT=2, DATA=3, INSTANCE=4, ISCC=5, ID=6, FLAKE=7
+
+- JSON `meta` parameter: uses JCS (RFC 8785) canonicalization. `@context` key triggers
+    `application/ld+json` media type, otherwise `application/json`
+
+- `alg_simhash` output length equals input digest length (e.g., 4 bytes for 4-byte digests). Returns
+    32 zero bytes only for empty input. NOT always 256 bits
+
+- `gen_instance_code_v0` accepts `bits` but ignores it — always produces 256-bit output (the hash of
+    the full content). The `bits` parameter exists for API consistency only
+
+- `gen_iscc_code_v0`: `wide` parameter determines 128-bit (default) or 256-bit combination. Data and
+    Instance components are always included; content code is optional. Test vectors in data.json
+    have no `wide` field — always pass `false`
+
+- ST_ISCC SubType: for `gen_iscc_code_v0`, the SubType in the ISCC header is determined by the
+    content code's SubType (TEXT/IMAGE/AUDIO/VIDEO/MIXED). When no content code is provided, SubType
+    is NONE (0). SubType SUM (5) is used for `iscc_sum` (multi-asset aggregation, not in gen_iscc)
+
+- `soft_hash_meta_v0` interleaves name and description features at the nibble level. Trim lengths
+    are in bytes, not characters. The returned bytes are the raw SimHash digest
+
+- `gen_text_code_v0` uses MinHash (not SimHash) for the content hash portion. `alg_minhash_256`
+    produces 256 bits (32 bytes) from a set of n-gram features. Text n-gram size = 13 (characters)
+
+- `gen_data_code_v0` uses MinHash on CDC chunk hashes. CDC splits binary data into content-defined
+    chunks, each chunk is xxh32-hashed (not BLAKE3), the set of chunk hashes is MinHash'd
+
+- `soft_hash_audio_v0` is a 3-stage hash: Chromaprint i32 array → 4-byte big-endian digests →
+    SimHash (overall 4B + quarters 16B + sorted thirds 12B) = 32 bytes total
+
+- `gen_mixed_code_v0` processes multiple content codes: sorts by MainType, groups by SubType,
+    soft-hashes each group, then SimHash across groups. The input is a list of ISCC strings (units),
+    not raw data
+
+- `encode_units` produces a single bitfield encoding an ordered list of content components included
+    in an ISCC-CODE. Used by `gen_iscc_code_v0` to record which units were combined
+
+- DCT uses Nayuki's algorithm (not FFTW/scipy). Image-Code: 8×8 pixel blocks → per-block DCT →
+    WTA-Hash across blocks. Video-Code: per-frame DCT → WTA-Hash per frame → SimHash across frames
+
+## CI/CD — JVM test/publish + Gradle bind-mount flakes (archived iter 129, dep-refresh slice 5 done)
+
+- **JVM test/publish gotchas** (iter 128): junit-jupiter ≥ 5.12 under Gradle 8.12.1 needs an
+    explicit `testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.x.y")` (Gradle injects a
+    launcher predating platform 1.12 → "OutputDirectoryCreator not available"); Maven/surefire
+    resolves the aligned launcher itself. `mvn -Prelease package -DskipTests` does **not** resolve
+    `maven-gpg-plugin` (verify-phase; absent from `~/.m2`) — prove a plugin version exists with a
+    `repo1.maven.org` `.pom` HTTP 200, not from build success.
+    `./gradlew generatePomFileForMavenPublication` → `build/publications/maven/pom-default.xml`
+    proves test-scope deps do not leak into the published artifact
+- **Gradle flakes on the workspace bind mount**: `Unable to delete file …/build/kotlin/…` or
+    `NoSuchFileException …/build/reports/tests/test/packages` are incremental-state races, not test
+    failures (`build/test-results/test/*.xml` still showed `tests="9" failures="0"`). Re-run after
+    `./gradlew clean` before concluding anything about a build
+
+## CI/CD — Go module data-table differential (archived iter 130, dep-refresh slice 6 done)
+
+- **Prove a `golang.org/x/text` bump is output-neutral, don't infer it from green vectors** (iter
+    129): build a throwaway module in `/tmp` with
+    `replace github.com/iscc/iscc-lib/packages/go => <repo>/packages/go`, dump
+    `TextClean`/`TextCollapse` for all 1,112,032 code points, then re-run under
+    `replace golang.org/x/text => golang.org/x/text v<old>` and `diff`. 0.34.0 → 0.40.0 was
+    byte-identical (same `unicode/norm` tables; only invalid-rune bookkeeping changed). A new
+    indirect (`golang.org/x/sys` via cpuid 2.4.0) is legitimate when `go mod tidy -diff` exits 0
+
+## Release Pipeline (archived iter 133 — target section met)
+
+- **Release pipeline pattern**: 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift) → build → smoke test → publish; 6 smoke-test jobs
+    (test-wheels/napi/wasm/gem/jni/ffi) gate publish on the linux-x86_64 artifact; re-trigger a
+    single registry with `--ref main`. `version_sync.py` manages 21 targets (`--check` exits 1 on
+    mismatch). Adding a Python wheel target touches the build + test matrices only — `publish-pypi`
+    collects wheels via `pattern: wheels-*`.
+- **PyO3 0.29 upgrade note** (iter 133 prune): the explicit
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` attribute is load-bearing — dropping it
+    changes the module name PyO3 registers and breaks `iscc_lib._lowlevel` imports.
+
+## Kotlin consumer floor — KGP bump evidence (archived iter 139, dep-refresh slice 5 done)
+
+- KGP 2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar; a `mavenLocal` consumer proved
+    2.1.10 / 2.2.21 fail and 2.3.21 passes, which is how the "Kotlin 2.3 or newer" floor was fixed
+    (iter 128). Reproduce with a throwaway Gradle consumer resolving `mavenLocal()` before accepting
+    any future KGP bump.
+- The floor is documented in four places that must move together: the root `README.md`,
+    `packages/kotlin/README.md`, `docs/howto/kotlin.md` and `.claude/context/specs/`
+    `kotlin-bindings.md`.
+
+## ruff 0.16 adoption (archived iter 137 — slice 8 of the v0.6.0 dependency refresh, CLOSED)
+
+- **Sliced by decision type, not by file** (iters 125 → 137). `uv lock --upgrade` (iter 125) could
+    not take ruff 0.16: it added 104 new default-lint findings, so `ruff<0.16` went into
+    `pyproject.toml` with an inline `# held:` reason. `uvx ruff@0.16.0 check .` previews an unpinned
+    ruff without touching `uv.lock` — that is what let the hold-back survive four clean-up steps.
+- **A** (iter 131) — 78 config-free findings: 36 lone `...` stub bodies deleted from `_lowlevel.pyi`
+    (`PIE790` + `PYI048` double-report one line) and 6 `RUF059` unused unpackings `_`-prefixed. Stub
+    change verified against `ty`, `mypy 1.18 --strict`, `pyright 1.1.407` because the wheel ships
+    `py.typed`. **B** (iter 134) — `extend-select = ["S", "C901"]`; the 14 `# noqa: S603/S607`
+    became *recognised* instead of `RUF100`-flagged; 2 genuinely dead directives deleted. **C**
+    (iter 135) — the isort cluster: `[tool.ruff] src` + `combine-as-imports`, plus `I`, `RUF022`,
+    `RUF100` added to `extend-select`. **D** (iter 136) — the last three: `itertools.pairwise`
+    (RUF007), explicit `check=False` (PLW1510), exec bit on `tools/cid.py` (EXE001). **E** (iter
+    137\) — pin dropped, `uv lock --upgrade-package ruff` → 0.16.0, zero findings and zero reformats
+    at the flip.
+- Live rules that outlived the slice stay in `learnings.md`: never blanket `--fix`, never `select`
+    (use `extend-select`), and 0.16's `ruff format` reaches Python code blocks inside Markdown.
+- **Two invocation gotchas** (archived iter 139 — the `[tool.ruff*]` config is settled; re-read
+    before changing `src` / `exclude` / isort settings): (1) an unused `# noqa` is invisible unless
+    `RUF100` is selected — prove a directive dead with
+    `uv run ruff check --select <rule> --ignore-noqa` before deleting it (`S603` never fires on a
+    fully static list-literal argv, only on dynamic argv). (2) the pre-commit `ruff-check` hook
+    passes *filenames* and no `--force-exclude`, so hook-mode can disagree with `ruff check .` —
+    re-probe per-file when `src`/`exclude`/isort settings change.
+- **`_lowlevel.pyi` stub bodies are docstring-only — no trailing `...`** (iter 131; archived iter
+    139 — Python bindings section met and both ruff hooks now gate the file locally). The wheel
+    ships `py.typed`, so the stub is consumer-facing: check changes against `mypy 1.18 --strict` +
+    `pyright 1.1.407` too, not just `ty`.
+
+## prek hook-surface probing — formatter caveats (archived iter 140, gate parity closed iter 139)
+
+- `ruff-check` deliberately skips Markdown: ruff 0.16 *formats* Python fences but does not *lint*
+    them, so an `.md` path prints "No Python files found" and exits 0 — widening the lint hook to
+    `markdown` buys zero enforcement and adds per-commit noise.
+- Widening a *formatter* hook onto Markdown is safe even with pseudo-code fences: `ruff format`
+    leaves a syntactically-invalid Python fence unchanged and exits 0 rather than erroring the run.
+- The `.pyi` hole (prek types `.pyi` as `pyi`, not `python`) was found iter 138 and closed iter 139
+    by adding `pyi` to both ruff hooks' `types_or`; CI's bare `ruff check`/`ruff format` always
+    covered the published `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`.
+
+## CI/CD — GitHub Action major-bump static verification (archived iter 141, dep-refresh slices 4+9 done)
+
+- Statically verifiable far past "the tag exists" (iter 140, 9 refs / 73 lines in the unexercised
+    `release.yml`): fetch each new major's `action.yml` at the tag ref
+    (`raw.githubusercontent.com/<o>/<r>/<vN>/action.yml`) and assert with `yaml.safe_load` (never
+    greps) that every `with:` key still appears under `inputs`, every `steps.<id>.outputs.<x>` the
+    workflow reads still appears under `outputs` (`cache@v6` keeps `cache-hit`), and `runs.using` is
+    runner-supported.
+- Then read every intervening major's release notes for *default* changes: an input surviving is not
+    its default surviving. Two that bite silently — `setup-node@v5+` auto-enables package-manager
+    caching when `package.json` has a `packageManager` field and then *fails* with no lockfile (safe
+    here: neither exists — re-check before adding either); `checkout@v6+` persists the auth token to
+    `$RUNNER_TEMP` instead of `.git/config`, so plain `git push`/`fetch` still work
+    (`prepare-release` is fine) but authenticated git inside a *Docker container action* needs
+    runner ≥ 2.329.0.
+- `download-artifact@v8` defaults to `digest-mismatch: error`; it is deliberately left strict for a
+    publish pipeline (rationale → `decisions.md` 2026-07-25).
+
+## CI/CD — release.yml registry-guard shape (archived iter 141, iter-139 fix landed)
+
+- All 28 non-`prepare-release` jobs carry
+    `if: ${{ !cancelled() && !failure() && (<registry cond>) }}`. A plain `if:` implies `success()`
+    on `needs`, and GitHub propagates `prepare-release`'s *skip* transitively — that is why
+    `-f <registry>=true` published nothing. `!failure()` still reads the job's own `needs`, so a
+    failed build still blocks its publish; never substitute `always()`.
+- **Invariant a new job must preserve:** its `needs` chain must be gated by the same registry flag
+    or a superset (`build-ffi` is `ffi || nuget`) — else relaxing `success()` lets it run against
+    artifacts never built. Full rationale → `decisions.md` 2026-07-25.
+
+## Tooling — v0.6.0 dependency refresh + ruff 0.16 adoption (archived iter 142, both threads CLOSED)
+
+- **Dependency refresh** ran as nine per-ecosystem slices, iters 124–140: Rust `Cargo.lock`, Python
+    `uv.lock`, Rust direct pins, GHA refs in `ci.yml`/`docs.yml`, JVM manifests, Go module, Ruby
+    manifests, ruff 0.16 adoption, GHA refs in `release.yml`. Per-slice detail lives in the
+    `issues.md` entry; only human/major-gated bumps remain (xunit 3.x, Test.Sdk 18.x, Gradle
+    wrapper, JUnit 6.x, `jni` 0.22, `magnus` 0.8).
+- **Hold-back verification recipe** — a `# held:` comment's stated reason must be confirmed from
+    registry metadata, never from the handoff prose: `cargo info <crate>@<ver>`,
+    `gem specification <gem> -v <ver> --remote`, `https://rubygems.org/api/v1/versions/<gem>.json`.
+    A wrong stated reason survives as folklore.
+- **A tool bump can widen a gate's file discovery, not just its rules**: ruff 0.16 formats Python
+    fences inside Markdown, so the bare `ruff format --check` used by `mise run lint` and CI went
+    from 25 to 153 files. Diff the file count before/after a bump, then ask which *local* gate
+    covers the newly discovered surface — the resulting local/CI parity gap was closed in iter 138
+    by widening the prek `ruff-format` hook to `types_or: [python, pyi, markdown]`.
+- **Single-package relock proof**: `uv lock --upgrade-package <pkg>` then
+    `git diff -- uv.lock | grep -E '^[+-]name = '` must be empty (only the target moved).
+- Every `[tool.ruff*]` setting in `pyproject.toml` carries its rationale as an inline comment.
+
+## Tooling — git gotchas from the closed ruff/dep-refresh threads (archived iter 143)
+
+- **A file-mode change needs `git update-index --chmod=+x`, not just `chmod`** (iter 136): with
+    `core.fileMode=false` here a plain `chmod +x` is invisible to git — run both, prove it with
+    `git ls-files -s <path>` → `100755`.
+- **`cargo tree -i <crate>` prints "nothing to print" for proc-macro / target-specific deps** — add
+    `--target all`. (The recurring `proc-macro-error2` future-incompat warning is dev-only and
+    expected; full attribution → `issues.md` "Known constraint (verified iter 126)".)
+
+## CI/CD — Swift release job tag dependency (archived iter 144)
+
+- **Swift release job is tag-dependent**: `build-xcframework` derives the version from
+    `GITHUB_REF_NAME` (not `Cargo.toml` like every other release job), so the `--ref main`
+    re-trigger path breaks for Swift only. Release-day fact; `release.yml` is human-driven.
+
+## ISCC Algorithm — settled vector/meta facts (archived iter 144)
+
+- `gen_meta_code_v0`: `name` required (non-empty after cleaning), `description` and `meta` optional.
+    Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing.
+- Conformance vectors: `"stream:<hex>"` prefix in `data.json` denotes hex-encoded byte data; empty
+    after the prefix = empty bytes. 50 vectors at iscc-core v1.3.0 (20+5+3+5+3+2+4+3+5).
+
+## CID Process — concurrent-loop detection (archived iter 145; single-occurrence, iter 97)
+
+- **Detect concurrent CID loops** (iter 97): context files changing mid-review, or `mise run check`
+    reporting spurious "files were modified by this hook" on a file advance never touched, means a
+    race. Confirm with `ps aux | grep -E 'cid:run|claude -p CID'`, then flag HUMAN REVIEW REQUESTED
+    — do NOT kill processes yourself, and do NOT push. (Also carried in the review agent's
+    `MEMORY.md`.)
+
+## Ruff / prek hook scope (archived from learnings.md, iter 148)
+
+- prek `types_or` at the close of the ruff-0.16 adoption: `[python, pyi, markdown]` for the format
+    hook, `[python, pyi]` for the check hook — a strict superset of what CI runs (ruff 0.16 formats
+    Python code blocks in Markdown but does not lint them).
+
+## Python Binding Tooling Pins (archived iter 149 — Python bindings fully met)
+
+- **PyO3 is `0.29`** (iscc-py only): keep `#[pymodule(name = "_lowlevel", gil_used = true)]`
+    explicit. Per-hop upgrade recipe is in the PyO3 sections above.
+- **`_lowlevel.pyi` is consumer-facing** (the wheel ships `py.typed`): stub bodies are
+    docstring-only, and edits need `mypy 1.18 --strict` + `pyright 1.1.407`, not just `ty`.
+
+## Codec rules (archived from learnings.md at iteration 150 — all pinned by tests)
+
+- `conformance_selftest` masks truncated codes bitwise — never compare full strings below 256 bits
+- **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`** — a loose
+    guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`); enforced in Go
+    `IsccDecode` + Rust `iscc_decode`. Composite `iscc_decompose` legitimately consumes trailing
+    units — do NOT harden it
+- `decode_length`: multiples of 32 bits for standard MainTypes, 64 for ISCC-CODE, 8 for ID (C FFI:
+    length index for 64-bit codes is 1, not 0)
+
+## Unicode oracle labelling (archived from learnings.md at iteration 156 — fixture + docs corrected)
+
+- **A "must NOT be" oracle must name the design it came from** (iter 149): a *delete filter* turns
+    `e U+A7F1 U+0301` into `U+00E9`; `e U+015A` is the *category-override* failure. next.md labelled
+    the whole column "delete filter" and the mismatched value shipped into published docs before
+    review caught it. Generalised into the "next.md Implementation Notes are a hypothesis" entry
+    that stays in `learnings.md`.
+
+## CID role models (archived iter 157 — readable from `.claude/agents/*.md`)
+
+`advance` runs on Claude Fable 5 (`model: fable`, `effort: xhigh`, timeout 3600 s); every other role
+runs on `opus`. Deliberate — do not "unify" them.
+
+## v0.6.0 dependency refresh + ruff 0.16 adoption (archived iter 159 — all nine slices CLOSED)
+
+- **CLOSED** (iters 124–140; per-slice detail already in this archive and in `issues.md`). Live
+    rules that were carried in `learnings.md`: ruff is pinned at **0.16.0**; preview a major with
+    `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); new rules go in
+    `[tool.ruff.lint]   extend-select`, never `select`; **never run `ruff check --fix .`** without
+    an explicit `--select` — it deletes load-bearing `# noqa` directives (this last rule is also
+    recorded in the `issues.md` dependency entry, which remains open for the human-gated majors).
+
+## Generated-artifact + reference-porting details (archived iter 160)
+
+- **Escape non-ASCII UTF-8 in generated C as 3-digit octal** (`\360`), never `\x` — C hex escapes
+    are greedy and unbounded, so `"\xe9b"` parses as one out-of-range escape, not `é` + `b`. Applies
+    to `scripts/gen_ffi_boundary_vectors.py` and any future C/C++ generator.
+- Porting from the Python reference is complete for all 10 `gen_*_v0` functions; the Rust core
+    (`crates/iscc-lib/src/`) is the authoritative source. `reference/iscc-core/` is a gitignored
+    shallow clone — read its source files directly, never deepwiki MCP (also in `CLAUDE.md`).
+
+## Unicode 16.0 delta size (iter 143, archived at 164)
+
+- **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"**: 3,995 Egyptian
+    Hieroglyphs, 7 new scripts, and **32 LATIN-named** code points including U+A7CB. Never write
+    "Latin text is unaffected". Now enshrined in `docs/unicode.md` and in `decisions.md` 2026-07-26
+    ("Practical guidance quantifies the Unicode 16 delta instead of calling Latin text safe"), so
+    the docs phase this guarded is complete.
+
+## Feature-flag clippy trap (archived at 165 — feature flags fully met)
+
+- **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** (`benches/`
+    import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally, E0432) — drop `--all-targets` when
+    checking a no-default-features build.
+
+## Vendored vector copies (archived at 166 — boundary-vector propagation CLOSED at 161)
+
+- **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (152):
+    discovery is by basename, so keep the canonical filenames and register every tracked copy
+
+## Fixture-as-build-input, per build system (archived at 167 — all 12 suites probed)
+
+- Gradle's stale green is fixed with `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`;
+    NONE hashes contents only, so the varying absolute path never forces a re-run. Gradle was the
+    only offender: MSBuild `<Content Link=…>`, SwiftPM `.copy(...)` and the C/C++ *compile-time*
+    include (CMake depfiles) are safe by construction; CI is immune either way (fresh checkout).
+
+## Markdown-table parity gate (archived at 168 — the gate is committed and green)
+
+- **A markdown-table parity gate must anchor to its own section** (163): `specs/ci-cd.md` carries 14
+    backticked first-column rows under `## Version Management` that a whole-file scan would read as
+    bogus job rows — so the real file, not the fixture, is what proves the anchor load-bearing
+
+## Behavioural recovery of a UCD derived property (archived at 170 — the table is vendored and gated)
+
+- **A UCD *derived* property a runtime does not expose can be recovered behaviourally** (156):
+    `(ch+Σ).lower()` ends in ς ⟺ `Cased ∧ ¬Case_Ignorable`; `("A"+ch+Σ).lower()` ⟺
+    `Cased ∨ Case_Ignorable`. Audit such a table against category-only bounds — a behavioural
+    generator is not its own oracle (bounds → `decisions.md` 2026-07-27)
+
+- **A suite reading a fixture OUTSIDE its own build tree must declare it as a build input** (154,
+    archived 171 — all 12 boundary suites closed): Gradle's `Test` task tracks only its project
+    tree, so a `unicode_boundary.json` edit left `./gradlew test` `UP-TO-DATE` — a silent stale
+    green. Fixed by declaring the fixture an explicit input.
+
+## .NET lockfile gate (archived iter 172 — v0.6.0 dependency refresh complete)
+
+- **A csproj `Version="X"` is a FLOOR, not a pin** (170): NuGet resolves a direct `PackageReference`
+    to the *lowest applicable* version — exactness comes from the committed `packages.lock.json`
+    plus CI's `restore --locked-mode` (csproj drift → `NU1004`, tampered `resolved`/`contentHash` →
+    `NU1403`). A warm tree prints "All projects are up-to-date" and validates NOTHING — probe cold
+
+## Unicode freeze phase — completed-phase operational notes (archived iter 183)
+
+- **`str::to_lowercase()` decides `Final_Sigma` from the COMPILER's Unicode tables** (iter 156):
+    rustc 1.97/17.0 moved U+0295 `Ll`→`Lo`, so a bare `.to_lowercase()` made hash output a function
+    of rustc. `text_collapse` uses `to_lowercase_unicode16`, pre-substituting each `Σ` with σ/ς from
+    vendored `Cased`/`Case_Ignorable` tables (`utils/unicode16_case.rs`, regen
+    `scripts/gen_unicode16_case.py`). Rule is NOT "no `Cased` follows": `ΑΣ,Β`→`αςβ`, `ΑΣ.Β`→`ασβ`
+- **Any Unicode differential MUST include multi-code-point sequences** — deleting a `Cn` code point
+    changes ADJACENCY, mapping it does not; a per-code-point sweep scores the superseded
+    delete-filter design 0 failures (only `base_mark`/`jamo`/`sigma` expose it)
+- **The sweep is a committed fail-closed gate (157, hardened 158)**: `mise run unicode:sweep` + the
+    `unicode-sweep` CI job — 1,112,064 scalars × 8 contexts × 2 fns vs installed `iscc-core` on
+    CPython 3.14, must print byte-frozen `TOTAL 17793024 comparisons, 0 divergences`; **re-run for
+    every Unicode-table or toolchain bump**. Bare `uv run scripts/unicode_sweep.py` REFUSES (only
+    rebuild-first `--rebuilt` paths pass)

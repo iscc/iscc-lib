@@ -8,7 +8,7 @@ in any WASM-capable environment (browsers, Deno, Cloudflare Workers, Node.js via
 **Single-layer design:**
 
 1. **Rust bridge** (`crates/iscc-wasm/src/lib.rs`): wasm-bindgen annotated functions that call
-    `iscc-lib` core and return JavaScript types via WASM interop. All 32 Tier 1 symbols exported.
+    `iscc-lib` core and return JavaScript types via WASM interop. All 33 Tier 1 symbols exported.
 2. **Generated JS glue** (`pkg/`): wasm-pack generates JavaScript wrapper and TypeScript
     declarations for the WASM module.
 
@@ -24,7 +24,7 @@ in any WASM-capable environment (browsers, Deno, Cloudflare Workers, Node.js via
 crates/iscc-wasm/
 ├── Cargo.toml              # cdylib, depends on iscc-lib + wasm-bindgen
 ├── src/
-│   └── lib.rs              # wasm-bindgen bridge (all 32 Tier 1 symbols)
+│   └── lib.rs              # wasm-bindgen bridge (all 33 Tier 1 symbols)
 ├── package.json            # npm package config (@iscc/wasm)
 ├── README.md               # Per-crate README for npm
 ├── tests/
@@ -81,6 +81,60 @@ wasm-pack build crates/iscc-wasm --target web        # For direct browser use
 wasm-pack build crates/iscc-wasm --target nodejs     # For Node.js (testing)
 ```
 
+### WASM SIMD (`simd128`)
+
+GitHub: https://github.com/iscc/iscc-lib/issues/42
+
+Published release builds enable WASM SIMD so `blake3` uses its `wasm32` SIMD backend instead of the
+portable scalar fallback. Two compile-time pieces are involved (no runtime detection):
+
+1. The `blake3/wasm32_simd` **Cargo feature** (required to activate the backend) — a direct
+    `blake3 = { workspace = true, features = ["wasm32_simd"] }` dependency on `crates/iscc-wasm`.
+    blake3's build.rs emits the gating `blake3_wasm32_simd` cfg (which makes `Platform::detect()`
+    return `WASM32_SIMD`) only when this feature is set on a `wasm32` target; the `simd128`
+    target-feature alone leaves blake3 on `Platform::Portable`.
+2. The `simd128` target-feature (`RUSTFLAGS="-C target-feature=+simd128"`) — set on the release
+    build. blake3's backend functions carry `#[target_feature(enable = "simd128")]`, so they
+    compile even without it; the global flag additionally enables `simd128` across the whole crate
+    so the surrounding data-path code (gear CDC / xxh32 / minhash) also auto-vectorizes and
+    blake3's SIMD functions inline optimally:
+
+```bash
+RUSTFLAGS="-C target-feature=+simd128" \
+    wasm-pack build --target web --release crates/iscc-wasm --features conformance
+```
+
+and `wasm-opt` must accept SIMD in `crates/iscc-wasm/Cargo.toml`:
+
+```toml
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = [
+  "-O3",
+  "--enable-simd",
+  "--enable-bulk-memory",
+  "--enable-nontrapping-float-to-int",
+]
+```
+
+Applies to every published target (`web`, plus `bundler` if published). BLAKE3 is the Instance-Code
+/ `datahash` leg of `gen_sum_code_v0` / `SumHasher` and gains the most; the Data leg (gear CDC /
+xxh32 / minhash) benefits less. `simd128` is baseline in all current browsers (Chrome/Edge ≥91,
+Firefox ≥89, Safari ≥16.4) and Node ≥16 — a single SIMD build is fine, no scalar fallback artifact.
+Build-flag + Cargo-feature change only, no source changes: conformance output is byte-identical.
+
+**Verified when:**
+
+- [x] Release workflow builds `@iscc/wasm` with `simd128` enabled
+    (`RUSTFLAGS="-C target-feature=+simd128"`) for all published targets
+- [x] `wasm-opt` flags in `crates/iscc-wasm/Cargo.toml` include `--enable-simd`
+- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` passes on the SIMD build
+- [x] Published `.wasm` binary contains SIMD instructions — the backend is definitively wired in
+    (`cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"` shows blake3's
+    `wasm32_simd` feature, so `Platform::detect()` returns `WASM32_SIMD` at compile time), and the
+    release `.wasm` disassembly shows `v128` opcodes (`wasm-tools print`: 5370, up from 1993 before
+    the Cargo feature was enabled). (`wasm-validate --enable-simd` is NOT sufficient evidence — it
+    merely permits SIMD and passes scalar modules too.)
+
 ## Distribution / Publishing
 
 - **Scope**: `@iscc/wasm` under the `@iscc` npm organization
@@ -118,7 +172,7 @@ wasm:
 ## Verification Criteria
 
 - [ ] `wasm-pack test --node` passes all conformance vectors
-- [ ] All 32 Tier 1 symbols accessible from JavaScript/TypeScript
+- [ ] All 33 Tier 1 symbols accessible from JavaScript/TypeScript
 - [ ] Package builds with `wasm-pack build`
 - [ ] `DataHasher` and `InstanceHasher` streaming types work in WASM
 - [x] `SumHasher` streaming type works in WASM (single-pass ISCC-SUM, output matches two-hasher

@@ -99,6 +99,68 @@ func (h *DataHasher) Finalize(bits int) (*DataCodeResult, error)
 
 Streaming functions also accept `io.Reader` for file/network streaming.
 
+## ISCC-IDv1 Support (Experimental)
+
+GitHub: https://github.com/iscc/iscc-lib/issues/43
+
+The Go binding decodes and encodes **ISCC-IDv1** — the timestamp-based ID produced by `iscc-hub` and
+specified in iscc-core's `iscc_core/iscc_id.py` — at parity with the Python reference. ISCC-IDv1 is
+**not part of ISO 24138** and still evolving, so the API is marked experimental in doc comments (may
+change in a minor release).
+
+**Structure** (per `iscc_id.py` / iscc-hub):
+
+- 80-bit code = 16-bit header + 64-bit body; 16 base32 chars (RFC 4648 uppercase, no padding),
+    optional `ISCC:` prefix
+- Header nibbles: MainType = 6 (`ID`), SubType = realm (0 = sandbox/test, 1 = operational), Version
+    = 1, Length = 0 (canonical 64-bit body)
+- Body (big-endian `uint64`): `timestamp = body >> 12` (52-bit microseconds since epoch),
+    `hub_id = body & 0xFFF` (low 12 bits, issuing-hub slot 0–4095)
+
+**API shape** — canonical definition lives in `rust-core.md` → "ISCC-IDv1 Operations
+(Experimental)"; this section covers only what is Go-specific:
+
+- `GenIsccIDV1(timestamp uint64, hubID uint16, realm uint8) (*IsccIdResult, error)` — the Go casing
+    of the cross-binding name `gen_iscc_id_v1`, using the reference parameter order
+    `(timestamp, hub_id, realm)`. The result carries only `ISCC string`, mirroring iscc-core's
+    `{"iscc": ...}`
+- `decodeHeader` accepts Version = 1 when MainType = `ID` (with the matching `decodeLength` rule),
+    so generic `IsccDecode` returns header + 64-bit body instead of rejecting with
+    `iscc: invalid Version: 1`; all other MainTypes continue to reject Version > 0
+- Go keeps its own error idiom (`iscc:`-prefixed messages); only the validation *order* is normative
+
+**Rename note, and one deletion.** Iteration 119 shipped `EncodeIsccID(realm, hubID, timestamp)` /
+`DecodeIsccID` — the shape issue #43 originally called "preferred". On 2026-07-28 the human settled
+both halves differently:
+
+- `EncodeIsccID` → `GenIsccIDV1`, with the reference parameter order, matching `iscc_core`'s
+    `gen_iscc_id_v1` and the other 10 bindings
+- `DecodeIsccID` and its `IsccIDv1Result` type are **deleted**, not renamed. `iscc-core` has no IDv1
+    decoder; generic `IsccDecode` covers it. Go callers extract the fields directly:
+    `n := binary.BigEndian.Uint64(body)`, then `timestamp := n >> 12`, `hubID := uint16(n & 0xFFF)`,
+    `realm := st`
+
+Both symbols exist only on `develop` and have never appeared in a tagged release, so no published
+consumer is affected. `iscc/iscc-monitor` must be told the final shape before it deletes its interim
+port — update issue #43 when this lands.
+
+**Conformance vector:** `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub_id 1, timestamp 1751831876325218
+(from iscc-hub's `schema.py` example).
+
+**Downstream context:** `iscc/iscc-monitor` ships an interim in-repo port of this codec
+(`internal/index/iscc.go`, tracked monitor-side in ADR-0011) and wants to delete it once the Go
+binding supports ISCC-IDv1.
+
+**Verified when:**
+
+- [ ] `GenIsccIDV1(1751831876325218, 1, 0)` returns `ISCC:MAIGHFECJMOPMIAB` (round-trip through
+    `IsccDecode` holds for boundary values: hub_id 0 and 4095, realm 0 and 1, max 52-bit timestamp)
+- [ ] `packages/go` exports neither `DecodeIsccID` nor `IsccIDv1Result`, and the field-extraction
+    recipe is documented in `docs/howto/go.md` and `packages/go/README.md`
+- [x] `IsccDecode` accepts MainType `ID` with Version 1 and returns the header + 64-bit body
+- [x] Version > 0 is still rejected for every MainType other than `ID`
+- [x] Public ISCC-IDv1 symbols carry an "experimental" doc-comment marker
+
 ## Dependencies
 
 All well-maintained, pure Go:
@@ -163,7 +225,7 @@ constant is synced for diagnostic purposes.
 - [ ] Package installs cleanly via `go get` with no external dependencies beyond Go modules
 - [ ] No cgo required (`CGO_ENABLED=0` works)
 - [ ] Cross-compilation works (`GOOS`/`GOARCH` combinations)
-- [ ] All 32 Tier 1 symbols accessible with idiomatic Go types and error handling
+- [ ] All 33 Tier 1 symbols accessible with idiomatic Go types and error handling
 - [ ] API uses Go conventions: `PascalCase`, `error` returns, `[]byte`, `io.Reader`
 - [ ] No binary artifacts committed to the repository
 - [ ] `check-added-large-files` threshold at 256KB

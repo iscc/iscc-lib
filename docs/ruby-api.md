@@ -6,7 +6,7 @@ description: Ruby API reference for the ISCC library via native Rust extension.
 # Ruby API Reference
 
 Ruby gem for ISCC (ISO 24138:2024) code generation via a native Rust extension
-([Magnus](https://github.com/matsadler/magnus)). All 32 Tier 1 symbols are exposed as module-level
+([Magnus](https://github.com/matsadler/magnus)). All 33 Tier 1 symbols are exposed as module-level
 methods, constants, and classes on `IsccLib`.
 
 ## Installation
@@ -64,6 +64,7 @@ extends `Hash`. Results support both attribute-style (`result.iscc`) and hash-st
 | `IsccLib::InstanceCodeResult` | `gen_instance_code_v0` | `iscc`, `datahash`, `filesize`                      |
 | `IsccLib::IsccCodeResult`     | `gen_iscc_code_v0`     | `iscc`                                              |
 | `IsccLib::SumCodeResult`      | `gen_sum_code_v0`      | `iscc`, `datahash`, `filesize`, `units`?            |
+| `IsccLib::IdCodeResult`       | `gen_iscc_id_v1`       | `iscc`                                              |
 
 Fields marked with `?` are optional — present only when the corresponding input was provided.
 
@@ -309,6 +310,44 @@ result = IsccLib.gen_sum_code_v0("document.pdf", add_units: true)
 puts result.iscc
 puts result["units"] # Array of unit code strings
 ```
+
+---
+
+### gen_iscc_id_v1
+
+Mint an experimental ISCC-IDv1 from an explicit timestamp.
+
+```ruby
+IsccLib.gen_iscc_id_v1(timestamp, hub_id, realm)
+```
+
+| Parameter   | Type      | Description                                             |
+| ----------- | --------- | ------------------------------------------------------- |
+| `timestamp` | `Integer` | Microsecond timestamp, 52-bit range (`0` to `2^52 - 1`) |
+| `hub_id`    | `Integer` | HUB-ID, 12-bit range (`0` to `4095`)                    |
+| `realm`     | `Integer` | Realm identifier, encoded as the SubType (`0` or `1`)   |
+
+Produces an 80-bit ISCC-IDv1 (a 52-bit microsecond timestamp plus a 12-bit HUB-ID). Returns an
+`IdCodeResult` with a single `iscc` field.
+
+There is no dedicated decoder — recover the fields with `iscc_decode` and unpack the 8-byte
+big-endian digest:
+
+```ruby
+result = IsccLib.gen_iscc_id_v1(1751831876325218, 1, 0)
+# result.iscc == "ISCC:MAIGHFECJMOPMIAB"
+
+_maintype, subtype, version, _length, digest = IsccLib.iscc_decode(result.iscc)
+# version == 1 (ISCC-IDv1)
+n = digest[0, 8].unpack1("Q>")
+timestamp = n >> 12       # 1751831876325218
+hub_id = n & 0xFFF        # 1
+realm = subtype           # 0
+```
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
 
 ---
 

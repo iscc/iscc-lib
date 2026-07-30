@@ -4,10 +4,10 @@
 //! under the `IsccLib` module. The pure Ruby wrapper in `lib/iscc_lib.rb`
 //! provides idiomatic result classes and keyword arguments.
 //!
-//! Symbols (32 of 32):
+//! Symbols (33 of 33):
 //! - `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
 //! - `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`
-//! - `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
+//! - `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`, `gen_iscc_id_v1`
 //! - `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 //! - `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`
 //! - `json_to_data_url`, `conformance_selftest`
@@ -17,12 +17,15 @@
 //! - Constants: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
 //!   IO_READ_SIZE, TEXT_NGRAM_SIZE
 
-use magnus::{Error, RArray, RHash, RString, Ruby, TryConvert, function, method, prelude::*};
+use magnus::{
+    Error, Integer, RArray, RHash, RString, Ruby, TryConvert, function, method, prelude::*,
+};
 use std::cell::RefCell;
 
 /// Map an `IsccError` to a Magnus `RuntimeError`.
 fn to_magnus_err(e: iscc_lib::IsccError) -> Error {
-    Error::new(magnus::exception::runtime_error(), e.to_string())
+    let ruby = Ruby::get().expect("called from Ruby");
+    Error::new(ruby.exception_runtime_error(), e.to_string())
 }
 
 /// Generate a Meta-Code from name and optional metadata.
@@ -187,6 +190,55 @@ fn gen_sum_code_v0(path: String, bits: u32, wide: bool, add_units: bool) -> Resu
     Ok(hash)
 }
 
+/// Validate an ISCC-IDv1 parameter before narrowing to a fixed-width integer.
+///
+/// Ruby Integers are arbitrary precision, so each parameter is taken as a
+/// `magnus::Integer` and range-checked here — converting in the signature
+/// would raise `RangeError` during argument marshalling for values beyond
+/// `i64`, breaking the normative `timestamp -> hub_id -> realm` first-failure
+/// order. Rejects negative and out-of-range (`>= max_exclusive`) values with
+/// a `RuntimeError` so an invalid Ruby Integer raises instead of being
+/// silently narrowed to a wrong ID.
+fn checked(value: Integer, max_exclusive: u64, name: &str) -> Result<u64, Error> {
+    let ruby = Ruby::get().expect("called from Ruby");
+    let v = value.to_u64().map_err(|_| {
+        Error::new(
+            ruby.exception_runtime_error(),
+            format!("Invalid {name}: out of range"),
+        )
+    })?;
+    if v >= max_exclusive {
+        return Err(Error::new(
+            ruby.exception_runtime_error(),
+            format!("Invalid {name}: {v}"),
+        ));
+    }
+    Ok(v)
+}
+
+/// Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
+///
+/// Packs a 52-bit microsecond UTC `timestamp` into the high bits and a 12-bit
+/// `hub_id` (0-4095) into the low bits, encoding the result as an ISCC-ID unit
+/// with `realm` (0 = testnet, 1 = mainnet) as SubType and Version `V1`. The
+/// three semantic thresholds are validated in `timestamp` → `hub_id` → `realm`
+/// order before narrowing, so the first failing check wins.
+///
+/// Returns a Ruby Hash with key: `iscc`. Raises `RuntimeError` if any parameter
+/// is negative, or if `timestamp >= 2^52`, `hub_id >= 2^12`, or `realm` is not
+/// `0` or `1` — for any Integer magnitude, including values beyond `i64`.
+fn gen_iscc_id_v1(timestamp: Integer, hub_id: Integer, realm: Integer) -> Result<RHash, Error> {
+    let timestamp = checked(timestamp, 1u64 << 52, "timestamp")?;
+    let hub_id = checked(hub_id, 4096, "hub_id")?;
+    let realm = checked(realm, 2, "realm")?;
+    let r =
+        iscc_lib::gen_iscc_id_v1(timestamp, hub_id as u16, realm as u8).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
+    Ok(hash)
+}
+
 /// Clean and normalize text for display.
 ///
 /// Applies NFKC normalization, removes control characters (except newlines),
@@ -265,7 +317,7 @@ fn iscc_decode(iscc: String) -> Result<RArray, Error> {
     arr.push(st)?;
     arr.push(vs)?;
     arr.push(li)?;
-    arr.push(RString::from_slice(&digest))?;
+    arr.push(ruby.str_from_slice(&digest))?;
     Ok(arr)
 }
 
@@ -307,7 +359,8 @@ fn alg_simhash(hash_digests: RArray) -> Result<RString, Error> {
         })
         .collect::<Result<Vec<_>, Error>>()?;
     let result = iscc_lib::alg_simhash(&digests).map_err(to_magnus_err)?;
-    Ok(RString::from_slice(&result))
+    let ruby = Ruby::get().expect("called from Ruby");
+    Ok(ruby.str_from_slice(&result))
 }
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
@@ -315,7 +368,8 @@ fn alg_simhash(hash_digests: RArray) -> Result<RString, Error> {
 /// Returns a 32-byte binary String.
 fn alg_minhash_256(features: Vec<u32>) -> RString {
     let result = iscc_lib::alg_minhash_256(&features);
-    RString::from_slice(&result)
+    let ruby = Ruby::get().expect("called from Ruby");
+    ruby.str_from_slice(&result)
 }
 
 /// Split data into content-defined chunks using gear rolling hash.
@@ -330,7 +384,7 @@ fn alg_cdc_chunks(data: RString, utf32: bool, avg_chunk_size: u32) -> Result<RAr
     let ruby = Ruby::get().expect("called from Ruby");
     let arr = ruby.ary_new_capa(chunks.len());
     for chunk in chunks {
-        arr.push(RString::from_slice(chunk))?;
+        arr.push(ruby.str_from_slice(chunk))?;
     }
     Ok(arr)
 }
@@ -348,7 +402,8 @@ fn soft_hash_video_v0(frame_sigs: RArray, bits: u32) -> Result<RString, Error> {
         })
         .collect::<Result<Vec<_>, Error>>()?;
     let result = iscc_lib::soft_hash_video_v0(&frames, bits).map_err(to_magnus_err)?;
-    Ok(RString::from_slice(&result))
+    let ruby = Ruby::get().expect("called from Ruby");
+    Ok(ruby.str_from_slice(&result))
 }
 
 /// Streaming Data-Code generator for Ruby.
@@ -372,10 +427,11 @@ impl RbDataHasher {
     ///
     /// Raises `RuntimeError` if called after `finalize`.
     fn update(&self, data: RString) -> Result<(), Error> {
+        let ruby = Ruby::get().expect("called from Ruby");
         let mut inner = self.inner.borrow_mut();
         let hasher = inner.as_mut().ok_or_else(|| {
             Error::new(
-                magnus::exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 "DataHasher already finalized",
             )
         })?;
@@ -391,14 +447,14 @@ impl RbDataHasher {
     /// Returns an `RHash` with key `"iscc"`. Raises `RuntimeError` if
     /// called more than once.
     fn finalize(&self, bits: u32) -> Result<RHash, Error> {
+        let ruby = Ruby::get().expect("called from Ruby");
         let hasher = self.inner.borrow_mut().take().ok_or_else(|| {
             Error::new(
-                magnus::exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 "DataHasher already finalized",
             )
         })?;
         let r = hasher.finalize(bits).map_err(to_magnus_err)?;
-        let ruby = Ruby::get().expect("called from Ruby");
         let hash = ruby.hash_new();
         hash.aset("iscc", r.iscc)?;
         Ok(hash)
@@ -426,10 +482,11 @@ impl RbInstanceHasher {
     ///
     /// Raises `RuntimeError` if called after `finalize`.
     fn update(&self, data: RString) -> Result<(), Error> {
+        let ruby = Ruby::get().expect("called from Ruby");
         let mut inner = self.inner.borrow_mut();
         let hasher = inner.as_mut().ok_or_else(|| {
             Error::new(
-                magnus::exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 "InstanceHasher already finalized",
             )
         })?;
@@ -445,14 +502,14 @@ impl RbInstanceHasher {
     /// Returns an `RHash` with keys `"iscc"`, `"datahash"`, `"filesize"`.
     /// Raises `RuntimeError` if called more than once.
     fn finalize(&self, bits: u32) -> Result<RHash, Error> {
+        let ruby = Ruby::get().expect("called from Ruby");
         let hasher = self.inner.borrow_mut().take().ok_or_else(|| {
             Error::new(
-                magnus::exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 "InstanceHasher already finalized",
             )
         })?;
         let r = hasher.finalize(bits).map_err(to_magnus_err)?;
-        let ruby = Ruby::get().expect("called from Ruby");
         let hash = ruby.hash_new();
         hash.aset("iscc", r.iscc)?;
         hash.aset("datahash", r.datahash)?;
@@ -477,6 +534,7 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     module.define_module_function("_gen_instance_code_v0", function!(gen_instance_code_v0, 2))?;
     module.define_module_function("_gen_iscc_code_v0", function!(gen_iscc_code_v0, 2))?;
     module.define_module_function("_gen_sum_code_v0", function!(gen_sum_code_v0, 4))?;
+    module.define_module_function("_gen_iscc_id_v1", function!(gen_iscc_id_v1, 3))?;
 
     // Text utility functions
     module.define_module_function("text_clean", function!(text_clean, 1))?;

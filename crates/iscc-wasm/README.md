@@ -65,6 +65,13 @@ All code generators return ISCC strings directly.
 - **Streaming:** `DataHasher`, `InstanceHasher` classes for incremental processing
 - **Diagnostics:** `conformance_selftest`
 
+## Engine Requirements
+
+The published package is compiled with [WebAssembly SIMD](https://webassembly.org/features/)
+(`simd128`) so BLAKE3 uses its SIMD backend. It requires an engine with WASM SIMD support: all
+evergreen browsers (Chrome 91+, Firefox 89+, Safari 16.4+) and Node.js 16.4+. Engines without WASM
+SIMD fail at `WebAssembly.instantiate` with a `CompileError`.
+
 ## Links
 
 - [Documentation](https://lib.iscc.codes)

@@ -20,7 +20,7 @@ Add the Maven dependency to your `pom.xml`:
 <dependency>
   <groupId>io.iscc</groupId>
   <artifactId>iscc-lib</artifactId>
-  <version>0.5.0</version>
+  <version>0.6.0</version>
 </dependency>
 ```
 
@@ -336,6 +336,28 @@ System.out.printf("Digest: %s%n", java.util.HexFormat.of().formatHex(result.dige
 
 `isccDecode` returns an `IsccDecodeResult` with `int` fields `maintype`, `subtype`, `version`,
 `length` (length index), and a `byte[]` field `digest`.
+
+### ISCC-IDv1 (experimental)
+
+Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
+bits and the HUB-ID the low 12 bits; `realm` (0 = testnet, 1 = mainnet) becomes the SubType.
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
+
+```java
+String iscc = IsccLib.genIsccIdV1(1751831876325218L, 1, 0);
+System.out.println(iscc); // "ISCC:MAIGHFECJMOPMIAB"
+
+// There is no dedicated decoder — recover the fields with isccDecode and bit math:
+IsccDecodeResult d = IsccLib.isccDecode(iscc);
+long n = new java.math.BigInteger(1, java.util.Arrays.copyOf(d.digest, 8)).longValue();
+long timestamp = n >>> 12;     // 1751831876325218
+int hubId = (int) (n & 0xFFF); // 1
+int realm = d.subtype;         // 0
+System.out.println(d.version == 1); // true (ISCC-IDv1)
+```
 
 ### Decompose
 

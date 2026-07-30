@@ -10,7 +10,7 @@ usage = '''
 arg "<n>" help="Max iterations" default="20"
 arg "<pause>" help="Pause in seconds between iterations" default="1200"
 '''
-run = 'uv run tools/cid.py --skip-permissions run --max-iterations "${usage_n}" --pause "${usage_pause}"'
+run = 'uv run tools/cid.py --skip-permissions --fallback-model opus run --max-iterations "${usage_n}" --pause "${usage_pause}"'
 
 [tasks."cid:step"]
 description = "Run one full CID iteration (update-state → define-next → advance → review)"
@@ -27,6 +27,14 @@ run = "uv run tools/cid.py stats"
 [tasks."cid:improve"]
 description = "Run the meta-improve self-improvement role once"
 run = "uv run tools/cid.py --skip-permissions improve"
+
+[tasks."cid:audit"]
+description = "Run the codebase audit role once (metrics snapshot + maintainability audit)"
+run = "uv run tools/cid.py --skip-permissions audit"
+
+[tasks."cid:metrics"]
+description = "Append a codebase-health snapshot to .claude/context/metrics.jsonl"
+run = "uv run tools/metrics.py"
 
 [tasks."cid:state"]
 description = "Run update-state agent only"
@@ -85,9 +93,9 @@ uv run pytest
 [tasks."test:install"]
 description = "Test published packages are installable from registries"
 usage = '''
-arg "[flags]" var=#true help="Flags forwarded to test_install.py (default: --version 0.5.0)"
+arg "[flags]" var=#true help="Flags forwarded to test_install.py (default: --version 0.6.0)"
 '''
-run = 'uv run scripts/test_install.py ${usage_flags:---version 0.5.0}'
+run = 'uv run scripts/test_install.py ${usage_flags:---version 0.6.0}'
 
 # --- Version ---
 

@@ -100,7 +100,7 @@ npm install @iscc/lib
 <dependency>
   <groupId>io.iscc</groupId>
   <artifactId>iscc-lib</artifactId>
-  <version>0.5.0</version>
+  <version>0.6.0</version>
 </dependency>
 ```
 
@@ -136,7 +136,7 @@ Add the package dependency to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/iscc/iscc-lib", from: "0.5.0"),
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.6.0"),
 ]
 ```
 
@@ -147,12 +147,14 @@ dependencies: [
 
 ```kotlin
 dependencies {
-    implementation("io.iscc:iscc-lib-kotlin:0.5.0")
-    implementation("net.java.dev.jna:jna:5.16.0")
+    implementation("io.iscc:iscc-lib-kotlin:0.6.0")
+    implementation("net.java.dev.jna:jna:5.19.1")
 }
 ```
 
-The native library must be available on `java.library.path` and `jna.library.path` at runtime.
+Requires **Kotlin 2.3 or newer** (the artifact is compiled with Kotlin 2.4.10; older compilers
+reject its metadata). The native library must be available on `java.library.path` and
+`jna.library.path` at runtime.
 
 ### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM
 

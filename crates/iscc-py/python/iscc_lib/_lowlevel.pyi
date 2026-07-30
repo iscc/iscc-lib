@@ -35,20 +35,20 @@ def encode_component(
     :return: Base32-encoded ISCC unit string.
     :raises ValueError: If enum values are out of range or digest is too short.
     """
-    ...
 
 def iscc_decode(iscc: str) -> tuple[int, int, int, int, bytes]:
-    """Decode an ISCC unit string into header components and raw digest.
+    """Decode an ISCC string into header components and raw digest.
 
-    Inverse of :func:`encode_component`. Strips an optional ``"ISCC:"``
-    prefix and dashes, base32-decodes the string, parses the header, and
-    returns the digest truncated to exactly the encoded bit-length.
+    Normalizes the input to its canonical form first: a concatenated sequence
+    of ISCC-UNITs is composed into a single ISCC-CODE before decoding, so a
+    sequence and its composite form decode identically. Strips an optional
+    ``"ISCC:"`` prefix and dashes.
 
-    :param iscc: ISCC unit string (with or without ``"ISCC:"`` prefix).
+    :param iscc: ISCC string (with or without ``"ISCC:"`` prefix).
     :return: Tuple of ``(maintype, subtype, version, length_index, digest)``.
-    :raises ValueError: If the input is not a valid ISCC string.
+    :raises ValueError: If the input is not a valid ISCC string, or is a unit
+        sequence that cannot be composed into an ISCC-CODE.
     """
-    ...
 
 def json_to_data_url(json: str) -> str:
     """Convert a JSON string into a ``data:`` URL with JCS canonicalization.
@@ -62,7 +62,6 @@ def json_to_data_url(json: str) -> str:
     :return: Data URL string.
     :raises ValueError: If ``json`` is not valid JSON.
     """
-    ...
 
 def conformance_selftest() -> bool:
     """Run all conformance tests against vendored test vectors.
@@ -73,7 +72,6 @@ def conformance_selftest() -> bool:
 
     :return: ``True`` if all conformance tests pass, ``False`` otherwise.
     """
-    ...
 
 def text_clean(text: str) -> str:
     """Clean and normalize text for display.
@@ -85,7 +83,6 @@ def text_clean(text: str) -> str:
     :param text: Input text to clean.
     :return: Cleaned text.
     """
-    ...
 
 def text_remove_newlines(text: str) -> str:
     """Remove newlines and collapse whitespace to single spaces.
@@ -96,7 +93,6 @@ def text_remove_newlines(text: str) -> str:
     :param text: Input text with newlines.
     :return: Single-line text with collapsed whitespace.
     """
-    ...
 
 def text_trim(text: str, nbytes: int) -> str:
     """Trim text so its UTF-8 encoded size does not exceed ``nbytes``.
@@ -109,7 +105,6 @@ def text_trim(text: str, nbytes: int) -> str:
     :param nbytes: Maximum byte length of the result.
     :return: Trimmed text.
     """
-    ...
 
 def text_collapse(text: str) -> str:
     """Normalize and simplify text for similarity hashing.
@@ -121,7 +116,6 @@ def text_collapse(text: str) -> str:
     :param text: Input text to collapse.
     :return: Collapsed text suitable for similarity hashing.
     """
-    ...
 
 def encode_base64(data: bytes) -> str:
     """Encode bytes as base64url (RFC 4648 §5, no padding).
@@ -131,7 +125,6 @@ def encode_base64(data: bytes) -> str:
     :param data: Raw bytes to encode.
     :return: Base64url encoded string without padding.
     """
-    ...
 
 def iscc_decompose(iscc_code: str) -> list[str]:
     """Decompose a composite ISCC-CODE into individual ISCC-UNITs.
@@ -144,7 +137,6 @@ def iscc_decompose(iscc_code: str) -> list[str]:
     :return: List of base32-encoded ISCC-UNIT strings.
     :raises ValueError: If the input is not a valid ISCC string.
     """
-    ...
 
 def sliding_window(seq: str, width: int) -> list[str]:
     """Generate sliding window n-grams from a string.
@@ -158,7 +150,6 @@ def sliding_window(seq: str, width: int) -> list[str]:
     :return: List of window-sized substrings.
     :raises ValueError: If ``width`` is less than 2.
     """
-    ...
 
 def gen_meta_code_v0(
     name: str,
@@ -179,7 +170,6 @@ def gen_meta_code_v0(
     :return: Dict with ``iscc``, ``name``, ``metahash``, and optionally
         ``description`` and ``meta`` keys.
     """
-    ...
 
 def gen_text_code_v0(text: str, bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Text-Code from plain text content.
@@ -192,7 +182,6 @@ def gen_text_code_v0(text: str, bits: int = 64) -> dict[str, Any]:
     :param bits: Bit length of the code body (default 64).
     :return: Dict with ``iscc`` and ``characters`` keys.
     """
-    ...
 
 def gen_image_code_v0(pixels: bytes, bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Image-Code from pixel data.
@@ -204,7 +193,6 @@ def gen_image_code_v0(pixels: bytes, bits: int = 64) -> dict[str, Any]:
     :param bits: Bit length of the code body (default 64).
     :return: Dict with ``iscc`` key.
     """
-    ...
 
 def gen_audio_code_v0(cv: list[int], bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Audio-Code from a Chromaprint feature vector.
@@ -216,7 +204,6 @@ def gen_audio_code_v0(cv: list[int], bits: int = 64) -> dict[str, Any]:
     :param bits: Bit length of the code body (default 64).
     :return: Dict with ``iscc`` key.
     """
-    ...
 
 def gen_video_code_v0(
     frame_sigs: Sequence[Sequence[int]], bits: int = 64
@@ -231,7 +218,6 @@ def gen_video_code_v0(
     :param bits: Bit length of the code body (default 64).
     :return: Dict with ``iscc`` key.
     """
-    ...
 
 def gen_mixed_code_v0(codes: list[str], bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Mixed-Code from multiple Content-Code strings.
@@ -244,7 +230,6 @@ def gen_mixed_code_v0(codes: list[str], bits: int = 64) -> dict[str, Any]:
     :param bits: Bit length of the code body (default 64).
     :return: Dict with ``iscc`` and ``parts`` keys.
     """
-    ...
 
 def gen_data_code_v0(data: bytes, bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Data-Code from raw byte data.
@@ -257,7 +242,6 @@ def gen_data_code_v0(data: bytes, bits: int = 64) -> dict[str, Any]:
     :param bits: Bit length of the code body (default 64).
     :return: Dict with ``iscc`` key.
     """
-    ...
 
 def gen_instance_code_v0(data: bytes, bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Instance-Code from raw byte data.
@@ -269,7 +253,6 @@ def gen_instance_code_v0(data: bytes, bits: int = 64) -> dict[str, Any]:
     :param bits: Bit length of the code body (default 64).
     :return: Dict with ``iscc``, ``datahash``, and ``filesize`` keys.
     """
-    ...
 
 def alg_simhash(hash_digests: list[bytes]) -> bytes:
     """Compute a SimHash from a sequence of equal-length hash digests.
@@ -281,7 +264,6 @@ def alg_simhash(hash_digests: list[bytes]) -> bytes:
     :param hash_digests: List of equal-length byte hash digests.
     :return: Similarity-preserving hash as bytes (same length as input digests).
     """
-    ...
 
 def alg_minhash_256(features: list[int]) -> bytes:
     """Compute a 256-bit MinHash digest from 32-bit integer features.
@@ -292,7 +274,6 @@ def alg_minhash_256(features: list[int]) -> bytes:
     :param features: List of 32-bit unsigned integer features.
     :return: 32-byte MinHash digest.
     """
-    ...
 
 def alg_cdc_chunks(data: bytes, utf32: bool, avg_chunk_size: int = 1024) -> list[bytes]:
     """Split data into content-defined chunks using gear rolling hash.
@@ -306,7 +287,6 @@ def alg_cdc_chunks(data: bytes, utf32: bool, avg_chunk_size: int = 1024) -> list
     :param avg_chunk_size: Target average chunk size in bytes (default 1024).
     :return: List of byte chunks that concatenate to the original data.
     """
-    ...
 
 def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> dict[str, Any]:
     """Generate a composite ISCC-CODE from individual ISCC unit codes.
@@ -321,7 +301,6 @@ def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> dict[str, Any]:
     :param wide: Whether to produce a wide (256-bit) code (default False).
     :return: Dict with ``iscc`` key.
     """
-    ...
 
 def gen_sum_code_v0(
     path: str, bits: int = 64, wide: bool = False, add_units: bool = False
@@ -337,7 +316,23 @@ def gen_sum_code_v0(
         ``units`` (list of Data-Code and Instance-Code strings) when ``add_units``
         is True.
     """
-    ...
+
+def gen_iscc_id_v1(timestamp: int, hub_id: int, realm_id: int) -> dict[str, Any]:
+    """Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
+
+    Packs a 52-bit microsecond UTC ``timestamp`` and a 12-bit ``hub_id``
+    (0-4095) into a 64-bit ISCC-ID unit, encoded with ``realm_id`` as SubType.
+    Clock-free: the caller supplies ``timestamp``. There is no dedicated
+    decoder — use ``iscc_decode``. All arguments are required here; the
+    ``iscc_lib`` wrapper supplies the defaults.
+
+    :param timestamp: Microsecond UTC timestamp since the UNIX epoch (< 2**52).
+    :param hub_id: HUB-ID in range 0-4095.
+    :param realm_id: ID realm — 0 (test) or 1 (operational).
+    :return: Dict with ``iscc`` key.
+    :raises ValueError: If ``timestamp`` >= 2**52, ``hub_id`` >= 2**12, or
+        ``realm_id`` is not 0 or 1.
+    """
 
 def soft_hash_video_v0(frame_sigs: Sequence[Sequence[int]], bits: int = 64) -> bytes:
     """Compute a similarity-preserving hash from video frame signatures.
@@ -350,7 +345,6 @@ def soft_hash_video_v0(frame_sigs: Sequence[Sequence[int]], bits: int = 64) -> b
     :return: Raw hash bytes of length ``bits / 8``.
     :raises ValueError: If ``frame_sigs`` is empty.
     """
-    ...
 
 def gen_video_code_v0_flat(
     data: bytes, num_frames: int, frame_len: int, bits: int = 64
@@ -366,7 +360,6 @@ def gen_video_code_v0_flat(
     :param bits: Bit length of the code body (default 64).
     :return: Dict with ``iscc`` key.
     """
-    ...
 
 def soft_hash_video_v0_flat(
     data: bytes, num_frames: int, frame_len: int, bits: int = 64
@@ -382,7 +375,6 @@ def soft_hash_video_v0_flat(
     :param bits: Bit length of the output hash (default 64).
     :return: Raw hash bytes of length ``bits / 8``.
     """
-    ...
 
 class DataHasher:
     """Streaming Data-Code generator backed by Rust.
@@ -393,7 +385,6 @@ class DataHasher:
 
     def __init__(self) -> None:
         """Create a new DataHasher."""
-        ...
 
     def update(self, data: bytes) -> None:
         """Push data into the hasher.
@@ -401,7 +392,6 @@ class DataHasher:
         :param data: Raw binary data to process.
         :raises ValueError: If the hasher has already been finalized.
         """
-        ...
 
     def finalize(self, bits: int = 64) -> dict[str, Any]:
         """Consume the hasher and produce a Data-Code result dict.
@@ -410,7 +400,6 @@ class DataHasher:
         :return: Dict with ``iscc`` key.
         :raises ValueError: If the hasher has already been finalized.
         """
-        ...
 
 class InstanceHasher:
     """Streaming Instance-Code generator backed by Rust.
@@ -421,7 +410,6 @@ class InstanceHasher:
 
     def __init__(self) -> None:
         """Create a new InstanceHasher."""
-        ...
 
     def update(self, data: bytes) -> None:
         """Push data into the hasher.
@@ -429,7 +417,6 @@ class InstanceHasher:
         :param data: Raw binary data to process.
         :raises ValueError: If the hasher has already been finalized.
         """
-        ...
 
     def finalize(self, bits: int = 64) -> dict[str, Any]:
         """Consume the hasher and produce an Instance-Code result dict.
@@ -438,7 +425,6 @@ class InstanceHasher:
         :return: Dict with ``iscc``, ``datahash``, and ``filesize`` keys.
         :raises ValueError: If the hasher has already been finalized.
         """
-        ...
 
 class SumHasher:
     """Streaming composite ISCC-CODE (Sum) generator backed by Rust.
@@ -449,7 +435,6 @@ class SumHasher:
 
     def __init__(self) -> None:
         """Create a new SumHasher."""
-        ...
 
     def update(self, data: bytes) -> None:
         """Push data into both inner hashers in a single pass.
@@ -457,7 +442,6 @@ class SumHasher:
         :param data: Raw binary data to process.
         :raises ValueError: If the hasher has already been finalized.
         """
-        ...
 
     def finalize(
         self, bits: int = 64, wide: bool = False, add_units: bool = False
@@ -473,4 +457,3 @@ class SumHasher:
             is True.
         :raises ValueError: If the hasher has already been finalized.
         """
-        ...

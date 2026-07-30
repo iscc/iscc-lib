@@ -160,6 +160,44 @@ public class SmokeTests
     }
 
     [Fact]
+    public void GenIsccIdV1_MatchesGoldenVector()
+    {
+        // Golden vector matches the iscc-core reference implementation.
+        var result = IsccLib.GenIsccIdV1(1751831876325218, 1, 0);
+        Assert.Equal("ISCC:MAIGHFECJMOPMIAB", result.Iscc);
+    }
+
+    [Fact]
+    public void GenIsccIdV1_OutOfRangeTimestampThrows()
+    {
+        // Timestamp must be less than 2^52; core rejects out-of-range input.
+        Assert.Throws<IsccException>(() => IsccLib.GenIsccIdV1(1UL << 52, 0, 0));
+    }
+
+    [Fact]
+    public void GenIsccIdV1_DecodeRoundTrip()
+    {
+        const ulong timestamp = 1751831876325218;
+        const ushort hubId = 1;
+        const byte realm = 0;
+
+        var golden = IsccLib.GenIsccIdV1(timestamp, hubId, realm);
+        DecodeResult decoded = IsccLib.IsccDecode(golden.Iscc);
+
+        Assert.Equal(6, decoded.Maintype); // ISCC-ID = 6
+        Assert.Equal(1, decoded.Version); // ISCC-IDv1
+        Assert.Equal(8, decoded.Digest.Length);
+
+        ulong body = 0;
+        foreach (byte b in decoded.Digest)
+            body = (body << 8) | b;
+
+        Assert.Equal(timestamp, body >> 12);
+        Assert.Equal(hubId, (ushort)(body & 0xFFF));
+        Assert.Equal(realm, decoded.Subtype);
+    }
+
+    [Fact]
     public void GenDataCodeV0_ReturnsIsccString()
     {
         byte[] data = "Hello World"u8.ToArray();

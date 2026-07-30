@@ -28,11 +28,12 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 
 ## API Tier Rules
 
-**Tier 1 -- public API, bound in all languages (32 symbols at crate root):**
+**Tier 1 -- public API, bound in all languages (33 symbols at crate root):**
 
 - 10 gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
     `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
+- 1 ISCC-IDv1 mint function (experimental): `gen_iscc_id_v1`
 - 4 text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - 4 algorithm primitives: `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`
 - 1 soft hash: `soft_hash_video_v0`
@@ -98,6 +99,8 @@ new() -> update(&[u8]) -> ... -> update(&[u8]) -> finalize(bits) -> IsccResult<*
 ## Conformance Rules
 
 - Correctness baseline: vendored `tests/data.json` from `iscc-core`
+- Vendored copies of `data.json` in per-language test trees are gated for byte-identity by
+    `tests/test_vendored_fixtures.py` (repo root) — every new tracked copy must be registered there
 - 9 of 10 `gen_*_v0` functions must match `iscc-core` output for every test vector
     (`gen_sum_code_v0` has no conformance vectors — it composes Data-Code + Instance-Code
     internally)
@@ -152,8 +155,11 @@ cargo bench -p iscc-lib                     # Criterion benchmarks
     `finalize()` or the next `update()`. This matches the Python `push()` / `prev_chunk` pattern.
 - **Conformance vector format** -- `data.json` inputs use `"stream:<hex>"` for byte data, JSON
     arrays for integer vectors, and plain strings for text. Read the test code for parsing patterns.
-- **Text normalization order matters** -- `text_clean` applies NFKC first, then control-char
-    removal, then line collapsing. `text_collapse` applies NFD, lowercase, filter C/M/P categories,
-    then NFKC. Do not reorder these steps.
+- **Text normalization order matters** -- `text_clean` applies NFKC, then control-char removal, then
+    line collapsing. `text_collapse` applies NFD, lowercase, filter C/M/P categories, then NFKC.
+    This mirrors the reference implementation step for step; do not reorder these steps. Unicode
+    data comes from the tables the dependencies ship (`unicode-normalization`,
+    `unicode-general-category`, and `str::to_lowercase()` from std), matching the reference's use of
+    whatever `unicodedata` its interpreter ships.
 - **JSON canonicalization** -- the crate uses `serde_json_canonicalizer` for RFC 8785 (JCS)
     compliant serialization of JSON metadata, matching iscc-core's `jcs.canonicalize()` behavior.

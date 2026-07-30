@@ -11,7 +11,7 @@ Usage:
     uv run scripts/test_install.py --crates     # Test crates.io only
     uv run scripts/test_install.py --go         # Test Go module only
     uv run scripts/test_install.py --maven      # Test Maven Central only
-    uv run scripts/test_install.py --version 0.5.0  # Test specific version
+    uv run scripts/test_install.py --version 0.6.0  # Test specific version
 """
 
 from __future__ import annotations
@@ -51,7 +51,13 @@ def run(
     """Run a command and return the result."""
     run_env = {**os.environ, **(env or {})}
     return subprocess.run(  # noqa: S603
-        cmd, capture_output=True, text=True, cwd=cwd, timeout=timeout, env=run_env
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        timeout=timeout,
+        env=run_env,
+        check=False,
     )
 
 
@@ -470,7 +476,7 @@ def main() -> int:
 
     # Check registry availability first
     if args.check_only or test_all:
-        v = version or "0.5.0"
+        v = version or "0.6.0"
         print("--- Registry availability ---")
         available = check_registry_availability(v)
         for reg, avail in available.items():

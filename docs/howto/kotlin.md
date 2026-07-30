@@ -18,13 +18,19 @@ Add the dependency to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.iscc:iscc-lib-kotlin:0.5.0")
-    implementation("net.java.dev.jna:jna:5.16.0")
+    implementation("io.iscc:iscc-lib-kotlin:0.6.0")
+    implementation("net.java.dev.jna:jna:5.19.1")
 }
 ```
 
 The JNA dependency is required for loading the native Rust library at runtime. The native
 `libiscc_uniffi` shared library must be available on `java.library.path` and `jna.library.path`.
+
+!!! note "Requires Kotlin 2.3 or newer"
+
+    The published artifact is compiled with `kotlin("jvm") 2.4.10`, and Kotlin accepts roughly one minor
+    version of forward metadata; older compilers fail with
+    `Module was compiled with an incompatible version of Kotlin`.
 
 !!! note "Not yet published to Maven Central"
 
@@ -334,6 +340,29 @@ println("Digest: ${decoded.digest.joinToString("") { "%02x".format(it) }}")
 
 `isccDecode` returns a `DecodeResult` data class with `UByte` fields `maintype`, `subtype`,
 `version`, `length` (length index), and a `ByteArray` field `digest`.
+
+### ISCC-IDv1 (experimental)
+
+Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
+bits and the HUB-ID the low 12 bits; `realm` (0 = testnet, 1 = mainnet) becomes the SubType.
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
+
+```kotlin
+val result = genIsccIdV1(timestamp = 1751831876325218UL, hubId = 1u, realm = 0u)
+println(result.iscc) // "ISCC:MAIGHFECJMOPMIAB"
+
+// There is no dedicated decoder — recover the fields with isccDecode and bit math:
+val decoded = isccDecode(iscc = result.iscc)
+var n = 0UL
+for (i in 0 until 8) n = (n shl 8) or decoded.digest[i].toUByte().toULong()
+val timestamp = n shr 12       // 1751831876325218
+val hubId = n and 0xFFFUL      // 1
+val realm = decoded.subtype    // 0
+println(decoded.version.toInt() == 1) // true (ISCC-IDv1)
+```
 
 ### Decompose
 

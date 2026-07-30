@@ -391,6 +391,29 @@ int main() {
                        "gen_audio_code_v0 empty vector");
     }
 
+    // 36. gen_iscc_id_v1 — golden vector
+    {
+        auto r = iscc::gen_iscc_id_v1(1751831876325218ULL, 1, 0);
+        assert_str_eq(r.iscc, "ISCC:MAIGHFECJMOPMIAB", "gen_iscc_id_v1(golden)");
+    }
+
+    // 37. gen_iscc_id_v1 — invalid realm throws
+    {
+        bool threw = false;
+        try {
+            iscc::gen_iscc_id_v1(1751831876325218ULL, 1, 2);
+        } catch (const iscc::IsccError&) {
+            threw = true;
+        }
+        assert_true(threw, "gen_iscc_id_v1(realm=2) throws IsccError");
+    }
+
+    // 38. gen_iscc_id_v1 — decode round-trip reports IDv1
+    {
+        auto dr = iscc::iscc_decode("ISCC:MAIGHFECJMOPMIAB");
+        assert_eq(dr.version, 1, "gen_iscc_id_v1 decode version == 1");
+    }
+
     // Summary
     std::printf("\n%d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;

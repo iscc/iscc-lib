@@ -62,8 +62,9 @@ fn is_cmp_category(c: char) -> bool {
 /// Clean and normalize text for display.
 ///
 /// Applies NFKC normalization, removes control characters (except newlines),
-/// normalizes `\r\n` to `\n`, collapses consecutive empty lines to at most
-/// one, and strips leading/trailing whitespace.
+/// normalizes `\r\n` to `\n`, collapses consecutive empty lines to at most one,
+/// and strips leading/trailing whitespace. Mirrors the reference `text_clean`
+/// step for step; Unicode data comes from the tables the dependencies ship.
 #[cfg(feature = "text-processing")]
 pub fn text_clean(text: &str) -> String {
     // 1. NFKC normalize
@@ -133,13 +134,14 @@ pub fn text_trim(text: &str, nbytes: usize) -> String {
 
 /// Normalize and simplify text for similarity hashing.
 ///
-/// Applies NFD normalization, lowercasing, removes whitespace and characters
-/// in Unicode categories C (control), M (mark), and P (punctuation), then
-/// recombines with NFKC normalization.
+/// Applies NFD normalization, lowercasing, removes whitespace and characters in
+/// Unicode categories C (control), M (mark), and P (punctuation), then
+/// recombines with NFKC normalization. Mirrors the reference `text_collapse`
+/// step for step; Unicode data comes from the tables the dependencies ship.
 #[cfg(feature = "text-processing")]
 pub fn text_collapse(text: &str) -> String {
-    // 1. NFD normalize and lowercase
-    let nfd_lower: String = text.nfd().collect::<String>().to_lowercase();
+    // 1. NFD normalize, then lowercase
+    let nfd_lower = text.nfd().collect::<String>().to_lowercase();
 
     // 2. Filter: keep chars that are NOT whitespace AND NOT in C/M/P categories
     let filtered: String = nfd_lower

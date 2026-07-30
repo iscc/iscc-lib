@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "2.1.10"
+    kotlin("jvm") version "2.4.10"
     `maven-publish`
     signing
 }
@@ -18,9 +18,14 @@ java {
 }
 
 dependencies {
-    implementation("net.java.dev.jna:jna:5.16.0")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-    testImplementation("com.google.code.gson:gson:2.11.0")
+    implementation("net.java.dev.jna:jna:5.19.1")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.2")
+    // Gradle 9 no longer auto-injects a launcher — an explicit junit-platform-launcher
+    // on the test runtime classpath is required, and pinning it here keeps the platform
+    // jars aligned with junit-jupiter. JUnit 6 gives Platform and Jupiter a single
+    // version number, so keep the launcher identical to the junit-jupiter version.
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.2")
+    testImplementation("com.google.code.gson:gson:2.14.0")
 }
 
 tasks.withType<Test> {

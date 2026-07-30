@@ -420,7 +420,7 @@ Release asset (uses existing `contents: write` permission).
 - [ ] `swift test` passes conformance vectors (CI, development Package.swift)
 - [ ] Package resolves via SPM from Git tag using `.binaryTarget` (no Rust toolchain needed)
 - [ ] All 10 `gen_*_v0` functions accessible with idiomatic Swift types
-- [ ] All 32 Tier 1 symbols accessible from Swift
+- [ ] All 33 Tier 1 symbols accessible from Swift
 - [ ] XCFramework bundles static libraries for macOS (arm64 + x86_64), iOS device (arm64), iOS
     simulator (arm64 + x86_64)
 - [ ] Root `Package.swift` uses variable toggle (`useLocalFramework`) with `releaseTag` +

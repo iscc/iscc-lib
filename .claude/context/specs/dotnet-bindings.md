@@ -82,7 +82,7 @@ public static class IsccLib
     public static DataCodeResult GenDataCodeV0(Stream stream, uint bits = 64);
     public static SumCodeResult GenSumCodeV0(string path, uint bits = 64, bool wide = false);
     public static bool ConformanceSelftest();
-    // ... all 32 Tier 1 symbols
+    // ... all 33 Tier 1 symbols
 }
 ```
 
@@ -189,7 +189,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends dotnet-sdk-8.0 
 
 - [ ] `dotnet add package Iscc.Lib` installs cleanly from NuGet
 - [ ] All 10 `gen_*_v0` functions return correct records matching iscc-core
-- [ ] All 32 Tier 1 symbols accessible from C#
+- [ ] All 33 Tier 1 symbols accessible from C#
 - [ ] `ReadOnlySpan<byte>` and `Stream` inputs work for streaming functions
 - [ ] `IsccDataHasher` / `IsccInstanceHasher` implement `IDisposable` correctly
 - [ ] SafeHandle subclasses free native resources (no leaks under stress test)

@@ -4,9 +4,13 @@ source "https://rubygems.org"
 
 gemspec
 
+# held: minitest 6.x requires Ruby >= 3.2; the gem supports >= 3.1 (gemspec + CI ruby-version 3.1)
 gem "minitest", "~> 5.0"
 gem "rake", "~> 13.0"
 gem "rake-compiler", "~> 1.2"
-gem "rb_sys", "~> 0.9"
+# held: must match the oxidize-rb/actions/cross-gem `tag: 0.9.123` in release.yml — rb_sys bundles
+# rake-compiler-dock (= 1.10.0) whose cross_rubies patch-version map must match the Docker image;
+# 0.9.124+ ships a Ruby 4.0 build tool that breaks RbSys::ExtensionTask
+gem "rb_sys", "0.9.123"
 gem "standard", "~> 1.0"
 gem "rubocop-minitest", "~> 0.36"

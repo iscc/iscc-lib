@@ -54,7 +54,7 @@ def test_iscc_decode_roundtrip():
     digest = bytes(range(8))
     encoded = encode_component(mtype, stype, version, bit_length, digest)
     # Decode with ISCC: prefix
-    mt, st, vs, li, decoded_digest = iscc_decode(f"ISCC:{encoded}")
+    mt, st, vs, _li, decoded_digest = iscc_decode(f"ISCC:{encoded}")
     assert mt == mtype
     assert st == stype
     assert vs == version
@@ -65,7 +65,7 @@ def test_iscc_decode_without_prefix():
     """Decode without ISCC: prefix works too."""
     digest = bytes(range(8))
     encoded = encode_component(0, 0, 0, 64, digest)
-    mt, st, vs, li, decoded_digest = iscc_decode(encoded)
+    mt, _st, _vs, _li, decoded_digest = iscc_decode(encoded)
     assert mt == 0
     assert decoded_digest == digest
 
@@ -275,8 +275,9 @@ def test_st_text_alias():
 
 
 def test_vs_values():
-    """VS IntEnum has correct value."""
+    """VS IntEnum has correct values."""
     assert VS.V0 == 0
+    assert VS.V1 == 1
 
 
 # ── core_opts tests ──────────────────────────────────────────────────────────
@@ -337,7 +338,7 @@ def test_iscc_decode_roundtrip_with_enums():
     """Round-trip: encode_component with enum values, decode, verify match."""
     digest = b"\xab\xcd\xef\x01\x23\x45\x67\x89"
     encoded = encode_component(MT.DATA, ST.NONE, VS.V0, 64, digest)
-    mt, st, vs, length, decoded_digest = iscc_decode(encoded)
+    mt, st, vs, _length, decoded_digest = iscc_decode(encoded)
     assert mt == MT.DATA
     assert st == ST.NONE
     assert vs == VS.V0
@@ -347,7 +348,7 @@ def test_iscc_decode_roundtrip_with_enums():
 def test_iscc_decode_known_code():
     """Decode a known ISCC code and verify IntEnum types."""
     # GAA2XTPPAERUKZ4J is a Data-Code (MT=3, ST=0, VS=0, 64-bit)
-    mt, st, vs, length, digest = iscc_decode("GAA2XTPPAERUKZ4J")
+    mt, st, vs, _length, digest = iscc_decode("GAA2XTPPAERUKZ4J")
     assert mt == MT.DATA
     assert st == ST.NONE
     assert vs == VS.V0

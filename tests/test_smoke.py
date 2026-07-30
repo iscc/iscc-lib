@@ -10,8 +10,8 @@ import pytest
 import iscc_lib
 from iscc_lib import (
     DataCodeResult,
-    IsccResult,
     InstanceCodeResult,
+    IsccResult,
     MetaCodeResult,
     SumCodeResult,
     TextCodeResult,

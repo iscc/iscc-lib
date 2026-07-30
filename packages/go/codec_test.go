@@ -34,12 +34,12 @@ func TestCodecVarnibbleRoundtrip(t *testing.T) {
 
 func TestCodecVarnibbleBitLengths(t *testing.T) {
 	tests := []struct {
-		value   uint32
-		bitLen  int
+		value  uint32
+		bitLen int
 	}{
-		{0, 4}, {7, 4},       // 1 nibble
-		{8, 8}, {71, 8},      // 2 nibbles
-		{72, 12}, {583, 12},  // 3 nibbles
+		{0, 4}, {7, 4}, // 1 nibble
+		{8, 8}, {71, 8}, // 2 nibbles
+		{72, 12}, {583, 12}, // 3 nibbles
 		{584, 16}, {4679, 16}, // 4 nibbles
 	}
 	for _, tc := range tests {
@@ -776,16 +776,157 @@ func TestCodecIsccDecodeInvalidBase32(t *testing.T) {
 	}
 }
 
+// Reference parity: iscc_core.iscc_decode validates the two-character prefix
+// before any decoding, so a structurally decodable header with an invalid
+// (MainType, SubType) combination must be rejected.
+func TestCodecIsccDecodeRejectsInvalidPrefix(t *testing.T) {
+	// ID subtype 4 with Version V1 decodes structurally but MQ is not a valid
+	// prefix; the reference raises "ISCC starts with invalid prefix MQ".
+	_, err := IsccDecode("ISCC:MQIAAAAAAAAAAAAA")
+	if err == nil {
+		t.Fatal("expected error for invalid prefix MQ")
+	}
+	if !strings.Contains(err.Error(), "invalid prefix MQ") {
+		t.Errorf("expected invalid-prefix error, got: %v", err)
+	}
+
+	// A prefix shorter than two characters is reported as-is, like the reference.
+	_, err = IsccDecode("M")
+	if err == nil || !strings.Contains(err.Error(), "invalid prefix M") {
+		t.Errorf("expected invalid-prefix error for short input, got: %v", err)
+	}
+
+	// Reference parity: IsccDecompose does NOT prefix-check.
+	if _, err := IsccDecompose("MQIAAAAAAAAAAAAA"); err != nil {
+		t.Errorf("IsccDecompose must not prefix-check, got: %v", err)
+	}
+
+	// A valid prefix still decodes.
+	if _, err := IsccDecode("ISCC:MAIGHFECJMOPMIAB"); err != nil {
+		t.Errorf("valid IDv1 must still decode, got: %v", err)
+	}
+}
+
+// decodeResultEqual reports whether two decode results carry identical fields.
+func decodeResultEqual(a, b *DecodeResult) bool {
+	return a.Maintype == b.Maintype && a.Subtype == b.Subtype &&
+		a.Version == b.Version && a.Length == b.Length &&
+		byteSliceEqual(a.Digest, b.Digest)
+}
+
+func TestCodecIsccDecodeNormalizesUnitSequence(t *testing.T) {
+	// A concatenated unit sequence must decode identically to its composite.
+	payload := make([]byte, 2000)
+	for i := range payload {
+		payload[i] = 'a'
+	}
+	data, err := GenDataCodeV0(payload, 64)
+	if err != nil {
+		t.Fatalf("GenDataCodeV0: %v", err)
+	}
+	instance, err := GenInstanceCodeV0(payload, 64)
+	if err != nil {
+		t.Fatalf("GenInstanceCodeV0: %v", err)
+	}
+	composite, err := GenIsccCodeV0([]string{data.Iscc, instance.Iscc}, false)
+	if err != nil {
+		t.Fatalf("GenIsccCodeV0: %v", err)
+	}
+
+	sequence := strings.TrimPrefix(data.Iscc, "ISCC:") + strings.TrimPrefix(instance.Iscc, "ISCC:")
+	fromSequence, err := IsccDecode(sequence)
+	if err != nil {
+		t.Fatalf("IsccDecode(sequence): %v", err)
+	}
+	fromComposite, err := IsccDecode(composite.Iscc)
+	if err != nil {
+		t.Fatalf("IsccDecode(composite): %v", err)
+	}
+	if !decodeResultEqual(fromSequence, fromComposite) {
+		t.Errorf("sequence %+v != composite %+v", fromSequence, fromComposite)
+	}
+	// MainType is ISCC (5), not the leading Data unit's 3.
+	if fromSequence.Maintype != uint8(MTIscc) {
+		t.Errorf("Maintype: got %d, want %d", fromSequence.Maintype, MTIscc)
+	}
+}
+
+func TestCodecIsccDecodePreservesWideSubtype(t *testing.T) {
+	// Wide-mode is detected from the original header and survives normalization.
+	payload := make([]byte, 2000)
+	for i := range payload {
+		payload[i] = 'a'
+	}
+	data, err := GenDataCodeV0(payload, 128)
+	if err != nil {
+		t.Fatalf("GenDataCodeV0: %v", err)
+	}
+	instance, err := GenInstanceCodeV0(payload, 128)
+	if err != nil {
+		t.Fatalf("GenInstanceCodeV0: %v", err)
+	}
+	wide, err := GenIsccCodeV0([]string{data.Iscc, instance.Iscc}, true)
+	if err != nil {
+		t.Fatalf("GenIsccCodeV0(wide): %v", err)
+	}
+	result, err := IsccDecode(wide.Iscc)
+	if err != nil {
+		t.Fatalf("IsccDecode(wide): %v", err)
+	}
+	if result.Subtype != uint8(STWide) {
+		t.Errorf("Subtype: got %d, want %d (WIDE)", result.Subtype, STWide)
+	}
+	if len(result.Digest) != 32 {
+		t.Errorf("Digest length: got %d, want 32", len(result.Digest))
+	}
+}
+
+func TestCodecIsccDecodeRejectsUncomposableSequence(t *testing.T) {
+	// Meta + Text has neither a Data-Code nor an Instance-Code, so the sequence
+	// cannot be recomposed into an ISCC-CODE — as in the reference.
+	meta, err := GenMetaCodeV0("Hello", nil, nil, 64)
+	if err != nil {
+		t.Fatalf("GenMetaCodeV0: %v", err)
+	}
+	text, err := GenTextCodeV0("Hello World", 64)
+	if err != nil {
+		t.Fatalf("GenTextCodeV0: %v", err)
+	}
+	sequence := strings.TrimPrefix(meta.Iscc, "ISCC:") + strings.TrimPrefix(text.Iscc, "ISCC:")
+	if _, err := IsccDecode(sequence); err == nil {
+		t.Error("expected error for an uncomposable unit sequence, got nil")
+	}
+}
+
 func TestCodecIsccDecodeBodyTooShort(t *testing.T) {
-	// Create a header for 64-bit Meta but provide no body
+	// Create a header for 64-bit Meta but provide no body. Normalization decomposes
+	// first, so the short body is caught there rather than in IsccDecode itself.
 	header, _ := encodeHeader(MTMeta, STNone, VSV0, 1)
 	code := encodeBase32(header)
 	_, err := IsccDecode(code)
 	if err == nil {
 		t.Error("expected error for body too short")
 	}
-	if !strings.Contains(err.Error(), "too short") {
-		t.Errorf("error should mention 'too short': %v", err)
+	if !strings.Contains(err.Error(), "truncated ISCC body") {
+		t.Errorf("error should mention 'truncated ISCC body': %v", err)
+	}
+}
+
+func TestCodecIsccDecodeRejectsUncomposableTrailingBytes(t *testing.T) {
+	// Extra base32 chars re-align the byte stream into a second, malformed unit,
+	// which normalization cannot decompose — matching the reference, which also
+	// raises here rather than silently truncating.
+	_, err := IsccDecode("ISCC:MAIGHFECJMOPMIABAA")
+	if err == nil {
+		t.Error("expected error for trailing bytes")
+	}
+	// Control: the canonical form still decodes to an 8-byte digest
+	result, err := IsccDecode("ISCC:MAIGHFECJMOPMIAB")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Digest) != 8 {
+		t.Errorf("digest length: got %d, want 8", len(result.Digest))
 	}
 }
 

@@ -280,6 +280,19 @@ public static partial class IsccLib
         }
     }
 
+    /// <summary>Generate an experimental ISCC-IDv1 from a timestamp, HUB-ID, and realm.</summary>
+    /// <param name="timestamp">Microseconds since the Unix epoch (must be less than 2^52).</param>
+    /// <param name="hubId">HUB identifier (must be less than 2^12).</param>
+    /// <param name="realm">Realm selector (0 for testnet, 1 for the first operational mainnet).</param>
+    public static IsccIdResult GenIsccIdV1(ulong timestamp, ushort hubId, byte realm)
+    {
+        unsafe
+        {
+            byte* result = NativeMethods.iscc_gen_iscc_id_v1(timestamp, hubId, realm);
+            return new IsccIdResult(ConsumeNativeString(result));
+        }
+    }
+
     /// <summary>Generate a Data-Code from raw byte data.</summary>
     public static DataCodeResult GenDataCodeV0(ReadOnlySpan<byte> data, uint bits = 64)
     {

@@ -15,26 +15,38 @@ Continuous integration, quality gates, developer tooling, and selective package 
 Runs on every push to `main` or `develop` and every PR targeting `main`. All jobs must pass before
 merge.
 
-| Job         | What it checks                                                                        |
-| ----------- | ------------------------------------------------------------------------------------- |
-| **Rust**    | `cargo fmt --check`, `cargo clippy --workspace -D warnings`, `cargo test --workspace` |
-| **Python**  | `ruff check`, `ruff format --check`, `pytest`                                         |
-| **Node.js** | napi build, `npm test`                                                                |
-| **WASM**    | `wasm-pack test --node`                                                               |
-| **C FFI**   | cbindgen header generation, gcc compile, C test run                                   |
-| **Java**    | JNI `cargo build`, `mvn test` (49 tests including conformance vectors)                |
-| **Go**      | `CGO_ENABLED=0 go test`, `go vet` (pure Go, no Rust toolchain)                        |
-| **Ruby**    | `bundle exec rake compile`, `bundle exec rake test`                                   |
-| **Version** | `python scripts/version_sync.py --check` for manifest version consistency             |
-| **Bench**   | `cargo bench --no-run` compile-only benchmark verification                            |
-| **CRAP**    | `cargo llvm-cov` (LCOV) + `cargo crap` CRAP-metric gate for `iscc-lib` (see below)    |
-| **Semver**  | `cargo semver-checks` — public-API backward-compat for `iscc-lib` vs last release     |
-| **Perf**    | `iai-callgrind` instruction-count regression gate for `iscc-lib` hot paths            |
-| **Audit**   | `cargo deny check` supply-chain gate (RustSec advisories, license + duplicate bans)   |
+| Job                | What it checks                                                                                                                   |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `version-check`    | `python scripts/version_sync.py --check` for manifest version consistency                                                        |
+| `rust`             | `cargo fmt --check`; clippy (`-D warnings`) and tests for the workspace (excluding `iscc-rb`) plus the `iscc-lib` feature matrix |
+| `python-test`      | `maturin develop`, `ruff check`, `ruff format --check`, `pytest` on each matrix Python                                           |
+| `python`           | Asserts `needs.python-test.result == "success"` (aggregator, see note below)                                                     |
+| `nodejs`           | `npm install`, `napi build --platform`, `npm test` in `crates/iscc-napi`                                                         |
+| `wasm`             | `wasm-pack test --node crates/iscc-wasm --features conformance` with `+simd128`                                                  |
+| `c-ffi`            | cbindgen header freshness (`git diff --exit-code`), gcc compile + run of the C test program                                      |
+| `dotnet`           | `cargo build -p iscc-ffi`, then `dotnet build` + `dotnet test` for `packages/dotnet`                                             |
+| `java`             | `cargo build -p iscc-jni`, then `mvn test -f crates/iscc-jni/java/pom.xml`                                                       |
+| `go`               | `CGO_ENABLED=0 go test` + `go vet` in `packages/go` (pure Go, no Rust toolchain)                                                 |
+| `ruby`             | `standardrb`, `cargo clippy -p iscc-rb`, `rake compile`, `rake test`                                                             |
+| `cpp`              | CMake Debug + ASAN build of `packages/cpp` against `iscc-ffi`, runs the C++ test binary                                          |
+| `swift`            | On macOS: root `Package.swift` dump, `cargo build -p iscc-uniffi`, `swift build` + `swift test`                                  |
+| `kotlin`           | `cargo build -p iscc-uniffi`, then `./gradlew test` in `packages/kotlin`                                                         |
+| `bench`            | `cargo bench --no-run` compile-only benchmark verification                                                                       |
+| `perf`             | `iai-callgrind` benches, non-zero-instruction assert, `iai_regression.py --check` vs `.iai-baseline.json`                        |
+| `semver`           | `cargo-semver-checks` for `iscc-lib` (informational via `continue-on-error` pre-1.0)                                             |
+| `coverage`         | `cargo llvm-cov` LCOV + `cargo crap` annotations/SARIF + `--fail-regression --fail-above` gate (see below)                       |
+| `audit`            | `cargo deny check` per root `deny.toml` (advisories, bans, licenses, sources)                                                    |
+| `release-workflow` | `check_release_workflow.py --check-action-inputs`: `release.yml` `with:` keys vs published `action.yml`s                         |
+
+`python-test` is a `['3.10', '3.14']` matrix and `python` is its `if: always()` aggregator (one
+stable required-check name), so the 21 job keys surface as 22 check names on a push. The first
+column is the literal `ci.yml` job key; `scripts/check_ci_job_table.py` (prek hook
+`check-ci-job-table` plus the `tests/test_check_ci_job_table.py` anchor) keeps this table in exact
+parity with the workflow's `jobs:` keys.
 
 CI does NOT use `mise` — it calls `cargo`, `uv`, and tools directly. Standard action set:
-`dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`, `astral-sh/setup-uv@v4`,
-`actions/setup-python@v5`, `actions/setup-node@v4`.
+`dtolnay/rust-toolchain` (stable channel), `Swatinem/rust-cache`, `astral-sh/setup-uv`,
+`actions/setup-python`, `actions/setup-node` — the version pins live in `ci.yml`.
 
 ## Rust Coverage and CRAP Quality Gate
 
@@ -282,14 +294,22 @@ story.
 
 ### Python wheels (maturin)
 
-| OS             | Target                  | Python     |
-| -------------- | ----------------------- | ---------- |
-| ubuntu-latest  | x86_64                  | abi3-py310 |
-| ubuntu-latest  | aarch64                 | abi3-py310 |
-| macos-14       | universal2-apple-darwin | abi3-py310 |
-| windows-latest | x64                     | abi3-py310 |
+| OS               | Target                  | Python     |
+| ---------------- | ----------------------- | ---------- |
+| ubuntu-latest    | x86_64                  | abi3-py310 |
+| ubuntu-24.04-arm | aarch64                 | abi3-py310 |
+| macos-14         | universal2-apple-darwin | abi3-py310 |
+| windows-latest   | x64                     | abi3-py310 |
 
 One wheel per platform covers Python 3.10 through 3.14+ (abi3 stable ABI).
+
+The aarch64 wheel builds on a **native ARM runner** (`ubuntu-24.04-arm`, free for public repos) —
+not QEMU cross-compilation — so the existing maturin-action step with `manylinux: auto` picks the
+manylinux aarch64 container automatically. The `before-script-linux` PATH prepend
+(`/opt/python/cp310-cp310/bin`, which makes the abi3 wheel tag `cp310` instead of `cp38`) behaves
+identically in the aarch64 manylinux container. The wheel test job installs and import-tests the
+aarch64 wheel on an ARM runner before publish, so a broken aarch64 wheel cannot ship silently.
+Detailed plan: `.claude/plans/restore-linux-aarch64-python-wheels.md`.
 
 ### Node.js native addons (napi-rs)
 
@@ -412,6 +432,45 @@ commit failures from hook-applied formatting changes.
 **zensical** builds and deploys documentation to `lib.iscc.codes` via GitHub Pages. `docs.yml`
 workflow triggers on push to `main`.
 
+## Dependency Freshness
+
+Third-party dependencies are refreshed as part of each release cycle. No automated update bot
+(Dependabot/Renovate) is configured — the refresh is a deliberate, verified pass over every manifest
+so releases never ship stale or vulnerable pins.
+
+**Manifest surface:**
+
+| Ecosystem | Manifests                                                                                                                                           |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rust      | root `Cargo.toml` (`workspace.dependencies`) + `Cargo.lock`                                                                                         |
+| Python    | `pyproject.toml` + `uv.lock` (dev environment; runtime ships as abi3 wheel)                                                                         |
+| npm       | `crates/iscc-napi/package.json`                                                                                                                     |
+| Ruby      | `crates/iscc-rb/Gemfile` + `iscc-lib.gemspec` (+ `Gemfile.lock`)                                                                                    |
+| Java      | `crates/iscc-jni/java/pom.xml`                                                                                                                      |
+| Kotlin    | `packages/kotlin/build.gradle.kts`                                                                                                                  |
+| .NET      | `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` + test project                                                                                           |
+| Go        | `packages/go/go.mod`                                                                                                                                |
+| Tooling   | `mise.toml` tool pins, `.pre-commit-config.yaml` hook pins, GitHub Actions versions and pinned CI tools (e.g. `cargo-crap`) in `.github/workflows/` |
+
+**Policy:** patch/minor bumps by default; each major bump is evaluated individually (changelog and
+API impact). A dependency deliberately held back gets a documented reason next to its pin.
+
+**Known pinning constraints:**
+
+- PyO3 bumps only together with re-verifying `gil_used = true` semantics and the `py.detach` call
+    sites (see `python-bindings.md` GIL sections)
+- rb_sys in `Gemfile.lock` must match the `oxidize-rb/actions/cross-gem` Docker image tag (mismatch
+    breaks rbconfig; see `crates/iscc-rb/CLAUDE.md`)
+- Python wheels stay `abi3-py310`
+- Quality-gate CI tool pins (e.g. `cargo-crap`) bump together with their committed baselines
+
+**Verified when:**
+
+- [ ] No dependency in any manifest above lags its latest stable release by a major version without
+    a documented hold-back reason
+- [ ] Lockfiles (`Cargo.lock`, `uv.lock`, `Gemfile.lock`) are regenerated on the refreshed set
+- [ ] All CI quality gates and conformance suites pass on the refreshed set
+
 ## Verification Criteria
 
 ### CI
@@ -468,6 +527,9 @@ workflow triggers on push to `main`.
 - [ ] RubyGems uses OIDC trusted publishing (or `GEM_HOST_API_KEY` fallback)
 - [x] NuGet uses scoped API key (`NUGET_API_KEY` secret)
 - [x] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
+- [ ] Python wheel matrix includes manylinux aarch64, built on a native ARM runner
+    (`ubuntu-24.04-arm`) and install-/import-tested on ARM before publish (see Build Matrices; plan:
+    `.claude/plans/restore-linux-aarch64-python-wheels.md`)
 - [x] Java JAR bundles 5-platform native libraries under `META-INF/native/`
 - [ ] Ruby precompiled gems available for 5 platforms (Linux x86_64/aarch64, macOS x86_64/arm64,
     Windows x64)

@@ -185,6 +185,30 @@ println!("{}", result.datahash);   // Multihash of the data
 println!("{}", result.filesize);   // Size in bytes
 ```
 
+### ISCC-IDv1 (experimental)
+
+Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
+bits and the HUB-ID the low 12 bits; `realm` (0 = testnet, 1 = mainnet) becomes the SubType.
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
+
+```rust
+use iscc_lib::{gen_iscc_id_v1, iscc_decode};
+
+let result = gen_iscc_id_v1(1_751_831_876_325_218, 1, 0)?;
+println!("{}", result.iscc); // "ISCC:MAIGHFECJMOPMIAB"
+
+// There is no dedicated decoder — recover the fields with iscc_decode and bit math:
+let (_mt, subtype, version, _length, digest) = iscc_decode(&result.iscc)?;
+let n = u64::from_be_bytes(digest[..8].try_into().unwrap());
+let timestamp = n >> 12;         // 1751831876325218
+let hub_id = (n & 0xFFF) as u16; // 1
+let realm = subtype;             // 0
+assert_eq!(version, 1);          // ISCC-IDv1
+```
+
 ## Structured results
 
 Every `gen_*_v0` function returns a dedicated result struct carrying the ISCC code string plus

@@ -302,6 +302,28 @@ Console.WriteLine($"Digest: {Convert.ToHexString(decoded.Digest)}");
 `IsccDecode` returns a `DecodeResult` record with `byte` fields `Maintype`, `Subtype`, `Version`,
 `Length` (length index), and a `byte[]` field `Digest`.
 
+### ISCC-IDv1 (experimental)
+
+Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
+bits and the HUB-ID the low 12 bits; `realm` (0 = testnet, 1 = mainnet) becomes the SubType.
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
+
+```csharp
+IsccIdResult result = IsccLib.GenIsccIdV1(1751831876325218UL, 1, 0);
+Console.WriteLine(result.Iscc); // "ISCC:MAIGHFECJMOPMIAB"
+
+// There is no dedicated decoder — recover the fields with IsccDecode and bit math:
+DecodeResult d = IsccLib.IsccDecode(result.Iscc);
+ulong n = System.Buffers.Binary.BinaryPrimitives.ReadUInt64BigEndian(d.Digest.AsSpan(0, 8));
+ulong timestamp = n >> 12;          // 1751831876325218
+ushort hubId = (ushort)(n & 0xFFF); // 1
+byte realm = d.Subtype;             // 0
+Console.WriteLine(d.Version == 1);  // true (ISCC-IDv1)
+```
+
 ### Decompose
 
 Split a composite ISCC-CODE into its individual unit codes:

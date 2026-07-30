@@ -1,199 +1,155 @@
 # Update-State Agent Memory
 
-Codepaths, patterns, and key findings accumulated across CID iterations.
-
-**Size budget:** Keep under 200 lines. Archive stale entries to `MEMORY-archive.md`.
+Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-archive.md`,
+`counts.md`, `dep-refresh-survey.md`, `unicode-contract.md`, `quality-gates.md`, `lint-tooling.md`,
+`env-gotchas.md`. **Size budget: under 140 lines** — archive detail eagerly.
 
 ## Exploration Shortcuts
 
-- **Per-crate READMEs**: `ls crates/*/README.md packages/*/README.md 2>&1`
-- **CI jobs in a run**: `gh run view <id> --json jobs --jq '.jobs[] | {name, conclusion}'`
-- **Latest CI runs**:
-    `gh run list --branch "$(git branch --show-current)" --limit 3 --json status,conclusion,url,databaseId`
-- **Incremental diff**: `git diff <assessed-at-hash>..HEAD --stat`
-- **Tier 1 pub fns in Rust core**:
-    `grep -r "pub fn gen_\|pub const META\|pub const IO\|pub const TEXT" crates/iscc-lib/src/`
-- **Doc nav check**: `grep -A 15 "Reference" zensical.toml`
-- **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
-- **Benchmark functions**:
-    `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
-- **iai-callgrind perf GATE — COMPLETE, ENFORCING & HARDENED (issue #3 + false-green issue BOTH
-    closed iter 111)**: `Perf (iai-callgrind)` CI job GREEN (job at ci.yml:281-333, NO
-    `continue-on-error`). Pipeline: valgrind → binstall `iai-callgrind-runner@0.16.1 --force` → run
-    benches (env `IAI_CALLGRIND_ALLOW_ASLR=true`) → `Assert non-zero instruction collection` guard
-    (`grep -rEq '^summary: [1-9]' target/iai/`) → ENFORCING `Check perf regression` (ci.yml:324
-    `python3 scripts/iai_regression.py --check`, no continue-on-error, fails on >10% Ir regression)
-    → upload `iai-baseline` artifact `if: always()`. Committed baseline `.iai-baseline.json` (repo
-    root, NOT gitignored): `{metric:"Ir", tolerance_pct:10.0, benches:{<16 entries>}}`. Tasks:
-    `bench:iai`, `bench:iai:check`, `bench:iai:baseline` (mise.toml ~126-144). Refresh = reviewed
-    commit. **GOTCHA: the `continue-on-error: true` near this block belongs to the SEPARATE
-    `semver:` job, NOT Perf — Perf enforces.** False-green hardening DONE iter 111 (`1692e2b`) — see
-    `iai_regression.py` landmark below.
-- **Authoritative CI status (sandbox `gh run list` is STALE — returns old ancestor SHAs)**:
-    `gh api repos/iscc/iscc-lib/commits/<tip-sha>/check-runs --jq '.check_runs[]|{name,conclusion}'`
-    against the ACTUAL origin/develop tip SHA. `gh run view <id> --json conclusion,headSha` also
-    works.
-- **pytest-benchmark functions**: `grep -c "def test_bench_" tests/test_benchmarks.py`
-- **gen_llms_full.py page count**: Python ast.literal_eval on ORDERED_PAGES list (now 22 entries)
-- **UniFFI export count**: Use Grep for `#\[uniffi::export\]` in `crates/iscc-uniffi/src/lib.rs`
-- **state.md Write workaround**: Write tool = permission error. Use heredoc:
-    `cat > .claude/context/state.md << 'STATEEOF' ... STATEEOF`
-- **CLAUDE.md files**: `ls packages/*/CLAUDE.md crates/*/CLAUDE.md 2>&1`
-- **Howto guides**: `ls docs/howto/*.md | sort`
-- **Version sync targets**: `uv run scripts/version_sync.py --check 2>&1 | grep "^OK:" | wc -l`
-- **release.yml checks** (stable, rarely changes): inputs `grep "type: boolean" release.yml | wc -l`
-    (=8); Swift `grep -i 'swift\|xcframework'`; Kotlin/Android `grep -A 20 "build-kotlin-native:"`;
-    provenance `grep -c 'Verify main matches tag'`. XCFramework:
-    `test -x scripts/build_xcframework.sh`.
-- **Benchmarks doc check**: `grep -i "speedup" docs/benchmarks.md | head -5`
-- **PyO3 — MIGRATION COMPLETE (issue #1 CLOSED iter 105)**: pinned `0.29` (`Cargo.toml`; lockfile
-    single 0.29.0, no older). Core has NO PyO3 dep; scope = `crates/iscc-py/`. Load-bearing
-    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) — explicit b/c PyO3 0.28
-    silently flipped that default `true`→`false`. Hop-by-hop history (0.23→0.29) + detail archived.
-- **Supply-chain audit gate AUTHORIZED but STILL NOT built (verified iter 114)**: `notes/07` +
-    ci-cd.md "Supply chain — cargo-deny" (Audit row line 33, section line 139) mandate a
-    `cargo deny check` CI gate + root `deny.toml` + a `mise run audit` task; NONE exist yet
-    (verified: no `deny.toml`, no Audit/deny job in ci.yml, no audit/deny task in mise.toml). Titusz
-    AUTHORIZED autonomous impl (commit `9770332`, iter 112). ci-cd.md "verified when" box (line 448)
-    `[ ]`. **This is the LAST remaining autonomous CID work package.** CID-actionable.
-- **Coverage + CRAP gate ALL 3 PHASES present & GREEN; install flake FIXED iter 101**: ONE job
-    `Coverage + CRAP (cargo llvm-cov + cargo crap)` (ci.yml:348, line shifted by `--fail-above`
-    addition — grep the job name), no `needs:`, NO `continue-on-error`, job-level
-    `security-events: write`. Pipeline: llvm-cov → cargo-binstall → `Install cargo-crap`
-    (`cargo binstall -y --force cargo-crap@0.2.2`) → `cargo llvm-cov -p iscc-lib --lcov` →
-    upload-artifact `lcov` → **Phase 2 report-only** (`--format github` + `--format sarif` →
-    `codeql-action/upload-sarif@v3`) → **Phase 3 enforcing** (now ci.yml:392-393, runs LAST). Flake
-    fix iter 101 = `--force` on binstall (mechanism archived). `.crap-baseline.json` (repo root, NOT
-    gitignored): `{$schema, version:"0.2.2", entries:[...]}`, 97 entries / 10 src files. Regen via
-    `mise run crap:baseline` — reviewed commit, NOT auto. `.cargo-crap.toml`: threshold 30,
-    `missing="pessimistic"`, excludes 7 binding crates + `packages/**` + `scripts/**` +
-    `benches/**`. ci-cd.md Phases 1+2+3 all `[x]`. **`--fail-above` hardening DONE & GREEN (iter
-    113, advance `c056779`, reviewed `cee130a`)**: enforcing CRAP step now runs
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
-    (ci.yml:392-393). `--fail-above` = boolean keyed off `.cargo-crap.toml threshold = 30.0` (NO
-    numeric arg); closes the regression-only blind spot (new/renamed CC-heavy fn reported `★ N new`
-    & exited 0). Max CRAP ~22.3 < 30 so it passes today; ci-cd.md verified-when box (line 445)
-    `[x]`. GOTCHA: yamlfix folds the long `run:` scalar onto 2 physical lines (folded newline = a
-    space) — confirm via `yaml.safe_load`, not raw grep.
-- **Semver gate present iter 93**: `Semver (cargo-semver-checks)` job (grep the name),
-    `obi1kenobi/cargo-semver-checks-action@v2`, `package: iscc-lib`, **`continue-on-error: true`**
-    (informational until v1.0.0; `mise run semver`). CAUTION: job reports `failure` (2 expected
-    breaking changes from post-0.4.0 `pub(crate)` narrowing) but **run conclusion stays `success`**
-    — NOT a CI failure. rust-core.md semver "verified when" stays `[ ]` (needs enforcing + ≥1.0.0);
-    ci-cd.md `[x]` (informational wording).
-- **Issue count (correct)**: grep `issues.md` for `^##` headers ending in a priority label
-    (critical/normal/low) — anchoring to `^##` excludes the legend line, so NO -1 adjustment.
-- **Unpushed check**: `git log --oneline origin/develop..HEAD` — origin lags; code after the last
-    CI-run sha is UNVERIFIED, cross-check the diff. (Usual case: HEAD = +1 log-only commit.)
+- **Authoritative CI status** (sandbox `gh run list` is STALE — old ancestor SHAs): `gh api` on
+    `"repos/iscc/iscc-lib/commits/<tip-sha>/check-runs?per_page=100"` for the real origin/develop
+    tip — **QUOTE the path** (zsh globs `?`). Failed logs: `gh run view --log-failed`. **A check-RUN
+    `failure` does NOT mean CI failed** — a `continue-on-error: true` job (e.g. `Semver`) reds its
+    check-run while the SUITE stays `success`. Judge CI by the check-SUITE conclusion,
+    cross-checking `continue-on-error` in ci.yml for any red check-run.
+- **Unpushed check**: `git log --oneline origin/develop..HEAD`, then
+    `git diff --stat origin/develop..HEAD -- . ':!.claude'`. Empty = green CI covers HEAD.
+    **NON-empty = it does NOT** — report the gap (fired 162; fired again 184: a NEEDS_WORK advance
+    commit stays in local history unreverted and its code sits at HEAD uncovered by green).
+- **ALWAYS `tail -6 iterations.jsonl` + `git status --porcelain`.** jsonl is the ONLY place a
+    crashed/`audit` role shows; a non-OK status ≠ no work (corroborate `git log`, fingerprints →
+    `MEMORY-archive.md`); out-of-loop `cid(loop):` commits leave NO jsonl entry — diff them. A
+    TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
+    UNRELIABLE (none at 170) — never park a finding for it.
+- **Counts + the glob/grep trap for each → `counts.md`** (12 READMEs, 12 CLAUDE.md, 23 docs pages,
+    342 iscc-lib `#[test]`, 441 pytest, 177 Go, 50 ffi externs, 105 CRAP, 21 version_sync targets, 8
+    fixture copies). Check there before counting by hand.
+- **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
+    (163).
+- **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` both import
+    under `uv run python` (check `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` mtime — stale
+    `.so` measures the previous commit). `uv run --with iscc-core` = live IDv1 oracle. →
+    `unicode-contract.md`.
+- **Issue headers**: `grep -nE '^## ' issues.md`. **Trace a dep**: `cargo tree -i <crate>`. **Specs
+    live at `.claude/context/specs/`, NOT `specs/`** — `git diff -- specs/` is empty for ANY commit
+    and silently looks like "no spec change" (near-miss 144).
+
+## Quality Gates — details in `quality-gates.md`, read it before reporting CI status
+
+- **ENFORCING:** iai perf (>10% Ir); coverage + CRAP (`--fail-regression` is **CI-ONLY**, so a green
+    `mise run check` proves nothing); cargo-deny; docs page-list parity; `unicode-sweep` (157); CI
+    job-table parity (163). Last three = **prek hook + a pytest**; the pytest makes it a CI gate.
+- **Red with NO code change:** cargo-deny (live advisory DB). **Fails open:** the release.yml static
+    gate (job log must show zero `warning: skipped`). "no floating branch ref" in
+    `check_release_workflow.py` is new policy, NOT a gap.
+- **cargo-semver-checks INFORMATIONAL — `semver` job `continue-on-error: true`** (`ci.yml:355`,
+    enforcing only from v1.0.0). Check-run CAN report `failure` (exit 100:
+    `enum_marked_non_exhaustive` on `enum Version`) while the check-SUITE stays `success` — judge by
+    the SUITE. `mise run check` doesn't run it. → `quality-gates.md`.
 
 ## Codebase Landmarks
 
-- `crates/` — **8 crates**: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni, iscc-rb,
-    iscc-uniffi (all 32/32 symbols)
-- `.claude/context/specs/` — per-binding spec files
-- `packages/go/` — pure Go module (no WASM, no binary artifacts)
-- `packages/swift/` — SPM package with UniFFI-generated bindings (2400-line iscc_uniffi.swift)
-- `Package.swift` — **root manifest** — Ferrostar toggle (`useLocalFramework`), `.binaryTarget` with
-    `releaseTag`/`releaseChecksum`, two targets (iscc_uniffiFFI binary + IsccLib)
-- `scripts/build_xcframework.sh` — builds XCF for 5 Apple targets, lipo fat binaries, ditto zip
-- `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, UniFFI-generated (3214-line iscc_uniffi.kt), JNA
-    5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
-- `.github/workflows/ci.yml` — **18 YAML job entries → 19 actual jobs** (`python-test` matrix
-    expands 3.10 + 3.14): functional jobs + non-blocking `Semver` + `Coverage + CRAP` (Phases 1-3 +
-    `--fail-above`) + `Perf (iai-callgrind)`. `push:` under `on:` is NOT a job; read the job names
-    (bare grep over-counts). NO Audit/cargo-deny job yet.
-- `.github/workflows/release.yml` — **8 registry input toggles** (`type: boolean`): crates-io, pypi,
-    npm, maven, ffi, rubygems, nuget, maven-kotlin. Swift XCFramework is NOT a toggle — it builds in
-    `prepare-release` (line ~55). **provenance guard** on build-xcframework. After #38 fix (iter 92)
-    the `publish-npm-lib` job has NO `napi prepublish` step.
-- `crates/iscc-uniffi/` — UniFFI scaffolding: 32 exports, 21 tests; `publish = false`
-- `docs/howto/` — **11 files**: rust, python, nodejs, wasm, go, java, c-cpp, ruby, dotnet, swift,
-    kotlin
-- `docs/benchmarks.md` — full speedup comparison (1.3x-158x), Criterion native results, methodology
-- `scripts/gen_llms_full.py` — **22 entries** in ORDERED_PAGES (includes benchmarks.md)
-- `scripts/version_sync.py` — **16 sync targets** (releaseTag added for Package.swift)
-- `crates/iscc-lib/src/streaming.rs` — `DataHasher`, `InstanceHasher`, `SumHasher` (line ~157);
-    `gen_sum_code_v0` drives SumHasher (lib.rs:997). Only DataHasher + InstanceHasher re-exported at
-    crate root (lib.rs:24); SumHasher via `streaming::`. SumHasher wrapper in Python (iscc-py
-    lib.rs:615) + WASM (iscc-wasm lib.rs:533). #37 closed iter 90.
-- `crates/iscc-lib/benches/benchmarks.rs` — 12 benches in criterion_group!
-- `crates/iscc-lib/benches/iai_benches.rs` — iai-callgrind 0.16 harness (iter 107), 11 `bench_*` fns
-    (9 `gen_*_v0` + cdc + minhash) in `library_benchmark_group!(iscc_benches)` (16 parametrized
-    cases). `[[bench]] name="iai_benches" harness=false`; dep `iai-callgrind = "0.16"`.
-    **`[profile.   bench]` inherits release `strip=true`** → stripped `__iai_callgrind_wrapper`
-    symbols → false green; FIX (iter 108): `[profile.bench] strip=false, debug=true` (Cargo.toml:61)
-    \+ `IAI_CALLGRIND_ALLOW_ASLR=true`. `#[library_benchmark]` fns use `//` not `///` (macro
-    `abort!`s on `doc`).
-- `scripts/iai_regression.py` (iter 109 `949f63f`; HARDENED iter 111 `1692e2b`, now 248 lines,
-    **stdlib-only**) — `--check` parses `target/iai/**/*.out` `summary:` lines vs committed
-    `.iai-baseline.json`; fails on >10% Ir regression. Core fn `check_regressions` takes an
-    `allow_missing` flag: shared benches over tolerance FAIL; a shared bench reporting zero Ir FAILS
-    (independent of `--allow-missing`); a baselined bench missing from the run FAILS unless
-    `--allow-missing`; new (run-only) benches still WARN only. `--update` regenerates baseline.
-- `tests/test_iai_regression.py` (NEW iter 111) — 11 synthetic-fixture pytest tests for the gate
-    (within-tolerance, over-tolerance, zero-count fails even w/ allow-missing, missing-bench fail +
-    allow-missing pass, only-run warns, boundary, roundtrip, parse_ir).
-- `tests/test_benchmarks.py` — 18 pytest-benchmark functions (9 gen\_\*\_v0 x 2 implementations)
-- **CLAUDE.md files & per-crate READMEs**: 12 each (all crates + all packages)
+- `crates/` — **8 crates** (lib, py, napi, wasm, ffi, jni, rb, uniffi); iscc-uniffi has 21 tests,
+    `publish=false`. `packages/` layout → `MEMORY-archive.md`; `packages/go` is the ONLY binding not
+    inheriting the core's Unicode behaviour.
+- `ci.yml` — **21 YAML job entries → 22 jobs → 23 check names**: `python-test` = 3.10/3.14 matrix,
+    `python` (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job. `release.yml`
+    = 8 registry toggles (Swift XCFramework is a `prepare-release` step, NOT a toggle).
+    `specs/ci-cd.md` job table EXHAUSTIVE since 163 (21 rows==21 keys, gated); prose counts unpinned
+    (HAND edit).
+- **Unicode = 16.0.0 + TWO freeze layers + sweep gate → read `unicode-contract.md` before ANY
+    Unicode call** (fixture-plumbing table, 2 SUPERSEDED designs, surefire CWD landmark).
+- **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`),
+    gated. `streaming.rs`: `DataHasher`/`InstanceHasher` at crate root, `SumHasher` via
+    `streaming::` only. iscc-wasm `blake3 wasm32_simd` = feature-unification, don't prune. `iscc-py`
+    12 `.detach(` sites. Benches in `crates/iscc-lib/benches/` (NOT root): 12 criterion (0.8.2) +
+    iai 0.16 (11 fns, 16 cases). Root `Cargo.toml` zero `# held:`/`authorized` since 172 — grep BOTH
+    for a hold.
+- **Ruff/prek/mdformat → `lint-tooling.md`** (ruff 0.16.0 since 137; local prek is a strict SUPERSET
+    of CI; probe hooks with `prek run <hook> --files <f>`). **Dep-pin inventory →
+    `dep-refresh-survey.md`** (GHA refs current 171, no Dependabot, `rb_sys` pinned in 3 places).
 
 ## Recurring Patterns
 
-- **Incremental review**: compare assessed-at hash vs HEAD --stat first, then re-verify only
-    affected sections. Carry forward unchanged sections. (python-test matrix = 3.10 + 3.14; count
-    job definitions, not run records.)
-- **Verify claims independently**: always grep rather than trusting handoff; verify CI independently
-    (a review PASS = LOCAL checks only, CI can still flake — see iter-100 CRAP break); re-read
-    target.md diff on incremental review; verify "partially met" claims rather than parroting.
-- **Issues diff**: check issues.md for NEW entries each cycle (human AND `[review]`-sourced). Watch
-    `[review]` + `HUMAN REVIEW REQUESTED` flags and any critical ones that reshuffle priorities.
-- **idle→active reactivation**: state.md idle but `git diff <hash>..HEAD --stat` shows large
-    issues.md/target.md/specs growth → human re-scoped. Do a near-full re-review, not a diff parrot.
+- **Incremental review**: assessed-at vs HEAD `--stat` first, re-verify only affected sections,
+    carry forward the rest, CI via check-runs API on the real tip. **Always diff
+    `.claude/context/specs/`** (132,147) and read issues.md *bodies* (145) — either flips met→unmet
+    with ZERO code change (as can pure MEASUREMENT, empty diff, 156).
+- **When a ruling lands, re-verify CODE against the NEW spec**; grep `decisions.md` for `supersede`
+    (147: a 14-iteration "met" went unmet).
+- **Reproduce/refute inherited claims by a DIFFERENT method** (bugs confirmed 147/156; "unbuildable"
+    REFUTED). A generator is never its own oracle; an N-passes suite may cover a SUBSET. Spec
+    checkboxes are NOT a progress signal (most sit 0/N though MET); spec *prose* rots.
+- **Fixtures as DECLARED build inputs**: Gradle/MSBuild can report UP-TO-DATE and skip a suite; only
+    mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
+    UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: ea284c0)
+## Current State (assessed-at: 13c08ca, iter 193)
 
-- **IN_PROGRESS — CI GREEN; one autonomous work package left (cargo-deny gate).** v0.4.0 released,
-    all 12 bindings met. Workspace version `0.4.0`; v1.0.0 HELD (stay 0.4.x; land cargo-deny gate
-    first).
-- **Iter 114 incremental** (diff `c7e5466..HEAD`): the CRAP `--fail-above` gate LANDED (advance
-    `c056779`, review PASS `cee130a`) — touched `ci.yml` (+11), `.cargo-crap.toml` (+8), ci-cd.md
-    spec (box 445 → `[x]`), removed the resolved CRAP issue from issues.md. Only CI/CD section
-    changed; all bindings carry forward.
-- **CRAP `--fail-above` DONE & GREEN**: ci.yml:392-393
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`;
-    `Coverage + CRAP` job green (max CRAP ~22.3 < 30). ci-cd.md box 445 `[x]`.
-- **cargo-deny gate STILL UNIMPLEMENTED (last work package)**: NO `deny.toml`, NO Audit/deny job in
-    ci.yml, NO audit/deny task in mise.toml; neither tool installed. ci-cd.md box 448 `[ ]`.
-    AUTHORIZED — CID-actionable.
-- **✅ CI GREEN on origin/develop tip `cee130a`**, completed runs `27759986239`/`27759984667` =
-    SUCCESS (check-runs API on tip SHA). All functional jobs green incl. Perf + Coverage+CRAP +
-    cargo-crap; only `Semver` failure (continue-on-error, informational). HEAD `ea284c0` is +1
-    log-only commit (iterations.jsonl) → CI reflects current code.
-- **3 issues: 0 critical, 1 normal (cargo-deny, AUTHORIZED), 2 low** (count issues.md `^##` headers
-    ending a priority label; legend excluded → no -1).
-- **Low (CID skips)**: v1.0.0 release HELD (human-driven), docs language logos.
-- **Partially-met sections**: Rust Core (semver informational; enforcing needs v1.0.0 cut — held;
-    perf gate MET & hardened), CI/CD (**GREEN**; CRAP `--fail-above` MET, cargo-deny pending build).
-    All 12 bindings + Benchmarks + Docs MET.
-- **Recently closed/landed (don't re-flag)**: CRAP `--fail-above` (iter 113 `c056779`), iai
-    false-green hardening (iter 111 `1692e2b`), iai perf gate (iters 107-109), PyO3 #1 (iters
-    98-105), CRAP Phase 3 (iter 99), semver gate (iter 93, informational), npm #38 (iter 92), GIL
-    #39 (iter 91), SumHasher #37 (iters 88-90).
-- **target.md/specs**: rust-core.md perf boxes `[x]`; ci-cd.md CRAP Phases 1+2+3 + `--fail-above`
-    (box 445) all `[x]`; Audit/cargo-deny box 448 `[ ]`; enforcing-semver `[ ]` (flips only at
-    v1.0.0 cut). Re-read on incremental review.
+- **CI IS RED on develop — the ENFORCING iai Perf gate fired.** Real tip `origin/develop=e80cda5`
+    (iter 192; HEAD `13c08ca` only adds an `iterations.jsonl` line, so e80cda5 covers HEAD's code).
+    check-SUITE `GitHub Actions=failure`: **`Perf (iai-callgrind)=failure` is NOT
+    continue-on-error** (ci.yml:298, only `semver` at 355 is). The iter 191/192 `iscc_clean` routing
+    raised two composite benches past 10%: `bench_iscc_code.four_units` +36.82% (11,968→16,375 Ir),
+    `bench_mixed_code.two_codes` +18.30% (10,460→12,374). Run 30445408022.
+- **THE TRAP that bit iter 192 review:** `mise run check` does NOT run
+    `scripts/iai_regression.py   --check` (CI-only) — the reviewer PASSed on green `mise run check`
+    while the enforcing iai gate was red. When an advance touches a HOT codec/gen path, the iai
+    comparison is the gate that matters and only CI shows it. ALWAYS pull `Perf (iai-callgrind)`
+    conclusion from the check-runs API, never infer perf-green from a review PASS.
+- **`iscc_clean` regression NOW CLOSED (empty-input side):** guard at `codec.rs:558` returns
+    `Err(InvalidInput("Empty ISCC string"))` when cleaned==""; `fn iscc_clean` at `codec.rs:532`
+    routes all four codec-input sites. `iscc_decompose` empty-`Ok([])` gap is fixed. The REMAINING
+    problem is the perf cost of that routing, not correctness.
+- **#43 IDv1 FULLY CLOSED — do NOT re-flag any part.** All 11 surfaces MINT + DECODE IDv1 = 33/33
+    (mint fan-out cpp @188; decode Python `VS` enum `V1=1` @189). Iter 190 landed the repo-wide
+    Tier-1 32→33 doc/count sweep + `gen_iscc_id_v1` per-symbol entries in the four
+    `docs/{rust,java,ruby,c-ffi}-api.md` + IDv1 mint+decode example in all 11 `docs/howto/*.md`.
+    Verified: stale-`32` Tier-1 grep clean, all 4 API pages + 11 howto pages carry the symbol.
+- **Golden IDv1:** `gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"` (realm 0).
+    Decode recipe: `version==1`, `ts=n>>12`, `hub=n&0xFFF`, `realm=subtype`; realm 1 → `MEIGH…`.
+- **Validation-order contract (normative, rust-core.md ~L542):** any WIDE-INT binding MUST validate
+    thresholds `2^52`/`4096`/`2` in ts→hub→realm order BEFORE narrowing; "first failing check wins".
+    Precedents napi:329, jni:500, rb:219. Go/ffi/uniffi/dotnet/cpp exempt (exact-width FFI). Ruby
+    has a benign gap (normal `[review]`): Magnus narrows Integer→i64 DURING marshalling, so
+    `> i64::MAX` raises `RangeError` before `checked()` runs — validate magnitude before the native
+    narrowing layer, not just before codec narrowing.
+- **dotnet gotcha:** csbindgen `build.rs` regenerates tracked `NativeMethods.g.cs` on EVERY build →
+    pre-push clippy rejects push if uncommitted; any FFI-symbol step regens `iscc.h` +
+    `NativeMethods.g.cs` in-step. **Issues 12: 0 crit, 5 normal, 7 low** (first `## ` at L19).
+    Composition shifted @190: #43 sweep issue deleted, NEW `docs/c-ffi-api.md` type-name gap filed
+    (`normal` `[review]`) — cbindgen emits `iscc_IsccDecodeResult` but the page docs unprefixed
+    `IsccDecodeResult`, so no c-ffi snippet compiles verbatim (page-wide, pre-existing).
+- **v0.6.0 release blockers = 5 open `normal` `[review]` issues** (c-ffi-api type names, Ruby
+    wide-input validation order, Go codec `iscc_clean` divergence [Rust half in-flight NEEDS_WORK],
+    iai ASCII-only benches, go1.27 [upstream-blocked]) + the human-gated release cut. No functional
+    IDv1 gap remains. Issue composition unchanged @191 (12: 0 crit, 5 normal, 7 low).
+
+## Durable Facts (carried, not per-iteration)
+
+- **`target.md` carries a "Current Release Milestone — v0.6.0" section** — always diff `target.md`.
+    Unicode work FINISHED (161, 11/11). Dep refresh DONE (172, uniffi 0.32 + criterion 0.8; zero
+    `# held:`/`authorized`). `iscc-uniffi/Cargo.toml` declares `rust-version = "1.91"` (real floor);
+    other 7 crates inherit workspace 1.85. PR **#44 develop→main OPEN**, version **0.5.0**.
+- **Review policy widened at 171:** `review` may correct a *mechanically checkable fact* (version,
+    path, count) in a sub-spec under `.claude/context/specs/` with NO escalation; `target.md` +
+    rationale/criteria/scope still need the human. Report stale spec FACTS.
+- **Every ecosystem has a lockfile** (170: .NET `packages.lock.json` `--locked-mode`; a bump needs
+    `--force-evaluate` same commit). Propagation invariant:
+    `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** == `VENDORED_COPIES` in
+    `tests/test_vendored_fixtures.py`.
+- **Loop infra (162):** `ARTIFACT_BUDGETS` (`tools/cid.py`) caps state 200; `decisions.md` rotates
+    into `decisions-archive.md` (grep BOTH) — dirty `decisions*.md` = runner, not crash.
+- **Issue count: never carry forward** — re-grep `^## ` headers each iteration (a legend inflates a
+    naive `grep -c`); composition flips while the count holds. **Don't re-flag as DONE**: IDv1 mint
+    fan-out (all 11 surfaces, cpp 188 last), uniffi 0.32 172, criterion 0.8 171 (≤170 → archive).
 
 ## Gotchas
 
-- **state.md Write**: Write tool = permission error. Only reliable method:
-    `cat > file << 'EOF' ... EOF` via Bash tool
-- **mdformat pre-commit can abort the commit** ("Could not format / renders to different HTML"):
-    triggered by nested/escaped backticks inside a code span. Keep literal regex backticks OUT of
-    code spans in MEMORY.md (describe in prose); test with `uv run mdformat /tmp/copy.md` first.
-- Go target requires pure Go (no WASM, no wazero, no binary artifacts)
-- **csbindgen**: `crates/iscc-ffi/build.rs` runs csbindgen on every `cargo build`
-- **UniFFI proc macro approach**: no uniffi.toml or build.rs needed
-- **Kotlin UniFFI bindings**: Uses JNA (not JNI); needs BOTH `java.library.path` AND
-    `jna.library.path` at runtime
-- **pytest-benchmark naming**: functions use `test_bench_*` prefix (not bare `bench_*`)
-- **Release-workflow deep internals** (Kotlin GPG/Central Portal, JNA ARM32 `armv7`→`arm`, dual
-    Package.swift manifests, Kotlin JAR classifier pick) archived → `MEMORY-archive.md`.
+- **state.md Write** = permission error → only `cat > file << 'EOF' ... EOF` via Bash works.
+- **mdformat**: run `uv run prek run mdformat --files <f>` after writing (bare `uv run mdformat` is
+    NOT the hook), then grep for `` `…  …` `` (2+ spaces in backticks — a span across a line break
+    joins with indent and corrupts a path) and `\` (a reflowed `)` becomes `172\)`). Reword so no
+    span/paren straddles a break. Edge cases → `lint-tooling.md`.
+- **Toolchain presence (`$PATH` fallbacks), invisible exec bits, case-sensitive binding-API greps,
+    csbindgen/UniFFI/JNA side effects, the Go probe recipe → `env-gotchas.md`.**

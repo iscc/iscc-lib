@@ -5,6 +5,7 @@
 //! available to Rust consumers but not exposed through FFI bindings.
 
 use crate::{IsccError, IsccResult};
+use std::borrow::Cow;
 
 // ---- Type Enums ----
 
@@ -94,10 +95,16 @@ impl TryFrom<u8> for SubType {
 }
 
 /// ISCC version identifier.
+///
+/// `V1` exists only for the experimental ISCC-IDv1 (MainType `Id`); every other
+/// MainType permits only `V0`. This enum is `#[non_exhaustive]` so future
+/// versions can be added without a further SemVer-major break.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Version {
     V0 = 0,
+    V1 = 1,
 }
 
 impl TryFrom<u8> for Version {
@@ -106,8 +113,25 @@ impl TryFrom<u8> for Version {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::V0),
+            1 => Ok(Self::V1),
             _ => Err(IsccError::InvalidInput(format!("invalid Version: {value}"))),
         }
+    }
+}
+
+/// Validate a MainType/Version combination.
+///
+/// Version 1 is accepted only for MainType `Id` (the experimental ISCC-IDv1);
+/// every other MainType permits only Version 0. This is the MainType-aware gate
+/// the context-free `Version::try_from` cannot express: `try_from` maps the raw
+/// nibble, while this function rejects a Version-1 header on any non-`Id` type.
+fn validate_version(mtype: MainType, version: Version) -> IsccResult<()> {
+    match (mtype, version) {
+        (_, Version::V0) | (MainType::Id, Version::V1) => Ok(()),
+        (_, other) => Err(IsccError::InvalidInput(format!(
+            "invalid Version: {} for MainType {mtype:?}",
+            other as u8
+        ))),
     }
 }
 
@@ -243,6 +267,8 @@ pub fn encode_header(
     version: Version,
     length: u32,
 ) -> IsccResult<Vec<u8>> {
+    validate_version(mtype, version)?;
+
     let mut bits = Vec::new();
     bits.extend(encode_varnibble(mtype as u32)?);
     bits.extend(encode_varnibble(stype as u32)?);
@@ -293,9 +319,19 @@ pub fn decode_header(data: &[u8]) -> IsccResult<(MainType, SubType, Version, u32
         vec![]
     };
 
-    let mtype = MainType::try_from(mtype_val as u8)?;
-    let stype = SubType::try_from(stype_val as u8)?;
-    let version = Version::try_from(version_val as u8)?;
+    // Range-check each varnibble before narrowing so a multi-nibble value that
+    // does not fit in a u8 is rejected instead of wrapping (e.g. 262 -> 6 = Id).
+    let mtype_u8 = u8::try_from(mtype_val)
+        .map_err(|_| IsccError::InvalidInput(format!("invalid MainType: {mtype_val}")))?;
+    let stype_u8 = u8::try_from(stype_val)
+        .map_err(|_| IsccError::InvalidInput(format!("invalid SubType: {stype_val}")))?;
+    let version_u8 = u8::try_from(version_val)
+        .map_err(|_| IsccError::InvalidInput(format!("invalid Version: {version_val}")))?;
+
+    let mtype = MainType::try_from(mtype_u8)?;
+    let stype = SubType::try_from(stype_u8)?;
+    let version = Version::try_from(version_u8)?;
+    validate_version(mtype, version)?;
 
     Ok((mtype, stype, version, length, tail))
 }
@@ -421,6 +457,39 @@ pub fn decode_units(unit_id: u32) -> IsccResult<Vec<MainType>> {
     Ok(result)
 }
 
+// ---- Prefix Validation ----
+
+/// Valid two-character ISCC prefixes, mirroring `iscc_core.constants.PREFIXES`.
+/// Note: `MA` and `ME` are ambiguous between ID-V0 and ID-V1.
+pub(crate) const PREFIXES: [&str; 26] = [
+    "AA", // META-NONE
+    "CA", // SEMANTIC-TEXT
+    "CE", // SEMANTIC-IMAGE
+    "CI", // SEMANTIC-AUDIO
+    "CM", // SEMANTIC-VIDEO
+    "CQ", // SEMANTIC-MIXED
+    "EA", // CONTENT-TEXT
+    "EE", // CONTENT-IMAGE
+    "EI", // CONTENT-AUDIO
+    "EM", // CONTENT-VIDEO
+    "EQ", // CONTENT-MIXED
+    "GA", // DATA-NONE
+    "IA", // INSTANCE-NONE
+    "KA", // ISCC-TEXT
+    "KE", // ISCC-IMAGE
+    "KI", // ISCC-AUDIO
+    "KM", // ISCC-VIDEO
+    "KQ", // ISCC-MIXED
+    "KU", // ISCC-SUM
+    "KY", // ISCC-NONE
+    "K4", // ISCC-WIDE
+    "MA", // ID-PRIVATE-V0 / ID-REALM_0-V1 (ambiguous)
+    "ME", // ID-BITCOIN-V0 / ID-REALM_1-V1 (ambiguous)
+    "MI", // ID-ETHEREUM-V0
+    "MM", // ID-POLYGON-V0
+    "OA", // FLAKE-NONE
+];
+
 // ---- Base32 Encoding ----
 
 /// Encode bytes as base32 (RFC 4648, uppercase, no padding).
@@ -476,14 +545,76 @@ pub fn encode_component(
     Ok(encode_base32(&component))
 }
 
+/// Clean up an ISCC string to its bare base32 form.
+///
+/// Mirrors `iscc_core.codec.iscc_clean`: trims surrounding whitespace, removes an
+/// optional scheme prefix (matched case-insensitively against `iscc`), and strips
+/// the hyphen group separators of the canonical display form (e.g.
+/// `ISCC:KACY-PXW4-…`). A single-part input whose first character is a multibase
+/// prefix (`f`, `b`, `v`, `z`, `u`) keeps its dashes intact, since `-` may be
+/// significant in multibase-encoded data.
+///
+/// Returns the cleaned code with no scheme prefix and no dashes.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` when a two-part input uses a scheme other
+/// than `iscc` (case-insensitive), when the input contains more than one colon,
+/// or when the cleaned result is empty (mirrors the reference erroring on empty
+/// input; `decode_base32("")` returns `Ok(empty)`, so an empty code would
+/// otherwise be silently accepted as a zero-unit ISCC).
+pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<Cow<'_, str>> {
+    let trimmed = iscc.trim();
+    let cleaned: Cow<'_, str> = match trimmed.split_once(':') {
+        None => {
+            // Single part, no scheme prefix. Preserve dashes for multibase-encoded
+            // inputs; strip them otherwise. Borrow when nothing needs removing.
+            let is_multibase = matches!(
+                trimmed.as_bytes().first(),
+                Some(b'f' | b'b' | b'v' | b'z' | b'u')
+            );
+            if is_multibase || !trimmed.contains('-') {
+                Cow::Borrowed(trimmed)
+            } else {
+                Cow::Owned(trimmed.replace('-', ""))
+            }
+        }
+        Some((scheme, rest)) => {
+            let scheme = scheme.trim();
+            let code = rest.trim();
+            // A second colon means the string is malformed (more than one part).
+            if code.contains(':') {
+                return Err(IsccError::InvalidInput(format!(
+                    "Malformed ISCC string: {iscc}"
+                )));
+            }
+            if !scheme.eq_ignore_ascii_case("iscc") {
+                return Err(IsccError::InvalidInput(format!("Invalid scheme: {scheme}")));
+            }
+            if code.contains('-') {
+                Cow::Owned(code.replace('-', ""))
+            } else {
+                Cow::Borrowed(code)
+            }
+        }
+    };
+
+    if cleaned.is_empty() {
+        return Err(IsccError::InvalidInput("Empty ISCC string".to_string()));
+    }
+
+    Ok(cleaned)
+}
+
 /// Decompose a composite ISCC-CODE or ISCC sequence into individual ISCC-UNITs.
 ///
 /// Accepts a normalized ISCC-CODE or a concatenated sequence of ISCC-UNITs.
-/// The optional "ISCC:" prefix is stripped before decoding. Returns a list
-/// of base32-encoded ISCC-UNIT strings (without "ISCC:" prefix).
+/// The input is cleaned via [`iscc_clean`] (scheme prefix, dashes, whitespace)
+/// before decoding. Returns a list of base32-encoded ISCC-UNIT strings (without
+/// "ISCC:" prefix).
 pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
-    let clean = iscc_code.strip_prefix("ISCC:").unwrap_or(iscc_code);
-    let mut raw_code = decode_base32(clean)?;
+    let clean = iscc_clean(iscc_code)?;
+    let mut raw_code = decode_base32(&clean)?;
     let mut components = Vec::new();
 
     while !raw_code.is_empty() {
@@ -570,6 +701,69 @@ pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- iscc_clean tests ----
+
+    #[test]
+    fn test_iscc_clean_strips_scheme_and_dashes() {
+        // Canonical display form: scheme prefix + hyphen groups.
+        assert_eq!(
+            iscc_clean("ISCC:KACY-PXW4-45FT-YNJ3").unwrap(),
+            "KACYPXW445FTYNJ3"
+        );
+    }
+
+    #[test]
+    fn test_iscc_clean_case_insensitive_scheme() {
+        assert_eq!(
+            iscc_clean("iscc:KACYPXW445FTYNJ3").unwrap(),
+            "KACYPXW445FTYNJ3"
+        );
+        assert_eq!(
+            iscc_clean("Iscc:KACYPXW445FTYNJ3").unwrap(),
+            "KACYPXW445FTYNJ3"
+        );
+    }
+
+    #[test]
+    fn test_iscc_clean_trims_whitespace() {
+        assert_eq!(iscc_clean("  ISCC: KACY-PXW4  ").unwrap(), "KACYPXW4");
+    }
+
+    #[test]
+    fn test_iscc_clean_no_prefix() {
+        assert_eq!(
+            iscc_clean("KACY-PXW4-45FT-YNJ3").unwrap(),
+            "KACYPXW445FTYNJ3"
+        );
+    }
+
+    #[test]
+    fn test_iscc_clean_preserves_multibase_dashes() {
+        // A multibase-prefixed input (starts with 'u') must keep its dashes intact.
+        assert_eq!(iscc_clean("uABC-DEF").unwrap(), "uABC-DEF");
+        // Every multibase prefix is preserved verbatim.
+        for prefix in ['f', 'b', 'v', 'z', 'u'] {
+            let input = format!("{prefix}AA-BB");
+            assert_eq!(iscc_clean(&input).unwrap(), input);
+        }
+    }
+
+    #[test]
+    fn test_iscc_clean_rejects_bad_scheme() {
+        assert!(matches!(
+            iscc_clean("http:KACYPXW445FTYNJ3"),
+            Err(IsccError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn test_iscc_clean_rejects_extra_colon() {
+        assert!(matches!(
+            iscc_clean("ISCC:KACY:PXW4"),
+            Err(IsccError::InvalidInput(_))
+        ));
+    }
 
     // ---- Varnibble roundtrip tests ----
 
@@ -1041,8 +1235,90 @@ mod tests {
 
     #[test]
     fn test_version_try_from() {
-        assert!(Version::try_from(0).is_ok());
-        assert!(Version::try_from(1).is_err());
+        assert_eq!(Version::try_from(0).unwrap(), Version::V0);
+        assert_eq!(Version::try_from(1).unwrap(), Version::V1);
+        assert!(Version::try_from(2).is_err());
+    }
+
+    // ---- ISCC-IDv1 Version 1 acceptance tests ----
+
+    #[test]
+    fn test_iscc_decode_idv1_realm0() {
+        // Reference: iscc_core.iscc_decode("ISCC:MAIGHFECJMOPMIAB")
+        //   -> (6, 0, 1, 0, b'c\x94\x82K\x1c\xf6 \x01')
+        let expected_body = vec![0x63, 0x94, 0x82, 0x4b, 0x1c, 0xf6, 0x20, 0x01];
+        let with_prefix = crate::iscc_decode("ISCC:MAIGHFECJMOPMIAB").unwrap();
+        assert_eq!(with_prefix, (6, 0, 1, 0, expected_body.clone()));
+        // Same result via the bare (no-prefix) form.
+        let no_prefix = crate::iscc_decode("MAIGHFECJMOPMIAB").unwrap();
+        assert_eq!(no_prefix, (6, 0, 1, 0, expected_body));
+    }
+
+    #[test]
+    fn test_decompose_idv1_accepts_version1() {
+        // A single ISCC-IDv1 unit must decompose without "invalid Version: 1".
+        let result = iscc_decompose("ISCC:MAIGHFECJMOPMIAB").unwrap();
+        assert_eq!(result, vec!["MAIGHFECJMOPMIAB"]);
+    }
+
+    #[test]
+    fn test_decode_header_idv1_version1() {
+        // Header 0x6010 = MainType Id (6), realm 0, Version 1, length 0.
+        let raw = decode_base32("MAIGHFECJMOPMIAB").unwrap();
+        let (mtype, stype, version, length, tail) = decode_header(&raw).unwrap();
+        assert_eq!(mtype, MainType::Id);
+        assert_eq!(stype, SubType::None); // realm 0 travels as the nibble 0
+        assert_eq!(version, Version::V1);
+        assert_eq!(length, 0);
+        assert_eq!(tail.len(), 8);
+    }
+
+    #[test]
+    fn test_encode_decode_header_idv1_roundtrip() {
+        // Realm 1 (operational) travels as the SubType nibble 1 (cosmetically Image).
+        let header = encode_header(MainType::Id, SubType::Image, Version::V1, 0).unwrap();
+        let (mtype, stype, version, length, _tail) = decode_header(&header).unwrap();
+        assert_eq!(mtype, MainType::Id);
+        assert_eq!(stype, SubType::Image);
+        assert_eq!(version, Version::V1);
+        assert_eq!(length, 0);
+    }
+
+    #[test]
+    fn test_encode_header_rejects_version1_for_non_id() {
+        // Version 1 is only valid for MainType Id; a Meta header must reject it.
+        let result = encode_header(MainType::Meta, SubType::None, Version::V1, 1);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid Version"));
+    }
+
+    #[test]
+    fn test_decode_header_rejects_version1_for_non_id() {
+        // Craft a Meta header (MainType 0) with version nibble 1 and length 1.
+        // varnibble(0)=0000 mtype, varnibble(0)=0000 stype, varnibble(1)=0001 version,
+        // varnibble(1)=0001 length -> bits 0000 0000 0001 0001 = 0x00 0x11
+        let raw = [0x00u8, 0x11u8];
+        let result = decode_header(&raw);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid Version"));
+    }
+
+    #[test]
+    fn test_decode_header_rejects_truncated_varnibble_fields() {
+        // "MDFZAAAAAAAAAAAAAA" decodes to a header whose multi-nibble fields
+        // overflow a u8 (version 257, MainType 262). Before the range check these
+        // wrapped (257 -> 1, 262 -> 6 = Id) and canonicalized to a valid ISCC.
+        assert!(crate::iscc_decode("MDFZAAAAAAAAAAAAAA").is_err());
+        assert!(iscc_decompose("MDFZAAAAAAAAAAAAAA").is_err());
+    }
+
+    #[test]
+    fn test_iscc_decode_rejects_version1_for_non_id() {
+        // The Tier 1 iscc_decode must also reject a non-Id Version-1 header.
+        let iscc = encode_base32(&[0x00u8, 0x11u8]);
+        let result = crate::iscc_decode(&iscc);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid Version"));
     }
 
     #[test]

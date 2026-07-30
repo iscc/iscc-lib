@@ -20,8 +20,8 @@ crates/iscc-wasm/
   src/
     lib.rs            # All #[wasm_bindgen] exports (single file, flat)
   tests/
-    conformance.rs    # 9 gen_*_v0 functions vs vendored data.json vectors
-    unit.rs           # gen_sum_code_v0, text utils, encoding, codec, algorithm primitives, hashers
+    conformance.rs       # 9 gen_*_v0 functions vs canonical data.json vectors
+    unit.rs              # gen_sum_code_v0, text utils, encoding, codec, algorithm primitives, hashers
 ```
 
 - `src/lib.rs` contains every exported function. No submodules -- keep it flat until the file
@@ -87,9 +87,23 @@ wasm-pack build crates/iscc-wasm --release --target bundler
 ```
 
 The release profile uses
-`wasm-opt = ["-O3", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]` for maximum
-runtime speed optimization (configured via `[package.metadata.wasm-pack.profile.release]` in
-Cargo.toml).
+`wasm-opt = ["-O3", "--enable-simd", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`
+for maximum runtime speed optimization (configured via
+`[package.metadata.wasm-pack.profile.release]` in Cargo.toml).
+
+BLAKE3's hand-written `wasm32` SIMD backend is wired up with two compile-time pieces:
+
+1. The `blake3/wasm32_simd` **Cargo feature** (required to activate the backend) — enabled by a
+    direct `blake3 = { workspace = true, features = ["wasm32_simd"] }` dependency in this crate's
+    Cargo.toml. The dep exists solely for feature unification (no `use blake3` in `lib.rs`); it
+    feature-unifies onto `iscc-lib`'s blake3 for the wasm-only build and must not be removed as
+    "unused". blake3's build.rs emits the gating `blake3_wasm32_simd` cfg only when this feature is
+    set on a `wasm32` target, so native builds are unaffected.
+2. `RUSTFLAGS="-C target-feature=+simd128"` — set by release and CI build steps. blake3's backend
+    functions carry `#[target_feature(enable = "simd128")]`, so they compile even without it (a
+    plain `wasm-pack build` succeeds); the global flag additionally enables `simd128` across the
+    whole crate so the surrounding data-path code auto-vectorizes and blake3's SIMD functions
+    inline optimally. `--enable-simd` lets `wasm-opt` accept the resulting `v128` instructions.
 
 ## Test Commands
 
@@ -125,12 +139,14 @@ wasm-pack test --node crates/iscc-wasm --test unit
 
 ## Exported API Surface
 
-All 30 Tier 1 functions are bound, plus 2 result structs and 3 streaming types. Every
-`#[wasm_bindgen]` export in `lib.rs` maps 1:1 to an `iscc_lib` public symbol:
+All 33 Tier 1 symbols are bound (including `gen_iscc_id_v1`), plus 2 result structs and 3 streaming
+types. Every `#[wasm_bindgen]` export in `lib.rs` maps 1:1 to an `iscc_lib` public symbol:
 
 - **10 gen functions:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
     `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
+- **1 ISCC-IDv1 mint function (experimental):** `gen_iscc_id_v1` (returns the ISCC string directly,
+    not a wrapper struct)
 - **4 text utils:** `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - **4 algorithm primitives:** `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`
 - **5 constants:** `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
@@ -140,8 +156,8 @@ All 30 Tier 1 functions are bound, plus 2 result structs and 3 streaming types. 
 - **2 encoding:** `encode_base64`, `json_to_data_url`
 - **3 codec:** `encode_component`, `iscc_decode` (with `IsccDecodeResult` struct), `iscc_decompose`
 - **1 diagnostic:** `conformance_selftest` (feature-gated behind `conformance` Cargo feature)
-- **1 result struct:** `WasmSumCodeResult` (returned by `gen_sum_code_v0`, with `iscc`, `datahash`,
-    `filesize`, and optional `units` fields)
+- **2 result structs:** `WasmSumCodeResult` (returned by `gen_sum_code_v0`, with `iscc`, `datahash`,
+    `filesize`, and optional `units` fields) and `IsccDecodeResult` (returned by `iscc_decode`)
 - **3 streaming types:** `DataHasher`, `InstanceHasher`, `SumHasher`
 
 `DataHasher`, `InstanceHasher`, and `SumHasher` are bound as `#[wasm_bindgen]` structs with

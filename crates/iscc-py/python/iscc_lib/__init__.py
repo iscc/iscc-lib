@@ -32,6 +32,7 @@ from iscc_lib._lowlevel import (
     gen_image_code_v0 as _gen_image_code_v0,
     gen_instance_code_v0 as _gen_instance_code_v0,
     gen_iscc_code_v0 as _gen_iscc_code_v0,
+    gen_iscc_id_v1 as _gen_iscc_id_v1,
     gen_meta_code_v0 as _gen_meta_code_v0,
     gen_mixed_code_v0 as _gen_mixed_code_v0,
     gen_sum_code_v0 as _gen_sum_code_v0,
@@ -47,7 +48,6 @@ from iscc_lib._lowlevel import (
     text_remove_newlines as text_remove_newlines,
     text_trim as text_trim,
 )
-
 
 # ── Type Enums ──────────────────────────────────────────────────────────────
 
@@ -83,6 +83,7 @@ class VS(enum.IntEnum):
     """ISCC Version identifiers."""
 
     V0 = 0
+    V1 = 1
 
 
 # ── Algorithm configuration namespace ───────────────────────────────────────
@@ -192,6 +193,12 @@ class SumCodeResult(IsccResult):
     units: list[str] | None
 
 
+class IsccIdResult(IsccResult):
+    """Result of gen_iscc_id_v1."""
+
+    iscc: str
+
+
 # ── Wrapper functions ────────────────────────────────────────────────────────
 
 
@@ -281,6 +288,11 @@ def gen_sum_code_v0(
 ) -> SumCodeResult:
     """Generate Data-Code + Instance-Code + ISCC-CODE from a file path in a single pass."""
     return SumCodeResult(_gen_sum_code_v0(os.fspath(path), bits, wide, add_units))
+
+
+def gen_iscc_id_v1(timestamp: int, hub_id: int = 0, realm_id: int = 0) -> IsccIdResult:
+    """Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental)."""
+    return IsccIdResult(_gen_iscc_id_v1(timestamp, hub_id, realm_id))
 
 
 # ── Streaming hashers ──────────────────────────────────────────────────────
@@ -379,7 +391,6 @@ class SumHasher:
 
 
 __all__ = [
-    "__version__",
     "IO_READ_SIZE",
     "META_TRIM_DESCRIPTION",
     "META_TRIM_META",
@@ -388,7 +399,6 @@ __all__ = [
     "ST",
     "TEXT_NGRAM_SIZE",
     "VS",
-    "IsccResult",
     "AudioCodeResult",
     "DataCodeResult",
     "DataHasher",
@@ -396,12 +406,15 @@ __all__ = [
     "InstanceCodeResult",
     "InstanceHasher",
     "IsccCodeResult",
+    "IsccIdResult",
+    "IsccResult",
     "MetaCodeResult",
     "MixedCodeResult",
     "SumCodeResult",
     "SumHasher",
     "TextCodeResult",
     "VideoCodeResult",
+    "__version__",
     "alg_cdc_chunks",
     "alg_minhash_256",
     "alg_simhash",
@@ -414,6 +427,7 @@ __all__ = [
     "gen_image_code_v0",
     "gen_instance_code_v0",
     "gen_iscc_code_v0",
+    "gen_iscc_id_v1",
     "gen_meta_code_v0",
     "gen_mixed_code_v0",
     "gen_sum_code_v0",

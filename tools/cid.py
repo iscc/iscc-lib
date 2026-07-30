@@ -6,18 +6,22 @@
 """CID — Continuous Iterative Development orchestrator.
 
 Runs Claude Code agents in a loop to iteratively advance the project toward its target state.
-Each iteration executes four roles: update-state, define-next, advance, review.
+Each iteration executes four roles: update-state, define-next, advance, review. Two roles run
+outside the iteration sequence: meta-improve (on IDLE) and audit (every AUDIT_EVERY iterations
+and on demand — whole-codebase maintainability audit that files evidence-backed issues).
 
 Usage:
     uv run tools/cid.py status
     uv run tools/cid.py step --skip-permissions
     uv run tools/cid.py run --skip-permissions --max-iterations 5
     uv run tools/cid.py role update-state --skip-permissions
+    uv run tools/cid.py audit --skip-permissions
 """
 
 import argparse
 import json
 import os
+import re
 import select
 import shutil
 import subprocess
@@ -25,6 +29,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timezone
+from itertools import pairwise
 from pathlib import Path
 
 # CID agent roles executed in order per iteration
@@ -33,14 +38,27 @@ ROLES = ("update-state", "define-next", "advance", "review")
 # Self-improvement role, run only on IDLE or via the `improve` command (not part of ROLES)
 META_ROLE = "meta-improve"
 
+# Codebase audit role, run on a fixed iteration cadence and via the `audit` command
+# (not part of ROLES). Cadence rather than IDLE-coupling: debt accumulates fastest
+# during busy phases, exactly when IDLE never happens.
+AUDIT_ROLE = "audit"
+AUDIT_EVERY = 10
+
 CONTEXT_DIR = Path(".claude/context")
 STATE_FILE = CONTEXT_DIR / "state.md"
+NEXT_FILE = CONTEXT_DIR / "next.md"
 HANDOFF_FILE = CONTEXT_DIR / "handoff.md"
+LEARNINGS_FILE = CONTEXT_DIR / "learnings.md"
+DECISIONS_FILE = CONTEXT_DIR / "decisions.md"
+DECISIONS_ARCHIVE = CONTEXT_DIR / "decisions-archive.md"
 LOG_FILE = CONTEXT_DIR / "iterations.jsonl"
 META_LOG_FILE = CONTEXT_DIR / "meta-log.jsonl"
 PROPOSALS_FILE = CONTEXT_DIR / "proposals.md"
 AGENTS_DIR = Path(".claude/agents")
 META_MEMORY_DIR = Path(".claude/agent-memory/meta-improve")
+AUDIT_MEMORY_DIR = Path(".claude/agent-memory/audit")
+ISSUES_FILE = CONTEXT_DIR / "issues.md"
+METRICS_FILE = CONTEXT_DIR / "metrics.jsonl"
 DONE_MARKER = "## Status: DONE"
 
 # Hard enforcement of the meta-improve guardrails (the agent's prose rules are not
@@ -59,6 +77,10 @@ META_AUTO_OK = frozenset(
 META_BOOKKEEPING = frozenset(
     p.as_posix() for p in (META_LOG_FILE, PROPOSALS_FILE, HANDOFF_FILE)
 )
+# The audit role's only output channels — findings go to issues.md, the runner
+# snapshots metrics. Enforced by enforce_audit_safety in the trusted runner: the
+# audit agent must never change source code, prompts, or other context files.
+AUDIT_OK = frozenset(p.as_posix() for p in (ISSUES_FILE, METRICS_FILE))
 # Upper bound on the agent-supplied rollback window — the runner owns this schedule,
 # so a meta change can never defer its own evaluation indefinitely.
 META_WINDOW_CAP = 10
@@ -77,13 +99,50 @@ ROLE_ENTRY_KEYS = frozenset(
 # turn-count flag is intentionally NOT used: the installed claude CLI has no
 # --max-turns, so it would be silently ignored. Values are generous (these catch
 # stuck runs, not normal long iterations like advance + a 30-min codex review).
+# A role that already committed its deliverable when the guard fires does not fail
+# the iteration — see _role_commit_landed.
+# advance runs on Fable 5, whose single requests on hard tasks can run for many
+# minutes, so it gets extra headroom over the other roles.
 ROLE_TIMEOUT_S = {
     "update-state": 1200,
     "define-next": 1200,
-    "advance": 3000,
-    "review": 3000,
+    "advance": 3600,
+    # review runs the widest gate set (full feature matrix, coverage regen from
+    # scratch, iai benches, docs build) plus an independent codex pass, so it needs
+    # the same headroom as advance: p90 is ~1800s and iteration 148 legitimately
+    # exceeded 3000s.
+    "review": 3600,
     META_ROLE: 1800,
+    # Whole-codebase sweep with a parallel finder/verifier workflow — long but
+    # rare (every AUDIT_EVERY iterations).
+    AUDIT_ROLE: 3600,
 }
+
+# Per-role spend ceiling, passed to the CLI as --max-budget-usd (which requires
+# --print, and every role runs under -p). Companion to ROLE_TIMEOUT_S: the timeout
+# catches a role that hangs, this catches one that thrashes productively-looking
+# but unboundedly. Values are ~2x the worst run observed to date, so they never
+# fire on a normal iteration.
+ROLE_BUDGET_USD = {
+    "update-state": 10.0,
+    "define-next": 10.0,
+    "advance": 20.0,
+    "review": 20.0,
+    META_ROLE: 15.0,
+    AUDIT_ROLE: 15.0,
+}
+
+# Primary model pinned for every headless role invocation. Passed as --model so the
+# session base does not drift onto the CLI's rolling default. Per-agent frontmatter
+# (e.g. advance/audit on fable) still overrides this — frontmatter model takes
+# precedence over the session --model.
+PRIMARY_MODEL = "claude-opus-4-8[1m]"
+
+# Prompt size (in tokens) above which a role run is reported as at risk of silent
+# context truncation. The review role has already touched 92% of a 200k window;
+# truncation there degrades the quality gate invisibly, which is worse than a cost
+# overrun because nothing fails loudly.
+CONTEXT_ALARM_TOKENS = 150_000
 
 
 # --- CLI discovery ---
@@ -117,14 +176,36 @@ def sanitize_env():
 # --- Agent invocation ---
 
 
+_CONTEXT_TOKEN_KEYS = (
+    "input_tokens",
+    "cache_creation_input_tokens",
+    "cache_read_input_tokens",
+)
+
+
+def _prompt_tokens(usage):
+    """Return the total prompt size of one request from its usage record.
+
+    Fresh, cache-written and cache-read input all occupy the context window, so the
+    sum — not input_tokens alone — is what approaches the model's limit.
+    """
+    return sum(
+        v
+        for k, v in usage.items()
+        if k in _CONTEXT_TOKEN_KEYS and isinstance(v, (int, float))
+    )
+
+
 def _process_output(stdout, role):
     """Process streaming JSON output from claude CLI.
 
-    Returns (cost, turns, is_error) tuple.
+    Returns (cost, turns, is_error, peak_context) tuple, where peak_context is the
+    largest prompt the role sent during the run.
     """
     cost = 0.0
     turns = 0
     is_error = False
+    peak_context = 0
 
     for line in iter(stdout.readline, ""):
         line = line.rstrip("\n")
@@ -138,7 +219,11 @@ def _process_output(stdout, role):
         msg_type = data.get("type")
 
         if msg_type == "assistant":
-            for item in data.get("message", {}).get("content", []):
+            message = data.get("message", {})
+            usage = message.get("usage")
+            if isinstance(usage, dict):
+                peak_context = max(peak_context, int(_prompt_tokens(usage)))
+            for item in message.get("content", []):
                 if item.get("type") == "text":
                     text = item.get("text", "").strip()
                     if text:
@@ -153,7 +238,7 @@ def _process_output(stdout, role):
             turns = raw_turns if isinstance(raw_turns, int) else 0
             is_error = bool(data.get("is_error", False))
 
-    return cost, turns, is_error
+    return cost, turns, is_error, peak_context
 
 
 def log_entry(cwd, entry):
@@ -192,6 +277,7 @@ def is_role_entry(entry):
     return ROLE_ENTRY_KEYS.issubset(entry.keys()) and entry.get("role") in (
         *ROLES,
         META_ROLE,
+        AUDIT_ROLE,
         "orchestrator",
     )
 
@@ -240,10 +326,12 @@ def parse_verdict(cwd):
     return None
 
 
-def append_iteration_summary(cwd, iteration):
+def append_iteration_summary(cwd, iteration, over_budget=None):
     """Append a clean per-iteration summary row aggregating this iteration's roles.
 
-    Provides a stable metric series (verdict + totals) for meta-improve to evaluate.
+    Provides a stable metric series (verdict + totals + artifact sizes) for
+    meta-improve to evaluate. Recording the overruns makes artifact growth a
+    first-class trend rather than something only visible by diffing the files.
     """
     rows = [
         e
@@ -258,21 +346,30 @@ def append_iteration_summary(cwd, iteration):
         "turns_total": sum(_num(e, "turns") for e in rows),
         "cost_total": round(sum(_num(e, "cost_usd") for e in rows), 6),
         "duration_total": round(sum(_num(e, "duration_s") for e in rows), 1),
+        "peak_context": max((_num(e, "peak_context") for e in rows), default=0),
+        "over_budget": {
+            path.as_posix(): lines for path, (lines, _) in (over_budget or {}).items()
+        },
     }
     log_entry(cwd, summary)
 
 
-def commit_path(cwd, rel_path, message):
-    """Commit a single tracked file as a standalone, best-effort change.
+def commit_paths(cwd, rel_paths, message):
+    """Commit the given tracked files as a standalone, best-effort change.
 
-    The pathspec form commits only that file, leaving any other staged changes
-    untouched. Failures (nothing to commit, not a git repo) are non-fatal so they
-    never abort the loop. cid.py owns iterations.jsonl/meta-log.jsonl this way.
+    The pathspec form commits only those files, leaving any other staged changes
+    untouched. Failures (nothing to commit, not a git repo, a hook that rewrites the
+    files and rejects the commit) are non-fatal so they never abort the loop — but the
+    staging is undone, because a role's own `git commit` carries no pathspec and would
+    otherwise sweep this residue into an unrelated commit. cid.py owns
+    iterations.jsonl/meta-log.jsonl this way.
     """
-    rel = str(rel_path)
+    rels = [str(p) for p in rel_paths]
+    if not rels:
+        return
     try:
         add = subprocess.run(  # noqa: S603
-            ["git", "add", rel],  # noqa: S607
+            ["git", "add", *rels],  # noqa: S607
             cwd=cwd,
             capture_output=True,
             text=True,
@@ -281,21 +378,35 @@ def commit_path(cwd, rel_path, message):
         if add.returncode != 0:
             return
         status = subprocess.run(  # noqa: S603
-            ["git", "diff", "--cached", "--quiet", "--", rel],  # noqa: S607
+            ["git", "diff", "--cached", "--quiet", "--", *rels],  # noqa: S607
             cwd=cwd,
             check=False,
         )
         if status.returncode == 0:
-            return  # nothing staged for this file
-        subprocess.run(  # noqa: S603
-            ["git", "commit", "-m", message, rel],  # noqa: S607
+            return  # nothing staged for these files
+        commit = subprocess.run(  # noqa: S603
+            ["git", "commit", "-m", message, *rels],  # noqa: S607
             cwd=cwd,
             capture_output=True,
             text=True,
             check=False,
         )
+        if commit.returncode != 0:
+            subprocess.run(  # noqa: S603
+                ["git", "restore", "--staged", "--", *rels],  # noqa: S607
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            print(f"  WARN: could not commit {', '.join(rels)}; left them uncommitted")
     except OSError as e:
-        print(f"  WARN: could not commit {rel}: {e}")
+        print(f"  WARN: could not commit {', '.join(rels)}: {e}")
+
+
+def commit_path(cwd, rel_path, message):
+    """Commit a single tracked file as a standalone, best-effort change."""
+    commit_paths(cwd, (rel_path,), message)
 
 
 def commit_log(cwd, iteration):
@@ -329,6 +440,23 @@ def _commits_since(cwd, base_sha):
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
+def _role_commit_landed(cwd, role, base_sha):
+    """True if the role's own `cid(<role>):` commit landed during its run.
+
+    Every role protocol ends by committing its deliverable, so such a commit in
+    base_sha..HEAD means the work is complete even if the subprocess was cut short
+    afterwards (wall-clock timeout, API error) during optional follow-up such as
+    memory housekeeping. Lets the loop tell a genuinely stuck role apart from one
+    that finished and then overran.
+    """
+    if not base_sha:
+        return False
+    rc, out = _git(cwd, "log", "--format=%s", f"{base_sha}..HEAD")
+    if rc != 0:
+        return False
+    return any(line.startswith(f"cid({role}):") for line in out.splitlines())
+
+
 def _commit_files(cwd, sha):
     """Return the list of files changed by a commit (posix paths)."""
     rc, out = _git(
@@ -342,6 +470,11 @@ def _commit_files(cwd, sha):
 def _is_meta_bookkeeping(path):
     """True if a path is meta-improve bookkeeping (log/proposals/handoff/own memory)."""
     return path in META_BOOKKEEPING or path.startswith(META_MEMORY_DIR.as_posix() + "/")
+
+
+def _is_audit_output(path):
+    """True if a path is a permitted audit-role output (issues/metrics/own memory)."""
+    return path in AUDIT_OK or path.startswith(AUDIT_MEMORY_DIR.as_posix() + "/")
 
 
 def _paths_dirty(cwd, paths):
@@ -494,12 +627,58 @@ def enforce_meta_safety(cwd, base_sha):
     return reverted
 
 
-def _abandoned_meta_paths(cwd):
-    """Tracked files with uncommitted changes that are neither the iteration log nor
-    meta bookkeeping — prompt/machinery edits a meta run left behind.
+def enforce_audit_safety(cwd, base_sha):
+    """Revert any audit commit that touches files outside AUDIT_OK. Returns count.
 
-    The iteration log is runner-owned (committed by commit_log) and bookkeeping is the
-    agent's own scratch, so both are excluded; what remains is abandoned prompt edits.
+    The audit role's charter is find-and-file only: issues.md, the metrics log, and
+    its own memory. Any commit since base_sha touching other paths (source code,
+    prompts, context files) is reverted in the trusted runner, which the agent cannot
+    override. Simpler than the meta guardrails on purpose — no change budget or
+    rollback window, because a compliant audit changes no behavior at all.
+    """
+    if not base_sha:
+        return 0  # no prior HEAD to diff against
+    if not _history_intact(cwd, base_sha):
+        flag_human_review(
+            cwd,
+            "audit-safety: git history was rewritten since the agent started "
+            "(amend/reset); refusing to auto-revert — resolve manually",
+        )
+        print("  *** audit-safety: history rewritten — refusing to auto-revert ***")
+        return 0
+    reverted = 0
+    # Newest first so each `git revert` applies cleanly on top of HEAD.
+    for sha in reversed(_commits_since(cwd, base_sha)):
+        files = _commit_files(cwd, sha)
+        offending = [f for f in files if not _is_audit_output(f)]
+        if not files or not offending:
+            continue
+        print(
+            f"  *** audit-safety: reverting {sha[:8]} — touched "
+            f"non-audit path(s): {', '.join(offending)} ***"
+        )
+        if _safe_revert(cwd, sha):
+            reverted += 1
+        else:
+            flag_human_review(
+                cwd,
+                f"audit-safety could not auto-revert {sha[:8]} (touched "
+                f"{', '.join(offending)}) — git revert conflict; the unreverted "
+                "change is live, resolve manually",
+            )
+            print(
+                f"  *** audit-safety: could not auto-revert {sha[:8]} — "
+                "HUMAN REVIEW REQUIRED (git revert conflict) ***"
+            )
+    return reverted
+
+
+def _abandoned_paths(cwd, is_role_output):
+    """Tracked files with uncommitted changes that are neither the iteration log nor
+    permitted role output — edits an interrupted role run left behind.
+
+    The iteration log is runner-owned (committed by commit_log) and role output is the
+    agent's own scratch, so both are excluded; what remains is abandoned edits.
     """
     rc, out = _git(cwd, "status", "--porcelain", "--untracked-files=no")
     if rc != 0:
@@ -511,23 +690,24 @@ def _abandoned_meta_paths(cwd):
         if not entry:
             continue
         path = entry.split(" -> ")[-1]  # defensively take a rename's target
-        if path == LOG_FILE.as_posix() or _is_meta_bookkeeping(path):
+        if path == LOG_FILE.as_posix() or is_role_output(path):
             continue
         paths.append(path)
     return paths
 
 
-def _stash_abandoned_meta_edits(cwd):
-    """Stash prompt/machinery edits a meta run left uncommitted, then flag human review.
+def _stash_abandoned_edits(cwd, role, is_role_output):
+    """Stash out-of-charter edits a role run left uncommitted, then flag human review.
 
-    The meta agent commits its own work; uncommitted edits to prompt/machinery files
-    after it exits are abandoned (e.g. an interrupted or timed-out run) and would
-    otherwise be read as a modified prompt by the next run. A successful run leaves the
-    tree clean, so this is a no-op then. Stashing returns the tree to the validated
-    committed state while keeping the edits recoverable via `git stash pop`. Returns the
-    stashed paths.
+    Guarded roles (meta-improve, audit) commit their own work; uncommitted edits to
+    other files after they exit are abandoned (e.g. an interrupted or timed-out run)
+    and would otherwise leak into the next run unreviewed — as a silently modified
+    prompt (meta) or a dirty source tree the advance agent must not reset (audit). A
+    successful run leaves the tree clean, so this is a no-op then. Stashing returns
+    the tree to the validated committed state while keeping the edits recoverable via
+    `git stash pop`. Returns the stashed paths.
     """
-    paths = _abandoned_meta_paths(cwd)
+    paths = _abandoned_paths(cwd, is_role_output)
     if not paths:
         return []
     listing = ", ".join(paths)
@@ -536,25 +716,25 @@ def _stash_abandoned_meta_edits(cwd):
         "stash",
         "push",
         "-m",
-        "cid(meta): abandoned uncommitted edits",
+        f"cid({role}): abandoned uncommitted edits",
         "--",
         *paths,
     )
     if rc != 0:
         flag_human_review(
             cwd,
-            f"meta-improve left uncommitted edits to {listing} that could not be "
-            "stashed — an unreviewed prompt change is live, resolve manually",
+            f"{role} left uncommitted edits to {listing} that could not be "
+            "stashed — an unreviewed change is live, resolve manually",
         )
-        print(f"  *** meta-safety: could not stash abandoned edits: {listing} ***")
+        print(f"  *** {role}-safety: could not stash abandoned edits: {listing} ***")
         return []
     flag_human_review(
         cwd,
-        f"meta-improve left uncommitted edits to {listing} (likely interrupted); "
-        "stashed them (see `git stash list`) and restored prompts to HEAD — review "
+        f"{role} left uncommitted edits to {listing} (likely interrupted); "
+        "stashed them (see `git stash list`) and restored the tree to HEAD — review "
         "before the next run",
     )
-    print(f"  *** meta-safety: stashed abandoned uncommitted edits: {listing} ***")
+    print(f"  *** {role}-safety: stashed abandoned uncommitted edits: {listing} ***")
     return paths
 
 
@@ -667,12 +847,221 @@ def evaluate_meta_rollbacks(cwd):
     return blocked
 
 
+# --- Artifact budgets ---
+
+# Line budget per context artifact. Every artifact the loop writes grew 24-174%
+# across the 2026-07-24 model change except learnings.md, the only one carrying a
+# hard cap, which did not move — so a cap is what holds an artifact's size, not the
+# model. Budgets live in the runner rather than in the role prompts so the
+# constraint survives a model swap and costs no agent turns to police.
+ARTIFACT_BUDGETS = {
+    NEXT_FILE: 120,
+    STATE_FILE: 200,
+    HANDOFF_FILE: 100,
+    ISSUES_FILE: 300,
+    LEARNINGS_FILE: 200,
+    DECISIONS_FILE: 400,
+}
+
+# Artifacts each role writes, so a budget notice reaches an agent that can still
+# act on it. advance writes only the handoff; review owns the ledgers; audit and
+# meta-improve each write one file within their charter (AUDIT_OK / META_AUTO_OK).
+ROLE_ARTIFACTS = {
+    "update-state": (STATE_FILE,),
+    "define-next": (NEXT_FILE,),
+    "advance": (HANDOFF_FILE,),
+    "review": (HANDOFF_FILE, ISSUES_FILE, LEARNINGS_FILE, DECISIONS_FILE),
+    AUDIT_ROLE: (ISSUES_FILE,),
+    META_ROLE: (LEARNINGS_FILE,),
+}
+
+# A dated top-level entry in an append-only log: "## 2026-07-24 — title". Matching
+# the date is what keeps the format template in a file's preamble (which uses a
+# `<YYYY-MM-DD>` placeholder) from being mistaken for the first entry.
+_DATED_ENTRY = re.compile(r"^## \d{4}-\d{2}-\d{2}\b")
+
+_ARCHIVE_HEADER = (
+    "# {name} archive\n\n"
+    "Entries rotated out of `{name}` by the CID runner, oldest first, when the log\n"
+    "exceeded its line budget. Never loaded by an agent — reference for humans only.\n"
+)
+
+
+def count_lines(cwd, rel_path):
+    """Return the line count of a context artifact (0 if it does not exist)."""
+    path = cwd / rel_path
+    if not path.exists():
+        return 0
+    return len(path.read_text(encoding="utf-8").splitlines())
+
+
+def split_dated_entries(text):
+    """Split an append-only log into (preamble, entries) on dated `## ` headings.
+
+    The preamble is everything before the first dated heading — title, purpose and
+    format template. Entries keep their trailing blank lines so rejoining them is
+    byte-exact.
+    """
+    lines = text.splitlines(keepends=True)
+    starts = [i for i, line in enumerate(lines) if _DATED_ENTRY.match(line)]
+    if not starts:
+        return text, []
+    bounds = [*starts, len(lines)]
+    entries = ["".join(lines[a:b]) for a, b in pairwise(bounds)]
+    return "".join(lines[: starts[0]]), entries
+
+
+def archive_overflow(cwd, rel_path, archive_rel, budget):
+    """Move the oldest dated entries of an append-only log into its archive.
+
+    Deterministic and content-blind: entries are appended chronologically, so
+    trimming from the front is always oldest-first and needs no judgment about what
+    is still relevant. Returns the number of entries moved.
+    """
+    path = cwd / rel_path
+    if not path.exists():
+        return 0
+    text = path.read_text(encoding="utf-8")
+    if len(text.splitlines()) <= budget:
+        return 0
+    preamble, entries = split_dated_entries(text)
+    if not entries:
+        return 0  # unrecognised structure — measure it, never guess where to cut
+    kept = list(entries)
+    moved = []
+    room = budget - len(preamble.splitlines())
+    while kept and sum(len(e.splitlines()) for e in kept) > room:
+        moved.append(kept.pop(0))
+    if not moved:
+        return 0
+    archive = cwd / archive_rel
+    header = (
+        "" if archive.exists() else _ARCHIVE_HEADER.format(name=Path(rel_path).name)
+    )
+    with open(archive, "a", encoding="utf-8") as f:
+        f.write(header + "\n" + "".join(moved))
+    path.write_text(preamble + "".join(kept), encoding="utf-8")
+    return len(moved)
+
+
+def artifact_overruns(cwd, paths=None):
+    """Return {path: (lines, budget)} for artifacts exceeding their line budget.
+
+    Pass ``paths`` to restrict the check to one role's own artifacts.
+    """
+    selected = ARTIFACT_BUDGETS if paths is None else paths
+    over = {}
+    for path in selected:
+        budget = ARTIFACT_BUDGETS.get(path)
+        if budget is None:
+            continue
+        lines = count_lines(cwd, path)
+        if lines > budget:
+            over[path] = (lines, budget)
+    return over
+
+
+def _format_overruns(over):
+    """Render an overrun mapping as a stable, human-readable list."""
+    return "; ".join(
+        f"{path.as_posix()} is {lines} lines (budget {budget})"
+        for path, (lines, budget) in sorted(
+            over.items(), key=lambda kv: kv[0].as_posix()
+        )
+    )
+
+
+def enforce_artifact_budgets(cwd):
+    """Rotate what can be rotated, then report the artifacts still over budget.
+
+    Only decisions.md is trimmed mechanically: it is strictly chronological, so
+    "oldest first" is recoverable from the file alone. learnings.md is organised by
+    topic rather than by date and the rewritten-each-cycle artifacts cannot be cut
+    without destroying meaning, so for those this measures and reports — the notice
+    that changes behavior is delivered to the writing agent by budget_notice.
+    Returns {path: (lines, budget)} for the remaining overruns.
+    """
+    moved = archive_overflow(
+        cwd, DECISIONS_FILE, DECISIONS_ARCHIVE, ARTIFACT_BUDGETS[DECISIONS_FILE]
+    )
+    if moved:
+        print(
+            f"  budget: archived {moved} decision entries to {DECISIONS_ARCHIVE.name}"
+        )
+        commit_paths(
+            cwd,
+            (DECISIONS_FILE, DECISIONS_ARCHIVE),
+            f"cid(budget): archive {moved} decision entries over the line budget",
+        )
+    over = artifact_overruns(cwd)
+    if over:
+        print(f"  budget: over budget — {_format_overruns(over)}")
+    return over
+
+
+# --- Context packs ---
+
+# Each role's context pack is a skill invoked as a prompt prefix. Claude Code expands a
+# skill's !`command` blocks before the agent sees anything, so the files a role reads
+# unconditionally arrive already in its first turn — no decide-then-read round trip, and
+# no risk of the same file being read twice. An agent definition cannot do this itself:
+# @path imports and !`command` blocks are inert in .claude/agents/*.md (they work in
+# CLAUDE.md and skills respectively). The `skills:` frontmatter field is not an option
+# either — it preloads only into spawned subagents, and roles run as the main session
+# via --agent.
+SKILLS_DIR = Path(".claude/skills")
+CONTEXT_SKILL_PREFIX = "cid-ctx-"
+
+
+def context_skill(cwd, role):
+    """Return the role's context-pack skill name, or None if it is not installed.
+
+    Presence is checked on disk because an uninstalled pack must not be invoked as a
+    literal, meaningless "/cid-ctx-<role>" line. `run_agent` treats None as fatal.
+    """
+    name = f"{CONTEXT_SKILL_PREFIX}{role}"
+    return name if (cwd / SKILLS_DIR / name / "SKILL.md").exists() else None
+
+
+def build_prompt(cwd, role, iteration):
+    """Compose a role's prompt: context-pack invocation, task, and any budget notice.
+
+    The task text lands in the pack's `$ARGUMENTS` placeholder, so the agent receives
+    its context and its instruction in one turn. The plain-task form is only reachable
+    when the pack is absent, which `run_agent` rejects before it ever gets here.
+    """
+    task = (
+        f"CID iteration {iteration}. Execute your protocol.{budget_notice(cwd, role)}"
+    )
+    skill = context_skill(cwd, role)
+    return f"/{skill} {task}" if skill else task
+
+
+def budget_notice(cwd, role):
+    """Return a prompt fragment naming the role's own artifacts that are over budget.
+
+    Delivered by the runner at the start of the run, which is the only moment the
+    writing agent can still act on it — a post-hoc warning arrives after the file is
+    already committed. Empty string when the role is within budget.
+    """
+    over = artifact_overruns(cwd, ROLE_ARTIFACTS.get(role, ()))
+    if not over:
+        return ""
+    return (
+        " Artifact budget exceeded: "
+        f"{_format_overruns(over)}. Bring each back under its budget in this run by"
+        " compressing or deleting content you own — do not defer it, and do not let"
+        " it constrain the substance of your work."
+    )
+
+
 def build_agent_cmd(claude_cmd, role, prompt, skip_permissions, fallback_model=None):
     """Assemble the claude CLI argument list for a headless agent run.
 
-    Adds prompt-cache friendliness (--exclude-dynamic-system-prompt-sections) and an
-    optional fallback model. The runaway guard is a wall-clock timeout enforced in
-    run_agent, not a CLI flag — the installed claude CLI has no --max-turns.
+    Adds prompt-cache friendliness (--exclude-dynamic-system-prompt-sections), a
+    per-role spend ceiling and an optional fallback model. The wall-clock runaway
+    guard is enforced in run_agent, not as a CLI flag — the installed claude CLI has
+    no --max-turns, only --max-budget-usd (which requires the -p used here).
     """
     cmd = [
         claude_cmd,
@@ -685,7 +1074,13 @@ def build_agent_cmd(claude_cmd, role, prompt, skip_permissions, fallback_model=N
         "--verbose",
         # Stable system-prompt prefix across the 4+ invocations per iteration
         "--exclude-dynamic-system-prompt-sections",
+        # Pin the session base model; per-agent frontmatter still overrides it
+        "--model",
+        PRIMARY_MODEL,
     ]
+    budget_usd = ROLE_BUDGET_USD.get(role)
+    if budget_usd:
+        cmd += ["--max-budget-usd", str(budget_usd)]
     if fallback_model:
         cmd += ["--fallback-model", fallback_model]
     if skip_permissions:
@@ -693,14 +1088,57 @@ def build_agent_cmd(claude_cmd, role, prompt, skip_permissions, fallback_model=N
     return cmd
 
 
+def _error_result(cwd, role, iteration, message):
+    """Log an ERROR row for a role that never ran and return its not-ok outcome.
+
+    Shared by the pre-flight check and the spawn-failure path so a role that could not
+    start is recorded in iterations.jsonl exactly like one that started and failed.
+    """
+    print(f"  ERROR: {message}")
+    entry = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "iteration": iteration,
+        "role": role,
+        "status": "ERROR",
+        "turns": 0,
+        "cost_usd": 0.0,
+        "duration_s": 0.0,
+        "error": message,
+    }
+    log_entry(cwd, entry)
+    return {**entry, "ok": False}
+
+
 def run_agent(
-    claude_cmd, role, iteration, cwd, skip_permissions=False, fallback_model=None
+    claude_cmd,
+    role,
+    iteration,
+    cwd,
+    skip_permissions=False,
+    fallback_model=None,
+    base_sha=None,
 ):
     """Invoke a CID agent role via claude CLI.
 
     Returns a dict with keys: ok, role, iteration, turns, cost_usd, duration_s, status.
+    Pass base_sha (HEAD before the run) to recognise a run that committed its
+    deliverable and only then overran or errored: the logged status stays honest but
+    `ok` is True, so the loop continues instead of discarding completed work.
     """
-    prompt = f"CID iteration {iteration}. Execute your protocol."
+    # Fail closed: the role definitions assert their inputs are already injected and
+    # forbid re-reading them, so a plain task prompt would start the role blind rather
+    # than degrade it. Better a failed iteration than an uninformed autonomous one.
+    if context_skill(cwd, role) is None:
+        pack = SKILLS_DIR / f"{CONTEXT_SKILL_PREFIX}{role}" / "SKILL.md"
+        return _error_result(
+            cwd,
+            role,
+            iteration,
+            f"context pack {pack.as_posix()} is missing — {role} would run without its"
+            " injected context. Restore the pack before re-running.",
+        )
+
+    prompt = build_prompt(cwd, role, iteration)
 
     cmd = build_agent_cmd(
         claude_cmd, role, prompt, skip_permissions, fallback_model=fallback_model
@@ -724,19 +1162,7 @@ def run_agent(
             creationflags=flags,
         )
     except OSError as e:
-        print(f"  ERROR: Failed to start claude: {e}")
-        entry = {
-            "ts": datetime.now(timezone.utc).isoformat(),
-            "iteration": iteration,
-            "role": role,
-            "status": "ERROR",
-            "turns": 0,
-            "cost_usd": 0.0,
-            "duration_s": 0.0,
-            "error": str(e),
-        }
-        log_entry(cwd, entry)
-        return {**entry, "ok": False}
+        return _error_result(cwd, role, iteration, f"Failed to start claude: {e}")
 
     stdout = process.stdout  # guaranteed non-None by stdout=PIPE
     if stdout is None:  # pragma: no cover
@@ -759,7 +1185,7 @@ def run_agent(
         timer = threading.Timer(timeout_s, _kill_on_timeout)
         timer.start()
     try:
-        cost, turns, is_error = _process_output(stdout, role)
+        cost, turns, is_error, peak_context = _process_output(stdout, role)
         process.wait()
     finally:
         if timer:
@@ -773,6 +1199,11 @@ def run_agent(
     else:
         status = "OK"
     print(f"  {role} {status} ({turns} turns, ${cost:.4f}, {elapsed:.0f}s)")
+    if peak_context >= CONTEXT_ALARM_TOKENS:
+        print(
+            f"  WARN: {role} peaked at {peak_context:,} context tokens "
+            f"(alarm at {CONTEXT_ALARM_TOKENS:,}) — at risk of silent truncation"
+        )
 
     entry = {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -782,10 +1213,18 @@ def run_agent(
         "turns": turns,
         "cost_usd": round(cost, 6),
         "duration_s": round(elapsed, 1),
+        "peak_context": peak_context,
     }
+    recovered = status != "OK" and _role_commit_landed(cwd, role, base_sha)
+    if recovered:
+        entry["recovered"] = True
+        print(f"  {role} committed its deliverable before the {status} — continuing")
+        leftovers = _abandoned_paths(cwd, lambda _p: False)
+        if leftovers:
+            print(f"  NOTE: {role} left uncommitted edits: {', '.join(leftovers)}")
     log_entry(cwd, entry)
 
-    return {**entry, "ok": status == "OK"}
+    return {**entry, "ok": status == "OK" or recovered}
 
 
 # --- State inspection ---
@@ -874,8 +1313,15 @@ def run_iteration(
         print(f"  CID Iteration {iteration} — {role}")
         print(f"{'─' * 60}")
 
+        _, pre_head = _git(cwd, "rev-parse", "HEAD")
         outcome = run_agent(
-            claude_cmd, role, iteration, cwd, skip_permissions, fallback_model
+            claude_cmd,
+            role,
+            iteration,
+            cwd,
+            skip_permissions,
+            fallback_model,
+            base_sha=pre_head.strip(),
         )
 
         if not outcome["ok"]:
@@ -891,7 +1337,7 @@ def run_iteration(
 
     if result not in ("fail", "done"):
         result = _classify_outcome(cwd)
-        append_iteration_summary(cwd, iteration)
+        append_iteration_summary(cwd, iteration, enforce_artifact_budgets(cwd))
 
     commit_log(cwd, iteration)
     return result
@@ -904,7 +1350,7 @@ def wait_with_skip(seconds):
     Falls back to plain sleep on Windows where select() on stdin is unavailable.
     """
     if sys.platform == "win32":
-        import msvcrt  # noqa: PLC0415
+        import msvcrt
 
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
@@ -916,6 +1362,71 @@ def wait_with_skip(seconds):
         ready, _, _ = select.select([sys.stdin], [], [], seconds)
         if ready:
             sys.stdin.readline()
+
+
+# --- Audit role ---
+
+
+def audit_due(iteration, every=AUDIT_EVERY):
+    """True if the audit cadence fires after this completed iteration."""
+    return every > 0 and iteration > 0 and iteration % every == 0
+
+
+def run_metrics_snapshot(cwd, time_gates=True):
+    """Append a gate-timed codebase-health snapshot and commit the metrics log.
+
+    Runner-side so the snapshot exists deterministically before the audit agent
+    starts — the agent reads trends, it never produces the data. Failures are
+    reported but non-fatal: a missed snapshot must not block the audit.
+    """
+    script = Path(__file__).resolve().parent / "metrics.py"
+    cmd = [sys.executable, str(script)]
+    if time_gates:
+        cmd.append("--time-gates")
+    try:
+        # Fixed argv (this repo's own script), no shell — safe subprocess use.
+        proc = subprocess.run(  # noqa: S603
+            cmd,
+            cwd=cwd,
+            env=sanitize_env(),
+            timeout=3600,
+            check=False,
+        )
+        ok = proc.returncode == 0
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print(f"  WARN: metrics snapshot failed: {e}")
+        ok = False
+    if ok:
+        commit_path(cwd, METRICS_FILE, "cid(audit): metrics snapshot")
+    return ok
+
+
+def run_audit(claude_cmd, iteration, cwd, skip_permissions=False, fallback_model=None):
+    """Run the codebase audit role once: metrics snapshot, agent, safety enforcement.
+
+    The audit agent reads the whole codebase plus metric trends and files at most a
+    handful of evidence-backed maintainability issues. The trusted runner reverts any
+    commit outside its output whitelist and quarantines abandoned edits, so a broken
+    or interrupted audit can never change project behavior.
+    """
+    print(f"\n{'─' * 60}")
+    print(f"  CID audit (cadence: every {AUDIT_EVERY} iterations)")
+    print(f"{'─' * 60}")
+    run_metrics_snapshot(cwd)
+    _, pre_head = _git(cwd, "rev-parse", "HEAD")
+    result = run_agent(
+        claude_cmd,
+        AUDIT_ROLE,
+        iteration,
+        cwd,
+        skip_permissions,
+        fallback_model,
+        base_sha=pre_head.strip(),
+    )
+    enforce_audit_safety(cwd, pre_head.strip())
+    _stash_abandoned_edits(cwd, "audit", _is_audit_output)
+    commit_log(cwd, iteration)
+    return result
 
 
 # --- CLI commands ---
@@ -969,6 +1480,9 @@ def cmd_run(args):
             print(f"\nIteration {i} failed. Stopping.")
             sys.exit(1)
 
+        if audit_due(i) and not getattr(args, "no_audit", False):
+            run_audit(claude_cmd, i, cwd, args.skip_permissions, fallback)
+
         if i < start + max_iter and pause:
             print(
                 f"\nPausing {pause}s before next iteration (press Enter to continue)..."
@@ -995,12 +1509,13 @@ def maybe_run_meta_improve(claude_cmd, iteration, cwd, args):
         cwd,
         args.skip_permissions,
         args.fallback_model,
+        base_sha=pre_head.strip(),
     )
     # Hard-enforce the guardrails on whatever the agent committed, then quarantine any
     # uncommitted prompt edits it abandoned (e.g. on timeout) so they cannot leak into
     # the next run unreviewed.
     enforce_meta_safety(cwd, pre_head.strip())
-    _stash_abandoned_meta_edits(cwd)
+    _stash_abandoned_edits(cwd, "meta", _is_meta_bookkeeping)
     commit_log(cwd, iteration)
     reason = check_human_review(cwd)
     if reason:
@@ -1049,10 +1564,27 @@ def cmd_improve(args):
         cwd,
         args.skip_permissions,
         args.fallback_model,
+        base_sha=pre_head.strip(),
     )
     enforce_meta_safety(cwd, pre_head.strip())
-    _stash_abandoned_meta_edits(cwd)
+    _stash_abandoned_edits(cwd, "meta", _is_meta_bookkeeping)
     commit_log(cwd, iteration)
+    if not result["ok"]:
+        sys.exit(1)
+
+
+def cmd_audit(args):
+    """Run the codebase audit role once, on demand."""
+    claude_cmd = find_claude()
+    if not claude_cmd:
+        print("ERROR: claude not found in PATH")
+        sys.exit(1)
+
+    cwd = Path(args.workdir).resolve()
+    iteration = last_iteration(cwd) + 1
+    result = run_audit(
+        claude_cmd, iteration, cwd, args.skip_permissions, args.fallback_model
+    )
     if not result["ok"]:
         sys.exit(1)
 
@@ -1170,6 +1702,7 @@ def cmd_role(args):
     iteration = (
         args.iteration if args.iteration is not None else last_iteration(cwd) + 1
     )
+    _, pre_head = _git(cwd, "rev-parse", "HEAD")
     result = run_agent(
         claude_cmd,
         args.role,
@@ -1177,6 +1710,7 @@ def cmd_role(args):
         cwd,
         args.skip_permissions,
         args.fallback_model,
+        base_sha=pre_head.strip(),
     )
     commit_log(cwd, iteration)
 
@@ -1232,6 +1766,12 @@ def main():
         default=False,
         help="Do not run the meta-improve role when the loop reaches IDLE",
     )
+    run_p.add_argument(
+        "--no-audit",
+        action="store_true",
+        default=False,
+        help=f"Do not run the audit role every {AUDIT_EVERY} iterations",
+    )
     run_p.set_defaults(func=cmd_run)
 
     # step
@@ -1257,6 +1797,10 @@ def main():
         "improve", help="Run the meta-improve self-improvement role once"
     )
     improve_p.set_defaults(func=cmd_improve)
+
+    # audit (codebase maintainability pass)
+    audit_p = sub.add_parser("audit", help="Run the codebase audit role once")
+    audit_p.set_defaults(func=cmd_audit)
 
     # role (for testing individual agents)
     role_p = sub.add_parser(

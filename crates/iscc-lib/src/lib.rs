@@ -208,11 +208,61 @@ pub fn encode_component(
     codec::encode_component(mt, st, vs, bit_length, digest)
 }
 
-/// Decode an ISCC unit string into its header components and raw digest.
+/// Normalize an ISCC to its canonical shortest form, without the `"ISCC:"` prefix.
 ///
-/// Inverse of [`encode_component`]. Strips an optional `"ISCC:"` prefix and
-/// dashes, base32-decodes the string, parses the variable-length header, and
-/// returns the digest truncated to exactly the encoded bit-length.
+/// Mirrors `iscc_core.codec.iscc_normalize`: decomposes the input into ISCC-UNITs
+/// and recomposes them into a single ISCC-CODE when two or more units are present,
+/// otherwise returns the sole unit unchanged. This is what lets a concatenated unit
+/// sequence and a composite ISCC-CODE normalize to the same canonical string.
+///
+/// Multiformat (multibase-prefixed) inputs are not supported here; the reference
+/// handles them in `normalize_multiformat` before this step.
+fn iscc_normalize(iscc: &str) -> IsccResult<String> {
+    // Wide-mode detection reads the *original* header, before decomposition.
+    let clean = codec::iscc_clean(iscc)?;
+
+    // Validate the two-character prefix against the reference allow-list before
+    // any decoding, exactly as `iscc_core.codec.iscc_normalize` does. Without
+    // this, a structurally decodable header with an invalid (MainType, SubType)
+    // combination (e.g. `MQ` = ID subtype 4) would be accepted.
+    let prefix: String = clean.to_uppercase().chars().take(2).collect();
+    if !codec::PREFIXES.contains(&prefix.as_str()) {
+        return Err(IsccError::InvalidInput(format!(
+            "ISCC starts with invalid prefix {prefix}"
+        )));
+    }
+
+    let raw = codec::decode_base32(&clean)?;
+    let (mt, st, _, _, _) = codec::decode_header(&raw)?;
+    let is_wide = mt == codec::MainType::Iscc && st == codec::SubType::Wide;
+
+    // Pass the cleaned form: iscc_decompose does not itself strip dashes.
+    let decomposed = codec::iscc_decompose(&clean)?;
+    if decomposed.len() >= 2 {
+        let units: Vec<&str> = decomposed.iter().map(String::as_str).collect();
+        let composed = gen_iscc_code_v0(&units, is_wide)?.iscc;
+        Ok(composed
+            .strip_prefix("ISCC:")
+            .unwrap_or(&composed)
+            .to_string())
+    } else {
+        decomposed
+            .into_iter()
+            .next()
+            .ok_or_else(|| IsccError::InvalidInput("decomposed to zero ISCC-UNITs".to_string()))
+    }
+}
+
+/// Decode an ISCC string into its header components and raw digest.
+///
+/// Normalizes the input to its canonical form first (matching
+/// `iscc_core.codec.iscc_decode`), then base32-decodes it, parses the
+/// variable-length header, and returns the digest.
+///
+/// Normalization means a concatenated sequence of ISCC-UNITs is composed into a
+/// single ISCC-CODE before decoding, so a sequence and its composite form decode
+/// identically. Trailing bytes after a composite are discarded by decomposition,
+/// exactly as in the reference.
 ///
 /// Returns `(maintype, subtype, version, length_index, digest)` where the
 /// integer fields match [`codec::MainType`], [`codec::SubType`], and
@@ -220,23 +270,18 @@ pub fn encode_component(
 ///
 /// # Errors
 ///
-/// Returns `IsccError::InvalidInput` on invalid base32 input, malformed
-/// header, or if the decoded body is shorter than the expected digest length.
+/// Returns `IsccError::InvalidInput` on invalid base32 input, a malformed
+/// header, a body shorter than its encoded bit-length, or a unit sequence that
+/// cannot be composed into an ISCC-CODE.
 pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
-    // Strip optional "ISCC:" prefix (case-sensitive, matching iscc_decompose)
-    let clean = iscc.strip_prefix("ISCC:").unwrap_or(iscc);
-    // Remove dashes (matching iscc_clean behavior for base32 input)
-    let clean = clean.replace('-', "");
-    let raw = codec::decode_base32(&clean)?;
+    let normalized = iscc_normalize(iscc)?;
+    let raw = codec::decode_base32(&normalized)?;
     let (mt, st, vs, length_index, tail) = codec::decode_header(&raw)?;
     let bit_length = codec::decode_length(mt, length_index, st);
     let nbytes = (bit_length / 8) as usize;
-    if tail.len() < nbytes {
-        return Err(IsccError::InvalidInput(format!(
-            "decoded body too short: expected {nbytes} digest bytes, got {}",
-            tail.len()
-        )));
-    }
+    // No length check here: normalization guarantees an exact body. `iscc_decompose`
+    // rejects a short unit body and truncates each unit to its encoded length, and a
+    // recomposed ISCC-CODE is well-formed by construction.
     Ok((
         mt as u8,
         st as u8,
@@ -774,8 +819,8 @@ pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<MixedCodeResul
     let decoded: Vec<Vec<u8>> = codes
         .iter()
         .map(|code| {
-            let clean = code.strip_prefix("ISCC:").unwrap_or(code);
-            codec::decode_base32(clean)
+            let clean = codec::iscc_clean(code)?;
+            codec::decode_base32(&clean)
         })
         .collect::<IsccResult<Vec<Vec<u8>>>>()?;
 
@@ -857,11 +902,11 @@ pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<InstanceCodeRe
 /// 128-bit+ codes (Data + Instance) are provided, produces a 256-bit
 /// wide-mode code.
 pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<IsccCodeResult> {
-    // Step 1: Clean inputs — strip "ISCC:" prefix
-    let cleaned: Vec<&str> = codes
+    // Step 1: Clean inputs — strip scheme prefix, dashes, and whitespace
+    let cleaned: Vec<std::borrow::Cow<'_, str>> = codes
         .iter()
-        .map(|c| c.strip_prefix("ISCC:").unwrap_or(c))
-        .collect();
+        .map(|c| codec::iscc_clean(c))
+        .collect::<IsccResult<Vec<_>>>()?;
 
     // Step 2: Validate minimum count
     if cleaned.len() < 2 {
@@ -1010,9 +1055,103 @@ pub fn gen_sum_code_v0(
     hasher.finalize(bits, wide, add_units)
 }
 
+/// Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
+///
+/// The ISCC-IDv1 is a 64-bit identifier packing a 52-bit microsecond UTC
+/// timestamp (since the UNIX epoch) into the high bits and a 12-bit HUB-ID
+/// (0-4095) into the low bits, then encoding it as an ISCC-ID unit with the
+/// given `realm` as SubType and Version `V1`.
+///
+/// `realm` selects the ID realm: `0` for testnet, `1` for the first
+/// operational mainnet. This function is clock-free — the caller supplies the
+/// timestamp; there is no dependency on the system clock.
+///
+/// **Experimental:** the ISCC-IDv1 format is not yet part of ISO 24138 and may
+/// change. There is no dedicated decoder — use [`iscc_decode`] to decode.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` if `timestamp >= 2^52`, `hub_id >= 2^12`,
+/// or `realm` is not `0` or `1`. Failures are reported in that order.
+pub fn gen_iscc_id_v1(timestamp: u64, hub_id: u16, realm: u8) -> IsccResult<IsccIdResult> {
+    if timestamp >= (1u64 << 52) {
+        return Err(IsccError::InvalidInput("Timestamp overflow".into()));
+    }
+    if hub_id >= (1u16 << 12) {
+        return Err(IsccError::InvalidInput("HUB-ID overflow".into()));
+    }
+    if realm != 0 && realm != 1 {
+        return Err(IsccError::InvalidInput(
+            "Realm-ID must be 0 (test) or 1 (operational)".into(),
+        ));
+    }
+
+    // Pack 52-bit timestamp into the high bits and 12-bit HUB-ID into the low bits.
+    let body = (timestamp << 12) | u64::from(hub_id);
+    let digest = body.to_be_bytes();
+
+    let component = codec::encode_component(
+        codec::MainType::Id,
+        codec::SubType::try_from(realm)?,
+        codec::Version::V1,
+        64,
+        &digest,
+    )?;
+    Ok(IsccIdResult {
+        iscc: format!("ISCC:{component}"),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_gen_iscc_id_v1_golden() {
+        // Golden vector: timestamp/hub-id/realm packed and encoded as ISCC-IDv1.
+        let result = gen_iscc_id_v1(1751831876325218, 1, 0).unwrap();
+        assert_eq!(result.iscc, "ISCC:MAIGHFECJMOPMIAB");
+    }
+
+    #[test]
+    fn test_gen_iscc_id_v1_round_trip() {
+        // Round-trip every corner of the realm × hub_id × timestamp space via iscc_decode.
+        let max_ts = (1u64 << 52) - 1;
+        for realm in [0u8, 1u8] {
+            for hub_id in [0u16, 4095u16] {
+                for timestamp in [0u64, max_ts] {
+                    let result = gen_iscc_id_v1(timestamp, hub_id, realm).unwrap();
+                    let (mt, st, vs, li, digest) = iscc_decode(&result.iscc).unwrap();
+                    assert_eq!(mt, 6, "MainType Id");
+                    assert_eq!(st, realm, "SubType is realm");
+                    assert_eq!(vs, 1, "Version V1");
+                    assert_eq!(li, 0, "64-bit length index");
+                    assert_eq!(digest.len(), 8, "8-byte body");
+                    let body = u64::from_be_bytes(digest.try_into().unwrap());
+                    assert_eq!(body >> 12, timestamp, "timestamp in high 52 bits");
+                    assert_eq!(body & 0xFFF, u64::from(hub_id), "hub_id in low 12 bits");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_gen_iscc_id_v1_validation_ordering() {
+        // Timestamp overflow wins over an also-invalid hub_id and realm.
+        let err = gen_iscc_id_v1(1u64 << 52, 4096, 2).unwrap_err();
+        assert_eq!(err.to_string(), "invalid input: Timestamp overflow");
+
+        // HUB-ID overflow wins over an also-invalid realm.
+        let err = gen_iscc_id_v1(0, 1u16 << 12, 2).unwrap_err();
+        assert_eq!(err.to_string(), "invalid input: HUB-ID overflow");
+
+        // Realm out of range is the last check.
+        let err = gen_iscc_id_v1(0, 0, 2).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "invalid input: Realm-ID must be 0 (test) or 1 (operational)"
+        );
+    }
 
     #[cfg(feature = "meta-code")]
     #[test]
@@ -1939,10 +2078,38 @@ mod tests {
     /// Error on invalid base32 characters.
     #[test]
     fn test_iscc_decode_invalid_base32() {
-        let result = iscc_decode("!!!INVALID!!!");
+        // Valid prefix `MA`, invalid base32 body — reaches the base32 decoder.
+        let result = iscc_decode("MAAA!!!!");
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("base32"), "expected base32 error: {err}");
+    }
+
+    /// Reference parity: `iscc_core.iscc_decode` validates the two-character
+    /// prefix before any decoding, so a structurally decodable header with an
+    /// invalid (MainType, SubType) combination must be rejected.
+    #[test]
+    fn test_iscc_decode_rejects_invalid_prefix() {
+        // ID subtype 4 with Version V1 decodes structurally but `MQ` is not a
+        // valid prefix; the reference raises "ISCC starts with invalid prefix MQ".
+        let err = iscc_decode("ISCC:MQIAAAAAAAAAAAAA")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("invalid prefix MQ"), "got: {err}");
+
+        // A prefix shorter than two characters is reported as-is, like the reference.
+        let err = iscc_decode("M").unwrap_err().to_string();
+        assert!(err.contains("invalid prefix M"), "got: {err}");
+
+        // Prefix rejection happens before base32 decoding, matching the reference.
+        let err = iscc_decode("!!!INVALID!!!").unwrap_err().to_string();
+        assert!(err.contains("invalid prefix !!"), "got: {err}");
+
+        // Reference parity: `iscc_decompose` does NOT prefix-check.
+        assert!(iscc_decompose("ISCC:MQIAAAAAAAAAAAAA").is_ok());
+
+        // Lowercase input with a valid prefix still decodes.
+        assert!(iscc_decode("iscc:maighfecjmopmiab").is_ok());
     }
 
     /// Known value from conformance vectors: Meta-Code "ISCC:AAAZXZ6OU74YAZIM".
@@ -1991,6 +2158,78 @@ mod tests {
     }
 
     /// Error on truncated input where body is shorter than expected digest length.
+    /// A concatenated unit sequence normalizes to its composite before decoding.
+    #[test]
+    fn test_iscc_decode_normalizes_unit_sequence() {
+        let data = gen_data_code_v0(&[0x61; 2000], 64).unwrap().iscc;
+        let instance = gen_instance_code_v0(&[0x61; 2000], 64).unwrap().iscc;
+        let composite = gen_iscc_code_v0(&[&data, &instance], false).unwrap().iscc;
+
+        let sequence = format!(
+            "{}{}",
+            data.strip_prefix("ISCC:").unwrap(),
+            instance.strip_prefix("ISCC:").unwrap()
+        );
+        assert_eq!(
+            iscc_decode(&sequence).unwrap(),
+            iscc_decode(&composite).unwrap(),
+            "a unit sequence must decode identically to its composite"
+        );
+        // MainType is ISCC (5), not the leading unit's Data (3).
+        assert_eq!(iscc_decode(&sequence).unwrap().0, 5);
+    }
+
+    /// Trailing base32 after a composite decodes rather than erroring.
+    ///
+    /// Appending base32 characters re-aligns the whole byte stream, so the
+    /// reference does not "ignore a trailing byte" — it decodes a shifted body
+    /// and returns a different digest. This asserts only that the input is
+    /// accepted, which is the behaviour normalization restores; the exact
+    /// shifted digest is pinned against `iscc_core` by the Python differential
+    /// in `tests/test_iscc_decode_conformance.py`.
+    #[test]
+    fn test_iscc_decode_accepts_trailing_after_composite() {
+        let data = gen_data_code_v0(&[0x61; 2000], 64).unwrap().iscc;
+        let instance = gen_instance_code_v0(&[0x61; 2000], 64).unwrap().iscc;
+        let composite = gen_iscc_code_v0(&[&data, &instance], false).unwrap().iscc;
+
+        let (mt, _st, _vs, _li, digest) = iscc_decode(&format!("{composite}AA")).unwrap();
+        assert_eq!(mt, 5, "still decodes as an ISCC-CODE");
+        assert_eq!(digest.len(), 16);
+    }
+
+    /// A unit sequence that cannot compose into an ISCC-CODE is rejected.
+    // `meta-code` implies `text-processing`, so this single gate excludes the test
+    // under `--no-default-features` (and `--features text-processing` alone), where
+    // `gen_meta_code_v0`/`gen_text_code_v0` are compiled out.
+    #[cfg(feature = "meta-code")]
+    #[test]
+    fn test_iscc_decode_rejects_uncomposable_sequence() {
+        // Meta + Text has neither a Data-Code nor an Instance-Code, so
+        // gen_iscc_code_v0 rejects it — as the reference does.
+        let meta = gen_meta_code_v0("Hello", None, None, 64).unwrap().iscc;
+        let text = gen_text_code_v0("Hello World", 64).unwrap().iscc;
+        let sequence = format!(
+            "{}{}",
+            meta.strip_prefix("ISCC:").unwrap(),
+            text.strip_prefix("ISCC:").unwrap()
+        );
+        assert!(iscc_decode(&sequence).is_err());
+    }
+
+    /// Wide-mode is detected from the original header and survives normalization.
+    #[test]
+    fn test_iscc_decode_preserves_wide_subtype() {
+        let data = gen_data_code_v0(&[0x61; 2000], 128).unwrap().iscc;
+        let instance = gen_instance_code_v0(&[0x61; 2000], 128).unwrap().iscc;
+        let wide = gen_iscc_code_v0(&[&data, &instance], true).unwrap().iscc;
+
+        let (mt, st, _vs, _li, digest) = iscc_decode(&wide).unwrap();
+        assert_eq!(mt, 5);
+        assert_eq!(st, 7, "SubType must stay WIDE through normalization");
+        assert_eq!(digest.len(), 32);
+    }
+
     #[test]
     fn test_iscc_decode_truncated_input() {
         // Encode a valid 256-bit Meta-Code, then truncate the base32 string

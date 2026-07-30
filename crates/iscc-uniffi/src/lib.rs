@@ -1,6 +1,6 @@
 //! UniFFI scaffolding for iscc-lib — shared interface for Swift and Kotlin bindings.
 //!
-//! Exposes all 32 Tier 1 symbols from `iscc-lib` via UniFFI proc macros. Uses owned
+//! Exposes all 33 Tier 1 symbols from `iscc-lib` via UniFFI proc macros. Uses owned
 //! types (`String`, `Vec<u8>`) because UniFFI requires values, not borrowed references.
 //! Constants are exposed as getter functions (UniFFI doesn't support `const` exports).
 //!
@@ -113,6 +113,13 @@ pub struct InstanceCodeResult {
 #[derive(Debug, uniffi::Record)]
 pub struct IsccCodeResult {
     /// ISCC code string.
+    pub iscc: String,
+}
+
+/// Result of `gen_iscc_id_v1`.
+#[derive(Debug, uniffi::Record)]
+pub struct IsccIdResult {
+    /// ISCC-IDv1 string (e.g., `"ISCC:MAIGHFECJMOPMIAB"`).
     pub iscc: String,
 }
 
@@ -269,6 +276,20 @@ pub fn gen_iscc_code_v0(codes: Vec<String>, wide: bool) -> Result<IsccCodeResult
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
     let result = iscc_lib::gen_iscc_code_v0(&refs, wide)?;
     Ok(IsccCodeResult { iscc: result.iscc })
+}
+
+/// Generate an ISCC-IDv1 from a timestamp, HUB-ID, and realm.
+///
+/// Types match the core exactly (`u64`/`u16`/`u8`), so core performs the
+/// timestamp -> HUB-ID -> realm validation in order.
+#[uniffi::export]
+pub fn gen_iscc_id_v1(
+    timestamp: u64,
+    hub_id: u16,
+    realm: u8,
+) -> Result<IsccIdResult, IsccUniError> {
+    let result = iscc_lib::gen_iscc_id_v1(timestamp, hub_id, realm)?;
+    Ok(IsccIdResult { iscc: result.iscc })
 }
 
 /// Generate a complete ISCC-SUM from a file path.
@@ -577,6 +598,20 @@ mod tests {
         let inst = gen_instance_code_v0(b"hello world".to_vec(), 64).unwrap();
         let result = gen_iscc_code_v0(vec![data.iscc, inst.iscc], false).unwrap();
         assert!(result.iscc.starts_with("ISCC:"));
+    }
+
+    #[test]
+    fn test_gen_iscc_id_v1() {
+        let result = gen_iscc_id_v1(1_751_831_876_325_218, 1, 0).unwrap();
+        assert_eq!(result.iscc, "ISCC:MAIGHFECJMOPMIAB");
+
+        // Round-trip through the generic decoder.
+        let decoded = iscc_decode(result.iscc).unwrap();
+        assert_eq!(decoded.version, 1);
+        assert_eq!(decoded.subtype, 0);
+        let n = u64::from_be_bytes(decoded.digest[..8].try_into().unwrap());
+        assert_eq!(n >> 12, 1_751_831_876_325_218);
+        assert_eq!(n & 0xFFF, 1);
     }
 
     #[test]

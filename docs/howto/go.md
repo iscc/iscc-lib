@@ -289,6 +289,15 @@ Text normalization functions used internally by the code generation pipeline are
 preprocessing your own text inputs. These are pure functions that return a value directly (no
 error).
 
+!!! note "Unicode tables"
+
+    The pure-Go package filters characters using Go's built-in Unicode tables (Unicode 15.0 in Go 1.26),
+    while the Rust core and its bindings use the tables their own dependencies ship. When the two table
+    sets differ, `TextClean` and `TextCollapse` may treat recently assigned characters differently than
+    the native bindings — this covers more than emoji; Latin-script additions such as `U+A7CB` (LATIN
+    CAPITAL LETTER RAMS HORN) are affected too. ASCII and the long-established repertoire of common
+    scripts is unaffected.
+
 ```go
 // Normalize text for display (NFKC, control char removal, line ending normalization)
 cleaned := iscc.TextClean("  Hello\r\n\r\n\r\nWorld  ")
@@ -380,6 +389,31 @@ for _, unit := range units {
 	fmt.Println(unit) // Each unit code (without "ISCC:" prefix)
 }
 ```
+
+### Experimental ISCC-IDv1
+
+`GenIsccIDV1(timestamp uint64, hubID uint16, realm uint8) (*IsccIdResult, error)` mints an 80-bit
+ISCC-IDv1 (a 52-bit microsecond timestamp plus a 12-bit HUB-ID), matching iscc-core's
+`gen_iscc_id_v1`. The result carries a single `ISCC string` field, mirroring iscc-core's
+`{"iscc": ...}`.
+
+There is no dedicated decoder — recover the fields with the generic `IsccDecode` and unpack the
+8-byte digest:
+
+```go
+result, _ := iscc.GenIsccIDV1(1751831876325218, 1, 0)
+// result.ISCC == "ISCC:MAIGHFECJMOPMIAB"
+
+d, _ := iscc.IsccDecode(result.ISCC)
+n := binary.BigEndian.Uint64(d.Digest)
+timestamp := n >> 12       // 1751831876325218
+hubID := uint16(n & 0xFFF) // 1
+realm := d.Subtype         // 0
+```
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
 
 ### Other codec functions
 

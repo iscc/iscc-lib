@@ -1,6 +1,6 @@
 [project]
 name = "iscc-lib"
-version = "0.5.0"
+version = "0.6.0"
 requires-python = ">=3.10"
 dependencies = []
 
@@ -9,8 +9,27 @@ testpaths = ["tests"]
 timeout = 120
 
 [tool.ty.src]
-# Exclude Conan recipe — conan is not a project dependency
+# Exclude Conan recipe — conan is not a project dependency.
 exclude = ["packages/cpp/conanfile.py"]
+
+[tool.ruff]
+# `iscc_lib` ships from `crates/iscc-py/python`, not the repo root. Listing it here makes isort
+# resolve it as first-party instead of lumping it in with third-party imports.
+src = [".", "crates/iscc-py/python"]
+
+[tool.ruff.lint]
+# `S` (security) and `C901` (complexity) are project gates. Selecting them here — instead of
+# only in the two pre-push hooks — makes `uv run ruff check` (pre-commit, `mise run lint`, CI)
+# enforce them too, and keeps the load-bearing `# noqa: S603/S607` directives recognised.
+# `I` (import sorting), `RUF022` (sorted `__all__`) and `RUF100` (unused `# noqa`) are enforced
+# explicitly rather than relying on a ruff version's defaults, so a future ruff bump cannot
+# silently drop them.
+extend-select = ["S", "C901", "I", "RUF022", "RUF100"]
+
+[tool.ruff.lint.isort]
+# Keep the single `from iscc_lib._lowlevel import (X as X, ...)` re-export block intact —
+# without this, isort explodes it into ~60 one-member import statements.
+combine-as-imports = true
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15
@@ -34,6 +53,7 @@ dev = [
   "pytest-timeout",
   "mdformat",
   "mdformat-mkdocs[recommended]",
+  "pyyaml",                       # scripts/check_release_workflow.py and its pytest suite parse release.yml in-process
   "iscc-core",
   "zensical",
   "mkdocstrings[python]",

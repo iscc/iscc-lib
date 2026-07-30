@@ -4,7 +4,7 @@ Guidance for agents working on the Ruby binding crate.
 
 ## Architecture
 
-Magnus 0.7.1 bridge between Rust `iscc-lib` core and Ruby. Compiled as a native extension via
+Magnus 0.8 bridge between Rust `iscc-lib` core and Ruby. Compiled as a native extension via
 `rb_sys`. The compiled shared library is named `iscc_rb.so` (matching the Cargo package name
 `iscc-rb` → `iscc_rb`), loaded by Ruby as `require "iscc_lib/iscc_rb"`.
 
@@ -64,7 +64,9 @@ The fallback handles source-compiled installations where the `.so` is at the fla
 
 ### rb_sys Version Pinning
 
-`Gemfile.lock` pins `rb_sys` to a specific version (e.g., 0.9.123). This is critical because:
+`rb_sys` is pinned exactly (0.9.123) in **both** `Gemfile` (`# held:` comment) and `Gemfile.lock`,
+and must be changed together with the `tag:` input of `oxidize-rb/actions/cross-gem` in
+`release.yml`. This is critical because:
 
 1. Each rb_sys version bundles a specific `rake-compiler-dock` version
 2. `rake-compiler-dock` contains a `cross_rubies` hash mapping minor versions to patch versions
@@ -102,7 +104,8 @@ publisher is registered on rubygems.org for `iscc/iscc-lib` + `release.yml`.
     must start with uppercase)
 - `unsafe { data.as_slice() }` for zero-copy binary data from `RString` — safe only when the slice
     is consumed immediately without intervening Ruby API calls that could trigger GC
-- `RString::from_slice` to copy borrowed Rust slices into Ruby strings
+- `ruby.str_from_slice(&bytes)` on the `Ruby` handle (via `Ruby::get()`) to copy borrowed Rust
+    slices into Ruby strings
 
 ## Local Development
 

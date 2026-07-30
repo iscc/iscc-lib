@@ -6,6 +6,7 @@ Python reference when both files run together via pytest-benchmark.
 """
 
 import pytest
+
 from iscc_lib import (
     gen_audio_code_v0,
     gen_data_code_v0,

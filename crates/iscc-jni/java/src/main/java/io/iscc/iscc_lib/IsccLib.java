@@ -160,6 +160,17 @@ public class IsccLib {
      */
     public static native SumCodeResult genSumCodeV0(String path, int bits, boolean wide, boolean addUnits);
 
+    /**
+     * Mint an experimental ISCC-IDv1 from an explicit timestamp, hub ID, and realm.
+     *
+     * @param timestamp microseconds since the Unix epoch ({@code < 2^52})
+     * @param hubId     hub identifier (0-65535)
+     * @param realm     realm identifier (0-255)
+     * @return ISCC string (e.g., "ISCC:MAI...")
+     * @throws IllegalArgumentException on out-of-range values
+     */
+    public static native String genIsccIdV1(long timestamp, int hubId, int realm);
+
     // ── Text utilities ──────────────────────────────────────────────────────
 
     /**

@@ -20,8 +20,13 @@ This project uses two development modes that share the same codebase and context
     `.claude/agents/*.md` protocols. A fifth role, **meta-improve**, runs only when the loop reaches
     IDLE (or via `mise run cid:improve`) and improves the loop itself under strict guardrails — it
     may auto-apply at most one whitelisted low-risk change per cycle (each independently revertible
-    and measured) and writes everything else as proposals for the human. CID agents get their
-    context through `@` references in their agent definitions — they do not rely on this section.
+    and measured) and writes everything else as proposals for the human. A sixth role, **audit**,
+    runs after every 10th completed iteration (or via `mise run cid:audit`): a whole-codebase
+    maintainability audit that reads metric trends, sweeps for debt (duplication, drift, dead code,
+    gate latency) with a parallel finder/verify workflow, and files at most 5 evidence-backed issues
+    — the runner reverts any audit commit that touches anything beyond issues.md and its own memory.
+    CID agents get their context through `@` references in their agent definitions — they do not
+    rely on this section.
 
 ### Branching model
 
@@ -50,11 +55,24 @@ selectively based on the task at hand (e.g., read `state.md` to understand proje
 | `.claude/context/handoff.md`       | Inter-agent communication and verdicts      | Read only          |
 | `.claude/context/learnings.md`     | Accumulated knowledge from prior iterations | Read and append    |
 | `.claude/context/issues.md`        | Tracked issues and feature requests         | Read and append    |
+| `.claude/context/decisions.md`     | Binding design rationale (runner-rotated)   | Read and append    |
 | `.claude/context/iterations.jsonl` | CID iteration log                           | Read only          |
+| `.claude/context/metrics.jsonl`    | Codebase-health snapshots (audit cadence)   | Read only          |
 | `.claude/agent-memory/<agent>/`    | Per-agent persistent memory across sessions | Read only          |
 
 **Read only** files are managed by CID agents and overwritten each cycle — interactive edits would
 be lost. **Read and write/append** files are safe to modify from interactive sessions.
+
+**Artifact budgets:** `state.md`, `next.md`, `handoff.md`, `issues.md`, `learnings.md` and
+`decisions.md` each carry a line budget defined in `ARTIFACT_BUDGETS` in `tools/cid.py`. The runner
+rotates `decisions.md` overflow into `decisions-archive.md`, records every overrun in
+`iterations.jsonl`, and tells the owning role at the start of its next run. See
+`.claude/context/README.md` for the table and the rationale.
+
+**Context packs:** each role's context arrives via a `.claude/skills/cid-ctx-<role>/SKILL.md` pack
+that `tools/cid.py` invokes as a prompt prefix; its `` !`cat …` `` blocks are expanded before the
+agent's first turn. Do **not** put `@file` or `` !`command` `` blocks in `.claude/agents/*.md` —
+they are inert there (the body is the system prompt, verbatim). Edit the pack instead.
 
 **Updating the target:** If the human asks to change project goals, acceptance criteria, or
 specifications, update `target.md` (or its sub-specs) directly. The next CID iteration picks up
@@ -153,6 +171,8 @@ mise run cid:run          # Run autonomous CID loop (up to 20 iterations)
 mise run cid:step         # Run one CID iteration
 mise run cid:status       # Show current project state
 mise run cid:improve      # Run the meta-improve self-improvement role once
+mise run cid:audit        # Run the codebase audit role once (maintainability pass)
+mise run cid:metrics      # Append a codebase-health snapshot to metrics.jsonl
 ```
 
 ## Pre-commit Hooks
@@ -167,8 +187,12 @@ uv run prek run --all-files                                      # Run all hooks
 ```
 
 **Pre-commit stage** (fast, auto-fix on every commit): file hygiene (line endings, trailing
-whitespace, YAML/JSON/TOML validation), `cargo fmt`, `ruff check --fix`, `ruff format`, `taplo fmt`,
-`yamlfix`, `mdformat`.
+whitespace, YAML/JSON/TOML validation), `cargo fmt`, `ruff check --fix`, `ruff format` (both ruff
+hooks also cover `.pyi` type stubs; `ruff format` additionally covers Python code blocks inside
+Markdown, matching CI's `ruff format --check` step), `taplo fmt`, `yamlfix`, `mdformat`, and the
+release-workflow static checks (`scripts/check_release_workflow.py`, scoped to
+`.github/workflows/release.yml` — the workflow is `workflow_dispatch`-only, so its guard/artifact
+invariants are never exercised by CI runs).
 
 **Pre-push stage** (thorough quality gates): `cargo clippy`, `cargo test`, `ty check`, Ruff security
 scan (`S` rules), Ruff complexity check (`C901`), `pytest` with coverage enforcement.

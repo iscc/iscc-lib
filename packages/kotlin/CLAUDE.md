@@ -9,7 +9,7 @@ code generation.
 - All functions are free functions in the `uniffi.iscc_uniffi` package
 - Does NOT implement any ISCC logic; all computation delegates through `iscc-uniffi` to `iscc-lib`
 - JVM-only (no Kotlin/Native or Kotlin Multiplatform support)
-- Native library loaded at runtime via JNA (`net.java.dev.jna:jna:5.16.0`)
+- Native library loaded at runtime via JNA (`net.java.dev.jna:jna:5.19.1`)
 
 ## File Layout
 
@@ -34,7 +34,7 @@ packages/kotlin/
 ## Build Commands
 
 ```bash
-# Prerequisites: cargo (for iscc-uniffi), JDK 17+, Gradle 8.x
+# Prerequisites: cargo (for iscc-uniffi), JDK 17+, Gradle 9.x (wrapper checked in)
 
 # Build the Rust UniFFI library (required before Gradle build/test)
 cargo build -p iscc-uniffi
@@ -58,7 +58,7 @@ point to `../../target/debug/` relative to the Kotlin package root.
 - One test method per gen function (no `gen_sum_code_v0` vectors in data.json)
 - `decodeStream` helper converts `"stream:<hex>"` format to `ByteArray`
 - Asserts exact ISCC string equality against expected outputs
-- Uses JUnit 5 (`org.junit.jupiter`) and Gson (`com.google.code.gson:gson`) for JSON parsing
+- Uses JUnit 6 (`org.junit.jupiter`) and Gson (`com.google.code.gson:gson`) for JSON parsing
 
 ## Binding Generation
 

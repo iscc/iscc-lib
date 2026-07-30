@@ -134,10 +134,32 @@ can review and re-stage.
 
 - File hygiene (line endings, trailing whitespace, YAML/JSON/TOML validation)
 - `cargo fmt` — Rust formatting
-- `ruff check --fix` + `ruff format` — Python linting and formatting
+- `ruff check --fix` + `ruff format` — Python linting and formatting (includes the security `S`,
+    complexity `C901`, import-sorting `I`, sorted-`__all__` `RUF022` and unused-`# noqa` `RUF100`
+    rules via `extend-select` in `pyproject.toml` — imports are auto-sorted at commit time); both
+    hooks also cover `.pyi` type stubs, and `ruff format` additionally covers Python code blocks
+    inside Markdown, matching the `ruff format --check` step in CI
 - `taplo fmt` — TOML formatting
 - `yamlfix` — YAML formatting
 - `mdformat` — Markdown formatting
+- `scripts/check_release_workflow.py` — static checks for `.github/workflows/release.yml` (guard
+    shape, artifact wiring, `needs:` graph); the release workflow is `workflow_dispatch`-only, so
+    these invariants are never exercised by CI runs. Also enforced in CI via
+    `tests/test_check_release_workflow.py`. A fourth check, `--check-action-inputs`, fetches each
+    action's published `action.yml` over the network and validates `with:` keys (docker actions
+    additionally accept the GitHub-native `args`/`entrypoint` overrides), required inputs without a
+    default, and `steps.<id>.outputs.<x>` reads; it runs only in the dedicated `release-workflow` CI
+    job (prek and pytest stay network-free). Transport and parse failures degrade to a stderr
+    warning instead of a failure, and the check prints an
+    `action-inputs: resolved <R> of <T> action refs` summary line so an all-skipped run is visible
+    in the job log
+- `scripts/check_docs_nav.py` — network-free parity check asserting that the `docs/**/*.md` pages on
+    disk (minus `includes/` partials), the `nav` in `zensical.toml`, `ORDERED_PAGES` in
+    `scripts/gen_llms_full.py`, and the links in `docs/llms.txt` are the same set. Nav parsing is
+    comment-aware: a commented-out nav entry counts as missing, while a `#` inside a quoted title
+    (`"C# / .NET"`) is kept. Adding a docs page means updating all three lists together. Also
+    enforced in CI via `tests/test_check_docs_nav.py`, whose anchor test also catches page deletions
+    that the prek hook's `files:` matching cannot see
 
 ### Pre-push (thorough, run before code leaves the machine)
 
@@ -146,8 +168,8 @@ Runs on every `git push`. Blocks the push if any check fails.
 - `cargo clippy` — Rust linting with `-D warnings` (zero warnings policy)
 - `cargo test` — full Rust test suite
 - `ty check` — Python type checking
-- Ruff security scan (`S` rules)
-- Ruff complexity check (`C901`)
+- Ruff security scan (`S` rules) — focused re-run of rules already enforced by `ruff check`
+- Ruff complexity check (`C901`) — focused re-run of rules already enforced by `ruff check`
 - `pytest` with 100% coverage enforcement
 
 ### Manual Commands

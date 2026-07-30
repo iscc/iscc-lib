@@ -207,6 +207,11 @@ struct IsccCodeResult {
     std::string iscc;
 };
 
+/// Result from gen_iscc_id_v1.
+struct IsccIdResult {
+    std::string iscc;
+};
+
 /// Result from gen_sum_code_v0.
 struct SumCodeResult {
     std::string iscc;
@@ -553,6 +558,13 @@ inline IsccCodeResult gen_iscc_code_v0(const std::vector<std::string>& codes,
     detail::UniqueString s(iscc_gen_iscc_code_v0(ptrs.data(), codes.size(), wide));
     detail::check_ptr(s.ptr);
     return IsccCodeResult{s.to_string()};
+}
+
+/// Generate an ISCC-IDv1 from a timestamp, hub id, and realm.
+inline IsccIdResult gen_iscc_id_v1(uint64_t timestamp, uint16_t hub_id, uint8_t realm) {
+    detail::UniqueString s(iscc_gen_iscc_id_v1(timestamp, hub_id, realm));
+    detail::check_ptr(s.ptr);
+    return IsccIdResult{s.to_string()};
 }
 
 /// Generate a composite ISCC-CODE from a file path (Data-Code + Instance-Code).

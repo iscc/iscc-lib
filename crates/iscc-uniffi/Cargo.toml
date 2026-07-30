@@ -2,7 +2,10 @@
 name = "iscc-uniffi"
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# This crate's own dependency graph sets its rustc floor: uniffi -> cargo_metadata ->
+# cargo-platform 0.3.3 requires rustc 1.91. The crate is `publish = false`, so the
+# published iscc-lib MSRV stays at the workspace's rust-version = "1.85".
+rust-version = "1.91"
 authors.workspace = true
 license.workspace = true
 repository.workspace = true

@@ -150,7 +150,7 @@ profile settings, CI matrix, Python tooling (uv, ruff, bandit, pytest) — repla
     streaming. Each binding adapts to its runtime's async model. Never expose Rust async across
     FFI. → [03-async-and-streaming.md](03-async-and-streaming.md)
 
-8. **Tiered API surface** — Tier 1 public functions (22 symbols at crate root) are bound in all
+8. **Tiered API surface** — Tier 1 public functions (33 symbols at crate root) are bound in all
     languages. Internal modules (`pub(crate)`) are not exposed. The `codec` module is Tier 2
     (Rust-only). See `specs/rust-core.md` for the complete Tier 1 listing. →
     [04-api-compatibility-safety.md](04-api-compatibility-safety.md)

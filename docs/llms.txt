@@ -17,15 +17,21 @@ Install: `pip install iscc-lib` (Python), `npm install @iscc/lib` (Node.js), `go
 - [Getting Started](https://lib.iscc.codes/tutorials/getting-started.md): Install iscc-lib, generate your first ISCC code, and understand the result
 - [Rust How-to](https://lib.iscc.codes/howto/rust.md): Guide to using iscc-lib from Rust
 - [Python How-to](https://lib.iscc.codes/howto/python.md): Guide to using iscc-lib from Python
+- [Ruby How-to](https://lib.iscc.codes/howto/ruby.md): Guide to using iscc-lib from Ruby
 - [Node.js How-to](https://lib.iscc.codes/howto/nodejs.md): Guide to using iscc-lib from Node.js
 - [WebAssembly How-to](https://lib.iscc.codes/howto/wasm.md): Guide to using iscc-lib via WebAssembly
 - [Go How-to](https://lib.iscc.codes/howto/go.md): Guide to using iscc-lib from Go
 - [Java How-to](https://lib.iscc.codes/howto/java.md): Guide to using iscc-lib from Java via JNI
+- [C# / .NET How-to](https://lib.iscc.codes/howto/dotnet.md): Guide to using iscc-lib from C# / .NET
+- [C / C++ How-to](https://lib.iscc.codes/howto/c-cpp.md): Guide to using iscc-lib from C and C++
+- [Swift How-to](https://lib.iscc.codes/howto/swift.md): Guide to using iscc-lib from Swift
+- [Kotlin How-to](https://lib.iscc.codes/howto/kotlin.md): Guide to using iscc-lib from Kotlin
 - [Architecture](https://lib.iscc.codes/architecture.md): Hub-and-spoke model and internal modules
 - [Ecosystem](https://lib.iscc.codes/ecosystem.md): Official and community implementations of the ISCC standard
 - [Rust API](https://lib.iscc.codes/rust-api.md): Rust API reference
 - [Python API](https://lib.iscc.codes/api.md): Python API reference
 - [C FFI](https://lib.iscc.codes/c-ffi-api.md): C FFI API reference
 - [Java API](https://lib.iscc.codes/java-api.md): Java API reference
+- [Ruby API](https://lib.iscc.codes/ruby-api.md): Ruby API reference
 - [Benchmarks](https://lib.iscc.codes/benchmarks.md): Performance comparisons
 - [Development](https://lib.iscc.codes/development.md): Development environment setup, quality gates, and CID workflow

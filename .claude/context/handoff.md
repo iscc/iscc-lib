@@ -1,81 +1,63 @@
-> **HUMAN REVIEW REQUESTED**: All autonomous v1.0.0-hardening work packages are now complete — the
-> `cargo-deny` supply-chain gate landed and is enforcing. The only remaining work is the human-gated
-> v1.0.0 release cut + flipping the `Semver (cargo-semver-checks)` gate to enforcing, both
-> deliberately held by Titusz. No actionable autonomous work remains, so the loop should pause for
-> your release decision rather than spin a no-op cycle. (Verdict is still PASS — this flag is a
-> milestone handoff, not a problem report.)
+> **HUMAN REVIEW RESOLVED (2026-07-29, Titusz → option A):** the `bench_iscc_code.four_units` iai
+> baseline was raised 11,968 → 13,400 in `.iai-baseline.json`, accepting the +11.71% intrinsic cost
+> of the 191/192 reference-correct cleaning fix; rationale recorded in decisions.md. The `critical`
+> issue is deleted. The loop is unblocked — resume normal iterations (next work: Go `iscc_clean`
+> port replicating the iter-192 empty guard, then Ruby `gen_iscc_id_v1` validation-order, then the
+> ASCII-only iai-bench gap).
 
-## 2026-06-18 — Review of: Wire up the `cargo-deny` supply-chain audit gate
+## 2026-07-29 — Review of: Restore `iscc_clean` to zero allocation on clean input (Perf gate)
 
-**Verdict:** PASS_WITH_NOTES
+**Verdict:** NEEDS_WORK
 
-**Summary:** The advance agent added a workspace-root `deny.toml` (advisories + licenses + bans +
-sources policy, config v2), an enforcing `Audit (cargo-deny)` CI job running `cargo deny check`, and
-a `mise run audit` task. `cargo deny check` exits 0 locally against the real graph
-(`advisories ok, bans ok, licenses ok, sources ok`). A forced Cargo.lock bump of the wasm-bindgen
-family (off the yanked `0.2.111`/`0.3.88`) is the only out-of-the-3-files change and is verified
-safe. Clean, minimal, well-justified work.
+**Summary:** The advance agent correctly made `codec::iscc_clean` return `Cow<'_, str>`, borrowing
+allocation-free on the no-scheme/no-dash path and allocating only to strip dashes. Behavior is
+byte-identical (faithful port of reference `codec.py:644`; empty guard from iter 192 preserved). The
+fix greened `bench_mixed_code.two_codes` (+18.30%→+6.95%) and cut `four_units` +36.82%→+11.71%, but
+four_units **stays over the 10% gate**, so the step's Done When is not met and CI stays red. The
+commit is correct and strictly better and should NOT be reverted — but it cannot green the gate
+within the authorized scope.
 
 **Verification:**
 
-- [x] `deny.toml` is valid TOML (`tomllib.load` ok)
-- [x] License/private traps present — `grep` confirms `MPL-2.0`, `BSL-1.0`, `private` all in
-    deny.toml
-- [x] `audit` mise task registered; `mise run audit` runs `cargo deny check` and exits 0
-- [x] `audit` CI job exists, runs `cargo deny check`, is enforcing (no `continue-on-error`), name
-    `Audit (cargo-deny)` — verified via `uv run python3` yaml assertion (plain `python3` lacks
-    PyYAML)
-- [x] Local gate: `cargo deny check` exits 0 against the current graph (advisories, licenses, bans,
-    sources all pass; 6 `multiple-versions = "warn"` dups are non-failing, as designed)
-- [x] `mise run check` — all 15 pre-commit hooks pass (no context-file reformatting needed this
-    cycle)
-- [x] Defense-in-depth on the lockfile bump: WASM tests pass 78/78
-    (`wasm-pack test --node crates/iscc-wasm --features conformance`) and workspace clippy
-    (`-D warnings`) is clean with the bumped wasm-bindgen 0.2.125
-- [ ] **Post-push (deferred):** `Audit (cargo-deny)` job green on the develop tip — cannot be
-    confirmed in-iteration. cargo-deny reads Cargo.lock + crate metadata (not compiled artifacts),
-    so the local green is authoritative for the gate; whoever resumes should glance at the Actions
-    tab to confirm the first CI run of the new job.
+- [x] `cargo test -p iscc-lib` — 309 + 10 (codec_clean) + 28 + 22 + 4 + 1 doctest pass, 0 failed
+- [x] `iscc_clean` errors on `"   "`/`"-"`/`"iscc:"`/`"----"`, bad scheme, extra colon; valid
+    hyphenated/padded/lowercase-scheme/multibase forms clean identically (codec_clean 10/10)
+- [x] `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt --check` clean
+- [x] `.crap-baseline.json` regenerated (cyclo 7→9, 100% cov); `.cargo-crap.toml` untouched
+- [ ] `mise run bench:iai:check` — mixed_code +6.95% PASS; **four_units +11.71% FAIL** vs the
+    unmodified committed baseline (`.iai-baseline.json` untouched, `git diff --quiet` confirmed).
+    **Primary criterion NOT met.**
+
+**Probes (verified independently):**
+
+- Reference `iscc_clean` (`codec.py:644`) does exactly split-on-`:`/strip-each/multibase-check/strip
+    dash — the port is faithful; no cheaper conformant algorithm in std.
+- Pre-191 `gen_iscc_code_v0` did only `strip_prefix("ISCC:")` (NOT reference-correct — no trim, no
+    dash-strip, no lowercase scheme). So the committed baseline was set for cheaper-but-wrong code;
+    191/192 traded that cost for correctness — why removing allocations alone can't restore it.
+- The residual is two std `memchr` scans (`split_once(':')` + `contains('-')`); a scalar single-pass
+    measured *worse* (advance probe: 13,499 Ir). Irreducible without the out-of-scope `memchr`
+    crate.
 
 **Issues found:**
 
-- (none) — no correctness, scope, or gate-integrity problems.
+- Primary: four_units Perf gate red — filed as `critical` [review] with the (A)/(B)/(C) decision.
+- No gate weakening in the unpushed range; no API break (`iscc_clean` is `pub(crate)`; `Cow` derefs
+    to `str`, all call sites source-compatible). Scope clean (2 source files + 2 generated
+    baselines).
 
-**Notes on scope/decisions reviewed and accepted:**
+**Codex review:** Concurs — flags the same P1 (four_units 13,369 vs 11,968 = +11.71%, CI red) and
+suggests "combine the delimiter checks or obtain an approved rebaseline." Combining scans is what
+the advance already measured as *slower* (std SIMD memchr beats a scalar merge); the approved
+rebaseline is option (A). Advisory only — does not change the verdict.
 
-- **Cargo.lock as a 4th changed file** (beyond deny.toml, ci.yml, mise.toml): enabling
-    `yanked = "deny"` correctly surfaced the yanked `wasm-bindgen 0.2.111` / `js-sys 0.3.88`. The
-    advance agent fixed the root cause with `cargo update -p` (family bumped to 0.2.125/0.3.102, 10
-    crates, no manifest change) rather than loosening `yanked` to `warn` — the right call. I
-    verified the bump is behavior-neutral (WASM tests + clippy green). Treat like a regenerated
-    baseline artifact, not a scope violation.
-- **`ci-cd.md` line-448 box flipped to `[x]` pre-CI**: next.md Scope explicitly authorized this
-    "ONLY if you verify `cargo deny check` green locally", which the advance agent did and I
-    re-verified. Acceptable; the one residual formality is the post-push CI confirmation above.
-- **Two `iai-callgrind` advisories ignored with justification** (`RUSTSEC-2025-0141` bincode,
-    `RUSTSEC-2026-0173` proc-macro-error2): dev-only bench deps, never shipped — `ignore`d specific
-    IDs rather than loosening the `unmaintained` class. Correct discipline.
+**Next:** BLOCKED on the human decision above. Once four_units is green (option A/B), unblock in
+priority order: Go `iscc_clean` port (issues.md `normal` — must replicate the iter-192 empty guard),
+then Ruby `gen_iscc_id_v1` validation-order and the ASCII-only iai-bench gap.
 
-**Codex review:** No actionable correctness issues found in the HEAD changes — Codex confirms the
-cargo-deny policy and audit task/job are syntactically valid and the supply-chain check passes
-locally. No findings to action.
+**Notes:**
 
-**Quality-gate integrity:** Scanned all unpushed commits (`@{upstream}..HEAD`). The new `audit` job
-*strengthens* the gates (enforcing, no `continue-on-error`). Every `continue-on-error` match in the
-diff is either documentation noting the audit job is enforcing, or the pre-existing informational
-`semver` job — no weakening, no suppressions, no test skips.
-
-**Next:** No autonomous work packages remain. The state is "all gates landed; release is human's
-call." For the project owner (Titusz): when ready, cut **v1.0.0** via the `/release` skill and flip
-the `Semver (cargo-semver-checks)` gate to enforcing as part of that cut (drop its
-`continue-on-error`, set `rust-core.md` line 372 box to `[x]`). If the loop is resumed instead of
-paused, the next define-next will find only two `low` `[human]` issues (v1.0.0 release held; docs
-logos cosmetic) and no `normal`/`critical` work — i.e. the next cycle would reach `**IDLE**` (this
-iteration could not signal IDLE because the advance agent did make code changes — strict condition
-#1).
-
-**Notes:** CI job count is now **20 actual jobs** (19 YAML entries + the python-test 3.10/3.14
-matrix); `audit` is the 4th gate added during hardening (after `semver`, `coverage`, `perf`). The
-develop tip after this push carries the completed cargo-deny gate; the green CI result from the
-prior tip (`cee130a`) plus the local `cargo deny check` green cover correctness pending the one
-post-push Audit-job confirmation.
+- NOT pushed — verdict NEEDS_WORK, Perf gate red. Remote develop is already red at the iter-192 tip
+    (b2f56b6); iter 192's review missed the 191 regression because `mise run check` skips iai.
+- The iter-193 `Cow` commit (`5ffa5cb`) stays regardless of which option lands — it is correct and
+    strictly reduces the regression.

@@ -108,3 +108,16 @@ func TestPureGoGenMetaCodeV0(t *testing.T) {
 		})
 	}
 }
+
+func TestPureGoGenMetaCodeV0FinalSigma(t *testing.T) {
+	// End-to-end Final_Sigma regression: the similarity hash lowercases via
+	// TextCollapse, so a word-final capital sigma changes the Meta-Code.
+	// Expected value produced by the Rust core, which matches iscc-core.
+	result, err := GenMetaCodeV0("ΛΟΓΟΣ", nil, nil, 64)
+	if err != nil {
+		t.Fatalf("GenMetaCodeV0: %v", err)
+	}
+	if result.Iscc != "ISCC:AAAXNTFLFFVJ2QUN" {
+		t.Errorf("iscc: got %q, want %q", result.Iscc, "ISCC:AAAXNTFLFFVJ2QUN")
+	}
+}

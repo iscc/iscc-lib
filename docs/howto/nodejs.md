@@ -301,6 +301,33 @@ console.log(`Digest: ${Buffer.from(result.digest).toString("hex")}`);
 `iscc_decode` returns an `IsccDecodeResult` object with `maintype`, `subtype`, `version`, `length`
 (length index), and `digest` (Buffer) fields.
 
+### ISCC-IDv1 (experimental)
+
+Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
+bits and the HUB-ID the low 12 bits; `realm` (0 = testnet, 1 = mainnet) becomes the SubType.
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
+
+```javascript
+const {
+    gen_iscc_id_v1,
+    iscc_decode
+} = require("@iscc/lib");
+
+const iscc = gen_iscc_id_v1(1751831876325218, 1, 0);
+console.log(iscc); // "ISCC:MAIGHFECJMOPMIAB"
+
+// There is no dedicated decoder — recover the fields with iscc_decode and bit math:
+const d = iscc_decode(iscc);
+const n = Buffer.from(d.digest).readBigUInt64BE(0);
+const timestamp = n >> 12n; // 1751831876325218n
+const hubId = n & 0xfffn; // 1n
+const realm = d.subtype; // 0
+console.log(d.version === 1); // true (ISCC-IDv1)
+```
+
 ### Decompose
 
 Split a composite ISCC-CODE into its individual unit codes:

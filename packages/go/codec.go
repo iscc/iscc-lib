@@ -60,6 +60,9 @@ type Version uint8
 // VSV0 is ISCC version 0.
 const VSV0 Version = 0
 
+// VSV1 is ISCC version 1. Currently only valid for MainType ID (ISCC-IDv1).
+const VSV1 Version = 1
+
 // ---- Bit Manipulation Helpers (unexported) ----
 
 // getBit reads the bit at position bitPos from data (MSB-first ordering).
@@ -265,7 +268,8 @@ func decodeHeader(data []byte) (MainType, SubType, Version, uint32, []byte, erro
 	if stypeVal > 7 {
 		return 0, 0, 0, 0, nil, fmt.Errorf("iscc: invalid SubType: %d", stypeVal)
 	}
-	if versionVal > 0 {
+	// Version 1 is only valid for ISCC-IDv1 (MainType ID); all other MainTypes require Version 0.
+	if versionVal > 0 && (MainType(mtypeVal) != MTId || versionVal != uint32(VSV1)) {
 		return 0, 0, 0, 0, nil, fmt.Errorf("iscc: invalid Version: %d", versionVal)
 	}
 
@@ -399,6 +403,54 @@ func decodeBase32(code string) ([]byte, error) {
 	return decoded, nil
 }
 
+// validPrefixes holds the valid two-character ISCC prefixes, mirroring
+// iscc_core.constants.PREFIXES. Note: MA and ME are ambiguous between
+// ID-V0 and ID-V1.
+var validPrefixes = map[string]struct{}{
+	"AA": {}, // META-NONE
+	"CA": {}, // SEMANTIC-TEXT
+	"CE": {}, // SEMANTIC-IMAGE
+	"CI": {}, // SEMANTIC-AUDIO
+	"CM": {}, // SEMANTIC-VIDEO
+	"CQ": {}, // SEMANTIC-MIXED
+	"EA": {}, // CONTENT-TEXT
+	"EE": {}, // CONTENT-IMAGE
+	"EI": {}, // CONTENT-AUDIO
+	"EM": {}, // CONTENT-VIDEO
+	"EQ": {}, // CONTENT-MIXED
+	"GA": {}, // DATA-NONE
+	"IA": {}, // INSTANCE-NONE
+	"KA": {}, // ISCC-TEXT
+	"KE": {}, // ISCC-IMAGE
+	"KI": {}, // ISCC-AUDIO
+	"KM": {}, // ISCC-VIDEO
+	"KQ": {}, // ISCC-MIXED
+	"KU": {}, // ISCC-SUM
+	"KY": {}, // ISCC-NONE
+	"K4": {}, // ISCC-WIDE
+	"MA": {}, // ID-PRIVATE-V0 / ID-REALM_0-V1 (ambiguous)
+	"ME": {}, // ID-BITCOIN-V0 / ID-REALM_1-V1 (ambiguous)
+	"MI": {}, // ID-ETHEREUM-V0
+	"MM": {}, // ID-POLYGON-V0
+	"OA": {}, // FLAKE-NONE
+}
+
+// checkPrefix validates the two-character prefix of a cleaned ISCC code
+// against the reference allow-list, exactly as iscc_core.codec.iscc_normalize
+// does before any decoding. Without this, a structurally decodable header
+// with an invalid (MainType, SubType) combination (e.g. MQ = ID subtype 4)
+// would be accepted.
+func checkPrefix(clean string) error {
+	prefix := []rune(strings.ToUpper(clean))
+	if len(prefix) > 2 {
+		prefix = prefix[:2]
+	}
+	if _, ok := validPrefixes[string(prefix)]; !ok {
+		return fmt.Errorf("iscc: ISCC starts with invalid prefix %s", string(prefix))
+	}
+	return nil
+}
+
 // EncodeBase64 encodes bytes as base64url (RFC 4648 §5, no padding).
 func EncodeBase64(data []byte) string {
 	return b64Encoding.EncodeToString(data)
@@ -434,7 +486,8 @@ func EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest
 	if st > STWide {
 		return "", fmt.Errorf("iscc: invalid SubType: %d", stype)
 	}
-	if vs > VSV0 {
+	// Version 1 is only valid for ISCC-IDv1 (MainType ID); all other MainTypes require Version 0.
+	if vs > VSV0 && (mt != MTId || vs != VSV1) {
 		return "", fmt.Errorf("iscc: invalid Version: %d", version)
 	}
 	if mt == MTIscc {
@@ -572,12 +625,63 @@ type DecodeResult struct {
 	Digest   []byte
 }
 
-// IsccDecode decodes an ISCC string into its header components and raw digest.
-// Strips optional "ISCC:" prefix and dashes.
-func IsccDecode(iscc string) (*DecodeResult, error) {
+// isccNormalize returns the canonical shortest form of an ISCC, without the
+// "ISCC:" prefix.
+//
+// Mirrors iscc_core.codec.iscc_normalize: decomposes the input into ISCC-UNITs
+// and recomposes them into a single ISCC-CODE when two or more are present,
+// otherwise returns the sole unit unchanged. This is what lets a concatenated
+// unit sequence and a composite ISCC-CODE normalize to the same string.
+//
+// Multiformat (multibase-prefixed) inputs are not supported; the reference
+// handles those in normalize_multiformat before this step.
+func isccNormalize(iscc string) (string, error) {
+	// Wide-mode detection reads the original header, before decomposition.
 	clean := strings.TrimPrefix(iscc, "ISCC:")
 	clean = strings.ReplaceAll(clean, "-", "")
+	if err := checkPrefix(clean); err != nil {
+		return "", err
+	}
 	raw, err := decodeBase32(clean)
+	if err != nil {
+		return "", err
+	}
+	mt, st, _, _, _, err := decodeHeader(raw)
+	if err != nil {
+		return "", err
+	}
+	isWide := mt == MTIscc && st == STWide
+
+	decomposed, err := IsccDecompose(clean)
+	if err != nil {
+		return "", err
+	}
+	if len(decomposed) >= 2 {
+		composed, err := GenIsccCodeV0(decomposed, isWide)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimPrefix(composed.Iscc, "ISCC:"), nil
+	}
+	if len(decomposed) == 0 {
+		return "", fmt.Errorf("iscc: decomposed to zero ISCC-UNITs")
+	}
+	return decomposed[0], nil
+}
+
+// IsccDecode decodes an ISCC string into its header components and raw digest.
+//
+// Normalizes the input to its canonical form first (matching
+// iscc_core.codec.iscc_decode), then base32-decodes it and parses the header.
+// A concatenated sequence of ISCC-UNITs is therefore composed into a single
+// ISCC-CODE before decoding, so a sequence and its composite form decode
+// identically. The optional "ISCC:" prefix and dashes are stripped.
+func IsccDecode(iscc string) (*DecodeResult, error) {
+	normalized, err := isccNormalize(iscc)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := decodeBase32(normalized)
 	if err != nil {
 		return nil, err
 	}
@@ -587,9 +691,9 @@ func IsccDecode(iscc string) (*DecodeResult, error) {
 	}
 	bitLength := decodeLength(mt, lengthIndex, st)
 	nbytes := int(bitLength / 8)
-	if len(tail) < nbytes {
-		return nil, fmt.Errorf("iscc: decoded body too short: expected %d digest bytes, got %d", nbytes, len(tail))
-	}
+	// No length check here: normalization guarantees an exact body. IsccDecompose
+	// rejects a short unit body and truncates each unit to its encoded length, and
+	// a recomposed ISCC-CODE is well-formed by construction.
 	digest := make([]byte, nbytes)
 	copy(digest, tail[:nbytes])
 

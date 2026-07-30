@@ -296,6 +296,45 @@ println!("{}", result.datahash);  // BLAKE3 multihash
 println!("{}", result.filesize);  // File size in bytes
 ```
 
+### gen_iscc_id_v1
+
+Mint an experimental ISCC-IDv1 from an explicit timestamp.
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release. It is exempt from the v1.0.0
+    stability lock.
+
+```rust
+pub fn gen_iscc_id_v1(timestamp: u64, hub_id: u16, realm: u8) -> IsccResult<IsccIdResult>
+```
+
+| Parameter   | Type  | Description                                            |
+| ----------- | ----- | ------------------------------------------------------ |
+| `timestamp` | `u64` | Microsecond timestamp, 52-bit range (`0 ..= 2^52 - 1`) |
+| `hub_id`    | `u16` | HUB-ID, 12-bit range (`0 ..= 4095`)                    |
+| `realm`     | `u8`  | Realm identifier, encoded as the SubType (`0` or `1`)  |
+
+Produces an 80-bit ISCC-IDv1 (a 52-bit microsecond timestamp plus a 12-bit HUB-ID). Returns an
+`IsccIdResult` with a single `iscc` field, mirroring iscc-core's `{"iscc": ...}`.
+
+There is no dedicated decoder — recover the fields with the generic `iscc_decode` and unpack the
+8-byte big-endian body:
+
+```rust
+use iscc_lib::{gen_iscc_id_v1, iscc_decode};
+
+let result = gen_iscc_id_v1(1751831876325218, 1, 0)?;
+// result.iscc == "ISCC:MAIGHFECJMOPMIAB"
+
+let (_maintype, subtype, version, _length, digest) = iscc_decode(&result.iscc)?;
+assert_eq!(version, 1); // ISCC-IDv1
+let n = u64::from_be_bytes(digest[..8].try_into().unwrap());
+let timestamp = n >> 12;          // 1751831876325218
+let hub_id = (n & 0xFFF) as u16;  // 1
+let realm = subtype;              // 0
+```
+
 ## Types
 
 The `codec` module provides Tier 2 types available to Rust consumers. These types are part of the

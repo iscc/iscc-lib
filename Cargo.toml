@@ -12,7 +12,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
 rust-version = "1.85"
 authors = ["Titusz Pan <tp@py7.de>"]
@@ -32,6 +32,8 @@ thiserror = "2"
 unicode-normalization = "0.1"
 unicode-general-category = "1"
 xxhash-rust = { version = "0.8", features = ["xxh32"] }
+# note: pyo3 bumps must re-verify `gil_used = true` (crates/iscc-py/src/lib.rs) and the
+# `py.detach` call sites (issue #41).
 pyo3 = { version = "0.29", features = ["abi3-py310"] }
 napi = { version = "3", default-features = false, features = ["napi6"] }
 napi-derive = "3"
@@ -39,12 +41,18 @@ napi-build = "2"
 wasm-bindgen = "0.2"
 wasm-bindgen-test = "0.3"
 serde-wasm-bindgen = "0.6"
-criterion = { version = "0.5", features = ["html_reports"] }
+# criterion is a dev-dependency of iscc-lib only, consumed by the `benchmarks` bench target;
+# a dev-dependency is never built by downstream consumers, so its rustc-1.86 floor is a
+# contributor/bench toolchain floor, not the published MSRV (rust-version stays 1.85).
+criterion = { version = "0.8", features = ["html_reports"] }
 iai-callgrind = "0.16"
 tempfile = "3"
-jni = "0.21"
-magnus = { version = "0.7", features = ["rb-sys"] }
-uniffi = "0.31"
+jni = "0.22"
+magnus = { version = "0.8", features = ["rb-sys"] }
+# uniffi bumps require regenerating the checked-in Swift and Kotlin bindings (pure
+# regeneration, no hand edits). Verify Kotlin via Gradle and Swift via the swift.org Debian 12
+# tarball recipe in packages/swift/CLAUDE.md; the macOS `swift` CI job is the final confirmation.
+uniffi = "0.32"
 
 [profile.release]
 lto = true

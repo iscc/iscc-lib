@@ -5,7 +5,7 @@ description: Java API reference for the ISCC library via JNI.
 
 # Java API Reference
 
-Java library for ISCC (ISO 24138:2024) code generation via JNI. All 30 Tier 1 symbols are exposed as
+Java library for ISCC (ISO 24138:2024) code generation via JNI. All 33 Tier 1 symbols are exposed as
 static methods on the `IsccLib` class. The native library is loaded automatically from the JAR's
 `META-INF/native/` directory, with fallback to `System.loadLibrary` for development environments.
 
@@ -17,14 +17,14 @@ static methods on the `IsccLib` class. The native library is loaded automaticall
     <dependency>
       <groupId>io.iscc</groupId>
       <artifactId>iscc-lib</artifactId>
-      <version>0.5.0</version>
+      <version>0.6.0</version>
     </dependency>
     ```
 
 === "Gradle"
 
     ```groovy
-    implementation 'io.iscc:iscc-lib:0.5.0'
+    implementation 'io.iscc:iscc-lib:0.6.0'
     ```
 
 ## Quick Example
@@ -287,6 +287,44 @@ String isccCode = IsccLib.genIsccCodeV0(
     new String[]{dataCode, instanceCode}, false
 );
 ```
+
+---
+
+### genIsccIdV1
+
+Mint an experimental ISCC-IDv1 from an explicit timestamp.
+
+```java
+public static native String genIsccIdV1(long timestamp, int hubId, int realm);
+```
+
+| Parameter   | Type   | Description                                             |
+| ----------- | ------ | ------------------------------------------------------- |
+| `timestamp` | `long` | Microsecond timestamp, 52-bit range (`0` to `2^52 - 1`) |
+| `hubId`     | `int`  | HUB-ID, 12-bit range (`0` to `4095`)                    |
+| `realm`     | `int`  | Realm identifier, encoded as the SubType (`0` or `1`)   |
+
+Produces an 80-bit ISCC-IDv1 (a 52-bit microsecond timestamp plus a 12-bit HUB-ID) and returns the
+ISCC string directly. Throws `IllegalArgumentException` on out-of-range values.
+
+There is no dedicated decoder — recover the fields with `isccDecode` and unpack the 8-byte
+big-endian digest:
+
+```java
+String iscc = IsccLib.genIsccIdV1(1751831876325218L, 1, 0);
+// iscc == "ISCC:MAIGHFECJMOPMIAB"
+
+IsccDecodeResult d = IsccLib.isccDecode(iscc);
+// d.version == 1 (ISCC-IDv1)
+long n = new java.math.BigInteger(1, java.util.Arrays.copyOf(d.digest, 8)).longValue();
+long timestamp = n >>> 12;      // 1751831876325218
+int hubId = (int) (n & 0xFFF);  // 1
+int realm = d.subtype;          // 0
+```
+
+!!! warning "Experimental"
+
+    ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.
 
 ---
 

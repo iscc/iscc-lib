@@ -285,6 +285,7 @@ TARGETS = [
     ("docs/howto/swift.md", _get_doc_dep_version, _sync_doc_deps),
     ("docs/howto/kotlin.md", _get_doc_dep_version, _sync_doc_deps),
     ("packages/swift/README.md", _get_doc_dep_version, _sync_doc_deps),
+    ("packages/kotlin/README.md", _get_doc_dep_version, _sync_doc_deps),
 ]
 
 

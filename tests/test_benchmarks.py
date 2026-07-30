@@ -4,9 +4,9 @@ import io
 import json
 from pathlib import Path
 
+import iscc_core as ic
 import pytest
 
-import iscc_core as ic
 import iscc_lib as il
 
 DATA_JSON = Path(__file__).parent.parent / "crates" / "iscc-lib" / "tests" / "data.json"

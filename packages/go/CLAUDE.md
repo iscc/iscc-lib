@@ -76,7 +76,8 @@ All `Gen*` functions return typed result structs and `error`, following idiomati
 
 ### Codec Functions (exported)
 
-`EncodeComponent`, `EncodeBase64`, `JsonToDataUrl`, `IsccDecode`, `IsccDecompose`
+`EncodeComponent`, `EncodeBase64`, `JsonToDataUrl`, `IsccDecode`, `IsccDecompose`, `GenIsccIDV1`
+(the last is experimental ISCC-IDv1 minting — see `iscc_id.go`)
 
 ### Algorithm Primitives (exported)
 

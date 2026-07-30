@@ -54,3 +54,18 @@ func TestPureGoGenTextCodeV0(t *testing.T) {
 		})
 	}
 }
+
+func TestPureGoGenTextCodeV0FinalSigma(t *testing.T) {
+	// End-to-end Final_Sigma regression: Greek text with word-final capital
+	// sigmas must produce the same Text-Code as the Rust core / iscc-core.
+	result, err := GenTextCodeV0("ΤΟ ΓΡΗΓΟΡΟ ΚΑΦΕ ΑΛΕΠΟΥ ΠΗΔΑΕΙ ΠΑΝΩ ΑΠΟ ΤΟΝ ΤΕΜΠΕΛΗ ΣΚΥΛΟΣ", 64)
+	if err != nil {
+		t.Fatalf("GenTextCodeV0: %v", err)
+	}
+	if result.Iscc != "ISCC:EAA36O3AT3YMFRFU" {
+		t.Errorf("iscc: got %q, want %q", result.Iscc, "ISCC:EAA36O3AT3YMFRFU")
+	}
+	if result.Characters != 48 {
+		t.Errorf("characters: got %d, want 48", result.Characters)
+	}
+}

@@ -351,6 +351,11 @@ RustBuffer uniffi_iscc_uniffi_fn_func_gen_instance_code_v0(RustBuffer data, uint
 RustBuffer uniffi_iscc_uniffi_fn_func_gen_iscc_code_v0(RustBuffer codes, int8_t wide, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_GEN_ISCC_ID_V1
+#define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_GEN_ISCC_ID_V1
+RustBuffer uniffi_iscc_uniffi_fn_func_gen_iscc_id_v1(uint64_t timestamp, uint16_t hub_id, uint8_t realm, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_GEN_META_CODE_V0
 #define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_GEN_META_CODE_V0
 RustBuffer uniffi_iscc_uniffi_fn_func_gen_meta_code_v0(RustBuffer name, RustBuffer description, RustBuffer meta, uint32_t bits, RustCallStatus *_Nonnull out_status
@@ -774,6 +779,12 @@ uint16_t uniffi_iscc_uniffi_checksum_func_gen_instance_code_v0(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_GEN_ISCC_CODE_V0
 #define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_GEN_ISCC_CODE_V0
 uint16_t uniffi_iscc_uniffi_checksum_func_gen_iscc_code_v0(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_GEN_ISCC_ID_V1
+#define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_GEN_ISCC_ID_V1
+uint16_t uniffi_iscc_uniffi_checksum_func_gen_iscc_id_v1(void
 
 );
 #endif

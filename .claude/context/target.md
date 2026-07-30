@@ -26,17 +26,46 @@ patterns natural to their ecosystem.
 - **Conformance parity**: every binding passes the same conformance test vectors, so developers can
     trust that switching languages doesn't change behavior
 
+## Current Release Milestone — v0.6.0
+
+The active goal. v0.6.0 is a maintenance-and-freshness release on top of `0.5.0`. **v1.0.0 comes
+after it and remains human-gated** — do not treat any v1.0.0 criterion below as v0.6.0 work.
+
+**Ready for release when:**
+
+- The dependency refresh issue in `issues.md` is closed. Its last two items are `criterion` 0.8 and
+    `uniffi` 0.32 — both authorized on 2026-07-28, each a separate step, with the binding
+    constraints recorded in that issue
+- **Experimental ISCC-IDv1 support is available on the Rust core and all 11 language surfaces**,
+    authorized on 2026-07-28 and required by the live `iscc-hub` network, in two parts: the
+    already-shipped generic `iscc_decode` / `iscc_decompose` accept MainType `ID` with Version 1
+    (today every surface rejects them with `invalid Version: 1`, unlike `iscc_core`), plus one new
+    symbol `gen_iscc_id_v1` for minting. There is deliberately **no** dedicated IDv1 decoder — the
+    reference has none, and the generic path covers it. Full definition in `rust-core.md` →
+    "ISCC-IDv1 Operations (Experimental)"; this supersedes the Go-only implementation shipped
+    earlier in the v0.6.0 cycle, whose `EncodeIsccID` is renamed and whose `DecodeIsccID` /
+    `IsccIDv1Result` are deleted
+- `mise run version:check` passes and CI is green on `develop` at the commit to be released
+- No `critical` or `normal` issue is open that is not blocked on the human or on an upstream release
+
+Explicitly **out of scope for v0.6.0**: the npm OIDC migration (deferred by the human), the v1.0.0
+stability cut and its MSRV prerequisite, the go1.27 tripwire (waiting on an upstream final release),
+and legacy **ISCC-IDv0** — deprecated, never part of ISO 24138, and owed no backward compatibility
+(see `rust-core.md` → "ISCC-IDv0 is out of scope — permanently"). The release itself is cut by the
+human via the `/release` skill — CID never cuts it.
+
 ## Rust Core Crate — `iscc-lib` on crates.io
 
 A pure Rust library (no binding dependencies) published to crates.io as
-[`iscc-lib`](https://crates.io/crates/iscc-lib). Released through `0.4.0` and in production use by
-downstream projects; the next release is **v1.0.0**, at which point the crate becomes
-stability-committed under strict SemVer (backward compatibility and performance enforced as quality
-gates — see `rust-core.md` → API Stability & Performance Invariants).
+[`iscc-lib`](https://crates.io/crates/iscc-lib). Released through `0.5.0` and in production use by
+downstream projects. **v1.0.0** will be the first stability-committed release under strict SemVer
+(backward compatibility and performance enforced as quality gates — see `rust-core.md` → API
+Stability & Performance Invariants); that cut is human-gated and stays on hold until the maintainer
+triggers it via the `/release` skill (see issues.md).
 
 Detailed spec: `.claude/context/specs/rust-core.md`
 
-**Tier 1 API** — 32 public symbols bound in all languages:
+**Tier 1 API** — 33 public symbols bound in all languages:
 
 - 10 `gen_*_v0` functions with structured return types (matching iscc-core dict fields), including
     `gen_sum_code_v0` for single-call ISCC-SUM generation with Rust-native file I/O
@@ -45,6 +74,8 @@ Detailed spec: `.claude/context/specs/rust-core.md`
 - 1 soft hash: `soft_hash_video_v0`
 - 2 encoding utilities: `encode_base64`, `json_to_data_url`
 - 3 codec operations: `iscc_decompose`, `encode_component`, `iscc_decode`
+- 1 experimental ISCC-IDv1 operation: `gen_iscc_id_v1` — exempt from the v1.0.0 stability lock while
+    the upstream format evolves. Decoding needs no new symbol: `iscc_decode` is generic
 - 5 algorithm constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`,
     `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
 - 2 streaming types: `DataHasher`, `InstanceHasher`
@@ -81,16 +112,21 @@ Detailed spec: `.claude/context/specs/python-bindings.md`
 
 **Verified when:**
 
-- `pip install .` succeeds and exposes all 9 `gen_*_v0` functions
+- `pip install .` succeeds and exposes all 10 `gen_*_v0` functions
 - All functions return `dict` with the same keys and values as iscc-core
 - Streaming functions accept both `bytes` and file-like objects
 - `pytest` passes the same conformance vectors from Python
 - `ruff check` and `ruff format --check` clean
 - Single wheel per platform (abi3-py310)
+- Wheels published for Linux x86_64 and aarch64 (manylinux), macOS universal2, and Windows x64
+- Binding entry points with heavyweight compute — image, data, instance, sum, and the text
+    (`gen_text_code_v0`) and video (`gen_video_code_v0`, `soft_hash_video_v0`) paths — release the
+    GIL (`py.detach`) around the pure-Rust compute so threaded consumers can overlap native hashing;
+    lightweight paths (meta, audio, mixed) intentionally stay attached
 
 ## Node.js Bindings — `@iscc/lib` on npm
 
-An npm package [`@iscc/lib`](https://www.npmjs.com/package/@iscc/lib) exposing all 32 Tier 1 symbols
+An npm package [`@iscc/lib`](https://www.npmjs.com/package/@iscc/lib) exposing all 33 Tier 1 symbols
 as native addon via napi-rs. Published under the `@iscc` npm org.
 
 Detailed spec: `.claude/context/specs/nodejs-bindings.md`
@@ -99,12 +135,12 @@ Detailed spec: `.claude/context/specs/nodejs-bindings.md`
 
 - `npm test` passes conformance vectors from JavaScript
 - Package installs cleanly via `npm install`
-- All 32 Tier 1 symbols accessible with TypeScript declarations
+- All 33 Tier 1 symbols accessible with TypeScript declarations
 
 ## WASM Bindings — `@iscc/wasm` on npm
 
 A browser-compatible WASM package [`@iscc/wasm`](https://www.npmjs.com/package/@iscc/wasm) exposing
-all 32 Tier 1 symbols via wasm-bindgen. Published under the same `@iscc` npm scope.
+all 33 Tier 1 symbols via wasm-bindgen. Published under the same `@iscc` npm scope.
 
 Detailed spec: `.claude/context/specs/wasm-bindings.md`
 
@@ -112,7 +148,9 @@ Detailed spec: `.claude/context/specs/wasm-bindings.md`
 
 - Conformance tests pass in a WASM runtime
 - Package builds with `wasm-pack`
-- All 32 Tier 1 symbols accessible from JavaScript/TypeScript
+- All 33 Tier 1 symbols accessible from JavaScript/TypeScript
+- Published release builds enable WASM SIMD (`simd128` target feature + `wasm-opt --enable-simd`) so
+    BLAKE3 runs its SIMD backend; conformance vectors pass on the SIMD build
 
 ## C FFI — First-Class C/C++ Developer Experience
 
@@ -143,7 +181,7 @@ Detailed spec: `.claude/context/specs/java-bindings.md`
 
 - `mvn test` passes conformance vectors from Java
 - Native libraries load correctly on Linux, macOS, and Windows
-- All 32 Tier 1 symbols accessible with idiomatic Java types
+- All 33 Tier 1 symbols accessible with idiomatic Java types
 - JAR published to Maven Central with source, Javadoc, and GPG signatures
 
 ## Go Bindings — Pure Go module
@@ -156,9 +194,14 @@ Detailed spec: `.claude/context/specs/go-bindings.md`
 **Verified when:**
 
 - `go test ./...` passes all conformance vectors from `iscc-core/data.json`
-- All 32 Tier 1 symbols accessible with idiomatic Go types and error handling
+- All 33 Tier 1 symbols accessible with idiomatic Go types and error handling
 - No cgo required (`CGO_ENABLED=0` works)
 - `go vet ./...` clean
+- Experimental ISCC-IDv1 support at the same API shape as every other binding — `GenIsccIDV1` with
+    the reference parameter order `(timestamp, hub_id, realm)`, and `IsccDecode` accepting MainType
+    `ID` with Version 1. `DecodeIsccID` and `IsccIDv1Result` are removed, not renamed (see
+    `rust-core.md` → "ISCC-IDv1 Operations (Experimental)" for the canonical definition,
+    `go-bindings.md` for the Go surface)
 
 ## Ruby Bindings — `iscc-lib` on RubyGems
 
@@ -171,7 +214,7 @@ Detailed spec: `.claude/context/specs/ruby-bindings.md`
 **Verified when:**
 
 - `gem install iscc-lib` succeeds with precompiled native gem
-- All 32 Tier 1 symbols accessible with idiomatic Ruby types
+- All 33 Tier 1 symbols accessible with idiomatic Ruby types
 - Conformance tests pass against vendored `data.json` vectors
 - `bundle exec rake test` passes in CI
 - Version synced from root `Cargo.toml` via `mise run version:sync`
@@ -187,7 +230,7 @@ Detailed spec: `.claude/context/specs/dotnet-bindings.md`
 **Verified when:**
 
 - `dotnet test` passes conformance vectors
-- All 32 Tier 1 symbols accessible with idiomatic C# types
+- All 33 Tier 1 symbols accessible with idiomatic C# types
 - Native libraries load correctly on Linux, macOS, and Windows
 - Version synced from root `Cargo.toml` via `mise run version:sync`
 
@@ -202,7 +245,7 @@ Detailed spec: `.claude/context/specs/cpp-bindings.md`
 **Verified when:**
 
 - `#include <iscc/iscc.hpp>` compiles with C++17 on GCC, Clang, MSVC
-- All 32 Tier 1 symbols accessible with idiomatic C++ types
+- All 33 Tier 1 symbols accessible with idiomatic C++ types
 - RAII ensures no memory leaks (valgrind/ASAN clean)
 - Conformance tests pass (C++ test program)
 
@@ -221,7 +264,7 @@ Detailed spec: `.claude/context/specs/swift-bindings.md`
 
 - `swift test` passes conformance vectors on macOS
 - SPM resolves the package from Git tag with zero external toolchains required
-- All 32 Tier 1 symbols accessible with idiomatic Swift types
+- All 33 Tier 1 symbols accessible with idiomatic Swift types
 - XCFramework bundles static libraries for macOS (arm64, x86_64) and iOS (device + simulator)
 - Root `Package.swift` uses `.binaryTarget(url:checksum:)` with local/remote toggle variable
 - XCFramework build is cached — unchanged sources skip the expensive native build
@@ -244,7 +287,7 @@ Detailed spec: `.claude/context/specs/kotlin-bindings.md`
 **Verified when:**
 
 - Kotlin tests pass conformance vectors on JVM
-- All 32 Tier 1 symbols accessible with idiomatic Kotlin types
+- All 33 Tier 1 symbols accessible with idiomatic Kotlin types
 - Native libraries bundled for Android ABIs (arm64-v8a, armeabi-v7a, x86_64, x86)
 - Native libraries bundled for desktop (linux-x86-64, darwin-aarch64, darwin-x86-64, win32-x86-64)
 - Android app can add the Maven dependency and call ISCC functions without manual native lib setup
@@ -397,7 +440,13 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
 - Publishing an already-published version skips gracefully
 - Release workflow smoke-tests built artifacts before publishing (install the built package and run
     conformance tests on it)
+- Python wheel matrix covers Linux x86_64 and aarch64, macOS universal2, and Windows x64; every
+    wheel target is install- and import-tested before publish
 - All CI workflows green
+- Third-party dependencies are fresh: no dependency in any manifest, GitHub Actions pin, mise tool
+    pin, or pre-commit hook lags its latest stable release by a major version without a documented
+    hold-back reason, and all gates pass on the refreshed set (see `ci-cd.md` → "Dependency
+    Freshness")
 - All packages share coordinated version from root `Cargo.toml`
 - `mise run version:sync` propagates version to all 12 sync targets
 - `mise run version:check` validates consistency (run in CI)

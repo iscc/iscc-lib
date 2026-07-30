@@ -61,7 +61,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: main
@@ -80,7 +80,7 @@ jobs:
             aarch64-apple-darwin,x86_64-apple-darwin,
             aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
       - uses: Swatinem/rust-cache@v2
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: xcf-cache
         with:
           path: target/ios/IsccLib.xcframework.zip
@@ -115,7 +115,7 @@ jobs:
           git tag "packages/go/v${{ inputs.version }}" 2>/dev/null || echo "Tag packages/go/v${{ inputs.version }} already exists"
           git push origin "v${{ inputs.version }}" "packages/go/v${{ inputs.version }}" --force
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ inputs.version }}
           files: target/ios/IsccLib.xcframework.zip
@@ -131,7 +131,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Get workspace version
@@ -180,9 +180,12 @@ jobs:
           - os: windows-latest
             target: x64
             interpreter: python
+          - os: ubuntu-24.04-arm
+            target: aarch64
+            interpreter: python3.10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.10'
       - name: Build wheel
@@ -198,7 +201,7 @@ jobs:
             # the abi3-py310 minimum and produces a version-specific cp38 wheel instead.
             export PATH="/opt/python/cp310-cp310/bin:$PATH"
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.target }}
           path: dist
@@ -210,32 +213,41 @@ jobs:
     if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.pypi) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist --manifest-path crates/iscc-py/Cargo.toml
       - name: Upload sdist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-sdist
           path: dist
 
-  # Smoke test Python wheel on Linux before publishing
+  # Smoke test Python wheels on Linux (x86_64 and aarch64) before publishing
   test-wheels:
-    name: Test Python wheel
+    name: Test Python wheel (${{ matrix.arch }})
     needs: [build-wheels]
-    if: inputs.version != '' || inputs.pypi
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.pypi) }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            artifact: wheels-ubuntu-latest-x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+            artifact: wheels-ubuntu-24.04-arm-aarch64
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.10'
       - name: Download wheel
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
-          name: wheels-ubuntu-latest-x86_64
+          name: ${{ matrix.artifact }}
           path: dist
       - name: Install and test
         run: |
@@ -246,13 +258,13 @@ jobs:
   publish-pypi:
     name: Publish to PyPI
     needs: [build-wheels, build-sdist, test-wheels]
-    if: inputs.version != '' || inputs.pypi
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.pypi) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Get workspace version
         id: version
         run: |
@@ -270,7 +282,7 @@ jobs:
           fi
       - name: Download all artifacts
         if: steps.check.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: wheels-*
           path: dist
@@ -301,8 +313,8 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - uses: dtolnay/rust-toolchain@stable
@@ -323,7 +335,7 @@ jobs:
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: napi-${{ matrix.target }}
           path: |
@@ -335,14 +347,14 @@ jobs:
   test-napi:
     name: Test NAPI addon
     needs: [build-napi]
-    if: inputs.version != '' || inputs.npm
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Download addon
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: napi-x86_64-unknown-linux-gnu
           path: addon
@@ -354,14 +366,14 @@ jobs:
   publish-npm-lib:
     name: Publish @iscc/lib to npm
     needs: [build-napi, test-napi]
-    if: inputs.version != '' || inputs.npm
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: https://registry.npmjs.org
@@ -369,7 +381,7 @@ jobs:
         run: npm install
         working-directory: crates/iscc-napi
       - name: Download all napi artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: napi-*
           path: crates/iscc-napi
@@ -403,12 +415,14 @@ jobs:
     if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Build WASM package
+        env:
+          RUSTFLAGS: -C target-feature=+simd128
         run: wasm-pack build --target web --release crates/iscc-wasm --features conformance
       - name: Set npm package name and version
         run: |
@@ -423,7 +437,7 @@ jobs:
           fs.writeFileSync('crates/iscc-wasm/pkg/package.json', JSON.stringify(pkg, null, 2) + '\n');
           SCRIPT
       - name: Upload WASM package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wasm-pkg
           path: crates/iscc-wasm/pkg/
@@ -432,14 +446,14 @@ jobs:
   test-wasm:
     name: Test WASM package
     needs: [build-wasm]
-    if: inputs.version != '' || inputs.npm
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Download WASM package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: wasm-pkg
           path: pkg
@@ -458,18 +472,18 @@ jobs:
   publish-npm-wasm:
     name: Publish @iscc/wasm to npm
     needs: [build-wasm, test-wasm]
-    if: inputs.version != '' || inputs.npm
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: https://registry.npmjs.org
       - name: Download WASM package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: wasm-pkg
           path: pkg
@@ -525,7 +539,7 @@ jobs:
             native-dir: windows-x86_64
             lib-name: iscc_jni.dll
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -540,7 +554,7 @@ jobs:
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jni-${{ matrix.native-dir }}
           path: target/${{ matrix.target }}/release/${{ matrix.lib-name }}
@@ -549,16 +563,16 @@ jobs:
   assemble-jar:
     name: Assemble JAR
     needs: [build-jni]
-    if: inputs.version != '' || inputs.maven
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
       - name: Download JNI artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: jni-*
           path: jni-staging
@@ -573,7 +587,7 @@ jobs:
       - name: Build JAR
         run: mvn package -DskipTests -f crates/iscc-jni/java/pom.xml
       - name: Upload JAR
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: iscc-lib-jar
           path: crates/iscc-jni/java/target/*.jar
@@ -582,16 +596,16 @@ jobs:
   test-jni:
     name: Test JNI libraries
     needs: [build-jni]
-    if: inputs.version != '' || inputs.maven
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
       - name: Download JNI artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: jni-*
           path: jni-staging
@@ -610,11 +624,11 @@ jobs:
   publish-maven:
     name: Publish to Maven Central
     needs: [build-jni, test-jni]
-    if: inputs.version != '' || inputs.maven
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -638,7 +652,7 @@ jobs:
           fi
       - name: Download JNI artifacts
         if: steps.check.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: jni-*
           path: jni-staging
@@ -694,7 +708,7 @@ jobs:
             lib-shared: iscc_ffi.dll
             lib-static: iscc_ffi.lib
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -743,7 +757,7 @@ jobs:
           Copy-Item "LICENSE" "$DIR/"
           Compress-Archive -Path "$DIR" -DestinationPath "${DIR}.zip"
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ffi-${{ matrix.target }}
           path: iscc-ffi-v*.*
@@ -752,12 +766,12 @@ jobs:
   test-ffi:
     name: Test FFI library
     needs: [build-ffi]
-    if: inputs.version != '' || inputs.ffi
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.ffi) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Download FFI artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ffi-x86_64-unknown-linux-gnu
           path: ffi-staging
@@ -773,19 +787,19 @@ jobs:
   publish-ffi:
     name: Publish FFI to GitHub Releases
     needs: [build-ffi, test-ffi]
-    if: inputs.version != '' || inputs.ffi
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.ffi) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Get workspace version
         id: version
         run: |
           VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Download all FFI artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: ffi-*
           path: ffi-staging
@@ -793,7 +807,7 @@ jobs:
       - name: List artifacts
         run: ls -lR ffi-staging/
       - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.version.outputs.version }}
           files: ffi-staging/iscc-ffi-v*.*
@@ -814,7 +828,7 @@ jobs:
           - arm64-darwin
           - x64-mingw-ucrt
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
@@ -838,7 +852,7 @@ jobs:
           # RbSys::ExtensionTask. Must match rb_sys in Gemfile.lock.
           tag: 0.9.123
       - name: Upload gem
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gem-${{ matrix.platform }}
           path: crates/iscc-rb/pkg/*-${{ matrix.platform }}.gem
@@ -847,14 +861,14 @@ jobs:
   test-gem:
     name: Test Ruby gem
     needs: [build-gem]
-    if: inputs.version != '' || inputs.rubygems
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.rubygems) }}
     runs-on: ubuntu-latest
     steps:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
       - name: Download gem
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: gem-x86_64-linux
           path: gems
@@ -867,18 +881,20 @@ jobs:
   publish-rubygems:
     name: Publish to RubyGems
     needs: [build-gem, test-gem]
-    if: inputs.version != '' || inputs.rubygems
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.rubygems) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
       - name: Configure RubyGems credentials (OIDC trusted publishing)
-        uses: rubygems/configure-rubygems-credentials@main
+        # exact tag: configure-rubygems-credentials publishes no floating major
+        # tag (only v1.0.0/v2.0.0/v2.1.0 exist), so @v2 does not resolve
+        uses: rubygems/configure-rubygems-credentials@v2.1.0
       - name: Get workspace version
         id: version
         run: |
@@ -896,7 +912,7 @@ jobs:
           fi
       - name: Download gem artifacts
         if: steps.check.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: gem-*
           path: gems
@@ -923,15 +939,15 @@ jobs:
   pack-nuget:
     name: Pack NuGet package
     needs: [build-ffi]
-    if: inputs.version != '' || inputs.nuget
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.nuget) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0'
       - name: Download FFI artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: ffi-*
           path: ffi-staging
@@ -976,7 +992,7 @@ jobs:
         run: dotnet pack -c Release -o nupkg
         working-directory: packages/dotnet/Iscc.Lib
       - name: Upload NuGet package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-package
           path: packages/dotnet/Iscc.Lib/nupkg/*.nupkg
@@ -985,17 +1001,17 @@ jobs:
   test-nuget:
     name: Test NuGet (${{ matrix.os }})
     needs: [pack-nuget]
-    if: inputs.version != '' || inputs.nuget
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.nuget) }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0'
       - name: Download NuGet package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nuget-package
           path: nupkg
@@ -1033,11 +1049,11 @@ jobs:
   publish-nuget:
     name: Publish to NuGet
     needs: [pack-nuget, test-nuget]
-    if: inputs.version != '' || inputs.nuget
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.nuget) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0'
       - name: Get workspace version
@@ -1057,7 +1073,7 @@ jobs:
           fi
       - name: Download NuGet package
         if: steps.check.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nuget-package
           path: nupkg
@@ -1117,7 +1133,7 @@ jobs:
             lib-name: libiscc_uniffi.so
             android-abi: x86
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -1148,7 +1164,7 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kotlin-native-${{ matrix.native-dir }}
           path: target/${{ matrix.target }}/release/${{ matrix.lib-name }}
@@ -1157,16 +1173,16 @@ jobs:
   assemble-kotlin:
     name: Assemble Kotlin JAR
     needs: [build-kotlin-native]
-    if: inputs.version != '' || inputs.maven-kotlin
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven-kotlin) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
       - name: Download native artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: kotlin-native-*
           path: kotlin-staging
@@ -1184,7 +1200,7 @@ jobs:
         run: ./gradlew build
         working-directory: packages/kotlin
       - name: Upload JAR
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kotlin-jar
           path: packages/kotlin/build/libs/*.jar
@@ -1193,16 +1209,16 @@ jobs:
   test-kotlin-release:
     name: Test Kotlin libraries
     needs: [build-kotlin-native, assemble-kotlin]
-    if: inputs.version != '' || inputs.maven-kotlin
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven-kotlin) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
       - name: Download linux-x86-64 native artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: kotlin-native-linux-x86-64
           path: native-lib
@@ -1214,7 +1230,7 @@ jobs:
         run: ./gradlew test
         working-directory: packages/kotlin
       - name: Download assembled JAR
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: kotlin-jar
           path: kotlin-jar
@@ -1259,11 +1275,11 @@ jobs:
   publish-maven-kotlin:
     name: Publish Kotlin to Maven Central
     needs: [assemble-kotlin, test-kotlin-release]
-    if: inputs.version != '' || inputs.maven-kotlin
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven-kotlin) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -1284,7 +1300,7 @@ jobs:
           fi
       - name: Download native artifacts
         if: steps.check.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: kotlin-native-*
           path: kotlin-staging

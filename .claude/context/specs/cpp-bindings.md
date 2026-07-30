@@ -111,7 +111,7 @@ std::string text_clean(const std::string& text);
 std::string text_collapse(const std::string& text);
 bool conformance_selftest();
 
-// ... all 32 Tier 1 symbols
+// ... all 33 Tier 1 symbols
 
 } // namespace iscc
 ```
