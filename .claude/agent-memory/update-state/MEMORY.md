@@ -21,9 +21,8 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     `MEMORY-archive.md`); out-of-loop `cid(loop):` commits leave NO jsonl entry — diff them. A
     TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
     UNRELIABLE (none at 170) — never park a finding for it.
-- **Counts + the glob/grep trap for each → `counts.md`** (12 READMEs, 12 CLAUDE.md, 23 docs pages,
-    342 iscc-lib `#[test]`, 441 pytest, 177 Go, 50 ffi externs, 105 CRAP, 21 version_sync targets, 8
-    fixture copies). Check there before counting by hand.
+- **Counts + the glob/grep trap for each → `counts.md`** (194: 12 READMEs, 22 docs pages, 353
+    iscc-lib `#[test]`, 179 Go, 49 ffi externs, 102 CRAP, 21 version_sync, 5 fixture copies).
 - **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
     (163).
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` both import
@@ -52,11 +51,11 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 - `crates/` — **8 crates** (lib, py, napi, wasm, ffi, jni, rb, uniffi); iscc-uniffi has 21 tests,
     `publish=false`. `packages/` layout → `MEMORY-archive.md`; `packages/go` is the ONLY binding not
     inheriting the core's Unicode behaviour.
-- `ci.yml` — **21 YAML job entries → 22 jobs → 23 check names**: `python-test` = 3.10/3.14 matrix,
-    `python` (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job. `release.yml`
-    = 8 registry toggles (Swift XCFramework is a `prepare-release` step, NOT a toggle).
-    `specs/ci-cd.md` job table EXHAUSTIVE since 163 (21 rows==21 keys, gated); prose counts unpinned
-    (HAND edit).
+- `ci.yml` — **20 YAML job entries** (194; `unicode-sweep` removed): `python-test` = 3.10/3.14
+    matrix, `python` (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job.
+    `release.yml` = 8 registry toggles (Swift XCFramework is a `prepare-release` step, NOT a
+    toggle). `specs/ci-cd.md` job table EXHAUSTIVE since 163 (rows==keys, gated); prose counts
+    unpinned (HAND edit).
 - **Unicode freeze REMOVED 2026-07-30** (decisions.md): no pin, no sweep gate, no boundary fixture —
     `text_clean`/`text_collapse` use the dependencies' tables. `unicode-contract.md` is history.
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`),
@@ -71,10 +70,11 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 
 ## Recurring Patterns
 
-- **Incremental review**: assessed-at vs HEAD `--stat` first, re-verify only affected sections,
-    carry forward the rest, CI via check-runs API on the real tip. **Always diff
-    `.claude/context/specs/`** (132,147) and read issues.md *bodies* (145) — either flips met→unmet
-    with ZERO code change (as can pure MEASUREMENT, empty diff, 156).
+- **No assessed-at hash (human reset)?** Diff from the hash in THIS file's Current State header to
+    scope the full review fast (194). **Incremental review**: assessed-at vs HEAD `--stat` first,
+    re-verify only affected sections, carry forward the rest, CI via check-runs API on the real tip.
+    **Always diff `.claude/context/specs/`** (132,147) and read issues.md *bodies* (145) — either
+    flips met→unmet with ZERO code change (as can pure MEASUREMENT, empty diff, 156).
 - **When a ruling lands, re-verify CODE against the NEW spec**; grep `decisions.md` for `supersede`
     (147: a 14-iteration "met" went unmet).
 - **Reproduce/refute inherited claims by a DIFFERENT method** (bugs confirmed 147/156; "unbuildable"
@@ -84,53 +84,38 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 13c08ca, iter 193)
+## Current State (assessed-at: ad69c8e, iter 194 — FULL review after a human-reset state.md)
 
-- **CI IS RED on develop — the ENFORCING iai Perf gate fired.** Real tip `origin/develop=e80cda5`
-    (iter 192; HEAD `13c08ca` only adds an `iterations.jsonl` line, so e80cda5 covers HEAD's code).
-    check-SUITE `GitHub Actions=failure`: **`Perf (iai-callgrind)=failure` is NOT
-    continue-on-error** (ci.yml:298, only `semver` at 355 is). The iter 191/192 `iscc_clean` routing
-    raised two composite benches past 10%: `bench_iscc_code.four_units` +36.82% (11,968→16,375 Ir),
-    `bench_mixed_code.two_codes` +18.30% (10,460→12,374). Run 30445408022.
-- **THE TRAP that bit iter 192 review:** `mise run check` does NOT run
-    `scripts/iai_regression.py   --check` (CI-only) — the reviewer PASSed on green `mise run check`
-    while the enforcing iai gate was red. When an advance touches a HOT codec/gen path, the iai
-    comparison is the gate that matters and only CI shows it. ALWAYS pull `Perf (iai-callgrind)`
-    conclusion from the check-runs API, never infer perf-green from a review PASS.
-- **`iscc_clean` regression NOW CLOSED (empty-input side):** guard at `codec.rs:558` returns
-    `Err(InvalidInput("Empty ISCC string"))` when cleaned==""; `fn iscc_clean` at `codec.rs:532`
-    routes all four codec-input sites. `iscc_decompose` empty-`Ok([])` gap is fixed. The REMAINING
-    problem is the perf cost of that routing, not correctness.
-- **#43 IDv1 FULLY CLOSED — do NOT re-flag any part.** All 11 surfaces MINT + DECODE IDv1 = 33/33
-    (mint fan-out cpp @188; decode Python `VS` enum `V1=1` @189). Iter 190 landed the repo-wide
-    Tier-1 32→33 doc/count sweep + `gen_iscc_id_v1` per-symbol entries in the four
-    `docs/{rust,java,ruby,c-ffi}-api.md` + IDv1 mint+decode example in all 11 `docs/howto/*.md`.
-    Verified: stale-`32` Tier-1 grep clean, all 4 API pages + 11 howto pages carry the symbol.
-- **Golden IDv1:** `gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"` (realm 0).
-    Decode recipe: `version==1`, `ts=n>>12`, `hub=n&0xFFF`, `realm=subtype`; realm 1 → `MEIGH…`.
-- **Validation-order contract (normative, rust-core.md ~L542):** any WIDE-INT binding MUST validate
-    thresholds `2^52`/`4096`/`2` in ts→hub→realm order BEFORE narrowing; "first failing check wins".
-    Precedents napi:329, jni:500, rb:219. Go/ffi/uniffi/dotnet/cpp exempt (exact-width FFI). Ruby
-    has a benign gap (normal `[review]`): Magnus narrows Integer→i64 DURING marshalling, so
-    `> i64::MAX` raises `RangeError` before `checked()` runs — validate magnitude before the native
-    narrowing layer, not just before codec narrowing.
-- **dotnet gotcha:** csbindgen `build.rs` regenerates tracked `NativeMethods.g.cs` on EVERY build →
-    pre-push clippy rejects push if uncommitted; any FFI-symbol step regens `iscc.h` +
-    `NativeMethods.g.cs` in-step. **Issues 12: 0 crit, 5 normal, 7 low** (first `## ` at L19).
-    Composition shifted @190: #43 sweep issue deleted, NEW `docs/c-ffi-api.md` type-name gap filed
-    (`normal` `[review]`) — cbindgen emits `iscc_IsccDecodeResult` but the page docs unprefixed
-    `IsccDecodeResult`, so no c-ffi snippet compiles verbatim (page-wide, pre-existing).
-- **v0.6.0 release blockers = 5 open `normal` `[review]` issues** (c-ffi-api type names, Ruby
-    wide-input validation order, Go codec `iscc_clean` divergence [Rust half in-flight NEEDS_WORK],
-    iai ASCII-only benches, go1.27 [upstream-blocked]) + the human-gated release cut. No functional
-    IDv1 gap remains. Issue composition unchanged @191 (12: 0 crit, 5 normal, 7 low).
+- **Loop paused 193 → 2026-10-17; everything since was HUMAN** (`cid(human):` commits, no jsonl
+    entries). v0.6.0 shipped 2026-07-30, **v0.7.0 shipped 2026-10-17**; `develop`==`main`==`d49b953`
+    CI fully green (Perf, CRAP, Semver, Swift, Kotlin all success). Iter-193 Perf blocker resolved
+    by the human raising the `four_units` iai baseline (decisions.md 2026-07-29).
+- **Target = v0.8.0 ISCC-SEQ** (`encode_seq`/`decode_seq` Tier 1 33→35 on all 11 surfaces + Tier 2
+    `read_unit`/`SEQ_MAINTYPES`; spec `rust-core.md` ~L221). **ZERO implementation at 194** — the
+    only repo hit is a comment at `packages/go/conformance.go:27`. Probe:
+    `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq|read_unit|SEQ_MAINTYPES' crates packages`.
+- Seq vectors (4 encode + 4 decode, `bytes:<hex>` outputs) are vendored in all 5 identical
+    `data.json` copies but run by NO harness; Go `parseConformanceData` loads only `gen_*`.
+- **6 open `normal` issues, ALL actionable** (c-ffi-api unprefixed type names; Go `isccClean` absent
+    = prerequisite for Go seq; wasm `Cargo.toml` no license/description; Ruby `json` 2.21.1 +
+    Dependabot alert #1 open; Ruby `File.read` w/o encoding; `mise.toml` still passes
+    `--fallback-model opus`). One-line probes for each are cheap — re-run them, don't carry.
+- **Stale target fact (human-owned):** "Tag push `v*.*.*` triggers all publish jobs" — release.yml
+    is `workflow_dispatch`-only by design since `8f444eb` (workflow creates the tag). PR #48
+    (`fix/image-code-dct-quadrants`→main) open though superseded by #49.
+- **IDv1 (#43) fully closed — do NOT re-flag.** Golden:
+    `gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"`. Validation-order contract
+    (ts→hub→realm before narrowing) → `rust-core.md`.
+- **dotnet gotcha:** csbindgen `build.rs` regenerates tracked `NativeMethods.g.cs` on every build;
+    any FFI-symbol step (seq!) must regen `iscc.h` + `NativeMethods.g.cs` in-step.
 
 ## Durable Facts (carried, not per-iteration)
 
 - **`target.md` carries a "Current Release Milestone — v0.6.0" section** — always diff `target.md`.
     Unicode work FINISHED (161, 11/11). Dep refresh DONE (172, uniffi 0.32 + criterion 0.8; zero
     `# held:`/`authorized`). `iscc-uniffi/Cargo.toml` declares `rust-version = "1.91"` (real floor);
-    other 7 crates inherit workspace 1.85. PR **#44 develop→main OPEN**, version **0.5.0**.
+    other 7 crates inherit workspace 1.85. Version **0.7.0** (194); releases via PR develop→main
+    then `/release`.
 - **Review policy widened at 171:** `review` may correct a *mechanically checkable fact* (version,
     path, count) in a sub-spec under `.claude/context/specs/` with NO escalation; `target.md` +
     rationale/criteria/scope still need the human. Report stale spec FACTS.
