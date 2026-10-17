@@ -161,15 +161,18 @@ pub fn gen_iscc_code_v0(codes: JsValue, wide: Option<bool>) -> Result<String, Js
 }
 
 /// Result of [`gen_sum_code_v0`], containing the composite ISCC-CODE, data hash, and file size.
-#[wasm_bindgen(getter_with_clone)]
+#[wasm_bindgen]
 pub struct WasmSumCodeResult {
     /// Composite ISCC-CODE string (e.g., `"ISCC:KAC..."`).
+    #[wasm_bindgen(getter_with_clone)]
     pub iscc: String,
     /// Hex-encoded BLAKE3 multihash (`"1e20..."`) of the data.
+    #[wasm_bindgen(getter_with_clone)]
     pub datahash: String,
     /// Byte length of the input data (as `f64` for JS `number` compatibility).
     pub filesize: f64,
     /// Data-Code and Instance-Code ISCC strings (when `add_units` is true).
+    #[wasm_bindgen(getter_with_clone)]
     pub units: Option<Vec<String>>,
 }
 
@@ -300,7 +303,7 @@ pub fn encode_component(
 }
 
 /// Result of decoding an ISCC unit string.
-#[wasm_bindgen(getter_with_clone)]
+#[wasm_bindgen]
 pub struct IsccDecodeResult {
     /// MainType enum value (0–7).
     pub maintype: u8,
@@ -311,6 +314,7 @@ pub struct IsccDecodeResult {
     /// Length index from the header.
     pub length: u8,
     /// Raw digest bytes truncated to the encoded bit-length.
+    #[wasm_bindgen(getter_with_clone)]
     pub digest: Vec<u8>,
 }
 
