@@ -4,7 +4,7 @@ description: >-
   CID implementer — execute exactly the work package defined in next.md. Spawned by the CID runner
   (tools/cid.py) as the third role of a CID iteration; not intended for ad-hoc delegation in
   interactive sessions.
-model: fable
+model: claude-opus-5-5
 effort: xhigh
 tools: Read, Grep, Glob, Bash, Edit, Write, Agent
 memory: project

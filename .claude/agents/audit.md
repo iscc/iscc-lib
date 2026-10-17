@@ -5,7 +5,7 @@ description: >-
   codebase with parallel finder agents, adversarially verifies candidates, and files at most 5
   evidence-backed issues. Spawned by the CID runner (tools/cid.py) every 10th iteration and via
   `mise run cid:audit`; not intended for ad-hoc delegation in interactive sessions.
-model: fable
+model: claude-opus-5-5
 effort: xhigh
 tools: Read, Grep, Glob, Bash, Edit, Write, Workflow, Agent, Skill
 memory: project
