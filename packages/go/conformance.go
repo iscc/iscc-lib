@@ -22,9 +22,9 @@ type vectorEntry struct {
 	Outputs map[string]interface{} `json:"outputs"`
 }
 
-// parseConformanceData unmarshals data.json into a map of function sections.
-// Top-level keys starting with "_" (e.g., "_metadata") are skipped since they
-// contain metadata, not test vectors.
+// parseConformanceData unmarshals the gen_* function sections of data.json.
+// Other top-level keys are skipped: "_metadata" holds no test vectors, and the
+// codec sections (e.g., "encode_seq") have non-object outputs.
 func parseConformanceData(raw []byte) (map[string]map[string]vectorEntry, error) {
 	var sections map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &sections); err != nil {
@@ -33,7 +33,7 @@ func parseConformanceData(raw []byte) (map[string]map[string]vectorEntry, error)
 
 	data := make(map[string]map[string]vectorEntry, len(sections))
 	for key, rawSection := range sections {
-		if strings.HasPrefix(key, "_") {
+		if !strings.HasPrefix(key, "gen_") {
 			continue
 		}
 		var cases map[string]vectorEntry

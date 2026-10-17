@@ -138,7 +138,7 @@ Build-flag + Cargo-feature change only, no source changes: conformance output is
 ## Distribution / Publishing
 
 - **Scope**: `@iscc/wasm` under the `@iscc` npm organization
-- **Authentication**: Same `NPM_TOKEN` as Node.js binding
+- **Authentication**: OIDC trusted publishing, like the Node.js binding
 - **Package type**: Single universal package (no platform-specific variants)
 - **Size**: ~200-400KB for the `.wasm` binary
 

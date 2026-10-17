@@ -4,7 +4,7 @@ description: >-
   CID step scoper — define exactly one small, verifiable work package toward the target state.
   Spawned by the CID runner (tools/cid.py) as the second role of a CID iteration; not intended for
   ad-hoc delegation in interactive sessions.
-model: claude-opus-4-8[1m]
+model: claude-opus-5-5
 effort: xhigh
 tools: Read, Grep, Glob, Bash, Write
 memory: project

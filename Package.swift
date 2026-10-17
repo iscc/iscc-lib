@@ -13,7 +13,7 @@ if useLocalFramework {
         path: "target/ios/IsccLib.xcframework"
     )
 } else {
-    let releaseTag = "0.6.0"
+    let releaseTag = "0.7.0"
     let releaseChecksum = "0cb2244ff2ab17ab9d20be5d9996d4d5841fd9406d4e23111a5d57c5c238ee63"
     binaryTarget = .binaryTarget(
         name: "iscc_uniffiFFI",

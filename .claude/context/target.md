@@ -435,7 +435,7 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
     works
 - Tag push `v*.*.*` triggers all publish jobs
 - crates.io and PyPI publishing via OIDC trusted publishing (no API keys)
-- npm publishing via `NPM_TOKEN` secret for `@iscc/lib` and `@iscc/wasm`
+- npm publishing via OIDC trusted publishing for `@iscc/lib` and `@iscc/wasm`
 - Maven Central publishing via GPG signing + Sonatype Central Portal credentials
 - Publishing an already-published version skips gracefully
 - Release workflow smoke-tests built artifacts before publishing (install the built package and run

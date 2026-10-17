@@ -4,7 +4,7 @@ description: >-
   CID state assessor — produce an honest, verified snapshot of the current project state against
   the target. Spawned by the CID runner (tools/cid.py) as the first role of a CID iteration; not
   intended for ad-hoc delegation in interactive sessions.
-model: claude-opus-4-8[1m]
+model: claude-opus-5-5
 effort: high
 tools: Read, Grep, Glob, Bash, Write
 memory: project

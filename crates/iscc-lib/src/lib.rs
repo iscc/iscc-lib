@@ -596,8 +596,9 @@ fn soft_hash_image_v0(pixels: &[u8], bits: u32) -> IsccResult<Vec<u8>> {
     // Step 4: Transpose back → dct_matrix
     let dct_matrix = transpose_matrix(&dct_cols);
 
-    // Step 5: Extract 8×8 blocks at positions (0,0), (1,0), (0,1), (1,1)
-    let positions = [(0, 0), (1, 0), (0, 1), (1, 1)];
+    // Step 5: Extract the top-left, top-right, bottom-left and bottom-right 8×8
+    // squares of the upper-left 16×16 at positions (col, row) (ISO 24138 5.4.5.2 e)
+    let positions = [(0, 0), (8, 0), (0, 8), (8, 8)];
     let mut bitstring = Vec::<bool>::with_capacity(256);
 
     for (col, row) in positions {
@@ -1474,6 +1475,44 @@ mod tests {
         }
 
         assert_eq!(tested, 3, "expected 3 conformance tests to run");
+    }
+
+    #[test]
+    fn test_soft_hash_image_v0_256_quadrant_layout() {
+        // Blocks follow the top-left, top-right, bottom-left and bottom-right 8×8 DCT squares
+        let json_str = include_str!("../tests/data.json");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let pixels: Vec<u8> = data["gen_image_code_v0"]["test_0003_img_256"]["inputs"][0]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_u64().unwrap() as u8)
+            .collect();
+        let digest = soft_hash_image_v0(&pixels, 256).unwrap();
+
+        let rows: Vec<Vec<f64>> = pixels
+            .chunks(32)
+            .map(|row| dct::alg_dct(&row.iter().map(|&p| p as f64).collect::<Vec<_>>()).unwrap())
+            .collect();
+        let cols: Vec<Vec<f64>> = transpose_matrix(&rows)
+            .iter()
+            .map(|col| dct::alg_dct(col).unwrap())
+            .collect();
+        let matrix = transpose_matrix(&cols);
+
+        for (i, (x, y)) in [(0, 0), (8, 0), (0, 8), (8, 8)].into_iter().enumerate() {
+            let square: Vec<f64> = (y..y + 8)
+                .flat_map(|r| (x..x + 8).map(move |c| (r, c)))
+                .map(|(r, c)| matrix[r][c])
+                .collect();
+            let median = compute_median(&square);
+            let bits: Vec<bool> = square.iter().map(|&v| v > median).collect();
+            assert_eq!(
+                digest[i * 8..(i + 1) * 8],
+                bits_to_bytes(&bits)[..],
+                "block {i} does not match the 8×8 square at ({x}, {y})"
+            );
+        }
     }
 
     #[test]

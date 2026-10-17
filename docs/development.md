@@ -358,8 +358,8 @@ parallel:
 | ------------- | ------------------ | ---------------------------------- |
 | crates.io     | `iscc-lib`         | OIDC trusted publishing            |
 | PyPI          | `iscc-lib`         | OIDC trusted publishing            |
-| npm           | `@iscc/lib`        | `NPM_TOKEN` secret                 |
-| npm           | `@iscc/wasm`       | `NPM_TOKEN` secret                 |
+| npm           | `@iscc/lib`        | OIDC trusted publishing            |
+| npm           | `@iscc/wasm`       | OIDC trusted publishing            |
 | Maven Central | `io.iscc:iscc-lib` | GPG signing + Sonatype credentials |
 
 Each publish job checks if the version already exists on the registry and skips gracefully.

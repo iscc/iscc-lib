@@ -101,8 +101,8 @@ ROLE_ENTRY_KEYS = frozenset(
 # stuck runs, not normal long iterations like advance + a 30-min codex review).
 # A role that already committed its deliverable when the guard fires does not fail
 # the iteration — see _role_commit_landed.
-# advance runs on Fable 5, whose single requests on hard tasks can run for many
-# minutes, so it gets extra headroom over the other roles.
+# advance's single requests on hard tasks can run for many minutes, so it gets
+# extra headroom over the other roles.
 ROLE_TIMEOUT_S = {
     "update-state": 1200,
     "define-next": 1200,
@@ -134,9 +134,9 @@ ROLE_BUDGET_USD = {
 
 # Primary model pinned for every headless role invocation. Passed as --model so the
 # session base does not drift onto the CLI's rolling default. Per-agent frontmatter
-# (e.g. advance/audit on fable) still overrides this — frontmatter model takes
-# precedence over the session --model.
-PRIMARY_MODEL = "claude-opus-4-8[1m]"
+# still overrides this — frontmatter model takes precedence over the session --model.
+# Opus 5.5 has a 1M-token context window by default, so no "[1m]" suffix is needed.
+PRIMARY_MODEL = "claude-opus-5-5"
 
 # Prompt size (in tokens) above which a role run is reported as at risk of silent
 # context truncation. The review role has already touched 92% of a 200k window;

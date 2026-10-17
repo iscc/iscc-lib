@@ -221,7 +221,7 @@ workflow_dispatch / GitHub Release published
     ├── 5. Publish (per-registry)
     │   ├── crates.io (OIDC trusted publishing)
     │   ├── PyPI (OIDC trusted publishing)
-    │   ├── npm (NPM_TOKEN secret)
+    │   ├── npm (OIDC trusted publishing)
     │   ├── RubyGems (OIDC trusted publishing)
     │   ├── Maven Central (GPG + credentials)
     │   ├── NuGet (NUGET_API_KEY)
@@ -236,7 +236,7 @@ workflow_dispatch / GitHub Release published
 | ------------- | ----------------------- | ----------------------------------------------------------- |
 | **crates.io** | OIDC trusted publishing | `rust-lang/crates-io-auth-action@v1`, no API key needed     |
 | **PyPI**      | OIDC trusted publishing | `pypa/gh-action-pypi-publish@release/v1`, no API key needed |
-| **npm**       | Token (secret)          | `NODE_AUTH_TOKEN` repository secret                         |
+| **npm**       | OIDC trusted publishing | npmjs.com trusted publisher config, no token needed         |
 | **RubyGems**  | OIDC trusted publishing | `rubygems/configure-rubygems-credentials@v1`                |
 | **Maven**     | GPG + credentials       | Traditional signing and upload                              |
 | **NuGet**     | API key (secret)        | `NUGET_API_KEY` repository secret                           |
