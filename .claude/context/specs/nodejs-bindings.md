@@ -102,7 +102,7 @@ contains the Rust error description.
 
 - **Scope**: Published under the `@iscc` npm organization
 - **Package**: `@iscc/lib`
-- **Authentication**: `NPM_TOKEN` GitHub Actions secret
+- **Authentication**: OIDC trusted publishing (npmjs.com trusted publisher for `release.yml`)
 
 ### Native Binary Distribution
 

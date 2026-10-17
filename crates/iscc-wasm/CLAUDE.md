@@ -129,7 +129,7 @@ wasm-pack test --node crates/iscc-wasm --test unit
 ## Publishing (npm via wasm-pack + npm publish)
 
 - Package name: `@iscc/wasm` under the `@iscc` npm scope
-- Auth: `NPM_TOKEN` repository secret (OIDC trusted publishing not available for npm)
+- Auth: OIDC trusted publishing (configured per package on npmjs.com for `release.yml`)
 - Workflow: tag-triggered CI runs `wasm-pack build --target web --release --features conformance`,
     then a post-build step patches the generated `pkg/package.json` to set `name` to `@iscc/wasm`
     and `version` to the tag version. Publishing uses `npm publish --provenance --access public`

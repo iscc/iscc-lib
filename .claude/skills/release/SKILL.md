@@ -70,45 +70,26 @@ gh run list --workflow ci.yml --branch develop --limit 1 --json status,conclusio
 
 If CI is not green, warn the user and ask whether to proceed anyway.
 
-### Step 1.6 — Publish credential check (npm token expiry)
+### Step 1.6 — npm trusted publishing
 
-Most registries publish via OIDC (crates.io, PyPI, RubyGems) and never expire. **npm is the
-exception** — it authenticates with the `NPM_TOKEN` secret, a granular token whose write access
-**expires within 90 days** (npm's hard maximum). An expired token is invisible until publish time,
-where it fails with `npm error code E404 ... PUT https://registry.npmjs.org/@iscc%2f...` (npm
-returns 404, not 401/403, on bad auth). This silently broke the v0.5.0 npm publish.
+All OIDC registries (crates.io, PyPI, RubyGems, npm) publish without stored tokens, so there is no
+credential expiry to check. npm uses Trusted Publishing: each package (`@iscc/lib`, `@iscc/wasm`)
+has a trusted publisher on npmjs.com (Settings → Trusted Publisher) for GitHub Actions, `iscc` /
+`iscc-lib`, workflow `release.yml`, no environment, with **Allow npm publish** enabled. The publish
+jobs need `id-token: write`, npm >= 11.5.1 (Node 24) and no `registry-url` in `setup-node` (it would
+write an `.npmrc` that references an unset `NODE_AUTH_TOKEN`).
 
-Before triggering the release, verify the npm token is current:
-
-- Ask the user to open `https://www.npmjs.com/settings/<npm-user>/tokens` (they must be logged in).
-- Confirm the release token (named `iscc-lib-ci-*`) is **not** marked `Expired` and is not within a
-    few days of its expiry date.
-
-If it is expired or near expiry, rotate it before proceeding:
-
-1. On npm, **Generate New Token** → Granular Access Token. Name `iscc-lib-ci-<year>`; check **Bypass
-    2FA**; **Packages and scopes** → Read and write → "Only select packages and scopes" → select
-    the `@iscc` scope; **Expiration** → 90 days (the maximum for write tokens).
-2. Copy the token, then update the GitHub secret at
-    `https://github.com/iscc/iscc-lib/settings/secrets/actions/NPM_TOKEN` (paste value → Update
-    secret; GitHub will require a sudo-mode re-auth that **the user** must complete).
-3. **Entering the token value is the user's action** — never type credentials yourself. Use the
-    clipboard (copy on npm → paste into the GitHub field) so the value stays out of the transcript.
-
-If only the npm publish later fails on a stale token, fix the `NPM_TOKEN` secret, then **re-run the
-failed jobs of that release run** with `gh run rerun <run-id> --failed`. This re-runs only the
-failed npm publish jobs, reuses the existing build artifacts, picks up the new secret, and touches
-no tags/release. Verified working for the v0.5.0 npm recovery (2026-06-18).
+If an npm publish fails with `E404`/`ENEEDAUTH`, first check that both trusted publisher entries
+still exist and match the fields above (they cannot be edited, only deleted and recreated, which
+requires the user's 2FA passkey). Then **re-run the failed jobs of that release run** with
+`gh run rerun <run-id> --failed`. This re-runs only the failed publish jobs, reuses the existing
+build artifacts, and touches no tags/release.
 
 > `gh workflow run release.yml --ref main -f npm=true` is the fallback when the failed run's
 > artifacts have expired: every `test-*`/`publish-*` job carries a `!cancelled() && !failure()`
 > guard, so a registry-only dispatch runs the full build → test → publish chain for that registry.
 > It rebuilds all artifacts from scratch, so prefer `gh run rerun <run-id> --failed` when the
 > original artifacts still exist. See the re-trigger section at the end of this file.
-
-> **Root-cause fix:** npm supports OIDC Trusted Publishing, which would remove `NPM_TOKEN` and this
-> whole expiry class of failure (npm's own UI recommends it for CI/CD). Migrating the npm + wasm
-> publish jobs to OIDC is tracked as a future improvement.
 
 ## Phase 2: Version Bump
 
@@ -516,8 +497,8 @@ force-pushes the release tags and updates the GitHub Release.
 
 - This skill handles real releases with real side effects. Be careful and precise
 - Never guess registry credentials or authentication — they are configured via GitHub secrets and
-    OIDC trusted publishing (PyPI, crates.io, RubyGems use OIDC; npm uses automation tokens; Maven
-    uses GPG + OSSRH credentials; NuGet uses API key via `NUGET_API_KEY` secret)
+    OIDC trusted publishing (PyPI, crates.io, RubyGems and npm use OIDC; Maven uses GPG + OSSRH
+    credentials; NuGet uses API key via `NUGET_API_KEY` secret)
 - Never modify files outside the release scope without asking. Release scope includes: version bump
     files, formatting/lint fixes from quality gates, and any files the pre-commit hooks auto-fix
 - The `develop` branch is never deleted — it's the long-lived working branch

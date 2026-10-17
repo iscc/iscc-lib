@@ -108,8 +108,8 @@ cargo build -p iscc-napi
     - `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`
     - `x86_64-apple-darwin`, `aarch64-apple-darwin`
     - `x86_64-pc-windows-msvc`
-- npm auth uses `NPM_TOKEN` secret (not OIDC -- npm does not support trusted publishing); publishes
-    with `--provenance` flag for supply-chain transparency
+- npm auth uses OIDC trusted publishing (configured per package on npmjs.com for `release.yml`, no
+    `NPM_TOKEN` secret); needs npm >= 11.5.1 and generates provenance automatically
 - **Single self-contained package, no `optionalDependencies`:** `@iscc/lib` bundles every platform's
     native addon in the published tarball via `files: ["*.node"]`. The release workflow merges all 5
     `napi-*` artifacts into the crate directory and runs `npm publish` directly -- it does **not**

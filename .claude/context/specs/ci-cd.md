@@ -236,7 +236,7 @@ Tag pushes activate all jobs (no inputs are set, but the tag condition passes fo
 | ----------------- | ---------------------------- | ----------------------------------------------------------------------------------- |
 | **crates.io**     | OIDC trusted publishing      | `rust-lang/crates-io-auth-action@v1`                                                |
 | **PyPI**          | OIDC trusted publishing      | `pypa/gh-action-pypi-publish@release/v1`                                            |
-| **npm**           | Token (`NPM_TOKEN` secret)   | `NODE_AUTH_TOKEN` env var                                                           |
+| **npm**           | OIDC trusted publishing      | npmjs.com trusted publisher config for `release.yml` (npm >= 11.5.1)                |
 | **Maven Central** | GPG signing + Sonatype token | `MAVEN_GPG_PRIVATE_KEY`, `MAVEN_GPG_PASSPHRASE`, `MAVEN_USERNAME`, `MAVEN_PASSWORD` |
 | **NuGet**         | API key (`NUGET_API_KEY`)    | Scoped NuGet.org API key as GitHub Actions secret                                   |
 | **RubyGems**      | OIDC trusted publishing      | RubyGems trusted publisher config (or `GEM_HOST_API_KEY` secret fallback)           |
@@ -522,7 +522,7 @@ API impact). A dependency deliberately held back gets a documented reason next t
 - [x] Each registry's jobs are independent — failure in one does not block others
 - [x] crates.io uses OIDC trusted publishing (no API key secret)
 - [x] PyPI uses OIDC trusted publishing (no API key secret)
-- [x] npm uses `NPM_TOKEN` repository secret
+- [x] npm uses OIDC trusted publishing (no `NPM_TOKEN` secret)
 - [x] Maven Central uses GPG signing + Sonatype Central Portal credentials
 - [ ] RubyGems uses OIDC trusted publishing (or `GEM_HOST_API_KEY` fallback)
 - [x] NuGet uses scoped API key (`NUGET_API_KEY` secret)

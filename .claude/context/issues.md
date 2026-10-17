@@ -153,23 +153,6 @@ Resolved when either the job exists and passes, or `rust-version` is dropped/rai
 
 **Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
 
-## Migrate npm publishing to OIDC Trusted Publishing `low` [human]
-
-**DEFERRED by Titusz 2026-07-26 — not for v0.6.0.** The v0.6.0 release stays on `NPM_TOKEN`, which
-was rotated (`iscc-lib-ci-2026`, granular `@iscc` scope) and is valid until 2026-09-16. Revisit
-before the release after v0.6.0, or sooner if the token expiry becomes a problem again. CID must
-**not** prepare the YAML diff — an unused OIDC-shaped diff sitting in the tree would be its own
-hazard.
-
-The v0.5.0 release failed both npm publishes because `NPM_TOKEN` had expired (npm caps write-token
-expiry at 90 days). npm now supports OIDC Trusted Publishing — the same keyless mechanism already
-used for crates.io, PyPI and RubyGems.
-
-**Scope when it lands:** update the two npm publish jobs in `.github/workflows/release.yml` to
-publish via OIDC (drop `NODE_AUTH_TOKEN`/`NPM_TOKEN`, rely on the existing `id-token: write` +
-`npm publish --provenance`). **Human-gated:** a Trusted Publisher must be configured for each
-package on npmjs.com before the token can be removed.
-
 ## Add programming language logos to docs site `low` [human]
 
 README language logos added (iteration 3). Consider adding matching logos to `docs/index.md` and
