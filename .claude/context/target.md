@@ -431,7 +431,8 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
     `ci-cd.md`)
 - `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven, RubyGems, NuGet)
     works
-- Tag push `v*.*.*` triggers all publish jobs
+- `workflow_dispatch` with a `version` input runs every publish job and creates the `vX.Y.Z` and
+    `packages/go/vX.Y.Z` tags (a tag push does not trigger the workflow)
 - crates.io and PyPI publishing via OIDC trusted publishing (no API keys)
 - npm publishing via OIDC trusted publishing for `@iscc/lib` and `@iscc/wasm`
 - Maven Central publishing via GPG signing + Sonatype Central Portal credentials

@@ -214,21 +214,20 @@ on:
 
 ### Job Conditions
 
-Each job chain activates on either a tag push or its corresponding checkbox:
+`release.yml` is **`workflow_dispatch`-only** — a tag push does not trigger it; the workflow creates
+the tags itself. Two ways to run it:
 
-- **crates.io jobs**: `if: startsWith(github.ref, 'refs/tags/v') || inputs.crates-io`
-- **PyPI jobs** (build-wheels, build-sdist, publish-pypi):
-    `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
-- **npm jobs** (build-napi, build-wasm, publish-npm-lib, publish-npm-wasm):
-    `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
-- **Maven jobs** (build-jni, assemble-jar, publish-maven):
-    `if: startsWith(github.ref, 'refs/tags/v') || inputs.maven`
-- **RubyGems jobs** (build-ruby-gems, publish-rubygems):
-    `if: startsWith(github.ref, 'refs/tags/v') || inputs.rubygems`
-- **NuGet jobs** (pack-nuget, test-nuget, publish-nuget):
-    `if: startsWith(github.ref, 'refs/tags/v') || inputs.nuget`
+- **Full release** — `version: X.Y.Z`. `prepare-release` (macos-14) builds the Swift XCFramework,
+    commits the `Package.swift` checksum to `main`, creates the `vX.Y.Z` and `packages/go/vX.Y.Z`
+    tags and the GitHub Release; every registry chain then runs.
+- **Registry-only re-trigger** — no `version`, one or more checkboxes (`crates-io`, `pypi`, `npm`,
+    `maven`, `maven-kotlin`, `ffi`, `rubygems`, `nuget`). `prepare-release` is skipped and only the
+    selected chains run (build → test → publish).
 
-Tag pushes activate all jobs (no inputs are set, but the tag condition passes for all).
+Every job except `prepare-release` carries
+`if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.<registry>) }}` so a skipped
+`prepare-release` does not propagate down the `needs` chain, while a failed build/test still blocks
+its publish. Each publish job skips gracefully when the version is already on its registry.
 
 ### Authentication
 
@@ -265,30 +264,17 @@ versioning adds overhead without benefit for a single-maintainer project where t
 independent logic. Users never need a compatibility matrix — the version number is the compatibility
 story.
 
-**Full release (all registries):**
+**Full release (all registries):** run the `/release X.Y.Z` skill
+(`.claude/skills/release/SKILL.md`). It bumps `workspace.package.version`, runs
+`mise run version:sync` / `version:check` and the quality gates, commits `Release X.Y.Z` on
+`develop`, merges a `develop` → `main` PR (merge commit, human-approved), then runs
+`gh workflow run release.yml --ref main -f version=X.Y.Z`. Afterwards `develop` is fast-forwarded to
+`main` to pick up the checksum commit.
 
-1. Bump version in root `Cargo.toml` (`workspace.package.version`)
-2. Run `mise run version:sync` to propagate to non-Cargo manifests
-3. Run `mise run version:check` to validate consistency
-4. Commit: `git commit -m "Release X.Y.Z"`
-5. Tag: `git tag vX.Y.Z`
-6. Push: `git push && git push --tags`
-7. Tag push triggers `release.yml` — all registry jobs activate
-
-**Selective release (single registry):**
-
-1. Bump version in root `Cargo.toml` (if not already at the target version)
-2. Run `mise run version:sync` and `mise run version:check`
-3. Commit and push (no tag). If on `develop`, merge to `main` first via PR
-4. Go to GitHub Actions → Release → Run workflow
-5. Check only the registries that need publishing (e.g., `pypi: true`)
-6. Unchecked registries skip entirely — no builds, no publish attempts
-
-**When to use selective publishing:**
-
-- Binding-layer bugfix (e.g., Python `__init__.py` wrapper fix) — publish only PyPI
-- Rust core change that affects all bindings — full release via tag
-- First release of a binding — selective publish for that registry only
+**Recovering one registry:** prefer `gh run rerun <run-id> --failed` (reuses build artifacts). If a
+fix had to land on `main` first, or the artifacts expired, dispatch
+`gh workflow run release.yml --ref main -f <registry>=true`. Never pass `-f version=` to recover —
+that re-runs `prepare-release`, which force-pushes the release tags.
 
 ## Build Matrices
 
@@ -512,7 +498,8 @@ API impact). A dependency deliberately held back gets a documented reason next t
 
 - [x] `workflow_dispatch` trigger with boolean inputs for each registry (crates-io, pypi, npm,
     maven)
-- [x] Tag push `v*.*.*` triggers all publish jobs
+- [x] `workflow_dispatch` with `version` runs every registry chain and creates the release tags; a
+    tag push does not trigger the workflow
 - [x] `workflow_dispatch` with only `pypi: true` builds and publishes only Python wheels
 - [x] `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
 - [x] `workflow_dispatch` with only `npm: true` builds and publishes only npm packages

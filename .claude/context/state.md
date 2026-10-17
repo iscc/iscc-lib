@@ -108,9 +108,6 @@ harness runs them.
 - `ci.yml` has 20 jobs (the `unicode-sweep` job was removed), all green; `release.yml` has
     `workflow_dispatch` with 8 registry toggles; npm is on OIDC (no `NPM_TOKEN`); 21 version-sync
     targets all `OK` at 0.7.0
-- Stale target/spec fact: "Tag push `v*.*.*` triggers all publish jobs" (target.md, ticked in
-    `specs/ci-cd.md:515`). `release.yml` is `workflow_dispatch`-only by design (commit `8f444eb`:
-    the workflow creates the tag itself), so the human needs to reword the criterion
 - PR #48 (`fix/image-code-dct-quadrants` → `main`) is still open although that fix shipped in 0.7.0
     via #49
 - Latest CI: **passing** — `GitHub Actions` check-suites `success` on `d49b953`, including Perf,
