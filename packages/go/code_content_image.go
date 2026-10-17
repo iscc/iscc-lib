@@ -73,8 +73,9 @@ func softHashImageV0(pixels []byte, bits uint32) ([]byte, error) {
 	// Step 4: Transpose back
 	dctMatrix := transposeMatrix(dctCols)
 
-	// Step 5: Extract 8×8 blocks at positions (col, row): (0,0), (1,0), (0,1), (1,1)
-	positions := [][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
+	// Step 5: Extract the top-left, top-right, bottom-left and bottom-right 8×8
+	// squares of the upper-left 16×16 at positions (col, row) (ISO 24138 5.4.5.2 e)
+	positions := [][2]int{{0, 0}, {8, 0}, {0, 8}, {8, 8}}
 	bitstring := make([]bool, 0, 256)
 
 	for _, pos := range positions {
