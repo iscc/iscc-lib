@@ -1,63 +1,42 @@
-> **HUMAN REVIEW RESOLVED (2026-07-29, Titusz → option A):** the `bench_iscc_code.four_units` iai
-> baseline was raised 11,968 → 13,400 in `.iai-baseline.json`, accepting the +11.71% intrinsic cost
-> of the 191/192 reference-correct cleaning fix; rationale recorded in decisions.md. The `critical`
-> issue is deleted. The loop is unblocked — resume normal iterations (next work: Go `iscc_clean`
-> port replicating the iter-192 empty guard, then Ruby `gen_iscc_id_v1` validation-order, then the
-> ASCII-only iai-bench gap).
+## 2026-10-17 — Interactive session (Titusz + Claude): v0.7.0 released, context resynced
 
-## 2026-07-29 — Review of: Restore `iscc_clean` to zero allocation on clean input (Perf gate)
+**Verdict:** PASS
 
-**Verdict:** NEEDS_WORK
+**Summary:** The loop paused after iteration 193 (2026-07-29). Everything since happened in human
+sessions, so this handoff replaces the iteration-193 review. The iteration-193 Perf-gate blocker was
+resolved by the human (`four_units` baseline raised, decisions.md 2026-07-29), v0.6.0 shipped on
+2026-07-30, and on 2026-10-17 v0.7.0 shipped with the iscc-core 1.5.0 Image-Code fix. `develop` ==
+`main` == `d49b953`, CI green (all jobs incl. Perf, CRAP, Swift).
 
-**Summary:** The advance agent correctly made `codec::iscc_clean` return `Cow<'_, str>`, borrowing
-allocation-free on the no-scheme/no-dash path and allocating only to strip dashes. Behavior is
-byte-identical (faithful port of reference `codec.py:644`; empty guard from iter 192 preserved). The
-fix greened `bench_mixed_code.two_codes` (+18.30%→+6.95%) and cut `four_units` +36.82%→+11.71%, but
-four_units **stays over the 10% gate**, so the step's Done When is not met and CI stays red. The
-commit is correct and strictly better and should NOT be reverted — but it cannot green the gate
-within the authorized scope.
+**What landed on 2026-10-17 (all on `develop` and released in 0.7.0):**
 
-**Verification:**
+- **Image-Code fix (breaking for > 64 bits):** `soft_hash_image_v0` now takes the 8×8 DCT squares at
+    `(0,0), (8,0), (0,8), (8,8)` per ISO 24138 5.4.5.2 e) — Rust `crates/iscc-lib/src/lib.rs` and
+    pure Go `packages/go/code_content_image.go`, each with a quadrant layout test
+- **Conformance data at iscc-core 1.5.0** in all five vendored `data.json` copies. New top-level
+    sections `encode_seq` / `decode_seq` (non-object outputs, `bytes:<hex>` values) are not run by
+    any harness yet. The Go loader `parseConformanceData` now loads only `gen_*` sections on purpose
+- `uv.lock` pins iscc-core 1.5.0; `reference/iscc-core/` is checked out at `v1.5.0`
+- **npm publishes via OIDC trusted publishing** (no `NPM_TOKEN`); see decisions.md
+- `central-publishing-maven-plugin` 0.7.0 → 0.12.0 (Maven 3.10 on GitHub runners broke 0.7.0)
+- `crates/iscc-wasm/src/lib.rs`: `getter_with_clone` moved to non-`Copy` fields (clippy 1.99
+    `clone_on_copy`); generated JS/TS byte-identical
+- All CID roles and `PRIMARY_MODEL` pinned to `claude-opus-5-5` (Fable retired)
 
-- [x] `cargo test -p iscc-lib` — 309 + 10 (codec_clean) + 28 + 22 + 4 + 1 doctest pass, 0 failed
-- [x] `iscc_clean` errors on `"   "`/`"-"`/`"iscc:"`/`"----"`, bad scheme, extra colon; valid
-    hyphenated/padded/lowercase-scheme/multibase forms clean identically (codec_clean 10/10)
-- [x] `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt --check` clean
-- [x] `.crap-baseline.json` regenerated (cyclo 7→9, 100% cov); `.cargo-crap.toml` untouched
-- [ ] `mise run bench:iai:check` — mixed_code +6.95% PASS; **four_units +11.71% FAIL** vs the
-    unmodified committed baseline (`.iai-baseline.json` untouched, `git diff --quiet` confirmed).
-    **Primary criterion NOT met.**
+**Verification:** CI green on `d49b953`; release run `39061523822` + maven re-run `39063243788`
+green; 0.7.0 confirmed on crates.io, PyPI, npm (both), Maven Central (Java + Kotlin), Go proxy,
+RubyGems, NuGet, GitHub Releases (FFI + Swift XCFramework). The published PyPI wheel reproduces the
+new 256-bit vector and passes `conformance_selftest()`.
 
-**Probes (verified independently):**
-
-- Reference `iscc_clean` (`codec.py:644`) does exactly split-on-`:`/strip-each/multibase-check/strip
-    dash — the port is faithful; no cheaper conformant algorithm in std.
-- Pre-191 `gen_iscc_code_v0` did only `strip_prefix("ISCC:")` (NOT reference-correct — no trim, no
-    dash-strip, no lowercase scheme). So the committed baseline was set for cheaper-but-wrong code;
-    191/192 traded that cost for correctness — why removing allocations alone can't restore it.
-- The residual is two std `memchr` scans (`split_once(':')` + `contains('-')`); a scalar single-pass
-    measured *worse* (advance probe: 13,499 Ir). Irreducible without the out-of-scope `memchr`
-    crate.
-
-**Issues found:**
-
-- Primary: four_units Perf gate red — filed as `critical` [review] with the (A)/(B)/(C) decision.
-- No gate weakening in the unpushed range; no API break (`iscc_clean` is `pub(crate)`; `Cow` derefs
-    to `str`, all call sites source-compatible). Scope clean (2 source files + 2 generated
-    baselines).
-
-**Codex review:** Concurs — flags the same P1 (four_units 13,369 vs 11,968 = +11.71%, CI red) and
-suggests "combine the delimiter checks or obtain an approved rebaseline." Combining scans is what
-the advance already measured as *slower* (std SIMD memchr beats a scalar merge); the approved
-rebaseline is option (A). Advisory only — does not change the verdict.
-
-**Next:** BLOCKED on the human decision above. Once four_units is green (option A/B), unblock in
-priority order: Go `iscc_clean` port (issues.md `normal` — must replicate the iter-192 empty guard),
-then Ruby `gen_iscc_id_v1` validation-order and the ASCII-only iai-bench gap.
+**Next:** v0.8.0 — the ISCC-SEQ codec (target.md "Current Release Milestone — v0.8.0", spec
+`rust-core.md` → "encode_seq / decode_seq (ISCC-SEQ, IEP-0020)"). Suggested order: Rust core +
+ported `test_seq.py` cases first; then the Go `iscc_clean` issue (prerequisite for Go `encode_seq`);
+then the bindings and the conformance harnesses. The four `normal` issues filed today (wasm npm
+metadata, Ruby `json` alert, Ruby locale, `cid:run` fallback model) are small and independent.
 
 **Notes:**
 
-- NOT pushed — verdict NEEDS_WORK, Perf gate red. Remote develop is already red at the iter-192 tip
-    (b2f56b6); iter 192's review missed the 191 regression because `mise run check` skips iai.
-- The iter-193 `Cow` commit (`5ffa5cb`) stays regardless of which option lands — it is correct and
-    strictly reduces the regression.
+- Local gate runs in the devcontainer need `LANG=C.UTF-8` (Ruby) and, for `git push`, the `gh`
+    credential helper — see learnings.md
+- The Tier 1 count in target/specs is now 35 (desired state); crate `CLAUDE.md`, notes and docs
+    still say 33 until ISCC-SEQ lands — update them in the step that makes it true

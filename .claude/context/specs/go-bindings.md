@@ -225,7 +225,7 @@ constant is synced for diagnostic purposes.
 - [ ] Package installs cleanly via `go get` with no external dependencies beyond Go modules
 - [ ] No cgo required (`CGO_ENABLED=0` works)
 - [ ] Cross-compilation works (`GOOS`/`GOARCH` combinations)
-- [ ] All 33 Tier 1 symbols accessible with idiomatic Go types and error handling
+- [ ] All 35 Tier 1 symbols accessible with idiomatic Go types and error handling
 - [ ] API uses Go conventions: `PascalCase`, `error` returns, `[]byte`, `io.Reader`
 - [ ] No binary artifacts committed to the repository
 - [ ] `check-added-large-files` threshold at 256KB

@@ -167,3 +167,48 @@ is UB. Pre-existing (not introduced by the jni 0.22 migration) and mitigated by 
 owning the handle lifecycle, but a one-line `if ptr == 0` → throw guard per function would make the
 boundary robust against misuse of the public JNI surface. Surfaced during the PR #44 review sweep
 (2026-07-30).
+
+## `@iscc/wasm` on npm has no license and a README-badge description `normal` [human]
+
+`npm view @iscc/wasm@0.7.0 license` is empty and its `description` is the README's badge markdown
+(`[![CI](…)`), while `@iscc/lib` shows `Apache-2.0`. Cause: `crates/iscc-wasm/Cargo.toml` declares
+no `license`/`description` (wasm-pack derives `pkg/package.json` from it), and the release
+workflow's "Set npm package name and version" step (`.github/workflows/release.yml`, `build-wasm`)
+patches only `name`, `repository` and `version`. npm and package scanners therefore treat the
+package as unlicensed.
+
+Resolved when a `wasm-pack build` of `crates/iscc-wasm` (or the release patch step) yields a
+`package.json` with `"license": "Apache-2.0"` and a plain-text description, verified by inspecting
+the generated `pkg/package.json`. Takes effect on npm with the next release.
+
+## Dependabot alert: Ruby `json` gem in `crates/iscc-rb/Gemfile.lock` `normal` [human]
+
+GitHub Dependabot alert #1 (low): `json` 2.21.1 is affected by "JSON::ResumableParser#partial_value
+dereferences a freed input buffer" (vulnerable `>= 2.20.0, <= 2.21.1`, patched in 2.21.2). The lock
+file pins the Ruby binding's development/test environment only — the published gem does not pin
+`json`. Constraint: `rb_sys` is deliberately held at 0.9.123 (see `crates/iscc-rb/CLAUDE.md` and the
+held comments in the Gemfile), so update `json` alone (`bundle update json --conservative` in
+`crates/iscc-rb`) rather than refreshing all gems.
+
+Resolved when `Gemfile.lock` pins `json` >= 2.21.2 with `rb_sys` unchanged, the Ruby CI job is
+green, and `gh api repos/iscc/iscc-lib/dependabot/alerts/1 --jq .state` reports `fixed`.
+
+## Ruby conformance test depends on the process locale `normal` [human]
+
+`crates/iscc-rb/test/test_conformance.rb:13` reads `data.json` with `File.read(DATA_JSON)`, which
+uses `Encoding.default_external`. With `LANG`/`LC_ALL` unset (as in the devcontainer) Ruby reads the
+UTF-8 file as US-ASCII and the whole suite aborts with `Encoding::InvalidByteSequenceError` before
+any test runs. CI passes only because its runners have a UTF-8 locale.
+
+Resolved when every Ruby test that reads a JSON fixture passes an explicit `encoding: "UTF-8"` and
+`env -u LANG -u LC_ALL bundle exec rake test` passes in `crates/iscc-rb`.
+
+## `cid:run` passes a fallback model identical to the primary `normal` [human]
+
+`mise.toml` runs `tools/cid.py --fallback-model opus run …`. Since every CID role is pinned to
+`claude-opus-5-5` (2026-10-17), the `opus` alias resolves to the same model, so the fallback never
+changes anything on overload. The human decided the loop runs on Opus 5.5 only, so a different
+fallback model is not wanted either.
+
+Resolved when the `cid:run` task no longer passes `--fallback-model` (the `--fallback-model` option
+in `tools/cid.py` stays available for ad-hoc use) and `tests/test_cid.py` still passes.

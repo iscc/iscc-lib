@@ -4,8 +4,8 @@ Concise index — **one line per entry, detail belongs in a topic file.** `revie
 verification, claim-probing, gate scripts, parity gates), `gate-reviews.md` (CI +
 Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`; JNI CLOSED 33/33 at
 169), `dep-refresh-reviews.md` (v0.6.0 slices COMPLETE at 172 + framework/wrapper/lockfile/ regen
-majors), `gha-workflow-reviews.md` (release.yml, action bumps), `unicode-reviews.md` (freeze rule,
-sweep + differential gates, boundary vectors), `codex-integration.md`. Stale → `MEMORY-archive.md`.
+majors), `gha-workflow-reviews.md` (release.yml, action bumps), `unicode-reviews.md` (HISTORICAL —
+freeze removed 2026-07-30), `codex-integration.md`. Stale → `MEMORY-archive.md`.
 
 ## Quality Gate Details
 
@@ -69,9 +69,9 @@ sweep + differential gates, boundary vectors), `codex-integration.md`. Stale →
     HUMAN-REVIEW spec amendments + `low` left → **HUMAN REVIEW REQUESTED**, never `**IDLE**`
     (all-`low` only). Verdict still PASS. Same call when the only `normal` left is trigger-gated on
     an upstream release (173, go1.27): escalate rather than burn a `Step: NONE` cycle
-- **Unicode freeze-rule work has its own playbook → `unicode-reviews.md`** — read before any diff
-    under `utils/unicode16*`, `unicode_boundary.json`, `scripts/gen_unicode16_*`: `U+FFFF` sentinel,
-    no bare `.to_lowercase()`, `mise run unicode:sweep`, "a binding can pass for the WRONG reason"
+- **Unicode freeze rule REMOVED 2026-07-30** (decisions.md): `utils/unicode16*`,
+    `unicode_boundary.json`, the sweep gate and the `U+FFFF` sentinel are gone. A diff that
+    reintroduces any freeze mechanism without a new human decision is a NEEDS_WORK
 - **"files were modified by this hook" often means SOMETHING ELSE WAS WRITING** (97/164): a second
     CID loop (confirm `ps aux` → HUMAN REVIEW REQUESTED, do not push or kill), or my own Edits
     landing while a backgrounded prek run held its snapshot. Never edit while prek runs

@@ -3,6 +3,10 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
+**Status 2026-10-17:** v0.6.0 shipped 2026-07-30, v0.7.0 shipped 2026-10-17 (iscc-core 1.5.0
+Image-Code fix, npm OIDC). Active milestone: **v0.8.0 ISCC-SEQ** (target.md). The v0.6.0 Phase
+section below and the Unicode-freeze entries are history — the freeze was removed 2026-07-30.
+
 ## Scope Calibration Principles
 
 - **CI red always first** — green CI is a prerequisite for all other work; formatting/lint/advisory
@@ -130,10 +134,11 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
 - **Lint/formatter tool bumps + hook-config changes** →
     [lint tooling lessons](lint-tooling-lessons.md). Headline: **never make an exact file/finding
     count a pass/fail criterion** — use the exit code.
-- **Unicode chain DONE (147–161)**: sentinel freeze, `Final_Sigma` freeze, `mise run unicode:sweep`
-    gate, boundary vectors on all 11 surfaces; never revive the superseded category override or a
-    15.1.0 declared version. A 13th vector costs 12 suites — any fixture edit is its own slice.
-    Details → [unicode-freeze-facts](unicode-freeze-facts.md) + propagation ledger.
+- **Unicode chain (147–161) — REMOVED 2026-07-30 by the human (decisions.md); history only**:
+    sentinel freeze, `Final_Sigma` freeze, `mise run unicode:sweep` gate, boundary vectors on all 11
+    surfaces; never revive the superseded category override or a 15.1.0 declared version. A 13th
+    vector costs 12 suites — any fixture edit is its own slice. Details →
+    [unicode-freeze-facts](unicode-freeze-facts.md) + propagation ledger.
 - **Gate/checker steps in `scripts/`** → [gate scripts playbook](gate-scripts-playbook.md) +
     [release.yml static gates](release-yml-static-gates.md) (split behavioural from mechanical in
     the CI-unexercised `release.yml`, 139/140).

@@ -401,3 +401,31 @@ rejected by the human; pin without freeze trickery — rejected, still diverges 
 reference. **Supersedes** the 2026-07-25/26 freeze-rule rulings; do not reintroduce any freeze
 mechanism without a new human decision. Agent memories describing the freeze design are stale.
 **Context:** interactive session 2026-07-30, this commit.
+
+## 2026-10-17 — npm publishes via OIDC trusted publishing, direct publish (not staged)
+
+**Decision:** `@iscc/lib` and `@iscc/wasm` publish through npm trusted publishing: one trusted
+publisher per package on npmjs.com (GitHub Actions, `iscc/iscc-lib`, workflow `release.yml`, no
+environment, "Allow npm publish" on). The two publish jobs carry no `NPM_TOKEN`, run Node 24 (npm
+
+> = 11.5.1) and set no `registry-url` in `setup-node`. **Why:** granular npm write tokens expire
+> after at most 90 days and the token broke or blocked the v0.5.0 and v0.7.0 releases; OIDC has
+> nothing to expire, matching crates.io/PyPI/RubyGems. `registry-url` is omitted because
+> `setup-node@v7` no longer exports a dummy `NODE_AUTH_TOKEN`, so its generated `.npmrc` would
+> reference an unset variable. **Alternatives:** keep rotating tokens — rejected (recurring release
+> failures); staged publishing (CI stages, a human approves each version on npmjs.com with 2FA) —
+> npm's recommended mode, deferred because it adds a manual step to every release; it can be
+> switched on later without touching the workflow's auth. **Context:** interactive session
+> 2026-10-17, first validated by the v0.7.0 publish. Changing a trusted-publisher entry needs the
+> human's npm 2FA passkey.
+
+## 2026-10-17 — All CID roles run on Opus 5.5; Fable retired
+
+**Decision:** every role (`update-state`, `define-next`, `advance`, `review`, `audit`,
+`meta-improve`) and the runner's `PRIMARY_MODEL` are pinned to `claude-opus-5-5`, with the effort
+levels unchanged (xhigh: advance, review, audit, define-next; high: update-state, meta-improve).
+**Why:** human decision — Opus 5.5 at varying effort covers every role; a single model family keeps
+behaviour comparable across roles and runs. Opus 5.5 has a 1M-token window by default, so the `[1m]`
+suffix is dropped. **Alternatives:** keep `advance`/`audit` on Fable — rejected by the human.
+**Context:** interactive session 2026-10-17. Role timeouts and budgets were tuned under Fable/Opus
+4.8 and stay as they are until iteration data says otherwise.

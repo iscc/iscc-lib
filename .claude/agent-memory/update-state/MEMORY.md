@@ -57,8 +57,8 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     = 8 registry toggles (Swift XCFramework is a `prepare-release` step, NOT a toggle).
     `specs/ci-cd.md` job table EXHAUSTIVE since 163 (21 rows==21 keys, gated); prose counts unpinned
     (HAND edit).
-- **Unicode = 16.0.0 + TWO freeze layers + sweep gate → read `unicode-contract.md` before ANY
-    Unicode call** (fixture-plumbing table, 2 SUPERSEDED designs, surefire CWD landmark).
+- **Unicode freeze REMOVED 2026-07-30** (decisions.md): no pin, no sweep gate, no boundary fixture —
+    `text_clean`/`text_collapse` use the dependencies' tables. `unicode-contract.md` is history.
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`),
     gated. `streaming.rs`: `DataHasher`/`InstanceHasher` at crate root, `SumHasher` via
     `streaming::` only. iscc-wasm `blake3 wasm32_simd` = feature-unification, don't prune. `iscc-py`
@@ -135,9 +135,8 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     path, count) in a sub-spec under `.claude/context/specs/` with NO escalation; `target.md` +
     rationale/criteria/scope still need the human. Report stale spec FACTS.
 - **Every ecosystem has a lockfile** (170: .NET `packages.lock.json` `--locked-mode`; a bump needs
-    `--force-evaluate` same commit). Propagation invariant:
-    `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** == `VENDORED_COPIES` in
-    `tests/test_vendored_fixtures.py`.
+    `--force-evaluate` same commit). Propagation invariant: `git ls-files -- '*data.json'` = **5**
+    (canonical + 4 vendored) == `VENDORED_COPIES` in `tests/test_vendored_fixtures.py`.
 - **Loop infra (162):** `ARTIFACT_BUDGETS` (`tools/cid.py`) caps state 200; `decisions.md` rotates
     into `decisions-archive.md` (grep BOTH) — dirty `decisions*.md` = runner, not crash.
 - **Issue count: never carry forward** — re-grep `^## ` headers each iteration (a legend inflates a

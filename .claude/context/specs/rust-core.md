@@ -146,7 +146,7 @@ serializing to JSON once (language-specific) then delegating encoding to Rust.
 
 ## Codec Operations
 
-Three codec functions are public Tier 1 API.
+Five codec functions are public Tier 1 API.
 
 ### iscc_decompose
 
@@ -217,6 +217,76 @@ enum fields (same pattern as `encode_component`).
 - [ ] Output matches iscc-core `iscc_decode` for identical inputs
 - [ ] Handles both `"ISCC:..."` prefixed and bare base32 input
 - [ ] Function is accessible from all bindings
+
+### encode_seq / decode_seq (ISCC-SEQ, IEP-0020)
+
+Ported from iscc-core 1.4.0 (`reference/iscc-core/iscc_core/codec.py`: `read_unit`, `encode_seq`,
+`decode_seq`; `constants.py`: `SEQ_MAINTYPES`). An **ISCC-SEQ** is the plain byte concatenation of
+ISCC-UNITs, each written as header + body. It is the value format of C2PA soft bindings for
+`io.iscc.v0` (IEP-0020, https://github.com/iscc/iscc-ieps, "ISCC-SEQ Format" and "Decoding").
+`reference/iscc-core/tests/test_seq.py` is the executable spec — port every positive and negative
+case, matching the meaning of each error, not its text.
+
+| Function        | Signature (Rust)                                      | Tier |
+| --------------- | ----------------------------------------------------- | ---- |
+| `encode_seq`    | `fn(units: &[&str]) -> IsccResult<Vec<u8>>`           | 1    |
+| `decode_seq`    | `fn(data: &[u8]) -> IsccResult<Vec<String>>`          | 1    |
+| `read_unit`     | `fn(data: &[u8], offset: usize) -> IsccResult<usize>` | 2    |
+| `SEQ_MAINTYPES` | META, SEMANTIC, CONTENT, DATA, INSTANCE               | 2    |
+
+`read_unit` and `SEQ_MAINTYPES` are public Rust items in `codec` only — never bound.
+
+**`read_unit(data, offset)`** validates one unit and returns the offset where it ends:
+
+- Decode the header from a window of at most 8 bytes at `offset`; error if the bytes end before the
+    header is complete
+- Re-encode the decoded fields and require the window to start with exactly those bytes — this
+    rejects non-canonical headers (e.g. a non-zero padding nibble)
+- MainType must be in `SEQ_MAINTYPES` (reject ISCC-CODE, ID and FLAKE); Length field must be ≤ 7;
+    the body is `4 * (ln + 1)` bytes; error if it runs past the end of `data`
+- Never reject a unit for an unknown SubType or Version
+
+**`encode_seq(units)`**: one or more unit strings; `ISCC:` prefix optional, any case, hyphens
+allowed. **Uppercase each string before cleaning it** — otherwise a bare lowercase unit starting
+with `b` or `f` is mistaken for multibase (`faaa-aaaaaaaa` must give bytes `28000000000000`). Each
+string must decode to exactly one unit (trailing data, including several units in one string, is an
+error). Reject an empty list, empty or whitespace-only units, disallowed MainTypes and
+multiformat-encoded input. **`decode_seq(data)`**: strict — reject empty input and trailing bytes
+and apply every `read_unit` rule; return canonical `ISCC:`-prefixed unit strings in wire order,
+preserving unknown SubType/Version. `encode_seq(decode_seq(x)) == x` must hold.
+
+**Cleaning parity:** both rely on `iscc_clean` matching iscc-core. Rust's `codec::iscc_clean` does;
+the pure-Go port does not yet — the `normal` issue "Go codec input cleaning diverges" is a
+prerequisite for the Go `encode_seq`.
+
+**Bindings:** every surface that binds Tier 1 binds both, the pure-Go port included, with each
+language's natural types (list of strings in → bytes out, and the reverse), following how
+`iscc_decompose` and other byte/list-taking functions are already bound there.
+
+**Conformance data:** `data.json` (iscc-core 1.5.0, already vendored) has `encode_seq` and
+`decode_seq` sections, 4 vectors each. Their outputs are a `bytes:<hex>` string and a list (every
+other section's outputs are objects), and `bytes:<hex>` also appears in inputs. Every conformance
+harness must run both sections with `bytes:` decoding. Swift and Kotlin hard-code per-section
+counts; the Go loader `parseConformanceData` deliberately loads only `gen_*` sections today, so the
+Go seq tests need their own loader.
+
+**Also in scope:** align the `iscc_decompose` doc comment (`codec.rs`) with iscc-core 1.4.0 — its
+input is the base32 form of concatenated unit bytes, which concatenated unit *strings* only yield
+for 64-bit units; point to `decode_seq` as the strict byte-level reader. Update every place that
+repeats the Tier 1 count (crate `CLAUDE.md`, `notes/04-api-compatibility-safety.md`,
+`docs/architecture.md`, binding docs) in the step that makes it true.
+
+**Verified when:**
+
+- [ ] Rust: all `test_seq.py` cases ported (positive + negative), including the multibase-like and
+    tolerant-input cases and `read_unit` sequential offsets
+- [ ] Python: a pytest differential test asserts byte/list identity with `iscc_core.encode_seq` /
+    `decode_seq` (iscc-core 1.5.0 is the dev dependency) and that both sides reject the same inputs
+- [ ] Every conformance harness (Rust, Python, Node, WASM, C, C++, Java, Go, Ruby, .NET, Swift,
+    Kotlin) runs the 4 `encode_seq` + 4 `decode_seq` vectors
+- [ ] `encode_seq` / `decode_seq` accessible from all 11 bindings with idiomatic names and types;
+    the pure-Go port carries its own implementation and test cases
+- [ ] Round trip `encode_seq(decode_seq(x)) == x` holds for every vector on every surface
 
 ## ISCC-IDv1 Operations (Experimental)
 
@@ -569,15 +639,16 @@ The full public API surface bound in all languages:
 | Algorithms  | `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash` |
 | Soft hashes | `soft_hash_video_v0`                                                 |
 | Encoding    | `encode_base64`, `json_to_data_url`                                  |
-| Codec       | `iscc_decompose`, `encode_component`, `iscc_decode`                  |
+| Codec       | `iscc_decompose`, `encode_component`, `iscc_decode`,                 |
+|             | `encode_seq`, `decode_seq`                                           |
 | ISCC-IDv1   | `gen_iscc_id_v1` (experimental)                                      |
 | Constants   | `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`,         |
 |             | `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`                                    |
 | Streaming   | `DataHasher`, `InstanceHasher`                                       |
 | Diagnostics | `conformance_selftest`                                               |
 
-Total: 10 gen functions + 4 text utils + 4 algorithm primitives + 1 soft hash + 2 encoding + 3 codec
-\+ 1 ISCC-IDv1 + 5 constants + 2 streaming types + 1 diagnostic = **33 public symbols** (+ the
+Total: 10 gen functions + 4 text utils + 4 algorithm primitives + 1 soft hash + 2 encoding + 5 codec
+\+ 1 ISCC-IDv1 + 5 constants + 2 streaming types + 1 diagnostic = **35 public symbols** (+ the
 `codec` module remains Tier 2 Rust-only for header encode/decode internals).
 
 `gen_iscc_id_v1` is Tier 1 for binding-surface purposes (every language exposes it) but is **exempt
@@ -604,7 +675,7 @@ change is explicitly sanctioned by a human and reflected in the version number.
 - **Output compatibility** (already enforced): every `gen_*_v0` function must keep producing output
     identical to the conformance vectors and to `iscc-core`. This is the primary contract for
     downstream consumers and is covered by the existing conformance suite.
-- **API compatibility** (new gate): the public surface of `iscc-lib` (the 33 Tier 1 symbols + the
+- **API compatibility** (new gate): the public surface of `iscc-lib` (the 35 Tier 1 symbols + the
     Tier 2 `codec` module) must not change in a backward-incompatible way without a major version
     bump. Enforced by `cargo-semver-checks` in CI against the previously published release. The two
     experimental ISCC-IDv1 symbols are carved out of this lock until the upstream format settles —

@@ -46,6 +46,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     a cleaning helper that can yield `""` (blank/dash-only/`"iscc:"`) must reject empty before
     decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage on
     cleaning
+- **iscc-core 1.5.0 `data.json`** (2026-10-17): `encode_seq`/`decode_seq` sections have non-object
+    outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)
 
 ## Tooling
 
@@ -63,6 +65,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **A docs page lives in FOUR places** — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
     `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`
     (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
+- **Devcontainer** (2026-10-17): export `LANG=C.UTF-8` for local gates (Ruby aborts reading UTF-8
+    fixtures otherwise); push via `git -c credential.helper='!gh auth git-credential' push`
+- **Release-only toolchains drift unseen** (0.7.0): Maven 3.10 broke
+    `central-publishing-maven-plugin` < 0.12.0; `setup-node@v7` dropped its dummy `NODE_AUTH_TOKEN`.
+    First symptom is a failed publish
 
 ## ISCC Algorithm Knowledge
 

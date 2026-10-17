@@ -3,7 +3,8 @@
 Detail lives in topic files: [ci-gates.md](ci-gates.md),
 [uniffi-swift-kotlin.md](uniffi-swift-kotlin.md), [deps-refresh.md](deps-refresh.md),
 [wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md), [release-gate.md](release-gate.md),
-[unicode-freeze.md](unicode-freeze.md). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
+[unicode-freeze.md](unicode-freeze.md) (HISTORICAL — freeze removed 2026-07-30). Archived phases:
+[MEMORY-archive.md](MEMORY-archive.md).
 
 **Size budget:** Keep under 140 lines. Move detail to topic files; archive stale entries.
 
@@ -13,14 +14,13 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 
 - Rust core: `crates/iscc-lib/src/` — lib.rs (crate root, Tier 1 re-exports), codec.rs, cdc.rs,
     minhash.rs, simhash.rs, dct.rs, wtahash.rs, utils.rs, streaming.rs, conformance.rs
-- Conformance vectors: `crates/iscc-lib/tests/data.json` (50 total, v1.3.0). Vendored copies
+- Conformance vectors: `crates/iscc-lib/tests/data.json` (iscc-core 1.5.0: 50 `gen_*` + 4
+    `encode_seq` + 4 `decode_seq`, outputs `bytes:<hex>`/list). Vendored copies
     (packages/{dotnet,go,kotlin,swift}) gated by `tests/test_vendored_fixtures.py` — any NEW tracked
-    `data.json`/`unicode_boundary.json` copy → register in `VENDORED_COPIES` or the test reds
-- Unicode 16.0.0 freeze rule (iter 148): `text_clean`/`text_collapse` MAP 16.0-unassigned code
-    points to `UNASSIGNED_SENTINEL` (`U+FFFF`) pre-normalization; unchanged category-`C` filter
-    removes it. NOT delete-filter, NOT category override. Case freeze (156): `Final_Sigma` via
-    `to_lowercase_unicode16` (vendored `utils/unicode16_case.rs`) — never bare
-    `str::to_lowercase()`. Design, table regen, boundary fixture → unicode-freeze.md
+    `data.json` copy → register in `VENDORED_COPIES` or the test reds
+- Unicode freeze rule REMOVED 2026-07-30 (decisions.md, human): no sentinel, no vendored tables, no
+    boundary fixture — `text_clean`/`text_collapse` mirror the reference on the dependencies'
+    tables. Never reintroduce a freeze mechanism without a new human decision
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
@@ -36,11 +36,9 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 
 - `cargo build -p iscc-jni` before `mvn clean test -f crates/iscc-jni/java/pom.xml` (native prereq;
     plain `mvn test` reuses stale classes). jni 0.22 → deps-refresh.md
-- CI `.github/workflows/ci.yml`: 21 jobs (version-check, rust, python-test, python, nodejs, wasm,
+- CI `.github/workflows/ci.yml`: 20 jobs (version-check, rust, python-test, python, nodejs, wasm,
     c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver, coverage, audit,
-    release-workflow, unicode-sweep). `bench`=`cargo bench --no-run`; `swift` macos-14; `kotlin`
-    ubuntu JDK17; `unicode-sweep`=CPython 3.14 (bare `uv run scripts/unicode_sweep.py` fails closed
-    without `--rebuilt` → unicode-freeze.md)
+    release-workflow). `bench`=`cargo bench --no-run`; `swift` macos-14; `kotlin` ubuntu JDK17
 - Enforcing gates: `coverage` (CRAP baseline `.crap-baseline.json`), `audit` (cargo-deny), `perf`
     (iai vs `.iai-baseline.json`); `semver` informational until v1.0.0. CRAP gate is CI-ONLY —
     refresh `mise run crap:baseline` in the SAME step as any branch-adding change → ci-gates.md
@@ -109,7 +107,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     scanning cost of reference-correct cleaning (trim + 2× memchr per code), NOT allocation
     (strip_prefix-only iscc_clean = +2.6%). std memchr beats a scalar single-pass, so unfixable
     without a baseline bump (human/gate, next.md-forbidden here). iscc_clean cyclo 7→9 in
-    `.crap-baseline.json`
+    `.crap-baseline.json`. RESOLVED 2026-07-29: the human raised the four_units baseline to 13,400
+    (decisions.md) — Perf gate green since
 - ISCC-IDv1 #43 COMPLETE (iter 190): Part 1 codec `Version` V1 (174) + Part 2 minting on all 11
     surfaces (178-188) + Tier-1 32→33 doc/count sweep + per-surface API/howto entries (190). Tier-1
     count is now 33 in ALL shipped-artifact docs (canonical breakdown `specs/rust-core.md:693`); no
@@ -125,8 +124,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     nav order differs (nav starts Rust, Python)
 - Howto guides `docs/howto/{lang}.md`; API refs
     `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`; per-package READMEs + CLAUDE.md under
-    `packages/{dotnet,cpp,swift,kotlin}/`; `docs/unicode.md` = user-facing Unicode 16.0.0
-    freeze-rule page (nav Explanation + `ORDERED_PAGES` + llms.txt)
+    `packages/{dotnet,cpp,swift,kotlin}/`; `docs/unicode.md` was removed with the freeze rule
+    (2026-07-30)
 - `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md`; run after the
     `zensical build` step in docs CI
 - Adding a docs page = update `zensical.toml` nav + `ORDERED_PAGES` + `docs/llms.txt` together —
