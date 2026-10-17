@@ -596,8 +596,8 @@ fn soft_hash_image_v0(pixels: &[u8], bits: u32) -> IsccResult<Vec<u8>> {
     // Step 4: Transpose back → dct_matrix
     let dct_matrix = transpose_matrix(&dct_cols);
 
-    // Step 5: Extract 8×8 blocks at positions (0,0), (1,0), (0,1), (1,1)
-    let positions = [(0, 0), (1, 0), (0, 1), (1, 1)];
+    // Step 5: Extract 8×8 blocks at positions (0,0), (8,0), (0,8), (8,8)
+    let positions = [(0, 0), (8, 0), (0, 8), (8, 8)];
     let mut bitstring = Vec::<bool>::with_capacity(256);
 
     for (col, row) in positions {
