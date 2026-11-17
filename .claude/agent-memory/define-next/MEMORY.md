@@ -5,7 +5,8 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
 
 **Status 2026-10-17:** v0.6.0 shipped 2026-07-30, v0.7.0 shipped 2026-10-17 (iscc-core 1.5.0
 Image-Code fix, npm OIDC). Active milestone: **v0.8.0 ISCC-SEQ** (target.md). The v0.6.0 Phase
-section below and the Unicode-freeze entries are history — the freeze was removed 2026-07-30.
+section below and the Unicode-freeze entries are history — the freeze was removed 2026-07-30. See
+[ISCC-SEQ phase](iscc-seq-phase.md) for the v0.8.0 slice plan and traps (195 = Rust core).
 
 ## Scope Calibration Principles
 
@@ -112,20 +113,6 @@ section below and the Unicode-freeze entries are history — the freeze was remo
     committed baseline (never bump `.iai-baseline.json` to mask a removable cost). `mise run check`
     skips iai (CI-only) so the reviewer missed it — a text/codec-hot-path step must flag
     `bench:iai:check`.
-- **v0.6.0 release readiness (191→): only CID-doable blocker left is "no `normal`/`critical` issue
-    open".** 4 open `normal` `[review]` gate it: (1) **codec `iscc_clean` divergence** — most
-    substantive, TWO-surface (Rust 4 sites + hand-ported Go 4 sites = TWO steps, not fan-out; issue
-    says "two parallel fixes"). 191 scoped the Rust half (shared private `iscc_clean` helper routed
-    through `codec.rs` iscc_decompose + `lib.rs` iscc_normalize/gen_mixed/gen_iscc_code). Ref
-    `codec.py:644`: trim→split(':')→1-part strips dashes only if first char NOT multibase
-    `f/b/v/z/u`, 2-part case-insensitive `iscc` scheme. **191 Rust half NEEDS_WORK (192 fix):** any
-    input-cleaning helper that can yield `""` (`"   "`/`"-"`/`"iscc:"`/`"----"`) must guard empty
-    BEFORE decode — `decode_base32("")` returns `Ok(empty)` so `iscc_decompose` silently returns
-    `Ok([])` for malformed input the ref errors on. Guard inside `iscc_clean` (DRY, covers all 4
-    sites). Differential tests only exercise VALID inputs — always add empty/garbage-form asserts.
-    (2) Ruby wide-input validation order (`> i64::MAX` only, near-zero impact). (3) c-ffi-api doc
-    type names vs `iscc_`-prefixed header. (4) iai ASCII-only text benchmarks (needs valgrind
-    machine). go1.27 tripwire upstream-blocked.
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published
