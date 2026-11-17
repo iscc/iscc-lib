@@ -85,28 +85,25 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: ad69c8e, iter 194 — FULL review after a human-reset state.md)
+## Current State (assessed-at: e6e5c70, iter 195 — incremental)
 
-- **Loop paused 193 → 2026-10-17; everything since was HUMAN** (`cid(human):` commits, no jsonl
-    entries). v0.6.0 shipped 2026-07-30, **v0.7.0 shipped 2026-10-17**; `develop`==`main`==`d49b953`
-    CI fully green (Perf, CRAP, Semver, Swift, Kotlin all success). Iter-193 Perf blocker resolved
-    by the human raising the `four_units` iai baseline (decisions.md 2026-07-29).
-- **Target = v0.8.0 ISCC-SEQ** (`encode_seq`/`decode_seq` Tier 1 33→35 on all 11 surfaces + Tier 2
-    `read_unit`/`SEQ_MAINTYPES`; spec `rust-core.md` ~L221). **ZERO implementation at 194** — the
-    only repo hit is a comment at `packages/go/conformance.go:27`. Probe:
-    `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq|read_unit|SEQ_MAINTYPES' crates packages`.
-- Seq vectors (4 encode + 4 decode, `bytes:<hex>` outputs) are vendored in all 5 identical
-    `data.json` copies but run by NO harness; Go `parseConformanceData` loads only `gen_*`.
-- **6 open `normal` issues, ALL actionable** (c-ffi-api unprefixed type names; Go `isccClean` absent
-    = prerequisite for Go seq; wasm `Cargo.toml` no license/description; Ruby `json` 2.21.1 +
-    Dependabot alert #1 open; Ruby `File.read` w/o encoding; `mise.toml` still passes
-    `--fallback-model opus`). One-line probes for each are cheap — re-run them, don't carry.
-- **Stale target fact (human-owned):** "Tag push `v*.*.*` triggers all publish jobs" — release.yml
-    is `workflow_dispatch`-only by design since `8f444eb` (workflow creates the tag). PR #48
-    (`fix/image-code-dct-quadrants`→main) open though superseded by #49.
+- **Loop paused 193 → human sessions through 2026-11-17** (`cid(human):` commits, no jsonl entries).
+    v0.7.0 shipped 2026-10-17. HEAD `e6e5c70` = 2 UNPUSHED human commits (seq-spec sharpening + CID
+    runner: `tools/cid.py` passes frontmatter `model:`/`effort:` as flags, Fable 5.2 advisor). Green
+    CI on `a0cf7a2` does NOT cover them.
+- **Target = v0.8.0 ISCC-SEQ** (Tier 1 33→35 on 11 surfaces + Tier 2 `read_unit`/`SEQ_MAINTYPES`;
+    spec `rust-core.md` ~L221, now with a "typed-header trap" + IEP-0020 Table 2 vectors). **ZERO
+    implementation at 195.** Probe:
+    `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq|read_unit|SEQ_MAINTYPES' crates packages`
+    (hits only `data.json` copies + `packages/go/conformance.go` comment).
+- **6 open `normal`**: 5 actionable (c-ffi-api names; Go `isccClean`; wasm license; Ruby `json`
+    2.21.1; Ruby `File.read` encoding). The `cid:run` fallback issue is CONTRADICTED: `mise.toml`
+    now passes `--fallback-model claude-opus-5` but the issue's exit criterion = no flag at all.
+- **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"`. At 195: #1 Ruby
+    `json` (tracked) + #2–#6 on `uv.lock` (soupsieve 2.9.1 ×4 incl. 2 high, setuptools 83.0.0)
+    UNTRACKED in issues.md. Trace with `uv tree --frozen --invert --package <pkg>`.
 - **IDv1 (#43) fully closed — do NOT re-flag.** Golden:
-    `gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"`. Validation-order contract
-    (ts→hub→realm before narrowing) → `rust-core.md`.
+    `gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"`.
 - **dotnet gotcha:** csbindgen `build.rs` regenerates tracked `NativeMethods.g.cs` on every build;
     any FFI-symbol step (seq!) must regen `iscc.h` + `NativeMethods.g.cs` in-step.
 
