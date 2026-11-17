@@ -30,8 +30,8 @@ patterns natural to their ecosystem.
 
 The active goal. `0.7.0` shipped on 2026-10-17 (Image-Code fix from iscc-core 1.5.0, conformance
 data at iscc-core 1.5.0, npm on OIDC trusted publishing). v0.8.0 adds the **ISCC-SEQ codec** from
-iscc-core 1.4.0 (IEP-0020) on the Rust core and all 11 language surfaces. **v1.0.0 comes after it
-and remains human-gated** — do not treat any v1.0.0 criterion below as v0.8.0 work.
+iscc-core 1.5.0 (IEP-0020, GitHub issue #45) on the Rust core and all 11 language surfaces. **v1.0.0
+comes after it and remains human-gated** — do not treat any v1.0.0 criterion below as v0.8.0 work.
 
 **Ready for release when:**
 
