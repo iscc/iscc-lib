@@ -21,10 +21,10 @@ const TEST_DATA: &str = include_str!("../tests/data.json");
 
 /// Run conformance tests against vendored test vectors.
 ///
-/// Tests each `gen_*_v0` function section in the conformance data, calling each
-/// function with the specified inputs and comparing the `.iscc` field of the
-/// result against expected output. Code types whose feature flags are disabled
-/// are skipped. Returns `true` if all enabled tests pass, `false` if any
+/// Tests each `gen_*_v0` section (comparing the result's `.iscc` field) and the
+/// `encode_seq` / `decode_seq` sections (comparing bytes / unit lists) against
+/// the expected outputs. Code types whose feature flags are disabled are
+/// skipped. Returns `true` if all enabled tests pass, `false` if any
 /// mismatch or error occurs. Does not panic — logs failures via `eprintln!`
 /// and continues through all test cases.
 pub fn conformance_selftest() -> bool {

@@ -20,8 +20,9 @@ the `encode_seq` / `decode_seq` conformance sections run inside `conformance_sel
 - `crates/iscc-lib/src/lib.rs`: `pub use codec::{decode_seq, encode_seq};`
 - `crates/iscc-lib/src/conformance.rs`: `decode_bytes` (`bytes:<hex>`), `report_case`,
     `run_encode_seq_tests`, `run_decode_seq_tests`, wired into `conformance_selftest` with no
-    feature gate. The module doc is updated. 3 unit tests: both sections have 4 cases and pass; a
-    missing section fails; a mismatch, an error or a parse failure fails.
+    feature gate. Module doc and `conformance_selftest` rustdoc updated (same line count). 3 unit
+    tests: both sections have 4 cases and pass; a missing section fails; a mismatch, an error or a
+    parse failure fails.
 - `crates/iscc-lib/tests/test_seq.rs` (new, 44 tests): every `test_seq.py` case except the
     Python-only ones (`*_type_error`, `*bytes_like`, `memoryview`, `tuple_and_generator`). Plus:
     - 14 unknown SubType/Version headers pinned as **literal hex from iscc-core 1.5.0**, not generated
@@ -34,20 +35,23 @@ the `encode_seq` / `decode_seq` conformance sections run inside `conformance_sel
 
 **Verification:**
 
-- `cargo test -p iscc-lib`: all suites pass, including `test_seq` 44/44,
-    `test_conformance_selftest_passes` and `test_seq_sections_run`
-- `--no-default-features` and `--no-default-features --features text-processing`: every test result
-    is `ok`. The CI clippy lines for both feature sets are clean
+- `cargo test -p iscc-lib` (default features): all `test result: ok` — lib 296, test_seq 44, plus
+    10/28/22/1 in the other targets; includes `test_conformance_selftest_passes` and
+    `test_seq_sections_run`. `--no-default-features --features text-processing`: lib 266, test_seq
+    44, all `ok`; `--no-default-features`: all `ok`. CI clippy lines for both sets clean
 - `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt -p iscc-lib --check`
     exit 0
 - `mise run bench:iai:check`: exit 0, "OK: 16 benchmark(s) within 10% of baseline (Ir)", run with
     the header refactor in place. `git log -1 --format=%h -- .iai-baseline.json` prints `ecdee58`
     (unchanged)
-- CRAP: `mise run coverage` exit 0. Against the old baseline, the CI gate exited 1 with 3
-    regressions unrelated to SEQ: `soft_hash_image_v0` +0.1 (0.7.0 Image-Code change, baseline never
-    refreshed) and `parse_meta_json` / `json_to_data_url` +0.0 (rounding). After the regen, the CI
-    line `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
-    exits 0 (116 unchanged)
+- CRAP: `mise run coverage` exit 0. Against the old baseline the CI gate exited 1 with 3 regressions
+    in functions this step does not touch: `soft_hash_image_v0` +0.1, `parse_meta_json` /
+    `json_to_data_url` +0.0. Cause UNCONFIRMED: `lib.rs` changed in `173e2f4` (0.7.0 Image-Code fix)
+    after the last baseline refresh `59cdfcc`, but CI CRAP was reportedly green on `d49b953`, so a
+    local-vs-CI measurement difference (local rustc 1.100.0, cargo-llvm-cov 0.9.1; CI uses `@stable`
+    \+ latest) is also possible. After the regen the CI line
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    exits 0 (116 unchanged) locally; **CI CRAP on this sha is unverified**
 - `mise run check`: exit 0 (see Notes)
 
 **Next:** Binding slices for `encode_seq` / `decode_seq` (Python first, with the differential test
