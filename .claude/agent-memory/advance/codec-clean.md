@@ -1,0 +1,26 @@
+---
+name: codec-clean
+description: Rust codec::iscc_clean port (iters 191-193) — semantics, empty guard, Cow return, four_units perf baseline history; Go half still open
+metadata:
+  type: project
+---
+
+# Codec input cleaning (`iscc_clean`)
+
+Rust codec input-cleaning (iter 191): private `codec::iscc_clean(&str)->IsccResult<String>` ports
+`iscc_core.codec.iscc_clean` — trims ws, case-insensitive `iscc:` scheme, strips dashes UNLESS first
+char is multibase prefix (`f/b/v/z/u`). Routed through 4 sites: `iscc_decompose`, `iscc_normalize`,
+`gen_mixed_code_v0`, `gen_iscc_code_v0` (`cleaned` is now `Vec<String>`). Go half of the same issue
+is NOT done (packages/go isccNormalize etc.). `iscc_clean` is `pub(crate)` → its dedicated unit
+tests live in codec.rs, not integration tests. Iter 192: `iscc_clean` now GUARDS empty-cleaned
+result → `Err(InvalidInput("Empty ISCC string"))` (else
+`iscc_decompose("   ")`/`"-"`/`"iscc:"`/`"----"` silently `Ok([])` since `decode_base32("")`=Ok). Go
+port MUST replicate this guard, not copy the gap. Empty-input assertions live in
+`tests/codec_clean.rs`. Iter 193: `iscc_clean` returns `Cow<'_,str>` (allocation-free borrow when no
+scheme + no dash), `gen_iscc_code_v0.cleaned` is now `Vec<Cow<'_,str>>` — cut the 191/192 perf
+regression (four_units +36.82%→+11.71%, mixed +18.30%→+6.95% GREEN). BUT four_units STILL red: probe
+proved the residual ~+11.71% is INTRINSIC scanning cost of reference-correct cleaning (trim + 2×
+memchr per code), NOT allocation (strip_prefix-only iscc_clean = +2.6%). std memchr beats a scalar
+single-pass, so unfixable without a baseline bump (human/gate, next.md-forbidden here). iscc_clean
+cyclo 7→9 in `.crap-baseline.json`. RESOLVED 2026-07-29: the human raised the four_units baseline to
+13,400 (decisions.md) — Perf gate green since

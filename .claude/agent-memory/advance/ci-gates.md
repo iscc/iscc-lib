@@ -26,8 +26,11 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
     redirect to a file first. (Same gotcha applies to `cargo deny`.)
 - GOTCHA (iter 122): cargo-llvm-cov/cargo-crap are NOT preinstalled in the CID session env. The
     binstall'd cargo-crap 0.2.2 binary needs `GLIBC_2.39` (container glibc is older) — install it
-    from source: `cargo install cargo-crap --version 0.2.2` (~1.5 min). cargo-llvm-cov 0.8.7 via
-    `cargo binstall` works fine. Also `rustup component add llvm-tools-preview` first.
+    from source: `cargo install cargo-crap --version 0.2.2` (~1.5 min). No cargo-binstall in the
+    container (iter 195) → `cargo install cargo-llvm-cov --locked` too. Also
+    `rustup component add llvm-tools-preview` first.
+- `cargo clippy -p iscc-lib --all-targets --no-default-features` ALWAYS fails (benches import gated
+    `gen_meta/text_code_v0`) — pre-existing; CI runs that feature set WITHOUT `--all-targets`.
 - GUARD GAP: the CRAP regression gate runs ONLY in CI (not in `mise run check`/pre-commit). Any
     change adding a branch/loop to a covered fn MUST refresh `.crap-baseline.json` in the SAME step
     (`mise run crap:baseline`), else the next CI push goes red (iter 121→122 incident).
@@ -67,10 +70,12 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
 
 ## `perf` job (`Perf (iai-callgrind)`) + regression gate
 
-- iai harness COMPILES without valgrind/runner; running needs them (devcontainer HAS valgrind 3.19
-    - runner 0.16.1; local `mise run bench:iai`). CI: apt valgrind → binstall runner (`--force`
-        gotcha) → run benches → zero-collection guard → `Check perf regression` → upload
-        `iai-baseline` (`if: always()`).
+- iai harness COMPILES without valgrind/runner; running needs them. NOT preinstalled (iter 195):
+    `sudo apt-get update && sudo apt-get install -y valgrind` (install fails without the update) +
+    `cargo install iai-callgrind-runner --version 0.16.1 --locked` (no cargo-binstall in the
+    container; ~2 min). `mise run bench:iai:check` then ~3.5 min — run in background, log to file.
+    CI: apt valgrind → binstall runner (`--force` gotcha) → run benches → zero-collection guard →
+    `Check perf regression` → upload `iai-baseline` (`if: always()`).
 - PERF REGRESSION GATE (iter 109/110, issue #3): `scripts/iai_regression.py` (stdlib only) +
     committed `.iai-baseline.json` (repo root, 16 Ir entries). `--check` fails (exit 1) on any
     shared bench > `baseline*1.10`, any shared bench Ir==0 (false-green guard), or a baselined bench

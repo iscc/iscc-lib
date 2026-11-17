@@ -1,9 +1,10 @@
 //! Conformance selftest for ISO 24138:2024 (ISCC).
 //!
-//! Runs gen functions against vendored conformance vectors from `data.json`
-//! and reports pass/fail. Code types whose feature flags are disabled are
-//! skipped (not failed). With all features enabled, all 9 gen functions are
-//! tested. An application that claims ISCC conformance MUST pass all tests
+//! Runs gen functions and the ISCC-SEQ codec (`encode_seq` / `decode_seq`)
+//! against vendored conformance vectors from `data.json` and reports
+//! pass/fail. Code types whose feature flags are disabled are skipped (not
+//! failed). With all features enabled, all 9 gen functions are tested; the
+//! ISCC-SEQ sections run under every feature set. An application that claims ISCC conformance MUST pass all tests
 //! in this suite.
 
 #[cfg(feature = "meta-code")]
@@ -11,8 +12,8 @@ use crate::gen_meta_code_v0;
 #[cfg(feature = "text-processing")]
 use crate::gen_text_code_v0;
 use crate::{
-    gen_audio_code_v0, gen_data_code_v0, gen_image_code_v0, gen_instance_code_v0, gen_iscc_code_v0,
-    gen_mixed_code_v0, gen_video_code_v0,
+    decode_seq, encode_seq, gen_audio_code_v0, gen_data_code_v0, gen_image_code_v0,
+    gen_instance_code_v0, gen_iscc_code_v0, gen_mixed_code_v0, gen_video_code_v0,
 };
 
 /// Embedded conformance test vectors (compile-time).
@@ -52,6 +53,8 @@ pub fn conformance_selftest() -> bool {
     passed &= run_data_tests(&data);
     passed &= run_instance_tests(&data);
     passed &= run_iscc_tests(&data);
+    passed &= run_encode_seq_tests(&data);
+    passed &= run_decode_seq_tests(&data);
 
     passed
 }
@@ -547,6 +550,99 @@ fn run_iscc_tests(data: &serde_json::Value) -> bool {
     passed
 }
 
+/// Decode a `"bytes:<hex>"` value into bytes.
+fn decode_bytes(s: &str) -> Option<Vec<u8>> {
+    let hex_data = s.strip_prefix("bytes:")?;
+    hex::decode(hex_data).ok()
+}
+
+/// Report the outcome of one conformance case; returns whether it passed.
+fn report_case(func_name: &str, tc_name: &str, result: Option<bool>) -> bool {
+    match result {
+        Some(ok) => ok,
+        None => {
+            eprintln!("FAILED: {func_name}.{tc_name} — could not parse test inputs");
+            false
+        }
+    }
+}
+
+/// Run conformance tests for `encode_seq` (inputs `[[str…]]`, output `"bytes:<hex>"`).
+fn run_encode_seq_tests(data: &serde_json::Value) -> bool {
+    let func_name = "encode_seq";
+    let Some(cases) = data[func_name].as_object() else {
+        eprintln!("FAILED: {func_name} section missing from conformance data");
+        return false;
+    };
+
+    let mut passed = true;
+    for (tc_name, tc) in cases {
+        let result = (|| {
+            let units_json = tc["inputs"].as_array()?.first()?.as_array()?;
+            let units: Vec<&str> = units_json
+                .iter()
+                .map(|v| v.as_str())
+                .collect::<Option<_>>()?;
+            let expected = decode_bytes(tc["outputs"].as_str()?)?;
+
+            match encode_seq(&units) {
+                Ok(seq) if seq == expected => Some(true),
+                Ok(seq) => {
+                    eprintln!(
+                        "FAILED: {func_name}.{tc_name} — expected {}, got {}",
+                        hex::encode(&expected),
+                        hex::encode(&seq)
+                    );
+                    Some(false)
+                }
+                Err(e) => {
+                    eprintln!("FAILED: {func_name}.{tc_name} — error: {e}");
+                    Some(false)
+                }
+            }
+        })();
+        passed &= report_case(func_name, tc_name, result);
+    }
+    passed
+}
+
+/// Run conformance tests for `decode_seq` (inputs `["bytes:<hex>"]`, output `[str…]`).
+fn run_decode_seq_tests(data: &serde_json::Value) -> bool {
+    let func_name = "decode_seq";
+    let Some(cases) = data[func_name].as_object() else {
+        eprintln!("FAILED: {func_name} section missing from conformance data");
+        return false;
+    };
+
+    let mut passed = true;
+    for (tc_name, tc) in cases {
+        let result = (|| {
+            let seq = decode_bytes(tc["inputs"].as_array()?.first()?.as_str()?)?;
+            let expected: Vec<&str> = tc["outputs"]
+                .as_array()?
+                .iter()
+                .map(|v| v.as_str())
+                .collect::<Option<_>>()?;
+
+            match decode_seq(&seq) {
+                Ok(units) if units == expected => Some(true),
+                Ok(units) => {
+                    eprintln!(
+                        "FAILED: {func_name}.{tc_name} — expected {expected:?}, got {units:?}"
+                    );
+                    Some(false)
+                }
+                Err(e) => {
+                    eprintln!("FAILED: {func_name}.{tc_name} — error: {e}");
+                    Some(false)
+                }
+            }
+        })();
+        passed &= report_case(func_name, tc_name, result);
+    }
+    passed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -554,5 +650,39 @@ mod tests {
     #[test]
     fn test_conformance_selftest_passes() {
         assert!(conformance_selftest());
+    }
+
+    #[test]
+    fn test_seq_sections_run() {
+        let data: serde_json::Value = serde_json::from_str(TEST_DATA).unwrap();
+        assert_eq!(data["encode_seq"].as_object().unwrap().len(), 4);
+        assert_eq!(data["decode_seq"].as_object().unwrap().len(), 4);
+        assert!(run_encode_seq_tests(&data));
+        assert!(run_decode_seq_tests(&data));
+    }
+
+    #[test]
+    fn test_seq_sections_missing_fail() {
+        let empty = serde_json::json!({});
+        assert!(!run_encode_seq_tests(&empty));
+        assert!(!run_decode_seq_tests(&empty));
+    }
+
+    #[test]
+    fn test_seq_mismatch_and_parse_failures_fail() {
+        let bad = serde_json::json!({
+            "encode_seq": {
+                "wrong": {"inputs": [["ISCC:GAAAAAAAAAAA"]], "outputs": "bytes:00"},
+                "error": {"inputs": [[""]], "outputs": "bytes:00"},
+                "parse": {"inputs": [[1]], "outputs": "bytes:00"}
+            },
+            "decode_seq": {
+                "wrong": {"inputs": ["bytes:300000000000"], "outputs": ["ISCC:X"]},
+                "error": {"inputs": ["bytes:"], "outputs": []},
+                "parse": {"inputs": ["300000000000"], "outputs": []}
+            }
+        });
+        assert!(!run_encode_seq_tests(&bad));
+        assert!(!run_decode_seq_tests(&bad));
     }
 }

@@ -107,3 +107,11 @@ metadata:
 - `TextCollapse` (utils.go) uses per-call `cases.Lower(language.Und)` for Final_Sigma conformance
     (iter 147). NEVER hoist the Caser to a package-level var — Casers are stateful/not
     goroutine-safe, and hoisting measured no faster (~140ns construction).
+
+## Core/cross-surface IDv1 summary (moved from MEMORY.md, iter 195)
+
+- ISCC-IDv1 #43 COMPLETE (iter 190): Part 1 codec `Version` V1 (174) + Part 2 minting on all 11
+    surfaces (178-188) + Tier-1 32→33 doc/count sweep + per-surface API/howto entries (190). Tier-1
+    count is now 33 in ALL shipped-artifact docs (canonical breakdown `specs/rust-core.md:693`); no
+    dedicated IDv1 decoder anywhere — decode via generic `iscc_decode` + bit-math `ts=n>>12`,
+    `hub=n&0xFFF`, `realm=subtype` on 8-byte BE body. Signatures + go detail → go-idv1.md

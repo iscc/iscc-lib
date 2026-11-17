@@ -256,6 +256,57 @@ fn decode_varnibble_from_bytes(data: &[u8], bit_pos: usize) -> IsccResult<(u32, 
 
 // ---- Header Encoding ----
 
+/// Encode four raw header integers as padded varnibble bytes.
+///
+/// Performs no MainType/SubType/Version semantics — only the varnibble range
+/// check (0–4679). Pads an odd nibble count with a zero nibble on the right.
+fn encode_header_raw(mtype: u32, stype: u32, version: u32, length: u32) -> IsccResult<Vec<u8>> {
+    let mut bits = Vec::new();
+    bits.extend(encode_varnibble(mtype)?);
+    bits.extend(encode_varnibble(stype)?);
+    bits.extend(encode_varnibble(version)?);
+    bits.extend(encode_varnibble(length)?);
+
+    // Pad to byte boundary with zero bits (equivalent to bitarray.fill())
+    let remainder = bits.len() % 8;
+    if remainder != 0 {
+        bits.resize(bits.len() + (8 - remainder), false);
+    }
+
+    Ok(bits_to_bytes(&bits))
+}
+
+/// Decode four raw header integers from bytes without type validation.
+///
+/// Returns `(mtype, stype, version, length, tail_start)` where `tail_start` is
+/// the byte offset of the data following the header. A 4-bit zero padding
+/// nibble after a non-byte-aligned header is skipped; a non-zero nibble is not
+/// (callers needing canonical headers re-encode and compare).
+#[inline]
+fn decode_header_raw(data: &[u8]) -> IsccResult<(u32, u32, u32, u32, usize)> {
+    let mut bit_pos = 0;
+
+    let (mtype, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
+
+    let (stype, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
+
+    let (version, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
+
+    let (length, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
+
+    // Strip 4-bit zero padding if header bits are not byte-aligned.
+    // Since each varnibble is a multiple of 4 bits, misalignment is always 4 bits.
+    if bit_pos % 8 != 0 && bit_pos + 4 <= data.len() * 8 && extract_bits(data, bit_pos, 4) == 0 {
+        bit_pos += 4;
+    }
+
+    Ok((mtype, stype, version, length, bit_pos.div_ceil(8)))
+}
+
 /// Encode ISCC header fields into bytes.
 ///
 /// Concatenates varnibble-encoded MainType, SubType, Version, and length,
@@ -268,20 +319,7 @@ pub fn encode_header(
     length: u32,
 ) -> IsccResult<Vec<u8>> {
     validate_version(mtype, version)?;
-
-    let mut bits = Vec::new();
-    bits.extend(encode_varnibble(mtype as u32)?);
-    bits.extend(encode_varnibble(stype as u32)?);
-    bits.extend(encode_varnibble(version as u32)?);
-    bits.extend(encode_varnibble(length)?);
-
-    // Pad to byte boundary with zero bits (equivalent to bitarray.fill())
-    let remainder = bits.len() % 8;
-    if remainder != 0 {
-        bits.resize(bits.len() + (8 - remainder), false);
-    }
-
-    Ok(bits_to_bytes(&bits))
+    encode_header_raw(mtype as u32, stype as u32, version as u32, length)
 }
 
 /// Decode ISCC header from bytes.
@@ -291,28 +329,8 @@ pub fn encode_header(
 /// Version, length, tail_bytes)` where `tail_bytes` contains any
 /// remaining data after the header.
 pub fn decode_header(data: &[u8]) -> IsccResult<(MainType, SubType, Version, u32, Vec<u8>)> {
-    let mut bit_pos = 0;
+    let (mtype_val, stype_val, version_val, length, tail_byte_start) = decode_header_raw(data)?;
 
-    let (mtype_val, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
-    bit_pos += consumed;
-
-    let (stype_val, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
-    bit_pos += consumed;
-
-    let (version_val, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
-    bit_pos += consumed;
-
-    let (length, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
-    bit_pos += consumed;
-
-    // Strip 4-bit zero padding if header bits are not byte-aligned.
-    // Since each varnibble is a multiple of 4 bits, misalignment is always 4 bits.
-    if bit_pos % 8 != 0 && bit_pos + 4 <= data.len() * 8 && extract_bits(data, bit_pos, 4) == 0 {
-        bit_pos += 4;
-    }
-
-    // Advance to next byte boundary for tail extraction
-    let tail_byte_start = bit_pos.div_ceil(8);
     let tail = if tail_byte_start < data.len() {
         data[tail_byte_start..].to_vec()
     } else {
@@ -608,10 +626,19 @@ pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<Cow<'_, str>> {
 
 /// Decompose a composite ISCC-CODE or ISCC sequence into individual ISCC-UNITs.
 ///
-/// Accepts a normalized ISCC-CODE or a concatenated sequence of ISCC-UNITs.
+/// Accepts a normalized ISCC-CODE or the base32 form of concatenated ISCC-UNIT
+/// bytes. The second form is the display form of an ISCC-SEQ (IEP-0020): `ISCC:`
+/// followed by the base32 encoding of the ISCC-SEQ bytes (see [`encode_seq`]).
+/// Concatenating ISCC-UNIT *strings*, with or without hyphens, yields such a
+/// string only for 64-bit units, whose 10-byte encoding is exactly 16 base32
+/// characters; longer units misalign the bit stream.
+///
 /// The input is cleaned via [`iscc_clean`] (scheme prefix, dashes, whitespace)
 /// before decoding. Returns a list of base32-encoded ISCC-UNIT strings (without
 /// "ISCC:" prefix).
+///
+/// This is the lenient reader for ISCC strings. Use [`decode_seq`] to strictly
+/// decode ISCC-SEQ byte strings (IEP-0020), e.g. C2PA soft binding values.
 pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
     let clean = iscc_clean(iscc_code)?;
     let mut raw_code = decode_base32(&clean)?;
@@ -696,6 +723,139 @@ pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
     }
 
     Ok(components)
+}
+
+// ---- ISCC-SEQ (IEP-0020) ----
+
+/// MainTypes permitted in an ISCC-SEQ (IEP-0020): META, SEMANTIC, CONTENT, DATA, INSTANCE.
+///
+/// ISCC-CODE, ID and FLAKE units are rejected by [`read_unit`], [`encode_seq`]
+/// and [`decode_seq`].
+pub const SEQ_MAINTYPES: &[MainType] = &[
+    MainType::Meta,
+    MainType::Semantic,
+    MainType::Content,
+    MainType::Data,
+    MainType::Instance,
+];
+
+/// Upper bound of an encoded ISCC-HEADER in bytes (four 16-bit varnibbles).
+const HEADER_MAX: usize = 8;
+
+/// Read one strictly encoded ISCC-UNIT from an ISCC-SEQ byte string (IEP-0020).
+///
+/// Validates the ISCC-UNIT starting at `offset` and returns the offset where it
+/// ends (the start of the next unit), which allows sequential decoding of an
+/// ISCC-SEQ. Mirrors `iscc_core.codec.read_unit`. Unknown SubType and Version
+/// values are accepted.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` (checked in this order) if the header is
+/// incomplete (including `offset >= data.len()`), the header is non-canonical
+/// (e.g. a non-zero padding nibble), the MainType is not in [`SEQ_MAINTYPES`],
+/// the Length field is above 7, or the body runs past the end of `data`.
+pub fn read_unit(data: &[u8], offset: usize) -> IsccResult<usize> {
+    // An out-of-range offset yields an empty window, which fails as a malformed
+    // header (as in the reference) instead of panicking on the slice.
+    let rest = data.get(offset..).unwrap_or(&[]);
+    let window = &rest[..rest.len().min(HEADER_MAX)];
+    let (mt, st, vs, ln, _) = decode_header_raw(window).map_err(|e| {
+        IsccError::InvalidInput(format!("Malformed ISCC-HEADER at offset {offset}: {e}"))
+    })?;
+    let header = encode_header_raw(mt, st, vs, ln)?;
+    if !window.starts_with(&header) {
+        return Err(IsccError::InvalidInput(format!(
+            "Non-canonical ISCC-HEADER at offset {offset}"
+        )));
+    }
+    if !SEQ_MAINTYPES.iter().any(|&m| m as u32 == mt) {
+        return Err(IsccError::InvalidInput(format!(
+            "MainType {mt} is not permitted in an ISCC-SEQ (offset {offset})"
+        )));
+    }
+    if ln > 7 {
+        return Err(IsccError::InvalidInput(format!(
+            "Unsupported Length field {ln} at offset {offset}"
+        )));
+    }
+    let end = offset + header.len() + 4 * (ln as usize + 1);
+    if end > data.len() {
+        return Err(IsccError::InvalidInput(format!(
+            "Truncated ISCC-UNIT at offset {offset}"
+        )));
+    }
+    Ok(end)
+}
+
+/// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+///
+/// Returns the concatenation of the header and body bytes of each unit, in the
+/// given order (never sorted, deduplicated or dropped). Unit strings may omit
+/// the `ISCC:` prefix and may be lowercase or contain hyphens. Mirrors
+/// `iscc_core.codec.encode_seq`.
+///
+/// Any 32 to 256-bit unit of any SubType and Version is accepted. A C2PA
+/// `io.iscc.v0` soft binding value additionally requires Version 0 units with
+/// 256-bit bodies; callers producing such values must enforce that.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` if `units` is empty, or a unit is empty,
+/// malformed, multiformat-encoded, of a MainType outside [`SEQ_MAINTYPES`]
+/// (ISCC-CODE, ID, FLAKE), or carries trailing data (e.g. several units in one
+/// string).
+pub fn encode_seq(units: &[&str]) -> IsccResult<Vec<u8>> {
+    if units.is_empty() {
+        return Err(IsccError::InvalidInput(
+            "ISCC-SEQ requires at least one ISCC-UNIT".into(),
+        ));
+    }
+    let mut seq = Vec::new();
+    for unit in units {
+        if unit.trim().is_empty() {
+            return Err(IsccError::InvalidInput(
+                "ISCC-UNIT must not be empty".into(),
+            ));
+        }
+        // Uppercase first: iscc_clean keeps hyphens in bare strings that start with
+        // a multibase prefix character, and bare lowercase units with SubType >= 8
+        // start with "b" or "f".
+        let upper = unit.to_uppercase();
+        let raw = decode_base32(&iscc_clean(&upper)?)?;
+        if read_unit(&raw, 0)? != raw.len() {
+            return Err(IsccError::InvalidInput(format!(
+                "Trailing data in ISCC-UNIT {unit:?}"
+            )));
+        }
+        seq.extend_from_slice(&raw);
+    }
+    Ok(seq)
+}
+
+/// Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+///
+/// Strict byte-level reader: applies every [`read_unit`] rule to each unit and
+/// rejects trailing bytes. Unknown SubType and Version values are preserved.
+/// Returns `ISCC:`-prefixed unit strings in wire order; [`encode_seq`] of the
+/// result reproduces `data`. Mirrors `iscc_core.codec.decode_seq`.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` if `data` is empty or any unit is
+/// malformed (see [`read_unit`]).
+pub fn decode_seq(data: &[u8]) -> IsccResult<Vec<String>> {
+    if data.is_empty() {
+        return Err(IsccError::InvalidInput("Empty ISCC-SEQ".into()));
+    }
+    let mut units = Vec::new();
+    let mut offset = 0;
+    while offset < data.len() {
+        let end = read_unit(data, offset)?;
+        units.push(format!("ISCC:{}", encode_base32(&data[offset..end])));
+        offset = end;
+    }
+    Ok(units)
 }
 
 #[cfg(test)]

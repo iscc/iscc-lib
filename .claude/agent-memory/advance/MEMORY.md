@@ -90,29 +90,11 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
     `TryFrom<u8>`; delegates to `codec::encode_component`
 - `iscc_decode` strips "ISCC:" prefix + dashes, returns exact digest bytes as
     `(u8,u8,u8,u8,Vec<u8>)`
-- Rust codec input-cleaning (iter 191): private `codec::iscc_clean(&str)->IsccResult<String>` ports
-    `iscc_core.codec.iscc_clean` — trims ws, case-insensitive `iscc:` scheme, strips dashes UNLESS
-    first char is multibase prefix (`f/b/v/z/u`). Routed through 4 sites: `iscc_decompose`,
-    `iscc_normalize`, `gen_mixed_code_v0`, `gen_iscc_code_v0` (`cleaned` is now `Vec<String>`). Go
-    half of the same issue is NOT done (packages/go isccNormalize etc.). `iscc_clean` is
-    `pub(crate)` → its dedicated unit tests live in codec.rs, not integration tests. Iter 192:
-    `iscc_clean` now GUARDS empty-cleaned result → `Err(InvalidInput("Empty ISCC string"))` (else
-    `iscc_decompose("   ")`/`"-"`/`"iscc:"`/`"----"` silently `Ok([])` since
-    `decode_base32("")`=Ok). Go port MUST replicate this guard, not copy the gap. Empty-input
-    assertions live in `tests/codec_clean.rs`. Iter 193: `iscc_clean` returns `Cow<'_,str>`
-    (allocation-free borrow when no scheme + no dash), `gen_iscc_code_v0.cleaned` is now
-    `Vec<Cow<'_,str>>` — cut the 191/192 perf regression (four_units +36.82%→+11.71%, mixed
-    +18.30%→+6.95% GREEN). BUT four_units STILL red: probe proved the residual ~+11.71% is INTRINSIC
-    scanning cost of reference-correct cleaning (trim + 2× memchr per code), NOT allocation
-    (strip_prefix-only iscc_clean = +2.6%). std memchr beats a scalar single-pass, so unfixable
-    without a baseline bump (human/gate, next.md-forbidden here). iscc_clean cyclo 7→9 in
-    `.crap-baseline.json`. RESOLVED 2026-07-29: the human raised the four_units baseline to 13,400
-    (decisions.md) — Perf gate green since
-- ISCC-IDv1 #43 COMPLETE (iter 190): Part 1 codec `Version` V1 (174) + Part 2 minting on all 11
-    surfaces (178-188) + Tier-1 32→33 doc/count sweep + per-surface API/howto entries (190). Tier-1
-    count is now 33 in ALL shipped-artifact docs (canonical breakdown `specs/rust-core.md:693`); no
-    dedicated IDv1 decoder anywhere — decode via generic `iscc_decode` + bit-math `ts=n>>12`,
-    `hub=n&0xFFF`, `realm=subtype` on 8-byte BE body. Signatures + go detail → go-idv1.md
+- Codec input cleaning `iscc_clean` (iters 191-193; Go half NOT done) + four_units perf history →
+    codec-clean.md
+- ISCC-IDv1 #43 COMPLETE (iter 190; Tier-1 = 33, no dedicated decoder) → go-idv1.md
+- ISCC-SEQ #45 Rust core DONE (iter 195): raw header helpers, `read_unit`, seq conformance →
+    iscc-seq.md
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type
     depends on `@context` key. 5 cross-binding constants → MEMORY-archive.md
 

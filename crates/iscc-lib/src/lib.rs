@@ -18,6 +18,7 @@ pub(crate) mod wtahash;
 pub use cdc::alg_cdc_chunks;
 pub use codec::encode_base64;
 pub use codec::iscc_decompose;
+pub use codec::{decode_seq, encode_seq};
 pub use conformance::conformance_selftest;
 pub use minhash::alg_minhash_256;
 pub use simhash::{alg_simhash, sliding_window};
