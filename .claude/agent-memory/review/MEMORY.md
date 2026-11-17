@@ -4,8 +4,8 @@ Concise index — **one line per entry, detail belongs in a topic file.** `revie
 verification, claim-probing, gate scripts, parity gates), `gate-reviews.md` (CI +
 Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`; JNI CLOSED 33/33 at
 169), `dep-refresh-reviews.md` (v0.6.0 slices COMPLETE at 172 + framework/wrapper/lockfile/ regen
-majors), `gha-workflow-reviews.md` (release.yml, action bumps), `unicode-reviews.md` (HISTORICAL —
-freeze removed 2026-07-30), `codex-integration.md`. Stale → `MEMORY-archive.md`.
+majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integration.md`;
+removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 
 ## Quality Gate Details
 
@@ -94,7 +94,7 @@ freeze removed 2026-07-30), `codex-integration.md`. Stale → `MEMORY-archive.md
     duplicated row), give a `files:`-scoped hook a staged probe → `review-patterns.md`
 - **DIFFERENTIAL gate (157/158) / vendored DERIVED-property table (156), ~25 min each**: a
     case-count pin catches a shrunken set, never a swapped one; drive `main()` in-process →
-    `unicode-reviews.md`
+    `archive/unicode-reviews.md`
 - **Repo-state gate that reads the git index (152, ~8 min)**: Python-only PLUS mutations in a
     THROWAWAY repo (`git archive HEAD | tar -x -C /tmp/x && git init`; `git clone` fails here on
     `safe.directory`) — never mutate the real index → `review-patterns.md`

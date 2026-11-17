@@ -74,6 +74,10 @@ that `tools/cid.py` invokes as a prompt prefix; its `` !`cat …` `` blocks are 
 agent's first turn. Do **not** put `@file` or `` !`command` `` blocks in `.claude/agents/*.md` —
 they are inert there (the body is the system prompt, verbatim). Edit the pack instead.
 
+**Role model and effort:** set them only in each agent's frontmatter (`model:`, `effort:`).
+`tools/cid.py` passes both as `--model`/`--effort`, because the CLI ignores frontmatter `effort:`
+for `--agent` sessions and lets `--model` override frontmatter `model:`.
+
 **Updating the target:** If the human asks to change project goals, acceptance criteria, or
 specifications, update `target.md` (or its sub-specs) directly. The next CID iteration picks up
 changes automatically.

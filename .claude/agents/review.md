@@ -32,10 +32,6 @@ already in your context** — inlined by the runner before your first turn, curr
 **Do not re-read these with the Read tool** — re-reading returns the same bytes you already have.
 Read anything else on demand, once.
 
-(An agent definition cannot inline files itself: `@path` imports and `` !`command` `` blocks are
-inert in `.claude/agents/*.md`. They work in CLAUDE.md and skills respectively — measured on Claude
-Code 2.1.220. That is why the pack is a skill.)
-
 You have ample context remaining. Do not stop, summarize, or suggest a new session on account of
 context limits: run this protocol through to the push step.
 

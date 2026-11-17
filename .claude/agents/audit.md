@@ -6,7 +6,7 @@ description: >-
   evidence-backed issues. Spawned by the CID runner (tools/cid.py) every 10th iteration and via
   `mise run cid:audit`; not intended for ad-hoc delegation in interactive sessions.
 model: claude-opus-5-5
-effort: xhigh
+effort: high
 tools: Read, Grep, Glob, Bash, Edit, Write, Workflow, Agent, Skill
 memory: project
 ---
@@ -31,10 +31,6 @@ in your context** — inlined by the runner before your first turn, current as o
 
 **Do not re-read these with the Read tool** — re-reading returns the same bytes you already have.
 Read anything else on demand, once.
-
-(An agent definition cannot inline files itself: `@path` imports and `` !`command` `` blocks are
-inert in `.claude/agents/*.md`. They work in CLAUDE.md and skills respectively — measured on Claude
-Code 2.1.220. That is why the pack is a skill.)
 
 ## Protocol
 

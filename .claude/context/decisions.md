@@ -429,3 +429,29 @@ behaviour comparable across roles and runs. Opus 5.5 has a 1M-token window by de
 suffix is dropped. **Alternatives:** keep `advance`/`audit` on Fable — rejected by the human.
 **Context:** interactive session 2026-10-17. Role timeouts and budgets were tuned under Fable/Opus
 4.8 and stay as they are until iteration data says otherwise.
+
+## 2026-11-17 — The runner passes each role's frontmatter model and effort as CLI flags
+
+**Decision:** `tools/cid.py` reads `model:` and `effort:` from `.claude/agents/<role>.md` and passes
+them as `--model`/`--effort`; the runner-wide `PRIMARY_MODEL` pin is gone. A test asserts every role
+declares both. **Why:** probed on Claude Code 2.1.326 — under `claude -p --agent <role>` the CLI
+ignores frontmatter `effort:` (the session took the operator's `~/.claude/settings.json`
+`modelSettings`, so every role ran at `xhigh` whatever its file said), and an explicit `--model`
+overrides frontmatter `model:`. Frontmatter tuning, including meta-improve's whitelisted knob, was a
+no-op. **Alternatives:** keep a runner-side pin — rejected, it duplicates the agent files and still
+leaves effort to whoever runs the loop. **Context:** interactive CID setup review, 2026-11-17.
+
+## 2026-11-17 — Opus 5.5 effort re-baselined; Fable 5.2 advises every role
+
+**Decision:** `review` stays at `xhigh`; every other role (`update-state`, `define-next`, `advance`,
+`audit`, `meta-improve`) runs at `high`. All roles stay on `claude-opus-5-5` and get
+`claude-fable-5-2` as server-side advisor (`ADVISOR_MODEL` in `tools/cid.py`). **Why:** human
+decision. Anthropic's Opus 5.5 guidance: `medium` already beats Opus 5 at `high` on coding, Opus 5.5
+thinks more per level, `xhigh` only where a gain is measured — the quality gate keeps it. The
+advisor gives Fable-level judgment at decision points without paying Fable rates for every token. It
+needs fetched feature flags, so the runner blanks `DISABLE_TELEMETRY` for its own sessions; CID runs
+therefore send telemetry while interactive sessions stay opted out. **Alternatives:** Fable 5.2 as
+the model for define-next/review — not chosen; all-Opus without advisor — not chosen. Watch
+`model_costs` in iterations.jsonl: advisor calls re-read the transcript uncached and count toward
+`ROLE_BUDGET_USD`. **Context:** interactive CID setup review, 2026-11-17; supersedes the effort
+levels in the 2026-10-17 entry.

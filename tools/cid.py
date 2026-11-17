@@ -95,10 +95,10 @@ ROLE_ENTRY_KEYS = frozenset(
 )
 
 # Per-role wall-clock timeout in seconds — the loop's runaway guard. Enforced in
-# run_agent by killing the claude subprocess if it overruns (cross-platform). A
-# turn-count flag is intentionally NOT used: the installed claude CLI has no
-# --max-turns, so it would be silently ignored. Values are generous (these catch
-# stuck runs, not normal long iterations like advance + a 30-min codex review).
+# run_agent by killing the claude subprocess if it overruns (cross-platform). A turn
+# cap (`--max-turns`) is not used: turn counts scale with the work package, and the
+# spend ceiling below already stops a role that thrashes. Values are generous (these
+# catch stuck runs, not normal long iterations like advance + a 30-min codex review).
 # A role that already committed its deliverable when the guard fires does not fail
 # the iteration — see _role_commit_landed.
 # advance's single requests on hard tasks can run for many minutes, so it gets
@@ -132,17 +132,34 @@ ROLE_BUDGET_USD = {
     AUDIT_ROLE: 15.0,
 }
 
-# Primary model pinned for every headless role invocation. Passed as --model so the
-# session base does not drift onto the CLI's rolling default. Per-agent frontmatter
-# still overrides this — frontmatter model takes precedence over the session --model.
-# Opus 5.5 has a 1M-token context window by default, so no "[1m]" suffix is needed.
-PRIMARY_MODEL = "claude-opus-5-5"
+# Frontmatter fields of a role's agent file that the runner passes as CLI flags
+# (`--model`, `--effort`). Under `claude -p --agent <role>` the CLI ignores
+# frontmatter `effort:` (the session takes the user's personal settings or the model
+# default instead), and an explicit `--model` overrides frontmatter `model:`. Passing
+# both from the agent file keeps it the single source of truth and the loop
+# independent of whoever runs it. Verified on Claude Code 2.1.326.
+AGENT_FLAG_KEYS = ("model", "effort")
 
-# Prompt size (in tokens) above which a role run is reported as at risk of silent
-# context truncation. The review role has already touched 92% of a 200k window;
-# truncation there degrades the quality gate invisibly, which is worse than a cost
-# overrun because nothing fails loudly.
-CONTEXT_ALARM_TOKENS = 150_000
+# Inline limit for shell output, passed as the `bashOutputMaxChars` setting. Context
+# packs inject files with !`cat …`; output above the CLI default (~30k characters) is
+# replaced by a 2 KB preview plus a file path, so a file that outgrows it (target.md
+# is the closest) would reach the agent truncated while its prompt forbids re-reading.
+BASH_OUTPUT_MAX_CHARS = 128_000
+
+# Server-side advisor every role may consult at decision points (human decision,
+# 2026-11-17; set to None to turn it off). The advisor needs Claude Code's fetched
+# feature flags, which any non-empty DISABLE_TELEMETRY suppresses, so the runner blanks
+# that variable for its own sessions only. That also re-enables telemetry there — the
+# two cannot be separated. Each advisor call re-reads the whole transcript uncached;
+# its cost shows up in the log row's `model_costs`.
+ADVISOR_MODEL = "claude-fable-5-2"
+
+# Prompt size (in tokens) above which a role run is reported as at risk of
+# auto-compaction. The roles run with a 1M-token window and peak around 100-215k;
+# a role that nears compaction gets its injected context pack summarized, which
+# degrades the quality gate invisibly — worse than a cost overrun because nothing
+# fails loudly.
+CONTEXT_ALARM_TOKENS = 500_000
 
 
 # --- CLI discovery ---
@@ -199,12 +216,21 @@ def _prompt_tokens(usage):
 def _process_output(stdout, role):
     """Process streaming JSON output from claude CLI.
 
-    Returns (cost, turns, is_error, peak_context) tuple, where peak_context is the
-    largest prompt the role sent during the run.
+    Returns a dict with cost, turns, is_error, peak_context (the largest prompt the
+    role sent), subtype (the result subtype, e.g. `error_max_budget_usd`), denials
+    (tool calls the permission layer refused — in a `-p` run, bypass mode denies the
+    few calls that would otherwise prompt, and the role carries on without them) and
+    model_costs (USD per model, which separates advisor and fallback spend).
     """
-    cost = 0.0
-    turns = 0
-    is_error = False
+    out = {
+        "cost": 0.0,
+        "turns": 0,
+        "is_error": False,
+        "peak_context": 0,
+        "subtype": "",
+        "denials": 0,
+        "model_costs": {},
+    }
     peak_context = 0
 
     for line in iter(stdout.readline, ""):
@@ -234,11 +260,27 @@ def _process_output(stdout, role):
             # default, so a null cost/turns would crash round()/format downstream.
             raw_cost = data.get("total_cost_usd")
             raw_turns = data.get("num_turns")
-            cost = raw_cost if isinstance(raw_cost, (int, float)) else 0.0
-            turns = raw_turns if isinstance(raw_turns, int) else 0
-            is_error = bool(data.get("is_error", False))
+            denials = data.get("permission_denials")
+            out["cost"] = raw_cost if isinstance(raw_cost, (int, float)) else 0.0
+            out["turns"] = raw_turns if isinstance(raw_turns, int) else 0
+            out["is_error"] = bool(data.get("is_error", False))
+            out["subtype"] = str(data.get("subtype") or "")
+            out["denials"] = len(denials) if isinstance(denials, list) else 0
+            out["model_costs"] = _model_costs(data.get("modelUsage"))
 
-    return cost, turns, is_error, peak_context
+    out["peak_context"] = peak_context
+    return out
+
+
+def _model_costs(model_usage):
+    """Return {model: costUSD} from a result's modelUsage, skipping malformed entries."""
+    if not isinstance(model_usage, dict):
+        return {}
+    return {
+        model: round(usage["costUSD"], 6)
+        for model, usage in model_usage.items()
+        if isinstance(usage, dict) and isinstance(usage.get("costUSD"), (int, float))
+    }
 
 
 def log_entry(cwd, entry):
@@ -1055,13 +1097,49 @@ def budget_notice(cwd, role):
     )
 
 
-def build_agent_cmd(claude_cmd, role, prompt, skip_permissions, fallback_model=None):
+def agent_flags(cwd, role):
+    """Return the role agent's frontmatter values for AGENT_FLAG_KEYS.
+
+    Reads top-level `key: value` lines between the opening `---` pair; fields that are
+    absent are omitted, and a missing agent file yields an empty dict.
+    """
+    path = cwd / AGENTS_DIR / f"{role}.md"
+    if not path.exists():
+        return {}
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+    flags = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        key, sep, value = line.partition(":")
+        if sep and key in AGENT_FLAG_KEYS and value.strip():
+            flags[key] = value.strip()
+    return flags
+
+
+def session_settings():
+    """Return the settings every role session gets via `--settings`.
+
+    Raises the shell-output limit so context packs stay inline and, when
+    ADVISOR_MODEL is set, enables the advisor for the runner's sessions only.
+    """
+    settings = {"bashOutputMaxChars": BASH_OUTPUT_MAX_CHARS}
+    if ADVISOR_MODEL:
+        settings["advisorModel"] = ADVISOR_MODEL
+        settings["env"] = {"DISABLE_TELEMETRY": ""}
+    return settings
+
+
+def build_agent_cmd(
+    claude_cmd, role, prompt, skip_permissions, fallback_model=None, flags=None
+):
     """Assemble the claude CLI argument list for a headless agent run.
 
-    Adds prompt-cache friendliness (--exclude-dynamic-system-prompt-sections), a
-    per-role spend ceiling and an optional fallback model. The wall-clock runaway
-    guard is enforced in run_agent, not as a CLI flag — the installed claude CLI has
-    no --max-turns, only --max-budget-usd (which requires the -p used here).
+    Passes the role's frontmatter model/effort (see AGENT_FLAG_KEYS), the session
+    settings, a per-role spend ceiling and an optional fallback model. The wall-clock
+    runaway guard is enforced in run_agent.
     """
     cmd = [
         claude_cmd,
@@ -1072,12 +1150,12 @@ def build_agent_cmd(claude_cmd, role, prompt, skip_permissions, fallback_model=N
         "--output-format",
         "stream-json",
         "--verbose",
-        # Stable system-prompt prefix across the 4+ invocations per iteration
         "--exclude-dynamic-system-prompt-sections",
-        # Pin the session base model; per-agent frontmatter still overrides it
-        "--model",
-        PRIMARY_MODEL,
+        "--settings",
+        json.dumps(session_settings()),
     ]
+    for key, value in (flags or {}).items():
+        cmd += [f"--{key}", value]
     budget_usd = ROLE_BUDGET_USD.get(role)
     if budget_usd:
         cmd += ["--max-budget-usd", str(budget_usd)]
@@ -1107,6 +1185,44 @@ def _error_result(cwd, role, iteration, message):
     }
     log_entry(cwd, entry)
     return {**entry, "ok": False}
+
+
+def _role_entry(role, iteration, status, out, elapsed, flags):
+    """Print a finished role's summary and return its iteration-log row.
+
+    The row records the model/effort the role ran with, plus the result subtype, the
+    permission-denial count and the per-model cost split when they deviate from a
+    clean single-model run, so a budget stop, a refused tool call, advisor spend or a
+    fallback is visible in iterations.jsonl.
+    """
+    print(
+        f"  {role} {status} ({out['turns']} turns, ${out['cost']:.4f}, {elapsed:.0f}s)"
+    )
+    if out["peak_context"] >= CONTEXT_ALARM_TOKENS:
+        print(
+            f"  WARN: {role} peaked at {out['peak_context']:,} context tokens "
+            f"(alarm at {CONTEXT_ALARM_TOKENS:,}) — at risk of auto-compaction"
+        )
+    entry = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "iteration": iteration,
+        "role": role,
+        "status": status,
+        "turns": out["turns"],
+        "cost_usd": round(out["cost"], 6),
+        "duration_s": round(elapsed, 1),
+        "peak_context": out["peak_context"],
+        **flags,
+    }
+    if out["subtype"] not in ("", "success"):
+        entry["subtype"] = out["subtype"]
+        print(f"  NOTE: {role} ended with result subtype {out['subtype']}")
+    if out["denials"]:
+        entry["denials"] = out["denials"]
+        print(f"  WARN: {role} had {out['denials']} tool call(s) denied")
+    if len(out["model_costs"]) > 1:
+        entry["model_costs"] = out["model_costs"]
+    return entry
 
 
 def run_agent(
@@ -1139,9 +1255,15 @@ def run_agent(
         )
 
     prompt = build_prompt(cwd, role, iteration)
+    role_flags = agent_flags(cwd, role)
 
     cmd = build_agent_cmd(
-        claude_cmd, role, prompt, skip_permissions, fallback_model=fallback_model
+        claude_cmd,
+        role,
+        prompt,
+        skip_permissions,
+        fallback_model=fallback_model,
+        flags=role_flags,
     )
 
     start = time.time()
@@ -1153,6 +1275,9 @@ def run_agent(
         )
         process = subprocess.Popen(  # noqa: S603
             cmd,
+            # No stdin: -p otherwise waits for piped input when the runner is not on
+            # a TTY, and would compete with wait_with_skip for the operator's keys.
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -1185,7 +1310,7 @@ def run_agent(
         timer = threading.Timer(timeout_s, _kill_on_timeout)
         timer.start()
     try:
-        cost, turns, is_error, peak_context = _process_output(stdout, role)
+        out = _process_output(stdout, role)
         process.wait()
     finally:
         if timer:
@@ -1194,27 +1319,11 @@ def run_agent(
 
     if timed_out["v"]:
         status = "TIMEOUT"
-    elif process.returncode != 0 or is_error:
+    elif process.returncode != 0 or out["is_error"]:
         status = "FAIL"
     else:
         status = "OK"
-    print(f"  {role} {status} ({turns} turns, ${cost:.4f}, {elapsed:.0f}s)")
-    if peak_context >= CONTEXT_ALARM_TOKENS:
-        print(
-            f"  WARN: {role} peaked at {peak_context:,} context tokens "
-            f"(alarm at {CONTEXT_ALARM_TOKENS:,}) — at risk of silent truncation"
-        )
-
-    entry = {
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "iteration": iteration,
-        "role": role,
-        "status": status,
-        "turns": turns,
-        "cost_usd": round(cost, 6),
-        "duration_s": round(elapsed, 1),
-        "peak_context": peak_context,
-    }
+    entry = _role_entry(role, iteration, status, out, elapsed, role_flags)
     recovered = status != "OK" and _role_commit_landed(cwd, role, base_sha)
     if recovered:
         entry["recovered"] = True
