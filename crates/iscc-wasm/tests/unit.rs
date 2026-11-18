@@ -252,6 +252,83 @@ fn test_iscc_decompose_error_on_invalid() {
     assert!(result.is_err(), "should error on invalid ISCC");
 }
 
+// ── encode_seq / decode_seq ─────────────────────────────────────────────────
+
+const UNIT_32: &str = "ISCC:GAAAAAAAAA";
+const UNIT_32_HEX: &str = "300000000000";
+const UNIT_256: &str = "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI";
+const UNIT_256_HEX: &str = "2007a88248c53a852c8d7e9c547047c9a36c4052b6acabef1e2a4ce15e586e0cb305";
+
+/// Call `encode_seq` with a list of unit strings converted to a JS array.
+fn encode_seq_strs(units: &[&str]) -> Result<Vec<u8>, wasm_bindgen::JsError> {
+    iscc_wasm::encode_seq(serde_wasm_bindgen::to_value(units).unwrap())
+}
+
+#[wasm_bindgen_test]
+fn test_encode_seq_single_unit() {
+    let seq = encode_seq_strs(&[UNIT_32]).unwrap();
+    assert_eq!(hex::encode(seq), UNIT_32_HEX);
+}
+
+#[wasm_bindgen_test]
+fn test_encode_seq_preserves_order_and_duplicates() {
+    let seq = encode_seq_strs(&[UNIT_256, UNIT_32, UNIT_32]).unwrap();
+    let expected = format!("{UNIT_256_HEX}{UNIT_32_HEX}{UNIT_32_HEX}");
+    assert_eq!(hex::encode(seq), expected);
+}
+
+#[wasm_bindgen_test]
+fn test_encode_seq_rejects_empty_list() {
+    assert!(encode_seq_strs(&[]).is_err(), "empty list should error");
+}
+
+#[wasm_bindgen_test]
+fn test_encode_seq_rejects_empty_unit() {
+    assert!(encode_seq_strs(&[""]).is_err(), "empty unit should error");
+}
+
+#[wasm_bindgen_test]
+fn test_encode_seq_rejects_spare_bits() {
+    let result = encode_seq_strs(&["ISCC:GAAAAAAAAB"]);
+    assert!(result.is_err(), "non-zero spare bits should error");
+}
+
+#[wasm_bindgen_test]
+fn test_encode_seq_rejects_case_fold_alias() {
+    let result = encode_seq_strs(&["gaawdlqng6\u{17f}sdpf2"]);
+    assert!(result.is_err(), "non-ASCII case-fold alias should error");
+}
+
+#[wasm_bindgen_test]
+fn test_encode_seq_rejects_bare_string() {
+    let result = iscc_wasm::encode_seq(wasm_bindgen::JsValue::from_str(UNIT_32));
+    assert!(result.is_err(), "bare string should error, not be iterated");
+}
+
+#[wasm_bindgen_test]
+fn test_decode_seq_units_in_wire_order() {
+    let seq = hex::decode(format!("{UNIT_32_HEX}{UNIT_256_HEX}")).unwrap();
+    assert_eq!(
+        iscc_wasm::decode_seq(&seq).unwrap(),
+        vec![UNIT_32, UNIT_256]
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_decode_seq_rejects_empty() {
+    assert!(
+        iscc_wasm::decode_seq(&[]).is_err(),
+        "empty input should error"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_decode_seq_rejects_truncated() {
+    let seq = hex::decode(UNIT_256_HEX).unwrap();
+    let result = iscc_wasm::decode_seq(&seq[..seq.len() - 1]);
+    assert!(result.is_err(), "truncated unit should error");
+}
+
 // ── conformance_selftest ────────────────────────────────────────────────────
 
 #[cfg(feature = "conformance")]

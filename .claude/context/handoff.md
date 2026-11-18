@@ -1,66 +1,60 @@
-## 2026-11-18 — Review of: `text_trim` / `text_remove_newlines` strip U+001C–U+001F in Rust and Go
+## 2026-11-18 — Bind `encode_seq` / `decode_seq` on the napi (Node.js) and WASM surfaces
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** `@iscc/lib` (napi) and `@iscc/wasm` export `encode_seq` / `decode_seq` as thin wrappers
+over the core. Both conformance harnesses run all 8 seq vectors plus a round trip. The negative
+cases (one bad input per assertion) throw on both surfaces. Both JS surfaces now have 35 Tier 1
+symbols.
 
-**Summary:** Rust `text_trim` (both paths) and `text_remove_newlines` now trim and split on the
-Python `str.strip()` set via `codec::is_py_strip_char` (made `pub(crate)`, still outside Tier 2). Go
-`TextTrim` / `TextRemoveNewlines` use `TrimFunc` / `FieldsFunc` with `isPyStripChar`. The tests
-cover each trim site: the short path, a separator at the truncation cut, and a split multi-byte
-strip char. A live-derived Python differential checks both directions. I re-ran every gate myself.
-The only note is a small Go speed cost (below), which is accepted and recorded.
+**Files changed:**
+
+- `crates/iscc-napi/src/lib.rs`: `encode_seq(units: Vec<String>) -> napi::Result<Buffer>`,
+    `decode_seq(data: Buffer) -> napi::Result<Vec<String>>`, both `js_name` snake_case. The doc
+    comment covers strict decoding (padding, spare bits, `ſ`/`ß` rejected although iscc-core accepts
+    them)
+- `crates/iscc-wasm/src/lib.rs`: `encode_seq(units: JsValue) -> Result<Vec<u8>, JsError>` (via
+    `serde_wasm_bindgen::from_value::<Vec<String>>`),
+    `decode_seq(&[u8]) -> Result<Vec<String>,   JsError>`, with the same doc notes
+- `crates/iscc-napi/__tests__/conformance.test.mjs`: `encode_seq` / `decode_seq` suites driven by
+    the fixture, a `decodeBytes` helper for `bytes:<hex>`, a non-empty guard per section, and a
+    round trip per decode vector
+- `crates/iscc-napi/__tests__/seq.test.mjs` (new): spot check `["ISCC:GAAAAAAAAA"]` →
+    `300000000000`, returns a `Buffer`, order and duplicates kept, wire-order decode; throws on
+    `[]`, `[""]`, spare bits, the `ſ` alias, a bare string, empty bytes, and truncated
+    `UNIT_256_HEX`
+- `crates/iscc-wasm/tests/conformance.rs`: `test_encode_seq_conformance` /
+    `test_decode_seq_conformance` (the decode test also asserts the round trip), using the
+    hard-coded `tested == 4` guard style
+- `crates/iscc-wasm/tests/unit.rs`: 10 seq tests, the same set as the napi tests (the bare string
+    goes in as `JsValue::from_str`)
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib`: 427 passed (302+17+28+44+13+22+1), with the new separator tests for
-    both `text_trim` paths and `text_remove_newlines`. CI feature matrix also green:
-    `--no-default-features` 363, `--features text-processing` 396, `--all-features` 427
-- [x] `uv run pytest tests/test_text_utils.py` after `maturin develop`: 40 passed, including the
-    live-derived strip-set differential and the U+200B kept-by-both case
-- [x] `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` `ok`; `go vet` clean; `gofmt -l` empty.
-    U+001C–U+001F are written out literally for `TextTrim` (short and truncation paths) and
-    `TextRemoveNewlines`
-- [x] `mise run bench:iai:check` exit 0, `.iai-baseline.json` unmodified (16 benches, 0 regressed;
-    meta_code −4.4% / −4.5%, inside the drift other benches show too)
-- [x] `cargo crap … --fail-regression --fail-above` exit 0 after `mise run coverage` (0 regressed, 0
-    new, 0 moved, 119 unchanged; rustc 1.100.0). `mise run crap:baseline` regenerates the committed
-    `.crap-baseline.json` byte for byte
-- [x] `mise run check` exit 0. `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean, and
-    so are clippy `--workspace --all-targets` and `--no-default-features`
-- [x] Pre-push Python gates on the new test code (release build): `ty check`, ruff `S`, ruff `C901`
-    all pass, and the full `pytest` gives 517 passed with coverage enforced
+- `npm --prefix crates/iscc-napi run build:debug && npm --prefix crates/iscc-napi test`: 174 tests,
+    174 passed, 0 failed (re-run after `mise run format`). The seq suites are listed in the TAP
+    output: `encode_seq` fixture cases plus `test_0001…`, and `decode_seq` vectors plus
+    `… round trip`
+- `index.d.ts` after the build has
+    `export declare function decode_seq(data: Buffer):   Array<string>` (L85) and
+    `export declare function encode_seq(units: Array<string>): Buffer` (L111)
+- `wasm-pack test --node crates/iscc-wasm --features conformance`: exit 0. conformance 11 passed
+    (incl. both seq tests), unit 94 passed (all 10 seq tests listed `ok`)
+- `cargo clippy -p iscc-napi -p iscc-wasm --all-targets -- -D warnings`: clean
+- `cargo fmt -p iscc-napi -p iscc-wasm --check`: exit 0
+- `mise run check`: exit 0
+- No core edit, so the iai and CRAP gates are not affected and were not run
 
-**Issues found:**
-
-- Go `FieldsFunc` loses the ASCII fast path of `strings.Fields`. A 6-word title takes about 2× as
-    long (502 → 1000 ns/op). Allocations are equal up to 32 fields and higher beyond that (512
-    fields: 2 → 6). Accepted as a trade-off in decisions.md (2026-11-18, "Go text utilities drop the
-    … ASCII fast path"). Not filed as an issue
-- `.crap-baseline.json` was refreshed even though the local gate was green against the old file.
-    That follows learnings: moved lines turn CI red. Only `line:` values shifted, plus one test
-    helper entry (`assert_base32_error`, CRAP 2.0) that was missing before. Scope: 3 source files
-    plus this generated baseline, the same pattern accepted for the ISCC-SEQ core step (195)
-- Resolved issue deleted: "`text_trim` / `text_remove_newlines` keep U+001C–U+001F". The spec
-    wording "trim whitespace" is still accurate, so no spec edit was needed
-
-**Codex review:** Two runs. On `47ad4bd` (the main commit), one P2 finding: Go `TextRemoveNewlines`
-should keep `strings.Fields` when the input has no U+001C–U+001F. I reproduced the numbers and
-rejected the change with reasons in decisions.md: two code paths for a sub-microsecond gain on a
-path with no perf gate, and typical names allocate no more than before. On `HEAD` (the handoff fixup
-commit): no findings.
-
-**Next:** The text-utils issue is closed. The other 7 `normal` issues are still open. Candidates:
-(a) the next ISCC-SEQ surface (Node/napi; 2 of 11 done, Rust and Go), (b) the small Python
-`encode_seq` docstring issue (`[human]`), (c) the `uv.lock` Dependabot alerts (`soupsieve` has two
-**high** alerts; dev-only, but quick to fix), (d) the Ruby `json` Dependabot alert, the Ruby locale
-fixture, the `@iscc/wasm` license and the `c-ffi-api.md` type names. The bindings get the text-utils
-fix through the core, so the SEQ differentials no longer inherit the U+001C gap.
+**Next:** C FFI seq (`iscc.h` + `NativeMethods.g.cs` regen in the SAME step, plus a C ownership
+design for the returned byte buffer and string array). That unblocks .NET and C++. After that come
+JNI, Ruby, then UniFFI (Swift/Kotlin), and finally the 33→35 doc/count sweep.
 
 **Notes:**
 
-- Every surface now uses the Python whitespace set for codec input and for both text utilities.
-    `text_clean` and `text_collapse` were deliberately left alone, because every Cc character is
-    filtered out before their trims
-- Meta-Code / Text-Code output does not change: `text_clean` drops U+001C–U+001F before
-    `text_remove_newlines` / `text_trim` run inside `gen_meta_code_v0`
-- Binding docstrings and docs still say "collapse whitespace", which remains accurate. No docs work
-    is owed
+- The WASM bare-string case gives an error and does not iterate the string:
+    `serde_wasm_bindgen::from_value::<Vec<String>>` rejects a JS string
+    (`test_encode_seq_rejects_bare_string` passes). napi rejects it at the `Vec<String>` argument
+    conversion
+- I did not touch `crates/iscc-napi/CLAUDE.md`, the READMEs or the docs. Their Tier 1 counts and the
+    "3 codec functions" wording are now out of date for the JS surfaces. That is deliberate: the
+    sweep is out of scope (next.md)
+- The fixture `outputs` for `encode_seq` is a bare `bytes:<hex>` string, not an object. The
+    `decode_seq` outputs is a plain list

@@ -79,6 +79,29 @@ pub fn iscc_decode(iscc: String) -> napi::Result<IsccDecodeResult> {
     })
 }
 
+/// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+///
+/// Returns a `Buffer` with the concatenated header and body bytes of each unit,
+/// in order. Base32 decoding is strict: `=` padding, non-zero spare bits and
+/// non-ASCII case-fold aliases (`ſ`, `ß`) are rejected, although iscc-core
+/// accepts them. Throws on an empty array, an empty or malformed unit, or a
+/// unit of an unsupported MainType (ISCC-CODE, ID, FLAKE).
+#[napi(js_name = "encode_seq")]
+pub fn encode_seq(units: Vec<String>) -> napi::Result<Buffer> {
+    let refs: Vec<&str> = units.iter().map(String::as_str).collect();
+    iscc_lib::encode_seq(&refs)
+        .map(Buffer::from)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
+/// Decode an ISCC-SEQ byte string to canonical `ISCC:`-prefixed unit strings.
+///
+/// Decoding is strict: throws on empty input, malformed units or trailing bytes.
+#[napi(js_name = "decode_seq")]
+pub fn decode_seq(data: Buffer) -> napi::Result<Vec<String>> {
+    iscc_lib::decode_seq(data.as_ref()).map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
 /// Convert a JSON string into a `data:` URL with JCS canonicalization.
 ///
 /// Uses `application/ld+json` media type when the JSON contains an `@context`

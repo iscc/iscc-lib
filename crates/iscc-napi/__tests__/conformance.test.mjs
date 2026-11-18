@@ -1,5 +1,6 @@
 /**
- * Conformance tests for all 9 gen_*_v0 napi-rs bindings against data.json vectors.
+ * Conformance tests for all 9 gen_*_v0 napi-rs bindings and encode_seq / decode_seq
+ * against data.json vectors.
  *
  * Mirrors the Python conformance tests in tests/test_conformance.py.
  * Uses Node.js built-in test runner (node:test) — no extra dependencies.
@@ -9,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
-import { strictEqual } from 'node:assert';
+import { deepStrictEqual, ok, strictEqual } from 'node:assert';
 
 import {
     gen_meta_code_v0,
@@ -21,6 +22,8 @@ import {
     gen_data_code_v0,
     gen_instance_code_v0,
     gen_iscc_code_v0,
+    encode_seq,
+    decode_seq,
 } from '../index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -48,6 +51,14 @@ function prepareMetaArg(metaVal) {
         return jsonSortedStringify(metaVal);
     }
     throw new Error(`unexpected meta type: ${typeof metaVal}`);
+}
+
+/**
+ * Decode 'bytes:<hex>' value to Buffer.
+ */
+function decodeBytes(bytesStr) {
+    ok(bytesStr.startsWith('bytes:'), `expected 'bytes:' prefix, got: ${bytesStr}`);
+    return Buffer.from(bytesStr.slice('bytes:'.length), 'hex');
 }
 
 /**
@@ -173,6 +184,44 @@ describe('gen_iscc_code_v0', () => {
             const inputs = tc.inputs;
             const result = gen_iscc_code_v0(inputs[0]);
             strictEqual(result, tc.outputs.iscc);
+        });
+    }
+});
+
+// ── encode_seq ───────────────────────────────────────────────────────────────
+
+describe('encode_seq', () => {
+    const cases = Object.entries(data.encode_seq);
+
+    it('has fixture cases', () => {
+        ok(cases.length > 0, 'encode_seq fixture section is empty');
+    });
+
+    for (const [name, tc] of cases) {
+        it(name, () => {
+            const result = encode_seq(tc.inputs[0]);
+            strictEqual(Buffer.from(result).toString('hex'), decodeBytes(tc.outputs).toString('hex'));
+        });
+    }
+});
+
+// ── decode_seq ───────────────────────────────────────────────────────────────
+
+describe('decode_seq', () => {
+    const cases = Object.entries(data.decode_seq);
+
+    it('has fixture cases', () => {
+        ok(cases.length > 0, 'decode_seq fixture section is empty');
+    });
+
+    for (const [name, tc] of cases) {
+        it(name, () => {
+            deepStrictEqual(decode_seq(decodeBytes(tc.inputs[0])), tc.outputs);
+        });
+
+        it(`${name} round trip`, () => {
+            const seq = decodeBytes(tc.inputs[0]);
+            ok(Buffer.from(encode_seq(decode_seq(seq))).equals(seq));
         });
     }
 });

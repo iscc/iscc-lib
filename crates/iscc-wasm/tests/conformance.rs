@@ -1,4 +1,5 @@
-//! Conformance tests for all 9 gen_*_v0 WASM-exported functions against data.json vectors.
+//! Conformance tests for all 9 gen_*_v0 WASM-exported functions and `encode_seq` /
+//! `decode_seq` against data.json vectors.
 //!
 //! Runs in a Node.js WASM runtime via `wasm-pack test --node`.
 //! Mirrors the Rust core and Node.js conformance test patterns.
@@ -22,6 +23,14 @@ fn prepare_meta_arg(val: &serde_json::Value) -> Option<String> {
         serde_json::Value::Object(_) => Some(json_sorted_stringify(val)),
         other => panic!("unexpected meta type: {other:?}"),
     }
+}
+
+/// Decode "bytes:<hex>" value to Vec<u8>.
+fn decode_bytes(bytes_str: &str) -> Vec<u8> {
+    let hex_data = bytes_str
+        .strip_prefix("bytes:")
+        .unwrap_or_else(|| panic!("expected 'bytes:' prefix, got: {bytes_str}"));
+    hex::decode(hex_data).unwrap_or_else(|e| panic!("invalid hex: {e}"))
 }
 
 /// Decode "stream:<hex>" input to Vec<u8>.
@@ -283,4 +292,65 @@ fn test_gen_iscc_code_v0_conformance() {
     }
 
     assert_eq!(tested, 5, "expected 5 conformance tests to run");
+}
+
+// ── encode_seq ───────────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_encode_seq_conformance() {
+    let data: serde_json::Value = serde_json::from_str(DATA_JSON).unwrap();
+    let cases = data["encode_seq"].as_object().unwrap();
+    let mut tested = 0;
+
+    for (tc_name, tc) in cases {
+        let units: Vec<String> = tc["inputs"][0]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        let expected = decode_bytes(tc["outputs"].as_str().unwrap());
+
+        let units_js: JsValue = serde_wasm_bindgen::to_value(&units).unwrap();
+        let result = iscc_wasm::encode_seq(units_js)
+            .unwrap_or_else(|e| panic!("encode_seq failed for {tc_name}: {e:?}"));
+        assert_eq!(result, expected, "ISCC-SEQ mismatch in test case {tc_name}");
+        tested += 1;
+    }
+
+    assert_eq!(tested, 4, "expected 4 conformance tests to run");
+}
+
+// ── decode_seq ───────────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_decode_seq_conformance() {
+    let data: serde_json::Value = serde_json::from_str(DATA_JSON).unwrap();
+    let cases = data["decode_seq"].as_object().unwrap();
+    let mut tested = 0;
+
+    for (tc_name, tc) in cases {
+        let seq = decode_bytes(tc["inputs"][0].as_str().unwrap());
+        let expected: Vec<String> = tc["outputs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+
+        let result = iscc_wasm::decode_seq(&seq)
+            .unwrap_or_else(|e| panic!("decode_seq failed for {tc_name}: {e:?}"));
+        assert_eq!(result, expected, "unit mismatch in test case {tc_name}");
+
+        let units_js: JsValue = serde_wasm_bindgen::to_value(&result).unwrap();
+        let round_trip = iscc_wasm::encode_seq(units_js)
+            .unwrap_or_else(|e| panic!("encode_seq round trip failed for {tc_name}: {e:?}"));
+        assert_eq!(
+            round_trip, seq,
+            "round trip mismatch in test case {tc_name}"
+        );
+        tested += 1;
+    }
+
+    assert_eq!(tested, 4, "expected 4 conformance tests to run");
 }

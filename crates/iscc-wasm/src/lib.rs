@@ -345,6 +345,30 @@ pub fn iscc_decompose(iscc_code: &str) -> Result<Vec<String>, JsError> {
     iscc_lib::iscc_decompose(iscc_code).map_err(|e| JsError::new(&e.to_string()))
 }
 
+/// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+///
+/// Accepts an array of unit strings and returns a `Uint8Array` with the
+/// concatenated header and body bytes of each unit, in order. Base32 decoding
+/// is strict: `=` padding, non-zero spare bits and non-ASCII case-fold aliases
+/// (`ſ`, `ß`) are rejected, although iscc-core accepts them. Throws on a
+/// non-array argument, an empty array, an empty or malformed unit, or a unit of
+/// an unsupported MainType (ISCC-CODE, ID, FLAKE).
+#[wasm_bindgen]
+pub fn encode_seq(units: JsValue) -> Result<Vec<u8>, JsError> {
+    let units: Vec<String> =
+        serde_wasm_bindgen::from_value(units).map_err(|e| JsError::new(&e.to_string()))?;
+    let refs: Vec<&str> = units.iter().map(String::as_str).collect();
+    iscc_lib::encode_seq(&refs).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// Decode an ISCC-SEQ byte string to canonical `ISCC:`-prefixed unit strings.
+///
+/// Decoding is strict: throws on empty input, malformed units or trailing bytes.
+#[wasm_bindgen]
+pub fn decode_seq(data: &[u8]) -> Result<Vec<String>, JsError> {
+    iscc_lib::decode_seq(data).map_err(|e| JsError::new(&e.to_string()))
+}
+
 /// Validate a JS-number ISCC-IDv1 parameter before narrowing to an integer.
 ///
 /// JS numbers reach WASM as `f64`; each parameter is checked here before it is
