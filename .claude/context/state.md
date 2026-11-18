@@ -23,8 +23,9 @@ open.
 - Strict base32 with ASCII-only upper-casing is met. The `encode_seq` case-fold divergence from
     iscc-core is recorded in `rust-core.md` and decisions.md
 - iai Perf, Coverage + CRAP (`.crap-baseline.json` refreshed for moved lines) and semver-checks
-    passed on `a0eb4cf` (semver is informational). The v1.0.0 cut and the MSRV criterion are
-    human-gated
+    passed on `a0eb4cf` (semver is informational)
+- **Missing (human-gated, not v0.8.0 work):** the crate is not yet `>= 1.0.0`, and the MSRV
+    criterion is unverified. Nothing in the Rust core is owed for v0.8.0
 
 ## Python Bindings
 
