@@ -43,11 +43,10 @@ done.
 
 Signatures use snake_case JS names on both surfaces, like every existing export:
 
-- **napi:**
-    `#[napi(js_name = "encode_seq")] fn encode_seq(units: Vec<String>) ->   napi::Result<Buffer>`
-    and `decode_seq(data: Buffer) -> napi::Result<Vec<String>>`. Map errors with
-    `napi::Error::from_reason(e.to_string())`, as `iscc_decode` (L69) does. Collect `Vec<&str>` refs
-    as the Python binding does
+- **napi:** `encode_seq(units: Vec<String>)` returning `napi::Result<Buffer>` (with
+    `js_name = "encode_seq"`) and `decode_seq(data: Buffer) -> napi::Result<Vec<String>>`. Map
+    errors with `napi::Error::from_reason(e.to_string())`, as `iscc_decode` (L69) does. Collect
+    `Vec<&str>` refs as the Python binding does
 - **wasm:** `encode_seq(units: JsValue) -> Result<Vec<u8>, JsError>`. Convert the input via
     `serde_wasm_bindgen::from_value::<Vec<String>>`, the same way `gen_iscc_code_v0` (L153) does.
     `decode_seq(data: &[u8]) -> Result<Vec<String>, JsError>`, shaped like `iscc_decompose`
