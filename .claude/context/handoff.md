@@ -30,8 +30,8 @@ result, `ı`/`ſ`/`ß`/`ﬁ` reach the base32 decoder and fail there with `base3
 - Rust mutation runs (temporary `sed`, then restored; `git diff --stat` shows 4+/4− after):
     - Revert L834 alone: the 2 `encode_seq` reject tests fail.
     - Revert L520 alone: 4 tests fail (`iscc_decode` aliases, bare decoder, both `encode_seq`).
-    - So both sites have their own gate. L229 has no test that can see it (as next.md says); the grep
-        below is its only gate.
+    - So both sites have their own gate. L229 (and Go `checkPrefix`) still reject a non-ASCII prefix
+        either way; only the message differs (`invalid prefix`), so the grep is their gate.
 - `CGO_ENABLED=0 go -C packages/go test -count=1 ./...`: ok. The targeted run gives 23 PASS lines.
 - Go mutation run: restoring `strings.ToUpper` in `decodeBase32` fails exactly the `ı` and `ſ`
     subtests. This matches next.md: in Go, `ß`/`ﬁ` already errored before the fix.
@@ -45,8 +45,9 @@ result, `ı`/`ſ`/`ß`/`ﬁ` reach the base32 decoder and fail there with `base3
     untouched (`git diff --quiet` passes).
 - `cargo test -p iscc-lib`: 7 suites, all ok (297 + 44 + 28 + 22 + 17 + 13 + 1), 0 failed.
 - `mise run check`: exit 0 on the third run. Run 1 flagged `standardrb-fix` and run 2 flagged
-    `mdformat` as "files were modified". Run 1 was my own handoff/memory writes landing mid-run (no
-    Ruby file changed). Run 2 was mdformat rewrapping this handoff, a legitimate fix.
+    `mdformat` as "files were modified". Run 1's cause is likely my handoff/memory writes landing
+    mid-run: no Ruby file changed, and the hook passed on runs 2 and 3. Run 2 was mdformat
+    rewrapping this handoff, a legitimate fix.
 
 **Next:** Go `EncodeSeq`/`DecodeSeq`. `EncodeSeq` must upper-case each unit **before** `isccClean`,
 using the `asciiUpper` helper added here, not `strings.ToUpper`. `DecodeSeq` takes bytes and does no
