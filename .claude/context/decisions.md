@@ -29,28 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-26 — The Go boundary suite is left to red at the go1.27 bump, not version-gated
-
-**Decision:** `packages/go/unicode_boundary_test.go` keeps an **unconditional** three-entry skip map
-(the cases Go's Unicode 15.0 tables cannot pass) and is deliberately *not* build-tag-gated for
-go1.27, even though bumping the toolchain will turn 5 currently-green cases red. **Why:**
-`packages/go` implements no freeze rule, so it passes the two post-16.0 vectors (`U+20C1`, `U+A7F1`)
-only by accident — its 15.0 tables classify them `Cn` and the category-`C` filter drops them. Under
-go1.27 (`x/text`'s `tables17.0.0.go` is `//go:build go1.27`; the stdlib tables move too) both become
-assigned and the vectors fail, as does the sequence case
-`text_clean/test_0006_seq_ua7f1_no_decomposition_leak`. That red is precisely the signal that the
-731-range freeze table must land in `packages/go/utils.go`, which `decisions.md` 2026-07-26 ("Go
-skips the Unicode-16 boundary vectors until go1.27") already says Go needs regardless of the
-toolchain. **Alternatives:** version-gate the skip map with a `go1.27` build tag (raised as a P1 by
-the Codex review of iteration 150) — rejected: it converts a designed failure signal into silent
-pre-emptive test skipping, and would let a toolchain bump land with Go quietly non-conformant;
-vendor the 15.0→16.0 delta now — already rejected by the 2026-07-26 ruling on throwaway-cost
-grounds. **Consequence:** the go1.27 bump is a *bundled* step — toolchain + freeze table + skip-map
-removal in one commit. Risk of a surprise is low: `.github/workflows/ci.yml` pins Go via
-`go-version-file: packages/go/go.mod`, so nothing moves without editing the `go 1.26.1` directive. A
-checklist is recorded under the Unicode issue in `issues.md`. **Context:** iteration 150 review,
-commit `d12ceb1`; `x/text` build tags read from the local module cache (`v0.40.0`).
-
 ## 2026-07-26 — Binding boundary suites link the canonical fixture instead of vendoring a copy
 
 **Decision:** The C# and Kotlin boundary suites read `crates/iscc-lib/tests/unicode_boundary.json`
@@ -397,3 +375,16 @@ upper-cases before `iscc_clean`), the spec mandates upper-casing first so `faaa-
 Rust (195) and Go (202) agree. **Alternatives:** detect a complete multicodec-wrapped unit before
 case folding (Codex, iteration 202) — rejected: a reference divergence with no observed real input,
 to be mirrored on 11 surfaces. **Context:** iteration 202 review; Codex will re-flag it per surface.
+
+## 2026-11-18 — Go text utilities drop the `strings.Fields` / `TrimSpace` ASCII fast path
+
+**Decision:** `TextRemoveNewlines` / `TextTrim` call `strings.FieldsFunc` / `strings.TrimFunc` with
+`isPyStripChar` on every input. Measured on go1.26.1 (iteration 203 review): a 6-word title takes
+about 2× as long (502 → 1000 ns/op). Allocations stay equal up to 32 fields, then rise (40 fields: 2
+→ 3, 512 fields: 2 → 6), because `FieldsFunc` keeps a 32-entry span buffer. **Why:** this gives
+parity with iscc-core `str.split()` / `str.strip()` on U+001C–U+001F. The cost is under a
+microsecond on a Meta-Code path dominated by NFD/NFKC and hashing, and the Go port has no perf gate.
+**Alternatives:** keep `strings.Fields` when no U+001C–U+001F is present and fall back otherwise
+(Codex, iteration 203). Rejected: two code paths for a sub-µs gain on an ungated path. Re-open only
+with a Go benchmark showing a regression at the Meta-Code level. **Context:** iteration 203 review;
+next.md prescribed `FieldsFunc` verbatim.

@@ -1,69 +1,66 @@
-## 2026-11-18 — `text_trim` / `text_remove_newlines` strip U+001C–U+001F in Rust and Go
+## 2026-11-18 — Review of: `text_trim` / `text_remove_newlines` strip U+001C–U+001F in Rust and Go
 
-**Done:** Rust `text_trim` (both paths) and `text_remove_newlines` now use the Python `str.strip()`
-/ `str.split()` set. They call `codec::is_py_strip_char`, which is now `pub(crate)`, so it stays out
-of Tier 2. Go `TextTrim` / `TextRemoveNewlines` use `strings.TrimFunc` / `strings.FieldsFunc` with
-`isPyStripChar`, which is already in the package. Not touched: `text_clean`, `text_collapse`,
-`code_meta.go` and `.iai-baseline.json`.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `crates/iscc-lib/src/utils.rs`: added `use crate::codec::is_py_strip_char;`. `split_whitespace()`
-    → `split(is_py_strip_char).filter(|s| !s.is_empty())` (rustfmt chain-wrapped it). Both `trim()`
-    → `trim_matches(is_py_strip_char)`. Docstrings updated. 5 tests added: the short path (the issue
-    example plus each separator), the truncation path with the separators at the cut edge (cut sized
-    from the encoded length) plus U+3000 at the edge, whole and split, and `remove_newlines` with
-    separators leading, interior (single and run) and trailing. U+200B is kept by both functions
-- `crates/iscc-lib/src/codec.rs`: `is_py_strip_char` is now `pub(crate)`. Visibility is the only
-    change
-- `packages/go/utils.go`: 3 sites (lines 91, 101, 109) changed, plus their doc comments
-- `packages/go/utils_test.go`: 4 tests. U+001C, U+001D, U+001E and U+001F are pinned **literally**
-    for `TextTrim` (short and truncation paths) and `TextRemoveNewlines` (leading, interior and
-    trailing, plus the issue example). U+200B is kept by both
-- `tests/test_text_utils.py`: `PY_STRIP_CHARS` is derived live (`c.strip() == ""` over all code
-    points). Tests added:
-    - the issue example
-    - differentials against `iscc_core.code_meta.text_remove_newlines` and `text_trim`, for each strip
-        char, with the char outer, interior and as a run. `text_trim` is checked at `nbytes = size`,
-        `size + 8` and a cut right after the char
-    - the reverse direction: chars in `Zs/Zl/Zp/Cc/Cf` minus the strip set are kept identically by
-        both, including U+200B
-- `.crap-baseline.json`: refreshed with `mise run crap:baseline`. The diff has 7 line moves
-    (utils.rs fns +1 or +4, from the import and the rustfmt wrap) and 1 new entry,
-    `test_strict_base32.rs::assert_base32_error` (CRAP 2.0). This step does not touch that file
-    (last changed in `536e461`). The refresh is a deliberate deviation from next.md, which says to
-    refresh only if the gate reds
+**Summary:** Rust `text_trim` (both paths) and `text_remove_newlines` now trim and split on the
+Python `str.strip()` set via `codec::is_py_strip_char` (made `pub(crate)`, still outside Tier 2). Go
+`TextTrim` / `TextRemoveNewlines` use `TrimFunc` / `FieldsFunc` with `isPyStripChar`. The tests
+cover each trim site: the short path, a separator at the truncation cut, and a split multi-byte
+strip char. A live-derived Python differential checks both directions. I re-ran every gate myself.
+The only note is a small Go speed cost (below), which is accepted and recorded.
 
 **Verification:**
 
-- `cargo test -p iscc-lib`: 427 passed, 0 failed.
-    `cargo test -p iscc-lib --no-default-features   --lib utils`: 14 passed, so the ungated trim
-    functions build without `text-processing`
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings`: clean (only the known `proc-macro-error2`
-    future-incompat note)
-- `uv run pytest tests/test_text_utils.py`: with the **stale** extension, 3 FAILED (the issue
-    example and both strip-set differentials). That shows the tests detect the old behaviour. After
-    `maturin develop -m crates/iscc-py/Cargo.toml`: 40 passed
-- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...`: `ok`. `go vet`: clean. `gofmt -l`: empty
-- `mise run bench:iai:check`: exit 0 against the unmodified `.iai-baseline.json` ("16 without
-    regressions"). The deltas are against the committed baseline: meta_code −4.4% / −4.5%, but
-    benches this diff cannot reach drifted by a similar amount (data_code −3.5%, mixed_code −4.6%).
-    The step's own effect is indistinguishable from that drift
-- CRAP: after `mise run coverage`, the gate exited 0 against the old baseline (7 moved, 1 new). I
-    refreshed the baseline anyway, because learnings say moved lines red in CI. Re-run against the
-    new baseline: exit 0, with 0 regressed, 0 new, 0 moved and 119 unchanged. Local rustc is 1.100.0
-    (0ef1bc386 2026-11-09)
-- `mise run format` changed nothing. `mise run check` exit 0
+- [x] `cargo test -p iscc-lib`: 427 passed (302+17+28+44+13+22+1), with the new separator tests for
+    both `text_trim` paths and `text_remove_newlines`. CI feature matrix also green:
+    `--no-default-features` 363, `--features text-processing` 396, `--all-features` 427
+- [x] `uv run pytest tests/test_text_utils.py` after `maturin develop`: 40 passed, including the
+    live-derived strip-set differential and the U+200B kept-by-both case
+- [x] `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` `ok`; `go vet` clean; `gofmt -l` empty.
+    U+001C–U+001F are written out literally for `TextTrim` (short and truncation paths) and
+    `TextRemoveNewlines`
+- [x] `mise run bench:iai:check` exit 0, `.iai-baseline.json` unmodified (16 benches, 0 regressed;
+    meta_code −4.4% / −4.5%, inside the drift other benches show too)
+- [x] `cargo crap … --fail-regression --fail-above` exit 0 after `mise run coverage` (0 regressed, 0
+    new, 0 moved, 119 unchanged; rustc 1.100.0). `mise run crap:baseline` regenerates the committed
+    `.crap-baseline.json` byte for byte
+- [x] `mise run check` exit 0. `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean, and
+    so are clippy `--workspace --all-targets` and `--no-default-features`
+- [x] Pre-push Python gates on the new test code (release build): `ty check`, ruff `S`, ruff `C901`
+    all pass, and the full `pytest` gives 517 passed with coverage enforced
 
-**Next:** the next ISCC-SEQ surface (Node/napi; 2 of 11 done) or the small Python `encode_seq`
-docstring issue. The text-utils issue in issues.md can be closed. Bindings inherit the fix from the
-core: Python is proven by the differential, and the other bindings delegate to the core.
+**Issues found:**
+
+- Go `FieldsFunc` loses the ASCII fast path of `strings.Fields`. A 6-word title takes about 2× as
+    long (502 → 1000 ns/op). Allocations are equal up to 32 fields and higher beyond that (512
+    fields: 2 → 6). Accepted as a trade-off in decisions.md (2026-11-18, "Go text utilities drop the
+    … ASCII fast path"). Not filed as an issue
+- `.crap-baseline.json` was refreshed even though the local gate was green against the old file.
+    That follows learnings: moved lines turn CI red. Only `line:` values shifted, plus one test
+    helper entry (`assert_base32_error`, CRAP 2.0) that was missing before. Scope: 3 source files
+    plus this generated baseline, the same pattern accepted for the ISCC-SEQ core step (195)
+- Resolved issue deleted: "`text_trim` / `text_remove_newlines` keep U+001C–U+001F". The spec
+    wording "trim whitespace" is still accurate, so no spec edit was needed
+
+**Codex review:** Two runs. On `47ad4bd` (the main commit), one P2 finding: Go `TextRemoveNewlines`
+should keep `strings.Fields` when the input has no U+001C–U+001F. I reproduced the numbers and
+rejected the change with reasons in decisions.md: two code paths for a sub-microsecond gain on a
+path with no perf gate, and typical names allocate no more than before. On `HEAD` (the handoff fixup
+commit): no findings.
+
+**Next:** The text-utils issue is closed. The other 7 `normal` issues are still open. Candidates:
+(a) the next ISCC-SEQ surface (Node/napi; 2 of 11 done, Rust and Go), (b) the small Python
+`encode_seq` docstring issue (`[human]`), (c) the `uv.lock` Dependabot alerts (`soupsieve` has two
+**high** alerts; dev-only, but quick to fix), (d) the Ruby `json` Dependabot alert, the Ruby locale
+fixture, the `@iscc/wasm` license and the `c-ffi-api.md` type names. The bindings get the text-utils
+fix through the core, so the SEQ differentials no longer inherit the U+001C gap.
 
 **Notes:**
 
-- The core-side `split` + `filter` adds no allocation beyond the existing `Vec` + `join`. The iai
-    gate shows no regression (std source not checked: `rust-src` is not installed)
-- The Python test module adds `import iscc_core` and `import unicodedata`. Both are already used by
-    `tests/test_seq.py`. `PY_STRIP_CHARS` is derived locally and not imported across modules, as
-    next.md asked
-- issues.md is not edited (review owns the ledger)
+- Every surface now uses the Python whitespace set for codec input and for both text utilities.
+    `text_clean` and `text_collapse` were deliberately left alone, because every Cc character is
+    filtered out before their trims
+- Meta-Code / Text-Code output does not change: `text_clean` drops U+001C–U+001F before
+    `text_remove_newlines` / `text_trim` run inside `gen_meta_code_v0`
+- Binding docstrings and docs still say "collapse whitespace", which remains accurate. No docs work
+    is owed

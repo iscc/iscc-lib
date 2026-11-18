@@ -200,28 +200,3 @@ these packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
 Resolved when `uv.lock` pins `soupsieve` >= 4.0.0 and `setuptools` >= 84.1.0, `mise run check`
 (mdformat) is green, and `gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of
 #2-#6.
-
-## `text_trim` / `text_remove_newlines` keep U+001C–U+001F that iscc-core strips `normal` [review]
-
-The reference text utilities use Python whitespace: `text_trim` ends in `.strip()`
-(`reference/iscc-core/iscc_core/code_meta.py:184`) and `text_remove_newlines` is
-`" ".join(text.split())` (`:199`). Python's whitespace set is Rust's `char::is_whitespace` plus the
-four information separators U+001C–U+001F. The Rust ports use `str::trim` and `split_whitespace`
-(`crates/iscc-lib/src/utils.rs:115,125,132`), so both Tier-1 functions keep those four characters.
-Probed 2026-11-18 (CPython 3.13, `iscc_core` 1.5.0) over every code point: exactly these 4 differ.
-`text_trim("\x1eab\x1fcd\x1e", 64)` gives `'ab\x1fcd'` in iscc_core and the input unchanged in
-iscc_lib; `text_remove_newlines` of the same string gives `'ab cd'` vs the input unchanged.
-
-Meta-Code and Text-Code output did not diverge on the probed inputs: `text_clean` and the
-`text_collapse` category filter drop every `Cc` character, these four included, before any trim. So
-the divergence reaches callers of the two utilities themselves, through every binding. The codec
-already trims the Python set (`codec::is_py_strip_char`, private): reuse it rather than writing a
-second predicate. The text utilities sit on the iai-gated Meta-Code benches, so run
-`mise run bench:iai:check` in the same step. The Go text utilities are unprobed and may share it;
-Go's `isPyStripChar` (`codec.go`) is the matching predicate (probed equal to the `str.strip()` set,
-both directions, 29 code points).
-
-Resolved when `text_trim` and `text_remove_newlines` match iscc-core on U+001C–U+001F, and a Python
-differential over the live-derived `str.strip()` set (as in `tests/test_seq.py`) covers both.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "Text Utility Functions"

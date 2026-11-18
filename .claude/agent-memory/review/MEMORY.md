@@ -48,12 +48,16 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     base32 divergence, while `rust-core.md` demands "both sides reject the same inputs". Read the
     feature's spec checklist too; a missing cheap differential test → add it in review (step 6)
 - **Python-reference differentials: Python `strip()`/`split()` ⊋ Rust `trim`/`split_whitespace`** by
-    U+001C–U+001F: Rust codec 198 + Go codec 200 fixed, text utils open (issues.md). A one-way sweep
-    proves only ⊇ — demand the reverse (live `Z*`/`Cc`/`Cf` − strip set, 0.6s); `binascii.Error` ⊂
+    U+001C–U+001F: codec (198/200) + text utils (203) fixed in Rust AND Go. A one-way sweep proves
+    only ⊇ — demand the reverse (live `Z*`/`Cc`/`Cf` − strip set, 0.6s); `binascii.Error` ⊂
     `ValueError`
 - **A metamorphic "display forms" suite: demand one form per trim/clean CALL SITE** (200: Codex saw
     the outer-only separator forms miss the 2 post-colon trims; mutation in a `/tmp` copy of
     `packages/go` — conformance tests need `../../crates`, so `-run <family>` only)
+- **Scope cap: `.crap-baseline.json` is a GENERATED artifact, not a counted file** (3 src + baseline
+    passed at 195 `5d2840e` and 203); a refresh with only `line:` shifts is correct, not a deviation
+- **A Go `Fields`→`FieldsFunc` swap costs ~2× (ASCII fast path) and allocs only past 32 fields** —
+    an `AllocsPerRun` probe needs >32 fields to see it; accepted in decisions.md (203)
 - **Advance agent idle claims**: verify remaining issue priorities independently — it may claim
     "only low-priority remain" when `normal` issues still exist
 - **Run the full CI feature matrix on any core change** — only `--no-default-features` catches a
@@ -120,7 +124,8 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **Prek-hook-scope review (138–139)**: NEVER accept `git ls-files` arithmetic as a hook's surface —
     `.pyi` is tagged `pyi`, not `python`; a *widened* tag needs a **staged, dirty** file probe
 - **Core text/codec change + generated data (≈12 min)**: Rust-only + full feature matrix +
-    coverage/CRAP + `bench:iai:check` + generator no-op → `gate-reviews.md`
+    coverage/CRAP + `bench:iai:check` + generator no-op + pre-push `ty`/ruff/pytest on any new `.py`
+    test (203, ~20 min) → `gate-reviews.md`
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`
 - **Action *pin* change (162, ~6 min)**: four static gates + actionlint, then probe the pin at
     source — `git/matching-refs/tags` (does `@vN` exist?) + `compare/<tag>...main` `.ahead_by` (162:
