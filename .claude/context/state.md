@@ -1,15 +1,15 @@
-<!-- assessed-at: d43914d3a2a34caf32c651e43feef022c30b5a63 -->
+<!-- assessed-at: 504a4a8bdab52c34bf0913c51ecf39d01ee202c5 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — ISCC-SEQ on Rust core, Python and Go (2 of 11 surfaces); CI green
+## Phase: v0.8.0 — ISCC-SEQ on Rust core, Python, Go, Node.js and WASM (4 of 11 surfaces); CI green
 
-The pushed `develop` tip `a0eb4cf` passes CI on all 21 check-runs. HEAD `d43914d` adds only a
-`cid(log)` commit, so that run covers HEAD's code. Iteration 203 closed the text-utils U+001C–U+001F
-issue in Rust and Go. ISCC-SEQ is still on 2 of 11 surfaces (Python, Go). 6 `normal` issues are
-open.
+The pushed `develop` tip `88b8fc8` passes CI on all 21 check-runs. HEAD `504a4a8` adds only a
+`cid(log)` commit, so that run covers HEAD's code. Iteration 204 bound `encode_seq` / `decode_seq`
+on napi and WASM, bringing ISCC-SEQ to 4 of 11 surfaces. 7 `normal` issues are open (one new: the
+napi `Buffer` reference leak).
 
 ## Rust Core Crate
 
@@ -18,12 +18,10 @@ open.
 - Tier 1 has 35 symbols at the crate root. Tier 2 `read_unit` + `SEQ_MAINTYPES` are in `codec.rs`.
     `crates/iscc-lib` has 426 `#[test]`, with 44 in `tests/test_seq.rs`. `conformance_selftest` runs
     the seq vectors
-- `text_trim` and `text_remove_newlines` now use the Python `str.strip()` set via
-    `codec::is_py_strip_char` (`pub(crate)`, not Tier 2), matching iscc-core on U+001C–U+001F
-- Strict base32 with ASCII-only upper-casing is met. The `encode_seq` case-fold divergence from
-    iscc-core is recorded in `rust-core.md` and decisions.md
-- iai Perf, Coverage + CRAP (`.crap-baseline.json` refreshed for moved lines) and semver-checks
-    passed on `a0eb4cf` (semver is informational)
+- `text_trim` / `text_remove_newlines` use the Python `str.strip()` set (`codec::is_py_strip_char`,
+    `pub(crate)`). Strict base32 with ASCII-only upper-casing is met; the `encode_seq` case-fold
+    divergence is recorded in `rust-core.md` and decisions.md
+- iai Perf, Coverage + CRAP and semver-checks passed on `88b8fc8` (semver is informational)
 - **Missing (human-gated, not v0.8.0 work):** the crate is not yet `>= 1.0.0`, and the MSRV
     criterion is unverified. Nothing in the Rust core is owed for v0.8.0
 
@@ -34,7 +32,6 @@ open.
 - 35 Tier 1 symbols, including `encode_seq` (returns `bytes`) and `decode_seq` (returns
     `list[str]`), with `.pyi` stubs and `__all__`. abi3-py310 wheels for 4 platforms; 12 `py.detach`
     sites; 0.7.0 on PyPI
-- `tests/test_text_utils.py` gained a live-derived strip-set differential against iscc-core
 - **Missing (`normal` issue):** the `encode_seq` docstrings don't mention the case-fold divergence
 - Stale doc: `crates/iscc-py/CLAUDE.md` still says "27 #[pyfunction]s"
 
@@ -42,16 +39,23 @@ open.
 
 **Status**: partially met
 
-- 33 Tier 1 symbols with TypeScript declarations; `@iscc/lib` 0.7.0 published via OIDC
-- **Missing:** `encode_seq` / `decode_seq` and the seq conformance vectors
+- 35 Tier 1 symbols with TypeScript declarations: `encode_seq(units: Array<string>): Buffer` and
+    `decode_seq(data: Buffer): Array<string>` in `index.d.ts`. `conformance.test.mjs` runs the seq
+    vectors; `__tests__/seq.test.mjs` adds round-trip and negative tests. `@iscc/lib` 0.7.0 is
+    published via OIDC
+- **Missing (`normal` issue):** every napi `Buffer` parameter keeps a reference to a rejected
+    non-Buffer object (an upstream napi-rs 3.11 bug, crate-wide)
+- Stale doc: `crates/iscc-napi/CLAUDE.md` still says 33 symbols
 
 ## WASM Bindings
 
 **Status**: partially met
 
-- 33 Tier 1 symbols; the SIMD release build (`+simd128`, `wasm-opt --enable-simd`) is met
-- **Missing:** `encode_seq` / `decode_seq` and the seq conformance vectors
-- Open `normal` issue: `crates/iscc-wasm/Cargo.toml` has no `license` and no `description`
+- 35 Tier 1 symbols: `encode_seq` (`units: JsValue`, any JS iterable) and `decode_seq` (`&[u8]`).
+    `tests/conformance.rs` runs the seq vectors and `tests/unit.rs` adds seq tests. The SIMD release
+    build (`+simd128`, `wasm-opt --enable-simd`) is met
+- **Missing (`normal` issue):** `crates/iscc-wasm/Cargo.toml` has no `license` and no `description`
+- Stale doc: `crates/iscc-wasm/CLAUDE.md` still says 33 symbols
 
 ## C FFI
 
@@ -69,10 +73,8 @@ open.
 - Pure Go, 35 Tier 1 symbols: `EncodeSeq` and `DecodeSeq` port the Rust code, with a private
     `readUnit`. `CGO_ENABLED=0`; IDv1 at the reference API shape; strict base32; `isccClean` at all
     5 string-input sites
-- `TextTrim` / `TextRemoveNewlines` use `TrimFunc` / `FieldsFunc` with `isPyStripChar`
-    (`utils.go:91,101,109`); `TextClean` keeps `strings.TrimSpace` by design (Cc already filtered).
-    `FieldsFunc` speed cost accepted in decisions.md
-- 264 `func Test`, including `seq_test.go`. `ConformanceSelftest` runs the seq vectors
+- `TextTrim` / `TextRemoveNewlines` use `isPyStripChar`; `TextClean` keeps `strings.TrimSpace` by
+    design. 264 `func Test`; `ConformanceSelftest` runs the seq vectors
 - Stale doc: `packages/go/CLAUDE.md` still says "all 9 gen functions" and "all 46 conformance"
 
 ## Java, Ruby, .NET, C++, Swift, Kotlin Bindings
@@ -82,7 +84,7 @@ open.
 - All six expose the 33-symbol surface and shipped 0.7.0: Java and Kotlin on Maven Central, Ruby on
     RubyGems, .NET on NuGet, C++ through vcpkg/Conan metadata, Swift as an SPM XCFramework
 - **Missing on all six:** `encode_seq` / `decode_seq` and the seq vectors in each conformance
-    harness. Swift and Kotlin hard-code per-section counts. The .NET work depends on the C FFI step
+    harness. Swift and Kotlin hard-code per-section counts. .NET and C++ depend on the C FFI step
 - Ruby has two open `normal` issues: `json` in `Gemfile.lock` (Dependabot) and the `File.read` call
     in `test_conformance.rb` that passes no encoding
 
@@ -112,19 +114,19 @@ open.
 - `ci.yml` has 20 jobs; Swift is the only job on macOS (`macos-15`). `release.yml` is
     `workflow_dispatch`-only with 8 registry toggles. 21 version-sync targets are at 0.7.0
 - `deny.toml` ignores `RUSTSEC-2026-0374` with a documented reason (no upstream fix)
-- **Latest CI: PASSING** on `a0eb4cf`: https://github.com/iscc/iscc-lib/actions/runs/44388211563.
+- **Latest CI: PASSING** on `88b8fc8`: https://github.com/iscc/iscc-lib/actions/runs/44402373150.
     All 21 check-runs succeeded. No unpushed code changes at HEAD
 - **Missing:** the `uv.lock` Dependabot bump (`soupsieve` has two high alerts, `setuptools`),
     tracked as a `normal` issue
 
 ## Open Issues
 
-13 open: 0 critical, **6 normal**, 7 low. The 6 `normal` issues: c-ffi-api type names, wasm npm
+14 open: 0 critical, **7 normal**, 7 low. The 7 `normal` issues: c-ffi-api type names, wasm npm
 metadata, the Ruby `json` alert, the Ruby locale fix, the Python `encode_seq` case-fold docstrings,
-and the `uv.lock` alerts. None is blocked.
+the `uv.lock` alerts, and the napi `Buffer` reference leak. None is blocked.
 
 ## Next Milestone
 
-Continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on the remaining 9 surfaces, with every
-conformance harness running the seq vectors. Also clear the 6 open `normal` issues that block the
+Continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on the remaining 7 surfaces, with every
+conformance harness running the seq vectors. Also clear the 7 open `normal` issues that block the
 release.

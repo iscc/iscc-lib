@@ -86,23 +86,22 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: d43914d, iter 204 — incremental)
+## Current State (assessed-at: 504a4a8, iter 205 — incremental)
 
-- **CI GREEN on `a0eb4cf`** (run 44388211563, 21/21). Runner-capacity cancels (199-200): a suite
-    `failure` whose sole non-success run is `cancelled` w/ 0 steps = infra; confirm via
-    `gh api repos/iscc/iscc-lib/check-runs/<id>/annotations`. Still report FAILING.
-- **ISCC-SEQ bindings 2/11 (Python, Go 202)**. Probe:
-    `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages` filtered to source
-    extensions — `data.json` copies are noise. Go `readUnit` is private (no `ReadUnit`, by design).
+- **CI GREEN on `88b8fc8`** (run 44402373150, 21/21). Local `origin/develop` ref can lag: a
+    `cid(log)` HEAD may 422 on the check-runs API (not pushed) — use `git ls-remote origin develop`
+    for the real tip. Runner-capacity cancels: suite `failure` w/ sole `cancelled` 0-step run =
+    infra; still report FAILING.
+- **ISCC-SEQ bindings 4/11 (Python, Go, napi, WASM 204)**. Probe: `grep -rlE` with QUOTED
+    `--include='*.rs'` etc. (zsh globs unquoted `*.rs` → "no matches found"); `data.json` = noise.
+    Go `readUnit` private by design. WASM `encode_seq` accepts any iterable (crate convention).
 - `encode_seq` strictness + multibase-ambiguous bare-unit reading = decisions.md rulings — do NOT
-    re-flag. Text-utils U+001C–U+001F CLOSED 203 (Rust `is_py_strip_char`, Go `isPyStripChar`); Go
-    `TextClean` `TrimSpace` is intentional; `FieldsFunc` slowdown accepted — do NOT re-flag.
-- **6 open `normal`**, 7 low (13 headers).
-- **`#[test]` count 426** (review's "427 passed" includes a doctest); Go `func Test` **264**.
+    re-flag. Text-utils U+001C–U+001F CLOSED 203; Go `TextClean` `TrimSpace` intentional.
+- **7 open `normal`** (napi Buffer leak added 204), 7 low (14 headers).
+- **`#[test]` count 426**; Go `func Test` **264**.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.
-- **Python heredoc gotcha**: `uv run ... - << EOF || python3 - << EOF2` silently did nothing (198);
-    write a temp script file and run that. Plain `uv run python - << 'EOF'` WORKS (tested 203).
+- **Python heredoc**: plain `uv run --active python - << 'EOF'` works (cid sets a VIRTUAL_ENV).
 
 ## Durable Facts (carried, not per-iteration)
 
