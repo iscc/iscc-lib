@@ -72,3 +72,21 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Revie
     `cyclomatic`/`coverage`/`crap` should move (+ it re-sorts by CRAP desc); every OTHER lib.rs
     entry must be a pure `line:` shift equal to the net lines the source change added — any
     substantive metric drift elsewhere = probe before approving (coverage-env noise)
+
+## Moved from the index (197)
+
+Full text of entries compacted out of `MEMORY.md`.
+
+- **`mise run bench:iai:check` is NOT in `mise run check`** (CI-only enforcing Perf gate): run it
+    explicitly on ANY benchmarked hot-path change (codec `iscc_clean`/decode, text utils, cdc) —
+    iter 191's +36% four_units regression slipped past a green-`check` review (192) into RED CI. A
+    *correctness* change can raise iai cost irreducibly (191/192 reference-correct clean = 2 std
+    memchr scans); removing allocs won't restore a baseline set for cheaper-but-wrong code → the fix
+    is a deliberate baseline regen (human/gate, escalate) → detail `gate-reviews.md`
+- **Core text/codec change + generated data (133/148, ≈12 min)**: Rust-only PLUS the **full feature
+    matrix** PLUS the two CI-only gates (`mise run coverage` then CI-exact `cargo crap` with BARE
+    `--fail-above`, and `mise run bench:iai:check`); re-run generators (`git status` empty) +
+    sequence diff
+- **decisions.md over budget → rotate with the runner's OWN function**, never hand-compress bodies:
+    `uv run --no-project python -I -c "import sys; sys.path.insert(0,'tools'); import cid; from   pathlib import Path; cid.archive_overflow(Path('.'), cid.DECISIONS_FILE, cid.DECISIONS_ARCHIVE,   cid.ARTIFACT_BUDGETS[cid.DECISIONS_FILE])"`;
+    stage `decisions-archive.md` too (195)

@@ -13,12 +13,8 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     never assert the hook count, it drifts. Pre-push hooks (clippy, cargo test, pytest, `ty`, ruff
     `S`/`C901`) are NOT in it — verify clippy with
     `cargo clippy --workspace --all-targets -- -D warnings`. Added files must be ≤256kb
-- **`mise run bench:iai:check` is NOT in `mise run check`** (CI-only enforcing Perf gate): run it
-    explicitly on ANY benchmarked hot-path change (codec `iscc_clean`/decode, text utils, cdc) —
-    iter 191's +36% four_units regression slipped past a green-`check` review (192) into RED CI. A
-    *correctness* change can raise iai cost irreducibly (191/192 reference-correct clean = 2 std
-    memchr scans); removing allocs won't restore a baseline set for cheaper-but-wrong code → the fix
-    is a deliberate baseline regen (human/gate, escalate) → detail `gate-reviews.md`
+- **`mise run bench:iai:check` is NOT in `mise run check`** — run it on ANY benchmarked hot-path
+    change (191's +36% slipped past 192 into red CI) → `gate-reviews.md`
 - **Pre-push needs `iscc_lib` built** (`ty check`/`pytest` import it) — run
     `uv run maturin develop --release` in `crates/iscc-py` BEFORE `git push` → `binding-reviews.md`
 - Proper scoping, NOT circumvention: `[tool.ty.src] exclude` for Python importing non-venv packages
@@ -37,27 +33,20 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     number, test spec, expected value and count from source → `review-patterns.md` "Claim-Probing"
 - `iscc_decompose` returns units WITHOUT "ISCC:" prefix — cross-check doc examples. **Docs site
     URL** is `https://lib.iscc.codes/`, NOT `https://iscc-lib.iscc.io/` (advance gets this wrong)
-- **A docs-only sweep can FABRICATE a per-surface return type** (190): grep each binding's
-    `src/lib.rs` for the ACTUAL return type of any newly-documented symbol, not the CLAUDE.md/howto
-    prose (wasm `gen_iscc_id_v1` returns bare `Result<String,JsError>`, not an invented struct;
-    Codex catches these). A `#[deprecated]`/attribute claim in next.md is a hypothesis too — read it
-    in `~/.cargo/registry/src/index.crates.io-*/<crate>-<ver>/src/` (168: jni 0.22.4 never
-    deprecated `Env::byte_array_from_slice`; that grep criterion cost a zero-copy path)
-- **On ANY codec input-cleaning change, probe empty/garbage inputs** (191): a helper that yields
-    `""` (blank/`"-"`/`"iscc:"`) makes `iscc_decompose` silently return `Ok([])`
-    (`decode_base32("")` is `Ok(empty)`, not an error) — a Tier-1 silent-acceptance regression
-    valid-input differential tests miss. Compare against `HEAD~1` + reference; 192 added the empty
-    guard (learnings)
+- **A docs-only sweep can FABRICATE a per-surface return type** (190); a `#[deprecated]` claim is a
+    hypothesis (168) → `review-patterns.md` "Moved from the index"
+- **On ANY codec input-cleaning change, probe empty/garbage inputs** (191: cleaned `""` →
+    `iscc_decompose` `Ok([])`) → `review-patterns.md`
+- **next.md can under-scope the spec's "Verified when" criterion** (197): it asked only for the seq
+    base32 divergence, while `rust-core.md` demands "both sides reject the same inputs". Read the
+    feature's spec checklist too; a missing cheap differential test → add it in review (step 6)
+- **Python-reference differentials: Python `str.strip()` ⊋ Rust `trim`** by U+001C–U+001F (197,
+    issues.md) — probe `"\x1e"+input`; `binascii.Error` ⊂ `ValueError`, so compare via `isinstance`
 - **Advance agent idle claims**: verify remaining issue priorities independently — it may claim
     "only low-priority remain" when `normal` issues still exist
-- **A `--no-default-features` CI step catches COMPILE breaks the default gates miss** (174): a
-    `#[test]` calling a feature-gated fn fails to *compile* under
-    `cargo test -p iscc-lib --no-default-features`; gate the test `#[cfg(feature = "meta-code")]`.
-    Run the full CI feature matrix on any core change — `mise run check` and a default `cargo test`
-    are both blind to it
-- **Probe a WRAPPED multi-nibble header on any codec header-gate change** (174): `decode_header`
-    casts varnibbles `as u8` before `TryFrom`, so `MDFZAAAAAAAAAAAAAA` wraps to `Id`/V1 and
-    `iscc_decompose` silently rewrites it to `MAIAAAAAAAAAAAAA` (`iscc_core` rejects it) → learnings
+- **Run the full CI feature matrix on any core change** — only `--no-default-features` catches a
+    feature-gated `#[test]` compile break (174) → `review-patterns.md`
+- **Probe `MDFZAAAAAAAAAAAAAA` on any codec header-gate change** (174, wrap) → `review-patterns.md`
 - Go `// indirect`, CI `find` cross-arch, prek stash conflict, and mode-only commits under
     `core.fileMode=false` → `review-patterns.md` "Gotchas"
 - **`\uXXXX` decodes to literal UTF-8 through Edit/Write and bash**, and **who may edit `issues.md`
@@ -65,13 +54,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **`mise run check` mdformat reformats context files** (intermittent): not an advance regression,
     but pre-push mdformat WILL reject the batch — check `git status --porcelain` right after and
     STAGE it. Never stage `iterations.jsonl`; keep inline code spans on ONE line
-- **No-op / human-handoff iteration (111)**: verify scope is empty, still scan `@{upstream}..HEAD`;
-    HUMAN-REVIEW spec amendments + `low` left → **HUMAN REVIEW REQUESTED**, never `**IDLE**`
-    (all-`low` only). Verdict still PASS. Same call when the only `normal` left is trigger-gated on
-    an upstream release (173, go1.27): escalate rather than burn a `Step: NONE` cycle
-- **Unicode freeze rule REMOVED 2026-07-30** (decisions.md): `utils/unicode16*`,
-    `unicode_boundary.json`, the sweep gate and the `U+FFFF` sentinel are gone. A diff that
-    reintroduces any freeze mechanism without a new human decision is a NEEDS_WORK
+- **No-op / human-handoff iteration** (111/173): verdict PASS; `low`-only + human spec work or an
+    upstream-gated `normal` → HUMAN REVIEW REQUESTED, never `**IDLE**` → `review-patterns.md`
+- **Unicode freeze rule REMOVED 2026-07-30** — reintroducing any freeze mechanism = NEEDS_WORK
 - **"files were modified by this hook" often means SOMETHING ELSE WAS WRITING** (97/164): a second
     CID loop (confirm `ps aux` → HUMAN REVIEW REQUESTED, do not push or kill), or my own Edits
     landing while a backgrounded prek run held its snapshot. Never edit while prek runs
@@ -105,12 +90,8 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **Binding boundary-fixture slices (150–161) — CLOSED, all 12 suites gated.** Commands, mutations,
     standing traps (`cargo test -p iscc-wasm` = 0 tests; Gradle UP-TO-DATE stale green; verify a
     generated artifact by decoding it back) → `binding-reviews.md`
-- **Every "not locally verifiable" toolchain claim has been FALSE so far** — `cmake` (160), `swift`
-    via swift.org's Debian 12 tarball (161; `/tmp/swifttc` gone between sessions, re-download ~5min
-    — a pure uniffi *regen* like 186 accepts Swift by transitivity: byte-identical regen + Rust
-    golden
-    - Codex's Kotlin run), Gradle publish (165), MSRV (172). CMake sets no `-Wall` → back "no warning"
-        with `g++ -Wall -Wextra -c`
+- **Every "not locally verifiable" toolchain claim has been FALSE so far** (cmake, swift, Gradle
+    publish, MSRV) → `binding-reviews.md` "Moved from the index"
 - **Ruby-only / Kotlin-only / published-`.pyi`** command sets → `binding-reviews.md` "Per-binding
     review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
@@ -118,26 +99,16 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **CI-restore (advisory ignore + runner-label swap, 196, ~10 min)**: prove an ignore's "no upgrade"
     claim at crates.io (`gate-reviews.md` Audit), runner arch from the `actions/runner-images`
     README, then grep `specs/` + per-crate `CLAUDE.md` for the old label
-- **A GENERATED-artifact bump (uniffi 0.32, 172, ~15 min)**: never read the generated diff —
-    regenerate into `/tmp`, compare modulo `sed 's/[[:space:]]*$//'` + EOF trim (a literal
-    `git status` no-op is unachievable), diff the `^public`/`^open` lists → `dep-refresh-reviews.md`
-- **An MSRV claim is locally decidable**: `cargo +1.85.0 check -p <crate> --locked` (1.85
-    installed). Source-build floor = max `rust_version` over the non-dev resolve graph
-    (`cargo metadata --locked`; `cargo tree -i <dep> -e no-dev --target all` empty ⇒ dev-only). A
-    normal-dep major can raise it transitively (172 uniffi 0.32 → `cargo-platform` 1.91 broke
-    `iscc-uniffi`, `iscc-lib` untouched, accepted); a per-crate override then makes cargo say
-    `requires rustc X`. Bench-harness/consumer/ data-table/native-artifact variants →
+- **A GENERATED-artifact bump** (172): regenerate into `/tmp`, never read the diff →
     `dep-refresh-reviews.md`
-- **Other bump-type shortcuts → `dep-refresh-reviews.md`**: committed-lockfile / `--locked-mode`
-    (170, warm `dotnet restore` validates NOTHING); build-tool WRAPPER / BINARY blob (165, checksum
-    \+ independent regeneration, never the diff); test-FRAMEWORK major (164/166, demand the pre-bump
-    total; only `mvn clean test` proves the new framework compiles)
+- **An MSRV claim is locally decidable**: `cargo +1.85.0 check -p <crate> --locked` →
+    `dep-refresh-reviews.md` "Moved from the index"
+- **Other bump types** (lockfile, wrapper/binary blob, test-framework major) →
+    `dep-refresh-reviews.md`
 - **Prek-hook-scope review (138–139)**: NEVER accept `git ls-files` arithmetic as a hook's surface —
     `.pyi` is tagged `pyi`, not `python`; a *widened* tag needs a **staged, dirty** file probe
-- **Core text/codec change + generated data (133/148, ≈12 min)**: Rust-only PLUS the **full feature
-    matrix** PLUS the two CI-only gates (`mise run coverage` then CI-exact `cargo crap` with BARE
-    `--fail-above`, and `mise run bench:iai:check`); re-run generators (`git status` empty) +
-    sequence diff
+- **Core text/codec change + generated data (≈12 min)**: Rust-only + full feature matrix +
+    coverage/CRAP + `bench:iai:check` + generator no-op → `gate-reviews.md`
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`
 - **Action *pin* change (162, ~6 min)**: four static gates + actionlint, then probe the pin at
     source — `git/matching-refs/tags` (does `@vN` exist?) + `compare/<tag>...main` `.ahead_by` (162:
@@ -149,9 +120,8 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **Pre-flight `uv run prek run --hook-stage pre-push --all-files` before pushing never-CI'd code**
     (exit 0 ⇒ `git push` will not be rejected; needs `iscc_lib` built). Run it last and sequentially
 - **CI/Audit/Perf/Semver/CRAP gates** → `gate-reviews.md`
-- **decisions.md over budget → rotate with the runner's OWN function**, never hand-compress bodies:
-    `uv run --no-project python -I -c "import sys; sys.path.insert(0,'tools'); import cid; from   pathlib import Path; cid.archive_overflow(Path('.'), cid.DECISIONS_FILE, cid.DECISIONS_ARCHIVE,   cid.ARTIFACT_BUDGETS[cid.DECISIONS_FILE])"`;
-    stage `decisions-archive.md` too (195)
+- **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in
+    `gate-reviews.md`); stage `decisions-archive.md` too (195)
 
 ## Codex Review Integration
 

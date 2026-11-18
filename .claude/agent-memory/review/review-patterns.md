@@ -464,3 +464,34 @@ plus a hot-path core edit. Run, in this order:
     Codex found the duplicate hole; `spec_job_rows()` now preserves order and reports duplicates.
 - The spec prose hardcodes "21 job keys → 22 check names"; the gate deliberately pins no count, so
     that number must be hand-corrected in whatever step adds a job.
+
+## Moved from the index (197)
+
+Full text of entries compacted out of `MEMORY.md`.
+
+- **A docs-only sweep can FABRICATE a per-surface return type** (190): grep each binding's
+    `src/lib.rs` for the ACTUAL return type of any newly-documented symbol, not the CLAUDE.md/howto
+    prose (wasm `gen_iscc_id_v1` returns bare `Result<String,JsError>`, not an invented struct;
+    Codex catches these). A `#[deprecated]`/attribute claim in next.md is a hypothesis too — read it
+    in `~/.cargo/registry/src/index.crates.io-*/<crate>-<ver>/src/` (168: jni 0.22.4 never
+    deprecated `Env::byte_array_from_slice`; that grep criterion cost a zero-copy path)
+- **On ANY codec input-cleaning change, probe empty/garbage inputs** (191): a helper that yields
+    `""` (blank/`"-"`/`"iscc:"`) makes `iscc_decompose` silently return `Ok([])`
+    (`decode_base32("")` is `Ok(empty)`, not an error) — a Tier-1 silent-acceptance regression
+    valid-input differential tests miss. Compare against `HEAD~1` + reference; 192 added the empty
+    guard (learnings)
+- **A `--no-default-features` CI step catches COMPILE breaks the default gates miss** (174): a
+    `#[test]` calling a feature-gated fn fails to *compile* under
+    `cargo test -p iscc-lib --no-default-features`; gate the test `#[cfg(feature = "meta-code")]`.
+    Run the full CI feature matrix on any core change — `mise run check` and a default `cargo test`
+    are both blind to it
+- **Probe a WRAPPED multi-nibble header on any codec header-gate change** (174): `decode_header`
+    casts varnibbles `as u8` before `TryFrom`, so `MDFZAAAAAAAAAAAAAA` wraps to `Id`/V1 and
+    `iscc_decompose` silently rewrites it to `MAIAAAAAAAAAAAAA` (`iscc_core` rejects it) → learnings
+- **No-op / human-handoff iteration (111)**: verify scope is empty, still scan `@{upstream}..HEAD`;
+    HUMAN-REVIEW spec amendments + `low` left → **HUMAN REVIEW REQUESTED**, never `**IDLE**`
+    (all-`low` only). Verdict still PASS. Same call when the only `normal` left is trigger-gated on
+    an upstream release (173, go1.27): escalate rather than burn a `Step: NONE` cycle
+- **Unicode freeze rule REMOVED 2026-07-30** (decisions.md): `utils/unicode16*`,
+    `unicode_boundary.json`, the sweep gate and the `U+FFFF` sentinel are gone. A diff that
+    reintroduces any freeze mechanism without a new human decision is a NEEDS_WORK

@@ -37,11 +37,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     cleaning
 - **iscc-core 1.5.0 `data.json`** (2026-10-17): `encode_seq`/`decode_seq` sections have non-object
     outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)
-- **Rust `decode_base32` is stricter than the reference** (195; issues.md): it rejects `=` padding
-    and non-zero trailing bits (`GAAAAAAAAB`), which iscc-core's re-padded `b32decode` accepts. Any
-    differential test on *string* inputs (`encode_seq`, `iscc_decode`) hits it. By contrast
-    `encode_seq`'s uppercase-first step reads a bare `b…` multibase string as plain base32 in BOTH
-    implementations (bit-identical) — matching the reference, so not a local defect
+- **Two string-input divergences from iscc-core** hit any differential on *string* inputs
+    (`encode_seq`, `iscc_decode`): (1) strict base32 by decision (2026-11-18): `=` padding and
+    non-zero spare bits (`GAAAAAAAAB`) rejected; (2) Python `str.strip()` also strips U+001C–U+001F,
+    which Rust `str::trim` keeps (197, issues.md) — probe `"\x1e"+input` on any cleaning port (Go
+    too). A bare `b…` string reads as plain base32 in BOTH (uppercase-first), so not a defect
 
 ## Tooling
 

@@ -36,12 +36,12 @@ representative example compiles against `crates/iscc-ffi/include/iscc.h`.
 The Rust half landed in iter 191 (shared `codec::iscc_clean` routed through all four Rust sites +
 `tests/codec_clean.rs`); the pure-Go port (`packages/go`) still has the four parallel gaps and keeps
 the issue open. The reference routes codec input through `iscc_clean`
-(`reference/iscc-core/iscc_core/codec.py:644`, reached via `normalize_multiformat` at `:363`), which
+(`reference/iscc-core/iscc_core/codec.py:762`, reached via `normalize_multiformat` at `:364`), which
 strips dashes and surrounding whitespace and accepts a case-insensitive `iscc:` scheme. Go does none
 of this, so documented-valid inputs raise. Reference behaviour (verified live against `iscc_core`
 1.3.0):
 
-- `ISCC:KACY-PXW4-45FT-…` → 4 units (the hyphen-separated form is blessed by `codec.py:381-382`)
+- `ISCC:KACY-PXW4-45FT-…` → 4 units (the hyphen-separated display form)
 - `"  ISCC:AAAYPXW445FTYNJ3  "` → 1 unit
 - `"iscc:AAAYPXW445FTYNJ3"` → 1 unit
 
@@ -49,7 +49,7 @@ Four Go sites clean ad-hoc: `codec.go:482` (`isccDecompose`), `code_content_mixe
 `code_iscc.go:27` and `codec.go:592` (`isccNormalize`) — a hand-written, non-mechanical port, so it
 is a separate step from the Rust fix, not a fan-out of it.
 
-Porting subtlety: in the reference's no-colon branch (`codec.py:656-661`) dashes are stripped **only
+Porting subtlety: in the reference's no-colon branch (`codec.py:774-779`) dashes are stripped **only
 when the string is not multibase-prefixed**. An unconditional dash strip would corrupt
 `f`/`b`/`v`/`z`/`u`-prefixed input. Multiformat decoding itself stays a documented non-goal — file
 it separately if ever wanted.
@@ -240,3 +240,27 @@ these packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
 Resolved when `uv.lock` pins `soupsieve` >= 4.0.0 and `setuptools` >= 84.1.0, `mise run check`
 (mdformat) is green, and `gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of
 #2-#6.
+
+## `iscc_clean` trims fewer whitespace characters than iscc-core `normal` [review]
+
+Rust `codec::iscc_clean` (`crates/iscc-lib/src/codec.rs:584`) trims with `str::trim` (Unicode
+`White_Space`). The reference `iscc_clean` (`reference/iscc-core/iscc_core/codec.py:762`) uses
+Python `str.strip()`, which also strips U+001C–U+001F (the ASCII file/group/record/unit separators).
+Measured 2026-11-18 against `iscc_core` 1.5.0: of the 29 characters Python strips, exactly these 4
+diverge. `iscc_core.encode_seq(["\x1eISCC:GAAAAAAAAA"])` and
+`iscc_core.iscc_decode("\x1eISCC:GAAAAAAAAA")` succeed; iscc-lib raises "Invalid scheme", or a
+base32 length error when the separator follows the colon. The reverse direction (characters Rust
+trims but Python keeps) is unprobed.
+
+Every entry point routed through `iscc_clean` inherits it (decode, decompose, normalize,
+`gen_iscc_code_v0`, `gen_mixed_code_v0`, `encode_seq`), as does the `unit.trim().is_empty()` guard
+in `encode_seq` (`codec.rs:816`). The fix touches the iai-gated `iscc_clean` hot path, so run
+`mise run bench:iai:check` in the same step. The Go `isccClean` port (issue above) must strip the
+same character set.
+
+Resolved when `iscc_clean` and the empty-unit guard trim exactly what `str.strip()` trims, a Rust
+test covers U+001C–U+001F both around the string and around the scheme parts, and
+`tests/test_seq.py` has a differential case where both libraries accept `"\x1eISCC:GAAAAAAAAA"` with
+identical bytes. Until then, the Python shared-rejection criterion in the spec is not met.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations" (cleaning parity)

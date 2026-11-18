@@ -358,3 +358,14 @@ one as unproven.
     don't. Filed as a normal `[review]` issue; **wasm will inherit this**, so expect the validation
     fix there. A minting slice that only covers next.md's high-end cases is still PASS_WITH_NOTES,
     not NEEDS_WORK (experimental fn, out of the slice's stated scope).
+
+## Moved from the index (197)
+
+Full text of entries compacted out of `MEMORY.md`.
+
+- **Every "not locally verifiable" toolchain claim has been FALSE so far** — `cmake` (160), `swift`
+    via swift.org's Debian 12 tarball (161; `/tmp/swifttc` gone between sessions, re-download ~5min
+    — a pure uniffi *regen* like 186 accepts Swift by transitivity: byte-identical regen + Rust
+    golden
+    - Codex's Kotlin run), Gradle publish (165), MSRV (172). CMake sets no `-Wall` → back "no warning"
+        with `g++ -Wall -Wextra -c`

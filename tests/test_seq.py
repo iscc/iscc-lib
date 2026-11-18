@@ -183,6 +183,58 @@ def test_differential_decode_agrees_on_vectors(tc):
     assert iscc_lib.decode_seq(data) == iscc_core.decode_seq(data)
 
 
+# Inputs both libraries reject with the same exception class (rust-core.md "Verified when").
+SHARED_ENCODE_REJECTIONS = [
+    pytest.param([], ValueError, id="empty_list"),
+    pytest.param([""], ValueError, id="empty_unit"),
+    pytest.param(["   "], ValueError, id="blank_unit"),
+    pytest.param([ISCC_CODE], ValueError, id="iscc_code_unit"),
+    pytest.param(["ISCC:MAIAAAAAAAAAAAAA"], ValueError, id="iscc_id_unit"),
+    pytest.param(["ISCC:GAAAAAAAAAAAAAAAAAAA"], ValueError, id="trailing_data"),
+    pytest.param(["foo:GAAAAAAAAA"], ValueError, id="invalid_scheme"),
+    pytest.param(["ISCC:GAAA:AAAA"], ValueError, id="two_colons"),
+    pytest.param([1], TypeError, id="int_unit"),
+    pytest.param(UNIT_32, TypeError, id="bare_str"),
+    pytest.param(UNIT_32.encode(), TypeError, id="bare_bytes"),
+]
+
+# IEP-0020 Table 2 rejection vectors plus a non-bytes input.
+SHARED_DECODE_REJECTIONS = [
+    pytest.param(b"", ValueError, id="empty"),
+    pytest.param(bytes.fromhex("28000100000000"), ValueError, id="noncanonical_header"),
+    pytest.param(bytes.fromhex("200800") + bytes(36), ValueError, id="length_above_7"),
+    pytest.param(bytes.fromhex("3000000000"), ValueError, id="truncated"),
+    pytest.param(bytes.fromhex("30000000000000"), ValueError, id="trailing_byte"),
+    pytest.param(
+        bytes.fromhex(
+            "5005578c7c8fbfbdb58fa88248c53a852c8d05b41f3472493225a522af4a2c9cbf6a"
+        ),
+        ValueError,
+        id="iscc_code",
+    ),
+    pytest.param(bytes.fromhex("60100000000000000000"), ValueError, id="maintype_6"),
+    pytest.param("abc", TypeError, id="str"),
+]
+
+
+@pytest.mark.parametrize(("units", "exc"), SHARED_ENCODE_REJECTIONS)
+def test_differential_encode_rejects_same_inputs(units, exc):
+    """iscc_core and iscc_lib both reject a malformed encode_seq input with the same class."""
+    with pytest.raises(exc):
+        iscc_core.encode_seq(units)
+    with pytest.raises(exc):
+        iscc_lib.encode_seq(units)
+
+
+@pytest.mark.parametrize(("data", "exc"), SHARED_DECODE_REJECTIONS)
+def test_differential_decode_rejects_same_inputs(data, exc):
+    """iscc_core and iscc_lib both reject a malformed decode_seq input with the same class."""
+    with pytest.raises(exc):
+        iscc_core.decode_seq(data)
+    with pytest.raises(exc):
+        iscc_lib.decode_seq(data)
+
+
 @pytest.mark.parametrize(("alias", "canonical", "hex_bytes"), STRICT_BASE32_DIVERGENCES)
 def test_differential_reference_accepts_non_canonical_base32(
     alias, canonical, hex_bytes

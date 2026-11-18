@@ -432,3 +432,22 @@ Review recipe for any **test-framework** bump, .NET or otherwise:
 - **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
     `--target all`. This disproved an advance-handoff attribution: `proc-macro-error2` comes from
     dev-only `iai-callgrind-macros`, NOT the magnus/rb-sys subtree.
+
+## Moved from the index (197)
+
+Full text of entries compacted out of `MEMORY.md`.
+
+- **A GENERATED-artifact bump (uniffi 0.32, 172, ~15 min)**: never read the generated diff —
+    regenerate into `/tmp`, compare modulo `sed 's/[[:space:]]*$//'` + EOF trim (a literal
+    `git status` no-op is unachievable), diff the `^public`/`^open` lists → `dep-refresh-reviews.md`
+- **An MSRV claim is locally decidable**: `cargo +1.85.0 check -p <crate> --locked` (1.85
+    installed). Source-build floor = max `rust_version` over the non-dev resolve graph
+    (`cargo metadata --locked`; `cargo tree -i <dep> -e no-dev --target all` empty ⇒ dev-only). A
+    normal-dep major can raise it transitively (172 uniffi 0.32 → `cargo-platform` 1.91 broke
+    `iscc-uniffi`, `iscc-lib` untouched, accepted); a per-crate override then makes cargo say
+    `requires rustc X`. Bench-harness/consumer/ data-table/native-artifact variants →
+    `dep-refresh-reviews.md`
+- **Other bump-type shortcuts → `dep-refresh-reviews.md`**: committed-lockfile / `--locked-mode`
+    (170, warm `dotnet restore` validates NOTHING); build-tool WRAPPER / BINARY blob (165, checksum
+    \+ independent regeneration, never the diff); test-FRAMEWORK major (164/166, demand the pre-bump
+    total; only `mvn clean test` proves the new framework compiles)
