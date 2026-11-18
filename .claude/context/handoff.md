@@ -39,14 +39,14 @@ issue rather than blocking.
 - **Three copies of the string-array pin loop**, plus NULL-on-empty in `GenIsccCodeV0` /
     `GenMixedCodeV0` (filed, `normal`). next.md deferred this on purpose; the entry keeps it from
     getting lost
-- Nit: `ConsumeByteBuffer` casts `buf.len` to `int` without a check, so an output over 2 GiB would
-    be cut short silently. That would take hundreds of millions of units, and the helper is shared
-    and pre-existing. Not filed
+- Nit: `ConsumeByteBuffer` casts `buf.len` to `int` without a check. An output over 4 GiB wraps to a
+    small length and is cut short silently (2–4 GiB goes negative and throws). That takes hundreds
+    of millions of units, and the helper is shared and pre-existing. Not filed
 
 **Codex review:** reviewed the main commit `e79a035`, since HEAD only holds handoff text. Two
 findings. P2 (embedded NUL makes `EncodeSeq` encode only the text before the NUL) is real; probing
 showed the whole wrapper is affected, filed as above. P3 (unchecked `nuint`→`int` length cast in
-`ConsumeByteBuffer`) is valid in theory but needs an output of several GiB; noted above, not filed.
+`ConsumeByteBuffer`) is valid in theory but needs an output over 4 GiB; noted above, not filed.
 
 **Next:** C++ `iscc.hpp` seq, as planned. It needs RAII ownership of the returned `IsccByteBuffer`
 and string array, the byte round trip over the `decode_seq` vectors, and one bad input per negative

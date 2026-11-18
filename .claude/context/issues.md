@@ -236,7 +236,7 @@ and `NativeMethods.g.cs` byte-identical.
 
 `ToNativeUtf8` (`packages/dotnet/Iscc.Lib/IsccLib.cs`) encodes the whole managed string including
 any `\0`, but every `iscc-ffi` string parameter is read with `CStr::from_ptr`, which stops at the
-first NUL. So all 17 `ToNativeUtf8` call sites (gen functions, text utilities, codec, `EncodeSeq`)
+first NUL. So every `ToNativeUtf8` call site (gen functions, text utilities, codec, `EncodeSeq`)
 compute their result from the prefix and return it as a success. Probed in iter 206:
 `GenTextCodeV0("Hello\0World")` returns `ISCC:EAAWSPUDF7GJWQVD`, the code of `"Hello"`, while Python
 `gen_text_code_v0("Hello\x00World")` gives `ISCC:EAASKDNZNYGUUF5A`. `EncodeSeq([unit + "\0junk"])`
