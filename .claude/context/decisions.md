@@ -29,27 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-26 — Sentinel conformance accepted on sequence evidence; criterion-4 sweep still owed
-
-**Decision:** The `U+FFFF` sentinel map (iteration 148) is accepted as conformant, and
-`docs/unicode.md` is allowed to state unqualified agreement with CPython 3.14, on the strength of a
-**sequence-class** differential rather than the full criterion-4 sweep, which remains a separate
-step. **Why:** the class the pre-filter broke is adjacency-sensitive sequences, and that is exactly
-what was measured in review — 127 Unicode-16.0-unassigned code points × 10 contexts (1,270 cases)
-compared against a `unicodedata2==16.0.0` reimplementation of `iscc-core`'s `text_clean` /
-`text_collapse`: the sentinel scored **0 mismatches**, the deleted iteration-133 filter **504**
-(exactly the four adjacency-sensitive contexts: canonical composition, Hangul jamo, `Final_Sigma`,
-diaeresis). Analytically the equivalence is total, not statistical: any code point unassigned in
-16.0 and `U+FFFF` are both `Cn`, `ccc = 0`, undecomposable, uncased and not `Case_Ignorable`, so
-they are indistinguishable to every step of both pipelines. **Alternatives:** hold the docs claim
-qualified until the 1,112,064-value sweep lands — rejected, the qualifier existed specifically to
-hedge the sequence class that is now proven, and leaving it would document a defect that no longer
-exists; verdict NEEDS_WORK pending the sweep — rejected, next.md scoped the sweep out deliberately
-and the sweep's remaining value is *regression* protection, not initial proof. **Consequence:** the
-criterion-4 runnable check must still cover **both** single code points and sequence classes; if it
-ever contradicts this entry, this entry loses. **Context:** iteration 148 review, commit `7acf0fa`;
-probe harness not committed (throwaway `tests/tmp_probe.rs`, removed after the run).
-
 ## 2026-07-26 — The Go boundary suite is left to red at the go1.27 bump, not version-gated
 
 **Decision:** `packages/go/unicode_boundary_test.go` keeps an **unconditional** three-entry skip map
@@ -394,3 +373,15 @@ a new OS/Xcode (the existing `release.yml` `macos-latest` job is left as is); `m
 rejected, it would turn the x86_64 rows into native builds, a design change. The `release.yml` half
 is verified statically only (`workflow_dispatch`-only). **Context:** iteration 196, CI-restore step
 chosen by define-next; Titusz may overrule.
+
+## 2026-11-18 — Codec input is upper-cased ASCII-only, `encode_seq` included
+
+**Decision:** `decode_base32`, the `iscc_normalize` prefix check and `encode_seq` upper-case ASCII
+letters only (Go: `asciiUpper`), so `ı`/`ſ`/`ß`/`ﬁ` fail as invalid base32 symbols. For
+`iscc_decode` this matches iscc-core (`b32decode` rejects non-ASCII). For `encode_seq` it diverges:
+iscc-core calls Unicode `unit.upper()` first (`codec.py:503`) and accepts all four. **Why:** extends
+"Base32 decoding stays strict" (2026-11-18), which rejected a lenient `encode_seq`; these strings
+alias canonical codes. Unicode case mapping is also unportable: Go's `strings.ToUpper` maps `ſ`/`ı`
+but not `ß`/`ﬁ`, so no Unicode rule gives Rust and Go one reject set. **Alternatives:** Unicode
+upper-casing in `encode_seq` only (reference-exact, but two casing rules in one codec — rejected).
+**Context:** iteration 201 review; the spec wording awaits Titusz (issues.md).

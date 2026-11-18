@@ -1,62 +1,68 @@
-## 2026-11-18 — ASCII-only upper-casing in Rust and Go base32 decoding (non-ASCII case-fold aliases)
+> **HUMAN REVIEW REQUESTED**: Rust `encode_seq` now rejects non-ASCII case-fold aliases
+> (`gaawdlqng6ſsdpf2`, also `ı`/`ß`/`ﬁ`) that iscc-core 1.5.0 `encode_seq` accepts, because the
+> reference calls Unicode `unit.upper()` first (`codec.py:503`). `iscc_decode` rejects them on both
+> sides, so that part matches the reference. Review approved the `encode_seq` divergence as an
+> extension of your strict-base32 decision (decisions.md 2026-11-18, which rejected a lenient
+> `encode_seq`). The divergence is pinned in `tests/test_seq.py`. But `rust-core.md` names only
+> padding and spare bits as exceptions. Please confirm, and update the two spec passages, or reject
+> it, which restores Unicode upper-casing at `codec.rs:834`. Details are in the issues.md entry.
 
-**Done:** Rust's three Unicode `to_uppercase()` sites are now `to_ascii_uppercase()`:
-`decode_base32`, `encode_seq`'s pre-clean upper-case, and the `iscc_normalize` prefix check. Go's
-two `strings.ToUpper` sites (`decodeBase32`, `checkPrefix`) now call an `asciiUpper` helper that
-sits next to `isIsccScheme`. Go's non-canonical error no longer echoes the input with `%q`. As a
-result, `ı`/`ſ`/`ß`/`ﬁ` reach the base32 decoder and fail there with `base32 decode error`.
+## 2026-11-18 — Review of: ASCII-only upper-casing in Rust and Go base32 decoding
 
-**Files changed:**
+**Verdict:** PASS_WITH_NOTES
 
-- `crates/iscc-lib/src/codec.rs`: L518 doc "ASCII case-insensitive", L520 + L834 swapped to
-    `to_ascii_uppercase()`, L831 comment "ASCII-uppercase first". All are same-line edits (4+/4−),
-    so no lines move.
-- `crates/iscc-lib/src/lib.rs`: L229 prefix check swapped to `to_ascii_uppercase()` (1+/1−).
-- `packages/go/codec.go`: `decodeBase32` and `checkPrefix` call `asciiUpper`, and the doc says
-    "ASCII". The non-canonical error is now `iscc: base32 decode error: non-canonical encoding`.
-    Added `asciiUpper` (maps `a`–`z` only) after `isIsccScheme`.
-- `crates/iscc-lib/tests/test_strict_base32.rs`: added the `CASE_FOLD_ALIASES` table (4 alias/twin
-    pairs from next.md) and 6 tests:
-    - `iscc_decode` rejects each alias and accepts each twin
-    - the bare `decode_base32` rejects `ſ` and `ı`
-    - `encode_seq` rejects `gaawdlqng6ſsdpf2` and `gaat5fınqwrc4hqv`, one test each
-    - `encode_seq` accepts the lowercase twins `gaawdlqng6ssdpf2` and `gaat5finqwrc4hqv`
-- `packages/go/codec_test.go`: added the `caseFoldAliases` table (the same 4 pairs), a reject test
-    and an accept test (one subtest per input), plus `TestCodecAsciiUpper`.
+**Summary:** Rust's three Unicode upper-casing sites now use `to_ascii_uppercase()`. Go's two sites
+now use an `asciiUpper` helper. Each change is a small same-line swap, with alias/twin tests (one
+input per assertion) that advance proved by reverting each site. The issue entry claimed iscc-core
+rejects every alias. That holds for `iscc_decode`, `iscc_normalize` and `iscc_decompose` (probed),
+but not for `encode_seq`. So the `codec.rs:834` swap creates a new divergence, escalated above.
 
 **Verification:**
 
-- `cargo test -p iscc-lib --test test_strict_base32`: 13 passed, 0 failed.
-- Rust mutation runs (temporary `sed`, then restored; `git diff --stat` shows 4+/4− after):
-    - Revert L834 alone: the 2 `encode_seq` reject tests fail.
-    - Revert L520 alone: 4 tests fail (`iscc_decode` aliases, bare decoder, both `encode_seq`).
-    - So both sites have their own gate. L229 (and Go `checkPrefix`) still reject a non-ASCII prefix
-        either way; only the message differs (`invalid prefix`), so the grep is their gate.
-- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...`: ok. The targeted run gives 23 PASS lines.
-- Go mutation run: restoring `strings.ToUpper` in `decodeBase32` fails exactly the `ı` and `ſ`
-    subtests. This matches next.md: in Go, `ß`/`ﬁ` already errored before the fix.
-- `go vet ./...` is clean. `gofmt -l packages/go` prints nothing.
-- `grep -rn "to_uppercase()" crates/iscc-lib/src` and
-    `grep -n "strings.ToUpper" packages/go/codec.go` both print nothing.
-- `cargo clippy -p iscc-lib -- -D warnings`: clean.
-- `mise run bench:iai:check`: EXIT=0, "16 benchmark(s) within 10% of baseline".
-    `iscc_code.four_units` is −5.45%, `mixed_code.two_codes` −4.64%, `meta_code.*` about −4.6%.
-    Everything else is between −7.7% and +0.05%. `.iai-baseline.json` and `.crap-baseline.json` are
-    untouched (`git diff --quiet` passes).
-- `cargo test -p iscc-lib`: 7 suites, all ok (297 + 44 + 28 + 22 + 17 + 13 + 1), 0 failed.
-- `mise run check`: exit 0 on the third run. Run 1 flagged `standardrb-fix` and run 2 flagged
-    `mdformat` as "files were modified". Run 1's cause is likely my handoff/memory writes landing
-    mid-run: no Ruby file changed, and the hook passed on runs 2 and 3. Run 2 was mdformat
-    rewrapping this handoff, a legitimate fix.
+- [x] `cargo test -p iscc-lib`: 7 suites, 0 failed. `test_strict_base32.rs` has 13 tests: 4
+    `iscc_decode` aliases rejected and their twins accepted, 2 `encode_seq` units rejected and their
+    twins accepted. `--no-default-features` is also green (246 + 17 + 28 + 44 + 13 + 10)
+- [x] `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` passes. `go vet` is clean.
+    `gofmt -l packages/go` prints nothing
+- [x] The `to_uppercase()` and `strings.ToUpper` greps both print nothing. A wider grep over
+    `crates/*/src` and `packages/go` finds no Unicode upper-casing left on any codec path
+- [x] `mise run bench:iai:check` exits 0 (16 benchmarks within 10%). `.iai-baseline.json` is
+    untouched
+- [x] `cargo clippy -p iscc-lib -- -D warnings` is clean. The workspace `--all-targets` run also
+    exits 0
+- [x] `mise run check` exits 0
+- [x] Probe: iscc-core 1.5.0 rejects all 4 aliases in `iscc_decode`, `iscc_normalize` and
+    `iscc_decompose`, but `encode_seq` accepts all 4 (`300161ae0d37a521bcba`)
 
-**Next:** Go `EncodeSeq`/`DecodeSeq`. `EncodeSeq` must upper-case each unit **before** `isccClean`,
-using the `asciiUpper` helper added here, not `strings.ToUpper`. `DecodeSeq` takes bytes and does no
-cleaning. After that comes the text-utils U+001C–U+001F parity issue (it is iai-gated).
+**Issues found:**
+
+- `encode_seq` now diverges from the reference on non-ASCII case-fold aliases, and the spec does not
+    list this exception. Filed as a `normal` issue and escalated. Review pinned both sides in
+    `tests/test_seq.py` `STRICT_BASE32_DIVERGENCES` (rows `long_s_case_fold` and
+    `sharp_s_case_fold`): iscc-core accepts, iscc-lib rejects. This needed a rebuilt binding
+    (`maturin develop --release`). 82 passed; ruff, `S`/`C901` and `ty` are clean
+- Go `asciiUpper` always allocates twice. `strings.ToUpper` returned an all-uppercase input without
+    allocating, so canonical codes pay for the copy (Codex measured 26 → 34 allocations per
+    `IsccDecode`). Not filed: the Go port has no perf gate. Suggested fix: check
+    `strings.ContainsAny(s, "abcdefghijklmnopqrstuvwxyz")` and return `s` unchanged when false
+- Resolved and deleted: "Base32 decoding accepts non-ASCII case-fold aliases"
+
+**Codex review:** (1) Go allocation regression, noted above. (2) The `encode_seq` reference
+divergence was confirmed by probe, then pinned, filed and escalated. Codex ran on the main commit
+`536e461`; HEAD `66ec2ee` only changes the handoff.
+
+**Next:** Go `EncodeSeq`/`DecodeSeq`. Follow the current Rust rule: upper-case each unit with
+`asciiUpper` **before** `isccClean`, which the strict decision requires of Go. If Titusz rejects the
+divergence, Rust and Go change together later. Port the `STRICT_BASE32_DIVERGENCES` inputs,
+including the two case-fold rows, into the Go seq tests. Add the `asciiUpper` fast path in that
+step, because `EncodeSeq` calls it once per unit. After that comes the text-utils U+001C–U+001F
+parity issue (iai-gated).
 
 **Notes:**
 
-- I did not touch the issues.md entry, per the ledger rule. Review should resolve the "Base32
-    decoding accepts non-ASCII case-fold aliases" entry.
-- No CRAP baseline refresh was needed. The Rust edits are same-line swaps, so no line below an edit
-    point moved. The Go file is not under the CRAP gate.
-- The Rust "Malformed"/"Invalid scheme" error echoes are unchanged, as next.md scoped.
+- Pre-push suites run by review before the push: full `pytest` passed 512, and
+    `cargo test --workspace` passed 18 suites with 0 failed.
+- decisions.md was rotated with `cid.archive_overflow` after the new entry. Stage
+    `decisions-archive.md` with it.
+- The red CI on `e8130a8` is a macOS arm64 runner-capacity cancel, not caused by the tree
+    (define-next checked the annotations).

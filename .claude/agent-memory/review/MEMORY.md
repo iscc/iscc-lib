@@ -40,6 +40,10 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **On ANY canonical-form/decode change, probe non-ASCII case-fold aliases** (199: `ı`/`ſ`/`ß`/`ﬁ`
     upper-case to ASCII, so Rust+Go alias codes the ASCII-only ref `b32decode` rejects; a re-encode
     compare after `ToUpper` cannot see it). Probe via the Python binding — build it first
+- **"The fix matches the reference" — probe EVERY entry point it touches** (201: ref `iscc_decode`
+    rejects `ı`/`ſ`, ref `encode_seq` `.upper()`s first and ACCEPTS — the issue + next.md missed it,
+    Codex caught it). A new divergence → pin it in `STRICT_BASE32_DIVERGENCES`, file a `**Spec:**`
+    issue, escalate (spec exception lists are acceptance criteria)
 - **next.md can under-scope the spec's "Verified when" criterion** (197): it asked only for the seq
     base32 divergence, while `rust-core.md` demands "both sides reject the same inputs". Read the
     feature's spec checklist too; a missing cheap differential test → add it in review (step 6)

@@ -41,9 +41,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
     \+ Go pinned (199); (2) Python `strip()`/`split()` also take U+001C–U+001F: Rust codec fixed
     (198), Go codec (200: Go `unicode.IsSpace` + U+001C–U+001F IS the `strip()` set, 29 code points,
-    probed both ways), text utils open; (3) a Unicode upper-case before decode aliases
-    `ı`/`ſ`/`ß`/`ﬁ` that ASCII-only `b32decode` rejects (open) — a re-encode compare after it cannot
-    see that. A bare `b…` string reads as plain base32 in BOTH, so not a defect
+    probed both ways), text utils open; (3) ASCII-only upper-casing (201) rejects `ı`/`ſ`/`ß`/`ﬁ`:
+    ref `iscc_decode` rejects too, but ref `encode_seq` Unicode-`upper()`s first and ACCEPTS them —
+    **the reference's reject set differs per entry point; probe each before calling a fix
+    "reference-matching"**. A bare `b…` string reads as plain base32 in BOTH, so not a defect
 
 ## Tooling
 
@@ -106,8 +107,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     fine; a per-crate `rust-version` override (173) makes cargo say `requires rustc 1.91` not a
     resolution error. Settle by building — **1.85 is installed**:
     `cargo +1.85.0 check -p <c> --locked`
-- **`semver` (INFORMATIONAL pre-1.0, enforcing at v1.0.0) + `coverage` (enforcing) CI jobs**:
-    `mise run semver` / `mise run coverage`
+- `semver` (informational pre-1.0) + `coverage` (enforcing) CI jobs: `mise run semver`/`coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a

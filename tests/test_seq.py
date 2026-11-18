@@ -19,11 +19,25 @@ UNIT_256_HEX = "2007a88248c53a852c8d7e9c547047c9a36c4052b6acabef1e2a4ce15e586e0c
 ISCC_CODE = "ISCC:KUAALNA7GRZESMRFUURK6SRMTS7WU"
 
 # Non-canonical base32 forms that iscc_core 1.5.0 accepts and iscc_lib rejects
-# (decisions.md 2026-11-18): (alias, canonical unit, canonical bytes hex).
+# (decisions.md 2026-11-18): (alias, canonical unit, canonical bytes hex). The
+# case-fold rows rely on `encode_seq` calling Unicode `str.upper()`, which maps
+# these letters to ASCII; iscc_lib upper-cases ASCII only.
 STRICT_BASE32_DIVERGENCES = [
     pytest.param("ISCC:GAAAAAAAAB", UNIT_32, UNIT_32_HEX, id="32bit_spare_bits"),
     pytest.param(UNIT_256[:-1] + "J", UNIT_256, UNIT_256_HEX, id="256bit_spare_bits"),
     pytest.param("ISCC:GAAAAAAAAA======", UNIT_32, UNIT_32_HEX, id="padding"),
+    pytest.param(
+        "gaawdlqng6\N{LATIN SMALL LETTER LONG S}sdpf2",
+        "ISCC:GAAWDLQNG6SSDPF2",
+        "300161ae0d37a521bcba",
+        id="long_s_case_fold",
+    ),
+    pytest.param(
+        "gaawdlqng6\N{LATIN SMALL LETTER SHARP S}dpf2",
+        "ISCC:GAAWDLQNG6SSDPF2",
+        "300161ae0d37a521bcba",
+        id="sharp_s_case_fold",
+    ),
 ]
 
 
