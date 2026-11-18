@@ -7,7 +7,7 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
 Image-Code fix, npm OIDC). Active milestone: **v0.8.0 ISCC-SEQ** (target.md). The v0.6.0 Phase
 section below and the Unicode-freeze entries are history — the freeze was removed 2026-07-30. See
 [ISCC-SEQ phase](iscc-seq-phase.md) for the v0.8.0 slice plan and traps (195 = Rust core; 196 =
-CI-red fix; 197 = Python seq binding).
+CI-red fix; 197 = Python seq binding; 198 = core `iscc_clean` trim parity).
 
 ## Scope Calibration Principles
 

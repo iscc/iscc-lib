@@ -32,3 +32,9 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     useless for seq. Seq vector sections have 4 cases each, zero error cases → negatives come from
     tests.
 - PyO3 trap: `Vec<u8>` return → `list[int]`; return `PyBytes`. `&[u8]` arg rejects bytearray.
+- **198 = core `iscc_clean` trim parity** (U+001C–U+001F; Python strip set = Rust `is_whitespace` +
+    those 4, probed CPython 3.13, reverse set empty). 4 trim sites in codec.rs incl. the
+    `encode_seq` empty guard. Chosen over handoff's Go `decodeBase32` because Go `isccClean` must
+    copy the final set. Likely same divergence in `utils.rs` text_trim/text_collapse (ref
+    `.strip()`/`.split()`) — left for review to file; touching it affects Meta/Text-Code output.
+    Next: Go `decodeBase32` + Rust strict tests, Go `isccClean`, then 10 surfaces.
