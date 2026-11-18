@@ -21,7 +21,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     `MEMORY-archive.md`); out-of-loop `cid(loop):` commits leave NO jsonl entry — diff them. A
     TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
     UNRELIABLE (none at 170) — never park a finding for it.
-- **Counts + the glob/grep trap for each → `counts.md`** (202: 421 iscc-lib `#[test]`, 197 Go; 199:
+- **Counts + the glob/grep trap for each → `counts.md`** (203: 421 iscc-lib `#[test]`, 260 Go; 199:
     118 CRAP; 196: 12 READMEs, 22 docs pages, 179 Go, 49 ffi externs, 21 version_sync, 5 fixture
     copies).
 - **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
@@ -86,23 +86,24 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 03e57a9, iter 202 — incremental)
+## Current State (assessed-at: 38cb700, iter 203 — incremental)
 
-- **CI GREEN on `05dd0c8`** (run 44357670484, 21/21 incl. Swift). Runner-capacity cancels (199-200):
-    a suite `failure` whose sole non-success run is `cancelled` w/ 0 steps = infra; confirm via
+- **CI GREEN on `c19184a`** (run 44371959542, 21/21). Runner-capacity cancels (199-200): a suite
+    `failure` whose sole non-success run is `cancelled` w/ 0 steps = infra; confirm via
     `gh api repos/iscc/iscc-lib/check-runs/<id>/annotations`. Still report FAILING.
-- **ISCC-SEQ bindings 1/11 (Python)**. Probe:
-    `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages` —
-    `packages/go/conformance.go:27` is a COMMENT hit; data.json copies are noise.
-- **Case-fold alias issue CLOSED 201**: Rust `to_ascii_uppercase` x3, Go `asciiUpper`
-    (`codec.go:563`). `encode_seq` strictness = Titusz-confirmed divergence (spec + decisions) — do
-    NOT re-flag. Unfiled: `asciiUpper` lacks an all-upper fast path (Go seq step).
-- **7 open `normal`**, 7 low (14 headers).
-- **`#[test]` count 421**; Go `func Test` 197. Count Rust by DIFF.
+- **ISCC-SEQ bindings 2/11 (Python, Go 202)**. Probe:
+    `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages` filtered to source
+    extensions — `data.json` copies are noise. Go `readUnit` is private (no `ReadUnit`, by design).
+- `encode_seq` strictness + multibase-ambiguous bare-unit reading = decisions.md rulings — do NOT
+    re-flag. Go `asciiUpper` fast path landed 202.
+- **7 open `normal`**, 7 low (14 headers). Text-utils U+001C–U+001F gap is in Go too
+    (`strings.TrimSpace`/`Fields`, `utils.go`).
+- **`#[test]` count 421**; Go `func Test` **260** (count per-commit via `git show c:f`). Count Rust
+    by DIFF.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.
 - **Python heredoc gotcha**: `uv run ... - << EOF || python3 - << EOF2` silently did nothing (198);
-    write a temp script file and run that.
+    write a temp script file and run that. Plain `uv run python - << 'EOF'` WORKS (tested 203).
 
 ## Durable Facts (carried, not per-iteration)
 
