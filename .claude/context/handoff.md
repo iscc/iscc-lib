@@ -19,10 +19,10 @@ change adds no allocations.
     - U+200B is rejected.
     - `encode_seq` strips the separators.
     - A unit of just a separator errors with "must not be empty". The test asserts the guard's
-        message, so it fails if the guard regresses: the old guard falls through to "Empty ISCC
-        string".
+        message. Verified red by temporarily restoring the old `.trim()` guard (it then fails with
+        "Empty ISCC string"), then restored.
     - A premise test that the separators are not Rust whitespace.
-- `tests/test_seq.py`: 10 new tests.
+- `tests/test_seq.py`: 11 new collected tests (66 → 77).
     - The strip set is derived live from the interpreter, and the test asserts it contains the 4
         separators.
     - For every char in the set, `iscc_core.encode_seq` and `iscc_lib.encode_seq` return identical
@@ -31,9 +31,10 @@ change adds no allocations.
     - A separator-only unit is rejected by both libraries.
     - U+200B is rejected by both libraries.
 - `.crap-baseline.json`: regenerated with `mise run crap:baseline` from the same `lcov.info`.
-    - The diff only moves line numbers for 6 functions: 5 in `codec.rs` (shifted by the predicate and
-        its doc) and 1 in `conformance.rs`. It also adds 2 functions (`is_py_strip_char` and the test
-        helper). One coverage number changed: `run_encode_seq_tests` went from 80.8% to 100%.
+    - The diff moves line numbers for 6 functions: 5 in `codec.rs` (shifted by the predicate and its
+        doc) and `hyphenate` in `codec_clean.rs` (10 → 12, widened `use`). It adds 2 functions
+        (`is_py_strip_char` and the test helper). `run_encode_seq_tests` (`conformance.rs`, untouched)
+        went from 80.8% to 100% coverage: the committed baseline was stale, not caused by this diff.
     - Before the refresh the gate exited 0 with 0 regressed and 6 moved. I refreshed anyway because of
         the CI-only moved-lines gap in learnings.
 
@@ -44,8 +45,10 @@ change adds no allocations.
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` then `uv run pytest tests/test_seq.py`: 77
     passed. Full `uv run pytest`: 507 passed.
 - `mise run bench:iai:check` exits 0 against the unmodified `.iai-baseline.json`. All 16 benches are
-    within 10%. `four_units` is 12,784 Ir against a baseline of 13,369 (−4.38%), and no bench rose
-    by more than 0.05%.
+    within 10%. `four_units` is 12,784 Ir against a baseline of 13,369 (−4.38%). The untouched
+    benches also sit ~−5% against the baseline (toolchain drift), so the isolated cost comes from
+    iai's previous local run (pre-edit code, same rustc): `four_units` 12,760 → 12,784 (+0.19%),
+    `two_codes` 10,644 → 10,656 (+0.11%).
 - `mise run coverage`, then CI's exact
     `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`:
     exit 0, both before the baseline refresh (0 regressed) and after it (118 unchanged). Local rustc
@@ -55,9 +58,10 @@ change adds no allocations.
 - `cargo clippy -p iscc-lib --all-targets -- -D warnings`: clean.
 
 **Next:** The Go `decodeBase32` spare-bit fix plus Rust/Go strict-base32 tests. Then the Go
-`isccClean` port, which must copy this exact strip set: Go's `unicode.IsSpace` differs from Rust's
-whitespace set, so derive the Go set rather than assuming it. The spec's Python criterion that both
-libraries reject the same inputs is now unblocked for review to re-check.
+`isccClean` port, which must copy this exact strip set: verify the Go trim set against the
+Python-derived strip set; do not assume `unicode.IsSpace`/`strings.TrimSpace` matches (not probed).
+The spec's Python criterion that both libraries reject the same inputs is now unblocked for review
+to re-check.
 
 **Notes:**
 
