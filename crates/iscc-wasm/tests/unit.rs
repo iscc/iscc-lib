@@ -301,8 +301,15 @@ fn test_encode_seq_rejects_case_fold_alias() {
 
 #[wasm_bindgen_test]
 fn test_encode_seq_rejects_bare_string() {
-    let result = iscc_wasm::encode_seq(wasm_bindgen::JsValue::from_str(UNIT_32));
-    assert!(result.is_err(), "bare string should error, not be iterated");
+    let err = iscc_wasm::encode_seq(wasm_bindgen::JsValue::from_str(UNIT_32)).unwrap_err();
+    // Rejected during argument conversion, before any unit reaches the core: an iterated
+    // string would fail in the core with an "invalid input" error instead.
+    let msg = format!("{:?}", wasm_bindgen::JsValue::from(err));
+    assert!(!msg.contains("invalid input"), "core error: {msg}");
+    // Control: a core rejection does carry the "invalid input" marker.
+    let core_err = encode_seq_strs(&[""]).unwrap_err();
+    let core_msg = format!("{:?}", wasm_bindgen::JsValue::from(core_err));
+    assert!(core_msg.contains("invalid input"), "unexpected: {core_msg}");
 }
 
 #[wasm_bindgen_test]

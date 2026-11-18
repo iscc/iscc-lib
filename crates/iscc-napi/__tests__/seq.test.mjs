@@ -55,7 +55,8 @@ describe('encode_seq', () => {
     });
 
     it('throws on a bare string instead of an array', () => {
-        throws(() => encode_seq(UNIT_32));
+        // Rejected at argument conversion, before any unit reaches the core.
+        throws(() => encode_seq(UNIT_32), { code: 'ArrayExpected' });
     });
 });
 

@@ -24,20 +24,20 @@ symbols.
 - `crates/iscc-wasm/tests/conformance.rs`: `test_encode_seq_conformance` /
     `test_decode_seq_conformance` (the decode test also asserts the round trip), using the
     hard-coded `tested == 4` guard style
-- `crates/iscc-wasm/tests/unit.rs`: 10 seq tests, the same set as the napi tests (the bare string
-    goes in as `JsValue::from_str`)
+- `crates/iscc-wasm/tests/unit.rs`: 10 seq tests, the napi set minus `returns a Buffer` (the bare
+    string goes in as `JsValue::from_str`)
 
 **Verification:**
 
 - `npm --prefix crates/iscc-napi run build:debug && npm --prefix crates/iscc-napi test`: 174 tests,
-    174 passed, 0 failed (re-run after `mise run format`). The seq suites are listed in the TAP
-    output: `encode_seq` fixture cases plus `test_0001…`, and `decode_seq` vectors plus
-    `… round trip`
+    174 passed, 0 failed (re-run after the final test edit). The TAP output lists all 4 `encode_seq`
+    vectors (`test_0001`–`test_0004`), all 4 `decode_seq` vectors and 4 round trips, each with `ok`
 - `index.d.ts` after the build has
     `export declare function decode_seq(data: Buffer):   Array<string>` (L85) and
     `export declare function encode_seq(units: Array<string>): Buffer` (L111)
 - `wasm-pack test --node crates/iscc-wasm --features conformance`: exit 0. conformance 11 passed
-    (incl. both seq tests), unit 94 passed (all 10 seq tests listed `ok`)
+    (incl. both seq tests), unit 94 passed (all 10 seq tests listed `ok`; re-run after the final
+    edit)
 - `cargo clippy -p iscc-napi -p iscc-wasm --all-targets -- -D warnings`: clean
 - `cargo fmt -p iscc-napi -p iscc-wasm --check`: exit 0
 - `mise run check`: exit 0
@@ -49,10 +49,12 @@ JNI, Ruby, then UniFFI (Swift/Kotlin), and finally the 33→35 doc/count sweep.
 
 **Notes:**
 
-- The WASM bare-string case gives an error and does not iterate the string:
-    `serde_wasm_bindgen::from_value::<Vec<String>>` rejects a JS string
-    (`test_encode_seq_rejects_bare_string` passes). napi rejects it at the `Vec<String>` argument
-    conversion
+- A bare string is rejected at argument conversion and never reaches the core. The tests pin this
+    because an iterated string would also throw, but in the core. napi throws
+    `code: 'ArrayExpected'` ("Failed to get Array length"), and the test asserts that code. WASM's
+    `serde_wasm_bindgen::from_value` throws `TypeError: Reflect.get called on non-object`. The test
+    asserts the message lacks the core's `invalid input` marker, with a control call on `[""]` that
+    shows core errors carry it
 - I did not touch `crates/iscc-napi/CLAUDE.md`, the READMEs or the docs. Their Tier 1 counts and the
     "3 codec functions" wording are now out of date for the JS surfaces. That is deliberate: the
     sweep is out of scope (next.md)
