@@ -21,8 +21,9 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     `MEMORY-archive.md`); out-of-loop `cid(loop):` commits leave NO jsonl entry — diff them. A
     TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
     UNRELIABLE (none at 170) — never park a finding for it.
-- **Counts + the glob/grep trap for each → `counts.md`** (199: 408 iscc-lib `#[test]`, 118 CRAP;
-    196: 12 READMEs, 22 docs pages, 179 Go, 49 ffi externs, 21 version_sync, 5 fixture copies).
+- **Counts + the glob/grep trap for each → `counts.md`** (200: 415 iscc-lib `#[test]`, 182 Go; 199:
+    118 CRAP; 196: 12 READMEs, 22 docs pages, 179 Go, 49 ffi externs, 21 version_sync, 5 fixture
+    copies).
 - **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
     (163).
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` both import
