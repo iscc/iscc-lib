@@ -85,24 +85,22 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: c5ab678, iter 197 — incremental)
+## Current State (assessed-at: 8367d61, iter 198 — incremental)
 
-- **CI GREEN on `f335226`** (run 44283260882, 21/21 check-runs success). 196 fixed: `deny.toml`
-    ignores `RUSTSEC-2026-0374` (justified, no upstream fix); all macOS runners `macos-15` (ci.yml
-    1, release.yml 10; release half static-only until next release; decisions.md 2026-11-18).
-    Annotations for "no runner" jobs: `gh api repos/iscc/iscc-lib/check-runs/<id>/annotations`.
-- **Rust core seq DONE (195)**: Tier 1 35, `read_unit`/`SEQ_MAINTYPES` in `codec.rs`,
-    `tests/test_seq.rs` 44 tests. Bindings: 0/11. Probe:
-    `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages` minus
-    iscc-lib/data.json.
-- **Base32 strict decision (human 0c2269d)**: Rust+Go tests must reject `ISCC:GAAAAAAAAB` etc.; 0
-    hits at 197. Go spare-bit gap = `normal` issue.
-- **7 open `normal`** (all actionable): c-ffi-api names; Go `isccClean`; Go base32 spare bits; wasm
-    license; Ruby `json`; Ruby `File.read`; `uv.lock` Dependabot (#2–#6, filed 196).
-- **Dependabot**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` — 6 open, all tracked.
+- **CI GREEN on `72054e8`** (run 44295959238, 21/21 success). `commits/<sha>/check-suites` gives the
+    SUITE verdict in one call; codecov/cursor suites stay `queued` (ignore).
+- **ISCC-SEQ bindings 1/11 (Python, 197)**: `tests/test_seq.py` 23 fns incl. `iscc_core`
+    differential. Probe: `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages`
+    minus iscc-lib/data.json — `packages/go/conformance.go:27` is a COMMENT hit, not a binding.
+- **Rust strict-base32 rejection tests**: 0 hits for `GAAAAAAAAB` in `crates/iscc-lib` at 198.
+- **8 open `normal`** (all actionable; new 197: core `iscc_clean` misses U+001C-U+001F, blocks the
+    Python "reject same inputs" criterion). 7 low.
+- **`#[test]` count**: a naive `grep -c` sum gives 401 vs counts.md's 400 with NO iscc-lib change
+    (method trap) — carry 400 unless `crates/iscc-lib` changed.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.
-- **Sandbox `gh run list` worked at 196+197** (real tip) — still cross-check SHA vs origin/develop.
+- **Python heredoc gotcha**: `uv run ... - << EOF || python3 - << EOF2` silently did nothing (198);
+    write a temp script file and run that.
 
 ## Durable Facts (carried, not per-iteration)
 
