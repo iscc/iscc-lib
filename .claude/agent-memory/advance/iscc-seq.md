@@ -44,5 +44,11 @@ not objects). Then the Tier-1 33→35 doc/count sweep (like IDv1 iter 190).
     `code: 'ArrayExpected'`; neither reaches core), `decode_seq(&[u8])`. Tests: napi
     `__tests__/seq.test.mjs` + conformance seq suites; wasm `tests/unit.rs` seq block +
     `conformance.rs` (`decode_bytes`)
-- Remaining surfaces: C FFI (+ regen iscc.h AND NativeMethods.g.cs), JNI, Ruby, UniFFI, .NET, C++.
-    Then 33→35 sweep (incl. `packages/go/CLAUDE.md` stale "9 gen"/"46 vectors")
+- **C FFI DONE (iter 205)**: `iscc_encode_seq(const char*const*, n) -> IsccByteBuffer`,
+    `iscc_decode_seq(const u8*, len) -> char**`; reuse existing free fns. Rust tests walk data.json
+    via `serde_json` dev-dep + `hex_bytes`; negatives pin message substrings
+    (`assert_last_error_contains`). ISCC-CODE
+    `ISCC:KACYPXW445FTYNJ3CYSXHAFJMA2HUWULUNRFE3BLHRSCXYH2M5AEGQY` reaches the MainType arm. C#
+    binding: `iscc_encode_seq(byte** units, nuint)`
+- Remaining surfaces: JNI, Ruby, UniFFI, .NET, C++. Then 33→35 sweep (incl. `packages/go/CLAUDE.md`
+    stale "9 gen"/"46 vectors")

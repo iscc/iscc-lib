@@ -529,6 +529,60 @@ namespace Iscc.Lib
         internal static extern byte** iscc_decompose(byte* iscc_code);
 
         /// <summary>
+        ///  Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+        ///
+        ///  Returns the concatenated header and body bytes of each unit, in the given
+        ///  order. Unit strings may omit the `ISCC:` prefix and may be lowercase or
+        ///  contain hyphens. Base32 decoding is strict: no padding, zero spare bits,
+        ///  and ASCII-only case folding.
+        ///
+        ///  # Parameters
+        ///
+        ///  - `units`: array of pointers to null-terminated ISCC-UNIT strings
+        ///  - `num_units`: number of unit strings (must be at least 1)
+        ///
+        ///  # Returns
+        ///
+        ///  `IsccByteBuffer` with the ISCC-SEQ bytes on success. On error `.data` is
+        ///  `NULL` (check `iscc_last_error()`): `units` is NULL, the list is empty, or
+        ///  a unit is NULL, not UTF-8, malformed, or of an excluded MainType
+        ///  (ISCC-CODE, ID, FLAKE). Caller must free with `iscc_free_byte_buffer()`.
+        ///
+        ///  # Safety
+        ///
+        ///  `units` must point to an array of `num_units` valid null-terminated UTF-8
+        ///  strings.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "iscc_encode_seq", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern IsccByteBuffer iscc_encode_seq(byte** units, nuint num_units);
+
+        /// <summary>
+        ///  Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+        ///
+        ///  Strict byte-level reader: every unit must be well-formed and no trailing
+        ///  bytes are allowed. Returns `ISCC:`-prefixed uppercase unit strings in wire
+        ///  order; `iscc_encode_seq` of the result reproduces `data`.
+        ///
+        ///  # Parameters
+        ///
+        ///  - `data`: pointer to the ISCC-SEQ bytes
+        ///  - `data_len`: number of bytes in `data`
+        ///
+        ///  # Returns
+        ///
+        ///  NULL-terminated array of unit strings on success, `NULL` on error (empty
+        ///  or malformed input; check `iscc_last_error()`).
+        ///  Caller must free with `iscc_free_string_array()`.
+        ///
+        ///  # Safety
+        ///
+        ///  If `data_len &gt; 0`, `data` must point to a valid buffer of at least
+        ///  `data_len` bytes.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "iscc_decode_seq", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern byte** iscc_decode_seq(byte* data, nuint data_len);
+
+        /// <summary>
         ///  Generate sliding window n-grams from a string.
         ///
         ///  Returns a NULL-terminated array of overlapping substrings of `width`
@@ -760,23 +814,23 @@ namespace Iscc.Lib
         internal static extern void iscc_free_string(byte* ptr);
 
         /// <summary>
-        ///  Free a NULL-terminated string array returned by `iscc_decompose` or
-        ///  `iscc_sliding_window`.
+        ///  Free a NULL-terminated string array returned by `iscc_decompose`,
+        ///  `iscc_decode_seq`, or `iscc_sliding_window`.
         ///
         ///  Walks the array, freeing each string via `CString::from_raw`, then frees
         ///  the array itself. `NULL` is a no-op.
         ///
         ///  # Safety
         ///
-        ///  `arr` must be a pointer returned by `iscc_decompose` or `iscc_sliding_window`,
-        ///  or `NULL`. Each array must only be freed once.
+        ///  `arr` must be a pointer returned by `iscc_decompose`, `iscc_decode_seq`, or
+        ///  `iscc_sliding_window`, or `NULL`. Each array must only be freed once.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_free_string_array", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern void iscc_free_string_array(byte** arr);
 
         /// <summary>
         ///  Free a byte buffer returned by `iscc_alg_simhash`, `iscc_alg_minhash_256`,
-        ///  or `iscc_soft_hash_video_v0`.
+        ///  `iscc_soft_hash_video_v0`, or `iscc_encode_seq`.
         ///
         ///  No-op if `buf.data` is `NULL`.
         ///

@@ -95,7 +95,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
 - Codec input cleaning `iscc_clean` (Rust 191-198; Go `isccClean` 200, 4 sites) + perf →
     codec-clean.md
 - ISCC-IDv1 #43 COMPLETE (iter 190; Tier-1 = 33, no dedicated decoder) → go-idv1.md
-- ISCC-SEQ #45 Rust core DONE (195), Python (197), Go (202), napi+WASM (204); rest → iscc-seq.md
+- ISCC-SEQ #45 Rust core DONE (195), Python (197), Go (202), napi+WASM (204), C FFI (205); rest →
+    iscc-seq.md. `iscc-ffi/src/lib.rs` ~2860 lines (past CLAUDE.md ~2500 split hint)
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type
     depends on `@context` key. 5 cross-binding constants → MEMORY-archive.md
 

@@ -1,9 +1,9 @@
 //! C FFI bindings for iscc-lib.
 //!
 //! Exposes all 10 `gen_*_v0` functions, 4 algorithm primitives, codec
-//! functions (`encode_component`, `iscc_decode`, `json_to_data_url`),
-//! and 5 algorithm constants as `extern "C"` symbols for integration
-//! from C, Go, Java, C#, and any other language with C interop.
+//! functions (`encode_component`, `iscc_decode`, `encode_seq`, `decode_seq`,
+//! `json_to_data_url`), and 5 algorithm constants as `extern "C"` symbols for
+//! integration from C, Go, Java, C#, and any other language with C interop.
 //!
 //! ## Memory model
 //!
@@ -1048,6 +1048,101 @@ pub unsafe extern "C" fn iscc_decompose(iscc_code: *const c_char) -> *mut *mut c
     }
 }
 
+/// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+///
+/// Returns the concatenated header and body bytes of each unit, in the given
+/// order. Unit strings may omit the `ISCC:` prefix and may be lowercase or
+/// contain hyphens. Base32 decoding is strict: no padding, zero spare bits,
+/// and ASCII-only case folding.
+///
+/// # Parameters
+///
+/// - `units`: array of pointers to null-terminated ISCC-UNIT strings
+/// - `num_units`: number of unit strings (must be at least 1)
+///
+/// # Returns
+///
+/// `IsccByteBuffer` with the ISCC-SEQ bytes on success. On error `.data` is
+/// `NULL` (check `iscc_last_error()`): `units` is NULL, the list is empty, or
+/// a unit is NULL, not UTF-8, malformed, or of an excluded MainType
+/// (ISCC-CODE, ID, FLAKE). Caller must free with `iscc_free_byte_buffer()`.
+///
+/// # Safety
+///
+/// `units` must point to an array of `num_units` valid null-terminated UTF-8
+/// strings.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_encode_seq(
+    units: *const *const c_char,
+    num_units: usize,
+) -> IsccByteBuffer {
+    clear_last_error();
+    if units.is_null() {
+        set_last_error("units must not be NULL");
+        return null_byte_buffer();
+    }
+    // SAFETY: caller guarantees units is valid for num_units elements
+    let unit_ptrs = unsafe { std::slice::from_raw_parts(units, num_units) };
+
+    let mut unit_strs: Vec<&str> = Vec::with_capacity(num_units);
+    for (i, &ptr) in unit_ptrs.iter().enumerate() {
+        let Some(s) = (unsafe { ptr_to_str(ptr, &format!("units[{i}]")) }) else {
+            return null_byte_buffer();
+        };
+        unit_strs.push(s);
+    }
+
+    match iscc_lib::encode_seq(&unit_strs) {
+        Ok(bytes) => vec_to_byte_buffer(bytes),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            null_byte_buffer()
+        }
+    }
+}
+
+/// Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+///
+/// Strict byte-level reader: every unit must be well-formed and no trailing
+/// bytes are allowed. Returns `ISCC:`-prefixed uppercase unit strings in wire
+/// order; `iscc_encode_seq` of the result reproduces `data`.
+///
+/// # Parameters
+///
+/// - `data`: pointer to the ISCC-SEQ bytes
+/// - `data_len`: number of bytes in `data`
+///
+/// # Returns
+///
+/// NULL-terminated array of unit strings on success, `NULL` on error (empty
+/// or malformed input; check `iscc_last_error()`).
+/// Caller must free with `iscc_free_string_array()`.
+///
+/// # Safety
+///
+/// If `data_len > 0`, `data` must point to a valid buffer of at least
+/// `data_len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_decode_seq(data: *const u8, data_len: usize) -> *mut *mut c_char {
+    clear_last_error();
+    let slice = if data_len == 0 {
+        &[]
+    } else if data.is_null() {
+        set_last_error("data must not be NULL");
+        return ptr::null_mut();
+    } else {
+        // SAFETY: caller guarantees data is valid for data_len bytes
+        unsafe { std::slice::from_raw_parts(data, data_len) }
+    };
+    match iscc_lib::decode_seq(slice) {
+        Ok(units) => vec_to_c_string_array(units),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
 // ── Sliding window ──────────────────────────────────────────────────────────
 
 /// Generate sliding window n-grams from a string.
@@ -1529,16 +1624,16 @@ pub unsafe extern "C" fn iscc_free_string(ptr: *mut c_char) {
     }
 }
 
-/// Free a NULL-terminated string array returned by `iscc_decompose` or
-/// `iscc_sliding_window`.
+/// Free a NULL-terminated string array returned by `iscc_decompose`,
+/// `iscc_decode_seq`, or `iscc_sliding_window`.
 ///
 /// Walks the array, freeing each string via `CString::from_raw`, then frees
 /// the array itself. `NULL` is a no-op.
 ///
 /// # Safety
 ///
-/// `arr` must be a pointer returned by `iscc_decompose` or `iscc_sliding_window`,
-/// or `NULL`. Each array must only be freed once.
+/// `arr` must be a pointer returned by `iscc_decompose`, `iscc_decode_seq`, or
+/// `iscc_sliding_window`, or `NULL`. Each array must only be freed once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
     if arr.is_null() {
@@ -1558,7 +1653,7 @@ pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
 }
 
 /// Free a byte buffer returned by `iscc_alg_simhash`, `iscc_alg_minhash_256`,
-/// or `iscc_soft_hash_video_v0`.
+/// `iscc_soft_hash_video_v0`, or `iscc_encode_seq`.
 ///
 /// No-op if `buf.data` is `NULL`.
 ///
@@ -1919,6 +2014,196 @@ mod tests {
     fn test_decompose_null() {
         let arr = unsafe { iscc_decompose(ptr::null()) };
         assert!(arr.is_null());
+    }
+
+    // ── iscc_encode_seq / iscc_decode_seq tests ─────────────────────────────
+
+    /// Decode a `bytes:<hex>` conformance value into raw bytes.
+    fn hex_bytes(value: &str) -> Vec<u8> {
+        let hex = value.strip_prefix("bytes:").expect("bytes: prefix");
+        (0..hex.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+            .collect()
+    }
+
+    /// Load one section of the vendored `data.json` conformance vectors.
+    fn seq_section(name: &str) -> serde_json::Map<String, serde_json::Value> {
+        let data: serde_json::Value =
+            serde_json::from_str(include_str!("../../iscc-lib/tests/data.json")).unwrap();
+        data[name].as_object().unwrap().clone()
+    }
+
+    /// Call `iscc_encode_seq` on Rust strings; returns the bytes or `None` on error.
+    fn ffi_encode_seq(units: &[&str]) -> Option<Vec<u8>> {
+        let owned: Vec<CString> = units.iter().map(|u| CString::new(*u).unwrap()).collect();
+        let ptrs: Vec<*const c_char> = owned.iter().map(|c| c.as_ptr()).collect();
+        let buf = unsafe { iscc_encode_seq(ptrs.as_ptr(), ptrs.len()) };
+        if buf.data.is_null() {
+            return None;
+        }
+        // SAFETY: buf.data is valid for buf.len bytes until freed below
+        let bytes = unsafe { std::slice::from_raw_parts(buf.data, buf.len) }.to_vec();
+        unsafe { iscc_free_byte_buffer(buf) };
+        Some(bytes)
+    }
+
+    /// Call `iscc_decode_seq` on a byte slice; returns the units or `None` on error.
+    fn ffi_decode_seq(data: &[u8]) -> Option<Vec<String>> {
+        let arr = unsafe { iscc_decode_seq(data.as_ptr(), data.len()) };
+        unsafe { c_ptr_to_string_vec(arr) }
+    }
+
+    /// Assert that the last FFI call set a non-NULL error message.
+    fn assert_last_error_set() {
+        assert!(
+            !iscc_last_error().is_null(),
+            "iscc_last_error() must be set"
+        );
+    }
+
+    /// Assert that the last FFI error message contains `needle`.
+    fn assert_last_error_contains(needle: &str) {
+        assert_last_error_set();
+        let msg = unsafe { CStr::from_ptr(iscc_last_error()) }
+            .to_str()
+            .unwrap();
+        assert!(msg.contains(needle), "{msg:?} lacks {needle:?}");
+    }
+
+    #[test]
+    fn test_encode_seq_conformance() {
+        let section = seq_section("encode_seq");
+        assert!(!section.is_empty());
+        for (name, case) in &section {
+            let units: Vec<&str> = case["inputs"][0]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|u| u.as_str().unwrap())
+                .collect();
+            let expected = hex_bytes(case["outputs"].as_str().unwrap());
+            let got = ffi_encode_seq(&units).unwrap_or_else(|| panic!("{name}: NULL result"));
+            assert_eq!(got, expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn test_decode_seq_conformance() {
+        let section = seq_section("decode_seq");
+        assert!(!section.is_empty());
+        for (name, case) in &section {
+            let data = hex_bytes(case["inputs"][0].as_str().unwrap());
+            let expected: Vec<String> = case["outputs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|u| u.as_str().unwrap().to_owned())
+                .collect();
+            let got = ffi_decode_seq(&data).unwrap_or_else(|| panic!("{name}: NULL result"));
+            assert_eq!(got, expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn test_seq_round_trip() {
+        let section = seq_section("encode_seq");
+        for (name, case) in &section {
+            let units: Vec<&str> = case["inputs"][0]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|u| u.as_str().unwrap())
+                .collect();
+            let bytes = ffi_encode_seq(&units).unwrap();
+            let decoded = ffi_decode_seq(&bytes).unwrap();
+            assert_eq!(decoded, units, "{name}");
+        }
+    }
+
+    #[test]
+    fn test_encode_seq_lowercase_without_prefix() {
+        let got = ffi_encode_seq(&["ead2rasiyu5iklenp2ofi4chzgrwyqcsw2wkx3y6fjgocxsynyglgbi"]);
+        let expected =
+            ffi_encode_seq(&["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]);
+        assert!(got.is_some());
+        assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn test_encode_seq_null_units() {
+        let buf = unsafe { iscc_encode_seq(ptr::null(), 0) };
+        assert!(buf.data.is_null());
+        assert_last_error_contains("units must not be NULL");
+    }
+
+    #[test]
+    fn test_encode_seq_empty_list() {
+        let unit =
+            CString::new("ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI").unwrap();
+        let ptrs = [unit.as_ptr()];
+        let buf = unsafe { iscc_encode_seq(ptrs.as_ptr(), 0) };
+        assert!(buf.data.is_null());
+        assert_last_error_contains("at least one ISCC-UNIT");
+    }
+
+    #[test]
+    fn test_encode_seq_null_element() {
+        let unit =
+            CString::new("ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI").unwrap();
+        let ptrs = [unit.as_ptr(), ptr::null()];
+        let buf = unsafe { iscc_encode_seq(ptrs.as_ptr(), ptrs.len()) };
+        assert!(buf.data.is_null());
+        assert_last_error_contains("units[1]");
+    }
+
+    #[test]
+    fn test_encode_seq_malformed_unit() {
+        assert!(ffi_encode_seq(&["ISCC:NOT-A-VALID-UNIT!"]).is_none());
+        assert_last_error_contains("base32 decode error");
+    }
+
+    #[test]
+    fn test_encode_seq_rejects_iscc_code_unit() {
+        // Composite ISCC-CODE (MainType ISCC) is excluded from ISCC-SEQ.
+        assert!(
+            ffi_encode_seq(&["ISCC:KACYPXW445FTYNJ3CYSXHAFJMA2HUWULUNRFE3BLHRSCXYH2M5AEGQY"])
+                .is_none()
+        );
+        assert_last_error_contains("not permitted in an ISCC-SEQ");
+    }
+
+    #[test]
+    fn test_decode_seq_empty() {
+        let arr = unsafe { iscc_decode_seq(ptr::null(), 0) };
+        assert!(arr.is_null());
+        assert_last_error_contains("Empty ISCC-SEQ");
+    }
+
+    #[test]
+    fn test_decode_seq_truncated() {
+        let section = seq_section("decode_seq");
+        let first = section.values().next().unwrap();
+        let data = hex_bytes(first["inputs"][0].as_str().unwrap());
+        assert!(ffi_decode_seq(&data[..data.len() - 1]).is_none());
+        assert_last_error_contains("Truncated");
+    }
+
+    #[test]
+    fn test_decode_seq_null_data_nonzero_len() {
+        let arr = unsafe { iscc_decode_seq(ptr::null(), 4) };
+        assert!(arr.is_null());
+        assert_last_error_contains("data must not be NULL");
+    }
+
+    #[test]
+    fn test_seq_error_cleared_on_success() {
+        assert!(ffi_decode_seq(&[]).is_none());
+        assert_last_error_set();
+        let data =
+            hex_bytes("bytes:2007a88248c53a852c8d7e9c547047c9a36c4052b6acabef1e2a4ce15e586e0cb305");
+        assert!(ffi_decode_seq(&data).is_some());
+        assert!(iscc_last_error().is_null());
     }
 
     // ── iscc_sliding_window tests ───────────────────────────────────────────

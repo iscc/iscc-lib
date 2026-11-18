@@ -17,3 +17,6 @@ iscc-lib = { path = "../iscc-lib" }
 
 [build-dependencies]
 csbindgen = "1.9.7"
+
+[dev-dependencies]
+serde_json = { workspace = true }

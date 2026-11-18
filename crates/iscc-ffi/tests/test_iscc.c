@@ -466,6 +466,45 @@ int main(void) {
         ASSERT_NOT_NULL(err, "iscc_last_error() non-NULL after gen_iscc_id_v1 error");
     }
 
+    /* 31. encode_seq / decode_seq — round trip (data.json test_0001_four_units) */
+    {
+        const char *seq_units[] = {
+            "ISCC:AADVPDD4R6733NMPFH3D57VTQ4KVH6VHL74XIWGUT37V5ZG56NV3NSI",
+            "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI",
+            "ISCC:GADQLNA7GRZESMRF2J7NZPNWGI3II2ST5YUN5SS6GVQ2ZQGJXPPYDNI",
+            "ISCC:IAD2KIVPJIWJZP3KQCESJL6SVT5APEZUPOJWM6HVTAXCF7OT3VFA4NY",
+        };
+        struct iscc_IsccByteBuffer seq = iscc_encode_seq(seq_units, 4);
+        ASSERT_NOT_NULL(seq.data, "encode_seq(four units) data not NULL");
+        ASSERT_EQ(seq.len, 4 * 34, "encode_seq(four units) len == 136");
+
+        char **decoded = iscc_decode_seq(seq.data, seq.len);
+        ASSERT_NOT_NULL(decoded, "decode_seq(four units) not NULL");
+        if (decoded != NULL) {
+            size_t count = 0;
+            while (decoded[count] != NULL) {
+                count++;
+            }
+            ASSERT_EQ(count, 4, "decode_seq(four units) count == 4");
+            for (size_t i = 0; i < count && i < 4; i++) {
+                ASSERT_STR_EQ(decoded[i], seq_units[i], "decode_seq(four units) round trip");
+            }
+        }
+        iscc_free_string_array(decoded);
+        iscc_free_byte_buffer(seq);
+    }
+
+    /* 32. encode_seq — empty list (num_units = 0, non-NULL array) returns NULL data */
+    {
+        const char *seq_units[] = {
+            "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI",
+        };
+        struct iscc_IsccByteBuffer seq = iscc_encode_seq(seq_units, 0);
+        ASSERT_NULL(seq.data, "encode_seq(num_units=0) data is NULL");
+        const char *err = iscc_last_error();
+        ASSERT_NOT_NULL(err, "iscc_last_error() non-NULL after encode_seq error");
+    }
+
     /* Summary */
     printf("\n%d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;

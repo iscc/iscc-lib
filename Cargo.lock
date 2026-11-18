@@ -714,6 +714,7 @@ version = "0.7.0"
 dependencies = [
  "csbindgen",
  "iscc-lib",
+ "serde_json",
 ]
 
 [[package]]
