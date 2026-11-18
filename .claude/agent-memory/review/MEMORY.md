@@ -126,7 +126,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     heredoc); zero `warning: skipped` is part of the pass; `always()` = NEEDS_WORK →
     `gha-workflow-reviews.md`
 - **Pre-flight `uv run prek run --hook-stage pre-push --all-files` before pushing never-CI'd code**
-    (exit 0 ⇒ `git push` will not be rejected; needs `iscc_lib` built). Run it last and sequentially
+    (exit 0 ⇒ `git push` will not be rejected; needs `iscc_lib` built). Run it last and
+    sequentially, with `run_in_background` — `--all-files` also runs `standardrb`, ~15 min total on
+    the bind mount (200)
 - **CI/Audit/Perf/Semver/CRAP gates** → `gate-reviews.md`
 - **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in
     `gate-reviews.md`); stage `decisions-archive.md` too (195)
