@@ -467,6 +467,60 @@ func TestCodecIsccDecodeStrictBase32Rejects(t *testing.T) {
 	}
 }
 
+// caseFoldAliases pairs non-ASCII case-fold aliases with their canonical
+// ASCII twins. Unicode upper-casing maps ı→I, ſ→S, ß→SS and ﬁ→FI; the
+// reference's ASCII-only base32 decoder rejects all four characters. Each
+// alias char sits after the two-character prefix so the prefix check passes.
+var caseFoldAliases = []struct{ alias, twin string }{
+	{"ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGı", "ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGI"},
+	{"ISCC:GAAWDLQNG6ßDPF2", "ISCC:GAAWDLQNG6SSDPF2"},
+	{"ISCC:GAAT5ﬁNQWRC4HQV", "ISCC:GAAT5FINQWRC4HQV"},
+	{"ISCC:GAAWDLQNG6ſSDPF2", "ISCC:GAAWDLQNG6SSDPF2"},
+}
+
+// Non-ASCII case-fold aliases must fail in the base32 decoder, matching Rust.
+func TestCodecIsccDecodeRejectsNonASCIICaseFold(t *testing.T) {
+	for _, tc := range caseFoldAliases {
+		t.Run(tc.alias, func(t *testing.T) {
+			_, err := IsccDecode(tc.alias)
+			if err == nil {
+				t.Fatalf("IsccDecode(%q): expected error", tc.alias)
+			}
+			if !strings.Contains(err.Error(), "base32 decode error") {
+				t.Errorf("IsccDecode(%q): got %q, want base32 decode error", tc.alias, err)
+			}
+		})
+	}
+}
+
+// The canonical ASCII twin of each case-fold alias decodes.
+func TestCodecIsccDecodeAcceptsCaseFoldTwins(t *testing.T) {
+	for _, tc := range caseFoldAliases {
+		t.Run(tc.twin, func(t *testing.T) {
+			if _, err := IsccDecode(tc.twin); err != nil {
+				t.Fatalf("IsccDecode(%q): %v", tc.twin, err)
+			}
+		})
+	}
+}
+
+// asciiUpper maps only a-z and leaves every other byte, including the UTF-8
+// bytes of non-ASCII letters, unchanged.
+func TestCodecAsciiUpper(t *testing.T) {
+	cases := map[string]string{
+		"":           "",
+		"gaaaaaaaaa": "GAAAAAAAAA",
+		"GaA-z:@[`{": "GAA-Z:@[`{",
+		"ıſßﬁ":       "ıſßﬁ",
+		"aıb":        "AıB",
+	}
+	for input, want := range cases {
+		if got := asciiUpper(input); got != want {
+			t.Errorf("asciiUpper(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 // ---- Base64 tests ----
 
 func TestCodecEncodeBase64Empty(t *testing.T) {

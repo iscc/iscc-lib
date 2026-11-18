@@ -7,7 +7,7 @@
 //! asserts the error comes from the base32 decoder, not an earlier check.
 
 use iscc_lib::codec::decode_base32;
-use iscc_lib::iscc_decode;
+use iscc_lib::{encode_seq, iscc_decode};
 
 /// Non-canonical ISCC strings: two spare-bit aliases and one padded form.
 const REJECTS: [&str; 3] = [
@@ -94,4 +94,65 @@ fn test_decode_base32_accepts_canonical_any_case() {
         decode_base32("gaaaaaaaaa").unwrap(),
         vec![0x30, 0, 0, 0, 0, 0]
     );
+}
+
+/// Non-ASCII case-fold aliases paired with their canonical ASCII twins.
+///
+/// Unicode upper-casing maps `ı`→`I`, `ſ`→`S`, `ß`→`SS` and `ﬁ`→`FI`; the
+/// reference's ASCII-only base32 decoder rejects all four characters. Each
+/// alias char sits after the two-character prefix so the prefix check passes.
+const CASE_FOLD_ALIASES: [(&str, &str); 4] = [
+    (
+        "ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGı",
+        "ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGI",
+    ),
+    ("ISCC:GAAWDLQNG6ßDPF2", "ISCC:GAAWDLQNG6SSDPF2"),
+    ("ISCC:GAAT5ﬁNQWRC4HQV", "ISCC:GAAT5FINQWRC4HQV"),
+    ("ISCC:GAAWDLQNG6ſSDPF2", "ISCC:GAAWDLQNG6SSDPF2"),
+];
+
+/// `iscc_decode` rejects each non-ASCII case-fold alias in the base32 decoder.
+#[test]
+fn test_iscc_decode_rejects_non_ascii_case_fold_aliases() {
+    for (alias, _) in CASE_FOLD_ALIASES {
+        assert_base32_error(alias, iscc_decode(alias));
+    }
+}
+
+/// The canonical ASCII twin of each case-fold alias decodes.
+#[test]
+fn test_iscc_decode_accepts_case_fold_twins() {
+    for (_, twin) in CASE_FOLD_ALIASES {
+        assert!(iscc_decode(twin).is_ok(), "{twin:?} must decode");
+    }
+}
+
+/// The bare decoder rejects the non-ASCII characters themselves.
+#[test]
+fn test_decode_base32_rejects_non_ascii_case_fold_bare() {
+    for input in ["GAAWDLQNG6ſSDPF2", "KUAK3LB55M3HQ5QVHLT5QBPWPCNGı"] {
+        assert_base32_error(input, decode_base32(input));
+    }
+}
+
+/// `encode_seq` rejects a lowercase unit carrying a `ſ` alias.
+#[test]
+fn test_encode_seq_rejects_long_s_alias() {
+    let input = "gaawdlqng6ſsdpf2";
+    assert_base32_error(input, encode_seq(&[input]));
+}
+
+/// `encode_seq` rejects a lowercase unit carrying a `ı` alias.
+#[test]
+fn test_encode_seq_rejects_dotless_i_alias() {
+    let input = "gaat5fınqwrc4hqv";
+    assert_base32_error(input, encode_seq(&[input]));
+}
+
+/// `encode_seq` accepts the lowercase ASCII twins of both aliased units.
+#[test]
+fn test_encode_seq_accepts_lowercase_ascii_twins() {
+    for input in ["gaawdlqng6ssdpf2", "gaat5finqwrc4hqv"] {
+        assert!(encode_seq(&[input]).is_ok(), "{input:?} must encode");
+    }
 }

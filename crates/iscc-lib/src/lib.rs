@@ -226,7 +226,7 @@ fn iscc_normalize(iscc: &str) -> IsccResult<String> {
     // any decoding, exactly as `iscc_core.codec.iscc_normalize` does. Without
     // this, a structurally decodable header with an invalid (MainType, SubType)
     // combination (e.g. `MQ` = ID subtype 4) would be accepted.
-    let prefix: String = clean.to_uppercase().chars().take(2).collect();
+    let prefix: String = clean.to_ascii_uppercase().chars().take(2).collect();
     if !codec::PREFIXES.contains(&prefix.as_str()) {
         return Err(IsccError::InvalidInput(format!(
             "ISCC starts with invalid prefix {prefix}"

@@ -515,9 +515,9 @@ pub fn encode_base32(data: &[u8]) -> String {
     data_encoding::BASE32_NOPAD.encode(data)
 }
 
-/// Decode base32 string to bytes (case-insensitive, no padding expected).
+/// Decode base32 string to bytes (ASCII case-insensitive, no padding expected).
 pub fn decode_base32(code: &str) -> IsccResult<Vec<u8>> {
-    let upper = code.to_uppercase();
+    let upper = code.to_ascii_uppercase();
     data_encoding::BASE32_NOPAD
         .decode(upper.as_bytes())
         .map_err(|e| IsccError::InvalidInput(format!("base32 decode error: {e}")))
@@ -828,10 +828,10 @@ pub fn encode_seq(units: &[&str]) -> IsccResult<Vec<u8>> {
                 "ISCC-UNIT must not be empty".into(),
             ));
         }
-        // Uppercase first: iscc_clean keeps hyphens in bare strings that start with
+        // ASCII-uppercase first: iscc_clean keeps hyphens in bare strings that start with
         // a multibase prefix character, and bare lowercase units with SubType >= 8
         // start with "b" or "f".
-        let upper = unit.to_uppercase();
+        let upper = unit.to_ascii_uppercase();
         let raw = decode_base32(&iscc_clean(&upper)?)?;
         if read_unit(&raw, 0)? != raw.len() {
             return Err(IsccError::InvalidInput(format!(

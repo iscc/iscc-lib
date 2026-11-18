@@ -394,21 +394,21 @@ func encodeBase32(data []byte) string {
 	return b32Encoding.EncodeToString(data)
 }
 
-// decodeBase32 decodes a base32 string to bytes (case-insensitive, no padding).
+// decodeBase32 decodes a base32 string to bytes (ASCII case-insensitive, no padding).
 //
 // Decoding is strict, matching the Rust core: the input must be the canonical
 // encoding of its bytes. Padding, non-zero unused trailing bits and the
 // carriage returns or newlines that encoding/base32 silently skips are all
 // rejected, by re-encoding the decoded bytes and comparing against the
-// upper-cased input.
+// ASCII upper-cased input.
 func decodeBase32(code string) ([]byte, error) {
-	upper := strings.ToUpper(code)
+	upper := asciiUpper(code)
 	decoded, err := b32Encoding.DecodeString(upper)
 	if err != nil {
 		return nil, fmt.Errorf("iscc: base32 decode error: %w", err)
 	}
 	if encodeBase32(decoded) != upper {
-		return nil, fmt.Errorf("iscc: base32 decode error: non-canonical encoding %q", code)
+		return nil, fmt.Errorf("iscc: base32 decode error: non-canonical encoding")
 	}
 	return decoded, nil
 }
@@ -451,7 +451,7 @@ var validPrefixes = map[string]struct{}{
 // with an invalid (MainType, SubType) combination (e.g. MQ = ID subtype 4)
 // would be accepted.
 func checkPrefix(clean string) error {
-	prefix := []rune(strings.ToUpper(clean))
+	prefix := []rune(asciiUpper(clean))
 	if len(prefix) > 2 {
 		prefix = prefix[:2]
 	}
@@ -555,6 +555,19 @@ func isIsccScheme(scheme string) bool {
 		}
 	}
 	return true
+}
+
+// asciiUpper upper-cases the ASCII letters a-z and copies every other byte
+// unchanged. Unicode-aware upper-casing would map "ı" or "ſ" to ASCII letters,
+// aliasing codes that the reference's ASCII-only base32 decoder rejects.
+func asciiUpper(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'a' && c <= 'z' {
+			b[i] = c - ('a' - 'A')
+		}
+	}
+	return string(b)
 }
 
 // isccClean cleans up an ISCC string to its bare base32 form.
