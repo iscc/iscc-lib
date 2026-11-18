@@ -54,17 +54,16 @@ passed. It notes the macOS jobs still need a hosted run.
 
 **Next:**
 
-1. **First, check every CI job on the pushed sha in both runs, push and develop→main PR.** Do not
-    assume green. Only a hosted run can show that `Swift` gets a `macos-15` runner and that
-    `Audit (cargo-deny)` passes in CI. Do not push a follow-up commit just to record the result,
-    because `cancel-in-progress` would cancel the run being watched
-2. If CI is green, return to ISCC-SEQ: the Python `encode_seq`/`decode_seq` binding with the
-    iscc_core 1.5.0 differential test. It must stay strict on base32 (padding and spare bits),
-    asserting the divergence explicitly per decisions.md 2026-11-18. The Go `decodeBase32`
-    spare-bit fix plus the Rust strict-base32 tests (issues.md, `normal` `[human]`) is the other
-    ready candidate
-3. Smaller ready `normal` items: the Ruby `json` Dependabot bump, the Ruby locale fix, `@iscc/wasm`
-    package metadata, and the Go `isccClean` port
+1. **CI is green on the reviewed sha `008d6f4`** (run 44281783958, confirmed after the push):
+    `Swift` passed on `macos-15` and `Audit (cargo-deny)` passed. Re-check the latest develop sha
+    before scoping, as usual
+2. Return to ISCC-SEQ: the Python `encode_seq`/`decode_seq` binding with the iscc_core 1.5.0
+    differential test. It must stay strict on base32 (padding and spare bits), asserting the
+    divergence explicitly per decisions.md 2026-11-18. The Go `decodeBase32` spare-bit fix plus the
+    Rust strict-base32 tests (issues.md, `normal` `[human]`) is the other ready candidate
+3. Smaller ready `normal` items: the `uv.lock` Dependabot bump (`soupsieve`, 2 high; filed in this
+    review), the Ruby `json` Dependabot bump, the Ruby locale fix, `@iscc/wasm` package metadata,
+    and the Go `isccClean` port
 
 **Notes:**
 

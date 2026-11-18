@@ -227,3 +227,16 @@ decoding rejects the three inputs above while the canonical `ISCC:GAAAAAAAAA` an
 `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGI` decode.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations"
+
+## Dependabot alerts: `soupsieve` and `setuptools` in `uv.lock` `normal` [review]
+
+GitHub reports 5 open alerts on `uv.lock` (2026-11-18): `soupsieve` 2.9.1 has #6 high (ReDoS, fixed
+3.0.2), #4 high (polynomial-time descendant combinator, fixed **4.0.0**), #5 and #3 medium;
+`setuptools` 83.0.0 has #2 low (fixed 84.1.0). Both are dev-environment only: `soupsieve` arrives
+via `beautifulsoup4` ← `mdformat-web` ← `mdformat-mkdocs[recommended]` (dev group), so no published
+artifact pins them. Check that `beautifulsoup4` accepts `soupsieve` 4.x before bumping; refresh only
+these packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
+
+Resolved when `uv.lock` pins `soupsieve` >= 4.0.0 and `setuptools` >= 84.1.0, `mise run check`
+(mdformat) is green, and `gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of
+#2-#6.
