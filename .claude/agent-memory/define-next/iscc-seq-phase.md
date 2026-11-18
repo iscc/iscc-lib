@@ -38,3 +38,11 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     copy the final set. Likely same divergence in `utils.rs` text_trim/text_collapse (ref
     `.strip()`/`.split()`) — left for review to file; touching it affects Meta/Text-Code output.
     Next: Go `decodeBase32` + Rust strict tests, Go `isccClean`, then 10 surfaces.
+- **199 = Go `decodeBase32` strict (re-encode compare) + Rust/Go strict tests**; Go `isccClean` port
+    deliberately NOT bundled (separate design, 4-fn × 5-form matrix → would blow 6 criteria). Facts
+    for the `isccClean` step: Go `base32.DecodeString` silently ignores `\r`/`\n` anywhere — 199's
+    re-encode compare makes Go reject a trailing newline until `isccClean` trims it (the step must
+    flip that; 199 pinned only an interior-`\n` unit reject). `codec.go:397` is the ONLY
+    `b32Encoding.DecodeString` site. `unicode.IsSpace` vs U+001C–U+001F still unprobed — have the
+    step check `go doc unicode.IsSpace`. Go cmds without cd: `go -C packages/go test ./...`. After
+    that: text-utils trim parity, then 10 seq binding surfaces + small normal issues.
