@@ -73,3 +73,7 @@ It reviews what the code *does*, not what the gates *cannot catch*.
 - Go codec findings — `packages/go` mirrors the Rust reference faithfully and deliberately.
 - "Use `8.0.x`" for `dotnet-version: '8.0'` — valid syntax for `setup-dotnet@v4`.
 - Large generated Kotlin/Swift binding diffs confuse it; treat as advisory noise.
+- `encode_seq` accepting `b` + base32(`cc01` + unit) as a different bare unit (202, P2) — iscc-core
+    1.5.0 returns the same bytes; settled in decisions.md 2026-11-18. Expect it on every seq
+    surface.
+- "Oversized unit decoded before rejection" (202) — Rust parity, linear memory; note only.

@@ -586,6 +586,24 @@ func TestReadUnitSequentialOffsets(t *testing.T) {
 	}
 }
 
+func TestReadUnitOffsets128(t *testing.T) {
+	raw := hx(t, seqHex128)
+	if end, err := readUnit(raw, 0); err != nil || end != 18 {
+		t.Fatalf("offset 0: got %d, %v", end, err)
+	}
+	if end, err := readUnit(raw, 18); err != nil || end != len(raw) {
+		t.Fatalf("offset 18: got %d, %v", end, err)
+	}
+}
+
+func TestSeqMainTypes(t *testing.T) {
+	// Pins the permitted set: no vector or other test carries a SEMANTIC unit.
+	want := []MainType{MTMeta, MTSemantic, MTContent, MTData, MTInstance}
+	if !slices.Equal(seqMainTypes[:], want) {
+		t.Fatalf("got %v", seqMainTypes)
+	}
+}
+
 func TestReadUnitTruncatedAtOffset(t *testing.T) {
 	raw := hx(t, seqHex128)
 	_, err := readUnit(raw[:len(raw)-1], 18)

@@ -13,7 +13,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **ISCC-SEQ core landed (195)**: `encode_seq`/`decode_seq` at crate root (the documented Tier-1
     count stays 33 until every surface binds them → 35, then one doc sweep), `codec::read_unit` /
     `SEQ_MAINTYPES` Tier 2. All three sit on private raw-`u32` header helpers — never route SEQ
-    through typed `decode_header`/`encode_component` (SubType ≥ 8 and Version 1 must be accepted)
+    through typed `decode_header`/`encode_component` (SubType ≥ 8, Version 1). Go port 202: Go
+    header types are `uint8` (typed path truncates SubType 4679 → 71); diff every surface against
+    Rust via the Python binding on a corpus (202: 33k cases, 0 diffs)
+- **`encode_seq` upper-cases before cleaning, so `b` + base32(`cc01` + unit) can read as a DIFFERENT
+    valid bare unit** (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20 bytes) — iscc-core 1.5.0 returns the
+    same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
 - **Binding fan-out traps (IDv1 177-190, detail → `learnings-archive.md`)**: a surface with its OWN
     enum (Python `VS`) can break a round trip the core allows; wide-int bindings check semantic
     thresholds in the binding before narrowing. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
@@ -74,7 +79,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     mirror the reference on whatever tables dependencies ship; every freeze-era mechanism and note
     (sentinel, frozen `Final_Sigma`, boundary vectors, sweep gate) is historical — never resurrect
 - **A data-driven fixture is self-referential — assert CONTENT, not shape** (141): ungate guards on
-    version, case counts, code points + skip-list keys (ASCII no-op swaps stay green forever).
+    version, case counts, code points + skip-list keys (ASCII no-op swaps stay green forever). A
+    test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin it
     **Per-algorithm internals**, normalization order, `data.json` counts, API-parameter facts,
     **ISCC-IDv1** details, the three codec rules → `learnings-archive.md`
 
@@ -143,15 +149,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     before touching `pom.xml` / `build.gradle.kts`. Gradle 9 writes `build/reports/problems` at the
     END of every build, so a *concurrent* build (a background Codex run) makes `clean` fail "Unable
     to delete directory" — re-run sequentially before believing it (165)
-- **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
-    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (`releases/latest`
-    proves a release exists, not that `@vN` resolves); `astral-sh/setup-uv` +
-    `rubygems/configure-rubygems-credentials` publish only exact tags. **Measure what a branch pin
-    drops:** `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by` (162: `@main` was 31 commits
-    \+ a rebuilt `dist/` ahead of `v2.1.0`). A major bump is statically verifiable past "the tag
-    exists": the `inputs`/`outputs` diff is automated (`--check-action-inputs`); intervening
-    *default* changes stay manual (recipe + biters + majors → `learnings-archive.md`,
-    `.claude/agent-memory/advance/deps-refresh.md`)
+- **A floating `@vN` Action tag is a publisher convention, not a guarantee** — check
+    `git/matching-refs/tags/v<N>` before writing `@vN` (detail → `learnings-archive.md`)
 - **Prove a new gate with a REAL regression in a THROWAWAY repo, not a synthetic typo** (iters
     144/152/163): `git archive HEAD | tar -x -C /tmp/x && git init` gives a probe tree where
     `git add`/`git rm` are free; the cheapest *real* regression is the guarded file's own previous
@@ -190,9 +189,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     deviation; review re-derives every quantitative or "never/always" claim from its source
 - **One bad case per call when testing failure arms** (195): a negative test that feeds a mismatch,
     an error and a parse failure to ONE runner call stays green even if the mismatch arm breaks —
-    any other bad case still fails the call. And check that each "mismatch" fixture reaches the
-    comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed earlier, with "Trailing data". Positive mirror:
-    one input form per trim site (200: outer-only forms missed the post-colon trims)
+    any other bad case still fails the call. **Go `AllocsPerRun(…, func(){ _ = f() })` reads 0 even
+    when `f` allocates** (the copy is optimized away) — assign to a package-level sink (202). And
+    check that each "mismatch" fixture reaches the comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed
+    earlier, with "Trailing data". Positive mirror: one input form per trim site (200: outer-only
+    forms missed the post-colon trims)
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:

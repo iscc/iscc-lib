@@ -1016,3 +1016,15 @@ runs on `opus`. Deliberate — do not "unify" them.
 
 - **A binding-toolchain bump can silently raise the *consumer* floor** in a *published* binding —
     Titusz's call (Kotlin 2.3+; recipe + docs → archive, decisions.md 2026-07-25)
+
+## Floating action tags (archived iter 202 — action pins settled in decisions.md)
+
+- **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
+    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (`releases/latest`
+    proves a release exists, not that `@vN` resolves); `astral-sh/setup-uv` +
+    `rubygems/configure-rubygems-credentials` publish only exact tags. **Measure what a branch pin
+    drops:** `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by` (162: `@main` was 31 commits
+    \+ a rebuilt `dist/` ahead of `v2.1.0`). A major bump is statically verifiable past "the tag
+    exists": the `inputs`/`outputs` diff is automated (`--check-action-inputs`); intervening
+    *default* changes stay manual (recipe + biters + majors → `learnings-archive.md`,
+    `.claude/agent-memory/advance/deps-refresh.md`)

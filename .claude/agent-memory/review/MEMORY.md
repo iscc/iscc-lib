@@ -134,6 +134,8 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     sequentially, with `run_in_background` — `--all-files` also runs `standardrb`, ~15 min total on
     the bind mount (200)
 - **CI/Audit/Perf/Semver/CRAP gates** → `gate-reviews.md`
+- **ISCC-SEQ surface port (202, ~20 min)**: surface tests + corpus differential vs `iscc_lib` +
+    `test_seq.rs` name diff + drop-SEMANTIC mutation (no vector carries one) → `binding-reviews.md`
 - **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in
     `gate-reviews.md`); stage `decisions-archive.md` too (195)
 

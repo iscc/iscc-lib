@@ -369,3 +369,17 @@ Full text of entries compacted out of `MEMORY.md`.
     golden
     - Codex's Kotlin run), Gradle publish (165), MSRV (172). CMake sets no `-Wall` → back "no warning"
         with `g++ -Wall -Wextra -c`
+
+## ISCC-SEQ surface ports (Go 202; 9 bindings to go)
+
+- **Corpus differential vs Rust (~5 min, the probe that matters)**: `/tmp/seqprobe/gen.py` style
+    corpus (whitespace/`\x1c`–`\x1f`/NBSP at each trim site, `ı ſ ß ﬁ K`, `b`/`f`/`z`/`u` prefixes,
+    `ISCC:`/`ISCC::`/`ISCC: `, padding, spare bits, ISCC-CODE/ID/FLAKE, `MDFZ…`, 3k random strings,
+    30k random byte strings with structured first bytes) → surface writes JSON → compare with
+    `iscc_lib.encode_seq`/`decode_seq` (`.so` must postdate the last `codec.rs` commit). 202: 0
+    diffs
+- **Port-name diff**: `grep -oE 'fn test_[a-z0-9_]+' crates/iscc-lib/tests/test_seq.rs` vs the
+    surface's test names. 202 missed `seq_maintypes` + `read_unit_offsets_128` — and since no vector
+    carries a SEMANTIC unit, dropping SEMANTIC from the MainType list stayed green until review
+    added the pin. Run that mutation on every surface
+- Go: mutate in a `/tmp` copy of `packages/go`, `-run 'Seq|ReadUnit|IEP0020|TypedCodec|ASCIIUpper'`
