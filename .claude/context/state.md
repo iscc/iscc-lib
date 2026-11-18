@@ -1,44 +1,44 @@
-<!-- assessed-at: 0ca1978155436ea580cf162d3ccf329f6f812e2e -->
+<!-- assessed-at: fd3f6e3b5f72dbf67de5b96bfb50a7b352b9a06f -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — ISCC-SEQ in Rust core + Python; CI green; 1 of 11 binding surfaces
+## Phase: v0.8.0 — ISCC-SEQ in Rust core + Python (1 of 11 surfaces); CI red on the develop tip
 
-CI is green on the pushed `develop` tip `3e1f8e5`, which includes the core `iscc_clean` strip-set
-fix. HEAD `0ca1978` is one unpushed loop-log commit that touches only `.claude/` files, so the green
-run covers HEAD's code. ISCC-SEQ is bound on Python only, leaving 10 surfaces. 8 `normal` issues are
-open and all of them can be worked now.
+CI on the pushed `develop` tip `5abda9f` ended as `failure`. The only failing job is Swift, which
+was cancelled because no hosted macOS runner picked it up; none of its steps ran. The other 20
+check-runs passed. HEAD `fd3f6e3` is one unpushed loop-log commit that touches only `.claude/`
+files, so the failing run covers HEAD's code. Strict base32 is now pinned in Rust and Go. ISCC-SEQ
+is bound on Python only, and 8 `normal` issues are open.
 
 ## Rust Core Crate
 
 **Status**: partially met
 
 - Tier 1 has 35 symbols at the crate root. Tier 2 `read_unit` + `SEQ_MAINTYPES` are in `codec.rs`.
-    `crates/iscc-lib` has 408 `#[test]`: 44 in `tests/test_seq.rs` and 17 in `tests/codec_clean.rs`.
-    `conformance_selftest` runs the seq vectors
-- `codec::iscc_clean` now trims the Python `str.strip()` set through `is_py_strip_char`, which adds
-    U+001C–U+001F. All four codec trim sites use it, and `codec.rs` has no `.trim()` calls left
-- **Missing:** Rust tests asserting that decoding rejects `ISCC:GAAAAAAAAB` and
-    `ISCC:GAAAAAAAAA======` (strict base32, decisions.md 2026-11-18). There are zero hits in
-    `crates/iscc-lib`
-- **Missing (`normal` issue):** `text_trim` and `text_remove_newlines` still keep U+001C–U+001F,
-    which iscc-core strips
-- iai Perf and Coverage + CRAP pass on `3e1f8e5`. semver-checks is informational. The v1.0.0 cut and
-    the MSRV criterion are human-gated
+    `crates/iscc-lib` has 415 `#[test]`: 44 in `tests/test_seq.rs`, 17 in `tests/codec_clean.rs` and
+    7 in `tests/test_strict_base32.rs`. `conformance_selftest` runs the seq vectors
+- Strict base32 is met: `test_strict_base32.rs` checks that `ISCC:GAAAAAAAAB`,
+    `ISCC:GAAAAAAAAA======` and an interior newline are rejected with `base32 decode error`, and
+    that the two canonical forms are accepted. `codec::iscc_clean` trims the Python strip set
+- **Missing (`normal` issue):** decoding upper-cases with Unicode rules, so non-ASCII letters (e.g.
+    U+0131, `ß`, `ﬁ`) decode as aliases of canonical codes. iscc-core rejects them. The fix is on
+    the iai-gated codec path
+- **Missing (`normal` issue):** `text_trim` and `text_remove_newlines` keep U+001C–U+001F, which
+    iscc-core strips
+- iai Perf and Coverage + CRAP passed on `5abda9f`. semver-checks is informational. The v1.0.0 cut
+    and the MSRV criterion are human-gated
 
 ## Python Bindings
 
 **Status**: partially met
 
-- 35 Tier 1 symbols: `encode_seq` (returns `bytes`) and `decode_seq` (returns `list[str]`) in
-    `src/lib.rs`, the `__init__.py` wrappers, `__all__` and `_lowlevel.pyi`. abi3-py310 wheels for 4
-    platforms; 12 `py.detach` sites; 0.7.0 on PyPI
-- `tests/test_seq.py` has 29 test functions: fixture conformance, round trip, bad inputs, the
-    `iscc_core` strict-base32 differential, and whitespace-rejection differentials in both
-    directions. The `rust-core.md` Python seq differential criterion, including its strict-base32
-    carve-out, is met; the only Python gap is the stale doc line below
+- 35 Tier 1 symbols, including `encode_seq` (returns `bytes`) and `decode_seq` (returns
+    `list[str]`), with `.pyi` stubs and `__all__`. abi3-py310 wheels for 4 platforms; 12 `py.detach`
+    sites; 0.7.0 on PyPI
+- `tests/test_seq.py` has 29 test functions, which meet the `rust-core.md` Python seq differential
+    criterion
 - Stale doc: `crates/iscc-py/CLAUDE.md` still says "27 #[pyfunction]s"
 
 ## Node.js Bindings
@@ -69,12 +69,14 @@ open and all of them can be worked now.
 
 **Status**: partially met
 
-- Pure Go, 33 Tier 1 symbols, 179 `func Test`, `CGO_ENABLED=0`; IDv1 at the reference API shape
-- **Missing (prerequisite `normal` issues):** an `isccClean` helper that strips the Python strip
-    set, U+001C–U+001F included. `decodeBase32` also accepts spare-bit aliases (e.g.
-    `ISCC:GAAAAAAAAB`) that Rust rejects
-- **Missing:** Go `EncodeSeq` / `DecodeSeq`, a seq-vector loader (`parseConformanceData` loads only
-    the `gen_*` sections), and seq test cases
+- Pure Go, 33 Tier 1 symbols, 182 `func Test`, `CGO_ENABLED=0`; IDv1 at the reference API shape
+- `decodeBase32` re-encodes and rejects any non-canonical input, so spare-bit aliases, padding and
+    interior `\r`/`\n` all fail (3 new strict tests). The spare-bit issue is closed
+- **Missing (`normal` issue):** an `isccClean` helper with the Python strip set, U+001C–U+001F
+    included. Go now also rejects a trailing-newline code that the reference strips; the issue
+    tracks that too
+- **Missing (`normal` issue):** the non-ASCII case-fold alias, shared with Rust
+- **Missing:** Go `EncodeSeq` / `DecodeSeq`, a seq-vector loader, and seq test cases
 
 ## Java, Ruby, .NET, C++, Swift, Kotlin Bindings
 
@@ -86,6 +88,7 @@ open and all of them can be worked now.
     harness. Swift and Kotlin hard-code per-section counts. The .NET work depends on the C FFI step
 - Ruby has two open `normal` issues: `json` in `Gemfile.lock` (Dependabot) and the `File.read` call
     in `test_conformance.rb` that passes no encoding
+- Swift did not run on `5abda9f` (runner cancel), so the tip has no Swift result
 
 ## Documentation
 
@@ -103,8 +106,8 @@ open and all of them can be worked now.
 
 - 12 criterion benches + iai-callgrind (`crates/iscc-lib/benches/`); pytest-benchmark comparing
     iscc-core and iscc-lib in `benchmarks/python/`; speedups published in `docs/benchmarks.md`
-- Review 198 reports 10 of 16 iai benches 3.5–7.7% below the committed baseline, which loosens the
-    effective tolerance on those benches. A baseline refresh needs authorisation
+- Review 198 reported 10 of 16 iai benches running 3.5–7.7% below the committed baseline, which
+    loosens the effective tolerance on those benches. A baseline refresh needs authorisation
 
 ## CI/CD and Publishing
 
@@ -113,20 +116,22 @@ open and all of them can be worked now.
 - `ci.yml` has 20 jobs; macOS jobs run on `macos-15`. `release.yml` is `workflow_dispatch`-only with
     8 registry toggles. 21 version-sync targets are at 0.7.0
 - `deny.toml` ignores `RUSTSEC-2026-0374` with a documented reason (no upstream fix)
-- **Latest CI: PASSING** on `3e1f8e5`: https://github.com/iscc/iscc-lib/actions/runs/44310966154.
-    All 21 check-runs succeeded
+- **Latest CI: FAILING** on `5abda9f`: https://github.com/iscc/iscc-lib/actions/runs/44321640827.
+    The Swift job was `cancelled` with the annotation "The job was not acquired by Runner of type
+    hosted" (macOS arm64 capacity). No steps ran and the code did not fail; the other 20 check-runs
+    passed. The last fully green run is on `3e1f8e5`
 - **Missing:** the `uv.lock` Dependabot bump (`soupsieve`, `setuptools`), tracked as a `normal`
     issue
 
 ## Open Issues
 
 15 open: 0 critical, **8 normal**, 7 low. All 8 `normal` issues can be worked now: the c-ffi-api
-type names, the Go `iscc_clean` port, Go `decodeBase32` spare-bit aliases, text-utils U+001C–U+001F
-trimming, wasm npm metadata, the Ruby `json` alert, the Ruby locale fix, and the `uv.lock` alerts.
-The core `iscc_clean` issue is closed.
+type names, the Go `iscc_clean` port, base32 non-ASCII case-fold aliases (Rust + Go), text-utils
+U+001C–U+001F trimming, wasm npm metadata, the Ruby `json` alert, the Ruby locale fix, and the
+`uv.lock` alerts. The Go spare-bit alias issue is closed.
 
 ## Next Milestone
 
-Continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on the remaining 10 surfaces, with every
-harness running the seq vectors. Also needed: strict-base32 and cleaning parity in Rust tests and
-Go, and clearing the 8 open `normal` issues that block the release.
+Get CI green on the `develop` tip first; the only red job is the runner-cancelled Swift job. Then
+continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on the remaining 10 surfaces, with every
+harness running the seq vectors, and clear the 8 open `normal` issues that block the release.

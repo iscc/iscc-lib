@@ -85,18 +85,20 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 0ca1978, iter 199 — incremental)
+## Current State (assessed-at: fd3f6e3, iter 200 — incremental)
 
-- **CI GREEN on `3e1f8e5`** (run 44310966154, 21/21). `commits/<sha>/check-suites` gives the SUITE
-    verdict in one call; codecov/cursor suites stay `queued` (ignore).
-- **ISCC-SEQ bindings 1/11 (Python)**: `tests/test_seq.py` 29 fns. Probe:
+- **CI RED on `5abda9f`** (run 44321640827): only Swift `cancelled`, zero steps — runner-capacity
+    cancel ("not acquired by Runner of type hosted"), 20/21 passed. Last green `3e1f8e5`. A suite
+    `failure` whose sole non-success run is `cancelled` w/ 0 steps = infra; confirm via
+    `gh api repos/iscc/iscc-lib/check-runs/<id>/annotations`. Still report FAILING.
+- **ISCC-SEQ bindings 1/11 (Python)**. Probe:
     `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages` —
     `packages/go/conformance.go:27` is a COMMENT hit.
-- **Core `iscc_clean` fixed 198** (`is_py_strip_char`, codec.rs:571). Text-utils parity is a
-    separate open `normal`. Rust strict-base32 rejection tests: still 0 hits for `GAAAAAAAAB`.
-- **8 open `normal`** (all actionable), 7 low.
-- **`#[test]` count 408** (400 + 8 added in 198 via diff of `^\+\s*#\[test\]`); naive grep says 409
-    (method trap, +1) — count by DIFF, not grep.
+- **Strict base32 pinned 199**: `tests/test_strict_base32.rs` (7) + Go strict tests (3). Go
+    spare-bit issue closed; new `normal` = non-ASCII case-fold aliases (Rust+Go).
+- **8 open `normal`**, 7 low (15 headers).
+- **`#[test]` count 415** (408 + 7 by diff of `^\+\s*#\[test\]`); Go `func Test` 182. Count by DIFF,
+    not grep (naive grep +1).
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.
 - **Python heredoc gotcha**: `uv run ... - << EOF || python3 - << EOF2` silently did nothing (198);
@@ -104,7 +106,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 
 ## Durable Facts (carried, not per-iteration)
 
-- **`target.md` carries a "Current Release Milestone — v0.6.0" section** — always diff `target.md`.
+- **`target.md` carries a "Current Release Milestone — v0.8.0" section** — always diff `target.md`.
     Unicode work FINISHED (161, 11/11). Dep refresh DONE (172, uniffi 0.32 + criterion 0.8; zero
     `# held:`/`authorized`). `iscc-uniffi/Cargo.toml` declares `rust-version = "1.91"` (real floor);
     other 7 crates inherit workspace 1.85. Version **0.7.0** (194); releases via PR develop→main
