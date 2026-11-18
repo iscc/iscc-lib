@@ -47,14 +47,17 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
 ## `audit` job (`Audit (cargo-deny)`) — enforcing (iter 114)
 
 - NO `continue-on-error`. `taiki-e/install-action cargo-deny@0.19.9` → `cargo deny check`. Local:
-    `mise run audit`. cargo-deny installable in devcontainer: `cargo install cargo-binstall`
-    (~5.5min) then `cargo binstall cargo-deny@0.19.9`.
+    `mise run audit`. Fastest install (iter 196, binstall absent): curl the prebuilt
+    `cargo-deny-0.19.9-x86_64-unknown-linux-musl.tar.gz` from the EmbarkStudios GitHub release and
+    `install` it into `~/.cargo/bin` (~5s). Negative probe:
+    `cargo deny check --config <copy minus   entry> advisories`.
 - `deny.toml` (repo root) is config v2: unlisted licenses + vulns + unmaintained DENY by default (NO
     `unlicensed=`/`vulnerability=` keys); `all-features=true`; `yanked="deny"`; `allow=[...13]` incl
     `MPL-2.0`/`BSL-1.0`/`Unicode-3.0`/`Zlib` + `private={ignore=true}` (4 binding crates carry no
     `license`); `multiple-versions="warn"` (6 dup warns, non-failing); sources unknown-registry/git
     `deny`; `ignore` = 2 dev-only `iai-callgrind` unmaintained advisories (RUSTSEC-2025-0141
-    bincode, RUSTSEC-2026-0173 proc-macro-error2).
+    bincode, RUSTSEC-2026-0173 proc-macro-error2) + RUSTSEC-2026-0374 `basic-toml` (iter 196; NOT
+    dev — askama_macros ← uniffi_bindgen ← iscc-uniffi, no upgrade drops it).
 - GOTCHA: `yanked="deny"` forced a Cargo.lock bump of the wasm-bindgen family off yanked
     0.2.111/js-sys 0.3.88 (wasm-bindgen-test pins `=` exact).
 - Fresh advisory with a patched release → `cargo update -p <crate>` lockfile bump, NEVER add to

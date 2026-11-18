@@ -27,6 +27,12 @@ ignore = [
   # published artifact, so the supply-chain exposure is nil.
   "RUSTSEC-2025-0141", # bincode 1.x unmaintained (iai-callgrind)
   "RUSTSEC-2026-0173", # proc-macro-error2 unmaintained (iai-callgrind-macros)
+  # Unmaintained `basic-toml`, reached only via `askama_derive` inside the
+  # `askama_macros` proc-macro: askama <- uniffi_bindgen <- uniffi <- iscc-uniffi
+  # (`publish = false`, built with --all-features). It is a normal/build edge on
+  # uniffi's bindgen code path, not a dev edge. No upgrade drops it:
+  # uniffi_bindgen 0.32.2 still enables askama's `config` feature.
+  "RUSTSEC-2026-0374", # basic-toml unmaintained (askama via uniffi_bindgen)
 ]
 
 [licenses]

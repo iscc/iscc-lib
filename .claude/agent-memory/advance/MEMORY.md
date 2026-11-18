@@ -37,7 +37,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
     plain `mvn test` reuses stale classes). jni 0.22 → deps-refresh.md
 - CI `.github/workflows/ci.yml`: 20 jobs (version-check, rust, python-test, python, nodejs, wasm,
     c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver, coverage, audit,
-    release-workflow). `bench`=`cargo bench --no-run`; `swift` macos-14; `kotlin` ubuntu JDK17
+    release-workflow). `bench`=`cargo bench --no-run`; `swift` macos-15 (macos-14 retired
+    2026-11-02, iter 196); `kotlin` ubuntu JDK17
 - Enforcing gates: `coverage` (CRAP baseline `.crap-baseline.json`), `audit` (cargo-deny), `perf`
     (iai vs `.iai-baseline.json`); `semver` informational until v1.0.0. CRAP gate is CI-ONLY —
     refresh `mise run crap:baseline` in the SAME step as any branch-adding change → ci-gates.md
