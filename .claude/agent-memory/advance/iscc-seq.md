@@ -50,5 +50,10 @@ not objects). Then the Tier-1 33→35 doc/count sweep (like IDv1 iter 190).
     (`assert_last_error_contains`). ISCC-CODE
     `ISCC:KACYPXW445FTYNJ3CYSXHAFJMA2HUWULUNRFE3BLHRSCXYH2M5AEGQY` reaches the MainType arm. C#
     binding: `iscc_encode_seq(byte** units, nuint)`
-- Remaining surfaces: JNI, Ruby, UniFFI, .NET, C++. Then 33→35 sweep (incl. `packages/go/CLAUDE.md`
-    stale "9 gen"/"46 vectors")
+- **.NET DONE (iter 206)**: `IsccLib.EncodeSeq(string[])` / `DecodeSeq(ReadOnlySpan<byte>)` in
+    `IsccLib.cs` codec block; empty `units` needs a non-null `byte*` stack sentinel (fixed on an
+    empty array = NULL → wrong FFI error); `DecodeSeq` needs none (len-0 checked first). Tests:
+    `ConformanceTests.cs` (`DecodeBytes`, 3 seq theories incl. byte round trip) + `SeqTests.cs`.
+    dotnet total 94 → 116
+- Remaining surfaces: JNI, Ruby, UniFFI, C++. Then 33→35 sweep (incl. `packages/go/CLAUDE.md` stale
+    "9 gen"/"46 vectors", `packages/dotnet/CLAUDE.md` "9 gen … 50 vectors")

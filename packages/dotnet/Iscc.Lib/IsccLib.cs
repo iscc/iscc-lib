@@ -481,6 +481,78 @@ public static partial class IsccLib
         }
     }
 
+    /// <summary>Encode ISCC-UNIT strings into an ISCC-SEQ byte string (IEP-0020).</summary>
+    /// <param name="units">One or more ISCC-UNIT strings (ISCC-CODE, ID and FLAKE are not permitted).</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="units"/> or an element is null.</exception>
+    /// <exception cref="IsccException">Thrown when the list is empty or a unit is invalid.</exception>
+    public static byte[] EncodeSeq(string[] units)
+    {
+        ArgumentNullException.ThrowIfNull(units);
+        int count = units.Length;
+        byte[][] nativeStrings = new byte[count][];
+        GCHandle[] handles = new GCHandle[count];
+        for (int i = 0; i < count; i++)
+        {
+            if (units[i] is null)
+                throw new ArgumentNullException(nameof(units), $"units[{i}] must not be null");
+            nativeStrings[i] = ToNativeUtf8(units[i])!;
+        }
+
+        try
+        {
+            unsafe
+            {
+                // Empty arrays produce null pointers via fixed — use a stack sentinel instead,
+                // so the core's "at least one ISCC-UNIT" error surfaces.
+                if (count == 0)
+                {
+                    byte* sentinel = null;
+                    IsccByteBuffer empty = NativeMethods.iscc_encode_seq(&sentinel, 0);
+                    return ConsumeByteBuffer(empty);
+                }
+
+                byte*[] ptrs = new byte*[count];
+                for (int i = 0; i < count; i++)
+                {
+                    handles[i] = GCHandle.Alloc(nativeStrings[i], GCHandleType.Pinned);
+                    ptrs[i] = (byte*)handles[i].AddrOfPinnedObject();
+                }
+
+                fixed (byte** pPtrs = ptrs)
+                {
+                    IsccByteBuffer buf = NativeMethods.iscc_encode_seq(pPtrs, (nuint)count);
+                    return ConsumeByteBuffer(buf);
+                }
+            }
+        }
+        finally
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (handles[i].IsAllocated)
+                    handles[i].Free();
+            }
+        }
+    }
+
+    /// <summary>Decode an ISCC-SEQ byte string into canonical ISCC-UNIT strings (IEP-0020).</summary>
+    /// <param name="data">ISCC-SEQ bytes as produced by <see cref="EncodeSeq"/>.</param>
+    /// <returns><c>ISCC:</c>-prefixed upper-case unit strings in wire order.</returns>
+    /// <exception cref="IsccException">Thrown when the input is empty, truncated or malformed.</exception>
+    public static string[] DecodeSeq(ReadOnlySpan<byte> data)
+    {
+        unsafe
+        {
+            // An empty span passes a null pointer with length 0, which the native side
+            // accepts and routes to the core's "Empty ISCC-SEQ" error.
+            fixed (byte* pData = data)
+            {
+                byte** arr = NativeMethods.iscc_decode_seq(pData, (nuint)data.Length);
+                return ConsumeNativeStringArray(arr);
+            }
+        }
+    }
+
     // ── Algorithm Primitives ────────────────────────────────────────────────
 
     /// <summary>Compute a SimHash digest from a set of byte-array digests.</summary>
