@@ -40,8 +40,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **next.md can under-scope the spec's "Verified when" criterion** (197): it asked only for the seq
     base32 divergence, while `rust-core.md` demands "both sides reject the same inputs". Read the
     feature's spec checklist too; a missing cheap differential test → add it in review (step 6)
-- **Python-reference differentials: Python `str.strip()` ⊋ Rust `trim`** by U+001C–U+001F (197,
-    issues.md) — probe `"\x1e"+input`; `binascii.Error` ⊂ `ValueError`, so compare via `isinstance`
+- **Python-reference differentials: Python `strip()`/`split()` ⊋ Rust `trim`/`split_whitespace`** by
+    U+001C–U+001F: codec fixed 198, text utils + Go open (issues.md). A one-way sweep proves only ⊇
+    — demand the reverse (live `Z*`/`Cc`/`Cf` − strip set, 0.6s); `binascii.Error` ⊂ `ValueError`
 - **Advance agent idle claims**: verify remaining issue priorities independently — it may claim
     "only low-priority remain" when `normal` issues still exist
 - **Run the full CI feature matrix on any core change** — only `--no-default-features` catches a

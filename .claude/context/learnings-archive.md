@@ -1011,3 +1011,8 @@ runs on `opus`. Deliberate — do not "unify" them.
     8-byte BE body. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on
     EVERY build** → pre-push clippy fails "files were modified"; regen+commit it (like `iscc.h`) in
     the SAME FFI-symbol step, never "the dotnet step"
+
+## Consumer-floor pointer (archived iter 198 — settled in decisions.md 2026-07-25)
+
+- **A binding-toolchain bump can silently raise the *consumer* floor** in a *published* binding —
+    Titusz's call (Kotlin 2.3+; recipe + docs → archive, decisions.md 2026-07-25)

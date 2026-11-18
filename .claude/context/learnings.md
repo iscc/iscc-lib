@@ -39,9 +39,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)
 - **Two string-input divergences from iscc-core** hit any differential on *string* inputs
     (`encode_seq`, `iscc_decode`): (1) strict base32 by decision (2026-11-18): `=` padding and
-    non-zero spare bits (`GAAAAAAAAB`) rejected; (2) Python `str.strip()` also strips U+001C–U+001F,
-    which Rust `str::trim` keeps (197, issues.md) — probe `"\x1e"+input` on any cleaning port (Go
-    too). A bare `b…` string reads as plain base32 in BOTH (uppercase-first), so not a defect
+    non-zero spare bits (`GAAAAAAAAB`) rejected; (2) Python `strip()`/`split()` also take
+    U+001C–U+001F, which Rust `trim`/`split_whitespace` keep: codec fixed (198,
+    `codec::is_py_strip_char`), text utils + Go still open (issues.md). A bare `b…` string reads as
+    plain base32 in BOTH (uppercase-first), so not a defect
 
 ## Tooling
 
@@ -139,8 +140,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A
     `files:`-scoped hook never sees deletions** — pair any consistency hook with a pytest anchor
     test against the real tree. Formatter caveats → `learnings-archive.md`
-- **A binding-toolchain bump can silently raise the *consumer* floor** in a *published* binding —
-    Titusz's call (Kotlin 2.3+; recipe + docs → archive, decisions.md 2026-07-25)
 - **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`; read
     before touching `pom.xml` / `build.gradle.kts`. Gradle 9 writes `build/reports/problems` at the
     END of every build, so a *concurrent* build (a background Codex run) makes `clean` fail "Unable
@@ -196,4 +195,5 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed earlier, with "Trailing data"
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
-    design**, assert which rows light up, and commit that as a test
+    design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
+    "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)

@@ -130,6 +130,10 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     default features). Don't add `--all-targets` to a `--no-default-features` criterion and don't
     report it as a regression — the workspace `--all-targets` run (default features) is the real
     gate
+- **zsh never word-splits an unquoted `$var`** (198):
+    `for f in "" "--features x"; do cargo test $f; done` passes `--features x` as ONE argument →
+    cargo errors, a red exit that is NOT a test failure. Use `${=f}` or spell each feature-matrix
+    command out
 - **`clippy-driver … (signal: 7, SIGBUS: access to undefined memory)` at pre-push is INFRASTRUCTURE,
     not a gate verdict** (iter 152): three parallel `clippy-driver` processes died mid-`git push`
     with SIGBUS while `cargo test` / `ty` / ruff / pytest all passed; ~14 GB RAM was free. The

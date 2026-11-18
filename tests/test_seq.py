@@ -1,6 +1,8 @@
 """Tests for ISCC-SEQ (IEP-0020) `encode_seq` / `decode_seq` and their strict-base32 divergence."""
 
+import contextlib
 import json
+import unicodedata
 from pathlib import Path
 
 import iscc_core
@@ -279,6 +281,29 @@ def test_differential_encode_strips_python_whitespace():
         if actual != expected:
             mismatches.append((hex(ord(ch)), actual))
     assert not mismatches
+
+
+def test_differential_rejects_space_like_chars_python_keeps():
+    """Space-like chars outside the `str.strip()` set are kept, so both libraries reject them.
+
+    Covers the reverse direction of the strip-set parity: a char that Rust's `char::is_whitespace`
+    trims but Python keeps would be accepted here. Candidates are derived live (categories `Z*`,
+    `Cc`, `Cf` minus the strip set), which contain every Unicode `White_Space` code point.
+    """
+    strip = set(PY_STRIP_CHARS)
+    candidates = [
+        c
+        for c in map(chr, range(0x110000))
+        if unicodedata.category(c) in ("Zs", "Zl", "Zp", "Cc", "Cf") and c not in strip
+    ]
+    assert "\u200b" in candidates
+    accepted = []
+    for ch in candidates:
+        for lib in (iscc_core, iscc_lib):
+            with contextlib.suppress(ValueError):
+                lib.encode_seq([ch + UNIT_32])
+                accepted.append((lib.__name__, hex(ord(ch))))
+    assert not accepted
 
 
 @pytest.mark.parametrize("sep", INFO_SEPARATORS, ids=lambda s: f"U+{ord(s):04X}")
