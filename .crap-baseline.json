@@ -133,7 +133,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "text_clean",
-      "line": 69,
+      "line": 70,
       "cyclomatic": 9.0,
       "coverage": 100.0,
       "crap": 9.0
@@ -421,7 +421,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "text_trim",
-      "line": 123,
+      "line": 127,
       "cyclomatic": 4.0,
       "coverage": 100.0,
       "crap": 4.0
@@ -731,6 +731,14 @@
       "crap": 2.0
     },
     {
+      "file": "./crates/iscc-lib/tests/test_strict_base32.rs",
+      "function": "assert_base32_error",
+      "line": 20,
+      "cyclomatic": 1.0,
+      "coverage": null,
+      "crap": 2.0
+    },
+    {
       "file": "./crates/iscc-lib/src/cdc.rs",
       "function": "alg_cdc_params",
       "line": 59,
@@ -909,7 +917,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "is_c_category",
-      "line": 25,
+      "line": 26,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -917,7 +925,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "is_cmp_category",
-      "line": 38,
+      "line": 39,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -925,7 +933,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "text_remove_newlines",
-      "line": 114,
+      "line": 115,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -933,7 +941,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "text_collapse",
-      "line": 142,
+      "line": 146,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -941,7 +949,7 @@
     {
       "file": "./crates/iscc-lib/src/utils.rs",
       "function": "multi_hash_blake3",
-      "line": 160,
+      "line": 164,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0

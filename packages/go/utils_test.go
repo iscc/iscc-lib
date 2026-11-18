@@ -250,3 +250,49 @@ func TestUtilsTextCollapseTurkishCapitalI(t *testing.T) {
 		t.Errorf("TextCollapse Turkish I: got %q, want %q", result, expected)
 	}
 }
+
+func TestUtilsTextTrimStripsInfoSeparators(t *testing.T) {
+	// Python str.strip() removes U+001C..U+001F; pinned literally so a shrunken
+	// isPyStripChar cannot hide behind a loop over the predicate itself
+	for _, sep := range []string{"\u001c", "\u001d", "\u001e", "\u001f"} {
+		// Short path (nbytes >= len): outer separators stripped, inner kept
+		short := sep + "ab" + sep + "cd" + sep
+		if got, want := TextTrim(short, 64), "ab"+sep+"cd"; got != want {
+			t.Errorf("TextTrim short %q: got %q, want %q", short, got, want)
+		}
+		// Truncation path: the cut lands right after a separator run
+		long := sep + "ab" + sep + sep + "cd"
+		nbytes := len(sep + "ab" + sep + sep)
+		if got := TextTrim(long, nbytes); got != "ab" {
+			t.Errorf("TextTrim truncated %q at %d: got %q, want %q", long, nbytes, got, "ab")
+		}
+	}
+}
+
+func TestUtilsTextTrimKeepsZeroWidthSpace(t *testing.T) {
+	// U+200B is outside Python's strip set
+	in := "\u200bab\u200b"
+	if got := TextTrim(in, 64); got != in {
+		t.Errorf("TextTrim(%q): got %q, want unchanged", in, got)
+	}
+}
+
+func TestUtilsTextRemoveNewlinesSplitsOnInfoSeparators(t *testing.T) {
+	if got := TextRemoveNewlines("\u001eab\u001fcd\u001e"); got != "ab cd" {
+		t.Errorf("TextRemoveNewlines issue example: got %q, want %q", got, "ab cd")
+	}
+	for _, sep := range []string{"\u001c", "\u001d", "\u001e", "\u001f"} {
+		// leading, interior (single and run) and trailing positions
+		in := sep + "a" + sep + "b" + sep + sep + "c" + sep
+		if got := TextRemoveNewlines(in); got != "a b c" {
+			t.Errorf("TextRemoveNewlines(%q): got %q, want %q", in, got, "a b c")
+		}
+	}
+}
+
+func TestUtilsTextRemoveNewlinesKeepsZeroWidthSpace(t *testing.T) {
+	in := "a\u200bb"
+	if got := TextRemoveNewlines(in); got != in {
+		t.Errorf("TextRemoveNewlines(%q): got %q, want unchanged", in, got)
+	}
+}

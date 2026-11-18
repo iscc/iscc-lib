@@ -568,7 +568,7 @@ pub fn encode_component(
 /// Python's whitespace set is Rust's `char::is_whitespace` set plus the four
 /// information separators U+001C..=U+001F, which `str::trim` keeps. Trimming
 /// with this predicate keeps cleaned input aligned with `iscc_core.codec.iscc_clean`.
-fn is_py_strip_char(c: char) -> bool {
+pub(crate) fn is_py_strip_char(c: char) -> bool {
     c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
 }
 

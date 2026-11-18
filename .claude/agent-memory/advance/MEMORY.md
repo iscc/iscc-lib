@@ -91,6 +91,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
     `TryFrom<u8>`; delegates to `codec::encode_component`
 - `iscc_decode` strips "ISCC:" prefix + dashes, returns exact digest bytes as
     `(u8,u8,u8,u8,Vec<u8>)`
+- Python strip set: `codec::is_py_strip_char` (`pub(crate)`) / Go `isPyStripChar` back codec
+    cleaning AND `text_trim`/`text_remove_newlines` (203). `text_clean` trims stay std (Cc filtered)
 - Codec input cleaning `iscc_clean` (Rust 191-198; Go `isccClean` 200, 4 sites) + perf →
     codec-clean.md
 - Base32: strict (199), ASCII-only casing (201: Rust `to_ascii_uppercase`, Go `asciiUpper`)

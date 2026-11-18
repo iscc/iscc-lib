@@ -1,68 +1,66 @@
-## 2026-11-18 — Review of: Go `EncodeSeq` / `DecodeSeq` (ISCC-SEQ on the pure-Go port)
+## 2026-11-18 — `text_trim` / `text_remove_newlines` strip U+001C–U+001F in Rust and Go
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Rust `text_trim` (both paths) and `text_remove_newlines` now use the Python `str.strip()`
+/ `str.split()` set. They call `codec::is_py_strip_char`, which is now `pub(crate)`, so it stays out
+of Tier 2. Go `TextTrim` / `TextRemoveNewlines` use `strings.TrimFunc` / `strings.FieldsFunc` with
+`isPyStripChar`, which is already in the package. Not touched: `text_clean`, `text_collapse`,
+`code_meta.go` and `.iai-baseline.json`.
 
-**Summary:** The Go port follows the Rust `read_unit` / `encode_seq` / `decode_seq` step for step.
-It uses raw `uint32` header helpers under typed wrappers that behave as before, so SubType ≥ 256 and
-Version 1 round-trip. Go and Rust behave the same: a corpus check on 3,296 `EncodeSeq` and 30,009
-`DecodeSeq` inputs, compared through the Python binding, found 0 differences. The tests missed two
-Rust cases. With no SEMANTIC unit in any vector or test, dropping SEMANTIC from `seqMainTypes` kept
-every seq test green. Review added `TestSeqMainTypes` and `TestReadUnitOffsets128`, ported from
-`test_seq.rs`. The first fails under that mutation.
+**Files changed:**
+
+- `crates/iscc-lib/src/utils.rs`: added `use crate::codec::is_py_strip_char;`. `split_whitespace()`
+    → `split(is_py_strip_char).filter(|s| !s.is_empty())` (rustfmt chain-wrapped it). Both `trim()`
+    → `trim_matches(is_py_strip_char)`. Docstrings updated. 5 tests added: the short path (the issue
+    example plus each separator), the truncation path with the separators at the cut edge (cut sized
+    from the encoded length) plus U+3000 at the edge, whole and split, and `remove_newlines` with
+    separators leading, interior (single and run) and trailing. U+200B is kept by both functions
+- `crates/iscc-lib/src/codec.rs`: `is_py_strip_char` is now `pub(crate)`. Visibility is the only
+    change
+- `packages/go/utils.go`: 3 sites (lines 91, 101, 109) changed, plus their doc comments
+- `packages/go/utils_test.go`: 4 tests. U+001C, U+001D, U+001E and U+001F are pinned **literally**
+    for `TextTrim` (short and truncation paths) and `TextRemoveNewlines` (leading, interior and
+    trailing, plus the issue example). U+200B is kept by both
+- `tests/test_text_utils.py`: `PY_STRIP_CHARS` is derived live (`c.strip() == ""` over all code
+    points). Tests added:
+    - the issue example
+    - differentials against `iscc_core.code_meta.text_remove_newlines` and `text_trim`, for each strip
+        char, with the char outer, interior and as a run. `text_trim` is checked at `nbytes = size`,
+        `size + 8` and a cut right after the char
+    - the reverse direction: chars in `Zs/Zl/Zp/Cc/Cf` minus the strip set are kept identically by
+        both, including U+200B
+- `.crap-baseline.json`: refreshed with `mise run crap:baseline`. The diff has 7 line moves
+    (utils.rs fns +1 or +4, from the import and the rustfmt wrap) and 1 new entry,
+    `test_strict_base32.rs::assert_base32_error` (CRAP 2.0). That entry was left over from iter 199
+    and does not come from this step
 
 **Verification:**
 
-- [x] `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` gives `ok`. `go vet` is clean and
-    `gofmt -l packages/go` prints nothing, both before and after the review-added tests
-- [x] The `EncodeSeq` (codec.go:879) and `DecodeSeq` (:919) signature greps print one line each.
-    `grep -n 'func ReadUnit'` prints nothing (exit 1)
-- [x] `seq_test.go` covers each required case with its own assertion: all 5
-    `STRICT_BASE32_DIVERGENCES` rows (rejected, twins accepted), SubType 4679 and Version 1 round
-    trips, a non-zero padding nibble (also at a second-unit offset), readUnit offsets
-    `len`/`len+1`/`100`/`-1`, and `faaa-aaaaaaaa` → `28000000000000`
-- [x] `AllocsPerRun(asciiUpper("GAAWDLQNG6SSDPF2")) == 0`. It goes through a package-level sink, so
-    inlining cannot hide an allocation
-- [x] Each runner fails on one mutated real vector, in its own test. There are 5 single-case failure
-    arms per runner plus a positive control. `ConformanceSelftest()` returns `true` on the real data
-- [x] `mise run check` exits 0 and modified no files
-- [x] Probe: Go vs Rust (via `iscc_lib`) on whitespace, case-fold, multibase, prefix and display
-    forms plus random bytes: 0 differences (212 and 487 accepted)
-- [x] Gate scan of all 5 unpushed commits: no suppressions, skips, threshold or hook changes
+- `cargo test -p iscc-lib`: 427 passed, 0 failed.
+    `cargo test -p iscc-lib --no-default-features   --lib utils`: 14 passed, so the ungated trim
+    functions build without `text-processing`
+- `cargo clippy -p iscc-lib --all-targets -- -D warnings`: clean (only the known `proc-macro-error2`
+    future-incompat note)
+- `uv run pytest tests/test_text_utils.py`: with the **stale** extension, 3 FAILED (the issue
+    example and both strip-set differentials). That shows the tests detect the old behaviour. After
+    `maturin develop -m crates/iscc-py/Cargo.toml`: 40 passed
+- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...`: `ok`. `go vet`: clean. `gofmt -l`: empty
+- `mise run bench:iai:check`: exit 0 against the unmodified `.iai-baseline.json` ("16 without
+    regressions"). meta_code name_only −4.43%, name_desc −4.54%. text_code −0.06%
+- CRAP: after `mise run coverage`, the gate exited 0 against the old baseline (7 moved, 1 new). I
+    refreshed the baseline anyway, because learnings say moved lines red in CI. Re-run against the
+    new baseline: exit 0, with 0 regressed, 0 new, 0 moved and 119 unchanged. Local rustc is 1.100.0
+    (0ef1bc386 2026-11-09)
+- `mise run format` changed nothing. `mise run check` exit 0
 
-**Issues found:**
-
-- Fixed in review: two unported `test_seq.rs` cases (`seq_maintypes`, `read_unit_offsets_128`)
-- Nit: the `Malformed ISCC-HEADER` error wraps an error that already starts with `iscc:`, so the
-    message reads `iscc: Malformed … : iscc: decode header …`
-- Nit: the strict-divergence test asserts only `err != nil`. The Python twin also pins the
-    `base32 decode error` reason
-- Nit: the `conformance.go` header says "every gen function". `GenSumCodeV0` has no vectors and no
-    runner
-- Nit: the runner failure-arm tests write `FAILED: …` lines to stderr. They show only under `-v`
-
-**Codex review:** Three findings, all advisory, none adopted:
-
-1. (P2) `bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` (multibase `b` + `cc01` + unit) encodes as a different
-    20-byte unit. iscc-core 1.5.0 and Rust give the same bytes, `0e6008…`, because the spec has
-    each unit upper-cased before cleaning. This matches the reference, so review recorded it in
-    decisions.md (2026-11-18) to keep Codex from re-flagging it on each surface.
-2. (P2) An oversized unit string is base32-decoded in full before it is rejected. Rust does the
-    same, and memory grows only linearly. Not filed.
-3. (P3) A `null` seq section passes Go's selftest without running a case. Rust fails on `null` but
-    also passes on `{}`. The data is embedded at compile time and `TestSeqSectionsRun` catches it.
-    Not filed.
-
-**Next:** The `normal` text-utils issue (`text_trim` / `text_remove_newlines` keep U+001C–U+001F):
-next.md named it as the follow-up, and it is a Rust hot path, so `mise run bench:iai:check` must run
-in the same step. Alternatives are the next ISCC-SEQ surface (Node, WASM, FFI, …; 2 of 11 are done)
-or the small Python `encode_seq` docstring issue.
+**Next:** the next ISCC-SEQ surface (Node/napi; 2 of 11 done) or the small Python `encode_seq`
+docstring issue. The text-utils issue in issues.md can be closed. Bindings inherit the fix from the
+core: Python is proven by the differential, and the other bindings delegate to the core.
 
 **Notes:**
 
-- Deferred docs sweep (until all 11 surfaces bind seq): `packages/go/CLAUDE.md` still says "all 9
-    gen functions" and "46 conformance vectors" and lists no seq functions. Add it to the 33 → 35
-    sweep with the crate `CLAUDE.md`, `notes/04`, `docs/architecture.md` and the binding docs
-- Recipe for the remaining surfaces: put a throwaway `zz_probe_test.go` in a `/tmp` copy of
-    `packages/go` (it runs on `-run` families only, because conformance tests need `../../crates`).
-    For bindings, run the same JSON corpus through the binding and compare with `iscc_lib`
-- `decisions.md` is at 399 of 400 lines. The runner rotates the oldest entries on the next overrun
+- The core-side `split` + `filter` keeps the same allocation profile as `split_whitespace`, which
+    std implements as the same `Filter<Split<…>>` shape. The iai gate agrees
+- The Python test module adds `import iscc_core` and `import unicodedata`. Both are already used by
+    `tests/test_seq.py`. `PY_STRIP_CHARS` is derived locally and not imported across modules, as
+    next.md asked
+- issues.md is not edited (review owns the ledger)

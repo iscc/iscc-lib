@@ -3,6 +3,7 @@
 //! Provides text cleaning, trimming, collapsing, and BLAKE3 multihash functions
 //! ported from `iscc-core` `code_meta.py` and `utils.py`.
 
+use crate::codec::is_py_strip_char;
 #[cfg(feature = "text-processing")]
 use unicode_general_category::{GeneralCategory, get_general_category};
 #[cfg(feature = "text-processing")]
@@ -110,26 +111,29 @@ pub fn text_clean(text: &str) -> String {
 /// Remove newlines and collapse whitespace to single spaces.
 ///
 /// Converts multi-line text into a single normalized line by splitting on
-/// whitespace boundaries and joining with a single space.
+/// Python `str.split()` whitespace (see `is_py_strip_char`) and joining with a single space.
 pub fn text_remove_newlines(text: &str) -> String {
-    text.split_whitespace().collect::<Vec<_>>().join(" ")
+    text.split(is_py_strip_char)
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Trim text so its UTF-8 encoded size does not exceed `nbytes`.
 ///
 /// Finds the largest valid UTF-8 prefix within `nbytes`, then strips
-/// leading/trailing whitespace from the result. Multi-byte characters
+/// leading/trailing Python `str.strip()` whitespace from the result. Multi-byte characters
 /// that would be split are dropped entirely.
 pub fn text_trim(text: &str, nbytes: usize) -> String {
     if text.len() <= nbytes {
-        return text.trim().to_string();
+        return text.trim_matches(is_py_strip_char).to_string();
     }
     let bytes = &text.as_bytes()[..nbytes];
     let s = match std::str::from_utf8(bytes) {
         Ok(s) => s,
         Err(e) => &text[..e.valid_up_to()],
     };
-    s.trim().to_string()
+    s.trim_matches(is_py_strip_char).to_string()
 }
 
 /// Normalize and simplify text for similarity hashing.
@@ -227,6 +231,21 @@ mod tests {
         assert_eq!(text_remove_newlines("a  b   c"), "a b c");
     }
 
+    #[test]
+    fn test_text_remove_newlines_splits_on_info_separators() {
+        assert_eq!(text_remove_newlines("\x1eab\x1fcd\x1e"), "ab cd");
+        for sep in ['\x1c', '\x1d', '\x1e', '\x1f'] {
+            // leading, interior (single and run) and trailing positions
+            let text = format!("{sep}a{sep}b{sep}{sep}c{sep}");
+            assert_eq!(text_remove_newlines(&text), "a b c");
+        }
+    }
+
+    #[test]
+    fn test_text_remove_newlines_keeps_zero_width_space() {
+        assert_eq!(text_remove_newlines("a\u{200b}b"), "a\u{200b}b");
+    }
+
     // ---- text_trim tests ----
 
     #[test]
@@ -253,6 +272,37 @@ mod tests {
     #[test]
     fn test_text_trim_strips() {
         assert_eq!(text_trim("hello ", 6), "hello");
+    }
+
+    #[test]
+    fn test_text_trim_short_path_strips_info_separators() {
+        // nbytes >= len: only the outer U+001C..U+001F are stripped, the inner one stays
+        let text = "\x1eab\x1fcd\x1e";
+        assert_eq!(text_trim(text, 64), "ab\x1fcd");
+        assert_eq!(text_trim(text, text.len()), "ab\x1fcd");
+        for sep in ['\x1c', '\x1d', '\x1e', '\x1f'] {
+            assert_eq!(text_trim(&format!("{sep}ab{sep}"), 64), "ab");
+        }
+    }
+
+    #[test]
+    fn test_text_trim_truncation_strips_separator_at_cut_edge() {
+        // The cut lands right after the separators, so they become trailing
+        for sep in ['\x1c', '\x1d', '\x1e', '\x1f'] {
+            let text = format!("{sep}ab{sep}{sep}cd");
+            let nbytes = format!("{sep}ab{sep}{sep}").len();
+            assert_eq!(text_trim(&text, nbytes), "ab");
+        }
+        // Multi-byte strip member (U+3000, 3 bytes) at the cut edge, whole and split
+        let text = "ab\u{3000}cd";
+        assert_eq!(text_trim(text, "ab\u{3000}".len()), "ab");
+        assert_eq!(text_trim(text, "ab\u{3000}".len() - 1), "ab");
+    }
+
+    #[test]
+    fn test_text_trim_keeps_zero_width_space() {
+        // U+200B is not in Python's strip set and must survive trimming
+        assert_eq!(text_trim("\u{200b}ab\u{200b}", 64), "\u{200b}ab\u{200b}");
     }
 
     // ---- text_collapse tests ----
