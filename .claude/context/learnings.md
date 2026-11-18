@@ -37,12 +37,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     cleaning
 - **iscc-core 1.5.0 `data.json`** (2026-10-17): `encode_seq`/`decode_seq` sections have non-object
     outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)
-- **Two string-input divergences from iscc-core** hit any differential on *string* inputs
-    (`encode_seq`, `iscc_decode`): (1) strict base32 by decision (2026-11-18): `=` padding and
-    non-zero spare bits (`GAAAAAAAAB`) rejected; (2) Python `strip()`/`split()` also take
-    U+001C–U+001F, which Rust `trim`/`split_whitespace` keep: codec fixed (198,
-    `codec::is_py_strip_char`), text utils + Go still open (issues.md). A bare `b…` string reads as
-    plain base32 in BOTH (uppercase-first), so not a defect
+- **String-input divergences from iscc-core** hit any differential on *string* inputs (`encode_seq`,
+    `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
+    \+ Go pinned (199); (2) Python `strip()`/`split()` also take U+001C–U+001F: codec fixed (198),
+    text utils + Go open; (3) a Unicode upper-case before decode aliases `ı`/`ſ`/`ß`/`ﬁ` that
+    ASCII-only `b32decode` rejects (open) — a re-encode compare after it cannot see that. A bare
+    `b…` string reads as plain base32 in BOTH, so not a defect
 
 ## Tooling
 

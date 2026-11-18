@@ -56,7 +56,10 @@ Porting subtleties:
     `is_py_strip_char`). Per the Go docs (unprobed), `unicode.IsSpace`/`strings.TrimSpace` follow
     `White_Space` and so miss those four.
 
-Multiformat decoding itself stays a documented non-goal — file it separately if ever wanted.
+Since iter 199 Go's strict `decodeBase32` also rejects a trailing `\n` that `encoding/base32` used
+to skip, so `IsccDecode("ISCC:GAAAAAAAAA\n")` now errors where the reference strips it: the port
+must trim before decode. Multiformat decoding itself stays a documented non-goal — file it
+separately if ever wanted.
 
 Resolved when a shared Go `isccClean` helper is routed through all four Go sites and a differential
 test covers the dash, whitespace (including a U+001C–U+001F case), lowercase-scheme and
@@ -205,28 +208,31 @@ any test runs. CI passes only because its runners have a UTF-8 locale.
 Resolved when every Ruby test that reads a JSON fixture passes an explicit `encoding: "UTF-8"` and
 `env -u LANG -u LC_ALL bundle exec rake test` passes in `crates/iscc-rb`.
 
-## Go `decodeBase32` accepts spare-bit aliases that Rust rejects `normal` [human]
+## Base32 decoding accepts non-ASCII case-fold aliases `normal` [review]
 
-Base32 decoding must be strict on every surface (decisions.md 2026-11-18): reject `=` padding and
-non-zero unused trailing bits. Rust does (`data_encoding::BASE32_NOPAD`,
-`crates/iscc-lib/src/codec.rs:519`), and so does every binding built on it. The pure-Go port does
-not: `base32.StdEncoding.WithPadding(base32.NoPadding)` rejects `=` but never checks spare bits
-(`packages/go/codec.go:397`). Verified 2026-11-18:
+Both decoders upper-case with Unicode rules before decoding, so a non-ASCII letter whose uppercase
+is ASCII decodes as an alias of a canonical code: two strings for one ISCC, exactly what the strict
+base32 decision (decisions.md 2026-11-18) exists to prevent. iscc-core rejects every such input
+(`b32decode` raises "string argument should contain only ASCII characters"), so the fix *matches*
+the reference. Probed 2026-11-18 (`iscc_core` 1.5.0, the `iscc_lib` Python binding, Go):
 
-| Input                                | Rust `iscc_decode`                 | Go `IsccDecode`        |
-| ------------------------------------ | ---------------------------------- | ---------------------- |
-| `ISCC:GAAAAAAAAB`                    | Err "non-zero trailing bits at 9"  | same result as `…AAAA` |
-| `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` | Err "non-zero trailing bits at 28" | same result as `…CNGI` |
-| `ISCC:GAAAAAAAAA======`              | Err "invalid symbol at 10"         | Err                    |
+| Input (canonical form)                                 | iscc-core | Rust    | Go      |
+| ------------------------------------------------------ | --------- | ------- | ------- |
+| `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGı` (U+0131, `…CNGI`) | Err       | aliases | aliases |
+| `ISCC:GAAWDLQNG6ßDPF2` (`…NG6SSDPF2`)                  | Err       | aliases | Err\*   |
+| `ISCC:GAAT5ﬁNQWRC4HQV` (`…T5FINQWRC4HQV`)              | Err       | aliases | Err\*   |
 
-Simplest fix: in `decodeBase32`, re-encode the decoded bytes and reject the input when the result
-differs from the upper-cased input; every Go decode path goes through it. No test on either side
-pins the strict behaviour today, so a well-meant "match the reference" change could relax it
-unnoticed.
+\* per the iter-199 advance handoff (Go `strings.ToUpper` leaves `ß`/`ﬁ` unchanged), not re-probed.
+U+017F (`ſ` → `S`) behaves like U+0131 (advance-probed). Sites: Rust `codec.rs:520`
+(`decode_base32`), `codec.rs:834` (upper-cases seq units *before* `decode_base32`), `lib.rs:229`
+(prefix check); Go `codec.go:404` (`decodeBase32` — its re-encode compare runs against the
+already-upper-cased string, so it cannot see this) and `codec.go:453` (`checkPrefix`). Fix:
+ASCII-only upper-casing (`to_ascii_uppercase`; in Go, reject bytes >= 0x80 or upper-case ASCII
+only), so non-ASCII bytes reach the decoder and fail as invalid symbols. The Rust change is on the
+iai-gated codec path — run `mise run bench:iai:check`.
 
-Resolved when Go `decodeBase32` rejects non-zero spare bits, and Rust and Go tests both assert that
-decoding rejects the three inputs above while the canonical `ISCC:GAAAAAAAAA` and
-`ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGI` decode.
+Resolved when Rust and Go both reject the three inputs above and a U+017F case with a
+`base32 decode error`, pinned in `test_strict_base32.rs` and the Go strict tests.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations"
 
