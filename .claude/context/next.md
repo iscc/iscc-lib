@@ -1,103 +1,95 @@
 # Next Work Package
 
-## Step: Go `EncodeSeq` / `DecodeSeq` (ISCC-SEQ on the pure-Go port)
+## Step: `text_trim` / `text_remove_newlines` strip U+001C–U+001F in Rust and Go
 
 ## Goal
 
-Port ISCC-SEQ (IEP-0020, #45) to `packages/go`, the second of 11 surfaces after Python, and run the
-`encode_seq` / `decode_seq` vectors in Go's `ConformanceSelftest`. Follows the confirmed rule
-(decisions.md 2026-11-18): ASCII upper-casing before cleaning, so Go rejects the same case-fold
-aliases Rust does.
+Fix the `normal` issue "`text_trim` / `text_remove_newlines` keep U+001C–U+001F that iscc-core
+strips". Both the Rust core and the pure-Go port get fixed, so every surface matches the reference
+`str.strip()` / `str.split()` whitespace set (Rust `is_whitespace` / Go `unicode.IsSpace`, plus the
+four information separators).
 
 ## Alternatives Considered
 
-- **Chosen:** Go seq. It is the handoff's "Next", its prerequisites (`isccClean`, strict base32,
-    `asciiUpper`) all landed in 199–201, and it keeps the v0.8.0 feature set moving.
-- **Rejected:** text-utils U+001C–U+001F parity (`normal` issue). It is a separate Rust hot-path
-    change gated by iai. It comes next, and it should not be mixed into a Go-only diff.
+- **Chosen:** text-utils parity in Rust and Go. It is a Tier-1 correctness defect that every binding
+    shows, it unblocks the release, it is small, and the matching predicate already exists in both
+    codebases. The handoff names it.
+- **Rejected:** the next ISCC-SEQ surface (Node/napi). 9 surfaces remain and the fan-out continues
+    next. Fixing the core first means each binding's differential inherits correct text utilities.
+    The Python `encode_seq` docstring issue is a separate area (iscc-py) and would push the budget.
 
 ## Scope
 
-- **Create**: `packages/go/seq_test.go`
-- **Modify**: `packages/go/codec.go`, `packages/go/conformance.go`,
-    `packages/go/conformance_test.go` (stale comment and runner tests only)
-- **Reference**: `crates/iscc-lib/src/codec.rs` (`read_unit`, `encode_seq`, `decode_seq`, approx.
-    L738–870), `crates/iscc-lib/tests/test_seq.rs` (the case list to port),
-    `reference/iscc-core/tests/test_seq.py`, `tests/test_seq.py` (`STRICT_BASE32_DIVERGENCES`),
-    `crates/iscc-lib/src/conformance.rs` (`run_encode_seq_tests` / `run_decode_seq_tests`),
-    `.claude/context/specs/rust-core.md` → "encode_seq / decode_seq (ISCC-SEQ, IEP-0020)"
+- **Modify**: `crates/iscc-lib/src/utils.rs`, `crates/iscc-lib/src/codec.rs` (visibility of
+    `is_py_strip_char` only), `packages/go/utils.go`. Also `.crap-baseline.json`, only if the CRAP
+    gate needs it.
+- **Tests**: Rust unit tests in `utils.rs`'s test module, `tests/test_text_utils.py` (differential
+    vs `iscc_core`), and `packages/go/utils_test.go`
+- **Reference**: `reference/iscc-core/iscc_core/code_meta.py:181-199`, the strip-set block in
+    `tests/test_seq.py` (around L274, `PY_STRIP_CHARS`), `codec.rs:565-572`, and `codec.go:527-533`
+    (`isPyStripChar`)
 
 ## Not In Scope
 
-- Exporting `readUnit` or the seq MainType set. Tier 2 is Rust-only, so keep both unexported
-- The 33 → 35 count and docs sweep, and API entries in `packages/go/README.md`, `docs/` and
-    `CLAUDE.md`. These are deferred to one sweep after the fan-out, as with IDv1
-- Text-utils U+001C–U+001F parity, the Python `encode_seq` docstring issue, and any other binding
-- Changing what typed `decodeHeader` / `encodeHeader` / `IsccDecode` / `IsccDecompose` accept
+- `text_clean`'s trims: Rust `utils.rs` `line.trim()` / final `.trim()`, and Go `utils.go:70,83`.
+    Every Cc character is filtered out before them, so changing them only adds hot-path cost
+- `packages/go/code_meta.go:102` `TrimSpace(payload)`. The payload is already cleaned text
+- `text_collapse`, and any Meta-Code or Text-Code change. No conformance vector moves
+- Making `is_py_strip_char` `pub` or Tier 2. Use `pub(crate)` only, because the spec fixes the Tier
+    2 list
+- Regenerating `.iai-baseline.json`. **Not authorised.** If the gate fails, stop and report it in
+    the handoff
+- The Python `encode_seq` docstring issue and other bindings' seq work
 
 ## Implementation Notes
 
-- **Public API:** `EncodeSeq(units []string) ([]byte, error)` and
-    `DecodeSeq(data []byte) ([]string, error)`, with Go doc comments modelled on the Rust ones. A
-    nil or empty list or slice is an error.
-- **Raw-`uint32` header path (porting trap).** Go's `MainType`/`SubType`/`Version` are `uint8`, so
-    passing SubType 4679 to `encodeHeader` truncates it silently. Typed `decodeHeader` also rejects
-    SubType > 7 and Version 1 on non-ID types. Factor out unexported raw helpers on top of
-    `encodeVarnibble` / `decodeVarnibbleFromBytes`, for example
-    `encodeHeaderRaw(mt, st, vs, ln uint32) ([]byte, error)` and a raw decode that returns the four
-    `uint32` fields. Keep the typed functions as thin wrappers with unchanged behaviour. The
-    existing Go tests are the guard.
-- **`readUnit(data []byte, offset int) (int, error)`** follows the Rust check order:
-    1. Use a header window of at most 8 bytes. An offset at or past `len(data)` gives an empty window
-        and an error, never a panic.
-    2. Raw-decode the header, re-encode it, and require the window to start with those bytes.
-        `decodeHeader` silently skips a non-zero padding nibble, so this prefix compare is the only
-        thing that rejects one.
-    3. MainType must be one of META, SEMANTIC, CONTENT, DATA or INSTANCE.
-    4. The length field must be ≤ 7.
-    5. The end is offset + header length + `4*(ln+1)`, and the end must not pass `len(data)`.
-    6. Never reject a unit for its SubType or Version.
-- **`EncodeSeq` per unit, in this order:**
-    1. Reject the unit if `strings.TrimFunc(u, isPyStripChar)` is empty.
-    2. Apply `asciiUpper`, then `isccClean`, then `decodeBase32`.
-    3. Require `readUnit(raw, 0) == len(raw)`, otherwise report trailing data.
-    4. Append the bytes in the given order. Never sort or dedupe. `faaa-aaaaaaaa` must give
-        `28000000000000`, which only works because upper-casing happens first.
-- **`DecodeSeq`** builds each unit as `"ISCC:" + encodeBase32(data[off:end])`. Never use
-    `encodeComponentInternal`, which is typed and would reject unknown SubTypes.
-- **`asciiUpper` fast path.** Return `s` unchanged, with no allocation, when it has no byte in
-    `a`–`z`. `EncodeSeq` calls it once per unit, and the review measured 26 → 34 allocations per
-    `IsccDecode` without it.
-- **Selftest.** `vectorEntry.Outputs` is a map, so it cannot hold the seq outputs (a `bytes:<hex>`
-    string and a list). Add a separate loader for the `encode_seq` / `decode_seq` sections and two
-    runners, `runEncodeSeqTests` and `runDecodeSeqTests`, called from `ConformanceSelftest`. They
-    take parsed section data so a test can pass in a mutated vector. Decode `bytes:` with
-    `encoding/hex`. Fix the stale "9 gen functions" / "50" / "46 vectors" comments without writing
-    new hard counts.
-- **Tests (`seq_test.go`).** Port the `test_seq.rs` cases with one bad input per assertion. Read the
-    vectors from the embedded data or `../../crates/iscc-lib/tests/data.json`. Port every
-    `STRICT_BASE32_DIVERGENCES` row (padding, both spare-bit rows, `ſ` and `ß`): `EncodeSeq` rejects
-    each one and accepts its canonical twin.
-- **Gates:** this is a Go-only diff, so it trips neither the iai Perf gate nor the CRAP gate. Run
-    `gofmt -w` before committing.
+- **Rust:** make `codec::is_py_strip_char` `pub(crate)` and call it from `utils.rs`. Use
+    `crate::codec::is_py_strip_char`. Mind the `text-processing` cfg: the trim functions may be
+    ungated, so check that `cargo test -p iscc-lib --no-default-features` still builds.
+    - Sites: `text_remove_newlines` (one, `split_whitespace`) and `text_trim` (two, the short path and
+        the truncation path)
+    - Replace `trim()` with `trim_matches(is_py_strip_char)`
+    - Replace `split_whitespace()` with `split(is_py_strip_char).filter(|s| !s.is_empty())`. Keep the
+        join behaviour identical
+- **Go:** in `utils.go:91,101,109`, use `strings.FieldsFunc(text, isPyStripChar)` and
+    `strings.TrimFunc(..., isPyStripChar)`. The predicate is already in-package.
+- **Hot path:** both functions run inside `gen_meta_code_v0` (`lib.rs:347-359`), which the iai
+    benches cover. Add no allocations beyond today's. `valgrind` and `iai-callgrind-runner` are
+    installed here.
+- **CRAP (CI-only gate):** keep the edits line-neutral above the test module where you can. If lines
+    move, run `mise run coverage`, then the gate below, then `mise run crap:baseline` if it reds on
+    moved lines. Commit the result in this step, and note the local rustc in the handoff.
+- **Tests, one input form per site** (learnings: outer-only forms missed a trim site in iter 200):
+    - `text_trim`: one short-path case (`nbytes >= len`) and one truncation case where a separator
+        lands at the cut edge. Size `nbytes` from the encoded length, since the strip set has
+        multi-byte members
+    - `text_remove_newlines`: separators at the leading, interior and trailing positions
+    - Example from the issue: `text_trim("\x1eab\x1fcd\x1e", 64)` gives `"ab\x1fcd"`, and
+        `text_remove_newlines` of the same string gives `"ab cd"`
+- **Python differential** (`tests/test_text_utils.py`): derive `PY_STRIP_CHARS` live, as
+    `test_seq.py` does. Do not import it across test modules.
+    - For each char, compare `iscc_lib` and `iscc_core` on both functions, with the char outer and
+        interior
+    - Add the reverse direction: space-like chars Python keeps (e.g. U+200B) are kept by both
+    - Run `maturin develop -m crates/iscc-py/Cargo.toml` first. A stale extension false-reds
+- **Go tests** must pin U+001C, U+001D, U+001E and U+001F **literally** for both functions. A loop
+    over `isPyStripChar` cannot see the predicate shrink.
 
 ## Verification
 
-- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` exits 0. `go -C packages/go vet ./...` is
-    clean and `gofmt -l packages/go` prints nothing
-- `grep -n 'func EncodeSeq(units \[\]string) (\[\]byte, error)' packages/go/codec.go` and
-    `grep -n 'func DecodeSeq(data \[\]byte) (\[\]string, error)' packages/go/codec.go` each print
-    one line. `grep -n 'func ReadUnit' packages/go/*.go` prints nothing
-- `seq_test.go` covers each of these with its own assertion: every `STRICT_BASE32_DIVERGENCES` row
-    is rejected and its twin accepted; a unit with SubType ≥ 256 and one with Version 1 round-trip
-    through `DecodeSeq`→`EncodeSeq`; a non-zero header padding nibble is rejected; an out-of-range
-    `readUnit` offset returns an error; `faaa-aaaaaaaa` → `28000000000000`
-- A test asserts `testing.AllocsPerRun(…, func(){ asciiUpper("GAAWDLQNG6SSDPF2") }) == 0`
-- A test feeds `runEncodeSeqTests` and `runDecodeSeqTests` one mutated vector each, separately, and
-    each returns `false`. With the real data, `ConformanceSelftest()` still returns `true`
-- `mise run check` exits 0
+- `cargo test -p iscc-lib` passes, including the new separator tests for both `text_trim` paths and
+    `text_remove_newlines`
+- `uv run pytest tests/test_text_utils.py` passes after
+    `maturin develop -m crates/iscc-py/Cargo.toml`, including the live-derived strip-set
+    differential against `iscc_core` and the U+200B kept-by-both case
+- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` passes and `go -C packages/go vet ./...` is
+    clean, with literal U+001C–U+001F cases for `TextTrim` and `TextRemoveNewlines`
+- `mise run bench:iai:check` exits 0 against the committed, unmodified `.iai-baseline.json`
+- `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above` exits
+    0 (after `mise run coverage`)
+- `mise run check` exits 0 and `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean
 
 ## Done When
 
-The Go port exposes `EncodeSeq`/`DecodeSeq` with Rust-equivalent strictness, its selftest runs the
-seq vectors, and all verification criteria pass.
+All six verification criteria pass, with `text_clean`, `text_collapse` and `.iai-baseline.json`
+untouched.

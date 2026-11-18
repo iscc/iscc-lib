@@ -64,3 +64,10 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     re-encode prefix compare in `readUnit` rejects it; `vectorEntry.Outputs` is a map → seq sections
     need their own loader. Bundled `asciiUpper` zero-alloc fast path (AllocsPerRun==0). Next:
     text-utils trim parity (Rust, iai), then 9 binding surfaces (FFI before .NET/C++).
+- **203 = text-utils U+001C–U+001F parity, Rust + Go bundled** (utils.rs, codec.rs
+    `is_py_strip_char` → `pub(crate)`, utils.go; 3 files). No conformance vector moves (`text_clean`
+    drops Cc first in `gen_meta_code_v0`), so only new tests prove it: one case per `text_trim`
+    branch, Python live-strip-set differential, Go literal code points. `text_clean` trims +
+    `code_meta.go:102` left out (input already Cc-free). iai tools confirmed installed
+    (`command -v`). Next: 9 seq binding surfaces (FFI before .NET/C++) + small normal issues (py
+    docstring, wasm metadata, Ruby json/locale, uv.lock, c-ffi-api names).
