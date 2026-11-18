@@ -21,7 +21,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     `MEMORY-archive.md`); out-of-loop `cid(loop):` commits leave NO jsonl entry — diff them. A
     TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
     UNRELIABLE (none at 170) — never park a finding for it.
-- **Counts + the glob/grep trap for each → `counts.md`** (201: 415 iscc-lib `#[test]`, 194 Go; 199:
+- **Counts + the glob/grep trap for each → `counts.md`** (202: 421 iscc-lib `#[test]`, 197 Go; 199:
     118 CRAP; 196: 12 READMEs, 22 docs pages, 179 Go, 49 ffi externs, 21 version_sync, 5 fixture
     copies).
 - **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
@@ -86,19 +86,19 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: c2f61e3, iter 201 — incremental)
+## Current State (assessed-at: 03e57a9, iter 202 — incremental)
 
-- **CI RED on `e8130a8`** (run 44336381374): Swift `cancelled`, 0 steps, runner-capacity — 2nd in a
-    row (also `5abda9f`); 20/21 passed. Last green `3e1f8e5`. Swift is the ONLY macos job. A suite
-    `failure` whose sole non-success run is `cancelled` w/ 0 steps = infra; confirm via
+- **CI GREEN on `05dd0c8`** (run 44357670484, 21/21 incl. Swift). Runner-capacity cancels (199-200):
+    a suite `failure` whose sole non-success run is `cancelled` w/ 0 steps = infra; confirm via
     `gh api repos/iscc/iscc-lib/check-runs/<id>/annotations`. Still report FAILING.
 - **ISCC-SEQ bindings 1/11 (Python)**. Probe:
     `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages` —
     `packages/go/conformance.go:27` is a COMMENT hit; data.json copies are noise.
-- **Go `isccClean` done 200** (`codec.go:571`, 4 call sites); Go cleaning issue closed.
-    `strings.ToUpper` survivors at `codec.go:405/:454` = case-fold alias issue.
+- **Case-fold alias issue CLOSED 201**: Rust `to_ascii_uppercase` x3, Go `asciiUpper`
+    (`codec.go:563`). `encode_seq` strictness = Titusz-confirmed divergence (spec + decisions) — do
+    NOT re-flag. Unfiled: `asciiUpper` lacks an all-upper fast path (Go seq step).
 - **7 open `normal`**, 7 low (14 headers).
-- **`#[test]` count 415**; Go `func Test` 194 (sum via awk, no `bc` in sandbox). Count Rust by DIFF.
+- **`#[test]` count 421**; Go `func Test` 197. Count Rust by DIFF.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.
 - **Python heredoc gotcha**: `uv run ... - << EOF || python3 - << EOF2` silently did nothing (198);
