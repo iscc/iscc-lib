@@ -71,3 +71,11 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     `code_meta.go:102` left out (input already Cc-free). iai tools confirmed installed
     (`command -v`). Next: 9 seq binding surfaces (FFI before .NET/C++) + small normal issues (py
     docstring, wasm metadata, Ruby json/locale, uv.lock, c-ffi-api names).
+- **204 = napi + WASM seq together** (2 source files; NOT the fan-out valve — wrappers differ: napi
+    `Vec<String>`/`Buffer`, wasm `JsValue`+serde like `gen_iscc_code_v0`). napi
+    `index.d.ts`/`index.js` are gitignored (not tracked) → grep the regenerated d.ts after
+    `npm --prefix crates/iscc-napi run build:debug`. Seq vectors: 4+4, `bytes:<hex>`, no error cases
+    → negatives from tests (empty list/unit, spare bits, `ſ` alias, bare string, empty and truncated
+    bytes). Next: FFI seq (`iscc.h` + `NativeMethods.g.cs` regen, C ownership of the returned
+    buffer/string array), then .NET/C++, JNI, Ruby, UniFFI (Swift+Kotlin hard-code counts), then the
+    33→35 doc sweep; small `normal` issues interleaved.

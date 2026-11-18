@@ -1,95 +1,101 @@
 # Next Work Package
 
-## Step: `text_trim` / `text_remove_newlines` strip U+001C–U+001F in Rust and Go
+## Step: Bind `encode_seq` / `decode_seq` on the napi (Node.js) and WASM surfaces
 
 ## Goal
 
-Fix the `normal` issue "`text_trim` / `text_remove_newlines` keep U+001C–U+001F that iscc-core
-strips". Both the Rust core and the pure-Go port get fixed, so every surface matches the reference
-`str.strip()` / `str.split()` whitespace set (Rust `is_whitespace` / Go `unicode.IsSpace`, plus the
-four information separators).
+Continue the v0.8.0 ISCC-SEQ fan-out (#45): expose `encode_seq` / `decode_seq` from `@iscc/lib`
+(napi) and `@iscc/wasm`, and run the `encode_seq` / `decode_seq` vectors in both conformance
+harnesses. This moves the two JS surfaces from 33 to 35 Tier 1 symbols, so 4 of 11 surfaces are
+done.
 
 ## Alternatives Considered
 
-- **Chosen:** text-utils parity in Rust and Go. It is a Tier-1 correctness defect that every binding
-    shows, it unblocks the release, it is small, and the matching predicate already exists in both
-    codebases. The handoff names it.
-- **Rejected:** the next ISCC-SEQ surface (Node/napi). 9 surfaces remain and the fan-out continues
-    next. Fixing the core first means each binding's differential inherits correct text utilities.
-    The Python `encode_seq` docstring issue is a separate area (iscc-py) and would push the budget.
+- **Chosen:** napi + WASM together. Both are thin Rust wrappers over the core with a fixed idiom
+    already in each file, so this is 2 source files and finishes the JS family in one pass
+- **Rejected:** C FFI seq. It unblocks .NET and C++, but it needs `iscc.h` + `NativeMethods.g.cs`
+    regen and a C ownership design for the returned byte buffer and string array. Better as its own
+    step next. The `uv.lock` high alerts are dev-only and can follow alongside the other small
+    `normal` issues
 
 ## Scope
 
-- **Modify**: `crates/iscc-lib/src/utils.rs`, `crates/iscc-lib/src/codec.rs` (visibility of
-    `is_py_strip_char` only), `packages/go/utils.go`. Also `.crap-baseline.json`, only if the CRAP
-    gate needs it.
-- **Tests**: Rust unit tests in `utils.rs`'s test module, `tests/test_text_utils.py` (differential
-    vs `iscc_core`), and `packages/go/utils_test.go`
-- **Reference**: `reference/iscc-core/iscc_core/code_meta.py:181-199`, the strip-set block in
-    `tests/test_seq.py` (around L274, `PY_STRIP_CHARS`), `codec.rs:565-572`, and `codec.go:527-533`
-    (`isPyStripChar`)
+- **Modify**: `crates/iscc-napi/src/lib.rs`, `crates/iscc-wasm/src/lib.rs`
+- **Regenerated (gitignored, never hand-edit)**: `crates/iscc-napi/index.d.ts`, `index.js`
+- **Tests**: `crates/iscc-napi/__tests__/conformance.test.mjs` (seq sections), a new
+    `crates/iscc-napi/__tests__/seq.test.mjs`, `crates/iscc-wasm/tests/conformance.rs` (seq
+    sections), `crates/iscc-wasm/tests/unit.rs` (seq unit and negative tests)
+- **Reference**: `crates/iscc-py/src/lib.rs` (`encode_seq` / `decode_seq`, ~L515–534),
+    `tests/test_seq.py` (constants, divergence rows, negative cases), core
+    `crates/iscc-lib/src/codec.rs` L818 / L857
 
 ## Not In Scope
 
-- `text_clean`'s trims: Rust `utils.rs` `line.trim()` / final `.trim()`, and Go `utils.go:70,83`.
-    Every Cc character is filtered out before them, so changing them only adds hot-path cost
-- `packages/go/code_meta.go:102` `TrimSpace(payload)`. The payload is already cleaned text
-- `text_collapse`, and any Meta-Code or Text-Code change. No conformance vector moves
-- Making `is_py_strip_char` `pub` or Tier 2. Use `pub(crate)` only, because the spec fixes the Tier
-    2 list
-- Regenerating `.iai-baseline.json`. **Not authorised.** If the gate fails, stop and report it in
-    the handoff
-- The Python `encode_seq` docstring issue and other bindings' seq work
+- The Tier 1 33→35 doc/count sweep (READMEs, `docs/`, `notes/`, crate `CLAUDE.md`). It runs once
+    after every surface binds seq, as with IDv1 (iter 190)
+- The `@iscc/wasm` license/description `normal` issue. It is in the same crate, but it is verified
+    through a `wasm-pack build` + `pkg/package.json` check, so it is its own step
+- Any core (`iscc-lib`) change, including error wording. If a core behaviour looks wrong, report it
+    in the handoff instead of patching it
+- Other surfaces (FFI, JNI, Ruby, .NET, C++, Swift, Kotlin)
 
 ## Implementation Notes
 
-- **Rust:** make `codec::is_py_strip_char` `pub(crate)` and call it from `utils.rs`. Use
-    `crate::codec::is_py_strip_char`. Mind the `text-processing` cfg: the trim functions may be
-    ungated, so check that `cargo test -p iscc-lib --no-default-features` still builds.
-    - Sites: `text_remove_newlines` (one, `split_whitespace`) and `text_trim` (two, the short path and
-        the truncation path)
-    - Replace `trim()` with `trim_matches(is_py_strip_char)`
-    - Replace `split_whitespace()` with `split(is_py_strip_char).filter(|s| !s.is_empty())`. Keep the
-        join behaviour identical
-- **Go:** in `utils.go:91,101,109`, use `strings.FieldsFunc(text, isPyStripChar)` and
-    `strings.TrimFunc(..., isPyStripChar)`. The predicate is already in-package.
-- **Hot path:** both functions run inside `gen_meta_code_v0` (`lib.rs:347-359`), which the iai
-    benches cover. Add no allocations beyond today's. `valgrind` and `iai-callgrind-runner` are
-    installed here.
-- **CRAP (CI-only gate):** keep the edits line-neutral above the test module where you can. If lines
-    move, run `mise run coverage`, then the gate below, then `mise run crap:baseline` if it reds on
-    moved lines. Commit the result in this step, and note the local rustc in the handoff.
-- **Tests, one input form per site** (learnings: outer-only forms missed a trim site in iter 200):
-    - `text_trim`: one short-path case (`nbytes >= len`) and one truncation case where a separator
-        lands at the cut edge. Size `nbytes` from the encoded length, since the strip set has
-        multi-byte members
-    - `text_remove_newlines`: separators at the leading, interior and trailing positions
-    - Example from the issue: `text_trim("\x1eab\x1fcd\x1e", 64)` gives `"ab\x1fcd"`, and
-        `text_remove_newlines` of the same string gives `"ab cd"`
-- **Python differential** (`tests/test_text_utils.py`): derive `PY_STRIP_CHARS` live, as
-    `test_seq.py` does. Do not import it across test modules.
-    - For each char, compare `iscc_lib` and `iscc_core` on both functions, with the char outer and
-        interior
-    - Add the reverse direction: space-like chars Python keeps (e.g. U+200B) are kept by both
-    - Run `maturin develop -m crates/iscc-py/Cargo.toml` first. A stale extension false-reds
-- **Go tests** must pin U+001C, U+001D, U+001E and U+001F **literally** for both functions. A loop
-    over `isPyStripChar` cannot see the predicate shrink.
+Signatures use snake_case JS names on both surfaces, like every existing export:
+
+- **napi:**
+    `#[napi(js_name = "encode_seq")] fn encode_seq(units: Vec<String>) ->   napi::Result<Buffer>`
+    and `decode_seq(data: Buffer) -> napi::Result<Vec<String>>`. Map errors with
+    `napi::Error::from_reason(e.to_string())`, as `iscc_decode` (L69) does. Collect `Vec<&str>` refs
+    as the Python binding does
+- **wasm:** `encode_seq(units: JsValue) -> Result<Vec<u8>, JsError>`. Convert the input via
+    `serde_wasm_bindgen::from_value::<Vec<String>>`, the same way `gen_iscc_code_v0` (L153) does.
+    `decode_seq(data: &[u8]) -> Result<Vec<String>, JsError>`, shaped like `iscc_decompose`
+- Doc comments: `decode_seq` returns canonical `ISCC:`-prefixed units. Decoding is strict, so
+    `encode_seq` rejects `=` padding, non-zero spare bits and non-ASCII case-fold aliases (`ſ`, `ß`)
+    that iscc-core accepts. Say this here; the Python docstring issue is the reason
+
+Conformance vectors (4 per section, no error cases):
+
+- Values are `bytes:<hex>`, not `stream:<hex>`. The `encode_seq` input is `inputs[0]` (a unit list),
+    and the output is `bytes:<hex>`. The `decode_seq` input is `inputs[0]` (`bytes:<hex>`), and the
+    output is a list of unit strings
+- Derive the "tested" guard from the fixture section length, or keep the existing hard-coded count
+    style in `conformance.rs`, but never let zero cases pass. Also assert the round trip
+    `encode_seq(decode_seq(b)) == b`
+
+Negative tests. The vectors carry no error cases, so these must come from tests, with **one bad
+input per call/assertion**:
+
+- `encode_seq([])`, `encode_seq([""])`, `encode_seq(["ISCC:GAAAAAAAAB"])` (spare bits), and
+    `encode_seq(["gaawdlqng6ſsdpf2"])` (case-fold alias)
+- A bare string `encode_seq("ISCC:GAAAAAAAAA")` must throw, not iterate the string
+- `decode_seq` of empty bytes, and of `UNIT_256_HEX` with its last byte dropped (truncated)
+- Positive spot checks: `encode_seq(["ISCC:GAAAAAAAAA"])` → hex `300000000000`, and order plus
+    duplicates are preserved (`[UNIT_256, UNIT_32, UNIT_32]`)
+
+Traps:
+
+- The napi `.node` is a gitignored artifact and goes stale silently. Rebuild it before `npm test`,
+    or the suite runs against the old 33-symbol binary
+- napi `Buffer` vs JS `Uint8Array`: compare with `Buffer.from(...).equals(...)` or hex, not
+    `strictEqual` on objects
+- This is a binding-only step, so neither the iai Perf gate nor the CRAP gate is affected (no core
+    edit)
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes, including the new separator tests for both `text_trim` paths and
-    `text_remove_newlines`
-- `uv run pytest tests/test_text_utils.py` passes after
-    `maturin develop -m crates/iscc-py/Cargo.toml`, including the live-derived strip-set
-    differential against `iscc_core` and the U+200B kept-by-both case
-- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` passes and `go -C packages/go vet ./...` is
-    clean, with literal U+001C–U+001F cases for `TextTrim` and `TextRemoveNewlines`
-- `mise run bench:iai:check` exits 0 against the committed, unmodified `.iai-baseline.json`
-- `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above` exits
-    0 (after `mise run coverage`)
-- `mise run check` exits 0 and `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean
+- `npm --prefix crates/iscc-napi run build:debug && npm --prefix crates/iscc-napi test` passes,
+    including the seq conformance and the new `seq.test.mjs` cases
+- `grep -q 'export declare function encode_seq' crates/iscc-napi/index.d.ts` and the same for
+    `decode_seq` both succeed after the build
+- `wasm-pack test --node crates/iscc-wasm --features conformance` passes, including the seq
+    conformance and unit/negative tests
+- `cargo clippy -p iscc-napi -p iscc-wasm --all-targets -- -D warnings` clean
+- `cargo fmt -p iscc-napi -p iscc-wasm --check` clean
+- `mise run check` exits 0
 
 ## Done When
 
-All six verification criteria pass, with `text_clean`, `text_collapse` and `.iai-baseline.json`
-untouched.
+Both JS surfaces export `encode_seq` / `decode_seq`, both conformance harnesses run all 8 seq
+vectors, and the negative cases throw. All six verification criteria pass.

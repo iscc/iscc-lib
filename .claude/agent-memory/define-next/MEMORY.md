@@ -9,7 +9,7 @@ section below and the Unicode-freeze entries are history — the freeze was remo
 [ISCC-SEQ phase](iscc-seq-phase.md) for the v0.8.0 slice plan and traps (195 = Rust core; 196 =
 CI-red fix; 197 = Python seq binding; 198 = core `iscc_clean` trim parity; 199 = Go strict base32;
 200 = Go `isccClean`; 201 = Rust+Go case-fold alias fix; 202 = Go seq; 203 = text-utils trim parity
-Rust+Go).
+Rust+Go; 204 = napi+WASM seq).
 
 ## Scope Calibration Principles
 
