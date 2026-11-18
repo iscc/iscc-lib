@@ -1,87 +1,94 @@
 # Next Work Package
 
-## Step: Go `decodeBase32` rejects spare-bit aliases; Rust and Go tests pin strict base32
+## Step: Go `isccClean` helper routed through all four Go codec input sites
 
 ## Goal
 
-Resolve the `normal` issue "Go `decodeBase32` accepts spare-bit aliases that Rust rejects": make the
-pure-Go decoder as strict as Rust (decisions.md 2026-11-18, "Base32 decoding stays strict"), and add
-tests on both sides so a "match the reference" change can never relax it unnoticed. This is a Go
-prerequisite for Go `EncodeSeq`/`DecodeSeq`.
+Resolve issues.md "Go codec input cleaning diverges from iscc-core `iscc_clean`": port Rust
+`codec::iscc_clean` to one Go helper and route every Go string-input site through it, so dashed,
+whitespace-padded and lowercase-scheme ISCCs work in Go as in the reference. This is the
+prerequisite target.md names before Go `EncodeSeq`/`DecodeSeq`. It also repairs the trailing-newline
+rejection that iter 199's strict `decodeBase32` introduced.
 
 ## Alternatives Considered
 
-- **Chosen:** strict Go base32 + Rust/Go strict tests. It is a one-function fix behind which every
-    Go decode path already routes (`codec.go:397` is the only `b32Encoding.DecodeString` call), and
-    it is independent of every other open issue.
-- **Rejected:** bundling the Go `isccClean` port (same 3 Go files). That is a separate, hand-written
-    design with a 4-function × 5-input-form test matrix. Together they would not fit in 6 criteria,
-    and a bounce on the port would hold back this fix. Scope it next.
-- **Rejected:** the napi seq binding. It is feature progress, but the target names the Go
-    prerequisites first, and this step is much smaller.
+- **Chosen:** Go `isccClean`. It comes next in target.md's suggested order and in the handoff, and a
+    reference-valid input (`"ISCC:GAAAAAAAAA\n"`) is currently a Go regression.
+- **Rejected:** "fix CI red" is not a step. The red tip `5abda9f` comes from the Swift job being
+    `cancelled` with "not acquired by Runner of type hosted … capacity constraints" on macOS arm64.
+    `macos-15` is the live label (not a retirement, cf. 196), and no file change fixes it. The next
+    batch push re-runs CI.
+- **Rejected:** Rust+Go non-ASCII case-fold alias fix, and text-utils U+001C–U+001F parity. Both are
+    on the iai-gated Rust path and touch different files. They come after this.
 
 ## Scope
 
-- **Create**: `crates/iscc-lib/tests/test_strict_base32.rs`
-- **Modify**: `packages/go/codec.go` (`decodeBase32` only), `packages/go/codec_test.go`
-- **Reference**: `crates/iscc-lib/src/codec.rs:519` (`decode_base32`, the strict model),
-    `.claude/context/issues.md` → the Go `decodeBase32` entry (case table)
+- **Create**: none (tests may go in `packages/go/codec_test.go` or a new
+    `packages/go/clean_test.go`)
+- **Modify**: `packages/go/codec.go` (helper + `IsccDecompose` L539 + `isccNormalize` L649-650),
+    `packages/go/code_iscc.go` (L27), `packages/go/code_content_mixed.go` (L23)
+- **Reference**: `crates/iscc-lib/src/codec.rs:571-634` (`is_py_strip_char`, `iscc_clean`, the model
+    to port branch for branch), `reference/iscc-core/iscc_core/codec.py:762-785`, Go tests at
+    `codec_test.go:402-470` (strict base32 tests that must stay green)
 
 ## Not In Scope
 
-- The Go `isccClean` port (scheme case, whitespace, dashes, empty guard): that is the next step. In
-    particular, do NOT add whitespace or newline trimming here.
-- Any change to Rust source (`src/`). Rust is already strict; this step only adds tests. Keeping
-    `src/` untouched also keeps the CI-only CRAP gate and the iai gate unaffected.
-- Changing `decodeBase32("")`, which returns an empty slice with no error. That matches Rust; the
-    empty-input guard belongs to `isccClean`.
-- Asserting that a **trailing** newline is rejected by `IsccDecode`/`IsccDecompose`/`Gen*`. The
-    reference strips it, and the `isccClean` step must flip that behaviour.
-- Go seq functions, the docs, or any binding surface.
+- The `strings.ToUpper` calls in `decodeBase32` (L404) and `checkPrefix` (L453), which belong to the
+    open case-fold alias issue. Also the `%q` whole-input echo in the `decodeBase32` error (Codex
+    nit), which that step fixes when it rewrites `decodeBase32`. Do not touch either here.
+- Go `EncodeSeq`/`DecodeSeq` (next step; it will reuse this helper).
+- Multiformat (multibase-prefixed) decoding, which stays a documented non-goal.
+- Any Rust change, and Go text utilities (`TextTrim` etc.).
+- `codec.go:673` (`TrimPrefix(composed.Iscc, "ISCC:")`) strips an *output* prefix. Leave it.
 
 ## Implementation Notes
 
-- **Go fix (from the issue):** after `b32Encoding.DecodeString(upper)` succeeds, re-encode with
-    `encodeBase32(decoded)` and return an error when the result differs from `upper`. The error must
-    start `iscc: base32 decode error:` and say why (e.g. "non-canonical encoding"). Update the
-    docstring to state the strictness.
-- **Bonus effect, intended:** Go's decoder silently ignores `\r` and `\n` anywhere in the input
-    (`go doc encoding/base32 Encoding.DecodeString`), so Go currently accepts `"GAAA\nAAAAAA"`. Rust
-    rejects it. The re-encode compare closes this too. Pin it with a `decodeBase32` unit test for an
-    *interior* `\n`.
-- Case-insensitivity is preserved: compare against the upper-cased input, not the raw one.
-- **Case set (from the issue; one bad input per call / per subtest):**
-    - Reject `ISCC:GAAAAAAAAB` (spare bits), `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` (spare bits),
-        `ISCC:GAAAAAAAAA======` (padding).
-    - Accept `ISCC:GAAAAAAAAA` and `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGI`, with the decoded fields
-        matching each other where Go currently aliases them. Read the expected values off Rust
-        `iscc_decode`. Do not hand-derive them.
-- **Assert the reason, not just `is_err()`.** Rust messages contain `base32 decode error`
-    (`trailing bits` / `invalid symbol`); Go messages must contain `base32 decode error`. A fixture
-    that fails earlier (prefix check, header, length) would otherwise pass for the wrong reason.
-    `GA`/`KU` are both in Go's `validPrefixes`.
-- Rust: test via the public `iscc_lib::iscc_decode` and `iscc_lib::codec::decode_base32` (bare, no
-    prefix). Go: test via `IsccDecode` and a direct `decodeBase32` table test.
-- If an existing Go test goes red, its hand-typed fixture has non-zero spare bits. Fix the fixture
-    (re-encode the intended bytes), never relax the check, and list each such fixture in the
-    handoff.
-- The SemVer angle is settled (decisions.md 2026-07-24, "Tightening decode input-validation is not a
-    SemVer break").
+- Port `codec.rs:594-634` branch for branch into `isccClean(s string) (string, error)`. These are
+    the places where idiomatic Go gets it wrong:
+    - **Strip set**: `unicode.IsSpace(r) || (r >= 0x1C && r <= 0x1F)` via `strings.TrimFunc`.
+        `unicode.IsSpace` follows White_Space, as Rust `char::is_whitespace` does (`go doc` confirms),
+        but it misses the four information separators. Apply it to the whole string and again to the
+        scheme and code parts after splitting at the colon.
+    - **Scheme compare must be ASCII-only.** Do NOT use `strings.EqualFold` (folds `ſ`→`s`) or
+        `strings.ToLower` (maps `İ`). Compare byte-wise with ASCII lower-casing, e.g. `len==4` + a
+        per-byte `|0x20` check against `"iscc"`, or a small ASCII helper. Probed on iscc_core 1.5.0:
+        `iſcc:GAAAAAAAAA` and `İSCC:GAAAAAAAAA` both raise `Invalid scheme`.
+    - **More than one colon** → error ("Malformed ISCC string").
+    - **No-colon branch**: strip dashes unless the first byte is `f`/`b`/`v`/`z`/`u`.
+    - **Empty cleaned result** → error before decode (`""`, `"-"`, `"iscc:"`, `"   "`). The reference
+        raises IndexError, and `decodeBase32("")` would otherwise return an empty slice.
+    - Keep error messages reason-only (do not echo large inputs), using the existing `iscc: ` prefix.
+- Routing: `IsccDecompose` and `isccNormalize` call `isccClean` in place of the
+    `TrimPrefix`/`ReplaceAll`. `checkPrefix` must then run on the *cleaned* string (as Rust
+    `lib.rs:223-229` does). In `GenIsccCodeV0`/`GenMixedCodeV0`, clean each code and propagate the
+    error, with an index in `GenMixedCodeV0`'s existing `decode code %d` style.
+- Reference facts (probed live, `iscc_core` 1.5.0 / CPython 3.13). Each of these decodes to
+    `(3,0,0)`, the same as `ISCC:GAAAAAAAAA`: `"ISCC:GAAAAAAAAA\n"`, `"\x1cISCC:GAAAAAAAAA\x1f"`,
+    `"iscc:GAAAAAAAAA"`, `" ISCC : GAAAAAAAAA "`. `iscc_decompose("ISCC:GAAAAAAAAA\n")` gives
+    `['GAAAAAAAAA']`. `"a:b:c"` raises Malformed. The interior-newline unit reject in
+    `TestCodecBase32StrictRejects` must stay (it calls `decodeBase32` directly).
+- Tests: use one table-driven family, named so a single `-run` pattern selects it (e.g.
+    `TestIsccClean*`). Run each of 4 entry points (`IsccDecompose`, `IsccDecode`, `GenIsccCodeV0`,
+    `GenMixedCodeV0`) over these forms: dashed (insert `-` every 4 chars of a real canonical code
+    from `data.json`, e.g. a 4-unit ISCC-CODE and the `gen_mixed_code_v0` inputs), surrounding
+    whitespace including U+001C–U+001F, lowercase `iscc:` scheme, and trailing `\n`. Each form is
+    checked metamorphically: same result as the canonical input. Add rejects for the empty-cleaned
+    forms, `a:b:c`, and a non-ASCII scheme (`iſcc:`). Put one bad input per subtest. Also add direct
+    `isccClean` unit cases, including a multibase-led bare string keeping its dashes.
+- Go-only step: it trips neither the CRAP nor the iai gate. No fixture or doc changes are needed
+    beyond the doc comments on the touched functions (update the "optional ISCC: prefix" wording).
 
 ## Verification
 
-- `cargo test -p iscc-lib --test test_strict_base32` passes, and the file asserts the 3 rejects
-    (each with a `base32 decode error` message check) plus the 2 canonical accepts
-- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` passes and `go -C packages/go vet ./...` is
-    clean
-- `go -C packages/go test -count=1 -run 'Base32|Strict' ./...` runs Go tests that cover the 3 issue
-    rejects through `IsccDecode`, an interior-`\n` reject through `decodeBase32`, and the 2
-    canonical accepts
-- `grep -l GAAAAAAAAB packages/go/codec_test.go crates/iscc-lib/tests/test_strict_base32.rs` lists
-    both files
-- `cargo test -p iscc-lib` and `mise run check` both exit 0
+- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` passes (includes the strict-base32 suites)
+- `go -C packages/go test -count=1 -run 'IsccClean' -v ./...` runs the new family. It covers the 4
+    entry points × {dashed, whitespace incl. U+001C–U+001F, lowercase scheme, trailing `\n`} plus
+    the reject cases (empty-cleaned, `a:b:c`, `iſcc:`), each passing
+- `go -C packages/go vet ./...` clean and `gofmt -l packages/go` prints nothing
+- `grep -nE 'TrimPrefix\((isccCode|iscc|code|c), "ISCC:"\)|EqualFold|ToLower' packages/go/codec.go packages/go/code_iscc.go packages/go/code_content_mixed.go`
+    prints nothing (old ad-hoc input stripping gone, no Unicode-folding scheme compare)
+- `mise run check` exits 0
 
 ## Done When
 
-Go rejects every input in the issue's reject set with a base32 error, accepts the canonical forms,
-and both Rust and Go tests pin that behaviour, with all criteria above passing.
+All five verification checks pass with the Go suite green and the strict-base32 tests unchanged.

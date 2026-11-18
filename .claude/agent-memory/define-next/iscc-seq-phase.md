@@ -46,3 +46,10 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     `b32Encoding.DecodeString` site. `unicode.IsSpace` vs U+001C–U+001F still unprobed — have the
     step check `go doc unicode.IsSpace`. Go cmds without cd: `go -C packages/go test ./...`. After
     that: text-utils trim parity, then 10 seq binding surfaces + small normal issues.
+- **200 = Go `isccClean`** (3 files: codec.go, code_iscc.go, code_content_mixed.go). CI red on
+    5abda9f was macOS arm64 runner CAPACITY ("not acquired by Runner of type hosted"), not a label
+    retirement → no file fix, not a step; tell them apart via the check-run annotations API. Probed
+    iscc_core 1.5.0: `iſcc:`/`İSCC:` schemes → Invalid scheme, so Go scheme compare must be
+    ASCII-only (EqualFold folds ſ). **Case-fold alias step owns the Codex `%q` whole-input echo in
+    Go `decodeBase32` error** (handoff gets overwritten — carry it). After 200: case-fold alias
+    (Rust+Go, iai), text-utils trim parity (iai), then Go seq + 9 binding surfaces.
