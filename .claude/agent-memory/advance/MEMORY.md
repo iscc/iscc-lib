@@ -93,6 +93,7 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
     `(u8,u8,u8,u8,Vec<u8>)`
 - Codec input cleaning `iscc_clean` (iters 191-193, py-strip set 198; Go half NOT done) + perf →
     codec-clean.md
+- Strict base32 (199): Go `decodeBase32` re-encode compare; GOTCHA Rust `to_uppercase` folds `ﬁ`→FI
 - ISCC-IDv1 #43 COMPLETE (iter 190; Tier-1 = 33, no dedicated decoder) → go-idv1.md
 - ISCC-SEQ #45 Rust core DONE (195), Python bound (197); other surfaces pending → iscc-seq.md
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type

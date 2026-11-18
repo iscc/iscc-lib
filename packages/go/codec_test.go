@@ -397,6 +397,76 @@ func TestCodecBase32CaseInsensitive(t *testing.T) {
 	}
 }
 
+// Strict base32 (decisions.md 2026-11-18): padding, non-zero spare bits and
+// interior line breaks are rejected with a base32 error, matching Rust.
+func TestCodecBase32StrictRejects(t *testing.T) {
+	cases := map[string]string{
+		"spare bits":       "GAAAAAAAAB",
+		"padding":          "GAAAAAAAAA======",
+		"interior newline": "GAAA\nAAAAAA",
+		"interior CR":      "GAAA\rAAAAAA",
+	}
+	for name, input := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := decodeBase32(input)
+			if err == nil {
+				t.Fatalf("decodeBase32(%q): expected error", input)
+			}
+			if !strings.Contains(err.Error(), "base32 decode error") {
+				t.Errorf("decodeBase32(%q): got %q, want base32 decode error", input, err)
+			}
+		})
+	}
+}
+
+// Expected fields are read off Rust iscc_lib::iscc_decode.
+func TestCodecIsccDecodeStrictBase32Accepts(t *testing.T) {
+	cases := []struct {
+		iscc                      string
+		maintype, subtype, length uint8
+		digest                    []byte
+	}{
+		{"ISCC:GAAAAAAAAA", 3, 0, 0, []byte{0, 0, 0, 0}},
+		{"ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGI", 5, 5, 0, []byte{
+			173, 172, 61, 235, 54, 120, 118, 21, 58, 231, 216, 5, 246, 120, 154, 100,
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.iscc, func(t *testing.T) {
+			r, err := IsccDecode(tc.iscc)
+			if err != nil {
+				t.Fatalf("IsccDecode(%q): %v", tc.iscc, err)
+			}
+			if r.Maintype != tc.maintype || r.Subtype != tc.subtype || r.Version != 0 || r.Length != tc.length {
+				t.Errorf("header: got (%d,%d,%d,%d), want (%d,%d,0,%d)",
+					r.Maintype, r.Subtype, r.Version, r.Length, tc.maintype, tc.subtype, tc.length)
+			}
+			if !byteSliceEqual(r.Digest, tc.digest) {
+				t.Errorf("digest: got %v, want %v", r.Digest, tc.digest)
+			}
+		})
+	}
+}
+
+// The non-canonical aliases of the accepted codes above must not decode.
+func TestCodecIsccDecodeStrictBase32Rejects(t *testing.T) {
+	for _, input := range []string{
+		"ISCC:GAAAAAAAAB",
+		"ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ",
+		"ISCC:GAAAAAAAAA======",
+	} {
+		t.Run(input, func(t *testing.T) {
+			_, err := IsccDecode(input)
+			if err == nil {
+				t.Fatalf("IsccDecode(%q): expected error", input)
+			}
+			if !strings.Contains(err.Error(), "base32 decode error") {
+				t.Errorf("IsccDecode(%q): got %q, want base32 decode error", input, err)
+			}
+		})
+	}
+}
+
 // ---- Base64 tests ----
 
 func TestCodecEncodeBase64Empty(t *testing.T) {

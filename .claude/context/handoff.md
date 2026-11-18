@@ -1,71 +1,63 @@
-## 2026-11-18 — Review of: Core `iscc_clean` trims exactly what Python `str.strip()` trims (U+001C–U+001F)
+## 2026-11-18 — Go `decodeBase32` rejects spare-bit aliases; Rust and Go tests pin strict base32
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Go `decodeBase32` now re-encodes the decoded bytes and rejects the input when the result
+differs from the upper-cased input. The error is
+`iscc: base32 decode error: non-canonical encoding "<input>"`. This rejects spare-bit aliases and
+interior `\r`/`\n` (which `encoding/base32` skips). Padding was already rejected. New Rust and Go
+tests pin the issue's 3 rejects and 2 canonical accepts. Each test asserts the `base32 decode error`
+reason and feeds one bad input per call/subtest.
 
-**Summary:** A private `is_py_strip_char` predicate (`char::is_whitespace` + U+001C..=U+001F) now
-drives all four codec trim sites, including the `encode_seq` empty-unit guard. The `Cow` paths are
-kept and nothing is allocated. My exhaustive differential matches `iscc_core` 1.5.0 in both
-directions: every code point, 3 positions (around, before colon, after colon), one unit per call, 0
-differences. The issue is resolved and deleted. I added the reverse-direction check, filed the
-text-utils divergence, and moved the Go strip-set requirement into the Go issue.
+**Files changed:**
+
+- `packages/go/codec.go`: `decodeBase32` only. Adds the re-encode compare and a docstring that
+    states the strictness.
+- `packages/go/codec_test.go`: 3 tests. `TestCodecBase32StrictRejects` calls `decodeBase32` on spare
+    bits, padding, interior `\n` and interior `\r`. `TestCodecIsccDecodeStrictBase32Rejects` runs
+    the 3 issue rejects through `IsccDecode`. `TestCodecIsccDecodeStrictBase32Accepts` checks the 2
+    canonical forms, with fields read off Rust `iscc_decode`.
+- `crates/iscc-lib/tests/test_strict_base32.rs` (new): 7 tests, using public `iscc_decode` and
+    `codec::decode_base32`. They cover the 3 rejects with a `base32 decode error` check, and the
+    specific reasons (`trailing bits` ×2, `invalid symbol` for padding). Also a bare reject of spare
+    bits, padding and interior `\n`, the 2 canonical accepts with full fields and digest, and a
+    lowercase accept.
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` passes: 297 lib + 17 `codec_clean` + the rest. Feature matrix also
-    green: `--no-default-features` 246 lib, `--features text-processing` 267 lib, NDF clippy clean
-- [x] `grep -nE '\.trim\(\)' crates/iscc-lib/src/codec.rs` prints nothing (exit 1)
-- [x] `uv run pytest tests/test_seq.py` passes after `maturin develop`: 77 at advance, 78 with my
-    added test
-- [x] `mise run bench:iai:check` exits 0 against the unmodified `.iai-baseline.json` (16/16 within
-    10%; `four_units` 12,784 vs 13,369, −4.38%)
-- [x] `mise run coverage` + CI's exact `cargo crap … --fail-regression --fail-above` exits 0 (118
-    unchanged). CI on 72054e8 ran rustc 1.100.0, the same as local, and also scores
-    `run_encode_seq_tests` at 100%, so dropping its stale 80.8% baseline entry matches CI
-- [x] `mise run check` exits 0; `cargo clippy -p iscc-lib --all-targets -- -D warnings` and the
-    workspace clippy are clean
+- `cargo test -p iscc-lib --test test_strict_base32`: 7 passed
+- `cargo test -p iscc-lib`: all green (297 lib + every integration binary).
+    `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean
+- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` passes. `go -C packages/go vet ./...` is
+    clean
+- `go test -count=1 -v -run 'Base32|Strict'`: all 3 new tests and their subtests PASS
+- Mutation check: I disabled the compare (`if false && …`). The Go spare-bits, interior `\n`/`\r`
+    and both `IsccDecode` spare-bit subtests then FAIL. Padding still passes because Go's decoder
+    already rejected it, which is expected. I then restored the file.
+- `grep -l GAAAAAAAAB …` lists both files
+- `mise run check` exits 0 (with `LANG=C.UTF-8`)
+- Expected values come from a throwaway Rust probe, since deleted. `ISCC:GAAAAAAAAA` gives
+    `(3,0,0,0,[0;4])`. `…CNGI` gives
+    `(5,5,0,0,[173,172,61,235,54,120,118,21,58,231,216,5,246,120,154,100])`. Rust's messages:
+    "non-zero trailing bits at 9/28" and "invalid symbol at 10". Bare `"GAAA\nAAAAAA"` gives
+    "invalid length at 10".
 
-**Issues found:**
-
-- Committed tests proved only one direction: every char Python strips is stripped by Rust. Nothing
-    pinned "Rust strips nothing Python keeps", which is the other half of "exactly". **Fixed in
-    review:** `test_differential_rejects_space_like_chars_python_keeps` in `tests/test_seq.py`. It
-    derives candidates live (categories `Zs/Zl/Zp/Cc/Cf` minus the strip set; this covers all of
-    `White_Space`), and both libraries must reject `ch + UNIT`. Runs in 0.64s. Mutation check:
-    dropping U+001E from the oracle makes it fail
-- Filed `normal`: `text_trim` and `text_remove_newlines` keep U+001C–U+001F, which iscc-core strips.
-    Probed over every code point: exactly these 4 differ. Meta-Code (code + metahash) and Text-Code
-    did not diverge on the probed inputs, because `text_clean` drops all `Cc` first
-- Nit (not filed): the predicate unit test in `codec.rs` and the `is_python_whitespace` helper in
-    `codec_clean.rs` restate the predicate's own formula, so they are mirrors, not oracles. The real
-    oracle is the live-derived Python strip set in `tests/test_seq.py`
-- `lib.rs:431` (`payload.trim()`, the metahash payload) cannot reach the 4 separators, because its
-    inputs are already `text_clean`ed. No action needed
-
-**Codex review:** Two runs. The main commit `e8ca0ac` was clean (17 Rust + 77 Python tests re-run).
-HEAD (handoff-only) raised a P3: advance's "~−5% toolchain drift" explanation for the iai numbers is
-unsupported. The untouched benches range from −7.65% to +0.05%, so the drop is not uniform. The
-edit's measured cost stands (`four_units` +0.19%, `two_codes` +0.11% on a same-rustc rerun). The
-finding is valid and is reflected below.
-
-**Next:** Candidates, all `normal`:
-
-- **Go `decodeBase32` spare-bit fix + Rust/Go strict-base32 tests** (`[human]`, independent,
-    advance's top pick).
-- **Go `isccClean` port.** Its entry now requires the Python strip set. Per the Go docs (unprobed),
-    `unicode.IsSpace`/`strings.TrimSpace` follow `White_Space` and miss U+001C–U+001F.
-- **Text-utils trim parity.** Reuse `codec::is_py_strip_char`, and run `bench:iai:check`, since the
-    utilities sit on the Meta-Code benches.
-
-Gate maintenance (not an issue): 10 of 16 iai benches sit 3.5–7.7% below the committed baseline. For
-those benches the effective tolerance is looser than 10%, so +10% regressions there would pass. A
-deliberate `.iai-baseline.json` refresh needs explicit authorisation in its own step.
+**Next:** The Go `isccClean` port (scheme case, the Python strip set including U+001C–U+001F,
+dashes, empty guard). After it, Go `EncodeSeq`/`DecodeSeq`.
 
 **Notes:**
 
-- Spec criterion (`rust-core.md` seq checklist, "both sides reject the same inputs"):
-    `tests/test_seq.py` now covers both directions of the whitespace set plus the strict-base32
-    divergence. The spec checkbox is update-state's to judge.
-- Python tests derive the strip set from the running interpreter, so they follow the CI Python
-    version automatically. No hand-typed table exists anywhere.
-- `learnings.md` was at the 199/200 budget. The settled Kotlin consumer-floor pointer moved to the
-    archive, which made room for the strip-set update.
+- No existing Go fixture went red. No hand-typed fixture had non-zero spare bits, so no fixture
+    changed.
+- Rust `src/` is untouched, so the CRAP and iai gates are unaffected. The Go change is not on a
+    Rust-benchmarked path.
+- The Go error quotes the raw input (`%q`). Rust's message gives a position instead. Both contain
+    `base32 decode error`, which is the asserted contract.
+- **Out-of-scope divergence for review (probed):** case folding differs for characters whose
+    uppercase expands to several characters. Rust `to_uppercase` (and Python `str.upper()`) map
+    `ß`→`SS` and `ﬁ`→`FI`, while Go `strings.ToUpper` leaves them unchanged. So Rust
+    `decode_base32("ﬁAA")` gives `Ok([42, 0])`, the same as `"FIAA"`, and Go rejects it ("illegal
+    base32 data"). Rust thus accepts a non-canonical spelling, which arguably contradicts the strict
+    decision. Not fixed here (`src/` was out of scope). Single-char mappings (`ſ`/`ı` → `SI`) agree.
+- Side effect, as next.md anticipated: Go `decodeBase32("GAAAAAAAAA\n")` now errors, and so does
+    `IsccDecode("ISCC:GAAAAAAAAA\n")` (both probed: "non-canonical encoding"). Before this change
+    Go's decoder skipped the `\n`. The reference strips it, so the `isccClean` step must strip it
+    too.

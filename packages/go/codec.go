@@ -394,11 +394,20 @@ func encodeBase32(data []byte) string {
 }
 
 // decodeBase32 decodes a base32 string to bytes (case-insensitive, no padding).
+//
+// Decoding is strict, matching the Rust core: the input must be the canonical
+// encoding of its bytes. Padding, non-zero unused trailing bits and the
+// carriage returns or newlines that encoding/base32 silently skips are all
+// rejected, by re-encoding the decoded bytes and comparing against the
+// upper-cased input.
 func decodeBase32(code string) ([]byte, error) {
 	upper := strings.ToUpper(code)
 	decoded, err := b32Encoding.DecodeString(upper)
 	if err != nil {
 		return nil, fmt.Errorf("iscc: base32 decode error: %w", err)
+	}
+	if encodeBase32(decoded) != upper {
+		return nil, fmt.Errorf("iscc: base32 decode error: non-canonical encoding %q", code)
 	}
 	return decoded, nil
 }
