@@ -31,8 +31,9 @@ covers 6 of 11 surfaces.
     succeeded, 0 Warning(s), 0 Error(s)
 - `dotnet test packages/dotnet/Iscc.Lib.Tests/ --no-restore -e LD_LIBRARY_PATH=$PWD/target/debug`:
     exit 0, Total 116, Passed 116, 0 failed. The output lists `ConformanceTests.EncodeSeq` ×4,
-    `DecodeSeq` ×4, `SeqRoundTripBytes` ×4 and the 10 `SeqTests` facts. The previous total was 94,
-    so 22 tests were added (12 theory rows + 10 facts)
+    `DecodeSeq` ×4, `SeqRoundTripBytes` ×4 and the 10 `SeqTests` facts. Breakdown from the log: 50
+    `ConformanceTests.Gen*` rows (all nine gen theories intact) + 44 `SmokeTests` facts + 22 seq
+    tests (12 theory rows + 10 facts) = 116
 - `git status --porcelain packages/dotnet/Iscc.Lib/NativeMethods.g.cs crates/iscc-ffi`: empty after
     the build
 - `mise run check`: exit 0, all hooks Passed
@@ -40,7 +41,8 @@ covers 6 of 11 surfaces.
 **Next:** C++ `iscc.hpp` seq, which needs RAII ownership of the returned `IsccByteBuffer` and the
 string array, and must include the BYTE round trip. After that come JNI, Ruby and UniFFI, then the
 33→35 doc sweep. That sweep includes `packages/dotnet/CLAUDE.md`, which still says "all 9 gen
-functions (50 vectors total)", and `packages/dotnet/README.md` / `docs/howto/dotnet.md`.
+functions (50 vectors total)", and `packages/dotnet/README.md` / `docs/howto/dotnet.md`. The same
+CLAUDE.md's File Layout and Test Patterns sections also do not list `SeqTests.cs` yet.
 
 **Notes:** binding-only step. No core, FFI or hot-path code changed, so iai, CRAP and the generated
 files are unaffected. The empty-array sentinel is a `byte* sentinel = null` local whose address is
