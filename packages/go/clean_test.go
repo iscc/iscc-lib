@@ -37,16 +37,17 @@ func dashed(code string) string {
 
 // cleanForms maps a form name to a function rendering a bare code in that form.
 var cleanForms = map[string]func(string) string{
-	"canonical":       func(c string) string { return "ISCC:" + c },
-	"bare":            func(c string) string { return c },
-	"dashed":          func(c string) string { return "ISCC:" + dashed(c) },
-	"dashed bare":     func(c string) string { return dashed(c) },
-	"whitespace":      func(c string) string { return " \t ISCC : " + c + "  " },
-	"info separators": func(c string) string { return "\x1c\x1dISCC:" + c + "\x1e\x1f" },
-	"lowercase":       func(c string) string { return "iscc:" + c },
-	"mixed case":      func(c string) string { return "IsCc:" + c },
-	"trailing LF":     func(c string) string { return "ISCC:" + c + "\n" },
-	"trailing CRLF":   func(c string) string { return "ISCC:" + c + "\r\n" },
+	"canonical":        func(c string) string { return "ISCC:" + c },
+	"bare":             func(c string) string { return c },
+	"dashed":           func(c string) string { return "ISCC:" + dashed(c) },
+	"dashed bare":      func(c string) string { return dashed(c) },
+	"whitespace":       func(c string) string { return " \t ISCC : " + c + "  " },
+	"info separators":  func(c string) string { return "\x1c\x1dISCC:" + c + "\x1e\x1f" },
+	"inner separators": func(c string) string { return "ISCC\x1c:\x1f" + c },
+	"lowercase":        func(c string) string { return "iscc:" + c },
+	"mixed case":       func(c string) string { return "IsCc:" + c },
+	"trailing LF":      func(c string) string { return "ISCC:" + c + "\n" },
+	"trailing CRLF":    func(c string) string { return "ISCC:" + c + "\r\n" },
 }
 
 // mapForm applies form to every code in codes.
@@ -216,6 +217,10 @@ func TestIsccCleanGenMixedCodeV0(t *testing.T) {
 			}
 			if got.Iscc != want {
 				t.Errorf("GenMixedCodeV0(%q) = %s, want %s", in, got.Iscc, want)
+			}
+			// Parts keep the caller's strings, as iscc_core returns parts=codes.
+			if !reflect.DeepEqual(got.Parts, in) {
+				t.Errorf("GenMixedCodeV0(%q).Parts = %q, want the raw inputs", in, got.Parts)
 			}
 		})
 	}

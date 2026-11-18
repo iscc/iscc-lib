@@ -31,42 +31,6 @@ Resolved when the page's type names match the generated header (either rename al
 `iscc_`-prefixed forms, or emit an unprefixed alias in the cbindgen config and document that) and a
 representative example compiles against `crates/iscc-ffi/include/iscc.h`.
 
-## Go codec input cleaning diverges from iscc-core `iscc_clean` `normal` [review]
-
-The pure-Go port (`packages/go`) does not clean codec input the way the reference does. The
-reference routes codec input through `iscc_clean` (`reference/iscc-core/iscc_core/codec.py:762`,
-reached via `normalize_multiformat` at `:364`), which strips dashes and surrounding whitespace and
-accepts a case-insensitive `iscc:` scheme. Go does none of this, so documented-valid inputs raise.
-Reference behaviour (verified live against `iscc_core` 1.3.0):
-
-- `ISCC:KACY-PXW4-45FT-…` → 4 units (the hyphen-separated display form)
-- `"  ISCC:AAAYPXW445FTYNJ3  "` → 1 unit
-- `"iscc:AAAYPXW445FTYNJ3"` → 1 unit
-
-Four Go sites clean ad-hoc: `codec.go:482` (`isccDecompose`), `code_content_mixed.go:23`,
-`code_iscc.go:27` and `codec.go:592` (`isccNormalize`) — a hand-written, non-mechanical port, so it
-is a separate step from the Rust fix, not a fan-out of it. Rust `codec::iscc_clean` is the model.
-Porting subtleties:
-
-- In the no-colon branch (`codec.py:774-779`) dashes are stripped **only when the string is not
-    multibase-prefixed** — an unconditional strip corrupts `f`/`b`/`v`/`z`/`u`-prefixed input.
-- Reject a cleaned `""` before decode, else `isccDecompose` silently returns an empty slice for
-    `"   "`/`"-"`/`"iscc:"`/`"----"`.
-- Trim exactly Python's `str.strip()` set: `char::is_whitespace` plus U+001C–U+001F (Rust
-    `is_py_strip_char`). Per the Go docs (unprobed), `unicode.IsSpace`/`strings.TrimSpace` follow
-    `White_Space` and so miss those four.
-
-Since iter 199 Go's strict `decodeBase32` also rejects a trailing `\n` that `encoding/base32` used
-to skip, so `IsccDecode("ISCC:GAAAAAAAAA\n")` now errors where the reference strips it: the port
-must trim before decode. Multiformat decoding itself stays a documented non-goal — file it
-separately if ever wanted.
-
-Resolved when a shared Go `isccClean` helper is routed through all four Go sites and a differential
-test covers the dash, whitespace (including a U+001C–U+001F case), lowercase-scheme and
-empty-cleaned forms for `isccDecompose`, decode, `genIsccCodeV0` and `genMixedCodeV0`.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations"
-
 ## iscc-core mints 88-bit ISCC-IDv0 codes it cannot decode `low` [review]
 
 `iscc_core.encode_length` accepts an 88-bit `ID` body but the `LN` enum
@@ -225,8 +189,8 @@ the reference. Probed 2026-11-18 (`iscc_core` 1.5.0, the `iscc_lib` Python bindi
 \* per the iter-199 advance handoff (Go `strings.ToUpper` leaves `ß`/`ﬁ` unchanged), not re-probed.
 U+017F (`ſ` → `S`) behaves like U+0131 (advance-probed). Sites: Rust `codec.rs:520`
 (`decode_base32`), `codec.rs:834` (upper-cases seq units *before* `decode_base32`), `lib.rs:229`
-(prefix check); Go `codec.go:404` (`decodeBase32` — its re-encode compare runs against the
-already-upper-cased string, so it cannot see this) and `codec.go:453` (`checkPrefix`). Fix:
+(prefix check); Go `codec.go:405` (`decodeBase32` — its re-encode compare runs against the
+already-upper-cased string, so it cannot see this) and `codec.go:454` (`checkPrefix`). Fix:
 ASCII-only upper-casing (`to_ascii_uppercase`; in Go, reject bytes >= 0x80 or upper-case ASCII
 only), so non-ASCII bytes reach the decoder and fail as invalid symbols. The Rust change is on the
 iai-gated codec path — run `mise run bench:iai:check`.
@@ -265,7 +229,9 @@ Meta-Code and Text-Code output did not diverge on the probed inputs: `text_clean
 the divergence reaches callers of the two utilities themselves, through every binding. The codec
 already trims the Python set (`codec::is_py_strip_char`, private): reuse it rather than writing a
 second predicate. The text utilities sit on the iai-gated Meta-Code benches, so run
-`mise run bench:iai:check` in the same step. The Go text utilities are unprobed and may share it.
+`mise run bench:iai:check` in the same step. The Go text utilities are unprobed and may share it;
+Go's `isPyStripChar` (`codec.go`) is the matching predicate (probed equal to the `str.strip()` set,
+both directions, 29 code points).
 
 Resolved when `text_trim` and `text_remove_newlines` match iscc-core on U+001C–U+001F, and a Python
 differential over the live-derived `str.strip()` set (as in `tests/test_seq.py`) covers both.

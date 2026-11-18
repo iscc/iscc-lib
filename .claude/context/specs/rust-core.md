@@ -280,9 +280,8 @@ multiformat-encoded input. Concatenate in the given order — never sort, dedupl
 rule; return canonical `ISCC:`-prefixed unit strings in wire order, preserving unknown
 SubType/Version. `encode_seq(decode_seq(x)) == x` must hold.
 
-**Cleaning parity:** both rely on `iscc_clean` matching iscc-core. Rust's `codec::iscc_clean` does;
-the pure-Go port does not yet — the `normal` issue "Go codec input cleaning diverges" is a
-prerequisite for the Go `encode_seq`.
+**Cleaning parity:** both rely on `iscc_clean` matching iscc-core. Rust's `codec::iscc_clean` and
+the pure-Go `isccClean` (`packages/go/codec.go`) both do.
 
 **Bindings:** every surface that binds Tier 1 binds both, the pure-Go port included, with each
 language's natural types (list of strings in → bytes out, and the reverse), following how

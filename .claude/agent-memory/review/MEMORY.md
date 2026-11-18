@@ -44,8 +44,12 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     base32 divergence, while `rust-core.md` demands "both sides reject the same inputs". Read the
     feature's spec checklist too; a missing cheap differential test → add it in review (step 6)
 - **Python-reference differentials: Python `strip()`/`split()` ⊋ Rust `trim`/`split_whitespace`** by
-    U+001C–U+001F: codec fixed 198, text utils + Go open (issues.md). A one-way sweep proves only ⊇
-    — demand the reverse (live `Z*`/`Cc`/`Cf` − strip set, 0.6s); `binascii.Error` ⊂ `ValueError`
+    U+001C–U+001F: Rust codec 198 + Go codec 200 fixed, text utils open (issues.md). A one-way sweep
+    proves only ⊇ — demand the reverse (live `Z*`/`Cc`/`Cf` − strip set, 0.6s); `binascii.Error` ⊂
+    `ValueError`
+- **A metamorphic "display forms" suite: demand one form per trim/clean CALL SITE** (200: Codex saw
+    the outer-only separator forms miss the 2 post-colon trims; mutation in a `/tmp` copy of
+    `packages/go` — conformance tests need `../../crates`, so `-run <family>` only)
 - **Advance agent idle claims**: verify remaining issue priorities independently — it may claim
     "only low-priority remain" when `normal` issues still exist
 - **Run the full CI feature matrix on any core change** — only `--no-default-features` catches a

@@ -39,10 +39,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)
 - **String-input divergences from iscc-core** hit any differential on *string* inputs (`encode_seq`,
     `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
-    \+ Go pinned (199); (2) Python `strip()`/`split()` also take U+001C–U+001F: codec fixed (198),
-    text utils + Go open; (3) a Unicode upper-case before decode aliases `ı`/`ſ`/`ß`/`ﬁ` that
-    ASCII-only `b32decode` rejects (open) — a re-encode compare after it cannot see that. A bare
-    `b…` string reads as plain base32 in BOTH, so not a defect
+    \+ Go pinned (199); (2) Python `strip()`/`split()` also take U+001C–U+001F: Rust codec fixed
+    (198), Go codec (200: Go `unicode.IsSpace` + U+001C–U+001F IS the `strip()` set, 29 code points,
+    probed both ways), text utils open; (3) a Unicode upper-case before decode aliases
+    `ı`/`ſ`/`ß`/`ﬁ` that ASCII-only `b32decode` rejects (open) — a re-encode compare after it cannot
+    see that. A bare `b…` string reads as plain base32 in BOTH, so not a defect
 
 ## Tooling
 
@@ -78,12 +79,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## CI/CD
 
-- **A binding suite's runner is not `cargo test`** (iter 151): `cargo test -p iscc-wasm` reports
-    `0 passed` — only `wasm-pack test --node …` runs `#[wasm_bindgen_test]`, so clippy
-    `--all-targets` proves compilation, never coverage. **Every gitignored native artifact goes
-    stale silently** — Ruby `.so` (`rake compile`), napi `.node`, JNI `.so`; rebuild, then probe
-    `text_clean("a"+U+A7F1+"b") == "ab"` (stale → `aSb`); after a dep bump, `strings <artifact>`
-    greps out the dep version actually linked in (167). CI rebuilds first, so this is local-only
+- **A binding suite's runner is not `cargo test`** (151): `cargo test -p iscc-wasm` reports
+    `0 passed`; only `wasm-pack test --node …` runs `#[wasm_bindgen_test]`. **Gitignored native
+    artifacts go stale silently** (Ruby `.so`, napi `.node`, JNI `.so`): rebuild before probing;
+    after a dep bump `strings <artifact>` shows the dep version linked in (167). Local-only
 - **The JVM type-checks nothing a native method returns** (168): an `Object[]` returned where
     `String[]` is declared survives every element read — assert `getClass().getName()` and probe
     under `-Xcheck:jni` (`mvn test -DargLine="-Xcheck:jni -Djava.library.path=$PWD/target/debug"` —
@@ -192,7 +191,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **One bad case per call when testing failure arms** (195): a negative test that feeds a mismatch,
     an error and a parse failure to ONE runner call stays green even if the mismatch arm breaks —
     any other bad case still fails the call. And check that each "mismatch" fixture reaches the
-    comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed earlier, with "Trailing data"
+    comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed earlier, with "Trailing data". Positive mirror:
+    one input form per trim site (200: outer-only forms missed the post-colon trims)
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
