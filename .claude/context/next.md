@@ -1,79 +1,95 @@
 # Next Work Package
 
-## Step: Restore green CI — ignore RUSTSEC-2026-0374, move macOS runners to `macos-15`
+## Step: Python `encode_seq` / `decode_seq` binding with an `iscc_core` differential test
 
 ## Goal
 
-Get CI on `develop` green again. It has two unrelated red jobs:
-
-1. The enforcing `Audit (cargo-deny)` job fails on a new advisory, `RUSTSEC-2026-0374` (`basic-toml`
-    is unmaintained). That is the only Audit error in run 44210618484.
-2. The Swift job is cancelled before it starts, because GitHub retired the `macos-14` arm64 runner
-    on 2026-11-02 (actions/runner-images#15226).
-
-The runner choice is pinned `macos-15`, the arm64 successor of `macos-14`. Titusz may overrule it.
+Expose ISCC-SEQ (IEP-0020, #45) in the Python binding, the first of the 11 surfaces. The test also
+pins the strict-base32 divergence from `iscc_core` 1.5.0 that decisions.md 2026-11-18 requires on
+every surface.
 
 ## Alternatives Considered
 
-- **Chosen:** fix both red jobs in one step (3 files). CI red comes first, and splitting the fixes
-    would keep `develop` red for another iteration.
-- **Rejected:** start the next ISCC-SEQ binding (Python, or the Rust strict-base32 rejection tests).
-    Feature work on red CI can't be attributed. It comes next.
-- **Rejected:** `cargo update -p askama` instead of an ignore. `cargo update --dry-run` moves askama
-    to 0.16.1 and uniffi to 0.32.2, but `basic-toml` stays. uniffi_bindgen 0.32.2 still enables
-    askama's `config` feature, and that feature pulls in the optional `basic-toml` dependency of
-    `askama_derive`. No upgrade path exists.
+- **Chosen:** Python seq binding. It is the first item of the v0.8.0 fan-out, it can be verified
+    locally against the live reference (`iscc_core` 1.5.0 is in the dev group), and it is a
+    binding-only step, so neither iai nor CRAP is touched.
+- **Rejected:** Go `decodeBase32` spare-bit fix plus Rust/Go strict tests (`normal` issue). It only
+    gates Go seq, as does the Go `isccClean` port, and Go comes later in the fan-out. Python has no
+    such prerequisite. It remains the strongest next candidate.
 
 ## Scope
 
-- **Create**: none
-- **Modify**: `deny.toml`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`
-- **Reference**: `deny.toml` header (the policy for ignoring an unfixable advisory),
-    `scripts/check_release_workflow.py`, the existing `[advisories] ignore` entries
+- **Create**: `tests/test_seq.py`
+- **Modify**: `crates/iscc-py/src/lib.rs`, `crates/iscc-py/python/iscc_lib/__init__.py`,
+    `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`
+- **Reference**: `crates/iscc-lib/src/codec.rs` (`encode_seq` L808, `decode_seq` L847),
+    `reference/iscc-core/iscc_core/codec.py` (L470-534, contract + docstrings), `iscc_decode` in
+    `lib.rs` (~L508) + `__init__.py` (L103) as the wrapper pattern, `tests/test_conformance.py`
+    (`DATA_JSON` + loader pattern)
 
 ## Not In Scope
 
-- Do not run `cargo update`. Leave `Cargo.lock` untouched, because it does not fix the advisory and
-    would make this diff harder to attribute.
-- `uv.lock` Dependabot alerts (`soupsieve`, `setuptools`) and the Ruby `json` alert are separate
-    steps.
-- `tests/test_check_release_workflow.py:144/152` contains `macos-14`. It is a synthetic fixture, so
-    do not touch it.
-- Do not use `macos-latest` (it drifts) or `macos-15-intel` (that changes the build design). Do not
-    touch `release.yml:1010`, which is already `macos-latest`.
-- Do not change any other runner, toolchain, Xcode selection or action version.
+- The Tier-1 33→35 count/doc sweep (crate `CLAUDE.md`, `notes/`, `docs/architecture.md`, binding
+    docs). It runs once after all 11 surfaces land (IDv1 precedent).
+- Rust strict-base32 rejection tests and the Go `decodeBase32` fix. Those belong to the Go issue
+    step.
+- `py.detach` for seq. These are lightweight paths, so they stay attached like meta/audio/mixed.
+- The stale "return JSON strings" intro in `docs/api.md`. The page renders `::: iscc_lib` from the
+    docstrings, so good docstrings are the whole doc change.
+- Exposing Tier 2 `read_unit` / `SEQ_MAINTYPES` in Python. They are Rust-only.
 
 ## Implementation Notes
 
-- **deny.toml:** add `"RUSTSEC-2026-0374"` to `[advisories] ignore` with a one-line justification,
-    in the style of the two existing entries. Its comment block should say what the tree shows:
-    `basic-toml` arrives only through the `askama_macros` proc-macro, via `askama` ←
-    `uniffi_bindgen` ← `uniffi` ← `iscc-uniffi` (with `--all-features`). It is only reachable
-    through uniffi's bindgen code path, `iscc-uniffi` is `publish = false`, and no upgrade drops it
-    (uniffi_bindgen 0.32.2 still enables askama's `config` feature). Do **not** call it "dev-only":
-    `cargo tree` shows a normal/build edge, not a dev edge. Keep the existing two-entry comment
-    accurate (it is about iai-callgrind). Give the new entry its own comment.
-- **Runners:** replace every `macos-14` in `.github/workflows/` with `macos-15`: `ci.yml:251` and
-    the 10 `os:`/`runs-on:` sites in `release.yml`. `macos-15` is arm64, like `macos-14`, so the
-    `x86_64-apple-darwin` rows still cross-compile exactly as before.
-- Artifact names that include `matrix.os` (e.g. `wheels-macos-14-…`) change with the label. Any
-    download that matches `wheels-*` keeps working. Run `uv run scripts/check_release_workflow.py`
-    to confirm the artifact wiring still holds.
-- Nothing in this step touches Rust code, so no iai or CRAP effect is expected.
+- **Rust side (`lib.rs`):** `encode_seq(units: Vec<String>)` must return `PyBytes`. A plain
+    `Vec<u8>` return becomes `list[int]` in PyO3. The `iscc_decode` digest uses `PyBytes::new` and
+    is the precedent. Convert to `Vec<&str>` for the core call.
+    `decode_seq(data: &[u8]) ->   Vec<String>`. Map `IsccError` to `PyValueError` as every other
+    function does. Register both in the module.
+- **Wrapper (`__init__.py`)** carries the reference's type contract, which PyO3 extraction alone
+    does not give:
+    - `encode_seq`: raise `TypeError` for a bare `str` or `bytes`, else `list(units)`, so tuples and
+        generators work.
+    - `decode_seq`: accept `bytes`, `bytearray` and `memoryview` (`bytes(data)`). Raise `TypeError`
+        otherwise. `&[u8]` accepts only `bytes`.
+    - Add both to `__all__` and the `.pyi` stubs. Adapt the docstrings from `codec.py` L470-534, but
+        say that base32 decoding is strict: `=` padding and non-zero spare bits are rejected.
+- **Measured facts** (probed against `iscc_core` 1.5.0 and the installed `iscc_lib`):
+    - `ic.encode_seq(["ISCC:GAAAAAAAAB"])` and `ic.encode_seq(["ISCC:GAAAAAAAAA======"])` both return
+        `300000000000`. The same goes for `GAAAAAAAAA` and `iscc:gaaa-aaaaaa`.
+    - The 256-bit unit `ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI` with its last
+        char `I`→`J` is accepted by the reference and gives the same bytes as the canonical unit.
+        `iscc_lib.iscc_decode` rejects it ("non-zero trailing bits at 54").
+    - **Trap:** 64-bit units are exactly 16 chars and have no spare bits, so they have no alias. Use
+        32- or 256-bit units for spare-bit cases. `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` is an
+        ISCC-CODE, which the reference also rejects (for MainType), so it is not a seq divergence
+        case.
+- **Tests (`tests/test_seq.py`):**
+    - Run the `encode_seq` and `decode_seq` sections of `crates/iscc-lib/tests/data.json`,
+        parametrized from the fixture (no hard-coded counts). Strip `bytes:` and use `bytes.fromhex`.
+    - Round trip: `encode_seq(decode_seq(b)) == b`.
+    - Matching forms: no prefix, lowercase, hyphens, tuple input, `bytearray`/`memoryview` input.
+    - Error arms: empty list and empty unit → `ValueError`; ISCC-CODE unit → `ValueError`; bare `str`
+        and `bytes` → `TypeError`; `decode_seq(b"")` → `ValueError`; `decode_seq("abc")` →
+        `TypeError`.
+    - **Differential, one bad input per test case:** for each of the 32-bit spare-bit alias, the
+        256-bit `…J` alias and the `======` padded form, assert BOTH that `iscc_core.encode_seq`
+        accepts it and returns the canonical unit's bytes, AND that `iscc_lib.encode_seq` raises
+        `ValueError`. Also add a differential that agrees on the canonical vectors (both libs give
+        identical bytes and units).
 
 ## Verification
 
-- `mise run audit` (`cargo deny check`) exits 0
-- `! grep -rn 'macos-14' .github/workflows/` succeeds (no matches)
-- `uv run scripts/check_release_workflow.py` exits 0
-- `uv run pytest tests/test_check_release_workflow.py` passes
-- `git diff --quiet HEAD -- Cargo.lock` succeeds (`Cargo.lock` unchanged)
-- `mise run check` exits 0
+- `maturin develop -m crates/iscc-py/Cargo.toml` succeeds. Do this first: the installed `.so`
+    predates the seq symbols.
+- `uv run pytest tests/test_seq.py` passes, and the full `uv run pytest` passes.
+- `uv run python -c "import iscc_lib as i; b=i.encode_seq(['ISCC:GAAAAAAAAA']); assert isinstance(b, bytes) and i.decode_seq(bytearray(b))==['ISCC:GAAAAAAAAA']"`
+    exits 0
+- `uv run python -c "import iscc_lib as i; assert {'encode_seq','decode_seq'} <= set(i.__all__)"`
+    exits 0
+- `uv run ty check` exits 0
+- `mise run check` exits 0, and `cargo clippy -p iscc-py -- -D warnings` is clean.
 
 ## Done When
 
-The advance agent is done when all six criteria pass on the working tree.
-
-Reviewer note: only a CI run after the push can show whether the Swift job gets a `macos-15` runner.
-The `release.yml` swap is checked statically only, because `release.yml` is
-`workflow_dispatch`-only.
+All verification criteria pass, and the Python binding exposes `encode_seq`/`decode_seq` with
+fixture conformance and an explicit strict-base32 differential against `iscc_core` 1.5.0.

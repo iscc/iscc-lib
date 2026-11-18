@@ -22,3 +22,13 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
 - Count/docs sweep 33→35 deferred to after the fan-out (IDv1 precedent, iter 190).
 - Binding fan-out: Swift/Kotlin hard-code per-section counts; Go loader loads only `gen_*`; FFI step
     must regen+commit `iscc.h` and `NativeMethods.g.cs`.
+- 196 = CI-red fix (deny ignore + macos-15). **197 = Python seq binding** (lib.rs + `__init__.py`
+    wrapper for the TypeError/bytes-like contract + `.pyi` + `tests/test_seq.py` differential vs
+    `iscc_core` 1.5.0). Next candidates: Go `decodeBase32` spare-bit fix + Rust/Go strict tests
+    (normal issue), Go `isccClean`, then remaining 9 binding surfaces.
+- Strict-base32 divergence case set (probed 197): 32-bit `ISCC:GAAAAAAAAB`, `ISCC:GAAAAAAAAA======`,
+    256-bit `ISCC:EAD2…GBI` → last char `J`. Ref `encode_seq` accepts all, Rust rejects. 64-bit
+    units have NO spare bits (16 chars exact); `KUAK…J` is an ISCC-CODE (ref rejects by MainType) —
+    useless for seq. Seq vector sections have 4 cases each, zero error cases → negatives come from
+    tests.
+- PyO3 trap: `Vec<u8>` return → `list[int]`; return `PyBytes`. `&[u8]` arg rejects bytearray.
