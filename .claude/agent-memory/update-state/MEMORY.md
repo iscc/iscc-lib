@@ -22,8 +22,8 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
     UNRELIABLE (none at 170) — never park a finding for it.
 - **Counts + the glob/grep trap for each → `counts.md`** (204: 426 iscc-lib `#[test]`, 264 Go; 199:
-    118 CRAP; 196: 12 READMEs, 22 docs pages, 179 Go, 49 ffi externs, 21 version_sync, 5 fixture
-    copies).
+    118 CRAP; 196: 12 READMEs, 22 docs pages, 179 Go, 51 ffi externs (205), 21 version_sync, 5
+    fixture copies).
 - **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
     (163).
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` both import
@@ -86,18 +86,18 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 504a4a8, iter 205 — incremental)
+## Current State (assessed-at: 5799570, iter 206 — incremental)
 
-- **CI GREEN on `88b8fc8`** (run 44402373150, 21/21). Local `origin/develop` ref can lag: a
+- **CI GREEN on `ca78c52`** (run 44415723538, 21/21). Local `origin/develop` ref can lag: a
     `cid(log)` HEAD may 422 on the check-runs API (not pushed) — use `git ls-remote origin develop`
     for the real tip. Runner-capacity cancels: suite `failure` w/ sole `cancelled` 0-step run =
     infra; still report FAILING.
-- **ISCC-SEQ bindings 4/11 (Python, Go, napi, WASM 204)**. Probe: `grep -rlE` with QUOTED
+- **ISCC-SEQ bindings 5/11 (Python, Go, napi, WASM, C FFI 205)**. Probe: `grep -rlE` with QUOTED
     `--include='*.rs'` etc. (zsh globs unquoted `*.rs` → "no matches found"); `data.json` = noise.
-    Go `readUnit` private by design. WASM `encode_seq` accepts any iterable (crate convention).
+    dotnet `NativeMethods.g.cs` hit = generated P/Invoke only, NOT a binding (check `IsccLib.cs`).
 - `encode_seq` strictness + multibase-ambiguous bare-unit reading = decisions.md rulings — do NOT
     re-flag. Text-utils U+001C–U+001F CLOSED 203; Go `TextClean` `TrimSpace` intentional.
-- **7 open `normal`** (napi Buffer leak added 204), 7 low (14 headers).
+- **8 open `normal`** (ffi `lib.rs` split added 205), 7 low (15 headers). FFI 51 externs.
 - **`#[test]` count 426**; Go `func Test` **264**.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.

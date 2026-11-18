@@ -1,15 +1,15 @@
-<!-- assessed-at: 504a4a8bdab52c34bf0913c51ecf39d01ee202c5 -->
+<!-- assessed-at: 5799570c32fd4985bc906e2334d6e1f2098fec47 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — ISCC-SEQ on Rust core, Python, Go, Node.js and WASM (4 of 11 surfaces); CI green
+## Phase: v0.8.0 — ISCC-SEQ on Rust core, Python, Go, Node.js, WASM and C FFI (5 of 11 surfaces); CI green
 
-The pushed `develop` tip `88b8fc8` passes CI on all 21 check-runs. HEAD `504a4a8` adds only a
-`cid(log)` commit, so that run covers HEAD's code. Iteration 204 bound `encode_seq` / `decode_seq`
-on napi and WASM, bringing ISCC-SEQ to 4 of 11 surfaces. 7 `normal` issues are open (one new: the
-napi `Buffer` reference leak).
+The pushed `develop` tip `ca78c52` passes CI on all 21 check-runs. HEAD `5799570` adds only a
+`cid(log)` commit, so that run covers HEAD's code. Iteration 205 bound `encode_seq` / `decode_seq`
+on the C FFI, bringing ISCC-SEQ to 5 of 11 surfaces. 8 `normal` issues are open (one new: the
+`iscc-ffi/src/lib.rs` split).
 
 ## Rust Core Crate
 
@@ -21,7 +21,7 @@ napi `Buffer` reference leak).
 - `text_trim` / `text_remove_newlines` use the Python `str.strip()` set (`codec::is_py_strip_char`,
     `pub(crate)`). Strict base32 with ASCII-only upper-casing is met; the `encode_seq` case-fold
     divergence is recorded in `rust-core.md` and decisions.md
-- iai Perf, Coverage + CRAP and semver-checks passed on `88b8fc8` (semver is informational)
+- iai Perf, Coverage + CRAP and semver-checks passed on `ca78c52` (semver is informational)
 - **Missing (human-gated, not v0.8.0 work):** the crate is not yet `>= 1.0.0`, and the MSRV
     criterion is unverified. Nothing in the Rust core is owed for v0.8.0
 
@@ -61,10 +61,14 @@ napi `Buffer` reference leak).
 
 **Status**: partially met
 
-- 49 `#[unsafe(no_mangle)]` exports; committed `iscc.h` with a freshness check; C test program;
-    `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
-- **Missing:** `iscc_encode_seq` / `iscc_decode_seq` and the seq vectors in `tests/test_iscc.c`
-- Open `normal` issue: `docs/c-ffi-api.md` uses unprefixed type names
+- 51 `#[unsafe(no_mangle)]` exports, now including `iscc_encode_seq` (returns `IsccByteBuffer`) and
+    `iscc_decode_seq` (returns `char**`). Committed `iscc.h` declares both; the Rust `mod tests`
+    walks the data.json seq vectors plus string and byte round trips; `tests/test_iscc.c` adds a
+    round trip and a zero-count case
+- Existing: header freshness check, `examples/iscc_sum.c` + CMake, `docs/howto/c-cpp.md`, 0.7.0
+    tarballs on GitHub Releases
+- **Missing (`normal` issues):** `docs/c-ffi-api.md` uses unprefixed type names and has no seq
+    entries; `src/lib.rs` is 2870 lines, past the crate's ~2500 split threshold
 
 ## Go Bindings
 
@@ -84,7 +88,8 @@ napi `Buffer` reference leak).
 - All six expose the 33-symbol surface and shipped 0.7.0: Java and Kotlin on Maven Central, Ruby on
     RubyGems, .NET on NuGet, C++ through vcpkg/Conan metadata, Swift as an SPM XCFramework
 - **Missing on all six:** `encode_seq` / `decode_seq` and the seq vectors in each conformance
-    harness. Swift and Kotlin hard-code per-section counts. .NET and C++ depend on the C FFI step
+    harness. .NET has only the generated P/Invoke declarations in `NativeMethods.g.cs`, with no
+    `IsccLib.cs` wrapper. Swift and Kotlin hard-code per-section counts
 - Ruby has two open `normal` issues: `json` in `Gemfile.lock` (Dependabot) and the `File.read` call
     in `test_conformance.rb` that passes no encoding
 
@@ -114,19 +119,20 @@ napi `Buffer` reference leak).
 - `ci.yml` has 20 jobs; Swift is the only job on macOS (`macos-15`). `release.yml` is
     `workflow_dispatch`-only with 8 registry toggles. 21 version-sync targets are at 0.7.0
 - `deny.toml` ignores `RUSTSEC-2026-0374` with a documented reason (no upstream fix)
-- **Latest CI: PASSING** on `88b8fc8`: https://github.com/iscc/iscc-lib/actions/runs/44402373150.
+- **Latest CI: PASSING** on `ca78c52`: https://github.com/iscc/iscc-lib/actions/runs/44415723538.
     All 21 check-runs succeeded. No unpushed code changes at HEAD
 - **Missing:** the `uv.lock` Dependabot bump (`soupsieve` has two high alerts, `setuptools`),
     tracked as a `normal` issue
 
 ## Open Issues
 
-14 open: 0 critical, **7 normal**, 7 low. The 7 `normal` issues: c-ffi-api type names, wasm npm
+15 open: 0 critical, **8 normal**, 7 low. The 8 `normal` issues: c-ffi-api type names, wasm npm
 metadata, the Ruby `json` alert, the Ruby locale fix, the Python `encode_seq` case-fold docstrings,
-the `uv.lock` alerts, and the napi `Buffer` reference leak. None is blocked.
+the `uv.lock` alerts, the napi `Buffer` reference leak, and the `iscc-ffi/src/lib.rs` split. None is
+blocked.
 
 ## Next Milestone
 
-Continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on the remaining 7 surfaces, with every
-conformance harness running the seq vectors. Also clear the 7 open `normal` issues that block the
-release.
+Continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on the remaining 6 surfaces (Java, Ruby, .NET,
+C++, Swift, Kotlin), with every conformance harness running the seq vectors. Also clear the 8 open
+`normal` issues that block the release.
