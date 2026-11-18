@@ -91,7 +91,7 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
     `TryFrom<u8>`; delegates to `codec::encode_component`
 - `iscc_decode` strips "ISCC:" prefix + dashes, returns exact digest bytes as
     `(u8,u8,u8,u8,Vec<u8>)`
-- Codec input cleaning `iscc_clean` (iters 191-193; Go half NOT done) + four_units perf history →
+- Codec input cleaning `iscc_clean` (iters 191-193, py-strip set 198; Go half NOT done) + perf →
     codec-clean.md
 - ISCC-IDv1 #43 COMPLETE (iter 190; Tier-1 = 33, no dedicated decoder) → go-idv1.md
 - ISCC-SEQ #45 Rust core DONE (195), Python bound (197); other surfaces pending → iscc-seq.md

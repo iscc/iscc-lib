@@ -563,9 +563,19 @@ pub fn encode_component(
     Ok(encode_base32(&component))
 }
 
+/// Return whether Python's `str.strip()` (no arguments) removes `c`.
+///
+/// Python's whitespace set is Rust's `char::is_whitespace` set plus the four
+/// information separators U+001C..=U+001F, which `str::trim` keeps. Trimming
+/// with this predicate keeps cleaned input aligned with `iscc_core.codec.iscc_clean`.
+fn is_py_strip_char(c: char) -> bool {
+    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
+}
+
 /// Clean up an ISCC string to its bare base32 form.
 ///
-/// Mirrors `iscc_core.codec.iscc_clean`: trims surrounding whitespace, removes an
+/// Mirrors `iscc_core.codec.iscc_clean`: trims surrounding whitespace (the
+/// `str.strip()` set, see [`is_py_strip_char`]), removes an
 /// optional scheme prefix (matched case-insensitively against `iscc`), and strips
 /// the hyphen group separators of the canonical display form (e.g.
 /// `ISCC:KACY-PXW4-…`). A single-part input whose first character is a multibase
@@ -582,7 +592,7 @@ pub fn encode_component(
 /// input; `decode_base32("")` returns `Ok(empty)`, so an empty code would
 /// otherwise be silently accepted as a zero-unit ISCC).
 pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<Cow<'_, str>> {
-    let trimmed = iscc.trim();
+    let trimmed = iscc.trim_matches(is_py_strip_char);
     let cleaned: Cow<'_, str> = match trimmed.split_once(':') {
         None => {
             // Single part, no scheme prefix. Preserve dashes for multibase-encoded
@@ -598,8 +608,8 @@ pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<Cow<'_, str>> {
             }
         }
         Some((scheme, rest)) => {
-            let scheme = scheme.trim();
-            let code = rest.trim();
+            let scheme = scheme.trim_matches(is_py_strip_char);
+            let code = rest.trim_matches(is_py_strip_char);
             // A second colon means the string is malformed (more than one part).
             if code.contains(':') {
                 return Err(IsccError::InvalidInput(format!(
@@ -813,7 +823,7 @@ pub fn encode_seq(units: &[&str]) -> IsccResult<Vec<u8>> {
     }
     let mut seq = Vec::new();
     for unit in units {
-        if unit.trim().is_empty() {
+        if unit.trim_matches(is_py_strip_char).is_empty() {
             return Err(IsccError::InvalidInput(
                 "ISCC-UNIT must not be empty".into(),
             ));
@@ -883,6 +893,15 @@ mod tests {
             iscc_clean("Iscc:KACYPXW445FTYNJ3").unwrap(),
             "KACYPXW445FTYNJ3"
         );
+    }
+
+    #[test]
+    fn test_is_py_strip_char_matches_rust_whitespace_plus_separators() {
+        for c in char::MIN..=char::MAX {
+            let expected = c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c);
+            assert_eq!(is_py_strip_char(c), expected, "{c:?}");
+        }
+        assert!(!is_py_strip_char('\u{200b}'));
     }
 
     #[test]

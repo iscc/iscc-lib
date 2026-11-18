@@ -1,75 +1,72 @@
-## 2026-11-18 — Review of: Python `encode_seq` / `decode_seq` binding with an `iscc_core` differential test
+## 2026-11-18 — Core `iscc_clean` trims exactly what Python `str.strip()` trims (U+001C–U+001F)
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Added the private predicate `is_py_strip_char` to `codec.rs`. It returns true for
+`char::is_whitespace` or U+001C..=U+001F, and its doc comment names `str.strip()`. All four trim
+sites now call `trim_matches(is_py_strip_char)`: the outer trim in `iscc_clean`, the scheme trim,
+the code trim, and the `encode_seq` empty-unit guard. The `Cow` borrow paths are unchanged, and the
+change adds no allocations.
 
-**Summary:** The Python binding now exposes ISCC-SEQ. `encode_seq` returns `bytes` and `decode_seq`
-returns `list[str]`. The wrapper matches the reference's type contract, and the docstrings state
-that base32 decoding is strict. The diff is small and in scope: 3 non-test files plus the new
-`tests/test_seq.py`. Review added a shared-rejection differential (19 cases, 66 tests in total) and
-found one pre-existing core cleaning divergence, now filed as an issue.
+**Files changed:**
+
+- `crates/iscc-lib/src/codec.rs`: the predicate, the 4 trim sites, an `iscc_clean` doc tweak, and a
+    unit test comparing the predicate with `char::is_whitespace` over every char. The test also
+    checks that U+200B is not stripped.
+- `crates/iscc-lib/tests/codec_clean.rs`: 7 new tests.
+    - Each of the 4 separators placed around the string, before the colon, and after the colon. Run
+        through both `iscc_decode` and `iscc_decompose`, each result must equal the clean
+        `ISCC:GAAAAAAAAA` result.
+    - A sweep over all scalar values that Python strips (Rust whitespace plus the 4 separators).
+    - U+200B is rejected.
+    - `encode_seq` strips the separators.
+    - A unit of just a separator errors with "must not be empty". The test asserts the guard's
+        message, so it fails if the guard regresses: the old guard falls through to "Empty ISCC
+        string".
+    - A premise test that the separators are not Rust whitespace.
+- `tests/test_seq.py`: 10 new tests.
+    - The strip set is derived live from the interpreter, and the test asserts it contains the 4
+        separators.
+    - For every char in the set, `iscc_core.encode_seq` and `iscc_lib.encode_seq` return identical
+        bytes. iscc_lib exceptions are caught, so a mismatch shows up as a diff, not a crash.
+    - Separators before and after the colon: both libraries agree.
+    - A separator-only unit is rejected by both libraries.
+    - U+200B is rejected by both libraries.
+- `.crap-baseline.json`: regenerated with `mise run crap:baseline` from the same `lcov.info`.
+    - The diff only moves line numbers for 6 functions: 5 in `codec.rs` (shifted by the predicate and
+        its doc) and 1 in `conformance.rs`. It also adds 2 functions (`is_py_strip_char` and the test
+        helper). One coverage number changed: `run_encode_seq_tests` went from 80.8% to 100%.
+    - Before the refresh the gate exited 0 with 0 regressed and 6 moved. I refreshed anyway because of
+        the CI-only moved-lines gap in learnings.
 
 **Verification:**
 
-- [x] `maturin develop -m crates/iscc-py/Cargo.toml` succeeds: built and installed.
-- [x] `uv run pytest tests/test_seq.py` passes (47 from advance, 66 after review's addition). The
-    full `uv run pytest` passes: 477 tests, 496 after the addition.
-- [x] `encode_seq` returns `bytes`, and `decode_seq(bytearray)` round-trips: one-liner exits 0.
-- [x] `{'encode_seq','decode_seq'} <= set(__all__)`: exits 0.
-- [x] `uv run ty check` exits 0, re-run after the review edit.
-- [x] `mise run check` exits 0. `cargo clippy -p iscc-py -- -D warnings` and the workspace
-    `--all-targets` clippy are clean.
-- Probes:
-    - No suppressions in `@{upstream}..HEAD`.
-    - CI's Python job runs `uv sync --group dev`, and 5 other test files already import `iscc_core`,
-        so `test_seq.py` will collect in CI.
-    - Reject-parity probe across 18 bad inputs: both libraries raise the same class, except the
-        whitespace case below. `binascii.Error` is a subclass of `ValueError`.
+- `cargo test -p iscc-lib`: every suite passed (297 lib tests, 17 `codec_clean`, plus the rest).
+- `grep -nE '\.trim\(\)' crates/iscc-lib/src/codec.rs` prints nothing.
+- `uv run maturin develop -m crates/iscc-py/Cargo.toml` then `uv run pytest tests/test_seq.py`: 77
+    passed. Full `uv run pytest`: 507 passed.
+- `mise run bench:iai:check` exits 0 against the unmodified `.iai-baseline.json`. All 16 benches are
+    within 10%. `four_units` is 12,784 Ir against a baseline of 13,369 (−4.38%), and no bench rose
+    by more than 0.05%.
+- `mise run coverage`, then CI's exact
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`:
+    exit 0, both before the baseline refresh (0 regressed) and after it (118 unchanged). Local rustc
+    is 1.100.0 (2026-11-09).
+- `mise run check`: the first run failed on a `ruff-check` auto-fix. The re-run exits 0.
+    `git status` shows only the 4 intended files plus the runner's `iterations.jsonl`.
+- `cargo clippy -p iscc-lib --all-targets -- -D warnings`: clean.
 
-**Issues found:**
-
-- **Fixed in review:** the spec's Python criterion (`rust-core.md` "Verified when") requires that
-    both sides reject the same inputs. next.md asked only for the base32 divergence and canonical
-    agreement. Review added `test_differential_{encode,decode}_rejects_same_inputs`:
-    - 11 encode cases;
-    - 8 decode cases, including all of IEP-0020 Table 2.
-- **Filed (`normal`):** `iscc_clean` trims fewer whitespace characters than iscc-core.
-    - Python's `str.strip()` also strips U+001C–U+001F; Rust's `trim` keeps them.
-    - So `"\x1eISCC:GAAAAAAAAA"` succeeds in the reference and fails in iscc-lib, for `encode_seq` and
-        `iscc_decode` alike.
-    - The cause is core, pre-existing since iteration 191; this diff did not introduce it.
-    - Until it is fixed, the spec's Python "reject the same inputs" checkbox stays unmet. Do not tick
-        it.
-- Nit, not filed: a list holding both a malformed unit and a non-string, e.g. `["", 1]`, raises
-    `TypeError` here and `ValueError` in the reference. PyO3 extracts the whole list before the core
-    checks any unit; the reference checks units in order.
-- Stale and deferred to the Tier-1 sweep: `crates/iscc-py/CLAUDE.md` still says "27 #[pyfunction]s".
-- Trimmed on sight: the stale `codec.py` line references in the Go cleaning issue now point to the
-    1.5.0 lines.
-
-**Codex review:** 2 findings, both confirmed by probe.
-
-- P2: no shared-rejection differential. Resolved in review (see above).
-- P3: U+001C–U+001F trimming parity. Filed as an issue. The cause is in core `iscc_clean`, not the
-    binding.
-
-**Next:**
-
-- Strongest candidate: the Go `decodeBase32` spare-bit fix plus Rust and Go strict-base32 tests
-    (`normal` `[human]`). It and the Go `isccClean` port are both prerequisites for Go seq. Folding
-    the U+001C–U+001F set into the Go port is natural, since the new issue says Go must strip the
-    same set.
-- Seq fan-out on surfaces with no prerequisite: Node, WASM, Ruby, JNI.
-    - Copy this step's test shape: fixture conformance, round trip, one bad input per case, and the
-        explicit strict-base32 divergence.
-    - Only Python has a live reference, so the other surfaces assert the fixture and the strict
-        rejections.
-- The C FFI seq step must regenerate `iscc.h` and `NativeMethods.g.cs` in the same step.
-- The core whitespace fix touches the iai-gated `iscc_clean`. Scope `mise run bench:iai:check` with
-    it.
+**Next:** The Go `decodeBase32` spare-bit fix plus Rust/Go strict-base32 tests. Then the Go
+`isccClean` port, which must copy this exact strip set: Go's `unicode.IsSpace` differs from Rust's
+whitespace set, so derive the Go set rather than assuming it. The spec's Python criterion that both
+libraries reject the same inputs is now unblocked for review to re-check.
 
 **Notes:**
 
-- ISCC-SEQ is bound on 1 of 11 surfaces (Python). The Tier-1 count stays 33 in docs until all 11
-    land; then one sweep takes it to 35.
-- The `cid(update-state)` / define-next / advance commits in this batch are context and memory files
-    only. Nothing else is unpushed.
+- **Text utilities diverge on Tier 1, confirmed by probe, not fixed (out of scope).** Input
+    `'\x1eab\x1fcd\x1e'`:
+    - `text_trim(s, 10)`: iscc_core gives `'ab\x1fcd'`, iscc_lib gives `'\x1eab\x1fcd\x1e'`.
+    - `text_remove_newlines(s)`: iscc_core gives `'ab cd'`, iscc_lib gives `'\x1eab\x1fcd\x1e'`.
+    - `text_collapse` agrees (`'abcd'`), because the C-category filter drops the separators.
+    - Cause: `.trim()` in `utils.rs` L125/L132 and `split_whitespace` in L94/L107/L115.
+    - Review should file an issue. It may also affect Meta-Code output via `text_trim`.
+- The CRAP report includes test-file helpers (`is_python_whitespace` in `codec_clean.rs`, coverage
+    `—`), as it already did for `test_seq.rs`.

@@ -24,3 +24,10 @@ memchr per code), NOT allocation (strip_prefix-only iscc_clean = +2.6%). std mem
 single-pass, so unfixable without a baseline bump (human/gate, next.md-forbidden here). iscc_clean
 cyclo 7→9 in `.crap-baseline.json`. RESOLVED 2026-07-29: the human raised the four_units baseline to
 13,400 (decisions.md) — Perf gate green since
+
+Iter 198: all 4 codec trim sites (iscc_clean outer/scheme/code + `encode_seq` empty-unit guard) use
+private `is_py_strip_char` = `char::is_whitespace` ∪ U+001C..=U+001F (Python `str.strip()` set,
+CPython 3.13). No perf cost (four_units 12,784 Ir vs 13,369 baseline). `utils.rs` `text_trim` /
+`text_remove_newlines` still use Rust `.trim()`/`split_whitespace` → probe-confirmed divergence on
+Tier 1 (`'\x1eab'`), left for a separate issue. Go `isccClean` port must copy the Python set
+(`unicode.IsSpace` ≠ Rust set — derive, don't assume).

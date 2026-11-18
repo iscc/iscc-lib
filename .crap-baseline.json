@@ -21,7 +21,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "iscc_decompose",
-      "line": 642,
+      "line": 652,
       "cyclomatic": 19.0,
       "coverage": 100.0,
       "crap": 19.0
@@ -125,7 +125,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "iscc_clean",
-      "line": 584,
+      "line": 594,
       "cyclomatic": 9.0,
       "coverage": 100.0,
       "crap": 9.0
@@ -197,7 +197,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "encode_seq",
-      "line": 808,
+      "line": 818,
       "cyclomatic": 8.0,
       "coverage": 100.0,
       "crap": 8.0
@@ -221,7 +221,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "read_unit",
-      "line": 758,
+      "line": 768,
       "cyclomatic": 7.0,
       "coverage": 100.0,
       "crap": 7.0
@@ -272,6 +272,14 @@
       "line": 667,
       "cyclomatic": 6.0,
       "coverage": 100.0,
+      "crap": 6.0
+    },
+    {
+      "file": "./crates/iscc-lib/tests/codec_clean.rs",
+      "function": "is_python_whitespace",
+      "line": 157,
+      "cyclomatic": 2.0,
+      "coverage": null,
       "crap": 6.0
     },
     {
@@ -373,7 +381,7 @@
     {
       "file": "./crates/iscc-lib/src/codec.rs",
       "function": "decode_seq",
-      "line": 847,
+      "line": 857,
       "cyclomatic": 4.0,
       "coverage": 100.0,
       "crap": 4.0
@@ -523,14 +531,6 @@
       "crap": 3.0
     },
     {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_encode_seq_tests",
-      "line": 571,
-      "cyclomatic": 2.0,
-      "coverage": 80.76923076923077,
-      "crap": 2.0284478834774693
-    },
-    {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "decode_data_url",
       "line": 146,
@@ -579,6 +579,14 @@
       "crap": 2.0
     },
     {
+      "file": "./crates/iscc-lib/src/codec.rs",
+      "function": "is_py_strip_char",
+      "line": 571,
+      "cyclomatic": 2.0,
+      "coverage": 100.0,
+      "crap": 2.0
+    },
+    {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "decode_stream",
       "line": 396,
@@ -590,6 +598,14 @@
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "decode_bytes",
       "line": 554,
+      "cyclomatic": 2.0,
+      "coverage": 100.0,
+      "crap": 2.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "run_encode_seq_tests",
+      "line": 571,
       "cyclomatic": 2.0,
       "coverage": 100.0,
       "crap": 2.0
@@ -677,7 +693,7 @@
     {
       "file": "./crates/iscc-lib/tests/codec_clean.rs",
       "function": "hyphenate",
-      "line": 10,
+      "line": 12,
       "cyclomatic": 1.0,
       "coverage": null,
       "crap": 2.0

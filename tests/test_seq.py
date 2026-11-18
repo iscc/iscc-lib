@@ -252,3 +252,55 @@ def test_differential_iscc_lib_rejects_non_canonical_base32(
     assert iscc_lib.encode_seq([canonical]) == bytes.fromhex(hex_bytes)
     with pytest.raises(ValueError, match="base32 decode error"):
         iscc_lib.encode_seq([alias])
+
+
+# ── Whitespace trimming parity ───────────────────────────────────────────────
+
+# Every code point Python's `str.strip()` removes, derived live from the interpreter.
+PY_STRIP_CHARS = [c for c in map(chr, range(0x110000)) if c.strip() == ""]
+INFO_SEPARATORS = ["\x1c", "\x1d", "\x1e", "\x1f"]
+
+
+def test_strip_set_contains_info_separators():
+    """The live-derived strip set includes U+001C..U+001F, which Rust's `trim` keeps."""
+    assert set(INFO_SEPARATORS) <= set(PY_STRIP_CHARS)
+
+
+def test_differential_encode_strips_python_whitespace():
+    """Both libraries strip every `str.strip()` char around a unit to identical bytes."""
+    mismatches = []
+    for ch in PY_STRIP_CHARS:
+        unit = ch + UNIT_32 + ch
+        expected = iscc_core.encode_seq([unit])
+        try:
+            actual = iscc_lib.encode_seq([unit])
+        except ValueError as e:
+            actual = e
+        if actual != expected:
+            mismatches.append((hex(ord(ch)), actual))
+    assert not mismatches
+
+
+@pytest.mark.parametrize("sep", INFO_SEPARATORS, ids=lambda s: f"U+{ord(s):04X}")
+def test_differential_encode_strips_separator_around_colon(sep):
+    """Separators before and after the scheme colon are stripped by both libraries."""
+    for unit in (f"ISCC{sep}:GAAAAAAAAA", f"ISCC:{sep}GAAAAAAAAA"):
+        assert iscc_lib.encode_seq([unit]) == iscc_core.encode_seq([unit])
+
+
+@pytest.mark.parametrize("sep", INFO_SEPARATORS, ids=lambda s: f"U+{ord(s):04X}")
+def test_differential_separator_only_unit_rejected(sep):
+    """A unit consisting only of a separator is rejected by both libraries."""
+    with pytest.raises(ValueError):
+        iscc_core.encode_seq([sep])
+    with pytest.raises(ValueError, match="must not be empty"):
+        iscc_lib.encode_seq([sep])
+
+
+def test_differential_zero_width_space_rejected():
+    """U+200B is not stripped by `str.strip()`, so both libraries reject it."""
+    assert "\u200b".strip() == "\u200b"
+    with pytest.raises(ValueError):
+        iscc_core.encode_seq(["\u200b" + UNIT_32])
+    with pytest.raises(ValueError):
+        iscc_lib.encode_seq(["\u200b" + UNIT_32])

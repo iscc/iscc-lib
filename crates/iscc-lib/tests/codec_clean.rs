@@ -4,7 +4,9 @@
 //! and a case-insensitive `iscc:` scheme are all accepted and produce output
 //! identical to the plain (bare base32) form — matching `iscc_core`'s `iscc_clean`.
 
-use iscc_lib::{IsccError, gen_iscc_code_v0, gen_mixed_code_v0, iscc_decode, iscc_decompose};
+use iscc_lib::{
+    IsccError, encode_seq, gen_iscc_code_v0, gen_mixed_code_v0, iscc_decode, iscc_decompose,
+};
 
 /// Insert a `-` every four characters to build the canonical hyphen-grouped form.
 fn hyphenate(s: &str) -> String {
@@ -142,4 +144,104 @@ fn gen_mixed_code_rejects_empty_cleaned_unit() {
         matches!(result, Err(IsccError::InvalidInput(_))),
         "gen_mixed_code_v0 should error on empty-cleaned units, got {result:?}"
     );
+}
+
+/// A minimal valid ISCC-UNIT used for the whitespace-parity checks.
+const UNIT_32: &str = "ISCC:GAAAAAAAAA";
+
+/// The ASCII information separators that Python `str.strip()` removes but Rust
+/// `str::trim` keeps.
+const INFO_SEPARATORS: [char; 4] = ['\u{1c}', '\u{1d}', '\u{1e}', '\u{1f}'];
+
+/// Return whether Python `str.strip()` removes `c`: Rust whitespace or an information separator.
+fn is_python_whitespace(c: char) -> bool {
+    c.is_whitespace() || INFO_SEPARATORS.contains(&c)
+}
+
+#[test]
+fn info_separators_are_not_rust_whitespace() {
+    // Guards the premise of the parity fix: `str::trim` alone would keep these.
+    for sep in INFO_SEPARATORS {
+        assert!(!sep.is_whitespace(), "{sep:?} is already Rust whitespace");
+    }
+}
+
+#[test]
+fn decode_strips_info_separators_like_python() {
+    let clean = iscc_decode(UNIT_32).unwrap();
+    for sep in INFO_SEPARATORS {
+        let around = format!("{sep}{UNIT_32}{sep}");
+        let before_colon = format!("ISCC{sep}:GAAAAAAAAA");
+        let after_colon = format!("ISCC:{sep}GAAAAAAAAA");
+        for input in [around, before_colon, after_colon] {
+            assert_eq!(
+                iscc_decode(&input).unwrap(),
+                clean,
+                "iscc_decode({input:?})"
+            );
+        }
+    }
+}
+
+#[test]
+fn decompose_strips_info_separators_like_python() {
+    let clean = iscc_decompose(UNIT_32).unwrap();
+    for sep in INFO_SEPARATORS {
+        let around = format!("{sep}{UNIT_32}{sep}");
+        let before_colon = format!("ISCC{sep}:GAAAAAAAAA");
+        let after_colon = format!("ISCC:{sep}GAAAAAAAAA");
+        for input in [around, before_colon, after_colon] {
+            assert_eq!(
+                iscc_decompose(&input).unwrap(),
+                clean,
+                "iscc_decompose({input:?})"
+            );
+        }
+    }
+}
+
+#[test]
+fn decode_strips_every_python_whitespace_char() {
+    // Sweep all scalar values: every char Python strips is stripped here too.
+    let clean = iscc_decode(UNIT_32).unwrap();
+    for c in (char::MIN..=char::MAX).filter(|&c| is_python_whitespace(c)) {
+        let input = format!("{c}{UNIT_32}{c}");
+        assert_eq!(
+            iscc_decode(&input).unwrap(),
+            clean,
+            "iscc_decode({input:?})"
+        );
+    }
+}
+
+#[test]
+fn decode_keeps_zero_width_space() {
+    // U+200B is not whitespace in Python or Rust, so it must not be stripped.
+    assert!(!is_python_whitespace('\u{200b}'));
+    let result = iscc_decode(&format!("\u{200b}{UNIT_32}"));
+    assert!(
+        matches!(result, Err(IsccError::InvalidInput(_))),
+        "U+200B must not be stripped, got {result:?}"
+    );
+}
+
+#[test]
+fn encode_seq_strips_info_separators() {
+    let clean = encode_seq(&[UNIT_32]).unwrap();
+    for sep in INFO_SEPARATORS {
+        let unit = format!("{sep}{UNIT_32}{sep}");
+        assert_eq!(encode_seq(&[unit.as_str()]).unwrap(), clean, "{unit:?}");
+    }
+}
+
+#[test]
+fn encode_seq_rejects_separator_only_unit_as_empty() {
+    for sep in INFO_SEPARATORS {
+        let unit = sep.to_string();
+        let err = encode_seq(&[unit.as_str()]).unwrap_err();
+        assert!(
+            err.to_string().contains("must not be empty"),
+            "encode_seq([{unit:?}]) gave {err}"
+        );
+    }
 }
