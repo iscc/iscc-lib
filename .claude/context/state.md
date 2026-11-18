@@ -1,15 +1,15 @@
-<!-- assessed-at: c5ab678642466fcde8ddc122992103623269a93e -->
+<!-- assessed-at: 8367d61a9c148d8dbdc542e0cff434ba5a4a95b4 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — ISCC-SEQ in Rust core; CI green; 0 of 11 binding surfaces
+## Phase: v0.8.0 — ISCC-SEQ in Rust core + Python; CI green; 1 of 11 binding surfaces
 
-CI is green again on the pushed `develop` tip `f335226`. The cargo-deny advisory now has a justified
-ignore, and the macOS jobs run on `macos-15`. The Rust core has the ISCC-SEQ codec, but no binding
-exposes it yet. 7 `normal` issues are open and all can be worked now. HEAD `c5ab678` is one unpushed
-loop-log commit that changes only `.claude/` files, so the green run covers HEAD's code.
+CI is green on the pushed `develop` tip `72054e8`, which includes the Python seq binding. HEAD
+`8367d61` is one unpushed loop-log commit touching only `.claude/` files, so that green run covers
+HEAD's code. ISCC-SEQ is bound on Python only; 10 surfaces remain. 8 `normal` issues are open (one
+new: core `iscc_clean` whitespace parity) and all can be worked now.
 
 ## Rust Core Crate
 
@@ -18,20 +18,25 @@ loop-log commit that changes only `.claude/` files, so the green run covers HEAD
 - Tier 1 = 35 at the crate root (`encode_seq` / `decode_seq` re-exported from `codec`). Tier 2
     `read_unit` + `SEQ_MAINTYPES` live in `codec.rs`. 400 `#[test]` in `crates/iscc-lib`, 44 of them
     in `tests/test_seq.rs`. `conformance_selftest` runs the seq vectors
-- **Missing:** tests asserting that decoding rejects `ISCC:GAAAAAAAAB`,
-    `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` and `ISCC:GAAAAAAAAA======` (strict base32, decisions.md
-    2026-11-18)
-- iai Perf and Coverage + CRAP pass on `f335226`. semver-checks is informational. The v1.0.0 cut and
+- **Missing:** Rust tests asserting that decoding rejects `ISCC:GAAAAAAAAB` and
+    `ISCC:GAAAAAAAAA======` (strict base32, decisions.md 2026-11-18); zero hits in `crates/iscc-lib`
+- **Missing (new `normal` issue):** `codec::iscc_clean` trims with `str::trim`, so it keeps
+    U+001C–U+001F, which iscc-core's `str.strip()` removes. This affects every cleaned entry point
+- iai Perf and Coverage + CRAP pass on `72054e8`. semver-checks is informational. The v1.0.0 cut and
     the MSRV criterion are human-gated
 
 ## Python Bindings
 
 **Status**: partially met
 
-- 33 Tier 1 symbols; abi3-py310 wheels for Linux x86_64/aarch64, macOS universal2 and Windows x64;
-    12 `py.detach` sites; 0.7.0 on PyPI
-- **Missing:** `encode_seq` / `decode_seq`, the seq conformance vectors, and a differential pytest
-    against `iscc_core` 1.5.0 that asserts the strict-base32 divergence (padding and spare bits)
+- 35 Tier 1 symbols: `encode_seq` (returns `bytes`) and `decode_seq` (returns `list[str]`) are in
+    `src/lib.rs`, the `__init__.py` wrappers, `__all__` and `_lowlevel.pyi`. abi3-py310 wheels for 4
+    platforms; 12 `py.detach` sites; 0.7.0 on PyPI
+- `tests/test_seq.py` (23 test functions): fixture conformance, round trip, bad inputs, an
+    `iscc_core` differential asserting the strict-base32 divergence, and a shared-rejection
+    differential
+- **Missing:** the spec's "both sides reject the same inputs" criterion is blocked by the
+    `iscc_clean` U+001C–U+001F issue. `crates/iscc-py/CLAUDE.md` still says "27 #[pyfunction]s"
 
 ## Node.js Bindings
 
@@ -62,8 +67,9 @@ loop-log commit that changes only `.claude/` files, so the green run covers HEAD
 **Status**: partially met
 
 - Pure Go, 33 Tier 1 symbols, 179 `func Test`, `CGO_ENABLED=0`; IDv1 at the reference API shape
-- **Missing (two prerequisite `normal` issues):** Go has no `isccClean` helper, and `decodeBase32`
-    accepts spare-bit aliases (e.g. `ISCC:GAAAAAAAAB`) that Rust rejects
+- **Missing (prerequisite `normal` issues):** Go has no `isccClean` helper (it must strip the same
+    set as the fixed core, including U+001C–U+001F), and `decodeBase32` accepts spare-bit aliases
+    (e.g. `ISCC:GAAAAAAAAB`) that Rust rejects
 - **Missing:** Go `EncodeSeq` / `DecodeSeq`, a seq-vector loader (`parseConformanceData` loads only
     the `gen_*` sections), and seq test cases
 
@@ -74,9 +80,9 @@ loop-log commit that changes only `.claude/` files, so the green run covers HEAD
 - All six expose the 33-symbol surface and shipped 0.7.0 (Java and Kotlin on Maven Central,
     RubyGems, NuGet, vcpkg/Conan metadata, SPM XCFramework)
 - **Missing on all six:** `encode_seq` / `decode_seq` and the seq vectors in each conformance
-    harness (Swift and Kotlin hard-code per-section counts)
-- Ruby has two open `normal` issues: `json` in `Gemfile.lock` (Dependabot #1) and the `File.read`
-    call in `test_conformance.rb` that passes no encoding
+    harness (Swift and Kotlin hard-code per-section counts). The .NET path depends on the C FFI step
+- Ruby has two open `normal` issues: `json` in `Gemfile.lock` (Dependabot) and the `File.read` call
+    in `test_conformance.rb` that passes no encoding
 
 ## Documentation
 
@@ -85,8 +91,8 @@ loop-log commit that changes only `.claude/` files, so the green run covers HEAD
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, a
     Development section; deploys from `main`. The root README and 12 per-crate/package READMEs are
     present
-- Pending for v0.8.0: seq API entries, and the 33 → 35 count in the crate `CLAUDE.md`, `notes/00`,
-    `notes/04`, `docs/architecture.md` and the binding docs
+- Pending for v0.8.0: seq API entries, and the 33 → 35 count in the crate `CLAUDE.md` files,
+    `notes/00`, `notes/04`, `docs/architecture.md` and the binding docs
 
 ## Benchmarks
 
@@ -99,24 +105,23 @@ loop-log commit that changes only `.claude/` files, so the green run covers HEAD
 
 **Status**: partially met
 
-- `ci.yml` has 20 jobs; Swift runs on `macos-15`. `release.yml` is `workflow_dispatch`-only with 8
-    registry toggles, and all 10 of its macOS sites use `macos-15`. That half is checked statically
-    only until the next release. There are 21 version-sync targets at 0.7.0
-- `deny.toml` ignores `RUSTSEC-2026-0374` (`basic-toml` via uniffi_bindgen's askama proc-macro),
-    with a documented reason. No upstream version drops it
-- **Latest CI: PASSING** on `f335226`: https://github.com/iscc/iscc-lib/actions/runs/44283260882.
+- `ci.yml` has 20 jobs; macOS jobs on `macos-15`. `release.yml` is `workflow_dispatch`-only with 8
+    registry toggles; its 10 macOS sites use `macos-15`, checked statically only until the next
+    release. 21 version-sync targets at 0.7.0
+- `deny.toml` ignores `RUSTSEC-2026-0374` with a documented reason (no upstream fix)
+- **Latest CI: PASSING** on `72054e8`: https://github.com/iscc/iscc-lib/actions/runs/44295959238.
     All 21 check-runs succeeded
-- **Missing:** the `uv.lock` Dependabot bump (alerts #2–#6: `soupsieve`, 2 high and 2 medium;
-    `setuptools`, low), now tracked as a `normal` issue
+- **Missing:** the `uv.lock` Dependabot bump (`soupsieve`, `setuptools`), tracked as a `normal`
+    issue
 
 ## Open Issues
 
-14 open: 0 critical, **7 normal**, 7 low. All 7 `normal` issues can be worked now: c-ffi-api type
-names, Go `iscc_clean`, Go `decodeBase32` spare-bit aliases, wasm npm metadata, the Ruby `json`
-alert, the Ruby locale fix, and the `uv.lock` alerts.
+15 open: 0 critical, **8 normal**, 7 low. All 8 `normal` issues can be worked now: c-ffi-api type
+names, Go `iscc_clean`, Go `decodeBase32` spare-bit aliases, core `iscc_clean` U+001C–U+001F
+trimming, wasm npm metadata, the Ruby `json` alert, the Ruby locale fix, and the `uv.lock` alerts.
 
 ## Next Milestone
 
-Continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on all 11 surfaces, with every harness running
-the seq vectors, plus the strict-base32 rejection tests. Also clear the 7 open `normal` issues that
-block the release.
+Continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on the remaining 10 surfaces with every
+harness running the seq vectors, plus cleaning and strict-base32 parity in the core and Go. Also
+clear the 8 open `normal` issues that block the release.
