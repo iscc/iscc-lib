@@ -4,8 +4,8 @@
 //! against vendored conformance vectors from `data.json` and reports
 //! pass/fail. Code types whose feature flags are disabled are skipped (not
 //! failed). With all features enabled, all 9 gen functions are tested; the
-//! ISCC-SEQ sections run under every feature set. An application that claims ISCC conformance MUST pass all tests
-//! in this suite.
+//! ISCC-SEQ sections run under every feature set. An application claiming ISCC
+//! conformance MUST pass all tests in this suite.
 
 #[cfg(feature = "meta-code")]
 use crate::gen_meta_code_v0;
@@ -670,19 +670,24 @@ mod tests {
 
     #[test]
     fn test_seq_mismatch_and_parse_failures_fail() {
-        let bad = serde_json::json!({
-            "encode_seq": {
-                "wrong": {"inputs": [["ISCC:GAAAAAAAAAAA"]], "outputs": "bytes:00"},
-                "error": {"inputs": [[""]], "outputs": "bytes:00"},
-                "parse": {"inputs": [[1]], "outputs": "bytes:00"}
-            },
-            "decode_seq": {
-                "wrong": {"inputs": ["bytes:300000000000"], "outputs": ["ISCC:X"]},
-                "error": {"inputs": ["bytes:"], "outputs": []},
-                "parse": {"inputs": ["300000000000"], "outputs": []}
-            }
-        });
-        assert!(!run_encode_seq_tests(&bad));
-        assert!(!run_decode_seq_tests(&bad));
+        // One case per section, so each failure arm (mismatch, error, parse) is proven alone.
+        let encode_cases = [
+            serde_json::json!({"inputs": [["ISCC:GAAAAAAAAA"]], "outputs": "bytes:00"}),
+            serde_json::json!({"inputs": [[""]], "outputs": "bytes:00"}),
+            serde_json::json!({"inputs": [[1]], "outputs": "bytes:00"}),
+        ];
+        for tc in encode_cases {
+            let data = serde_json::json!({"encode_seq": {"case": tc}});
+            assert!(!run_encode_seq_tests(&data), "{data}");
+        }
+        let decode_cases = [
+            serde_json::json!({"inputs": ["bytes:300000000000"], "outputs": ["ISCC:X"]}),
+            serde_json::json!({"inputs": ["bytes:"], "outputs": []}),
+            serde_json::json!({"inputs": ["300000000000"], "outputs": []}),
+        ];
+        for tc in decode_cases {
+            let data = serde_json::json!({"decode_seq": {"case": tc}});
+            assert!(!run_decode_seq_tests(&data), "{data}");
+        }
     }
 }

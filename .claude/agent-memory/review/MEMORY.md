@@ -146,6 +146,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **Pre-flight `uv run prek run --hook-stage pre-push --all-files` before pushing never-CI'd code**
     (exit 0 ⇒ `git push` will not be rejected; needs `iscc_lib` built). Run it last and sequentially
 - **CI/Audit/Perf/Semver/CRAP gates** → `gate-reviews.md`
+- **decisions.md over budget → rotate with the runner's OWN function**, never hand-compress bodies:
+    `uv run --no-project python -I -c "import sys; sys.path.insert(0,'tools'); import cid; from   pathlib import Path; cid.archive_overflow(Path('.'), cid.DECISIONS_FILE, cid.DECISIONS_ARCHIVE,   cid.ARTIFACT_BUDGETS[cid.DECISIONS_FILE])"`;
+    stage `decisions-archive.md` too (195)
 
 ## Codex Review Integration
 
@@ -154,6 +157,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     Expect a real finding wherever a green run proves less than it appears to: matching/parsing
     rules, exception contracts, user-facing factual claims, build-config lines (154), and any
     declared-but-ungated fact such as MSRV (172)
+- **`--commit HEAD` reviews ONLY the last commit** — when advance splits its work (195: main commit
+    \+ a docs-only fixup), `git log @{upstream}..HEAD` first and launch a 2nd Codex run on the main
+    commit (`--commit <sha>`, own output file); every real 195 finding came from that run
 - **The background Codex run executes real build/test commands in the SAME tree** (164 dotnet, 165 +
     172 Gradle) — a build tool failing once while Codex runs may be losing a race on
     `bin/`/`obj/`/`build/`. Re-run sequentially; hold any Gradle `clean` until it exits

@@ -10,26 +10,15 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     uniffi), each depending only on the core. Tier 1 = 33 symbols `pub use`d at crate root (33rd =
     `gen_iscc_id_v1`+`IsccIdResult`, iter 177; docs/count sweep to 33 done, iter 190); Tier 2 is
     `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
-- **`gen_iscc_id_v1` is pure Python — oracle-check with no built wheel** (`--with iscc-core`,
-    `MA…`/`ME…` = realm nibble); core + py match byte-for-byte over
-    realm{0,1}×hub{0,4095}×ts{0,2^52-1} (178). NO dedicated decoder on any surface (ref has none).
-    **Minting ≠ decode round-trip**: core `codec::Version` accepts `V1`, but a surface with its OWN
-    version enum makes `iscc_decode(gen_iscc_id_v1(...))` raise `1 is not a valid VS`. Python was
-    the *only* enum surface (widened `VS.V1 = 1` + round-trip, 189); other 10 return bare int/byte.
-    Decode fan-out COMPLETE on all 11; #43 doc/count sweep done (190), IDv1 closed
-- **IDv1 validation ORDER is normative** (spec rust-core.md §Validation; ref `iscc_id.py:127-133`
-    ts→hub→realm, "first failing check wins", even for MULTI-invalid inputs). Wide-int bindings
-    (napi/wasm/jni) MUST check the three SEMANTIC thresholds (`2^52`/`4096`/`2`) in that order IN
-    THE BINDING before narrowing (a wide *narrowing* guard that skips ts is WRONG: `(2^52,65536,0)`
-    reports hub not ts — 183 jni fixed 184). Exact-width surfaces delegate safely. **Ruby (185)
-    narrows Integer→`i64` in Magnus marshalling BEFORE the body** → `RangeError` order break for
-    `> i64::MAX` only (issues.md open; fix: validate in Ruby)
-- **IDv1 minting fan-out COMPLETE (179-190)**: exact-width **unsigned** args (`u64/u16/u8`) can't
-    overflow → no binding guard (core re-checks ts→hub→realm; passthrough can't reorder). Decode is
-    bit-math on `iscc_decode`'s bare-int version, `ts=n>>12`/`hub=n&0xFFF`/`realm=SubType` on the
-    8-byte BE body. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on
-    EVERY build** → pre-push clippy fails "files were modified"; regen+commit it (like `iscc.h`) in
-    the SAME FFI-symbol step, never "the dotnet step"
+- **ISCC-SEQ core landed (195)**: `encode_seq`/`decode_seq` at crate root (the documented Tier-1
+    count stays 33 until every surface binds them → 35, then one doc sweep), `codec::read_unit` /
+    `SEQ_MAINTYPES` Tier 2. All three sit on private raw-`u32` header helpers — never route SEQ
+    through typed `decode_header`/`encode_component` (SubType ≥ 8 and Version 1 must be accepted)
+- **Binding fan-out traps (IDv1 177-190, detail → `learnings-archive.md`)**: a surface with its OWN
+    enum (Python `VS`) can break a round trip the core allows; wide-int bindings check semantic
+    thresholds in the binding before narrowing. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
+    `NativeMethods.g.cs` on EVERY build** → pre-push clippy fails "files were modified";
+    regen+commit it (like `iscc.h`) in the SAME FFI-symbol step, never "the dotnet step"
 
 ## Reference Implementation
 
@@ -48,6 +37,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     cleaning
 - **iscc-core 1.5.0 `data.json`** (2026-10-17): `encode_seq`/`decode_seq` sections have non-object
     outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)
+- **Rust `decode_base32` is stricter than the reference** (195; issues.md): it rejects `=` padding
+    and non-zero trailing bits (`GAAAAAAAAB`), which iscc-core's re-padded `b32decode` accepts. Any
+    differential test on *string* inputs (`encode_seq`, `iscc_decode`) hits it. By contrast
+    `encode_seq`'s uppercase-first step reads a bare `b…` multibase string as plain base32 in BOTH
+    implementations (bit-identical) — matching the reference, so not a local defect
 
 ## Tooling
 
@@ -120,7 +114,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a
     new branch in a covered fn — or merely **moving lines below the edit point** — is green locally,
-    red in CI unless the baseline moves in the SAME step (never widen epsilon/threshold)
+    red in CI unless the baseline moves in the SAME step (never widen epsilon/threshold). **A new
+    stable rustc re-scores untouched fns** (195: 1.99.1 → 1.100.0 lowered 11 entries, raised 3): CI
+    uses `@stable`, so read the toolchain in CI's CRAP log before blaming the diff
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
     load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`.
     **NOT in `mise run check`** — a benchmarked hot-path change (codec `iscc_clean`, text utils)
@@ -192,6 +188,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     (142: a prescribed rule that could not resolve `wheels-*`; 143: two false Unicode safety claims
     shipped verbatim into published docs). advance implements the *intent* and documents any
     deviation; review re-derives every quantitative or "never/always" claim from its source
+- **One bad case per call when testing failure arms** (195): a negative test that feeds a mismatch,
+    an error and a parse failure to ONE runner call stays green even if the mismatch arm breaks —
+    any other bad case still fails the call. And check that each "mismatch" fixture reaches the
+    comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed earlier, with "Trailing data"
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test

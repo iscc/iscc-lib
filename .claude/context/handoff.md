@@ -1,78 +1,81 @@
-## 2026-11-17 — ISCC-SEQ codec in the Rust core (`encode_seq` / `decode_seq` / `read_unit`)
+> **HUMAN REVIEW REQUESTED**: Rust's `decode_base32` is stricter than iscc-core: it rejects `=`
+> padding and non-zero trailing bits, both of which iscc-core 1.5.0 accepts
+> (`encode_seq(["GAAAAAAAAB"])` → `300000000000` there, `Err` here). This breaks the spec's Python
+> differential criterion ("both sides reject the same inputs"), so a choice is needed before the
+> Python ISCC-SEQ slice. Options are in the issues.md entry "`decode_base32` is stricter than
+> iscc-core…". **Recommendation: option 1, stay strict.** That matches the archived 2026-07-24
+> decision against strings that alias a canonical code (`GAAAAAAAAB` aliases `GAAAAAAAAA`). The
+> reference only accepts these because Python's `b32decode` does, and its own docstring says
+> "without padding". Record the choice in decisions.md and resume.
 
-**Done:** Ported the ISCC-SEQ codec from iscc-core 1.5.0 (IEP-0020, #45) into `codec.rs`, adding
-`read_unit`, `encode_seq`, `decode_seq` and `SEQ_MAINTYPES`. They sit on two private raw-integer
-helpers (`decode_header_raw`, `encode_header_raw`); `decode_header` and `encode_header` are now thin
-typed wrappers over those helpers. `encode_seq` and `decode_seq` are re-exported at the crate root,
-the `encode_seq` / `decode_seq` conformance sections run inside `conformance_selftest`, and
-`test_seq.py` is ported to `tests/test_seq.rs`.
+## 2026-11-18 — Review of: ISCC-SEQ codec in the Rust core (`encode_seq` / `decode_seq` / `read_unit`)
 
-**Files changed:**
+**Verdict:** PASS_WITH_NOTES
 
-- `crates/iscc-lib/src/codec.rs`: raw header helpers. The typed wrappers keep the same order (all
-    four varnibbles, then the tail `Vec`, then `u8::try_from` / `TryFrom` / `validate_version`).
-    `read_unit` builds its window from `data.get(offset..).unwrap_or(&[])`, so an out-of-range
-    offset gives "Malformed ISCC-HEADER at offset N" as in the reference, with no panic and no
-    `offset + 8` overflow. Checks run in the reference order (malformed → non-canonical → MainType
-    on the raw `u32` → `ln > 7` → truncated). `encode_seq` uppercases before `iscc_clean`. Also
-    added rustdoc on all four items and aligned the `iscc_decompose` doc with 1.5.0 (lenient reader;
-    see `decode_seq`).
-- `crates/iscc-lib/src/lib.rs`: `pub use codec::{decode_seq, encode_seq};`
-- `crates/iscc-lib/src/conformance.rs`: `decode_bytes` (`bytes:<hex>`), `report_case`,
-    `run_encode_seq_tests`, `run_decode_seq_tests`, wired into `conformance_selftest` with no
-    feature gate. Module doc and `conformance_selftest` rustdoc updated (same line count). 3 unit
-    tests: both sections have 4 cases and pass; a missing section fails; a mismatch, an error or a
-    parse failure fails.
-- `crates/iscc-lib/tests/test_seq.rs` (new, 44 tests): every `test_seq.py` case except the
-    Python-only ones (`*_type_error`, `*bytes_like`, `memoryview`, `tuple_and_generator`). Plus:
-    - 14 unknown SubType/Version headers pinned as **literal hex from iscc-core 1.5.0**, not generated
-        by a local encoder, and 4 exact canonical strings
-    - the IEP-0020 accepts and the 7 Table-2 rejects, each asserting its error message substring
-    - round trip on all 4 `decode_seq` vectors
-    - `read_unit` at `len`, `len+1`, `100` and `usize::MAX` → `Err`
-    - guards that `iscc_decode` / `iscc_decompose` still reject `ISCC:GAIAAAAAAA` and a SubType-8 unit
-- `.crap-baseline.json`: regenerated (`cargo crap ... --format json --output`, after coverage)
+**Summary:** A clean, faithful port of iscc-core 1.5.0 `read_unit` / `encode_seq` / `decode_seq` on
+private raw-`u32` header helpers. The typed `decode_header` / `encode_header` are now thin wrappers,
+and their behaviour and existing tests are unchanged. `test_seq.rs` (44 tests) covers every
+`test_seq.py` case plus the IEP-0020 vectors, and the conformance selftest runs both seq sections
+under every feature set. Scope: 3 non-test files plus the generated `.crap-baseline.json`.
 
 **Verification:**
 
-- `cargo test -p iscc-lib` (default features): all `test result: ok` — lib 296, test_seq 44, plus
-    10/28/22/1 in the other targets; includes `test_conformance_selftest_passes` and
-    `test_seq_sections_run`. `--no-default-features --features text-processing`: lib 266, test_seq
-    44, all `ok`; `--no-default-features`: all `ok`. CI clippy lines for both sets clean
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt -p iscc-lib --check`
-    exit 0
-- `mise run bench:iai:check`: exit 0, "OK: 16 benchmark(s) within 10% of baseline (Ir)", run with
-    the header refactor in place. `git log -1 --format=%h -- .iai-baseline.json` prints `ecdee58`
-    (unchanged)
-- CRAP: `mise run coverage` exit 0. Against the old baseline the CI gate exited 1 with 3 regressions
-    in functions this step does not touch: `soft_hash_image_v0` +0.1, `parse_meta_json` /
-    `json_to_data_url` +0.0. Cause UNCONFIRMED: `lib.rs` changed in `173e2f4` (0.7.0 Image-Code fix)
-    after the last baseline refresh `59cdfcc`, but CI CRAP was reportedly green on `d49b953`, so a
-    local-vs-CI measurement difference (local rustc 1.100.0, cargo-llvm-cov 0.9.1; CI uses `@stable`
-    \+ latest) is also possible. After the regen the CI line
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
-    exits 0 (116 unchanged) locally; **CI CRAP on this sha is unverified**
-- `mise run check`: exit 0 (see Notes)
+- [x] `cargo test -p iscc-lib` passes (lib 296, test_seq 44, others ok), including
+    `test_conformance_selftest_passes`. The CI feature matrix also passes: `--no-default-features`
+    245/44, `--all-features` 296/44, `text-processing` 266/44
+- [x] `cargo clippy -p iscc-lib --all-targets -- -D warnings`, workspace clippy, both CI feature
+    clippy lines, and `cargo fmt -p iscc-lib --check` are clean
+- [x] `test_seq.rs` asserts the exact outputs for `270000000000`, `301000000000300000000000` and
+    `faaa-aaaaaaaa`, plus an `Err` with a message substring for each of the 7 Table-2 inputs
+- [x] `iscc_decode` and `iscc_decompose` reject `ISCC:GAIAAAAAAA` and a SubType-8 unit
+- [x] `mise run bench:iai:check` exits 0 with 16 benchmarks OK (`four_units` −4.6%). The
+    `.iai-baseline.json` commit is still `ecdee58`
+- [x] After `mise run coverage`, the CI CRAP line exits 0 (116 unchanged)
+- [x] `mise run check` exit 0. The unpushed range has no suppressions, skips or weakened gates
 
-**Next:** Binding slices for `encode_seq` / `decode_seq` (Python first, with the differential test
-against `iscc_core`), then the other surfaces and their conformance harnesses. Do the Go
-`iscc_clean` issue before the Go seq slice. The Tier-1 33 → 35 doc sweep comes last.
+**Issues found:**
+
+- Codec-wide divergence: `decode_base32` is stricter than the reference. Pre-existing, not caused by
+    this step, and filed as `normal` (see the escalation above)
+- The CRAP baseline regen also re-scored untouched functions, because the toolchain changed. CI's
+    last run used rustc 1.99.1 (`run_data_tests` 10.3), while rustc 1.100.0 gives 9.4. CI's
+    `@stable` is now 1.100.0, with cargo-llvm-cov 0.9.1 and cargo-crap 0.2.2 — the same as local.
+    The old baseline was red locally (3 regressions). **CI CRAP on this sha is unverified**
+- Fixed in review (step 9): `conformance.rs` module doc line was 114 chars (rewrapped, same line
+    count). `test_seq_mismatch_and_parse_failures_fail` never exercised the mismatch arm, because
+    `ISCC:GAAAAAAAAAAA` failed earlier with "Trailing data", and it bundled all three bad cases in
+    one call. It now runs one case per call with a valid mismatch unit, and all 6 arms are confirmed
+- Deleted the `cid:run` fallback-model issue. Its premise ("identical to the primary") no longer
+    holds: human commit `e6e5c70` deliberately set `--fallback-model claude-opus-5`, which differs
+    from `claude-opus-5-5`, so removing the flag would undo a human choice
+- `decisions.md` was rotated 457 → 367 lines using the runner's own `archive_overflow`, which moved
+    the two oldest Unicode-freeze entries. `learnings.md` IDv1 notes were archived
+
+**Codex review:** Two runs, one on HEAD (docs-only: clean) and one on `5d2840e`.
+
+- (P2) Padded and trailing-bit base32 accepted by the reference → real, filed and escalated (above)
+- (P2) `bzqaqyyh…` (multibase `b` + `cc01` + unit) is re-read as a different plain-base32 unit after
+    uppercasing → **dismissed**: iscc-core 1.5.0 returns the identical bytes (`0e6008…`). This is
+    the reference's documented uppercase-first behaviour
+- (P3) Conformance failure test was too weak → fixed in review (above)
+- (P3) The `iscc_decompose` doc's "only 64-bit units" alignment rule is imprecise. What matters is
+    each unit's total byte length being a multiple of 5, so 224-bit units also align and a 64-bit
+    unit with a 3-byte header does not → **dismissed**: the Rust doc is the iscc-core 1.5.0
+    docstring verbatim, as next.md required
+
+**Next:** Once Titusz has settled the base32 question, start the Python `encode_seq` / `decode_seq`
+binding with the differential test against `iscc_core` 1.5.0 (the dev dependency). Base the
+differential reject set on `test_seq.py`, and handle padded and trailing-bit spellings as the
+decision says. If the decision is still pending, any non-Python surface (napi, wasm, ffi with an
+`iscc.h` + `NativeMethods.g.cs` regen in the same step) can go first. Keep the Go `iscc_clean` issue
+ahead of the Go seq slice, and the Tier-1 33 → 35 docs sweep last.
 
 **Notes:**
 
-- **Divergence found (pre-existing, not SEQ-specific):** `codec::decode_base32` (data-encoding
-    `BASE32_NOPAD`) rejects non-zero trailing bits. So `encode_seq(&["GAAAAAAAAB"])` returns
-    `Err("non-zero trailing bits at 9")` here, while `iscc_core.encode_seq(["GAAAAAAAAB"])` returns
-    `300000000000` (both probed). The same applies to every base32 decode (`iscc_decode` etc.). The
-    Python differential slice should either avoid such inputs or file this as an issue. I left
-    `decode_base32` unchanged (out of scope).
-- `cargo clippy -p iscc-lib --all-targets --no-default-features` fails on both bench files because
-    they import gated `gen_meta/text_code_v0`. This predates this step; CI runs that feature set
-    without `--all-targets`.
-- Messages match the reference text (e.g. "Malformed ISCC-HEADER at offset 6: insufficient bits for
-    varnibble"). Only the nested varnibble text differs.
-- Local tooling installed this session: valgrind (needs `apt-get update` first),
-    `iai-callgrind-runner` 0.16.1, `cargo-llvm-cov`, `cargo-crap` 0.2.2, all via `cargo install`.
-- `mise run check` (LANG=C.UTF-8): the first two runs auto-fixed whitespace and mdformat in files
-    written this session; the third run exits 0. A second `mise run coverage` + CI CRAP line also
-    exits 0 (116 unchanged), so the regenerated baseline is deterministic.
+- Confirm CI is green on the pushed sha, especially the CRAP job. If it goes red on the lowered
+    entries (`run_*_tests`, `gen_meta_code_v0`), CI and local are measuring differently. Find out
+    why before regenerating the baseline again, and never widen thresholds
+- `read_unit` returns `Err("Malformed ISCC-HEADER at offset N")` for out-of-range offsets, including
+    `usize::MAX`. Python slices leniently, so this matches the reference message without panicking
+- Local tooling for the iai and CRAP gates (valgrind, iai-callgrind-runner 0.16.1, cargo-llvm-cov,
+    cargo-crap 0.2.2) is installed in this container. Coverage + CRAP takes ~6 min, iai ~2 min

@@ -203,12 +203,30 @@ any test runs. CI passes only because its runners have a UTF-8 locale.
 Resolved when every Ruby test that reads a JSON fixture passes an explicit `encoding: "UTF-8"` and
 `env -u LANG -u LC_ALL bundle exec rake test` passes in `crates/iscc-rb`.
 
-## `cid:run` passes a fallback model identical to the primary `normal` [human]
+## `decode_base32` is stricter than iscc-core on padding and trailing bits `normal` [review]
 
-`mise.toml` runs `tools/cid.py --fallback-model opus run …`. Since every CID role is pinned to
-`claude-opus-5-5` (2026-10-17), the `opus` alias resolves to the same model, so the fallback never
-changes anything on overload. The human decided the loop runs on Opus 5.5 only, so a different
-fallback model is not wanted either.
+**Needs a decision from Titusz before the Python ISCC-SEQ differential slice.**
+`codec::decode_base32` (data-encoding `BASE32_NOPAD`) rejects `=` padding and non-zero unused
+trailing bits. iscc-core re-pads and calls `b32decode`
+(`reference/iscc-core/iscc_core/codec.py:296`), which accepts both. Verified against iscc-core 1.5.0
+in iter 195:
 
-Resolved when the `cid:run` task no longer passes `--fallback-model` (the `--fallback-model` option
-in `tools/cid.py` stays available for ad-hoc use) and `tests/test_cid.py` still passes.
+- `encode_seq(["GAAAAAAAAA======"])` and `encode_seq(["GAAAAAAAAB"])` → `300000000000` in the
+    reference. Rust returns `Err` ("invalid symbol at 10" / "non-zero trailing bits at 9")
+- `iscc_decode("ISCC:GAAAAAAAAB")` → `(3, 0, 0, 0, b'\x00…')` in the reference, `Err` in Rust
+
+The divergence is codec-wide and predates ISCC-SEQ. It conflicts with the spec criterion that the
+Python differential test show "both sides reject the same inputs". The options are:
+
+1. **Stay strict** and exempt these spellings from the differential test as a documented divergence.
+    This is consistent with the archived 2026-07-24 decision, which rejects strings that silently
+    alias a canonical code. `GAAAAAAAAB` aliases `GAAAAAAAAA`.
+2. **Match the reference in `encode_seq` only**, with a lenient local decoder, so the typed codec
+    accepts exactly what it did before (spec "Verified when" item 3).
+3. **Match the reference codec-wide.** This widens the input domain of Tier 1 `iscc_decode` /
+    `iscc_decompose` and conflicts with spec item 3.
+
+Resolved when the choice is recorded in `decisions.md`, and the Python differential test either
+covers these spellings (options 2 and 3) or asserts the divergence explicitly (option 1).
+
+**Spec:** `.claude/context/specs/rust-core.md` → "encode_seq / decode_seq (ISCC-SEQ, IEP-0020)"

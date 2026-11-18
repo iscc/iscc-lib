@@ -988,3 +988,26 @@ runs on `opus`. Deliberate — do not "unify" them.
     CPython 3.14, must print byte-frozen `TOTAL 17793024 comparisons, 0 divergences`; **re-run for
     every Unicode-table or toolchain bump**. Bare `uv run scripts/unicode_sweep.py` REFUSES (only
     rebuild-first `--rebuilt` paths pass)
+
+## ISCC-IDv1 fan-out — completed-phase notes (archived iter 195, IDv1 closed at 190)
+
+- **`gen_iscc_id_v1` is pure Python — oracle-check with no built wheel** (`--with iscc-core`,
+    `MA…`/`ME…` = realm nibble); core + py match byte-for-byte over
+    realm{0,1}×hub{0,4095}×ts{0,2^52-1} (178). NO dedicated decoder on any surface (ref has none).
+    **Minting ≠ decode round-trip**: core `codec::Version` accepts `V1`, but a surface with its OWN
+    version enum makes `iscc_decode(gen_iscc_id_v1(...))` raise `1 is not a valid VS`. Python was
+    the *only* enum surface (widened `VS.V1 = 1` + round-trip, 189); other 10 return bare int/byte.
+    Decode fan-out COMPLETE on all 11; #43 doc/count sweep done (190), IDv1 closed
+- **IDv1 validation ORDER is normative** (spec rust-core.md §Validation; ref `iscc_id.py:127-133`
+    ts→hub→realm, "first failing check wins", even for MULTI-invalid inputs). Wide-int bindings
+    (napi/wasm/jni) MUST check the three SEMANTIC thresholds (`2^52`/`4096`/`2`) in that order IN
+    THE BINDING before narrowing (a wide *narrowing* guard that skips ts is WRONG: `(2^52,65536,0)`
+    reports hub not ts — 183 jni fixed 184). Exact-width surfaces delegate safely. **Ruby (185)
+    narrows Integer→`i64` in Magnus marshalling BEFORE the body** → `RangeError` order break for
+    `> i64::MAX` only (issues.md open; fix: validate in Ruby)
+- **IDv1 minting fan-out COMPLETE (179-190)**: exact-width **unsigned** args (`u64/u16/u8`) can't
+    overflow → no binding guard (core re-checks ts→hub→realm; passthrough can't reorder). Decode is
+    bit-math on `iscc_decode`'s bare-int version, `ts=n>>12`/`hub=n&0xFFF`/`realm=SubType` on the
+    8-byte BE body. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on
+    EVERY build** → pre-push clippy fails "files were modified"; regen+commit it (like `iscc.h`) in
+    the SAME FFI-symbol step, never "the dotnet step"
