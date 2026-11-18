@@ -1,112 +1,92 @@
 # Next Work Package
 
-## Step: Bind `encode_seq` / `decode_seq` on the C FFI
+## Step: Bind `EncodeSeq` / `DecodeSeq` in the .NET wrapper
 
 ## Goal
 
-Export `iscc_encode_seq` / `iscc_decode_seq` from `iscc-ffi` and commit the regenerated `iscc.h` and
-`NativeMethods.g.cs`. That brings ISCC-SEQ to 5 of 11 surfaces and unblocks the .NET and C++ seq
-steps, which build on this C ABI.
+Expose ISCC-SEQ (`encode_seq` / `decode_seq`, IEP-0020, GitHub #45) as idiomatic C# methods on
+`IsccLib` over the existing `NativeMethods.iscc_encode_seq` / `iscc_decode_seq` P/Invoke
+declarations, and run the seq vectors in the .NET conformance harness. That brings ISCC-SEQ to 6 of
+11 surfaces.
 
 ## Alternatives Considered
 
-- **Chosen:** C FFI seq. It is the critical-path gap for v0.8.0: two more surfaces depend on it, and
-    the handoff names it.
-- **Rejected:** the `uv.lock` Dependabot alerts (`soupsieve`/`setuptools`, `normal`). They affect
-    only the dev environment and are small enough to slot in later. The feature fan-out comes first
-    while the FFI context is fresh.
+- **Chosen:** .NET seq. The FFI symbols and generated P/Invoke declarations landed in 205, so this
+    is a single wrapper file plus tests. It continues the v0.8.0 feature set in the order the
+    handoff gives.
+- **Rejected:** bundling C++ `iscc.hpp` seq into the same step. The C++ harness needs its own design
+    (RAII ownership of the returned buffer and string array), and it would push the criteria past 6.
+    C++ is next. The small `normal` issues (py docstring, wasm metadata, Ruby json/locale, uv.lock)
+    stay queued behind the coherent seq fan-out.
 
 ## Scope
 
-- **Modify**: `crates/iscc-ffi/src/lib.rs` (2 exports, update the module doc's codec list, tests in
-    `mod tests`), `crates/iscc-ffi/Cargo.toml` (add `[dev-dependencies] serde_json`, which is
-    already a workspace dep), `crates/iscc-ffi/tests/test_iscc.c` (C tests)
-- **Regenerate + commit (generated, not counted)**: `crates/iscc-ffi/include/iscc.h` (cbindgen),
-    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (csbindgen rewrites it on every
-    `cargo build -p iscc-ffi`), `Cargo.lock` (gains the `serde_json` edge on `iscc-ffi`)
-- **Reference**: `iscc_gen_iscc_code_v0` (input loop over `*const *const c_char` + count),
-    `iscc_encode_component` (the NULL/len-0 slice guard), `iscc_decompose` +
-    `vec_to_c_string_array`, `vec_to_byte_buffer` in `crates/iscc-ffi/src/lib.rs`;
-    `encode_seq`/`decode_seq` docs in `crates/iscc-lib/src/codec.rs`; the CI `c-ffi` job in
-    `.github/workflows/ci.yml` (copy its cbindgen and gcc lines exactly)
+- **Modify**: `packages/dotnet/Iscc.Lib/IsccLib.cs`
+- **Modify (tests)**: `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs`, plus seq unit tests in
+    `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` (or a new `SeqTests.cs`)
+- **Reference**: `.claude/context/specs/rust-core.md` → "encode_seq / decode_seq (ISCC-SEQ,
+    IEP-0020)"; `IsccLib.cs` `GenIsccCodeV0` (pin loop), `AlgMinhash256` (empty sentinel),
+    `ConsumeByteBuffer`, `ConsumeNativeStringArray`; `crates/iscc-ffi/src/lib.rs` `iscc_encode_seq`
+    (L1075), `iscc_decode_seq` (L1126), and its seq tests (~L2075–2220) for error substrings
 
 ## Not In Scope
 
-- The .NET `IsccLib.cs` wrapper and the C++ `iscc.hpp` wrapper. They are the next steps; only the
-    generated `NativeMethods.g.cs` changes here
-- `docs/c-ffi-api.md`, the READMEs, `crates/iscc-ffi/CLAUDE.md` counts, and the Tier 1 33→35 doc
-    sweep (deferred until every surface binds seq)
-- The open c-ffi-api type-name issue
-- Any edit to `crates/iscc-lib`, and splitting `lib.rs` into modules
-- New free functions or result structs: the existing ones fit
+- Any `iscc-ffi` edit. `NativeMethods.g.cs` must not change (it is generated, and already declares
+    both symbols)
+- Fixing the same NULL-on-empty shape in `GenIsccCodeV0` / `GenMixedCodeV0`, and extracting a shared
+    pin-loop helper. Copy the loop into `EncodeSeq` and leave the two gen call sites untouched
+- The 33→35 doc sweep: `packages/dotnet/README.md`, `packages/dotnet/CLAUDE.md`,
+    `docs/howto/dotnet.md`, `docs/` API pages. This waits until all 11 surfaces bind seq
+- C++, JNI, Ruby or UniFFI seq
 
 ## Implementation Notes
 
-- Signatures:
-    - `iscc_encode_seq(units: *const *const c_char, num_units: usize) -> IsccByteBuffer`: free with
-        `iscc_free_byte_buffer`; on error `.data` is NULL
-    - `iscc_decode_seq(data: *const u8, data_len: usize) -> *mut *mut c_char`: a NULL-terminated
-        array, freed with `iscc_free_string_array`; NULL on error
-    - On every error path, call `set_last_error`
-- Input handling: copy `iscc_gen_iscc_code_v0` exactly. A NULL `units` errors even when the count is
-    0; a NULL element errors with its index; invalid UTF-8 errors. Pass the `&[&str]` straight to
-    `iscc_lib::encode_seq`, which itself rejects an empty list.
-- For `decode_seq`, copy the `iscc_encode_component` guard: `data_len == 0` → `&[]`, and the core
-    then rejects empty input. NULL with `data_len > 0` errors.
-- The core never returns an empty `Vec` from either function, so the error signals are unambiguous.
-- Write the doc comments in the house style (`# Parameters` / `# Returns` / `# Safety`). Mention
-    that units may omit `ISCC:` and may be lowercase, and that base32 decoding is strict (no
-    padding, zero spare bits, ASCII-only case folding).
-- **Rust tests (the FFI conformance harness):**
-    - Load `include_str!("../../iscc-lib/tests/data.json")` with `serde_json`. Run every case in the
-        `encode_seq` and `decode_seq` sections through the FFI functions: expected values are
-        `bytes:<hex>`, so add a small hex helper in the tests. Compare the full content: bytes for
-        encode, the unit list for decode.
-    - Add a round trip (decode of encode).
-    - Assert that the walk saw a non-zero number of cases per section. Do not pin an exact count.
-    - Negatives, one bad input per call: NULL `units`, `num_units == 0` with a NON-NULL pointer (so
-        the core's empty-list error is reached), a NULL element, a malformed unit, an ISCC-CODE unit
-        (excluded MainType), `data_len == 0`, truncated bytes, and NULL `data` with a non-zero length.
-        Each negative asserts the null result AND a non-NULL `iscc_last_error()`.
-- **C tests in `test_iscc.c`:** continue the numbered sequence after test 30 and use the existing
-    `ASSERT_*` macros.
-    - Encode the 4 unit strings from `data.json` `encode_seq` → `test_0001_four_units` (already
-        canonical `ISCC:` uppercase).
-    - Decode the buffer. Assert a count of 4 and `strcmp`-equal units.
-    - Free both with the library free functions.
-    - Add one negative: `num_units = 0` with a non-NULL array returns `.data == NULL` and
-        `iscc_last_error()` is non-NULL.
-    - Full vector coverage lives in the Rust test above and in `iscc_conformance_selftest`. The C test
-        checks the ABI and ownership. That is why decision 2026-07-27's generated-header mechanism,
-        which applied to the since-removed Unicode fixture, is not needed here.
-- Run the C test under valgrind:
-    `LD_LIBRARY_PATH=target/debug valgrind --leak-check=full --errors-for-leak-kinds=definite ./test_iscc`.
-    A definite leak or invalid access traced to the seq calls is a failure. Report any
-    pre-existing finding in the handoff; do not fix it.
-- Regenerate the header with the exact cbindgen command from `ci.yml`. Then run
-    `cargo build -p iscc-ffi` and commit `NativeMethods.g.cs` in the same commit. Pre-push clippy
-    rejects a push if the build modified a tracked file.
-- This step touches no core, text or codec hot path, so neither the iai Perf gate nor the CRAP gate
-    (both core-only) can move.
+- Signatures: `public static byte[] EncodeSeq(string[] units)` and
+    `public static string[] DecodeSeq(ReadOnlySpan<byte> data)`, placed after `EncodeComponent` in
+    the codec block, each with an XML `<summary>`. Errors surface as `IsccException` through the
+    existing `Consume*` helpers. Throw `ArgumentNullException` for a null `units` array or a null
+    element, because `ToNativeUtf8(null)` returns null and must never reach `GCHandle.Alloc`.
+- **Empty-list trap (EncodeSeq):** `fixed (byte** p = ptrs)` on a zero-length array yields NULL, so
+    the FFI would report "units must not be NULL" instead of the core's "at least one ISCC-UNIT".
+    For `count == 0`, pass a non-null stack sentinel (as `AlgMinhash256` does) with `num_units = 0`,
+    so the core error surfaces.
+- **No sentinel for DecodeSeq:** `iscc_decode_seq` checks `data_len == 0` before the NULL check, so
+    an empty span already reaches the core's "Empty ISCC-SEQ" error. Plain `fixed` is enough.
+- Ownership: wrap the `iscc_encode_seq` result in `ConsumeByteBuffer`, which frees it with
+    `iscc_free_byte_buffer`. Wrap the `iscc_decode_seq` result in `ConsumeNativeStringArray`, which
+    frees it with `iscc_free_string_array`.
+- Harness shape: both data.json sections use `bytes:<hex>`, not `stream:`. The `encode_seq` case has
+    `inputs[0]` = string array and `outputs` = a bare `"bytes:…"` string. The `decode_seq` case has
+    `inputs[0]` = `"bytes:…"` and `outputs` = a string array. Neither `outputs` is an object, unlike
+    the nine gen theories. Add a `DecodeBytes` helper next to `DecodeStream`, and add two `[Theory]`
+    \+ `MemberData` pairs in the existing style.
+- **Round trip is BYTES:** add a theory over the `decode_seq` vectors asserting
+    `EncodeSeq(DecodeSeq(x))` equals `x` byte-for-byte. Decode-of-encode alone is not enough.
+- Negatives, one bad input per test, each asserting its `IsccException.Message` contains:
+    `EncodeSeq([])` → "at least one ISCC-UNIT"; `["ISCC:NOT-A-VALID-UNIT!"]` → "base32 decode
+    error"; the ISCC-CODE `ISCC:KACYPXW445FTYNJ3CYSXHAFJMA2HUWULUNRFE3BLHRSCXYH2M5AEGQY` → "not
+    permitted in an ISCC-SEQ"; `DecodeSeq([])` → "Empty ISCC-SEQ"; a vector's bytes minus the last
+    byte → "Truncated". Also add one null-element test (`ArgumentNullException`) and one lower-case,
+    prefix-free unit that encodes the same bytes as its `ISCC:` form (FFI test L2138).
+- The `ConformanceTests.cs` header comment and class summary say "all 9 gen functions … (50 total)".
+    Reword them evergreen to cover the seq sections, with no hard-coded total.
+- Binding-only step: no core or hot-path code, so the iai Perf and CRAP gates are unaffected.
 
 ## Verification
 
-- `cargo test -p iscc-ffi` passes, including the data.json seq-vector walk, the round trip and the
-    one-input-per-call negatives
-- `cargo clippy -p iscc-ffi --all-targets -- -D warnings` and `cargo fmt -p iscc-ffi --check` are
-    clean
-- The header is fresh. Running
-    `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output /tmp/iscc_fresh.h`
-    then `diff /tmp/iscc_fresh.h crates/iscc-ffi/include/iscc.h` exits 0, and `iscc.h` declares both
-    `iscc_encode_seq` and `iscc_decode_seq`
-- The C test passes. After `cargo build -p iscc-ffi`, the `ci.yml` gcc line plus
-    `LD_LIBRARY_PATH=target/debug ./test_iscc` reports 0 failures, including the seq round trip
-- `NativeMethods.g.cs` contains both symbols. After `cargo build -p iscc-ffi`,
-    `git status --porcelain packages/dotnet/Iscc.Lib/NativeMethods.g.cs crates/iscc-ffi/include/iscc.h`
-    is empty, and `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` exits 0
+- `cargo build -p iscc-ffi && dotnet restore packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj --locked-mode && dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj --no-restore`
+    exits 0 with 0 warnings
+- `dotnet test packages/dotnet/Iscc.Lib.Tests/ --no-restore -e LD_LIBRARY_PATH=$PWD/target/debug`
+    exits 0, and the output lists the encode/decode seq theories and the byte round trip
+- `IsccLib.cs` declares `public static byte[] EncodeSeq(string[] units)` and
+    `public static string[] DecodeSeq(ReadOnlySpan<byte> data)`
+- `EncodeSeq` with an empty array throws `IsccException` whose message contains "at least one
+    ISCC-UNIT" (asserted by a test)
+- `git status --porcelain packages/dotnet/Iscc.Lib/NativeMethods.g.cs crates/iscc-ffi` is empty
+    after the build
 - `mise run check` exits 0
 
 ## Done When
 
-All six verification criteria pass with the two exports, their tests, and both regenerated artifacts
-committed together.
+The advance agent is done when the .NET wrapper exposes `EncodeSeq` / `DecodeSeq`, the seq vectors
+and the byte round trip pass in `dotnet test`, and all verification criteria pass.

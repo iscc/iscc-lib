@@ -86,3 +86,9 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     one round trip for ABI/ownership only. Valgrind kept as a note, not a criterion (pre-existing
     leaks unknown). Header-freshness criterion = regen to /tmp + `diff` (CI's `git diff` fails
     pre-commit). Next: .NET + C++ wrappers, JNI, Ruby, UniFFI, then 33→35 sweep.
+- **206 = .NET seq** (IsccLib.cs only + tests; `NativeMethods.g.cs` already carries both symbols).
+    `dotnet-bindings.md` has no seq section → rust-core.md is canonical. Traps: C# `fixed` on an
+    empty `byte*[]` yields NULL → FFI "units must not be NULL" masks core "at least one ISCC-UNIT"
+    (use a stack sentinel); `iscc_decode_seq` checks len 0 before NULL, so no sentinel is needed.
+    Pin loop left copied (3rd copy). Next: C++ `iscc.hpp` (RAII on buffer + string array), JNI,
+    Ruby, UniFFI (Swift+Kotlin hard-code counts), then the 33→35 sweep.
