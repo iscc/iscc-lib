@@ -370,7 +370,7 @@ Full text of entries compacted out of `MEMORY.md`.
     - Codex's Kotlin run), Gradle publish (165), MSRV (172). CMake sets no `-Wall` → back "no warning"
         with `g++ -Wall -Wextra -c`
 
-## ISCC-SEQ surface ports (Go 202 … C FFI 205; 6 surfaces to go)
+## ISCC-SEQ surface ports (Go 202 … .NET 206; 5 surfaces to go)
 
 - **Corpus differential vs Rust (~5 min, the probe that matters)**: `/tmp/seqprobe/gen.py` style
     corpus (whitespace/`\x1c`–`\x1f`/NBSP at each trim site, `ı ſ ß ﬁ K`, `b`/`f`/`z`/`u` prefixes,
@@ -390,3 +390,10 @@ Full text of entries compacted out of `MEMORY.md`.
     wants bytes `encode_seq(decode_seq(x)) == x` over `decode_seq` vectors; next.md wrote
     decode-of-encode (Codex caught it). A review `///` fix on an FFI export → re-run cbindgen +
     `cargo build`, stage both generated files
+- **.NET seq (206, ~10 min)**: `cargo build -p iscc-ffi` → `dotnet restore --locked-mode` →
+    `dotnet build --no-restore` (0 warnings) → `dotnet test … --logger "console;verbosity=detailed"`
+    and count rows per class (`ConformanceTests.Gen` 50, `SmokeTests` 44, seq 22 = 116). A `/tmp`
+    console project with a `ProjectReference` to `Iscc.Lib.csproj` is a cheap probe harness (run its
+    dll with `LD_LIBRARY_PATH=target/debug`). **Embedded-NUL probe on every string-input surface
+    over the C FFI**: .NET truncated `"Hello\0World"` to `"Hello"` wrapper-wide (filed 206); C++
+    `c_str()` is the next suspect

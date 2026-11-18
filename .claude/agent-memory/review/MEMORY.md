@@ -121,6 +121,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **C-FFI / thin-wrapper seq step (205, ~12 min)**: no corpus differential needed; header diff + C
     test + valgrind + generated-file `git status`. **Check the round-trip DIRECTION** — spec wants
     bytes over `decode_seq` vectors; next.md wrote decode-of-encode → `binding-reviews.md`
+- **.NET wrapper step (206, ~10 min)**: FFI build → locked restore → build (0 warnings) → detailed
+    `dotnet test`, count rows per class. **Probe `x + "\0junk"` on string inputs of any binding over
+    the C FFI** — .NET truncates silently (Codex found it, filed) → `binding-reviews.md`
 - **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in
     `gate-reviews.md`); stage `decisions-archive.md` too (195)
 

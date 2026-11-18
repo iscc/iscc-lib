@@ -1,51 +1,63 @@
-## 2026-11-18 — Bind `EncodeSeq` / `DecodeSeq` in the .NET wrapper
+## 2026-11-18 — Review of: Bind `EncodeSeq` / `DecodeSeq` in the .NET wrapper
 
-**Done:** `IsccLib` now exposes `public static byte[] EncodeSeq(string[] units)` and
-`public static string[] DecodeSeq(ReadOnlySpan<byte> data)`. Both sit right after `EncodeComponent`
-and wrap the existing `NativeMethods.iscc_encode_seq` / `iscc_decode_seq` through
-`ConsumeByteBuffer` / `ConsumeNativeStringArray`. The .NET conformance harness runs both data.json
-seq sections plus the BYTE round trip, and a new `SeqTests.cs` covers the negatives. ISCC-SEQ now
-covers 6 of 11 surfaces.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `packages/dotnet/Iscc.Lib/IsccLib.cs`: adds `EncodeSeq` (pin loop copied from `GenIsccCodeV0`) and
-    `DecodeSeq`. `EncodeSeq` throws `ArgumentNullException` for a null array or element. When
-    `count == 0` it passes a non-null `byte*` stack sentinel with `num_units = 0`, so the core
-    message "at least one ISCC-UNIT" surfaces. `DecodeSeq` uses plain `fixed`
-- `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs`: adds the `DecodeBytes` and `ToStringArray`
-    helpers and three theories: `EncodeSeq` and `DecodeSeq` (one per section), plus
-    `SeqRoundTripBytes`, which asserts `EncodeSeq(DecodeSeq(x)) == x` over the `decode_seq` vectors.
-    The header comment and class summary are reworded evergreen, with no hard-coded total
-- `packages/dotnet/Iscc.Lib.Tests/SeqTests.cs` (new file): 10 facts. Seven negatives, one bad input
-    each, assert a message substring or exception type: empty → "at least one ISCC-UNIT",
-    `ISCC:NOT-A-VALID-UNIT!` → "base32 decode error", the ISCC-CODE → "not permitted in an
-    ISCC-SEQ", `DecodeSeq([])` → "Empty ISCC-SEQ", vector bytes minus the last byte → "Truncated", a
-    null array and a null element → `ArgumentNullException`. Three positives: a lower-case
-    prefix-free unit gives the same bytes as its `ISCC:` form, a single-unit round trip, and the
-    four-unit vector decodes to 4 units
+**Summary:** `IsccLib.EncodeSeq(string[])` and `IsccLib.DecodeSeq(ReadOnlySpan<byte>)` wrap the
+existing P/Invoke declarations correctly, and the generated files are untouched. They cover the null
+and empty-array guards, use the stack sentinel that lets the core's empty-list message through, and
+free native memory through the `Consume*` helpers. The harness runs both data.json seq sections plus
+the byte round trip `EncodeSeq(DecodeSeq(x)) == x`. ISCC-SEQ now covers 6 of 11 surfaces. The review
+found one pre-existing problem that affects the whole wrapper (embedded NUL, below), filed as an
+issue rather than blocking.
 
 **Verification:**
 
-- `cargo build -p iscc-ffi && dotnet restore … --locked-mode && dotnet build … --no-restore`: Build
-    succeeded, 0 Warning(s), 0 Error(s)
-- `dotnet test packages/dotnet/Iscc.Lib.Tests/ --no-restore -e LD_LIBRARY_PATH=$PWD/target/debug`:
-    exit 0, Total 116, Passed 116, 0 failed. The output lists `ConformanceTests.EncodeSeq` ×4,
-    `DecodeSeq` ×4, `SeqRoundTripBytes` ×4 and the 10 `SeqTests` facts. Breakdown from the log: 50
-    `ConformanceTests.Gen*` rows (all nine gen theories intact) + 44 `SmokeTests` facts + 22 seq
-    tests (12 theory rows + 10 facts) = 116
-- `git status --porcelain packages/dotnet/Iscc.Lib/NativeMethods.g.cs crates/iscc-ffi`: empty after
-    the build
-- `mise run check`: exit 0, all hooks Passed
+- [x] `cargo build -p iscc-ffi && dotnet restore … --locked-mode && dotnet build … --no-restore`:
+    Build succeeded, 0 Warning(s), 0 Error(s)
+- [x] `dotnet test … --no-restore -e LD_LIBRARY_PATH=$PWD/target/debug`: exit 0, 116/116 passed. The
+    detailed log lists `ConformanceTests.EncodeSeq` ×4, `DecodeSeq` ×4, `SeqRoundTripBytes` ×4 and
+    10 `SeqTests`. Per-class counts: 50 `ConformanceTests.Gen*` rows (no rows lost), 44
+    `SmokeTests`, 22 seq tests
+- [x] `IsccLib.cs` declares `public static byte[] EncodeSeq(string[] units)` (L488) and
+    `public static string[] DecodeSeq(ReadOnlySpan<byte> data)` (L542)
+- [x] `EncodeSeq([])` throws `IsccException` containing "at least one ISCC-UNIT", asserted by
+    `SeqTests.EncodeSeq_Empty_ThrowsAtLeastOneUnit`
+- [x] `git status --porcelain packages/dotnet/Iscc.Lib/NativeMethods.g.cs crates/iscc-ffi` is empty
+    after the build
+- [x] `mise run check`: exit 0, no files rewritten
+- [x] Extra: the unpushed range (define-next, update-state, advance) contains no lint suppressions
+    or skipped tests. All five tracked `data.json` copies are identical and have 4+4 seq vectors
 
-**Next:** C++ `iscc.hpp` seq, which needs RAII ownership of the returned `IsccByteBuffer` and the
-string array, and must include the BYTE round trip. After that come JNI, Ruby and UniFFI, then the
-33→35 doc sweep. That sweep includes `packages/dotnet/CLAUDE.md`, which still says "all 9 gen
-functions (50 vectors total)", and `packages/dotnet/README.md` / `docs/howto/dotnet.md`. The same
-CLAUDE.md's File Layout and Test Patterns sections also do not list `SeqTests.cs` yet.
+**Issues found:**
 
-**Notes:** binding-only step. No core, FFI or hot-path code changed, so iai, CRAP and the generated
-files are unaffected. The empty-array sentinel is a `byte* sentinel = null` local whose address is
-passed as `byte**`. The FFI only calls `from_raw_parts(units, 0)`, which needs a non-null, aligned
-pointer and never dereferences it. `GenIsccCodeV0` / `GenMixedCodeV0` keep their NULL-on-empty
-shape, and the pin loop stays duplicated (three copies now), as next.md asked.
+- **Embedded NUL truncates every .NET string input** (filed, `normal`). Probed:
+    `EncodeSeq([unit + "\0junk"])` and `IsccDecompose(code + "\0junk")` succeed using only the text
+    before the NUL; Python raises "base32 decode error". `GenTextCodeV0("Hello\0World")` returns the
+    code for `"Hello"`, `ISCC:EAAWSPUDF7GJWQVD`, while Python returns `ISCC:EAASKDNZNYGUUF5A`.
+    Cause: `ToNativeUtf8` keeps the `\0`, and the FFI's `CStr` stops reading there. This step
+    followed the prescribed pattern, so it is not a regression
+- **Three copies of the string-array pin loop**, plus NULL-on-empty in `GenIsccCodeV0` /
+    `GenMixedCodeV0` (filed, `normal`). next.md deferred this on purpose; the entry keeps it from
+    getting lost
+- Nit: `ConsumeByteBuffer` casts `buf.len` to `int` without a check, so an output over 2 GiB would
+    be cut short silently. That would take hundreds of millions of units, and the helper is shared
+    and pre-existing. Not filed
+
+**Codex review:** reviewed the main commit `e79a035`, since HEAD only holds handoff text. Two
+findings. P2 (embedded NUL makes `EncodeSeq` encode only the text before the NUL) is real; probing
+showed the whole wrapper is affected, filed as above. P3 (unchecked `nuint`→`int` length cast in
+`ConsumeByteBuffer`) is valid in theory but needs an output of several GiB; noted above, not filed.
+
+**Next:** C++ `iscc.hpp` seq, as planned. It needs RAII ownership of the returned `IsccByteBuffer`
+and string array, the byte round trip over the `decode_seq` vectors, and one bad input per negative
+test. **Watch:** `iscc.hpp` passes `std::string::c_str()` to the FFI at 15 sites, so it probably has
+the same embedded-NUL truncation (unprobed). Either probe `unit + '\0' + "junk"` in that step and
+widen the NUL issue, or sequence the NUL fix first so C++ seq does not copy the problem. Then JNI,
+Ruby and UniFFI seq, then the 33→35 doc sweep. The sweep includes `packages/dotnet/CLAUDE.md`, which
+still says "all 9 gen functions (50 vectors total)" and does not list `SeqTests.cs` in File Layout
+or Test Patterns, plus `packages/dotnet/README.md` and `docs/howto/dotnet.md`.
+
+**Notes:** binding-only step: no core, FFI or hot-path changes, so iai and CRAP are unaffected.
+`maturin develop --release` was rebuilt before the push. A `/tmp` console project with a
+`ProjectReference` to `Iscc.Lib.csproj` makes a cheap .NET probe harness; run its dll with
+`LD_LIBRARY_PATH=target/debug`.

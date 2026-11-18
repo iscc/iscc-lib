@@ -19,11 +19,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **`encode_seq` upper-cases before cleaning, so `b` + base32(`cc01` + unit) can read as a DIFFERENT
     valid bare unit** (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20 bytes) — iscc-core 1.5.0 returns the
     same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
-- **JS surfaces differ on list/buffer params** (204): WASM
-    `serde_wasm_bindgen::from_value::<Vec<T>>` accepts ANY iterable (`Set`, generator), napi
-    `Vec<String>` throws `ArrayExpected` — never doc "throws on non-array" for WASM. napi 3.11
-    `Buffer::from_napi_value` takes a strong ref BEFORE `napi_get_buffer_info` and never frees it on
-    failure, so a non-Buffer object arg leaks it
+- **Binding input-marshalling traps**: WASM `serde_wasm_bindgen` `Vec<T>` accepts ANY iterable while
+    napi `Vec<String>` throws `ArrayExpected`, so never document "throws on non-array" for WASM
+    (204). **C-string marshalling truncates at an embedded NUL** (206): .NET keeps the `\0`, the
+    FFI's `CStr` stops there, so `GenTextCodeV0("Hello\0World")` gives `"Hello"`'s code. Probe
+    `x + "\0junk"` on every string input of a binding built over the C FFI (.NET, C++)
 - **Binding fan-out traps (IDv1 177-190, detail → `learnings-archive.md`)**: a surface with its OWN
     enum (Python `VS`) can break a round trip the core allows; wide-int bindings check semantic
     thresholds in the binding before narrowing. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked

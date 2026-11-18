@@ -231,3 +231,35 @@ unless `build.rs` lists the new files. Moving only `mod tests` to `src/tests.rs`
 Resolved when `lib.rs` is back under the documented threshold (or the threshold is deliberately
 changed in `crates/iscc-ffi/CLAUDE.md`), and `cbindgen` + `cargo build -p iscc-ffi` leave `iscc.h`
 and `NativeMethods.g.cs` byte-identical.
+
+## .NET wrapper silently truncates string inputs at an embedded NUL `normal` [review]
+
+`ToNativeUtf8` (`packages/dotnet/Iscc.Lib/IsccLib.cs`) encodes the whole managed string including
+any `\0`, but every `iscc-ffi` string parameter is read with `CStr::from_ptr`, which stops at the
+first NUL. So all 17 `ToNativeUtf8` call sites (gen functions, text utilities, codec, `EncodeSeq`)
+compute their result from the prefix and return it as a success. Probed in iter 206:
+`GenTextCodeV0("Hello\0World")` returns `ISCC:EAAWSPUDF7GJWQVD`, the code of `"Hello"`, while Python
+`gen_text_code_v0("Hello\x00World")` gives `ISCC:EAASKDNZNYGUUF5A`. `EncodeSeq([unit + "\0junk"])`
+and `IsccDecompose(code + "\0junk")` succeed on the prefix, while Python `encode_seq` raises "base32
+decode error". Found by Codex in the .NET seq review.
+
+The C++ wrapper hands `std::string::c_str()` to the same FFI at 15 sites in
+`packages/cpp/include/iscc/iscc.hpp`, so it probably has the same shape. That is not probed, and the
+C++ seq binding should not copy it. Fix options, both unverified: reject an embedded NUL at the
+choke point (`ToNativeUtf8`), which is loud but rejects text the core accepts, or pass
+length-delimited bytes, which changes the FFI ABI. Choosing between them is a design decision.
+
+Resolved when no .NET string input returns a result computed from a NUL-truncated string, pinned by
+tests covering at least one gen, one text and one codec method plus `EncodeSeq`.
+
+## .NET string-array pinning is copied three times; the gen copies pass NULL for `[]` `normal` [review]
+
+`GenMixedCodeV0`, `GenIsccCodeV0` and `EncodeSeq` (`packages/dotnet/Iscc.Lib/IsccLib.cs`) each carry
+the same ~35-line unsafe pin loop: UTF-8 conversion, `GCHandle.Alloc(…, Pinned)`,
+`fixed (byte** …)`, and a free in `finally`. Only `EncodeSeq` guards a null array or element and has
+an empty-array sentinel. The two gen copies run `fixed` over an empty `byte*[]`, which yields NULL,
+so `[]` surfaces the FFI's "must not be NULL" message instead of the core's error. next.md deferred
+both in iter 206 to keep the seq step to one file.
+
+Resolved when one private helper does the pinning for all three methods, and an empty or null input
+to the two gen methods fails the same way as `EncodeSeq` (tests assert the core's message for `[]`).
