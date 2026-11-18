@@ -79,3 +79,10 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     bytes). Next: FFI seq (`iscc.h` + `NativeMethods.g.cs` regen, C ownership of the returned
     buffer/string array), then .NET/C++, JNI, Ruby, UniFFI (Swift+Kotlin hard-code counts), then the
     33→35 doc sweep; small `normal` issues interleaved.
+- **205 = C FFI seq** (lib.rs + Cargo.toml `serde_json` dev-dep + test_iscc.c; regen `iscc.h` +
+    `NativeMethods.g.cs`). FFI had NO data.json harness (only `iscc_conformance_selftest`) → Rust
+    tests walk data.json seq sections via `include_str!`. Decision 2026-07-27 (generated C vector
+    header) applied to the removed Unicode fixture; the header/script no longer exist → C test pins
+    one round trip for ABI/ownership only. Valgrind kept as a note, not a criterion (pre-existing
+    leaks unknown). Header-freshness criterion = regen to /tmp + `diff` (CI's `git diff` fails
+    pre-commit). Next: .NET + C++ wrappers, JNI, Ruby, UniFFI, then 33→35 sweep.
