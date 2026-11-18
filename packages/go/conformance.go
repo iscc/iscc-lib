@@ -1,15 +1,17 @@
 // Conformance selftest for ISO 24138:2024 (ISCC).
-// Runs all 9 gen functions against vendored conformance vectors from data.json
-// and reports pass/fail. An application that claims ISCC conformance MUST pass
-// all tests in this suite.
+// Runs every gen function and the ISCC-SEQ codec (EncodeSeq/DecodeSeq) against
+// the vendored conformance vectors from data.json and reports pass/fail. An
+// application that claims ISCC conformance MUST pass all tests in this suite.
 package iscc
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -45,11 +47,16 @@ func parseConformanceData(raw []byte) (map[string]map[string]vectorEntry, error)
 	return data, nil
 }
 
-// ConformanceSelftest validates all 50 conformance vectors from data.json.
+// ConformanceSelftest validates every gen function and ISCC-SEQ conformance
+// vector in data.json.
 // Returns (true, nil) if all vectors pass, (false, nil) if any mismatch,
 // and (false, error) if data.json cannot be parsed.
 func ConformanceSelftest() (bool, error) {
 	data, err := parseConformanceData([]byte(conformanceData))
+	if err != nil {
+		return false, err
+	}
+	seqData, err := parseSeqConformanceData([]byte(conformanceData))
 	if err != nil {
 		return false, err
 	}
@@ -64,6 +71,8 @@ func ConformanceSelftest() (bool, error) {
 	passed = runDataTests(data) && passed
 	passed = runInstanceTests(data) && passed
 	passed = runIsccTests(data) && passed
+	passed = runEncodeSeqTests(seqData) && passed
+	passed = runDecodeSeqTests(seqData) && passed
 
 	return passed, nil
 }
@@ -491,4 +500,139 @@ func runIsccTests(data map[string]map[string]vectorEntry) bool {
 		}
 	}
 	return passed
+}
+
+// seqVector holds a single ISCC-SEQ conformance test case from data.json.
+// The outputs are a "bytes:<hex>" string (encode_seq) or a list of unit
+// strings (decode_seq), so they stay raw until the runner parses them.
+type seqVector struct {
+	Inputs  []json.RawMessage `json:"inputs"`
+	Outputs json.RawMessage   `json:"outputs"`
+}
+
+// seqSections names the ISCC-SEQ codec sections of data.json.
+var seqSections = [...]string{"encode_seq", "decode_seq"}
+
+// parseSeqConformanceData unmarshals the ISCC-SEQ sections of data.json.
+// A missing section is left out, so its runner reports it as missing.
+func parseSeqConformanceData(raw []byte) (map[string]map[string]seqVector, error) {
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sections); err != nil {
+		return nil, fmt.Errorf("could not parse conformance data: %w", err)
+	}
+
+	data := make(map[string]map[string]seqVector, len(seqSections))
+	for _, key := range seqSections {
+		rawSection, ok := sections[key]
+		if !ok {
+			continue
+		}
+		var cases map[string]seqVector
+		if err := json.Unmarshal(rawSection, &cases); err != nil {
+			return nil, fmt.Errorf("could not parse section %s: %w", key, err)
+		}
+		data[key] = cases
+	}
+	return data, nil
+}
+
+// decodeBytesValue decodes a "bytes:<hex>" fixture value into bytes.
+func decodeBytesValue(s string) ([]byte, error) {
+	hexData, ok := strings.CutPrefix(s, "bytes:")
+	if !ok {
+		return nil, fmt.Errorf("missing bytes: prefix in %q", s)
+	}
+	return hex.DecodeString(hexData)
+}
+
+// runEncodeSeqTests validates encode_seq conformance vectors
+// (inputs [[str…]], output "bytes:<hex>").
+func runEncodeSeqTests(data map[string]map[string]seqVector) bool {
+	funcName := "encode_seq"
+	cases, ok := data[funcName]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
+		return false
+	}
+
+	passed := true
+	for tcName, tc := range cases {
+		if !runEncodeSeqCase(funcName, tcName, tc) {
+			passed = false
+		}
+	}
+	return passed
+}
+
+// runEncodeSeqCase runs a single encode_seq test case.
+func runEncodeSeqCase(funcName, tcName string, tc seqVector) bool {
+	var units []string
+	var outputStr string
+	if len(tc.Inputs) < 1 || json.Unmarshal(tc.Inputs[0], &units) != nil ||
+		json.Unmarshal(tc.Outputs, &outputStr) != nil {
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
+		return false
+	}
+	expected, err := decodeBytesValue(outputStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not decode output: %v\n", funcName, tcName, err)
+		return false
+	}
+
+	seq, err := EncodeSeq(units)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
+		return false
+	}
+	if !bytes.Equal(seq, expected) {
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %x, got %x\n", funcName, tcName, expected, seq)
+		return false
+	}
+	return true
+}
+
+// runDecodeSeqTests validates decode_seq conformance vectors
+// (inputs ["bytes:<hex>"], output [str…]).
+func runDecodeSeqTests(data map[string]map[string]seqVector) bool {
+	funcName := "decode_seq"
+	cases, ok := data[funcName]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
+		return false
+	}
+
+	passed := true
+	for tcName, tc := range cases {
+		if !runDecodeSeqCase(funcName, tcName, tc) {
+			passed = false
+		}
+	}
+	return passed
+}
+
+// runDecodeSeqCase runs a single decode_seq test case.
+func runDecodeSeqCase(funcName, tcName string, tc seqVector) bool {
+	var inputStr string
+	var expected []string
+	if len(tc.Inputs) < 1 || json.Unmarshal(tc.Inputs[0], &inputStr) != nil ||
+		json.Unmarshal(tc.Outputs, &expected) != nil {
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
+		return false
+	}
+	seq, err := decodeBytesValue(inputStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not decode input: %v\n", funcName, tcName, err)
+		return false
+	}
+
+	units, err := DecodeSeq(seq)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
+		return false
+	}
+	if !slices.Equal(units, expected) {
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %v, got %v\n", funcName, tcName, expected, units)
+		return false
+	}
+	return true
 }

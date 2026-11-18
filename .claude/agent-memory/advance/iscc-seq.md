@@ -32,5 +32,11 @@ not objects). Then the Tier-1 33→35 doc/count sweep (like IDv1 iter 190).
 - Spare-bit trap: 64-bit units have NO spare bits; use 32-bit `GAAAAAAAAB` or 256-bit `…GBI`→`…GBJ`.
     `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` itself has dirty spare bits (fails base32 in iscc_lib, not
     MainType) — canonical ISCC-CODE for the MainType arm: `ISCC:KUAALNA7GRZESMRFUURK6SRMTS7WU`
+- **Go DONE (iter 202)**: `EncodeSeq`/`DecodeSeq` in `codec.go` (pure Go, own port); unexported
+    `readUnit`/`seqMainTypes` on raw helpers `encodeHeaderRaw`/`decodeHeaderRaw` (u32, returns
+    `tailStart`); typed `encodeHeader`/`decodeHeader` wrap them. Selftest: separate
+    `parseSeqConformanceData` + `runEncodeSeqTests`/`runDecodeSeqTests` (`seqVector` raw outputs).
+    Tests `seq_test.go`. GOTCHA: `testing.AllocsPerRun` on an inlinable fn with `_ =` result can
+    elide the copy → false 0; assign to a package-level sink var
 - Remaining surfaces: Node, WASM, C FFI (+ regen iscc.h AND NativeMethods.g.cs), JNI, Ruby, UniFFI,
-    .NET, C++, Go (needs decodeBase32 fix + isccClean port first)
+    .NET, C++. Then 33→35 sweep (incl. `packages/go/CLAUDE.md` stale "9 gen"/"46 vectors")
