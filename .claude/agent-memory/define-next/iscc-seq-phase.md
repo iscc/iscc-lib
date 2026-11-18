@@ -53,3 +53,8 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     ASCII-only (EqualFold folds ſ). **Case-fold alias step owns the Codex `%q` whole-input echo in
     Go `decodeBase32` error** (handoff gets overwritten — carry it). After 200: case-fold alias
     (Rust+Go, iai), text-utils trim parity (iai), then Go seq + 9 binding surfaces.
+- **201 = case-fold alias fix** (codec.rs L520/L834, lib.rs L229, codec.go L405/L454 + drop `%q`
+    echo). CI red again = capacity (annotations API confirmed), not a step. Traps handed over:
+    non-ASCII char must sit after the 2-char prefix; `encode_seq` unit case (`gaawdlqng6ſsdpf2`)
+    since prefix sites are grep-gated only. Next: Go `EncodeSeq`/`DecodeSeq` (ASCII upper-case
+    BEFORE `isccClean`), text-utils trim parity, then 9 binding surfaces.
