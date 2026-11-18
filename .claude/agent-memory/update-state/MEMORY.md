@@ -21,7 +21,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     `MEMORY-archive.md`); out-of-loop `cid(loop):` commits leave NO jsonl entry — diff them. A
     TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
     UNRELIABLE (none at 170) — never park a finding for it.
-- **Counts + the glob/grep trap for each → `counts.md`** (200: 415 iscc-lib `#[test]`, 182 Go; 199:
+- **Counts + the glob/grep trap for each → `counts.md`** (201: 415 iscc-lib `#[test]`, 194 Go; 199:
     118 CRAP; 196: 12 READMEs, 22 docs pages, 179 Go, 49 ffi externs, 21 version_sync, 5 fixture
     copies).
 - **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
@@ -86,20 +86,19 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: fd3f6e3, iter 200 — incremental)
+## Current State (assessed-at: c2f61e3, iter 201 — incremental)
 
-- **CI RED on `5abda9f`** (run 44321640827): only Swift `cancelled`, zero steps — runner-capacity
-    cancel ("not acquired by Runner of type hosted"), 20/21 passed. Last green `3e1f8e5`. A suite
+- **CI RED on `e8130a8`** (run 44336381374): Swift `cancelled`, 0 steps, runner-capacity — 2nd in a
+    row (also `5abda9f`); 20/21 passed. Last green `3e1f8e5`. Swift is the ONLY macos job. A suite
     `failure` whose sole non-success run is `cancelled` w/ 0 steps = infra; confirm via
     `gh api repos/iscc/iscc-lib/check-runs/<id>/annotations`. Still report FAILING.
 - **ISCC-SEQ bindings 1/11 (Python)**. Probe:
     `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages` —
-    `packages/go/conformance.go:27` is a COMMENT hit.
-- **Strict base32 pinned 199**: `tests/test_strict_base32.rs` (7) + Go strict tests (3). Go
-    spare-bit issue closed; new `normal` = non-ASCII case-fold aliases (Rust+Go).
-- **8 open `normal`**, 7 low (15 headers).
-- **`#[test]` count 415** (408 + 7 by diff of `^\+\s*#\[test\]`); Go `func Test` 182. Count by DIFF,
-    not grep (naive grep +1).
+    `packages/go/conformance.go:27` is a COMMENT hit; data.json copies are noise.
+- **Go `isccClean` done 200** (`codec.go:571`, 4 call sites); Go cleaning issue closed.
+    `strings.ToUpper` survivors at `codec.go:405/:454` = case-fold alias issue.
+- **7 open `normal`**, 7 low (14 headers).
+- **`#[test]` count 415**; Go `func Test` 194 (sum via awk, no `bc` in sandbox). Count Rust by DIFF.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.
 - **Python heredoc gotcha**: `uv run ... - << EOF || python3 - << EOF2` silently did nothing (198);
