@@ -37,8 +37,8 @@ open and all of them can be worked now.
     platforms; 12 `py.detach` sites; 0.7.0 on PyPI
 - `tests/test_seq.py` has 29 test functions: fixture conformance, round trip, bad inputs, the
     `iscc_core` strict-base32 differential, and whitespace-rejection differentials in both
-    directions, with the strip set derived live. The seq "both sides reject the same inputs"
-    criterion is no longer blocked
+    directions. The `rust-core.md` Python seq differential criterion, including its strict-base32
+    carve-out, is met; the only Python gap is the stale doc line below
 - Stale doc: `crates/iscc-py/CLAUDE.md` still says "27 #[pyfunction]s"
 
 ## Node.js Bindings
@@ -103,8 +103,8 @@ open and all of them can be worked now.
 
 - 12 criterion benches + iai-callgrind (`crates/iscc-lib/benches/`); pytest-benchmark comparing
     iscc-core and iscc-lib in `benchmarks/python/`; speedups published in `docs/benchmarks.md`
-- 10 of 16 iai benches sit 3.5–7.7% below the committed baseline, so the effective regression
-    tolerance on those benches is looser than 10%. Refreshing the baseline needs authorisation
+- Review 198 reports 10 of 16 iai benches 3.5–7.7% below the committed baseline, which loosens the
+    effective tolerance on those benches. A baseline refresh needs authorisation
 
 ## CI/CD and Publishing
 

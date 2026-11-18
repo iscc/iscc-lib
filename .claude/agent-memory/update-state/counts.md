@@ -22,7 +22,7 @@ command give a different number.
 | `packages/go` `^func Test`       | 179 (194)    |                                                                                                            |
 | iscc-ffi externs                 | 49 (194)     | `'#\[unsafe(no_mangle)\]'`; bare `no_mangle` gives 48                                                      |
 | UniFFI exports                   | 33 (194)     | same Tier 1 surface as every other binding                                                                 |
-| CRAP baseline `entries`          | 116 (196)    | `.crap-baseline.json` `entries` key                                                                        |
+| CRAP baseline `entries`          | 118 (199)    | `.crap-baseline.json` `entries` key                                                                        |
 | iai baseline entries             | 16           | 11 bench fns                                                                                               |
 | criterion benches                | 12           | criterion **0.8.2** since 171; one `criterion_group!` in `benches/benchmarks.rs`                           |
 | version_sync targets             | 21           | `scripts/version_sync.py --check` — the authoritative set of version-synced files                          |
