@@ -85,27 +85,24 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 0c2269d, iter 196 — incremental)
+## Current State (assessed-at: c5ab678, iter 197 — incremental)
 
-- **CI RED on `9124c98`** (run 44210618484, suite `cancelled`): enforcing cargo-deny fails on
-    `RUSTSEC-2026-0374` (`basic-toml` ← askama ← `uniffi_bindgen`; `cargo tree -i` prints NOTHING
-    for it — walk `Cargo.lock` with awk instead); Swift job never got a runner ("configuration
-    'macos-14-arm64-us-default' is not supported" — read job annotations via
-    `gh api repos/iscc/iscc-lib/check-runs/<job-id>/annotations`). `macos-14` in ci.yml:251 + 11
-    release.yml sites. Neither tracked in issues.md at 196.
-- **Rust core seq DONE (195, PASS_WITH_NOTES)**: `encode_seq`/`decode_seq` re-exported (Tier 1 35),
-    `read_unit`/`SEQ_MAINTYPES` in `codec.rs`, `tests/test_seq.rs` 44 tests, selftest runs seq.
-    Bindings: 0/11. Probe: `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages`
-    minus iscc-lib/data.json.
-- **Base32 strict decision (human 0c2269d, 2026-11-18)**: new spec criterion — Rust+Go tests reject
-    `ISCC:GAAAAAAAAB` etc.; 0 hits at 196. Go spare-bit gap = `normal` issue.
-- **6 open `normal`** (all actionable): c-ffi-api names; Go `isccClean`; Go base32 spare bits; wasm
-    license; Ruby `json`; Ruby `File.read`. Fallback-model issue deleted 195.
-- **Dependabot**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` — #1 Ruby `json`
-    (tracked) + #2–#6 `uv.lock` (soupsieve, setuptools) UNTRACKED.
+- **CI GREEN on `f335226`** (run 44283260882, 21/21 check-runs success). 196 fixed: `deny.toml`
+    ignores `RUSTSEC-2026-0374` (justified, no upstream fix); all macOS runners `macos-15` (ci.yml
+    1, release.yml 10; release half static-only until next release; decisions.md 2026-11-18).
+    Annotations for "no runner" jobs: `gh api repos/iscc/iscc-lib/check-runs/<id>/annotations`.
+- **Rust core seq DONE (195)**: Tier 1 35, `read_unit`/`SEQ_MAINTYPES` in `codec.rs`,
+    `tests/test_seq.rs` 44 tests. Bindings: 0/11. Probe:
+    `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages` minus
+    iscc-lib/data.json.
+- **Base32 strict decision (human 0c2269d)**: Rust+Go tests must reject `ISCC:GAAAAAAAAB` etc.; 0
+    hits at 197. Go spare-bit gap = `normal` issue.
+- **7 open `normal`** (all actionable): c-ffi-api names; Go `isccClean`; Go base32 spare bits; wasm
+    license; Ruby `json`; Ruby `File.read`; `uv.lock` Dependabot (#2–#6, filed 196).
+- **Dependabot**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` — 6 open, all tracked.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.
-- **Sandbox `gh run list` worked at 196** (showed the real tip) — still cross-check SHA.
+- **Sandbox `gh run list` worked at 196+197** (real tip) — still cross-check SHA vs origin/develop.
 
 ## Durable Facts (carried, not per-iteration)
 

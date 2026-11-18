@@ -1,32 +1,28 @@
-<!-- assessed-at: 0c2269de666285b7749f4c0df43e9d6f04366f96 -->
+<!-- assessed-at: c5ab678642466fcde8ddc122992103623269a93e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — ISCC-SEQ in Rust core; CI red; 0 of 11 binding surfaces
+## Phase: v0.8.0 — ISCC-SEQ in Rust core; CI green; 0 of 11 binding surfaces
 
-The Rust core now has `encode_seq` / `decode_seq` / `read_unit` / `SEQ_MAINTYPES`, with 44 seq tests
-and the seq conformance sections running. **CI on the pushed `develop` tip `9124c98` is not green.**
-The enforcing cargo-deny gate fails on a new advisory, and the Swift job was cancelled before it
-started. No binding exposes the seq codec yet. HEAD `0c2269d` is one unpushed human commit that
-changes only `.claude/` files (the base32-strict decision), so the CI run on `9124c98` covers HEAD's
-code.
+CI is green again on the pushed `develop` tip `f335226`. The cargo-deny advisory now has a justified
+ignore, and the macOS jobs run on `macos-15`. The Rust core has the ISCC-SEQ codec, but no binding
+exposes it yet. 7 `normal` issues are open and all can be worked now. HEAD `c5ab678` is one unpushed
+loop-log commit that changes only `.claude/` files, so the green run covers HEAD's code.
 
 ## Rust Core Crate
 
 **Status**: partially met
 
-- Tier 1 = 35 at crate root (33 + `encode_seq` / `decode_seq` re-exported from `codec`). Tier 2
-    `read_unit` + `SEQ_MAINTYPES` sit in `codec.rs`, on private raw-`u32` header helpers. 400
-    `#[test]` in `crates/iscc-lib` (44 in `tests/test_seq.rs`, which includes the IEP-0020 Table 2
-    vectors). `conformance_selftest` runs the 4 + 4 seq vectors
-- The `iscc_decompose` doc now points to `decode_seq` (iscc-core 1.5.0 docstring)
-- **Missing (criterion added by `0c2269d`):** tests asserting that decoding rejects
-    `ISCC:GAAAAAAAAB`, `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` and `ISCC:GAAAAAAAAA======`. There are 0
-    hits in `crates/`
-- iai Perf and Coverage + CRAP both passed on `9124c98` against the regenerated CRAP baseline (116
-    entries). semver-checks is informational. The v1.0.0 cut and the MSRV criterion are human-gated
+- Tier 1 = 35 at the crate root (`encode_seq` / `decode_seq` re-exported from `codec`). Tier 2
+    `read_unit` + `SEQ_MAINTYPES` live in `codec.rs`. 400 `#[test]` in `crates/iscc-lib`, 44 of them
+    in `tests/test_seq.rs`. `conformance_selftest` runs the seq vectors
+- **Missing:** tests asserting that decoding rejects `ISCC:GAAAAAAAAB`,
+    `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` and `ISCC:GAAAAAAAAA======` (strict base32, decisions.md
+    2026-11-18)
+- iai Perf and Coverage + CRAP pass on `f335226`. semver-checks is informational. The v1.0.0 cut and
+    the MSRV criterion are human-gated
 
 ## Python Bindings
 
@@ -34,9 +30,8 @@ code.
 
 - 33 Tier 1 symbols; abi3-py310 wheels for Linux x86_64/aarch64, macOS universal2 and Windows x64;
     12 `py.detach` sites; 0.7.0 on PyPI
-- **Missing:** `encode_seq` / `decode_seq`, the seq conformance vectors, and the differential pytest
-    against `iscc_core` 1.5.0. The spec now requires that test to assert the strict-base32
-    divergence (padding and spare bits) explicitly
+- **Missing:** `encode_seq` / `decode_seq`, the seq conformance vectors, and a differential pytest
+    against `iscc_core` 1.5.0 that asserts the strict-base32 divergence (padding and spare bits)
 
 ## Node.js Bindings
 
@@ -67,11 +62,10 @@ code.
 **Status**: partially met
 
 - Pure Go, 33 Tier 1 symbols, 179 `func Test`, `CGO_ENABLED=0`; IDv1 at the reference API shape
-- **Missing (two prerequisite `normal` issues):** no Go `isccClean` helper, and `decodeBase32`
-    accepts spare-bit aliases (e.g. `ISCC:GAAAAAAAAB`) that Rust rejects. No Go test pins strict
-    base32 decoding
+- **Missing (two prerequisite `normal` issues):** Go has no `isccClean` helper, and `decodeBase32`
+    accepts spare-bit aliases (e.g. `ISCC:GAAAAAAAAB`) that Rust rejects
 - **Missing:** Go `EncodeSeq` / `DecodeSeq`, a seq-vector loader (`parseConformanceData` loads only
-    `gen_*` sections), and seq test cases
+    the `gen_*` sections), and seq test cases
 
 ## Java, Ruby, .NET, C++, Swift, Kotlin Bindings
 
@@ -81,8 +75,8 @@ code.
     RubyGems, NuGet, vcpkg/Conan metadata, SPM XCFramework)
 - **Missing on all six:** `encode_seq` / `decode_seq` and the seq vectors in each conformance
     harness (Swift and Kotlin hard-code per-section counts)
-- Ruby has two open `normal` issues: `json` 2.21.1 in `Gemfile.lock` (Dependabot #1) and the
-    `File.read` call in `test_conformance.rb` that passes no encoding
+- Ruby has two open `normal` issues: `json` in `Gemfile.lock` (Dependabot #1) and the `File.read`
+    call in `test_conformance.rb` that passes no encoding
 
 ## Documentation
 
@@ -105,29 +99,24 @@ code.
 
 **Status**: partially met
 
-- `ci.yml` has 20 jobs. `release.yml` is `workflow_dispatch`-only with 8 registry toggles and
-    creates the `vX.Y.Z` + `packages/go/vX.Y.Z` tags. 21 version-sync targets at 0.7.0
-- **Latest CI: FAILING** on `9124c98` (conclusion `cancelled`):
-    https://github.com/iscc/iscc-lib/actions/runs/44210618484. 19 jobs passed, including CRAP, Perf,
-    and all language suites except Swift
-- **Failed — `Audit (cargo-deny)` (enforcing):** `RUSTSEC-2026-0374`, `basic-toml` unmaintained. Per
-    `Cargo.lock` it arrives via `askama_derive` ← `askama` ← `uniffi_bindgen`. This is a new
-    advisory, not a code change. Not tracked in issues.md
-- **Cancelled — `Swift (swift build, swift test)`:** it never got a runner. The job annotation reads
-    "The configuration 'macos-14-arm64-us-default' is not supported". `ci.yml:251` uses
-    `runs-on: macos-14`, and `release.yml` uses `macos-14` at 11 sites, so the release path is
-    exposed too. Not tracked in issues.md
-- **Untracked:** Dependabot alerts #2–#6 on `uv.lock`: `soupsieve` 2.9.1 (2 high, 2 medium) and
-    `setuptools` 83.0.0 (low). Dev-group only, and there is no `issues.md` entry
+- `ci.yml` has 20 jobs; Swift runs on `macos-15`. `release.yml` is `workflow_dispatch`-only with 8
+    registry toggles, and all 10 of its macOS sites use `macos-15`. That half is checked statically
+    only until the next release. There are 21 version-sync targets at 0.7.0
+- `deny.toml` ignores `RUSTSEC-2026-0374` (`basic-toml` via uniffi_bindgen's askama proc-macro),
+    with a documented reason. No upstream version drops it
+- **Latest CI: PASSING** on `f335226`: https://github.com/iscc/iscc-lib/actions/runs/44283260882.
+    All 21 check-runs succeeded
+- **Missing:** the `uv.lock` Dependabot bump (alerts #2–#6: `soupsieve`, 2 high and 2 medium;
+    `setuptools`, low), now tracked as a `normal` issue
 
 ## Open Issues
 
-13 open: 0 critical, **6 normal**, 7 low. All 6 `normal` are actionable and unresolved: c-ffi-api
-type names, Go `iscc_clean`, Go `decodeBase32` spare-bit aliases, wasm npm metadata, Ruby `json`
-alert, Ruby locale. The `cid:run` fallback-model issue was deleted in review.
+14 open: 0 critical, **7 normal**, 7 low. All 7 `normal` issues can be worked now: c-ffi-api type
+names, Go `iscc_clean`, Go `decodeBase32` spare-bit aliases, wasm npm metadata, the Ruby `json`
+alert, the Ruby locale fix, and the `uv.lock` alerts.
 
 ## Next Milestone
 
-Restore green CI on `develop` (cargo-deny advisory, Swift runner). Then continue v0.8.0 ISCC-SEQ:
-`encode_seq` / `decode_seq` on all 11 surfaces with every harness running the seq vectors, the
-strict-base32 rejection tests, and clearing the actionable `normal` issues that block the release.
+Continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on all 11 surfaces, with every harness running
+the seq vectors, plus the strict-base32 rejection tests. Also clear the 7 open `normal` issues that
+block the release.
