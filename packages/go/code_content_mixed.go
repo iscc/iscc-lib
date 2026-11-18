@@ -5,7 +5,6 @@ package iscc
 
 import (
 	"fmt"
-	"strings"
 )
 
 // MixedCodeResult holds the output of GenMixedCodeV0.
@@ -16,11 +15,15 @@ type MixedCodeResult struct {
 
 // GenMixedCodeV0 generates a Mixed Content-Code from multiple Content-Code strings.
 // Combines multiple ISCC Content-Codes of different types (text, image, audio,
-// video) using SimHash. Input codes may optionally include the "ISCC:" prefix.
+// video) using SimHash. Input codes are cleaned like iscc_core.codec.iscc_clean
+// (surrounding whitespace, an optional case-insensitive "ISCC:" scheme and dashes).
 func GenMixedCodeV0(codes []string, bits uint32) (*MixedCodeResult, error) {
 	decoded := make([][]byte, len(codes))
 	for i, code := range codes {
-		clean := strings.TrimPrefix(code, "ISCC:")
+		clean, err := isccClean(code)
+		if err != nil {
+			return nil, fmt.Errorf("clean code %d: %w", i, err)
+		}
 		raw, err := decodeBase32(clean)
 		if err != nil {
 			return nil, fmt.Errorf("decode code %d: %w", i, err)

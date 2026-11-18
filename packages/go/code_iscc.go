@@ -6,7 +6,6 @@ package iscc
 import (
 	"fmt"
 	"sort"
-	"strings"
 )
 
 // IsccCodeResult holds the output of GenIsccCodeV0.
@@ -19,12 +18,17 @@ type IsccCodeResult struct {
 // Optional units are Meta-Code, Semantic-Code, and Content-Code.
 // The wide parameter enables 256-bit (16 bytes per unit) mode when true;
 // standard mode uses 64-bit (8 bytes per unit).
-// Input codes may optionally include the "ISCC:" prefix.
+// Input codes are cleaned like iscc_core.codec.iscc_clean (surrounding
+// whitespace, an optional case-insensitive "ISCC:" scheme and dashes).
 func GenIsccCodeV0(codes []string, wide bool) (*IsccCodeResult, error) {
-	// Step 1: Clean inputs — strip "ISCC:" prefix
+	// Step 1: Clean inputs (whitespace, scheme, dashes)
 	cleaned := make([]string, len(codes))
 	for i, c := range codes {
-		cleaned[i] = strings.TrimPrefix(c, "ISCC:")
+		clean, err := isccClean(c)
+		if err != nil {
+			return nil, fmt.Errorf("clean code %d: %w", i, err)
+		}
+		cleaned[i] = clean
 	}
 
 	// Step 2: Validate minimum count

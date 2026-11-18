@@ -91,7 +91,7 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
     `TryFrom<u8>`; delegates to `codec::encode_component`
 - `iscc_decode` strips "ISCC:" prefix + dashes, returns exact digest bytes as
     `(u8,u8,u8,u8,Vec<u8>)`
-- Codec input cleaning `iscc_clean` (iters 191-193, py-strip set 198; Go half NOT done) + perf →
+- Codec input cleaning `iscc_clean` (Rust 191-198; Go `isccClean` 200, 4 sites) + perf →
     codec-clean.md
 - Strict base32 (199): Go `decodeBase32` re-encode compare; GOTCHA Rust `to_uppercase` folds `ﬁ`→FI
 - ISCC-IDv1 #43 COMPLETE (iter 190; Tier-1 = 33, no dedicated decoder) → go-idv1.md

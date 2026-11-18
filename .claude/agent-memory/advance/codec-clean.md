@@ -1,6 +1,6 @@
 ---
 name: codec-clean
-description: Rust codec::iscc_clean port (iters 191-193) — semantics, empty guard, Cow return, four_units perf baseline history; Go half still open
+description: iscc_clean ports — Rust (191-193, 198) and Go isccClean (200); semantics, empty guard, perf baseline history
 metadata:
   type: project
 ---
@@ -32,3 +32,11 @@ CPython 3.13). Perf: four_units +0.19% vs pre-edit local run (12,784 Ir; baselin
 probe-confirmed divergence on Tier 1 (`'\x1eab'`), left for a separate issue. Go `isccClean` port
 must copy the Python set (verify Go's `unicode.IsSpace`/`TrimSpace` against it — unprobed, don't
 assume).
+
+Iter 200 — Go half DONE: `packages/go/codec.go` `isccClean` (+ `isPyStripChar` = `unicode.IsSpace` ∪
+U+001C..1F, `isIsccScheme` ASCII-only `|0x20` compare) routed through `IsccDecompose`,
+`isccNormalize` (checkPrefix on cleaned), `GenIsccCodeV0`, `GenMixedCodeV0` (`clean code %d`
+errors). Errors reason-only (no input echo). Tests `packages/go/clean_test.go` (`-run IsccClean`, 12
+funcs, metamorphic forms × 4 entry points). Test-data gotchas: `IsccDecompose` of a wide-unit
+ISCC-CODE yields 64-bit units; `EU…` (mixed vector input) fails `checkPrefix` so `IsccDecode`
+rejects it — use `EI…`. Go `EncodeSeq`/`DecodeSeq` should reuse `isccClean`.

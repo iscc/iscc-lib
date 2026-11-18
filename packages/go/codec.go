@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // ---- Algorithm Configuration Constants ----
@@ -530,13 +531,81 @@ func encodeComponentInternal(mtype MainType, stype SubType, version Version, bit
 	return EncodeComponent(uint8(mtype), uint8(stype), uint8(version), bitLength, digest)
 }
 
+// ---- ISCC Clean (unexported) ----
+
+// isPyStripChar reports whether Python's str.strip() (no arguments) removes r.
+//
+// Python's whitespace set is the Unicode White_Space set (unicode.IsSpace)
+// plus the four information separators U+001C..U+001F.
+func isPyStripChar(r rune) bool {
+	return unicode.IsSpace(r) || (r >= 0x1C && r <= 0x1F)
+}
+
+// isIsccScheme reports whether scheme equals "iscc" under ASCII-only case
+// folding. Unicode-aware folding would accept "iſcc" or "İSCC", which the
+// reference rejects.
+func isIsccScheme(scheme string) bool {
+	const want = "iscc"
+	if len(scheme) != len(want) {
+		return false
+	}
+	for i := 0; i < len(want); i++ {
+		if scheme[i]|0x20 != want[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// isccClean cleans up an ISCC string to its bare base32 form.
+//
+// Mirrors iscc_core.codec.iscc_clean (and the Rust core's iscc_clean): trims
+// surrounding whitespace (the str.strip() set, see isPyStripChar), removes an
+// optional scheme prefix matched ASCII case-insensitively against "iscc", and
+// strips the dash group separators of the display form. A single-part input
+// whose first character is a multibase prefix (f, b, v, z, u) keeps its dashes.
+//
+// Returns an error when a two-part input uses a scheme other than "iscc", when
+// the input contains more than one colon, or when the cleaned result is empty
+// (decodeBase32("") succeeds, so an empty code would otherwise be accepted).
+func isccClean(iscc string) (string, error) {
+	trimmed := strings.TrimFunc(iscc, isPyStripChar)
+	var code string
+	scheme, rest, found := strings.Cut(trimmed, ":")
+	if !found {
+		code = trimmed
+		if code != "" && !strings.ContainsRune("fbvzu", rune(code[0])) {
+			code = strings.ReplaceAll(code, "-", "")
+		}
+	} else {
+		scheme = strings.TrimFunc(scheme, isPyStripChar)
+		code = strings.TrimFunc(rest, isPyStripChar)
+		if strings.Contains(code, ":") {
+			return "", fmt.Errorf("iscc: malformed ISCC string: more than one colon")
+		}
+		if !isIsccScheme(scheme) {
+			return "", fmt.Errorf("iscc: invalid scheme: expected \"iscc\"")
+		}
+		code = strings.ReplaceAll(code, "-", "")
+	}
+	if code == "" {
+		return "", fmt.Errorf("iscc: empty ISCC string")
+	}
+	return code, nil
+}
+
 // ---- ISCC Decompose (public) ----
 
 // IsccDecompose decomposes a composite ISCC-CODE or ISCC sequence into individual ISCC-UNITs.
-// The optional "ISCC:" prefix is stripped before decoding. Returns a list of
-// base32-encoded ISCC-UNIT strings (without "ISCC:" prefix).
+// The input is cleaned first like iscc_core.codec.iscc_clean (surrounding
+// whitespace, an optional case-insensitive "ISCC:" scheme and dashes are
+// removed). Returns a list of base32-encoded ISCC-UNIT strings (without
+// "ISCC:" prefix).
 func IsccDecompose(isccCode string) ([]string, error) {
-	clean := strings.TrimPrefix(isccCode, "ISCC:")
+	clean, err := isccClean(isccCode)
+	if err != nil {
+		return nil, err
+	}
 	rawCode, err := decodeBase32(clean)
 	if err != nil {
 		return nil, err
@@ -646,8 +715,10 @@ type DecodeResult struct {
 // handles those in normalize_multiformat before this step.
 func isccNormalize(iscc string) (string, error) {
 	// Wide-mode detection reads the original header, before decomposition.
-	clean := strings.TrimPrefix(iscc, "ISCC:")
-	clean = strings.ReplaceAll(clean, "-", "")
+	clean, err := isccClean(iscc)
+	if err != nil {
+		return "", err
+	}
 	if err := checkPrefix(clean); err != nil {
 		return "", err
 	}
@@ -684,7 +755,9 @@ func isccNormalize(iscc string) (string, error) {
 // iscc_core.codec.iscc_decode), then base32-decodes it and parses the header.
 // A concatenated sequence of ISCC-UNITs is therefore composed into a single
 // ISCC-CODE before decoding, so a sequence and its composite form decode
-// identically. The optional "ISCC:" prefix and dashes are stripped.
+// identically. The input is cleaned first like iscc_core.codec.iscc_clean:
+// surrounding whitespace, an optional case-insensitive "ISCC:" scheme and
+// dashes are removed.
 func IsccDecode(iscc string) (*DecodeResult, error) {
 	normalized, err := isccNormalize(iscc)
 	if err != nil {
