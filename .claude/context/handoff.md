@@ -30,8 +30,9 @@ of Tier 2. Go `TextTrim` / `TextRemoveNewlines` use `strings.TrimFunc` / `string
         both, including U+200B
 - `.crap-baseline.json`: refreshed with `mise run crap:baseline`. The diff has 7 line moves
     (utils.rs fns +1 or +4, from the import and the rustfmt wrap) and 1 new entry,
-    `test_strict_base32.rs::assert_base32_error` (CRAP 2.0). That entry was left over from iter 199
-    and does not come from this step
+    `test_strict_base32.rs::assert_base32_error` (CRAP 2.0). This step does not touch that file
+    (last changed in `536e461`). The refresh is a deliberate deviation from next.md, which says to
+    refresh only if the gate reds
 
 **Verification:**
 
@@ -45,7 +46,9 @@ of Tier 2. Go `TextTrim` / `TextRemoveNewlines` use `strings.TrimFunc` / `string
     `maturin develop -m crates/iscc-py/Cargo.toml`: 40 passed
 - `CGO_ENABLED=0 go -C packages/go test -count=1 ./...`: `ok`. `go vet`: clean. `gofmt -l`: empty
 - `mise run bench:iai:check`: exit 0 against the unmodified `.iai-baseline.json` ("16 without
-    regressions"). meta_code name_only −4.43%, name_desc −4.54%. text_code −0.06%
+    regressions"). The deltas are against the committed baseline: meta_code −4.4% / −4.5%, but
+    benches this diff cannot reach drifted by a similar amount (data_code −3.5%, mixed_code −4.6%).
+    The step's own effect is indistinguishable from that drift
 - CRAP: after `mise run coverage`, the gate exited 0 against the old baseline (7 moved, 1 new). I
     refreshed the baseline anyway, because learnings say moved lines red in CI. Re-run against the
     new baseline: exit 0, with 0 regressed, 0 new, 0 moved and 119 unchanged. Local rustc is 1.100.0
@@ -58,8 +61,8 @@ core: Python is proven by the differential, and the other bindings delegate to t
 
 **Notes:**
 
-- The core-side `split` + `filter` keeps the same allocation profile as `split_whitespace`, which
-    std implements as the same `Filter<Split<…>>` shape. The iai gate agrees
+- The core-side `split` + `filter` adds no allocation beyond the existing `Vec` + `join`. The iai
+    gate shows no regression (std source not checked: `rust-src` is not installed)
 - The Python test module adds `import iscc_core` and `import unicodedata`. Both are already used by
     `tests/test_seq.py`. `PY_STRIP_CHARS` is derived locally and not imported across modules, as
     next.md asked

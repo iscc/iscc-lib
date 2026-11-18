@@ -89,13 +89,11 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
     `&[Vec<i32>]`
 - Tier 1 `encode_component` wrapper in `lib.rs` takes `u8` enum fields + validates with
     `TryFrom<u8>`; delegates to `codec::encode_component`
-- `iscc_decode` strips "ISCC:" prefix + dashes, returns exact digest bytes as
-    `(u8,u8,u8,u8,Vec<u8>)`
-- Python strip set: `codec::is_py_strip_char` (`pub(crate)`) / Go `isPyStripChar` back codec
-    cleaning AND `text_trim`/`text_remove_newlines` (203). `text_clean` trims stay std (Cc filtered)
+- `iscc_decode` strips "ISCC:" + dashes, returns digest bytes `(u8,u8,u8,u8,Vec<u8>)`
+- Python strip set `codec::is_py_strip_char` (`pub(crate)`) / Go `isPyStripChar`: codec + text
+    trim/split (203). Base32 strict (199) + ASCII-only casing (201)
 - Codec input cleaning `iscc_clean` (Rust 191-198; Go `isccClean` 200, 4 sites) + perf →
     codec-clean.md
-- Base32: strict (199), ASCII-only casing (201: Rust `to_ascii_uppercase`, Go `asciiUpper`)
 - ISCC-IDv1 #43 COMPLETE (iter 190; Tier-1 = 33, no dedicated decoder) → go-idv1.md
 - ISCC-SEQ #45 Rust core DONE (195), Python (197), Go (202); other surfaces pending → iscc-seq.md
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type
