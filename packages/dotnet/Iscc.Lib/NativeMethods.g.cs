@@ -836,7 +836,7 @@ namespace Iscc.Lib
         ///
         ///  # Safety
         ///
-        ///  `buf` must be a value returned by one of the algorithm primitive functions.
+        ///  `buf` must be a value returned by one of the functions listed above.
         ///  Each buffer must only be freed once.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_free_byte_buffer", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]

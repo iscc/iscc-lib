@@ -10,12 +10,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     uniffi), each depending only on the core. Tier 1 = 33 symbols `pub use`d at crate root (33rd =
     `gen_iscc_id_v1`+`IsccIdResult`, iter 177; docs/count sweep to 33 done, iter 190); Tier 2 is
     `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
-- **ISCC-SEQ core landed (195)**: `encode_seq`/`decode_seq` at crate root (the documented Tier-1
-    count stays 33 until every surface binds them → 35, then one doc sweep), `codec::read_unit` /
-    `SEQ_MAINTYPES` Tier 2. All three sit on private raw-`u32` header helpers — never route SEQ
-    through typed `decode_header`/`encode_component` (SubType ≥ 8, Version 1). Go port 202: Go
-    header types are `uint8` (typed path truncates SubType 4679 → 71); diff every surface against
-    Rust via the Python binding on a corpus (202: 33k cases, 0 diffs)
+- **ISCC-SEQ core (195)**: `encode_seq`/`decode_seq` at crate root (documented Tier-1 count stays 33
+    until all 11 surfaces bind them → 35, one doc sweep); `read_unit`/`SEQ_MAINTYPES` Tier 2 on
+    private raw-`u32` header helpers — never the typed `decode_header` path (Go `uint8` truncates
+    SubType 4679 → 71, 202). Diff each port vs Rust via the Python binding on a corpus. **The spec
+    round trip is BYTES — `encode_seq(decode_seq(x)) == x` over the `decode_seq` vectors** (205:
+    next.md prescribed string decode-of-encode; py/napi/WASM/FFI assert bytes)
 - **`encode_seq` upper-cases before cleaning, so `b` + base32(`cc01` + unit) can read as a DIFFERENT
     valid bare unit** (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20 bytes) — iscc-core 1.5.0 returns the
     same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
@@ -28,7 +28,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     enum (Python `VS`) can break a round trip the core allows; wide-int bindings check semantic
     thresholds in the binding before narrowing. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
     `NativeMethods.g.cs` on EVERY build** → pre-push clippy fails "files were modified";
-    regen+commit it (like `iscc.h`) in the SAME FFI-symbol step, never "the dotnet step"
+    regen+commit it (like `iscc.h`) in the SAME FFI-symbol step, never "the dotnet step". A
+    `///`-only edit on an export (even a review doc fix) moves BOTH files too (205)
 
 ## Reference Implementation
 
@@ -169,8 +170,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## CID Process
 
-- Never force-push to `develop` during a CID loop (agents commit incrementally); **feature flags**
-    are fully met → `learnings-archive.md`
+- Never force-push to `develop` during a CID loop (agents commit incrementally)
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central, `gh api`)
 - **Pre-push mdformat blocks on non-conforming context files**: the hook runs mdformat

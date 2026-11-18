@@ -370,7 +370,7 @@ Full text of entries compacted out of `MEMORY.md`.
     - Codex's Kotlin run), Gradle publish (165), MSRV (172). CMake sets no `-Wall` → back "no warning"
         with `g++ -Wall -Wextra -c`
 
-## ISCC-SEQ surface ports (Go 202; 9 bindings to go)
+## ISCC-SEQ surface ports (Go 202 … C FFI 205; 6 surfaces to go)
 
 - **Corpus differential vs Rust (~5 min, the probe that matters)**: `/tmp/seqprobe/gen.py` style
     corpus (whitespace/`\x1c`–`\x1f`/NBSP at each trim site, `ı ſ ß ﬁ K`, `b`/`f`/`z`/`u` prefixes,
@@ -383,3 +383,10 @@ Full text of entries compacted out of `MEMORY.md`.
     carries a SEMANTIC unit, dropping SEMANTIC from the MainType list stayed green until review
     added the pin. Run that mutation on every surface
 - Go: mutate in a `/tmp` copy of `packages/go`, `-run 'Seq|ReadUnit|IEP0020|TypedCodec|ASCIIUpper'`
+- **C FFI seq (205, ~12 min)**: thin-wrapper surfaces need NO corpus differential (no own logic) —
+    `cargo test -p iscc-ffi`, header diff, ci.yml gcc line + C test, `cargo build` then
+    `git status --porcelain` on `iscc.h` + `NativeMethods.g.cs`, `dotnet build`, valgrind on
+    `/tmp/test_iscc` (installed). **Check the round-trip DIRECTION on every surface**: the spec
+    wants bytes `encode_seq(decode_seq(x)) == x` over `decode_seq` vectors; next.md wrote
+    decode-of-encode (Codex caught it). A review `///` fix on an FFI export → re-run cbindgen +
+    `cargo build`, stage both generated files

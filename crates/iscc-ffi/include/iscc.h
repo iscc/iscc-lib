@@ -923,7 +923,7 @@ bool iscc_instance_hasher_update(struct iscc_FfiInstanceHasher *hasher,
  *
  * # Safety
  *
- * `buf` must be a value returned by one of the algorithm primitive functions.
+ * `buf` must be a value returned by one of the functions listed above.
  * Each buffer must only be freed once.
  */
  void iscc_free_byte_buffer(struct iscc_IsccByteBuffer buf);

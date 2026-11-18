@@ -1659,7 +1659,7 @@ pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
 ///
 /// # Safety
 ///
-/// `buf` must be a value returned by one of the algorithm primitive functions.
+/// `buf` must be a value returned by one of the functions listed above.
 /// Each buffer must only be freed once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_free_byte_buffer(buf: IsccByteBuffer) {
@@ -2118,6 +2118,19 @@ mod tests {
             let bytes = ffi_encode_seq(&units).unwrap();
             let decoded = ffi_decode_seq(&bytes).unwrap();
             assert_eq!(decoded, units, "{name}");
+        }
+    }
+
+    #[test]
+    fn test_seq_round_trip_bytes() {
+        let section = seq_section("decode_seq");
+        assert!(!section.is_empty());
+        for (name, case) in &section {
+            let data = hex_bytes(case["inputs"][0].as_str().unwrap());
+            let units = ffi_decode_seq(&data).unwrap_or_else(|| panic!("{name}: decode NULL"));
+            let refs: Vec<&str> = units.iter().map(String::as_str).collect();
+            let bytes = ffi_encode_seq(&refs).unwrap_or_else(|| panic!("{name}: encode NULL"));
+            assert_eq!(bytes, data, "{name}");
         }
     }
 

@@ -118,6 +118,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     `wasm-pack test --node … --features conformance`, workspace clippy. Doc claims about argument
     rejection are hypotheses: WASM list params accept ANY iterable, napi `Buffer` leaks a ref on bad
     input (filed)
+- **C-FFI / thin-wrapper seq step (205, ~12 min)**: no corpus differential needed; header diff + C
+    test + valgrind + generated-file `git status`. **Check the round-trip DIRECTION** — spec wants
+    bytes over `decode_seq` vectors; next.md wrote decode-of-encode → `binding-reviews.md`
 - **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in
     `gate-reviews.md`); stage `decisions-archive.md` too (195)
 
