@@ -40,8 +40,9 @@ not objects). Then the Tier-1 33→35 doc/count sweep (like IDv1 iter 190).
     elide the copy → false 0; assign to a package-level sink var
 - **napi + WASM DONE (iter 204)**: napi `encode_seq(Vec<String>) -> Buffer`
     (`Buffer::from(Vec<u8>)`), `decode_seq(Buffer)`; wasm `encode_seq(JsValue)` via
-    `serde_wasm_bindgen::from_value` (a JS string is rejected, not iterated), `decode_seq(&[u8])`.
-    Tests: napi `__tests__/seq.test.mjs` + conformance seq suites; wasm `tests/unit.rs` seq block +
+    `serde_wasm_bindgen::from_value` (JS string → `TypeError: Reflect.get…`; napi →
+    `code: 'ArrayExpected'`; neither reaches core), `decode_seq(&[u8])`. Tests: napi
+    `__tests__/seq.test.mjs` + conformance seq suites; wasm `tests/unit.rs` seq block +
     `conformance.rs` (`decode_bytes`)
 - Remaining surfaces: C FFI (+ regen iscc.h AND NativeMethods.g.cs), JNI, Ruby, UniFFI, .NET, C++.
     Then 33→35 sweep (incl. `packages/go/CLAUDE.md` stale "9 gen"/"46 vectors")
