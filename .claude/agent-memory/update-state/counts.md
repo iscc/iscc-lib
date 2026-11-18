@@ -16,13 +16,13 @@ command give a different number.
 | crate/package `CLAUDE.md`        | 12           | same scoping trap                                                                                          |
 | docs pages                       | 22 (194)     | `git ls-files 'docs/*.md' 'docs/**/*.md'` gives 24 — subtract `docs/includes/abbreviations.md` (a snippet) |
 | `docs/howto/*.md`                | 11           |                                                                                                            |
-| iscc-lib `#[test]`               | 353 (194)    | glob `git ls-files 'crates/iscc-lib/**/*.rs'`; `src/` alone gives 288                                      |
+| iscc-lib `#[test]`               | 400 (196)    | glob `git ls-files 'crates/iscc-lib/**/*.rs'`; `src/` alone gives 288                                      |
 | pytest collected                 | 441 (at 164) | `uv run pytest --collect-only -q`                                                                          |
 | pytest-benchmark fixtures        | 18           |                                                                                                            |
 | `packages/go` `^func Test`       | 179 (194)    |                                                                                                            |
 | iscc-ffi externs                 | 49 (194)     | `'#\[unsafe(no_mangle)\]'`; bare `no_mangle` gives 48                                                      |
 | UniFFI exports                   | 33 (194)     | same Tier 1 surface as every other binding                                                                 |
-| CRAP baseline `entries`          | 102 (194)    | `.crap-baseline.json`                                                                                      |
+| CRAP baseline `entries`          | 116 (196)    | `.crap-baseline.json` `entries` key                                                                        |
 | iai baseline entries             | 16           | 11 bench fns                                                                                               |
 | criterion benches                | 12           | criterion **0.8.2** since 171; one `criterion_group!` in `benches/benchmarks.rs`                           |
 | version_sync targets             | 21           | `scripts/version_sync.py --check` — the authoritative set of version-synced files                          |

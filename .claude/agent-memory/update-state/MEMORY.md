@@ -21,8 +21,8 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     `MEMORY-archive.md`); out-of-loop `cid(loop):` commits leave NO jsonl entry — diff them. A
     TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
     UNRELIABLE (none at 170) — never park a finding for it.
-- **Counts + the glob/grep trap for each → `counts.md`** (194: 12 READMEs, 22 docs pages, 353
-    iscc-lib `#[test]`, 179 Go, 49 ffi externs, 102 CRAP, 21 version_sync, 5 fixture copies).
+- **Counts + the glob/grep trap for each → `counts.md`** (196: 12 READMEs, 22 docs pages, 400
+    iscc-lib `#[test]`, 179 Go, 49 ffi externs, 116 CRAP, 21 version_sync, 5 fixture copies).
 - **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
     (163).
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` both import
@@ -85,27 +85,27 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: e6e5c70, iter 195 — incremental)
+## Current State (assessed-at: 0c2269d, iter 196 — incremental)
 
-- **Loop paused 193 → human sessions through 2026-11-17** (`cid(human):` commits, no jsonl entries).
-    v0.7.0 shipped 2026-10-17. HEAD `e6e5c70` = 2 UNPUSHED human commits (seq-spec sharpening + CID
-    runner: `tools/cid.py` passes frontmatter `model:`/`effort:` as flags, Fable 5.2 advisor). Green
-    CI on `a0cf7a2` does NOT cover them.
-- **Target = v0.8.0 ISCC-SEQ** (Tier 1 33→35 on 11 surfaces + Tier 2 `read_unit`/`SEQ_MAINTYPES`;
-    spec `rust-core.md` ~L221, now with a "typed-header trap" + IEP-0020 Table 2 vectors). **ZERO
-    implementation at 195.** Probe:
-    `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq|read_unit|SEQ_MAINTYPES' crates packages`
-    (hits only `data.json` copies + `packages/go/conformance.go` comment).
-- **6 open `normal`**: 5 actionable (c-ffi-api names; Go `isccClean`; wasm license; Ruby `json`
-    2.21.1; Ruby `File.read` encoding). The `cid:run` fallback issue is CONTRADICTED: `mise.toml`
-    now passes `--fallback-model claude-opus-5` but the issue's exit criterion = no flag at all.
-- **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"`. At 195: #1 Ruby
-    `json` (tracked) + #2–#6 on `uv.lock` (soupsieve 2.9.1 ×4 incl. 2 high, setuptools 83.0.0)
-    UNTRACKED in issues.md. Trace with `uv tree --frozen --invert --package <pkg>`.
-- **IDv1 (#43) fully closed — do NOT re-flag.** Golden:
-    `gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"`.
-- **dotnet gotcha:** csbindgen `build.rs` regenerates tracked `NativeMethods.g.cs` on every build;
-    any FFI-symbol step (seq!) must regen `iscc.h` + `NativeMethods.g.cs` in-step.
+- **CI RED on `9124c98`** (run 44210618484, suite `cancelled`): enforcing cargo-deny fails on
+    `RUSTSEC-2026-0374` (`basic-toml` ← askama ← `uniffi_bindgen`; `cargo tree -i` prints NOTHING
+    for it — walk `Cargo.lock` with awk instead); Swift job never got a runner ("configuration
+    'macos-14-arm64-us-default' is not supported" — read job annotations via
+    `gh api repos/iscc/iscc-lib/check-runs/<job-id>/annotations`). `macos-14` in ci.yml:251 + 11
+    release.yml sites. Neither tracked in issues.md at 196.
+- **Rust core seq DONE (195, PASS_WITH_NOTES)**: `encode_seq`/`decode_seq` re-exported (Tier 1 35),
+    `read_unit`/`SEQ_MAINTYPES` in `codec.rs`, `tests/test_seq.rs` 44 tests, selftest runs seq.
+    Bindings: 0/11. Probe: `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages`
+    minus iscc-lib/data.json.
+- **Base32 strict decision (human 0c2269d, 2026-11-18)**: new spec criterion — Rust+Go tests reject
+    `ISCC:GAAAAAAAAB` etc.; 0 hits at 196. Go spare-bit gap = `normal` issue.
+- **6 open `normal`** (all actionable): c-ffi-api names; Go `isccClean`; Go base32 spare bits; wasm
+    license; Ruby `json`; Ruby `File.read`. Fallback-model issue deleted 195.
+- **Dependabot**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` — #1 Ruby `json`
+    (tracked) + #2–#6 `uv.lock` (soupsieve, setuptools) UNTRACKED.
+- **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
+    `iscc.h` + `NativeMethods.g.cs` in-step.
+- **Sandbox `gh run list` worked at 196** (showed the real tip) — still cross-check SHA.
 
 ## Durable Facts (carried, not per-iteration)
 
