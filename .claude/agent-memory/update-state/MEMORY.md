@@ -86,20 +86,19 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 38cb700, iter 203 — incremental)
+## Current State (assessed-at: d43914d, iter 204 — incremental)
 
-- **CI GREEN on `c19184a`** (run 44371959542, 21/21). Runner-capacity cancels (199-200): a suite
+- **CI GREEN on `a0eb4cf`** (run 44388211563, 21/21). Runner-capacity cancels (199-200): a suite
     `failure` whose sole non-success run is `cancelled` w/ 0 steps = infra; confirm via
     `gh api repos/iscc/iscc-lib/check-runs/<id>/annotations`. Still report FAILING.
 - **ISCC-SEQ bindings 2/11 (Python, Go 202)**. Probe:
     `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages` filtered to source
     extensions — `data.json` copies are noise. Go `readUnit` is private (no `ReadUnit`, by design).
 - `encode_seq` strictness + multibase-ambiguous bare-unit reading = decisions.md rulings — do NOT
-    re-flag. Go `asciiUpper` fast path landed 202.
-- **7 open `normal`**, 7 low (14 headers). Text-utils U+001C–U+001F gap is in Go too
-    (`strings.TrimSpace`/`Fields`, `utils.go`).
-- **`#[test]` count 421**; Go `func Test` **260** (count per-commit via `git show c:f`). Count Rust
-    by DIFF.
+    re-flag. Text-utils U+001C–U+001F CLOSED 203 (Rust `is_py_strip_char`, Go `isPyStripChar`); Go
+    `TextClean` `TrimSpace` is intentional; `FieldsFunc` slowdown accepted — do NOT re-flag.
+- **6 open `normal`**, 7 low (13 headers).
+- **`#[test]` count 426** (review's "427 passed" includes a doctest); Go `func Test` **264**.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.
 - **Python heredoc gotcha**: `uv run ... - << EOF || python3 - << EOF2` silently did nothing (198);
