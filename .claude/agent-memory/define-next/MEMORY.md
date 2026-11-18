@@ -6,7 +6,8 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
 **Status 2026-10-17:** v0.6.0 shipped 2026-07-30, v0.7.0 shipped 2026-10-17 (iscc-core 1.5.0
 Image-Code fix, npm OIDC). Active milestone: **v0.8.0 ISCC-SEQ** (target.md). The v0.6.0 Phase
 section below and the Unicode-freeze entries are history — the freeze was removed 2026-07-30. See
-[ISCC-SEQ phase](iscc-seq-phase.md) for the v0.8.0 slice plan and traps (195 = Rust core).
+[ISCC-SEQ phase](iscc-seq-phase.md) for the v0.8.0 slice plan and traps (195 = Rust core; 196 =
+CI-red fix; next = Rust strict-base32 reject tests / Python seq binding).
 
 ## Scope Calibration Principles
 
@@ -134,8 +135,13 @@ section below and the Unicode-freeze entries are history — the freeze was remo
     ([ty gate trap](define-next-ty-generator-scripts.md)). `uv run zensical build` (exits 0, "No
     issues found", ~8s) verifies any docs-only step.
 - **Recurring**: cargo-deny reds on fresh RustSec advisories vs dev/bench deps — CI-red-first,
-    prefer `cargo update -p <crate>` over a `deny.toml` ignore. When 3 of 4 recent iters are
-    CI/lint/workflow → prefer a user-facing item once (143).
+    prefer `cargo update -p <crate>` over a `deny.toml` ignore — but PROBE first (196:
+    `cargo update --dry-run` + crates.io feature graph showed `basic-toml` survives every upgrade
+    via uniffi_bindgen→askama `config` → per-ID ignore was the right call). Hosted-runner retirement
+    (196: `macos-14` gone 2026-11-02, symptom = job `cancelled` + "configuration … not supported"
+    annotation) → swap to the pinned arm64 successor at every workflow site, never `-latest`; check
+    `actions/runner-images` README for live labels. When 3 of 4 recent iters are CI/lint/workflow →
+    prefer a user-facing item once (143).
 - **A derived/generated artifact is gated by "regenerate → `git status --porcelain` empty", not by
     `VENDORED_COPIES`** (159); pair the no-op with a pytest case proving the gate fires on a mutated
     source — unless a third-party generator emits non-hook-clean bytes (172).
