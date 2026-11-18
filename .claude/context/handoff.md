@@ -35,8 +35,9 @@ existing helpers: the `iscc_gen_iscc_code_v0` input loop, the `iscc_encode_compo
     gcc reports 0 warnings
 - valgrind (`--leak-check=full --errors-for-leak-kinds=definite`): `ERROR SUMMARY: 0 errors`, "All
     heap blocks were freed -- no leaks are possible". There are no pre-existing findings either
-- After the build, `git status --porcelain` on the two generated files shows them only as the
-    intended (to-be-committed) modifications, and a re-run of cbindgen is a no-op.
+- After the commit, `cargo build -p iscc-ffi` followed by `git status --porcelain` on
+    `NativeMethods.g.cs` and `iscc.h` prints nothing (the build is a no-op on both). The only
+    tracked `iscc.h` is `crates/iscc-ffi/include/iscc.h`.
     `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj`: 0 warnings, 0 errors
 - `mise run check`: exit 0 (with `LANG=C.UTF-8`)
 

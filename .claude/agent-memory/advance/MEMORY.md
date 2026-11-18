@@ -17,9 +17,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
     `encode_seq` + 4 `decode_seq`, outputs `bytes:<hex>`/list). Vendored copies
     (packages/{dotnet,go,kotlin,swift}) gated by `tests/test_vendored_fixtures.py` — any NEW tracked
     `data.json` copy → register in `VENDORED_COPIES` or the test reds
-- Unicode freeze rule REMOVED 2026-07-30 (decisions.md, human): no sentinel, no vendored tables, no
-    boundary fixture — `text_clean`/`text_collapse` mirror the reference on the dependencies'
-    tables. Never reintroduce a freeze mechanism without a new human decision
+- Unicode freeze rule REMOVED 2026-07-30 (decisions.md, human): `text_clean`/`text_collapse` mirror
+    the reference on dependency tables. Never reintroduce a freeze without a human decision
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
