@@ -58,3 +58,9 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     non-ASCII char must sit after the 2-char prefix; `encode_seq` unit case (`gaawdlqng6ſsdpf2`)
     since prefix sites are grep-gated only. Next: Go `EncodeSeq`/`DecodeSeq` (ASCII upper-case
     BEFORE `isccClean`), text-utils trim parity, then 9 binding surfaces.
+- **202 = Go `EncodeSeq`/`DecodeSeq`** (codec.go + conformance.go + new seq_test.go). Go traps:
+    `MainType/SubType/Version` are `uint8` → raw-`uint32` header helpers needed (SubType 4679
+    truncates silently); Go `decodeHeader` silently skips a NON-ZERO padding nibble → only the
+    re-encode prefix compare in `readUnit` rejects it; `vectorEntry.Outputs` is a map → seq sections
+    need their own loader. Bundled `asciiUpper` zero-alloc fast path (AllocsPerRun==0). Next:
+    text-utils trim parity (Rust, iai), then 9 binding surfaces (FFI before .NET/C++).
