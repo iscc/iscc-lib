@@ -23,7 +23,7 @@ steps, which build on this C ABI.
     already a workspace dep), `crates/iscc-ffi/tests/test_iscc.c` (C tests)
 - **Regenerate + commit (generated, not counted)**: `crates/iscc-ffi/include/iscc.h` (cbindgen),
     `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (csbindgen rewrites it on every
-    `cargo build -p iscc-ffi`)
+    `cargo build -p iscc-ffi`), `Cargo.lock` (gains the `serde_json` edge on `iscc-ffi`)
 - **Reference**: `iscc_gen_iscc_code_v0` (input loop over `*const *const c_char` + count),
     `iscc_encode_component` (the NULL/len-0 slice guard), `iscc_decompose` +
     `vec_to_c_string_array`, `vec_to_byte_buffer` in `crates/iscc-ffi/src/lib.rs`;
@@ -64,17 +64,18 @@ steps, which build on this C ABI.
         encode, the unit list for decode.
     - Add a round trip (decode of encode).
     - Assert that the walk saw a non-zero number of cases per section. Do not pin an exact count.
-    - Negatives, one bad input per call: NULL `units`, `num_units == 0`, a NULL element, a malformed
-        unit, an ISCC-CODE unit (excluded MainType), `data_len == 0`, truncated bytes, and NULL `data`
-        with a non-zero length. Each negative asserts the null result AND a non-NULL
-        `iscc_last_error()`.
+    - Negatives, one bad input per call: NULL `units`, `num_units == 0` with a NON-NULL pointer (so
+        the core's empty-list error is reached), a NULL element, a malformed unit, an ISCC-CODE unit
+        (excluded MainType), `data_len == 0`, truncated bytes, and NULL `data` with a non-zero length.
+        Each negative asserts the null result AND a non-NULL `iscc_last_error()`.
 - **C tests in `test_iscc.c`:** continue the numbered sequence after test 30 and use the existing
     `ASSERT_*` macros.
     - Encode the 4 unit strings from `data.json` `encode_seq` → `test_0001_four_units` (already
         canonical `ISCC:` uppercase).
     - Decode the buffer. Assert a count of 4 and `strcmp`-equal units.
     - Free both with the library free functions.
-    - Add one negative: `num_units = 0` returns `.data == NULL` and `iscc_last_error()` is non-NULL.
+    - Add one negative: `num_units = 0` with a non-NULL array returns `.data == NULL` and
+        `iscc_last_error()` is non-NULL.
     - Full vector coverage lives in the Rust test above and in `iscc_conformance_selftest`. The C test
         checks the ABI and ownership. That is why decision 2026-07-27's generated-header mechanism,
         which applied to the since-removed Unicode fixture, is not needed here.
