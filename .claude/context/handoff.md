@@ -37,7 +37,8 @@ only the reason and never echo the input.
     1). My first doc comment mentioned `strings.EqualFold`/`strings.ToLower`, so I reworded it.
 - Mutation check on a temporary copy, restored afterwards:
     - Replacing `isIsccScheme` with `strings.EqualFold` fails the 5 `long_s_scheme` subtests.
-    - Dropping the U+001C–U+001F clause fails the `info_separators` subtests in every family.
+    - Dropping the U+001C–U+001F clause fails the `info_separators` subtests in all 7 positive
+        families (re-run without truncation).
 - `mise run check`: exit 0.
 
 **Next:** Go `EncodeSeq`/`DecodeSeq`. They can reuse `isccClean` directly. Alternatively, do the
