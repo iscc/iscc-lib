@@ -1,12 +1,9 @@
-> **HUMAN REVIEW REQUESTED**: Rust's `decode_base32` is stricter than iscc-core: it rejects `=`
-> padding and non-zero trailing bits, both of which iscc-core 1.5.0 accepts
-> (`encode_seq(["GAAAAAAAAB"])` → `300000000000` there, `Err` here). This breaks the spec's Python
-> differential criterion ("both sides reject the same inputs"), so a choice is needed before the
-> Python ISCC-SEQ slice. Options are in the issues.md entry "`decode_base32` is stricter than
-> iscc-core…". **Recommendation: option 1, stay strict.** That matches the archived 2026-07-24
-> decision against strings that alias a canonical code (`GAAAAAAAAB` aliases `GAAAAAAAAA`). The
-> reference only accepts these because Python's `b32decode` does, and its own docstring says
-> "without padding". Record the choice in decisions.md and resume.
+> **HUMAN REVIEW RESOLVED (2026-11-18, Titusz → option 1, stay strict):** base32 decoding keeps
+> rejecting `=` padding and non-zero spare bits on every surface (decisions.md 2026-11-18). The
+> Python ISCC-SEQ differential test asserts that divergence explicitly; the spec criterion now says
+> so. The interactive review found the pure-Go port is *not* strict — it accepts spare-bit aliases
+> such as `ISCC:GAAAAAAAAB` — filed as "Go `decodeBase32` accepts spare-bit aliases that Rust
+> rejects" in issues.md.
 
 ## 2026-11-18 — Review of: ISCC-SEQ codec in the Rust core (`encode_seq` / `decode_seq` / `read_unit`)
 

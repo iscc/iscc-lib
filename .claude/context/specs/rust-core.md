@@ -148,6 +148,14 @@ serializing to JSON once (language-specific) then delegating encoding to Rust.
 
 Five codec functions are public Tier 1 API.
 
+**Base32 input is strict.** Every codec entry point, in Rust and in the pure-Go port, rejects base32
+with `=` padding or with non-zero unused trailing bits in the last character. iscc-core accepts both
+through Python's `b32decode`; iscc-lib deliberately does not (decisions.md 2026-11-18). Criteria
+below that say "matches iscc-core" apply to canonical input.
+
+- [ ] Rust and Go tests assert that decoding rejects `ISCC:GAAAAAAAAB`,
+    `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` and `ISCC:GAAAAAAAAA======`
+
 ### iscc_decompose
 
 Decomposes a composite ISCC-CODE into its constituent ISCC-UNIT strings.
@@ -310,7 +318,9 @@ repeats the Tier 1 count (crate `CLAUDE.md`, `notes/04-api-compatibility-safety.
 - [ ] Rust: `iscc_decode`, `iscc_decompose` and `encode_component` accept and reject exactly what
     they did before (their existing tests pass unmodified)
 - [ ] Python: a pytest differential test asserts byte/list identity with `iscc_core.encode_seq` /
-    `decode_seq` (iscc-core 1.5.0 is the dev dependency) and that both sides reject the same inputs
+    `decode_seq` (iscc-core 1.5.0 is the dev dependency) and that both sides reject the same inputs,
+    except base32 with `=` padding or non-zero spare bits: iscc-lib rejects those and the test
+    asserts that divergence explicitly (see "Base32 input is strict" above)
 - [ ] Every conformance harness (Rust, Python, Node, WASM, C, C++, Java, Go, Ruby, .NET, Swift,
     Kotlin) runs the 4 `encode_seq` + 4 `decode_seq` vectors
 - [ ] `encode_seq` / `decode_seq` accessible from all 11 bindings with idiomatic names and types;

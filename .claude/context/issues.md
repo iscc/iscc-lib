@@ -203,30 +203,27 @@ any test runs. CI passes only because its runners have a UTF-8 locale.
 Resolved when every Ruby test that reads a JSON fixture passes an explicit `encoding: "UTF-8"` and
 `env -u LANG -u LC_ALL bundle exec rake test` passes in `crates/iscc-rb`.
 
-## `decode_base32` is stricter than iscc-core on padding and trailing bits `normal` [review]
+## Go `decodeBase32` accepts spare-bit aliases that Rust rejects `normal` [human]
 
-**Needs a decision from Titusz before the Python ISCC-SEQ differential slice.**
-`codec::decode_base32` (data-encoding `BASE32_NOPAD`) rejects `=` padding and non-zero unused
-trailing bits. iscc-core re-pads and calls `b32decode`
-(`reference/iscc-core/iscc_core/codec.py:296`), which accepts both. Verified against iscc-core 1.5.0
-in iter 195:
+Base32 decoding must be strict on every surface (decisions.md 2026-11-18): reject `=` padding and
+non-zero unused trailing bits. Rust does (`data_encoding::BASE32_NOPAD`,
+`crates/iscc-lib/src/codec.rs:519`), and so does every binding built on it. The pure-Go port does
+not: `base32.StdEncoding.WithPadding(base32.NoPadding)` rejects `=` but never checks spare bits
+(`packages/go/codec.go:397`). Verified 2026-11-18:
 
-- `encode_seq(["GAAAAAAAAA======"])` and `encode_seq(["GAAAAAAAAB"])` → `300000000000` in the
-    reference. Rust returns `Err` ("invalid symbol at 10" / "non-zero trailing bits at 9")
-- `iscc_decode("ISCC:GAAAAAAAAB")` → `(3, 0, 0, 0, b'\x00…')` in the reference, `Err` in Rust
+| Input                                | Rust `iscc_decode`                 | Go `IsccDecode`        |
+| ------------------------------------ | ---------------------------------- | ---------------------- |
+| `ISCC:GAAAAAAAAB`                    | Err "non-zero trailing bits at 9"  | same result as `…AAAA` |
+| `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` | Err "non-zero trailing bits at 28" | same result as `…CNGI` |
+| `ISCC:GAAAAAAAAA======`              | Err "invalid symbol at 10"         | Err                    |
 
-The divergence is codec-wide and predates ISCC-SEQ. It conflicts with the spec criterion that the
-Python differential test show "both sides reject the same inputs". The options are:
+Simplest fix: in `decodeBase32`, re-encode the decoded bytes and reject the input when the result
+differs from the upper-cased input; every Go decode path goes through it. No test on either side
+pins the strict behaviour today, so a well-meant "match the reference" change could relax it
+unnoticed.
 
-1. **Stay strict** and exempt these spellings from the differential test as a documented divergence.
-    This is consistent with the archived 2026-07-24 decision, which rejects strings that silently
-    alias a canonical code. `GAAAAAAAAB` aliases `GAAAAAAAAA`.
-2. **Match the reference in `encode_seq` only**, with a lenient local decoder, so the typed codec
-    accepts exactly what it did before (spec "Verified when" item 3).
-3. **Match the reference codec-wide.** This widens the input domain of Tier 1 `iscc_decode` /
-    `iscc_decompose` and conflicts with spec item 3.
+Resolved when Go `decodeBase32` rejects non-zero spare bits, and Rust and Go tests both assert that
+decoding rejects the three inputs above while the canonical `ISCC:GAAAAAAAAA` and
+`ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGI` decode.
 
-Resolved when the choice is recorded in `decisions.md`, and the Python differential test either
-covers these spellings (options 2 and 3) or asserts the divergence explicitly (option 1).
-
-**Spec:** `.claude/context/specs/rust-core.md` → "encode_seq / decode_seq (ISCC-SEQ, IEP-0020)"
+**Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations"
