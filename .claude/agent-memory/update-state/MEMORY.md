@@ -21,7 +21,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     `MEMORY-archive.md`); out-of-loop `cid(loop):` commits leave NO jsonl entry — diff them. A
     TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
     UNRELIABLE (none at 170) — never park a finding for it.
-- **Counts + the glob/grep trap for each → `counts.md`** (196: 12 READMEs, 22 docs pages, 400
+- **Counts + the glob/grep trap for each → `counts.md`** (199: 12 READMEs, 22 docs pages, 408
     iscc-lib `#[test]`, 179 Go, 49 ffi externs, 116 CRAP, 21 version_sync, 5 fixture copies).
 - **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
     (163).
@@ -85,18 +85,18 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 8367d61, iter 198 — incremental)
+## Current State (assessed-at: 0ca1978, iter 199 — incremental)
 
-- **CI GREEN on `72054e8`** (run 44295959238, 21/21 success). `commits/<sha>/check-suites` gives the
-    SUITE verdict in one call; codecov/cursor suites stay `queued` (ignore).
-- **ISCC-SEQ bindings 1/11 (Python, 197)**: `tests/test_seq.py` 23 fns incl. `iscc_core`
-    differential. Probe: `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages`
-    minus iscc-lib/data.json — `packages/go/conformance.go:27` is a COMMENT hit, not a binding.
-- **Rust strict-base32 rejection tests**: 0 hits for `GAAAAAAAAB` in `crates/iscc-lib` at 198.
-- **8 open `normal`** (all actionable; new 197: core `iscc_clean` misses U+001C-U+001F, blocks the
-    Python "reject same inputs" criterion). 7 low.
-- **`#[test]` count**: a naive `grep -c` sum gives 401 vs counts.md's 400 with NO iscc-lib change
-    (method trap) — carry 400 unless `crates/iscc-lib` changed.
+- **CI GREEN on `3e1f8e5`** (run 44310966154, 21/21). `commits/<sha>/check-suites` gives the SUITE
+    verdict in one call; codecov/cursor suites stay `queued` (ignore).
+- **ISCC-SEQ bindings 1/11 (Python)**: `tests/test_seq.py` 29 fns. Probe:
+    `grep -rlnE 'encode_seq|decode_seq|EncodeSeq|encodeSeq' crates packages` —
+    `packages/go/conformance.go:27` is a COMMENT hit.
+- **Core `iscc_clean` fixed 198** (`is_py_strip_char`, codec.rs:571). Text-utils parity is a
+    separate open `normal`. Rust strict-base32 rejection tests: still 0 hits for `GAAAAAAAAB`.
+- **8 open `normal`** (all actionable), 7 low.
+- **`#[test]` count 408** (400 + 8 added in 198 via diff of `^\+\s*#\[test\]`); naive grep says 409
+    (method trap, +1) — count by DIFF, not grep.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.
 - **Python heredoc gotcha**: `uv run ... - << EOF || python3 - << EOF2` silently did nothing (198);
