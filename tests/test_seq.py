@@ -1,0 +1,202 @@
+"""Tests for ISCC-SEQ (IEP-0020) `encode_seq` / `decode_seq` and their strict-base32 divergence."""
+
+import json
+from pathlib import Path
+
+import iscc_core
+import pytest
+
+import iscc_lib
+
+DATA_JSON = Path(__file__).parent.parent / "crates" / "iscc-lib" / "tests" / "data.json"
+
+UNIT_32 = "ISCC:GAAAAAAAAA"
+UNIT_32_HEX = "300000000000"
+UNIT_256 = "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"
+UNIT_256_HEX = "2007a88248c53a852c8d7e9c547047c9a36c4052b6acabef1e2a4ce15e586e0cb305"
+ISCC_CODE = "ISCC:KUAALNA7GRZESMRFUURK6SRMTS7WU"
+
+# Non-canonical base32 forms that iscc_core 1.5.0 accepts and iscc_lib rejects
+# (decisions.md 2026-11-18): (alias, canonical unit, canonical bytes hex).
+STRICT_BASE32_DIVERGENCES = [
+    pytest.param("ISCC:GAAAAAAAAB", UNIT_32, UNIT_32_HEX, id="32bit_spare_bits"),
+    pytest.param(UNIT_256[:-1] + "J", UNIT_256, UNIT_256_HEX, id="256bit_spare_bits"),
+    pytest.param("ISCC:GAAAAAAAAA======", UNIT_32, UNIT_32_HEX, id="padding"),
+]
+
+
+def load_vectors(function_name):
+    """Load conformance vectors for a given function from data.json."""
+    data = json.loads(DATA_JSON.read_text(encoding="utf-8"))
+    return [pytest.param(tc, id=name) for name, tc in data[function_name].items()]
+
+
+def from_hex(value):
+    """Decode a `bytes:<hex>` fixture value to bytes."""
+    assert value.startswith("bytes:")
+    return bytes.fromhex(value.removeprefix("bytes:"))
+
+
+ENCODE_VECTORS = load_vectors("encode_seq")
+DECODE_VECTORS = load_vectors("decode_seq")
+
+
+def test_fixture_sections_not_empty():
+    """Both seq sections carry vectors, so parametrized tests cannot silently vanish."""
+    assert ENCODE_VECTORS
+    assert DECODE_VECTORS
+
+
+# ── Conformance ──────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("tc", ENCODE_VECTORS)
+def test_encode_seq_conformance(tc):
+    """encode_seq matches the data.json vector bytes."""
+    result = iscc_lib.encode_seq(tc["inputs"][0])
+    assert isinstance(result, bytes)
+    assert result == from_hex(tc["outputs"])
+
+
+@pytest.mark.parametrize("tc", DECODE_VECTORS)
+def test_decode_seq_conformance(tc):
+    """decode_seq matches the data.json vector unit strings."""
+    assert iscc_lib.decode_seq(from_hex(tc["inputs"][0])) == tc["outputs"]
+
+
+@pytest.mark.parametrize("tc", DECODE_VECTORS)
+def test_seq_round_trip(tc):
+    """encode_seq(decode_seq(b)) reproduces b."""
+    data = from_hex(tc["inputs"][0])
+    assert iscc_lib.encode_seq(iscc_lib.decode_seq(data)) == data
+
+
+# ── Matching input forms ─────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "unit",
+    ["GAAAAAAAAA", "iscc:gaaaaaaaaa", "iscc:gaaa-aaaaaa", "ISCC:GAAA-AAAAAA"],
+)
+def test_encode_seq_unit_forms(unit):
+    """Prefix-less, lowercase and hyphenated units encode like the canonical unit."""
+    assert iscc_lib.encode_seq([unit]) == bytes.fromhex(UNIT_32_HEX)
+
+
+def test_encode_seq_accepts_tuple_and_generator():
+    """Any non-string sequence or iterable of units is accepted."""
+    expected = bytes.fromhex(UNIT_32_HEX + UNIT_256_HEX)
+    assert iscc_lib.encode_seq((UNIT_32, UNIT_256)) == expected
+    assert iscc_lib.encode_seq(u for u in [UNIT_32, UNIT_256]) == expected
+
+
+def test_encode_seq_preserves_order_and_duplicates():
+    """Units are neither sorted nor deduplicated."""
+    expected = bytes.fromhex(UNIT_256_HEX + UNIT_32_HEX + UNIT_32_HEX)
+    assert iscc_lib.encode_seq([UNIT_256, UNIT_32, UNIT_32]) == expected
+
+
+@pytest.mark.parametrize(
+    "wrap", [bytes, bytearray, memoryview], ids=lambda f: f.__name__
+)
+def test_decode_seq_bytes_like(wrap):
+    """decode_seq accepts bytes, bytearray and memoryview."""
+    data = wrap(bytes.fromhex(UNIT_32_HEX + UNIT_256_HEX))
+    assert iscc_lib.decode_seq(data) == [UNIT_32, UNIT_256]
+
+
+# ── Error arms (one bad input per test case) ─────────────────────────────────
+
+
+def test_encode_seq_empty_list():
+    """An empty unit list raises ValueError."""
+    with pytest.raises(ValueError, match="at least one"):
+        iscc_lib.encode_seq([])
+
+
+@pytest.mark.parametrize("unit", ["", "   "])
+def test_encode_seq_empty_unit(unit):
+    """An empty or blank unit raises ValueError."""
+    with pytest.raises(ValueError, match="must not be empty"):
+        iscc_lib.encode_seq([unit])
+
+
+def test_encode_seq_iscc_code_unit():
+    """An ISCC-CODE (MainType 5) is not permitted in an ISCC-SEQ."""
+    with pytest.raises(ValueError, match="MainType 5"):
+        iscc_lib.encode_seq([ISCC_CODE])
+
+
+def test_encode_seq_trailing_data():
+    """Two units concatenated in one string raise ValueError."""
+    with pytest.raises(ValueError, match="Trailing data"):
+        iscc_lib.encode_seq(["ISCC:GAAAAAAAAAAAAAAAAAAA"])
+
+
+@pytest.mark.parametrize("units", [UNIT_32, UNIT_32.encode()], ids=["str", "bytes"])
+def test_encode_seq_bare_string_type_error(units):
+    """A bare str or bytes is rejected instead of being iterated."""
+    with pytest.raises(TypeError):
+        iscc_lib.encode_seq(units)
+
+
+@pytest.mark.parametrize("units", [[1]], ids=["int_unit"])
+def test_encode_seq_non_string_unit_type_error(units):
+    """A non-string unit raises TypeError."""
+    with pytest.raises(TypeError):
+        iscc_lib.encode_seq(units)
+
+
+def test_decode_seq_empty():
+    """Empty data raises ValueError."""
+    with pytest.raises(ValueError, match="Empty ISCC-SEQ"):
+        iscc_lib.decode_seq(b"")
+
+
+@pytest.mark.parametrize("data", ["abc"], ids=["str"])
+def test_decode_seq_str_type_error(data):
+    """A str is not a bytes-like ISCC-SEQ."""
+    with pytest.raises(TypeError):
+        iscc_lib.decode_seq(data)
+
+
+def test_decode_seq_truncated():
+    """A unit cut short of its declared length raises ValueError."""
+    with pytest.raises(ValueError):
+        iscc_lib.decode_seq(bytes.fromhex(UNIT_32_HEX)[:-1])
+
+
+# ── Differential against iscc_core 1.5.0 ─────────────────────────────────────
+
+
+@pytest.mark.parametrize("tc", ENCODE_VECTORS)
+def test_differential_encode_agrees_on_vectors(tc):
+    """iscc_lib and iscc_core produce identical bytes for canonical units."""
+    units = tc["inputs"][0]
+    assert iscc_lib.encode_seq(units) == iscc_core.encode_seq(units)
+
+
+@pytest.mark.parametrize("tc", DECODE_VECTORS)
+def test_differential_decode_agrees_on_vectors(tc):
+    """iscc_lib and iscc_core produce identical units for canonical sequences."""
+    data = from_hex(tc["inputs"][0])
+    assert iscc_lib.decode_seq(data) == iscc_core.decode_seq(data)
+
+
+@pytest.mark.parametrize(("alias", "canonical", "hex_bytes"), STRICT_BASE32_DIVERGENCES)
+def test_differential_reference_accepts_non_canonical_base32(
+    alias, canonical, hex_bytes
+):
+    """iscc_core 1.5.0 accepts the non-canonical form and returns the canonical unit's bytes."""
+    assert iscc_core.encode_seq([alias]) == bytes.fromhex(hex_bytes)
+    assert iscc_core.encode_seq([canonical]) == bytes.fromhex(hex_bytes)
+
+
+@pytest.mark.parametrize(("alias", "canonical", "hex_bytes"), STRICT_BASE32_DIVERGENCES)
+def test_differential_iscc_lib_rejects_non_canonical_base32(
+    alias, canonical, hex_bytes
+):
+    """iscc_lib rejects the non-canonical form but accepts the canonical unit (strict base32)."""
+    assert iscc_lib.encode_seq([canonical]) == bytes.fromhex(hex_bytes)
+    with pytest.raises(ValueError, match="base32 decode error"):
+        iscc_lib.encode_seq([alias])

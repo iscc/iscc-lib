@@ -50,6 +50,27 @@ def iscc_decode(iscc: str) -> tuple[int, int, int, int, bytes]:
         sequence that cannot be composed into an ISCC-CODE.
     """
 
+def encode_seq(units: list[str]) -> bytes:
+    """Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+
+    Base32 decoding is strict: ``=`` padding and non-zero spare bits are
+    rejected.
+
+    :param units: ISCC-UNIT strings (prefix optional, case-insensitive,
+        hyphens allowed).
+    :return: ISCC-SEQ byte string.
+    :raises ValueError: If ``units`` is empty or contains an empty or
+        malformed unit, or a unit of MainType ISCC, ID or FLAKE.
+    """
+
+def decode_seq(data: bytes) -> list[str]:
+    """Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+
+    :param data: ISCC-SEQ byte string.
+    :return: ``"ISCC:"``-prefixed ISCC-UNIT strings in wire order.
+    :raises ValueError: If ``data`` is empty or malformed.
+    """
+
 def json_to_data_url(json: str) -> str:
     """Convert a JSON string into a ``data:`` URL with JCS canonicalization.
 

@@ -513,6 +513,26 @@ fn iscc_decode(py: Python<'_>, iscc: &str) -> PyResult<Py<PyAny>> {
         .into())
 }
 
+/// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+///
+/// Returns `bytes` (the concatenated header and body bytes of each unit, in
+/// order). Base32 decoding is strict: `=` padding and non-zero spare bits are
+/// rejected.
+#[pyfunction]
+#[pyo3(signature = (units))]
+fn encode_seq(py: Python<'_>, units: Vec<String>) -> PyResult<Py<PyAny>> {
+    let refs: Vec<&str> = units.iter().map(String::as_str).collect();
+    let seq = iscc_lib::encode_seq(&refs).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &seq).into())
+}
+
+/// Decode an ISCC-SEQ byte string to canonical `ISCC:`-prefixed unit strings.
+#[pyfunction]
+#[pyo3(signature = (data))]
+fn decode_seq(data: &[u8]) -> PyResult<Vec<String>> {
+    iscc_lib::decode_seq(data).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
 /// Convert a JSON string into a `data:` URL with JCS canonicalization.
 ///
 /// Uses `application/ld+json` media type when the JSON contains an `@context`
@@ -782,6 +802,8 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(iscc_decompose, m)?)?;
     m.add_function(wrap_pyfunction!(encode_component, m)?)?;
     m.add_function(wrap_pyfunction!(iscc_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_seq, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_seq, m)?)?;
     m.add_function(wrap_pyfunction!(json_to_data_url, m)?)?;
     m.add("META_TRIM_NAME", iscc_lib::META_TRIM_NAME)?;
     m.add("META_TRIM_DESCRIPTION", iscc_lib::META_TRIM_DESCRIPTION)?;

@@ -21,3 +21,16 @@ seq-specific. Bindings: test oracle values via
 Binding slices (next): each surface wraps `iscc_lib::encode_seq(&[&str])` / `decode_seq(&[u8])`;
 conformance harnesses must decode `bytes:<hex>` in inputs AND outputs (outputs are a string / list,
 not objects). Then the Tier-1 33→35 doc/count sweep (like IDv1 iter 190).
+
+## Surface status
+
+- **Python DONE (iter 197)**: `lib.rs` `encode_seq(Vec<String>) -> PyBytes` (Vec<u8> would be
+    list[int]), `decode_seq(&[u8])`; type contract (bare str/bytes → TypeError, iterables → list,
+    bytearray/memoryview → bytes) lives in `__init__.py` wrapper. `tests/test_seq.py` has the
+    strict-base32 differential vs `iscc_core` (in dev group — import directly). Rebuild `.so` with
+    maturin first. Annotate as `Iterable[str]` (ty flags generator vs `Sequence`)
+- Spare-bit trap: 64-bit units have NO spare bits; use 32-bit `GAAAAAAAAB` or 256-bit `…GBI`→`…GBJ`.
+    `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` itself has dirty spare bits (fails base32 in iscc_lib, not
+    MainType) — canonical ISCC-CODE for the MainType arm: `ISCC:KUAALNA7GRZESMRFUURK6SRMTS7WU`
+- Remaining surfaces: Node, WASM, C FFI (+ regen iscc.h AND NativeMethods.g.cs), JNI, Ruby, UniFFI,
+    .NET, C++, Go (needs decodeBase32 fix + isccClean port first)
