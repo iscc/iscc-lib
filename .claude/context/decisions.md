@@ -383,3 +383,14 @@ behaviour change. Same reasoning as the archived 2026-07-24 entry on rejecting a
 **Alternatives:** a lenient decoder for `encode_seq` only (two decoders in one codec — rejected);
 match the reference codec-wide (widens the Tier 1 input domain and reintroduces aliasing —
 rejected). **Context:** escalated by review in iteration 195; interactive session 2026-11-18.
+
+## 2026-11-18 — macOS CI and release jobs pin `macos-15` (arm64), not `macos-latest`
+
+**Decision:** Every macOS job in `ci.yml` and `release.yml` runs on `macos-15`, the arm64 successor
+of the retired `macos-14` (actions/runner-images#15226); the `x86_64-apple-darwin` rows keep
+cross-compiling from arm64 exactly as before. **Why:** a like-for-like swap keeps the build design
+unchanged and the label explicit. **Alternatives:** `macos-latest` — rejected, it drifts silently to
+a new OS/Xcode (the existing `release.yml` `macos-latest` job is left as is); `macos-15-intel` —
+rejected, it would turn the x86_64 rows into native builds, a design change. The `release.yml` half
+is verified statically only (`workflow_dispatch`-only). **Context:** iteration 196, CI-restore step
+chosen by define-next; Titusz may overrule.

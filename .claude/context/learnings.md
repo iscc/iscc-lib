@@ -67,11 +67,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## ISCC Algorithm Knowledge
 
-- **Unicode 16.0.0 pin REMOVED 2026-07-30** (decisions.md 2026-07-30, human): sentinel map, frozen
-    `Final_Sigma`, boundary vectors (all 11 surfaces + pure-Go), sweep gate and `docs/unicode.md`
-    are gone; `text_clean`/`text_collapse` mirror the reference steps on whatever tables
-    dependencies ship. Freeze-era notes in learnings-archive.md and agent memories are historical —
-    do not resurrect them
+- **Unicode 16.0.0 pin REMOVED 2026-07-30** (decisions.md, human): `text_clean`/`text_collapse`
+    mirror the reference on whatever tables dependencies ship; every freeze-era mechanism and note
+    (sentinel, frozen `Final_Sigma`, boundary vectors, sweep gate) is historical — never resurrect
 - **A data-driven fixture is self-referential — assert CONTENT, not shape** (141): ungate guards on
     version, case counts, code points + skip-list keys (ASCII no-op swaps stay green forever).
     **Per-algorithm internals**, normalization order, `data.json` counts, API-parameter facts,
@@ -127,11 +125,15 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     *slower*, a single SIMD pass needs the out-of-scope `memchr` crate), so removing allocations
     alone won't restore a baseline set for cheaper-but-wrong code — regen the baseline in the SAME
     step
-- **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, two dev-only
-    iai-callgrind advisories ignored) + `audit` CI job (`cargo-deny@0.19.9`) + `mise run audit`;
-    reads Cargo.lock so green locally is authoritative. A yanked crate/fresh RustSec advisory reds
-    it on ANY push with no code change — fix with `cargo update -p <crate>` (confirm dev-only:
-    `cargo tree -i <crate> -e no-dev` empty), NOT a `deny.toml` ignore
+- **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, `ignore` list
+    with a per-entry justification) + `audit` CI job (`cargo-deny@0.19.9`, not in the devcontainer —
+    install the prebuilt release) + `mise run audit`; reads Cargo.lock so green locally is
+    authoritative. A yanked crate/fresh RustSec advisory reds it on ANY push with no code change —
+    try `cargo update -p <crate>` FIRST; ignore only when `cargo update --dry-run` keeps the crate
+    AND the feature edge pinning it is proven at the latest upstream (196: uniffi_bindgen 0.32.2
+    hard-enables askama `config` → `basic-toml`; crates.io `/dependencies` shows `features`)
+- **GitHub retires pinned runner labels** (196: `macos-14`, 2026-11-02 → job `cancelled`, no step
+    log). Check the `actions/runner-images` README for the successor's arch (`macos-15` = arm64)
 - **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
     dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = tag misses). `.pyi` is tagged
     `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A

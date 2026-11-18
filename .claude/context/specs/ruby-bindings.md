@@ -153,15 +153,15 @@ result.filesize     # => 123456
 Use `rb_sys` + `rake-compiler` + `rake-compiler-dock` for cross-compilation. Users get
 `gem install iscc-lib` with no Rust toolchain required.
 
-**Build platforms:**
+**Build platforms** (all cross-compiled on `ubuntu-latest`):
 
-| OS             | Target                    | Gem platform   |
-| -------------- | ------------------------- | -------------- |
-| ubuntu-latest  | x86_64-unknown-linux-gnu  | x86_64-linux   |
-| ubuntu-latest  | aarch64-unknown-linux-gnu | aarch64-linux  |
-| macos-14       | aarch64-apple-darwin      | arm64-darwin   |
-| macos-14       | x86_64-apple-darwin       | x86_64-darwin  |
-| windows-latest | x86_64-pc-windows-msvc    | x64-mingw-ucrt |
+| Target                    | Gem platform   |
+| ------------------------- | -------------- |
+| x86_64-unknown-linux-gnu  | x86_64-linux   |
+| aarch64-unknown-linux-gnu | aarch64-linux  |
+| aarch64-apple-darwin      | arm64-darwin   |
+| x86_64-apple-darwin       | x86_64-darwin  |
+| x86_64-pc-windows-msvc    | x64-mingw-ucrt |
 
 Plus a source gem (`.gem`) for platforms without precompiled binaries — requires Rust toolchain to
 install.

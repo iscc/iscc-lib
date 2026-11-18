@@ -264,7 +264,7 @@ swift:
 build-xcframework:
   name: Build XCFramework
   if: startsWith(github.ref, 'refs/tags/v') || inputs.swift
-  runs-on: macos-14
+  runs-on: macos-15
   permissions:
     contents: write
   steps:
@@ -356,7 +356,7 @@ This validates that the Swift bindings and tests are correct.
 ```yaml
 # ci.yml — unchanged, uses development Package.swift
 swift:
-  runs-on: macos-14
+  runs-on: macos-15
   steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
@@ -437,7 +437,7 @@ Release asset (uses existing `contents: write` permission).
 - [ ] `throws` error handling works for fallible functions
 - [ ] Binary data uses Swift `Data` type
 - [ ] `swiftformat --lint` passes
-- [ ] Swift CI runs on macOS runner (`macos-14`)
+- [ ] Swift CI runs on macOS runner (`macos-15`)
 - [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
 - [ ] `conformanceSelftest()` returns `true`
 

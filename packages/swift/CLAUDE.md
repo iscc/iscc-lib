@@ -79,7 +79,7 @@ Generated files: `iscc_uniffi.swift` (Swift source), `iscc_uniffiFFI.h` (C heade
 
 ## CI
 
-- Swift CI job runs on `macos-14` (Apple Silicon) — Swift is not available on Linux CI runners
+- Swift CI job runs on `macos-15` (Apple Silicon) — Swift is not available on Linux CI runners
 - Steps: `cargo build -p iscc-uniffi` -> `swift build` -> `swift test` with `-Xlinker` flags
 - Swift tests also run locally in the Linux devcontainer via the swift.org Debian 12 toolchain (see
     Common Pitfalls for the recipe)

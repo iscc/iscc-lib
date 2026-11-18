@@ -217,7 +217,7 @@ on:
 `release.yml` is **`workflow_dispatch`-only** — a tag push does not trigger it; the workflow creates
 the tags itself. Two ways to run it:
 
-- **Full release** — `version: X.Y.Z`. `prepare-release` (macos-14) builds the Swift XCFramework,
+- **Full release** — `version: X.Y.Z`. `prepare-release` (macos-15) builds the Swift XCFramework,
     commits the `Package.swift` checksum to `main`, creates the `vX.Y.Z` and `packages/go/vX.Y.Z`
     tags and the GitHub Release; every registry chain then runs.
 - **Registry-only re-trigger** — no `version`, one or more checkboxes (`crates-io`, `pypi`, `npm`,
@@ -284,7 +284,7 @@ that re-runs `prepare-release`, which force-pushes the release tags.
 | ---------------- | ----------------------- | ---------- |
 | ubuntu-latest    | x86_64                  | abi3-py310 |
 | ubuntu-24.04-arm | aarch64                 | abi3-py310 |
-| macos-14         | universal2-apple-darwin | abi3-py310 |
+| macos-15         | universal2-apple-darwin | abi3-py310 |
 | windows-latest   | x64                     | abi3-py310 |
 
 One wheel per platform covers Python 3.10 through 3.14+ (abi3 stable ABI).
@@ -303,8 +303,8 @@ Detailed plan: `.claude/plans/restore-linux-aarch64-python-wheels.md`.
 | -------------- | ------------------------- |
 | ubuntu-latest  | x86_64-unknown-linux-gnu  |
 | ubuntu-latest  | aarch64-unknown-linux-gnu |
-| macos-14       | aarch64-apple-darwin      |
-| macos-14       | x86_64-apple-darwin       |
+| macos-15       | aarch64-apple-darwin      |
+| macos-15       | x86_64-apple-darwin       |
 | windows-latest | x86_64-pc-windows-msvc    |
 
 ### WASM (wasm-pack)
@@ -330,8 +330,8 @@ Single build on ubuntu-latest, platform-independent.
 | -------------- | ------------------------- | -------------- | ----------------- |
 | ubuntu-latest  | x86_64-unknown-linux-gnu  | linux-x86_64   | libiscc_jni.so    |
 | ubuntu-latest  | aarch64-unknown-linux-gnu | linux-aarch64  | libiscc_jni.so    |
-| macos-14       | aarch64-apple-darwin      | macos-aarch64  | libiscc_jni.dylib |
-| macos-14       | x86_64-apple-darwin       | macos-x86_64   | libiscc_jni.dylib |
+| macos-15       | aarch64-apple-darwin      | macos-aarch64  | libiscc_jni.dylib |
+| macos-15       | x86_64-apple-darwin       | macos-x86_64   | libiscc_jni.dylib |
 | windows-latest | x86_64-pc-windows-msvc    | windows-x86_64 | iscc_jni.dll      |
 
 Native libraries are bundled inside the JAR under `META-INF/native/{platform}/` and extracted at

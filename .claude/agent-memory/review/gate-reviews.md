@@ -17,15 +17,22 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Revie
 
 ## Audit (cargo-deny) — LANDED & ENFORCING (iter 114/115, ci-cd.md line 448)
 
-- cargo-deny 0.19.9 IS in the devcontainer; verify `cargo deny check` + `mise run audit` exit 0
-    (advisories/bans/licenses/sources ok; 6 `multiple-versions = "warn"` dups non-failing). Reads
-    Cargo.lock + crate metadata (NOT compiled artifacts) — local green is authoritative, box flip OK
-    pre-CI. Enforcing job; post-push green is CI-only confirm
+- cargo-deny 0.19.9 (install on demand if missing, see below); verify `cargo deny check` +
+    `mise run audit` exit 0 (advisories/bans/licenses/sources ok; 6 `multiple-versions = "warn"`
+    dups non-failing). Reads Cargo.lock + crate metadata (NOT compiled artifacts) — local green is
+    authoritative, box flip OK pre-CI. Enforcing job; post-push green is CI-only confirm
 - **FIX PATTERN**: a yanked crate (`yanked = "deny"`, iter 114 wasm-bindgen 0.2.111→0.2.125) OR a
     fresh advisory (iter 115 RUSTSEC-2026-0204 vs dev-only crossbeam-epoch,
     `cargo update -p crossbeam-epoch` 0.9.18→0.9.20, exactly 1 pkg) → root-fix via
     `cargo update -p`, NOT a `deny.toml` ignore; confirm dev-only reach with
     `cargo tree -i <crate> -e no-dev` = empty
+- **A justified IGNORE (196, RUSTSEC-2026-0374 `basic-toml`)** is deny.toml's own policy for a
+    CURRENT unfixable advisory — accept only after proving "no upgrade" at the LATEST upstream:
+    crates.io `/api/v1/crates/<parent>/<maxver>/dependencies` → the edge's `features` list, then the
+    child's `.version.features.<feat>` chain down to `dep:<crate>`; plus
+    `cargo tree -i <crate> --workspace --all-features -e no-dev --target all` for the roots.
+    2026-11: cargo-deny was NOT in the container (advance installed the prebuilt 0.19.9 into
+    `~/.cargo/bin`)
 
 ## Perf (iai-callgrind) — COMPLETE, ENFORCING & HARDENED (iter 107-110, #3)
 

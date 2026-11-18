@@ -104,8 +104,8 @@ Add to `release.yml`:
 - A `build-ffi` job with the same platform matrix as the JNI/napi builds:
     - `x86_64-unknown-linux-gnu` (ubuntu-latest)
     - `aarch64-unknown-linux-gnu` (ubuntu-latest + cross-compiler)
-    - `aarch64-apple-darwin` (macos-14)
-    - `x86_64-apple-darwin` (macos-14)
+    - `aarch64-apple-darwin` (macos-15)
+    - `x86_64-apple-darwin` (macos-15)
     - `x86_64-pc-windows-msvc` (windows-latest)
 - Each matrix entry: `cargo build -p iscc-ffi --release --target <target>`
 - Package output: tarball (`.tar.gz` on Unix, `.zip` on Windows) containing:

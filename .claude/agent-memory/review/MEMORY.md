@@ -115,6 +115,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see `gate-reviews.md` Audit)
+- **CI-restore (advisory ignore + runner-label swap, 196, ~10 min)**: prove an ignore's "no upgrade"
+    claim at crates.io (`gate-reviews.md` Audit), runner arch from the `actions/runner-images`
+    README, then grep `specs/` + per-crate `CLAUDE.md` for the old label
 - **A GENERATED-artifact bump (uniffi 0.32, 172, ~15 min)**: never read the generated diff —
     regenerate into `/tmp`, compare modulo `sed 's/[[:space:]]*$//'` + EOF trim (a literal
     `git status` no-op is unachievable), diff the `^public`/`^open` lists → `dep-refresh-reviews.md`
