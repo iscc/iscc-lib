@@ -43,9 +43,9 @@ binding agrees with iscc-core. This also fixes the set the later Go `isccClean` 
 
 - **The divergent set (probed under CPython 3.13):** `{c : chr(c).strip() == ""}` is exactly Rust's
     `char::is_whitespace` set plus U+001C, U+001D, U+001E and U+001F. Nothing is trimmed by Rust but
-    kept by Python. Add one private predicate, e.g.
-    `fn is_py_strip_char(c: char) ->   bool { c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c) }`,
-    with a doc comment naming `str.strip()`, then trim via `trim_matches(is_py_strip_char)`.
+    kept by Python. Add one private predicate `is_py_strip_char` that returns true when
+    `c.is_whitespace()` holds or `c` is in `'\u{1c}'..='\u{1f}'`. Give it a doc comment naming
+    `str.strip()`, then trim via `trim_matches(is_py_strip_char)`.
 - **Replace all four trim sites in `codec.rs`:** L585 (`iscc.trim()`), L601 (`scheme.trim()`), L602
     (`rest.trim()`) and the `encode_seq` empty-unit guard at L816 (`unit.trim().is_empty()`).
     Missing the guard changes no pass/fail result (`["\x1e"]` errors either way), so the test must
