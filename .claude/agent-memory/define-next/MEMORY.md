@@ -36,8 +36,9 @@ Rust+Go; 204 = napi+WASM seq; 205 = C FFI seq).
 - **A fix touching surfaces no test exercises → scope fix + missing tests as ONE step** (169; tests
     are outside the 3-file budget). **Run an expensive probe while scoping when it can invert the
     plan** (155/157; 161 Swift fetch killed a 10-iter-old veto).
-- **Generated/tool-output files (Cargo.lock, bindings) and docs don't count toward the 3-file
-    limit** — batch related small changes (version sync + docs; several fixes in one crate).
+- **Generated/tool-output files (Cargo.lock — moves even for a dev-dep already in the graph, 205 —
+    bindings) and docs don't count toward the 3-file limit** — batch related small changes (version
+    sync + docs; several fixes in one crate).
 - **IDLE is valid** only when all target sections met and just `low` issues remain — an
     already-specced, locally-verifiable target gap or infra/release fix is NOT idle work. **HUMAN
     REVIEW override is for BUG fixes, not NEW policy gates** (gate amending spec/notes needs
