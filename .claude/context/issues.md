@@ -200,3 +200,22 @@ these packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
 Resolved when `uv.lock` pins `soupsieve` >= 4.0.0 and `setuptools` >= 84.1.0, `mise run check`
 (mdformat) is green, and `gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of
 #2-#6.
+
+## napi `Buffer` parameters leak a reference on non-Buffer object input `normal` [review]
+
+napi 3.11.0's `Buffer::from_napi_value`
+(`~/.cargo/registry/src/*/napi-3.11.0/src/bindgen_runtime/js_values/buffer.rs:489-501`) calls
+`napi_create_reference` BEFORE `napi_get_buffer_info`, and the `?` on a failed buffer-info check
+returns without deleting the reference. So a JS caller passing an `ArrayBuffer`, plain array or
+other non-Buffer object to any `Buffer` parameter of `@iscc/lib` gets the expected throw, but the
+rejected object stays strongly referenced for the life of the Node environment. Every `Buffer`
+parameter in `crates/iscc-napi/src/lib.rs` has this shape (`encode_component`, `decode_seq`,
+`gen_image_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`, `encode_base64`, `alg_simhash`,
+`alg_cdc_chunks`, `DataHasher`/`InstanceHasher` `update`); found by Codex in iter 204, pre-existing
+— not introduced by the seq binding.
+
+Possible fixes, none verified: a napi release that frees the reference on failure, a parameter type
+whose conversion takes no reference, or `#[napi(strict)]` validation (check whether it changes which
+inputs, e.g. plain `Uint8Array`, are accepted). Resolved when a loop of repeated `ArrayBuffer` calls
+to a `Buffer`-taking export shows no reference/heap growth, and every existing Buffer/Uint8Array
+input still works.

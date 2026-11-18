@@ -350,9 +350,9 @@ pub fn iscc_decompose(iscc_code: &str) -> Result<Vec<String>, JsError> {
 /// Accepts an array of unit strings and returns a `Uint8Array` with the
 /// concatenated header and body bytes of each unit, in order. Base32 decoding
 /// is strict: `=` padding, non-zero spare bits and non-ASCII case-fold aliases
-/// (`ſ`, `ß`) are rejected, although iscc-core accepts them. Throws on a
-/// non-array argument, an empty array, an empty or malformed unit, or a unit of
-/// an unsupported MainType (ISCC-CODE, ID, FLAKE).
+/// (`ſ`, `ß`) are rejected, although iscc-core accepts them. Throws on a bare
+/// string, an empty array, an empty or malformed unit, or a unit of an
+/// unsupported MainType (ISCC-CODE, ID, FLAKE).
 #[wasm_bindgen]
 pub fn encode_seq(units: JsValue) -> Result<Vec<u8>, JsError> {
     let units: Vec<String> =

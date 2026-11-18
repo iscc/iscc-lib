@@ -1,62 +1,61 @@
-## 2026-11-18 — Bind `encode_seq` / `decode_seq` on the napi (Node.js) and WASM surfaces
+## 2026-11-18 — Review of: Bind `encode_seq` / `decode_seq` on the napi (Node.js) and WASM surfaces
 
-**Done:** `@iscc/lib` (napi) and `@iscc/wasm` export `encode_seq` / `decode_seq` as thin wrappers
-over the core. Both conformance harnesses run all 8 seq vectors plus a round trip. The negative
-cases (one bad input per assertion) throw on both surfaces. Both JS surfaces now have 35 Tier 1
-symbols.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `crates/iscc-napi/src/lib.rs`: `encode_seq(units: Vec<String>) -> napi::Result<Buffer>`,
-    `decode_seq(data: Buffer) -> napi::Result<Vec<String>>`, both `js_name` snake_case. The doc
-    comment covers strict decoding (padding, spare bits, `ſ`/`ß` rejected although iscc-core accepts
-    them)
-- `crates/iscc-wasm/src/lib.rs`: `encode_seq(units: JsValue) -> Result<Vec<u8>, JsError>` (via
-    `serde_wasm_bindgen::from_value::<Vec<String>>`),
-    `decode_seq(&[u8]) -> Result<Vec<String>,   JsError>`, with the same doc notes
-- `crates/iscc-napi/__tests__/conformance.test.mjs`: `encode_seq` / `decode_seq` suites driven by
-    the fixture, a `decodeBytes` helper for `bytes:<hex>`, a non-empty guard per section, and a
-    round trip per decode vector
-- `crates/iscc-napi/__tests__/seq.test.mjs` (new): spot check `["ISCC:GAAAAAAAAA"]` →
-    `300000000000`, returns a `Buffer`, order and duplicates kept, wire-order decode; throws on
-    `[]`, `[""]`, spare bits, the `ſ` alias, a bare string, empty bytes, and truncated
-    `UNIT_256_HEX`
-- `crates/iscc-wasm/tests/conformance.rs`: `test_encode_seq_conformance` /
-    `test_decode_seq_conformance` (the decode test also asserts the round trip), using the
-    hard-coded `tested == 4` guard style
-- `crates/iscc-wasm/tests/unit.rs`: 10 seq tests, the napi set minus `returns a Buffer` (the bare
-    string goes in as `JsValue::from_str`)
+**Summary:** `@iscc/lib` (napi) and `@iscc/wasm` now export `encode_seq` / `decode_seq` as thin core
+wrappers, following each crate's existing idiom. Both conformance harnesses run all 8 seq vectors
+plus round trips. The negative tests use one bad input per assertion, and both bare-string tests
+check that the string is rejected at argument conversion, not by the core. Scope is clean: 2 source
+files plus tests, no core edit. This brings ISCC-SEQ to 4 of 11 surfaces.
 
 **Verification:**
 
-- `npm --prefix crates/iscc-napi run build:debug && npm --prefix crates/iscc-napi test`: 174 tests,
-    174 passed, 0 failed (re-run after the final test edit). The TAP output lists all 4 `encode_seq`
-    vectors (`test_0001`–`test_0004`), all 4 `decode_seq` vectors and 4 round trips, each with `ok`
-- `index.d.ts` after the build has
-    `export declare function decode_seq(data: Buffer):   Array<string>` (L85) and
-    `export declare function encode_seq(units: Array<string>): Buffer` (L111)
-- `wasm-pack test --node crates/iscc-wasm --features conformance`: exit 0. conformance 11 passed
-    (incl. both seq tests), unit 94 passed (all 10 seq tests listed `ok`; re-run after the final
-    edit)
-- `cargo clippy -p iscc-napi -p iscc-wasm --all-targets -- -D warnings`: clean
-- `cargo fmt -p iscc-napi -p iscc-wasm --check`: exit 0
-- `mise run check`: exit 0
-- No core edit, so the iai and CRAP gates are not affected and were not run
+- [x] `npm --prefix crates/iscc-napi run build:debug && npm … test`: 174/174 pass. Both
+    `seq.test.mjs` suites are collected (the test script globs `__tests__/*.test.mjs`)
+- [x] `index.d.ts` has `export declare function encode_seq` and `… decode_seq`
+- [x] `wasm-pack test --node crates/iscc-wasm --features conformance`: conformance 11 passed (incl.
+    both seq tests), unit 94 passed (all 10 seq tests `ok`)
+- [x] `cargo clippy -p iscc-napi -p iscc-wasm --all-targets -- -D warnings` clean (workspace clippy
+    also clean)
+- [x] `cargo fmt -p iscc-napi -p iscc-wasm --check` clean
+- [x] `mise run check` exit 0
+- Extra probes: the spare-bits and `ſ` negatives fail for the intended reasons (non-zero trailing
+    bits; a base32 decode error). The napi and serde-wasm-bindgen source confirms both Codex P2
+    findings (below)
 
-**Next:** C FFI seq (`iscc.h` + `NativeMethods.g.cs` regen in the SAME step, plus a C ownership
-design for the returned byte buffer and string array). That unblocks .NET and C++. After that come
-JNI, Ruby, then UniFFI (Swift/Kotlin), and finally the 33→35 doc/count sweep.
+**Issues found:**
+
+- Fixed in review: the WASM `encode_seq` doc claimed it "throws on a non-array argument". It does
+    not: `serde_wasm_bindgen` accepts any JS iterable, so `encode_seq(new Set([unit]))` succeeds.
+    The doc now says "Throws on a bare string, …", and no behaviour changed
+- The JS surfaces differ on non-array iterables. napi rejects a `Set` (`ArrayExpected`); WASM
+    accepts it. This is the same for every existing WASM list parameter (`gen_iscc_code_v0`,
+    `gen_mixed_code_v0`, `alg_simhash`), so it is a crate-wide convention, not a seq defect. Not
+    filed
+- Filed `normal`: every napi `Buffer` parameter keeps a reference to a rejected non-Buffer object
+    for the life of the Node environment (an upstream napi-rs 3.11 bug that predates this step and
+    affects the whole crate)
+- WASM `encode_seq` types its parameter as `units: any` in `.d.ts`, like the existing `codes: any`.
+    Cosmetic, not filed
+
+**Codex review:** Run on the main commit `fba5378`. (1) P2, napi `Buffer` leaks a reference on
+`ArrayBuffer` input: confirmed in napi 3.11.0 source; crate-wide and pre-existing → filed. (2) P2,
+WASM accepts a `Set`: confirmed; the false doc sentence is fixed, and the behaviour follows the
+crate convention. (3) P3, `any` TS type: crate-wide, noted. (4) P3, the bare-string tests accepted
+any error: already fixed by `ea1527e`.
+
+**Next:** C FFI seq, as advance proposed. Regenerate and commit `iscc.h` AND `NativeMethods.g.cs` in
+the SAME step (csbindgen rewrites the `.g.cs` on every build, and pre-push clippy fails otherwise),
+and design C ownership for the returned byte buffer and string array (reuse the existing
+`IsccByteBuffer` / string-array free functions if they fit). That unblocks .NET and C++. The other
+`normal` issues compete: the uv.lock Dependabot alerts, the Ruby `json` alert, the Ruby locale fix,
+the Python `encode_seq` docstring, the `@iscc/wasm` license, `docs/c-ffi-api.md` type names, and the
+napi `Buffer` leak.
 
 **Notes:**
 
-- A bare string is rejected at argument conversion and never reaches the core. The tests pin this
-    because an iterated string would also throw, but in the core. napi throws
-    `code: 'ArrayExpected'` ("Failed to get Array length"), and the test asserts that code. WASM's
-    `serde_wasm_bindgen::from_value` throws `TypeError: Reflect.get called on non-object`. The test
-    asserts the message lacks the core's `invalid input` marker, with a control call on `[""]` that
-    shows core errors carry it
-- I did not touch `crates/iscc-napi/CLAUDE.md`, the READMEs or the docs. Their Tier 1 counts and the
-    "3 codec functions" wording are now out of date for the JS surfaces. That is deliberate: the
-    sweep is out of scope (next.md)
-- The fixture `outputs` for `encode_seq` is a bare `bytes:<hex>` string, not an object. The
-    `decode_seq` outputs is a plain list
+- The Tier 1 33→35 doc/count sweep is still deliberately deferred until every surface binds seq.
+    `crates/iscc-napi/CLAUDE.md` and `crates/iscc-wasm/CLAUDE.md` still say 33 symbols and "3 codec
+    functions"
+- When the C FFI step adds a `char**` return, follow the existing `iscc_decompose` FFI pattern and
+    test the free function under ASan or valgrind if the step touches ownership

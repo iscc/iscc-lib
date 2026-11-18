@@ -499,3 +499,42 @@ Full text of entries compacted out of `MEMORY.md`.
 - **Unicode freeze rule REMOVED 2026-07-30** (decisions.md): `utils/unicode16*`,
     `unicode_boundary.json`, the sweep gate and the `U+FFFF` sentinel are gone. A diff that
     reintroduces any freeze mechanism without a new human decision is a NEEDS_WORK
+
+## Moved from the index (204)
+
+- **next.md can under-scope the spec's "Verified when" criterion** (197): it asked only for the seq
+    base32 divergence, while `rust-core.md` demands "both sides reject the same inputs". Read the
+    feature's spec checklist too; a missing cheap differential test → add it in review (step 6)
+- **A metamorphic "display forms" suite: demand one form per trim/clean CALL SITE** (200: Codex saw
+    the outer-only separator forms miss the 2 post-colon trims; mutation in a `/tmp` copy of
+    `packages/go` — conformance tests need `../../crates`, so `-run <family>` only)
+- **Scope cap: `.crap-baseline.json` is a GENERATED artifact, not a counted file** (3 src + baseline
+    passed at 195 `5d2840e` and 203); a refresh with only `line:` shifts is correct, not a deviation
+- **A Go `Fields`→`FieldsFunc` swap costs ~2× (ASCII fast path) and allocs only past 32 fields** —
+    an `AllocsPerRun` probe needs >32 fields to see it; accepted in decisions.md (203)
+- **DIFFERENTIAL gate (157/158) / vendored DERIVED-property table (156), ~25 min each**: a
+    case-count pin catches a shrunken set, never a swapped one; drive `main()` in-process →
+    `archive/unicode-reviews.md`
+- **Repo-state gate that reads the git index (152, ~8 min)**: Python-only PLUS mutations in a
+    THROWAWAY repo (`git archive HEAD | tar -x -C /tmp/x && git init`; `git clone` fails here on
+    `safe.directory`) — never mutate the real index → `review-patterns.md`
+- **Lint-config-only (`[tool.ruff]*` / prek hook types, 134–139)**: `mise run check`, ruff check +
+    `format --check` (**assert exit 0, never a file count**), both pre-push ruff gates, ty, pytest
+- **CI-restore (advisory ignore + runner-label swap, 196, ~10 min)**: prove an ignore's "no upgrade"
+    claim at crates.io (`gate-reviews.md` Audit), runner arch from the `actions/runner-images`
+    README, then grep `specs/` + per-crate `CLAUDE.md` for the old label
+- **A GENERATED-artifact bump** (172): regenerate into `/tmp`, never read the diff →
+    `dep-refresh-reviews.md`
+- **An MSRV claim is locally decidable**: `cargo +1.85.0 check -p <crate> --locked` →
+    `dep-refresh-reviews.md` "Moved from the index"
+- **Other bump types** (lockfile, wrapper/binary blob, test-framework major) →
+    `dep-refresh-reviews.md`
+- **Prek-hook-scope review (138–139)**: NEVER accept `git ls-files` arithmetic as a hook's surface —
+    `.pyi` is tagged `pyi`, not `python`; a *widened* tag needs a **staged, dirty** file probe
+- **Action *pin* change (162, ~6 min)**: four static gates + actionlint, then probe the pin at
+    source — `git/matching-refs/tags` (does `@vN` exist?) + `compare/<tag>...main` `.ahead_by` (162:
+    `@main` was 31 commits ahead) → `gha-workflow-reviews.md`
+- **release.yml / any GHA action bump**: NEVER exercised by CID pushes → static-verify only via the
+    committed gates `scripts/check_release_workflow.py` + `… --check-action-inputs` (never a
+    heredoc); zero `warning: skipped` is part of the pass; `always()` = NEEDS_WORK →
+    `gha-workflow-reviews.md`

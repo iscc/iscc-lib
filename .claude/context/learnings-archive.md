@@ -1028,3 +1028,9 @@ runs on `opus`. Deliberate — do not "unify" them.
     exists": the `inputs`/`outputs` diff is automated (`--check-action-inputs`); intervening
     *default* changes stay manual (recipe + biters + majors → `learnings-archive.md`,
     `.claude/agent-memory/advance/deps-refresh.md`)
+
+## Release-only toolchain drift (archived iter 204)
+
+- **Release-only toolchains drift unseen** (0.7.0): Maven 3.10 broke
+    `central-publishing-maven-plugin` < 0.12.0; `setup-node@v7` dropped its dummy `NODE_AUTH_TOKEN`.
+    First symptom is a failed publish

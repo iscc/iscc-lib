@@ -19,6 +19,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **`encode_seq` upper-cases before cleaning, so `b` + base32(`cc01` + unit) can read as a DIFFERENT
     valid bare unit** (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20 bytes) — iscc-core 1.5.0 returns the
     same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
+- **JS surfaces differ on list/buffer params** (204): WASM
+    `serde_wasm_bindgen::from_value::<Vec<T>>` accepts ANY iterable (`Set`, generator), napi
+    `Vec<String>` throws `ArrayExpected` — never doc "throws on non-array" for WASM. napi 3.11
+    `Buffer::from_napi_value` takes a strong ref BEFORE `napi_get_buffer_info` and never frees it on
+    failure, so a non-Buffer object arg leaks it
 - **Binding fan-out traps (IDv1 177-190, detail → `learnings-archive.md`)**: a surface with its OWN
     enum (Python `VS`) can break a round trip the core allows; wide-int bindings check semantic
     thresholds in the binding before narrowing. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
@@ -69,9 +74,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
 - **Devcontainer** (2026-10-17): export `LANG=C.UTF-8` for local gates (Ruby aborts reading UTF-8
     fixtures otherwise); push via `git -c credential.helper='!gh auth git-credential' push`
-- **Release-only toolchains drift unseen** (0.7.0): Maven 3.10 broke
-    `central-publishing-maven-plugin` < 0.12.0; `setup-node@v7` dropped its dummy `NODE_AUTH_TOKEN`.
-    First symptom is a failed publish
 
 ## ISCC Algorithm Knowledge
 
@@ -149,8 +151,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     before touching `pom.xml` / `build.gradle.kts`. Gradle 9 writes `build/reports/problems` at the
     END of every build, so a *concurrent* build (a background Codex run) makes `clean` fail "Unable
     to delete directory" — re-run sequentially before believing it (165)
-- **A floating `@vN` Action tag is a publisher convention, not a guarantee** — check
-    `git/matching-refs/tags/v<N>` before writing `@vN` (detail → `learnings-archive.md`)
 - **Prove a new gate with a REAL regression in a THROWAWAY repo, not a synthetic typo** (iters
     144/152/163): `git archive HEAD | tar -x -C /tmp/x && git init` gives a probe tree where
     `git add`/`git rm` are free; the cheapest *real* regression is the guarded file's own previous
@@ -161,8 +161,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     tree (`git archive HEAD~1`) or derive it from the FIXTURE (166: `data.json` vector counts +
     static `@Test` count). **`mvn test` reuses stale test classes** ("Nothing to compile"), so only
     `mvn clean test` proves the new framework compiles. A **bench-harness** major:
-    `cargo bench   --no-run` only links — `cargo bench -p iscc-lib --bench benchmarks -- --test`
-    runs each body once (171)
+    `cargo bench --no-run` only links — `cargo bench -p iscc-lib --bench benchmarks -- --test` runs
+    each body once (171)
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the prior
     sha's in-flight run (`cancelled`, not `failure`); wait for green on the exact sha. Each develop
     commit triggers TWO runs (push + the open develop→main PR)
