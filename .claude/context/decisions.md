@@ -384,4 +384,6 @@ iscc-core calls Unicode `unit.upper()` first (`codec.py:503`) and accepts all fo
 alias canonical codes. Unicode case mapping is also unportable: Go's `strings.ToUpper` maps `ſ`/`ı`
 but not `ß`/`ﬁ`, so no Unicode rule gives Rust and Go one reject set. **Alternatives:** Unicode
 upper-casing in `encode_seq` only (reference-exact, but two casing rules in one codec — rejected).
-**Context:** iteration 201 review; the spec wording awaits Titusz (issues.md).
+ASCII-only also keeps the codec independent of each runtime's Unicode case tables, the version drift
+parked on 2026-07-30. **Context:** iteration 201 review; confirmed by Titusz in an interactive
+session, 2026-11-18, and written into `rust-core.md` "Base32 input is strict".

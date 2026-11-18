@@ -172,29 +172,21 @@ any test runs. CI passes only because its runners have a UTF-8 locale.
 Resolved when every Ruby test that reads a JSON fixture passes an explicit `encoding: "UTF-8"` and
 `env -u LANG -u LC_ALL bundle exec rake test` passes in `crates/iscc-rb`.
 
-## `encode_seq` rejects case-fold aliases iscc-core accepts; spec lists no such exception `normal` [review]
+## Python `encode_seq` docstrings omit the case-fold divergence from iscc-core `normal` [human]
 
-Rust `encode_seq` upper-cases ASCII only since iteration 201 (`codec.rs:834`), so
-`encode_seq(["gaawdlqng6ſsdpf2"])` (likewise `ı`, `ß`, `ﬁ`) fails with `base32 decode error`.
-iscc-core 1.5.0 `encode_seq` calls Unicode `unit.upper()` first (`codec.py:503`) and returns
-`300161ae0d37a521bcba`. Rust matched the reference here before, so this is a new divergence.
-`iscc_decode`, `iscc_normalize` and `iscc_decompose` reject these strings on both sides (probed).
+Since iteration 201, `encode_seq` upper-cases ASCII only, so a non-ASCII case-fold alias such as
+`gaawdlqng6ſsdpf2` (likewise `ı`, `ß`, `ﬁ`) fails, while iscc-core 1.5.0 `encode_seq` accepts it
+through Unicode `str.upper()` (`codec.py:503`). Titusz confirmed this divergence (decisions.md
+2026-11-18, "Codec input is upper-cased ASCII-only"; `rust-core.md` "Base32 input is strict"), and
+`tests/test_seq.py` `STRICT_BASE32_DIVERGENCES` already pins it. The Python docstrings still name
+only padding and spare bits as differences from iscc_core: `_lowlevel.pyi:56` says "Base32 decoding
+is strict: `=` padding and non-zero spare bits are rejected", and the `iscc_lib/__init__.py` wrapper
+says nothing about it.
 
-The behaviour follows the strict-base32 principle (decisions.md 2026-11-18, "Codec input is
-upper-cased ASCII-only") and is pinned in `tests/test_seq.py` `STRICT_BASE32_DIVERGENCES` (rows
-`long_s_case_fold`, `sharp_s_case_fold`). But `rust-core.md` names only padding and spare bits as
-exceptions, in "Base32 input is strict" and in the ISCC-SEQ Python-differential criterion ("both
-sides reject the same inputs, except …"). Changing those acceptance criteria is Titusz's call:
-confirm (name non-ASCII case-fold aliases in both passages), or reject (restore Unicode upper-casing
-at `codec.rs:834` and drop the two rows). Go's `strings.ToUpper` maps `ſ`/`ı` but not `ß`/`ﬁ`, so a
-Unicode rule cannot give Rust and Go one reject set.
+Resolved when both `encode_seq` docstrings name non-ASCII case-fold aliases next to padding and
+spare bits as inputs iscc-lib rejects and iscc_core accepts.
 
-Resolved when the spec states the chosen rule for `encode_seq`, the code and the Python differential
-follow it, and the Python `encode_seq` docstrings (`iscc_lib/__init__.py`, `_lowlevel.pyi`), which
-list only padding and spare bits as iscc_core divergences, name it too.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations" ("Base32 input is strict") and
-"ISCC-SEQ" (Python differential criterion)
+**Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations" ("Base32 input is strict")
 
 ## Dependabot alerts: `soupsieve` and `setuptools` in `uv.lock` `normal` [review]
 

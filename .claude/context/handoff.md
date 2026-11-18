@@ -1,11 +1,9 @@
-> **HUMAN REVIEW REQUESTED**: Rust `encode_seq` now rejects non-ASCII case-fold aliases
-> (`gaawdlqng6ſsdpf2`, also `ı`/`ß`/`ﬁ`) that iscc-core 1.5.0 `encode_seq` accepts, because the
-> reference calls Unicode `unit.upper()` first (`codec.py:503`). `iscc_decode` rejects them on both
-> sides, so that part matches the reference. Review approved the `encode_seq` divergence as an
-> extension of your strict-base32 decision (decisions.md 2026-11-18, which rejected a lenient
-> `encode_seq`). The divergence is pinned in `tests/test_seq.py`. But `rust-core.md` names only
-> padding and spare bits as exceptions. Please confirm, and update the two spec passages, or reject
-> it, which restores Unicode upper-casing at `codec.rs:834`. Details are in the issues.md entry.
+> **HUMAN REVIEW RESOLVED (2026-11-18, Titusz → confirm ASCII-only):** `encode_seq` keeps rejecting
+> non-ASCII case-fold aliases (`ſ`, `ı`, `ß`, `ﬁ`) although iscc-core accepts them. Both spec
+> passages ("Base32 input is strict" and the ISCC-SEQ Python-differential criterion) now name this
+> exception, and the decisions.md entry is marked confirmed. Keep the two
+> `STRICT_BASE32_DIVERGENCES` rows. The remaining docstring work is in issues.md ("Python
+> `encode_seq` docstrings omit the case-fold divergence").
 
 ## 2026-11-18 — Review of: ASCII-only upper-casing in Rust and Go base32 decoding
 
