@@ -68,8 +68,8 @@ point to `../../target/debug/` relative to the Kotlin package root.
 - Runs every `data-edge.json` vector through a section -> caller table; `except["kotlin"]` is the
     only deviation, an unknown section fails, and a rejection must throw
     `IsccUniException.IsccException` from the raw call alone
-- Every expected output key must be present in the converted record and equal; 6 test methods (the
-    vector run plus five one-bad-case negatives)
+- Every expected output key must be present in the converted record and equal; tests: the vector run
+    plus one-bad-case negatives
 
 ## Binding Generation
 

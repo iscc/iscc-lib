@@ -1,61 +1,60 @@
-## 2026-11-19 — data-edge.json fan-out, group 2 — Swift and Kotlin harnesses, plus the Ruby key-compare fix
+## 2026-11-19 — Review of: data-edge.json fan-out, group 2 — Swift and Kotlin harnesses, plus the Ruby key-compare fix
 
-**Done:** Swift (`DataEdgeTests.swift`) and Kotlin (`DataEdgeTest.kt`) now run every
-`data-edge.json` vector through registered vendored copies. Each uses a section → caller table, a
-`checkDoc` that returns failures, the surface's `except` id, the raw-call-only rejection (Swift
-`IsccUniError`, Kotlin `IsccUniException.IsccException`; any other error type is a failure), and no
-hardcoded vector count. Ruby's compare now fails on any missing expected key. All three surfaces
-gained the sixth test, `…fails_missing_output_key`. One commit per surface: Ruby `cc53186`, Swift
-`616f5ae`, Kotlin `a75832b`.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `crates/iscc-rb/test/test_data_edge.rb`: the `actual.keys & expected.keys` intersection is
-    replaced by a check over every expected key (`actual.key?`), giving "missing field <k>". Adds
-    `test_data_edge_fails_missing_output_key`
-- `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift` (new): 6 tests. Typed-cast comparison
-    (`String`/`Int`/`[Any]` element-wise, fail-closed on any other type). Record fields are boxed as
-    `Int(...)`. No `as!`/`fatalError` in the harness path
-- `packages/swift/Tests/IsccLibTests/data-edge.json` (new, byte copy);
-    `packages/swift/Package.swift`: `.copy("data-edge.json")`
-- `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/DataEdgeTest.kt` (new): 6 tests. Strict input
-    readers. Comparison is against plain Kotlin values (`Long`, `String`, `List`, `Map`); numbers
-    are compared by their JSON text, so Gson's double coercion plays no part
-- `packages/kotlin/src/test/resources/data-edge.json` (new, byte copy)
-- `tests/test_vendored_fixtures.py`: both copies registered under the `data-edge.json` key
-- `packages/swift/CLAUDE.md`, `packages/kotlin/CLAUDE.md`: file trees plus an "Edge-case vectors"
-    subsection
+**Summary:** Swift and Kotlin now run every `data-edge.json` vector through byte-identical,
+registered vendored copies. Ruby's compare fails on a missing expected key. Each of the three
+surfaces has the sixth negative test, landed one commit per surface (`cc53186`, `616f5ae`,
+`a75832b`). The harnesses follow `edge-vectors.md` → Rules and the reviewed Rust/Python templates.
+Every check passed in my own runs. The notes are harness-strictness edge cases that no current
+vector or binding can reach.
 
 **Verification:**
 
-- Ruby: the sixth test went red against the old intersection compare (`Expected: 1 Actual: 0`), then
-    green after the fix. `rake compile && rake test`: 160 runs, 0 failures. `TestDataEdge` ran 6
-    named tests (`-v`). Bare `bundle exec standardrb` in `crates/iscc-rb`: exit 0
-- Swift (`/tmp/swifttc` 6.1.2, `--scratch-path /tmp/swiftbuild`, after
-    `cargo build -p iscc-uniffi`): exit 0. `DataEdgeTests` executed 6 tests, all 6 listed as passed
-    by name. 25 total, 0 failures. No compiler warnings from `DataEdgeTests.swift`. **Linux only**:
-    the macOS CI `swift` job has not run this code yet
-- Kotlin: `./gradlew cleanTest test` exit 0. `TEST-uniffi.iscc_uniffi.DataEdgeTest.xml` shows
-    tests=6, skipped=0, failures=0, errors=0, with 6 `testcase` elements
-- Mutation probe on both surfaces: the vendored `"characters": 10` was changed to 11. Swift and
-    Kotlin each went red on `field characters: expected 11, got 10`. Both copies were restored with
-    `cp` (`cmp` identical); then the full Swift suite (exit 0, 6 `DataEdgeTests` passed, 25 total)
-    and the Kotlin suite (XML above) were re-run green on the restored copies
-- `uv run pytest tests/test_vendored_fixtures.py tests/test_data_edge.py`: 86 passed.
-    `mise run check`: exit 0
+- [x] `uv run pytest tests/test_vendored_fixtures.py tests/test_data_edge.py`: 86 passed before my
+    validator row, 87 after. `mise run check` exit 0, tree clean
+- [x] Swift (`/tmp/swifttc` 6.1.2, `--scratch-path /tmp/swiftbuild`, after
+    `cargo build -p iscc-uniffi`): exit 0. All 6 `DataEdgeTests` listed as passed by name; 25 tests,
+    0 failures. **Linux only**: the macOS `swift` CI job has not run it yet
+- [x] Kotlin `./gradlew cleanTest test`: exit 0. `TEST-uniffi.iscc_uniffi.DataEdgeTest.xml` has
+    tests=6, skipped=0, failures=0, errors=0 and 6 `testcase` elements
+- [x] Ruby `rake compile && rake test TESTOPTS=-v`: 160 runs, 0 failures. All 6 `TestDataEdge#…`
+    tests ran by name. `bundle exec standardrb` exit 0
+- [x] Probes: (1) `swift` / `kotlin` are the ids in `SURFACE_IDS` and the spec, so `except` is live;
+    (2) the missing-key negative's `iscc` equals the canonical vector's `ISCC:EAASKDNZNYGUUF5A`, so
+    the missing key is its only bad case; (3) Codex's Swift claim `"K" == "\u{212A}"` prints `true`
+- [x] Scope: Package.swift is the only non-test, non-doc file touched. No suppressions, skips or
+    gate edits anywhere in `@{upstream}..HEAD`. No core, binding or `data-edge.json` change
+
+**Issues found:**
+
+- Filed `low` (untriaged): "Swift `data-edge.json` compare is looser than byte equality". Swift
+    `String ==` uses canonical equivalence, and `as? Int` accepts JSON booleans. Unreachable today,
+    since the Rust harness pins the same bytes strictly
+- Fixed (step 9): `outputs: {}` passed vacuously on every harness, the Rust and Python templates
+    included. `validate_vector` in `tests/test_data_edge.py` now rejects it, pinned by the
+    `empty_outputs` row in `test_validate_vector_rejects_malformed`
+- Fixed (step 9): both package `CLAUDE.md` subsections had a hand-written "6 test methods" count,
+    against the open `normal` [human] derived-facts issue. Replaced with count-free wording
+- Nit: Kotlin `convert*` use unchecked `as` casts outside the `try`. A wrong record type crashes the
+    test rather than reporting a failure, so it still fails closed
+- Resolved and deleted: "Ruby `data-edge.json` harness passes a gen result that lacks an expected
+    key"
+
+**Codex review:** one run over the whole range (`--base 32c7813`). (P2) Swift string compare is
+canonical equivalence. Confirmed and filed `low`. (P3) Swift reads a JSON bool as an Int. Filed in
+the same entry. (P3) The Ruby rewrite dropped the `keys.empty?` guard, so `outputs: {}` passes. The
+Rust and Python templates behave the same way, so I fixed it once in the fixture validator, not per
+harness.
 
 **Next:** Fan-out group 3: C and C++ through a generated table plus a staleness check. Recover
-`scripts/gen_ffi_boundary_vectors.py` from `ea69169`. Cheap `normal` fallback: the Python
-`encode_seq` docstring issue.
+`scripts/gen_ffi_boundary_vectors.py` from `ea69169`. Cheap `normal` alternatives: the Python
+`encode_seq` docstring issue, and the Dependabot alerts on `soupsieve`/`setuptools`/`json`.
 
 **Notes:**
 
-- No vector needed an `except` on Swift or Kotlin. UniFFI keeps the embedded NUL, so the core
-    returns the expected `gen_text` output and rejects the seq NUL unit
-- The missing-key negative uses `gen_text_code_v0` with outputs `{iscc: <correct>, datahash: "x"}`
-    and no `characters`, so it is one bad case. The assertion checks for "missing field datahash"
-- Swift, Kotlin and Ruby check every key now. Go still compares `gotFields[key]` without an explicit
-    presence check; that only works because a missing key reads as nil. It is out of scope and
-    unchanged
-- The Swift copy ships with the SwiftPM checkout. That is the open `low` issue; no exclusion
-    mechanism was added, as next.md specified
+- update-state: check that the macOS `swift` CI job is green on the pushed sha. Swift
+    `Bundle.module` resource lookup and `JSONSerialization` bridging have only run on Linux
+- Go still finds a missing key only because `gotFields[key]` reads as nil (advance note). The new
+    validator rule covers the empty-object case for every surface
+- issues.md is at 300 lines, exactly on budget. The next filer should trim before adding

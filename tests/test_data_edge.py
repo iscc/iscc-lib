@@ -109,6 +109,8 @@ def validate_vector(name, vector):
         problems.append("note is missing or empty")
     if ("outputs" in vector) == ("error" in vector):
         problems.append("needs exactly one of outputs / error")
+    if vector.get("outputs") == {}:
+        problems.append("outputs is an empty object, which every harness passes")
     if "error" in vector and (
         not isinstance(vector["error"], str) or not vector["error"]
     ):
@@ -255,6 +257,9 @@ def test_validate_vector_accepts_good_vector():
             {k: v for k, v in GOOD.items() if k != "outputs"},
             "exactly one",
             id="no_outcome",
+        ),
+        pytest.param(
+            "test_0001_x", {**GOOD, "outputs": {}}, "empty object", id="empty_outputs"
         ),
         pytest.param("test_0001_x", {**GOOD, "excpet": {}}, "unknown keys", id="typo"),
         pytest.param(

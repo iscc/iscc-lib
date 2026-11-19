@@ -97,7 +97,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     grepped for the data-edge tests BY NAME (surefire XML,
     `dotnet --logger console;verbosity=normal`, `rake test TESTOPTS=-v`); check raw-call-only
     rejection AND that full-result surfaces fail on a missing expected key (Ruby used a key
-    intersection)
+    intersection). **Swift/Kotlin (218, ~10 min)**: Swift recipe from `packages/swift/CLAUDE.md` +
+    `grep 'DataEdgeTests.*passed'`; Kotlin `cleanTest test` + `<testsuite>` attrs of the XML. Swift
+    `String ==` is canonical equivalence — a harness-strictness note, filed `low`
 - **Waiting on a background run**:
     `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15;   done'` in the foreground works
     (bare `sleep` is blocked); never edit while prek runs

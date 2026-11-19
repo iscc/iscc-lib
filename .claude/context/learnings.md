@@ -103,8 +103,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `<argLine>` beats the user property, so all earlier `-DargLine` "zero warnings" runs were
     vacuous. CI runs no `-Xcheck:jni`
 - **Release pipeline** + `version_sync.py`'s 21 targets → `learnings-archive.md`. `@iscc/wasm`
-    metadata = wasm-pack output of its `Cargo.toml` (214; `license.workspace` OK in 0.13.1, the
-    `init.sh` pin on 2026-11-19); no `description` → npm shows the README badge line
+    metadata = wasm-pack 0.13.1 output of its `Cargo.toml` (214); no `description` → badge line
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
     (guard shape, artifact wiring, `needs:` graph; prek hook +
@@ -189,7 +188,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     stays green when the binding RETURNS garbage, because those conversions raise `ValueError` too.
     **And compare EVERY expected output key on a full-result surface** (217: Ruby's
     `actual.keys & expected.keys` passed a result without `iscc`); only a bare-string result is
-    wrapped to `{iscc}`
+    wrapped to `{iscc}`. `outputs: {}` passes every harness, so the validator rejects it (218).
+    Swift `String ==` is canonical equivalence (`"K" == "\u{212A}"`): compare `unicodeScalars`
 - **A source-distributed surface ships its test data** (217): the Go module zip carries all of
     `packages/go/` incl. `testdata/`, and SwiftPM clones the whole repo, so a "not in any published
     artifact" rule needs a reading for them (filed); the Rust crate uses `exclude` in `Cargo.toml`

@@ -68,7 +68,7 @@ swift test \
     only deviation, an unknown section fails, and a rejection must throw `IsccUniError` from the raw
     call alone
 - Every expected output key must be present in the converted record and equal (typed casts, no `Any`
-    equality); 6 test methods (the vector run plus five one-bad-case negatives)
+    equality); tests: the vector run plus one-bad-case negatives
 
 ## Binding Generation
 

@@ -267,18 +267,19 @@ Resolved when both hold:
     and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
     functions") or brought under a check
 
-## Ruby `data-edge.json` harness passes a gen result that lacks an expected key `normal` [review]
+## Swift `data-edge.json` compare is looser than byte equality `low` [review]
 
-`DataEdge.compare` in `crates/iscc-rb/test/test_data_edge.rb` compares only
-`actual.keys & expected.keys`, so the gen_text NUL vector passes if the Ruby result returns
-`characters: 10` and no `iscc`. The reviewed templates fail on a missing key
-(`crates/iscc-lib/tests/test_data_edge.rs` `compare`, `tests/test_data_edge.py` `matches`), and so
-does Go. Only a surface whose result is a bare string (napi, WASM, JNI) or a one-field record (.NET)
-wraps it to `{iscc}` and compares that key. Ruby returns the full Hash, so it should compare every
-expected key. Found by Codex in iter 217; introduced by that step.
+**Triage:** untriaged. Nobody hits it today: the Rust harness pins the same bytes strictly.
 
-Resolved when the Ruby harness fails on an expected key missing from the result, pinned by a
-negative test next to `test_data_edge_fails_output_mismatch`.
+`compareValue` in `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift` compares with Swift
+`String ==`, which uses canonical equivalence (`"K" == "\u{212A}"` is `true`, checked on 6.1.2), and
+reads expected numbers with `as? Int`, which also accepts a JSON `false`/`true` from
+`JSONSerialization`. So a Swift-only marshalling bug that returned a canonically equivalent
+non-ASCII string would pass this harness. Found by Codex in iter 218; the Python template conflates
+`0`/`False` too.
+
+Resolved when the Swift compare matches strings by Unicode scalars and rejects Boolean-backed
+numbers, on both Linux and macOS.
 
 ## Go and Swift ship `data-edge.json` despite "absent from every published artifact" `low` [review]
 
