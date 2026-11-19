@@ -12,8 +12,10 @@ CI-red fix; 197 = Python seq binding; 198 = core `iscc_clean` trim parity; 199 =
 Rust+Go; 204 = napi+WASM seq; 205 = C FFI seq; 206 = .NET seq; 207 = C++ seq; 208 = JNI seq; 209 =
 Ruby seq; 210 = UniFFI seq, last surface; 211 = 33→35 doc sweep + seq doc entries, fan-out ~30 doc
 files; 212 = Ruby `RArray` fix + json bump; 213 = .NET+C++ embedded-NUL rejection (decided
-2026-11-19; .NET throws `IsccException` at `ToNativeUtf8`, C++ one `detail` helper); next = wasm npm
-metadata, Ruby Bignum, then remaining normals).
+2026-11-19; .NET throws `IsccException` at `ToNativeUtf8`, C++ one `detail` helper); 214 = npm
+`license`/`description` for `@iscc/wasm` (Cargo.toml) + `@iscc/lib` (package.json had the same
+badge-markdown description — npm derives it from the README when missing; probe sibling packages for
+a defect class); next = Ruby Bignum, uv.lock alerts, Python docstrings, then remaining normals).
 
 ## Scope Calibration Principles
 
