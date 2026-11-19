@@ -10,12 +10,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     uniffi), each depending only on the core. Tier 1 = 33 symbols `pub use`d at crate root (33rd =
     `gen_iscc_id_v1`+`IsccIdResult`, iter 177; docs/count sweep to 33 done, iter 190); Tier 2 is
     `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
-- **ISCC-SEQ core (195)**: `encode_seq`/`decode_seq` at crate root (documented Tier-1 count stays 33
-    until all 11 surfaces bind them → 35, one doc sweep); `read_unit`/`SEQ_MAINTYPES` Tier 2 on
-    private raw-`u32` header helpers — never the typed `decode_header` path (Go `uint8` truncates
-    SubType 4679 → 71, 202). Diff each port vs Rust via the Python binding on a corpus. **The spec
-    round trip is BYTES — `encode_seq(decode_seq(x)) == x` over the `decode_seq` vectors** (205:
-    next.md prescribed string decode-of-encode; py/napi/WASM/FFI assert bytes)
+- **ISCC-SEQ core (195)**: `encode_seq`/`decode_seq` at crate root (bound on all 11 surfaces since
+    210; the documented Tier-1 count moves 33 → 35 in ONE doc sweep); `read_unit`/`SEQ_MAINTYPES`
+    Tier 2 on private raw-`u32` header helpers — never the typed `decode_header` path (Go `uint8`
+    truncates SubType 4679 → 71, 202). Diff each port vs Rust via the Python binding on a corpus.
+    **The spec round trip is BYTES — `encode_seq(decode_seq(x)) == x` over the `decode_seq`
+    vectors** (205: next.md prescribed string decode-of-encode; py/napi/WASM/FFI assert bytes)
 - **`encode_seq` upper-cases before cleaning, so `b` + base32(`cc01` + unit) can read as a DIFFERENT
     valid bare unit** (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20 bytes) — iscc-core 1.5.0 returns the
     same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
@@ -24,9 +24,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     (204). **C-string marshalling truncates at an embedded NUL** (206/207): .NET keeps the `\0` and
     C++ passes `c_str()`, the FFI's `CStr` stops there, so `gen_text_code_v0("Hello\0World")` gives
     `"Hello"`'s code on BOTH. C++ `encode_seq` guards NUL, .NET `EncodeSeq` does not — probe
-    `x + "\0junk"` on every string input. JNI + Ruby keep the NUL, the core rejects (208/209);
-    UniFFI unprobed. **Magnus `Vec<T>` params segfault Ruby** (209, filed) when an element's
-    `to_str` shrinks the array (`to_vec` holds the slice) — take `RArray` + `into_iter()`
+    `x + "\0junk"` on every string input. JNI, Ruby + UniFFI keep the NUL, the core rejects
+    (208-210). **Magnus `Vec<T>` params segfault Ruby** (209, filed) when an element's `to_str`
+    shrinks the array (`to_vec` holds the slice) — take `RArray` + `into_iter()`
 - **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
     `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
     modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an

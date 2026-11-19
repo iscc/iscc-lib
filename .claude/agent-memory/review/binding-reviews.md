@@ -411,3 +411,20 @@ Full text of entries compacted out of `MEMORY.md`.
     `g++ -std=c++17 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror   -fsyntax-only -Ipackages/cpp/include -Icrates/iscc-ffi/include packages/cpp/tests/test_iscc.cpp`.
     One-off probe: `g++ … -fsanitize=address x.cpp -Ltarget/debug -liscc_ffi`, run with
     `LD_LIBRARY_PATH=target/debug` (faster than cmake). Codex was clean in ~2 min
+
+### UniFFI seq step (iter 210, ~10 min) — Swift + Kotlin from one crate
+
+- Kotlin: `cargo build -p iscc-uniffi` →
+    `packages/kotlin/gradlew -p packages/kotlin clean test   --offline`; read
+    `build/test-results/test/TEST-uniffi.iscc_uniffi.ConformanceTest.xml` (`tests=`, timestamp,
+    `testcase name=`). Only one suite exists since the Unicode pin removal.
+- Swift on Linux:
+    `PATH=/tmp/swifttc/swift-6.1.2-RELEASE-debian12/usr/bin:$PATH swift test   --package-path packages/swift --scratch-path /tmp/<fresh> -Xlinker -L$PWD/target/debug -Xlinker   -rpath -Xlinker $PWD/target/debug`.
+    With `--package-path` the cwd stays at the repo root, so the CLAUDE.md recipe's relative
+    `../../target/debug` must become absolute.
+- Regen no-op: run both bindgen commands from `packages/{swift,kotlin}/CLAUDE.md` with
+    `--out-dir   /tmp/...`, then diff after `sed 's/[[:space:]]*$//'` plus stripping EOF blank
+    lines. Expected residue: the `.swift` file lacks a final newline, and the generated `.modulemap`
+    differs from the hand-maintained one (`use "Darwin"`). Ignore both.
+- Embedded NUL: JNI, Ruby, UniFFI and Python keep it and the core rejects it (napi/WASM not probed).
+    Only .NET/C++ over the C FFI truncate (open issue).

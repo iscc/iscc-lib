@@ -134,6 +134,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     (`GAAAAAAAAA======`) — `EEAY…====` is rejected by the ref too → `binding-reviews.md`
 - **C++ header-wrapper step (207, ~8 min)**: ASAN cmake build + `test_iscc`; CMake sets no `-Wall`,
     so add a strict `g++ -Werror -fsyntax-only` pass; NUL-probe string inputs → `binding-reviews.md`
+- **UniFFI Swift+Kotlin step (210, ~10 min)**: `gradlew -p packages/kotlin clean test --offline`
+    (JUnit XML) + `swift test --package-path packages/swift` with `/tmp/swifttc` on PATH, a fresh
+    `--scratch-path` and ABSOLUTE `-L`/rpath + bindgen regen into a temp dir → `binding-reviews.md`
 - **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in
     `gate-reviews.md`); stage `decisions-archive.md` too (195)
 

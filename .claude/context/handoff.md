@@ -1,65 +1,66 @@
-## 2026-11-19 — Bind `encode_seq` / `decode_seq` in the UniFFI crate (Swift + Kotlin)
+## 2026-11-19 — Review of: Bind `encode_seq` / `decode_seq` in the UniFFI crate (Swift + Kotlin)
 
-**Done:** `crates/iscc-uniffi` exports `encode_seq(Vec<String>) -> Vec<u8>` and
-`decode_seq(Vec<u8>) -> Vec<String>`, which pass straight to the core with no binding guards. The
-Swift and Kotlin bindings were regenerated, and both conformance harnesses run the 4 + 4 seq vectors
-plus a bytes round trip, negatives, the padding control and an embedded-NUL probe. ISCC-SEQ is now
-bound on all 11 surfaces.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-uniffi/src/lib.rs`: 2 exported wrappers + 6 unit tests (vector encode/decode, bytes
-    round trip, `[]` and empty-bytes errors, embedded NUL)
-- `packages/swift/Sources/IsccLib/iscc_uniffi.swift`,
-    `packages/swift/Sources/iscc_uniffiFFI/iscc_uniffiFFI.h`,
-    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt`: regenerated (after format
-    the diff only adds lines: +33 / +22 / +49)
-- `packages/swift/Tests/IsccLibTests/ConformanceTests.swift`: `decodeBytes` (asserts the `bytes:`
-    prefix), a shared `hexToData` (`decodeStream` now also asserts its `stream:` prefix),
-    `assertIsccError`, and 9 seq test methods
-- `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt`: `decodeBytes` (`require`s
-    the prefix), `assertIsccError`, and the same 9 methods (ByteArrays compared with
-    `assertArrayEquals`)
+**Summary:** `crates/iscc-uniffi` exports `encode_seq`/`decode_seq` as thin pass-through wrappers.
+Swift and Kotlin bindings were regenerated (purely additive), and both conformance harnesses run the
+4 + 4 data.json seq vectors, a bytes round trip, one-bad-input-per-call negatives, the valid padding
+control and an embedded-NUL probe. ISCC-SEQ is now bound on all 11 surfaces. The diff is in scope: 1
+hand-edited source file, 3 generated files and 2 test files.
 
 **Verification:**
 
-- `cargo test -p iscc-uniffi`: 28 passed, including the 6 seq tests.
-    `cargo clippy -p   iscc-uniffi --all-targets -- -D warnings`: exit 0
-- `./gradlew clean test` (packages/kotlin): BUILD SUCCESSFUL. The JUnit XML reports tests=19,
-    failures=0, errors=0 and lists `testEncodeSeq`, `testDecodeSeq`, `testSeqBytesRoundTrip`,
-    `testEncodeSeqRejectsEmptyList`, `testDecodeSeqRejectsEmptyBytes`,
-    `testDecodeSeqRejectsTruncatedBytes`, `testEncodeSeqRejectsPadding`,
-    `testEncodeSeqPaddingControl`, `testEncodeSeqRejectsEmbeddedNul`
-- `swift test` (swift 6.1.2 Debian 12 toolchain in /tmp/swifttc, `--scratch-path /tmp/swiftbuild`):
-    "Executed 19 tests, with 0 failures". The same 9 seq methods passed, and the suite was re-run
-    after formatting
-- Regen no-op: bindgen run into a temp dir, compared after `sed 's/[[:space:]]*$//'` + stripping
-    trailing EOF blank lines: `.h` and `.kt` identical. The `.swift`, re-diffed against the
-    committed HEAD bytes, differs only by the missing final newline in the raw bindgen output
-- `grep`: Swift `public func decodeSeq(data: Data)throws -> [String]` /
-    `public func encodeSeq(units: [String])throws -> Data`; Kotlin `` fun `decodeSeq` `` /
-    `` fun `encodeSeq` `` found
-- `mise run check`: exit 0
-- Core messages pinned in the negatives (checked first through the Python binding): `[]` → "at least
-    one ISCC-UNIT", empty → "Empty ISCC-SEQ", last byte dropped → "Truncated ISCC-UNIT",
-    `ISCC:GAAAAAAAAA======` → "base32 decode error", `unit+"\0junk"` → "base32 decode error".
-    Control: `ISCC:GAAAAAAAAA` → `300000000000`
+- [x] `cargo test -p iscc-uniffi`: 28 passed (6 seq tests: vector encode/decode, bytes round trip,
+    `[]` and empty-bytes errors, NUL). `cargo clippy -p iscc-uniffi --all-targets -- -D warnings`
+    and workspace clippy: exit 0
+- [x] `gradlew -p packages/kotlin clean test --offline`: BUILD SUCCESSFUL. JUnit XML
+    `ConformanceTest` has tests=19, failures=0, errors=0, skipped=0, with all 9 seq methods listed
+    and a fresh timestamp. No `Deprecat` lines
+- [x] `swift test` (6.1.2 Debian 12 toolchain, fresh `--scratch-path /tmp/rv-swiftbuild`, absolute
+    rpath): "Executed 19 tests, with 0 failures". All 9 seq methods passed, with no warnings from
+    the package sources
+- [x] Regenerated into a temp dir and normalized (trailing whitespace and EOF blank lines): `.kt`
+    and `.h` identical. `.swift` differs only by raw bindgen's missing final newline. The
+    `.modulemap` is hand-maintained and was not touched
+- [x] `grep`: Swift `public func decodeSeq(data: Data)` / `public func encodeSeq(units: [String])`;
+    Kotlin `` fun `decodeSeq` `` / `` fun `encodeSeq` ``. 0 trailing-whitespace lines in all three
+    generated files
+- [x] `mise run check`: exit 0, tree clean afterwards
 
-**Next:** the 33→35 doc sweep, now that all 11 surfaces bind seq. It includes Swift/Kotlin
-`CLAUDE.md` + README (`ConformanceTests` is now 19 methods, not "9 methods / 50 vectors"), plus the
-Ruby files listed in the previous handoff. After that, the Magnus `Vec<T>` segfault fix.
+**Issues found:**
+
+- Nit: the Rust `test_encode_seq_embedded_nul_rejected` asserts only `is_err()` and has no message
+    check or bare-unit control. The Swift/Kotlin NUL tests have both, so coverage is fine overall
+- Nit: Swift `decodeStream` gained a `stream:` prefix precondition, but Kotlin `decodeStream` still
+    uses a bare `removePrefix`. This asymmetry is harmless
+- No gate circumvention in the unpushed range (define-next, advance, and the update-state and log
+    commits). No `iscc-lib` API change and no hot-path change, so iai, CRAP and semver are
+    unaffected
+
+**Codex review:** ran on the main advance commit `246705d`. HEAD `1308c08` is only a handoff and
+memory fixup, so it was not reviewed separately. No actionable findings. Codex independently ran the
+28 Rust, 19 Swift and 19 Kotlin tests, and all passed.
+
+**Next:** the 33→35 Tier-1 doc sweep, now that all 11 surfaces bind `encode_seq`/`decode_seq`. Known
+stale spots:
+
+- `crates/iscc-uniffi/src/lib.rs:3`: the module doc says "all 33 Tier 1 symbols"
+- Swift/Kotlin `CLAUDE.md` + README: `ConformanceTests` is now 19 methods
+- the Ruby files listed in the 209 handoff
+- every "33" count across docs, READMEs, `notes/`, the per-crate `CLAUDE.md` files and `docs/llms*`
+
+Grep for `33` / `Tier 1` across the tree rather than trusting this list. A sweep touching many files
+needs the `**Fan-out:**` valve (one mechanically identical count change). Any per-surface API
+example it adds must be verified against the real signature (190: a docs sweep fabricated a return
+type). After the sweep: the Ruby Magnus `Vec<T>` segfault fix (`normal`, single file).
 
 **Notes:**
 
-- **Embedded NUL on UniFFI: the NUL is kept and the core rejects it**, in both Swift and Kotlin
-    (strings cross as length-delimited RustBuffers). Each test has a control that the bare unit
-    encodes, so the rejection comes from the NUL suffix. UniFFI was the last surface left to probe.
-    Per learnings 206/207, only the C-string surfaces (.NET, and C++ without its guard) truncate
-- `mise run format` failed once with
-    `failed to write ... iscc_uniffi.swift: Invalid argument (os   error 22)` (looks like a WSL
-    bind-mount flake). It left 86 trailing-whitespace lines in the Swift file. Re-running the hook
-    on that file, then a further format pass, cleaned it up. Check `grep -c '[[:space:]]$'` on
-    generated files and do not trust a single format pass
-- Generated `.kt` still emits the known benign "Expression is unused" compile warning
-- No core or hot-path change, so iai and CRAP are not affected, and there is no `iscc-lib` API
-    change
+- Embedded-NUL probes so far: JNI, Ruby, UniFFI (Swift + Kotlin) and Python keep the NUL and the
+    core rejects it (napi/WASM not probed). Only the C-string surfaces (.NET, and C++ outside its
+    `encode_seq` guard) truncate. That is the open `normal` issue, and its fix design is Titusz's
+    call
+- The WSL bind-mount `OSError: [Errno 22] Invalid argument` hit a prek/mdformat write again this
+    review (on `learnings.md`). Re-running fixes it. Do not mistake it for a hook rejection
+- The Swift Linux toolchain is still extracted at `/tmp/swifttc` (it does not survive a container
+    rebuild)
