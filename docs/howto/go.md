@@ -390,6 +390,33 @@ for _, unit := range units {
 }
 ```
 
+### ISCC-SEQ
+
+`EncodeSeq(units []string) ([]byte, error)` packs an ordered list of ISCC-UNITs into an ISCC-SEQ
+byte string (IEP-0020): the header and body bytes of each unit, in the given order.
+`DecodeSeq(data []byte) ([]string, error)` reads one back into `ISCC:`-prefixed unit strings. Base32
+input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and
+ISCC-FLAKE units are rejected.
+
+```go
+data, err := iscc.EncodeSeq([]string{"ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"})
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(len(data))       // 34
+fmt.Printf("%x\n", data[:6]) // 2007a88248c5
+
+units, err := iscc.DecodeSeq(data)
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(units) // [ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI]
+
+// The round trip is defined on bytes: EncodeSeq(DecodeSeq(data)) == data
+again, _ := iscc.EncodeSeq(units)
+fmt.Println(bytes.Equal(again, data)) // true
+```
+
 ### Experimental ISCC-IDv1
 
 `GenIsccIDV1(timestamp uint64, hubID uint16, realm uint8) (*IsccIdResult, error)` mints an 80-bit

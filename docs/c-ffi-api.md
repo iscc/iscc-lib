@@ -654,6 +654,63 @@ Returns a NULL-terminated array of heap-allocated strings. Free with `iscc_free_
 
 ---
 
+### iscc_encode_seq
+
+Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+
+```c
+IsccByteBuffer iscc_encode_seq(const char *const *units, uintptr_t num_units);
+```
+
+| Parameter   | Type                 | Description                                 |
+| ----------- | -------------------- | ------------------------------------------- |
+| `units`     | `const char *const*` | Array of null-terminated ISCC-UNIT strings  |
+| `num_units` | `uintptr_t`          | Number of unit strings (must be at least 1) |
+
+Returns the header and body bytes of each unit, concatenated in the given order. Units may omit the
+`ISCC:` prefix and may be lowercase or contain hyphens. Base32 decoding is strict: no padding, zero
+spare bits, and ASCII-only case folding. On error `.data` is `NULL` (check `iscc_last_error()`):
+`units` is NULL, the list is empty, or a unit is NULL, not UTF-8, malformed, or of an excluded
+MainType (ISCC-CODE, ID, FLAKE). Free with `iscc_free_byte_buffer()`.
+
+---
+
+### iscc_decode_seq
+
+Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+
+```c
+char **iscc_decode_seq(const uint8_t *data, uintptr_t data_len);
+```
+
+| Parameter  | Type             | Description                   |
+| ---------- | ---------------- | ----------------------------- |
+| `data`     | `const uint8_t*` | Pointer to the ISCC-SEQ bytes |
+| `data_len` | `uintptr_t`      | Number of bytes in `data`     |
+
+Strict byte-level reader: every unit must be well-formed and no trailing bytes are allowed. Returns
+a NULL-terminated array of `ISCC:`-prefixed unit strings in wire order, or `NULL` on empty or
+malformed input (check `iscc_last_error()`). Free with `iscc_free_string_array()`. The round trip is
+defined on bytes: `iscc_encode_seq` of the result reproduces `data`.
+
+```c
+const char *units[] = {"ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"};
+IsccByteBuffer seq = iscc_encode_seq(units, 1);
+if (seq.data == NULL) {
+    fprintf(stderr, "Error: %s\n", iscc_last_error());
+    return 1;
+}
+/* seq.len == 34, bytes start with 20 07 a8 82 48 c5 */
+
+char **decoded = iscc_decode_seq(seq.data, seq.len);
+/* decoded[0] == "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI", decoded[1] == NULL */
+
+iscc_free_string_array(decoded);
+iscc_free_byte_buffer(seq);
+```
+
+---
+
 ## Streaming
 
 Streaming hashers for processing large data incrementally. Each hasher follows the lifecycle:
@@ -729,13 +786,13 @@ Returns `true` if all tests pass, `false` if any fail.
 Every allocation from the FFI layer must be freed with the matching function. Passing `NULL` is
 always a no-op.
 
-| Function                      | Frees                                                      |
-| ----------------------------- | ---------------------------------------------------------- |
-| `iscc_free_string`            | `char*` from any `iscc_gen_*`, text utility, or codec call |
-| `iscc_free_string_array`      | `char**` from `iscc_decompose` or `iscc_sliding_window`    |
-| `iscc_free_byte_buffer`       | `IsccByteBuffer` from algorithm primitives                 |
-| `iscc_free_byte_buffer_array` | `IsccByteBufferArray` from `iscc_alg_cdc_chunks`           |
-| `iscc_free_decode_result`     | `IsccDecodeResult` from `iscc_decode`                      |
+| Function                      | Frees                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `iscc_free_string`            | `char*` from any `iscc_gen_*`, text utility, or codec call                 |
+| `iscc_free_string_array`      | `char**` from `iscc_decompose`, `iscc_decode_seq` or `iscc_sliding_window` |
+| `iscc_free_byte_buffer`       | `IsccByteBuffer` from algorithm primitives or `iscc_encode_seq`            |
+| `iscc_free_byte_buffer_array` | `IsccByteBufferArray` from `iscc_alg_cdc_chunks`                           |
+| `iscc_free_decode_result`     | `IsccDecodeResult` from `iscc_decode`                                      |
 
 ```c
 void iscc_free_string(char *ptr);

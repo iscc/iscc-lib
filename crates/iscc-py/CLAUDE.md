@@ -25,7 +25,7 @@ crates/iscc-py/
   Cargo.toml              # cdylib crate, lib name = "_lowlevel"
   pyproject.toml           # maturin build backend, module-name = "iscc_lib._lowlevel"
   src/
-    lib.rs                 # All PyO3 bindings: 27 #[pyfunction]s + 3 #[pyclass]es + #[pymodule]
+    lib.rs                 # All PyO3 bindings: 30 #[pyfunction]s + 3 #[pyclass]es + #[pymodule]
   python/iscc_lib/
     __init__.py            # Public API: wrapper functions, IsccResult classes, re-exports
     _lowlevel.pyi          # Type stubs for the native Rust extension module

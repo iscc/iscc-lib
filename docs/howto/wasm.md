@@ -446,6 +446,33 @@ for (const unit of units) {
 }
 ```
 
+### ISCC-SEQ
+
+`encode_seq(units)` packs an ordered list of ISCC-UNITs into an ISCC-SEQ byte string (IEP-0020) and
+returns a `Uint8Array` with the header and body bytes of each unit, in the given order. `units` may
+be an array or any other iterable of strings. `decode_seq(data: Uint8Array): string[]` reads one
+back into `ISCC:`-prefixed unit strings. Base32 input is strict (no padding, zero spare bits) and
+upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected.
+
+```javascript
+import {
+    decode_seq,
+    encode_seq
+} from "@iscc/wasm";
+
+const data = encode_seq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]);
+console.log(data.length); // 34
+console.log(Array.from(data.subarray(0, 6), (b) => b.toString(16).padStart(2, "0")).join(""));
+// "2007a88248c5"
+
+const units = decode_seq(data);
+console.log(units); // ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+// The round trip is defined on bytes: encode_seq(decode_seq(data)) equals data
+const again = encode_seq(units);
+console.log(again.length === data.length && again.every((b, i) => b === data[i])); // true
+```
+
 ### Other codec functions
 
 - `encode_base64(data)` — encode a Uint8Array to base64 string

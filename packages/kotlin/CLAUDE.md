@@ -26,7 +26,7 @@ packages/kotlin/
     main/kotlin/uniffi/iscc_uniffi/
       iscc_uniffi.kt                        # UniFFI-generated Kotlin bindings (DO NOT EDIT)
     test/kotlin/uniffi/iscc_uniffi/
-      ConformanceTest.kt                    # data.json conformance vectors for 9 gen_*_v0 functions
+      ConformanceTest.kt                    # data.json vectors: 9 gen_*_v0 functions, gen_iscc_id_v1, ISCC-SEQ
     test/resources/
       data.json                             # Vendored ISCC conformance test vectors
 ```
@@ -54,8 +54,9 @@ point to `../../target/debug/` relative to the Kotlin package root.
 
 ### Conformance tests (`ConformanceTest.kt`)
 
-- 9 test methods, 50 test vectors from `data.json`
-- One test method per gen function (no `gen_sum_code_v0` vectors in data.json)
+- 19 test methods: one per gen function (9 methods, 50 vectors; no `gen_sum_code_v0` vectors in
+    data.json), `testGenIsccIdV1`, and 9 ISCC-SEQ methods (4 `encode_seq` + 4 `decode_seq` vectors,
+    the bytes round trip, and one-bad-input-per-test negatives)
 - `decodeStream` helper converts `"stream:<hex>"` format to `ByteArray`
 - Asserts exact ISCC string equality against expected outputs
 - Uses JUnit 6 (`org.junit.jupiter`) and Gson (`com.google.code.gson:gson`) for JSON parsing

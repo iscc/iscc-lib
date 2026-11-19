@@ -359,6 +359,26 @@ units = IsccLib.iscc_decompose(iscc_result.iscc)
 units.each { |unit| puts unit } # Each unit code (without "ISCC:" prefix)
 ```
 
+### ISCC-SEQ
+
+`IsccLib.encode_seq(units)` packs an Array of ISCC-UNIT strings into an ISCC-SEQ byte string
+(IEP-0020) and returns a binary `String` with the header and body bytes of each unit, in the given
+order. `IsccLib.decode_seq(data)` reads one back into an Array of `ISCC:`-prefixed unit strings.
+Base32 input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE,
+ISCC-ID and ISCC-FLAKE units are rejected.
+
+```ruby
+data = IsccLib.encode_seq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"])
+data.bytesize       # => 34
+data.unpack1("H12") # => "2007a88248c5"
+
+units = IsccLib.decode_seq(data)
+# => ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+# The round trip is defined on bytes: encode_seq(decode_seq(data)) == data
+IsccLib.encode_seq(units) == data # => true
+```
+
 ### Other codec functions
 
 ```ruby

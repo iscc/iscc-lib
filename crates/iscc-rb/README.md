@@ -76,7 +76,7 @@ puts result.iscc
 - **Algorithm primitives:** `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, `sliding_window`
 - **Soft hashing:** `soft_hash_video_v0`
 - **Encoding:** `encode_base64`, `encode_component`
-- **Codec:** `iscc_decode`, `iscc_decompose`, `json_to_data_url`
+- **Codec:** `iscc_decode`, `iscc_decompose`, `encode_seq`, `decode_seq`, `json_to_data_url`
 - **Streaming:** `DataHasher`, `InstanceHasher` for incremental processing
 - **Diagnostics:** `conformance_selftest`
 

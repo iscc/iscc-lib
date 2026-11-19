@@ -342,6 +342,26 @@ foreach (string unit in units)
     Console.WriteLine(unit); // Each unit code (without "ISCC:" prefix)
 ```
 
+### ISCC-SEQ
+
+`byte[] IsccLib.EncodeSeq(string[] units)` packs an ordered list of ISCC-UNITs into an ISCC-SEQ byte
+string (IEP-0020): the header and body bytes of each unit, in the given order.
+`string[] IsccLib.DecodeSeq(ReadOnlySpan<byte> data)` reads one back into `ISCC:`-prefixed unit
+strings. Base32 input is strict (no padding, zero spare bits) and upper-casing is ASCII-only.
+ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected.
+
+```csharp
+byte[] data = IsccLib.EncodeSeq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]);
+Console.WriteLine(data.Length);                          // 34
+Console.WriteLine(Convert.ToHexString(data.AsSpan(0, 6))); // "2007A88248C5"
+
+string[] units = IsccLib.DecodeSeq(data);
+Console.WriteLine(units[0]); // "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"
+
+// The round trip is defined on bytes: EncodeSeq(DecodeSeq(data)) reproduces data
+Console.WriteLine(IsccLib.EncodeSeq(units).AsSpan().SequenceEqual(data)); // true
+```
+
 ## Text utilities
 
 Text normalization functions used internally by the code generation pipeline are available for

@@ -8,8 +8,9 @@ napi-rs bindings exposing the `iscc-lib` Rust core as a native Node.js addon pub
 - Hub-and-spoke binding crate: depends on `iscc-lib` (pure Rust core), adds zero business logic
 - Compiles to a `.node` native addon via napi-rs (cdylib crate type)
 - Published to npm (not crates.io) -- `publish = false` in Cargo.toml
-- Wraps Tier 1 API as `#[napi]` exports: 5 constants, 10 code generators, 3 codec functions, 4 text
-    utilities, 4 algorithm primitives, 2 streaming hasher classes, and 4 helper functions
+- Wraps Tier 1 API as `#[napi]` exports: 5 constants, 10 code generators, 1 ISCC-IDv1 mint function
+    (`gen_iscc_id_v1`), 5 codec functions (incl. `encode_seq`/`decode_seq`), 4 text utilities, 4
+    algorithm primitives, 2 streaming hasher classes, and 4 helper functions
 
 ## Module Layout
 

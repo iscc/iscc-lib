@@ -83,3 +83,14 @@ not objects). Then the Tier-1 33→35 doc/count sweep (like IDv1 iter 190).
     `env -u LANG -u LC_ALL bundle exec rake test TESTOPTS=-v` to list names
 - Locale crash is only via BUNDLED json 2.21.1 (system json parses fine) — probe under bundle exec
 - 64-bit unit seq = 2-byte header + 8 body = 10 bytes (`2101…` for `EEAYYNMFG5XOELK2`)
+
+## Doc sweep (iter 211)
+
+- Seq documented as `### ISCC-SEQ` in every `docs/howto/*.md` codec section (rust.md gained a
+    `## Codec operations` section) + API entries in rust/java/ruby/c-ffi pages. Example vector
+    `test_0002_single_unit` (34 bytes, `2007a88248c5`). Verify doc examples by running them: Rust
+    via a throwaway `crates/iscc-lib/tests/tmp_*.rs`, Go via a temp `packages/go/zz_tmp_*_test.go`,
+    Node via `node -e` in `crates/iscc-napi` (check `.node` mtime vs last `src/lib.rs` commit),
+    Python after `maturin develop`. Delete temp files before commit
+- zsh: backticks inside a double-quoted grep pattern in a Bash call break the whole command — write
+    generator scripts with the Write tool instead of a heredoc mixed with such greps

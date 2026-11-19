@@ -18,8 +18,8 @@ across languages.
 | **Tier 2** (`pub mod codec`)           | Rust-only (enums, header encode/decode)    | MINOR pre-1.0.0; locked (MAJOR) from v1.0.0 |
 | **Internal** (`pub(crate)` or private) | Never exposed to bindings                  | Free to change                              |
 
-Tier 1 includes 33 public symbols: 10 gen functions, 1 ISCC-IDv1 mint function (`gen_iscc_id_v1`,
-experimental), 4 text utilities, 4 algorithm primitives, 1 soft hash, 2 encoding utilities, 3 codec
+Tier 1 includes 35 public symbols: 10 gen functions, 1 ISCC-IDv1 mint function (`gen_iscc_id_v1`,
+experimental), 4 text utilities, 4 algorithm primitives, 1 soft hash, 2 encoding utilities, 5 codec
 operations, 5 constants, 2 streaming types, and 1 diagnostic function. See `specs/rust-core.md` for
 the complete listing.
 

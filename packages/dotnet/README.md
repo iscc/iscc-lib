@@ -65,7 +65,7 @@ Console.WriteLine(dataResult.Iscc);
 - **Algorithm primitives:** `AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SlidingWindow`
 - **Soft hashing:** `SoftHashVideoV0`
 - **Encoding:** `EncodeBase64`, `EncodeComponent`
-- **Codec:** `IsccDecode`, `IsccDecompose`, `JsonToDataUrl`
+- **Codec:** `IsccDecode`, `IsccDecompose`, `EncodeSeq`, `DecodeSeq`, `JsonToDataUrl`
 - **Streaming:** `IsccDataHasher`, `IsccInstanceHasher` for incremental processing
 - **Diagnostics:** `ConformanceSelftest`
 

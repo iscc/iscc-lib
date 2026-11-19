@@ -89,6 +89,8 @@ Package-level functions that return typed result structs (e.g., `*MetaCodeResult
 | `EncodeComponent` | Construct an ISCC unit from header fields and digest           |
 | `IsccDecode`      | Decode an ISCC unit string into header components + digest     |
 | `IsccDecompose`   | Decompose a composite ISCC-CODE into individual units          |
+| `EncodeSeq`       | Encode ISCC-UNITs as an ISCC-SEQ byte string (IEP-0020)        |
+| `DecodeSeq`       | Decode an ISCC-SEQ byte string to `ISCC:`-prefixed units       |
 | `GenIsccIDV1`     | Mint an ISCC-IDv1 from timestamp, hub ID, realm (experimental) |
 
 ISCC-IDv1 is not part of ISO 24138 and may change in a minor release.

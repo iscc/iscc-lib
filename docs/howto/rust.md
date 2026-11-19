@@ -367,6 +367,31 @@ let trimmed = text_trim("Hello World", 5);
 assert_eq!(trimmed, "Hello");
 ```
 
+## Codec operations
+
+### ISCC-SEQ
+
+`encode_seq(units: &[&str]) -> IsccResult<Vec<u8>>` packs an ordered list of ISCC-UNITs into an
+ISCC-SEQ byte string (IEP-0020): the header and body bytes of each unit, in the given order.
+`decode_seq(data: &[u8]) -> IsccResult<Vec<String>>` reads one back into `ISCC:`-prefixed unit
+strings. Base32 input is strict (no padding, zero spare bits) and upper-casing is ASCII-only.
+ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected.
+
+```rust
+use iscc_lib::{decode_seq, encode_seq};
+
+let data = encode_seq(&["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"])?;
+assert_eq!(data.len(), 34);
+assert_eq!(data[..6], [0x20, 0x07, 0xa8, 0x82, 0x48, 0xc5]);
+
+let units = decode_seq(&data)?;
+assert_eq!(units, ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]);
+
+// The round trip is defined on bytes: encode_seq(decode_seq(data)) == data
+let refs: Vec<&str> = units.iter().map(String::as_str).collect();
+assert_eq!(encode_seq(&refs)?, data);
+```
+
 ## Algorithm primitives
 
 iscc-lib exposes low-level algorithm functions as part of the public Rust API. These are building

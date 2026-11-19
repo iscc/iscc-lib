@@ -5,7 +5,7 @@ description: Java API reference for the ISCC library via JNI.
 
 # Java API Reference
 
-Java library for ISCC (ISO 24138:2024) code generation via JNI. All 33 Tier 1 symbols are exposed as
+Java library for ISCC (ISO 24138:2024) code generation via JNI. All 35 Tier 1 symbols are exposed as
 static methods on the `IsccLib` class. The native library is loaded automatically from the JAR's
 `META-INF/native/` directory, with fallback to `System.loadLibrary` for development environments.
 
@@ -466,6 +466,47 @@ public static native String[] isccDecompose(String isccCode);
 
 Returns an array of base32-encoded ISCC-UNIT strings (without `ISCC:` prefix). Throws
 `IllegalArgumentException` on invalid input.
+
+---
+
+### encodeSeq
+
+Encode ISCC-UNITs into an ISCC-SEQ byte string (IEP-0020).
+
+```java
+public static native byte[] encodeSeq(String[] units);
+```
+
+Returns the concatenated raw unit bytes (header + body per unit) in the given order. Each unit may
+be given with or without the `ISCC:` prefix, in any case. Base32 decoding is strict: `=` padding,
+non-zero spare bits and non-ASCII case-fold aliases are rejected. Units of MainType ISCC-CODE, ID or
+FLAKE are rejected. Throws `IllegalArgumentException` if `units` is empty or a unit is invalid.
+
+---
+
+### decodeSeq
+
+Decode an ISCC-SEQ byte string into ISCC-UNITs (IEP-0020).
+
+```java
+public static native String[] decodeSeq(byte[] data);
+```
+
+Returns `ISCC:`-prefixed ISCC-UNIT strings in wire order. Strict reader: throws
+`IllegalArgumentException` on empty input, malformed units and trailing bytes.
+
+```java
+byte[] data = IsccLib.encodeSeq(new String[] {
+    "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"
+});
+// data.length == 34, starts with 0x20 0x07 0xa8 0x82 0x48 0xc5
+
+String[] units = IsccLib.decodeSeq(data);
+// units: ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+// The round trip is defined on bytes: encodeSeq(decodeSeq(data)) reproduces data
+assert Arrays.equals(IsccLib.encodeSeq(units), data);
+```
 
 ---
 

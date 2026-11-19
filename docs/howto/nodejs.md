@@ -352,6 +352,31 @@ for (const unit of units) {
 }
 ```
 
+### ISCC-SEQ
+
+`encode_seq(units: Array<string>): Buffer` packs an ordered list of ISCC-UNITs into an ISCC-SEQ byte
+string (IEP-0020): the header and body bytes of each unit, in the given order.
+`decode_seq(data: Buffer): Array<string>` reads one back into `ISCC:`-prefixed unit strings. Base32
+input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and
+ISCC-FLAKE units are rejected.
+
+```javascript
+const {
+    decode_seq,
+    encode_seq
+} = require("@iscc/lib");
+
+const data = encode_seq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]);
+console.log(data.length); // 34
+console.log(data.subarray(0, 6).toString("hex")); // "2007a88248c5"
+
+const units = decode_seq(data);
+console.log(units); // ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+// The round trip is defined on bytes: encode_seq(decode_seq(data)) equals data
+console.log(encode_seq(units).equals(data)); // true
+```
+
 ### Other codec functions
 
 - `encode_base64(data)` — encode a Buffer to base64 string

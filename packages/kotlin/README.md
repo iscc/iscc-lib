@@ -68,9 +68,9 @@ assert(conformanceSelftest())
 - `genIsccCodeV0` — Composite ISCC-CODE from unit codes
 - `genSumCodeV0` — Single-pass ISCC-CODE from a file path
 
-Plus codec operations (`encodeComponent`, `isccDecode`, `isccDecompose`), text utilities
-(`textClean`, `textCollapse`, `textTrim`, `textRemoveNewlines`), encoding helpers (`encodeBase64`,
-`jsonToDataUrl`), algorithm primitives, and constants.
+Plus codec operations (`encodeComponent`, `isccDecode`, `isccDecompose`, `encodeSeq`, `decodeSeq`),
+text utilities (`textClean`, `textCollapse`, `textTrim`, `textRemoveNewlines`), encoding helpers
+(`encodeBase64`, `jsonToDataUrl`), algorithm primitives, and constants.
 
 ## Building from Source
 

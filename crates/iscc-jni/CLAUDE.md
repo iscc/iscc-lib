@@ -79,7 +79,9 @@ cd crates/iscc-jni/java && mvn test
 
 - **Conformance tests**: JUnit 6 `@TestFactory` with `DynamicTest` -- parametrized over vendored
     `data.json` vectors at `crates/iscc-lib/tests/data.json`; each `gen_*_v0` function must match
-    the `iscc` output field for every test case
+    the `iscc` output field for every test case; `encodeSeq`/`decodeSeq` are parametrized over the
+    `encode_seq`/`decode_seq` sections (raw bytes, plus the byte round trip
+    `encodeSeq(decodeSeq(x)) == x`)
 - **Unit tests**: `@Test` methods for codec round-trips (`encodeComponent` -> `isccDecode`),
     `jsonToDataUrl`, `genSumCodeV0` equivalence, streaming hasher state validation, constants
     verification, and negative-input validation

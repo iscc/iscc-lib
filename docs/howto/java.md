@@ -378,6 +378,29 @@ for (String unit : units) {
 }
 ```
 
+### ISCC-SEQ
+
+`byte[] IsccLib.encodeSeq(String[] units)` packs an ordered list of ISCC-UNITs into an ISCC-SEQ byte
+string (IEP-0020): the header and body bytes of each unit, in the given order.
+`String[] IsccLib.decodeSeq(byte[] data)` reads one back into `ISCC:`-prefixed unit strings. Base32
+input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and
+ISCC-FLAKE units are rejected.
+
+```java
+import java.util.Arrays;
+
+byte[] data = IsccLib.encodeSeq(new String[]{
+    "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"
+});
+// data.length == 34, starts with 0x20 0x07 0xa8 0x82 0x48 0xc5
+
+String[] units = IsccLib.decodeSeq(data);
+// units: ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+// The round trip is defined on bytes: encodeSeq(decodeSeq(data)) reproduces data
+System.out.println(Arrays.equals(IsccLib.encodeSeq(units), data)); // true
+```
+
 ### Other codec methods
 
 - `IsccLib.encodeBase64(byte[] data)` — encode bytes to base64 string

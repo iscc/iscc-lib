@@ -384,6 +384,25 @@ for (unit in units) {
 }
 ```
 
+### ISCC-SEQ
+
+`encodeSeq(units: List<String>): ByteArray` packs an ordered list of ISCC-UNITs into an ISCC-SEQ
+byte string (IEP-0020): the header and body bytes of each unit, in the given order.
+`decodeSeq(data: ByteArray): List<String>` reads one back into `ISCC:`-prefixed unit strings. Base32
+input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and
+ISCC-FLAKE units are rejected.
+
+```kotlin
+val data = encodeSeq(units = listOf("ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"))
+println(data.size) // 34, starts with 0x20 0x07 0xa8 0x82 0x48 0xc5
+
+val units = decodeSeq(data = data)
+println(units) // [ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI]
+
+// The round trip is defined on bytes: encodeSeq(decodeSeq(data)) reproduces data
+println(encodeSeq(units = units).contentEquals(data)) // true
+```
+
 ## Text utilities
 
 Text normalization functions used internally by the code generation pipeline are available for

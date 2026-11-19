@@ -62,8 +62,8 @@ in `src/lib.rs`. Do not split into submodules unless the file exceeds ~2500 line
     `iscc_gen_sum_code_v0`
 - Text utilities: `iscc_text_clean`, `iscc_text_collapse`, `iscc_text_remove_newlines`,
     `iscc_text_trim`
-- Codec: `iscc_encode_component`, `iscc_decode`, `iscc_decompose`, `iscc_encode_base64`,
-    `iscc_json_to_data_url`, `iscc_sliding_window`
+- Codec: `iscc_encode_component`, `iscc_decode`, `iscc_decompose`, `iscc_encode_seq`,
+    `iscc_decode_seq`, `iscc_encode_base64`, `iscc_json_to_data_url`, `iscc_sliding_window`
 - Algorithm primitives: `iscc_alg_simhash`, `iscc_alg_minhash_256`, `iscc_alg_cdc_chunks`,
     `iscc_soft_hash_video_v0`
 - Algorithm constants: `iscc_meta_trim_name`, `iscc_meta_trim_description`, `iscc_meta_trim_meta`,

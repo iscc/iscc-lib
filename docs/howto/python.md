@@ -445,6 +445,28 @@ for unit in units:
     print(unit)  # Each unit code (without "ISCC:" prefix)
 ```
 
+### ISCC-SEQ
+
+`encode_seq(units: Iterable[str]) -> bytes` packs an ordered list of ISCC-UNITs into an ISCC-SEQ
+byte string (IEP-0020): the header and body bytes of each unit, in the given order.
+`decode_seq(data) -> list[str]` reads one back into `ISCC:`-prefixed unit strings (`data` may be
+`bytes`, `bytearray` or `memoryview`). Base32 input is strict (no padding, zero spare bits) and
+upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected.
+
+```python
+from iscc_lib import decode_seq, encode_seq
+
+data = encode_seq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"])
+print(len(data))  # 34
+print(data[:6].hex())  # "2007a88248c5"
+
+units = decode_seq(data)
+print(units)  # ['ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI']
+
+# The round trip is defined on bytes: encode_seq(decode_seq(data)) == data
+assert encode_seq(units) == data
+```
+
 ### Other codec functions
 
 - `encode_base64(data: bytes) -> str` — encode bytes to base64

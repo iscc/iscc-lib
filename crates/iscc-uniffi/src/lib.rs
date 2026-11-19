@@ -1,6 +1,6 @@
 //! UniFFI scaffolding for iscc-lib — shared interface for Swift and Kotlin bindings.
 //!
-//! Exposes all 33 Tier 1 symbols from `iscc-lib` via UniFFI proc macros. Uses owned
+//! Exposes all 35 Tier 1 symbols from `iscc-lib` via UniFFI proc macros. Uses owned
 //! types (`String`, `Vec<u8>`) because UniFFI requires values, not borrowed references.
 //! Constants are exposed as getter functions (UniFFI doesn't support `const` exports).
 //!

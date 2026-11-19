@@ -401,6 +401,36 @@ The `codec` module also exposes encoding/decoding functions:
 - **`decode_header`** — decode ISCC header bytes into `(MainType, SubType, Version, length, tail)`
 - **`encode_base32` / `decode_base32`** — RFC 4648 base32 encoding without padding
 
+### ISCC-SEQ
+
+`encode_seq` and `decode_seq` (IEP-0020) are Tier 1 functions re-exported at the crate root:
+
+```rust
+pub fn encode_seq(units: &[&str]) -> IsccResult<Vec<u8>>
+pub fn decode_seq(data: &[u8]) -> IsccResult<Vec<String>>
+```
+
+`encode_seq` concatenates the header and body bytes of each ISCC-UNIT in the given order (never
+sorted, deduplicated or dropped). Units may omit the `ISCC:` prefix and may be lowercase or contain
+hyphens. Base32 input is strict (no padding, zero spare bits) and upper-casing is ASCII-only.
+ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected. `decode_seq` is a strict byte-level reader
+that returns `ISCC:`-prefixed unit strings in wire order and rejects trailing bytes. Both return
+`IsccError::InvalidInput` for empty input or a malformed unit.
+
+```rust
+use iscc_lib::{decode_seq, encode_seq};
+
+let data = encode_seq(&["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"])?;
+assert_eq!(data.len(), 34); // starts with 0x20 0x07 0xa8 0x82 0x48 0xc5
+
+let units = decode_seq(&data)?;
+// units == ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+// The round trip is defined on bytes: encode_seq(decode_seq(data)) == data
+let refs: Vec<&str> = units.iter().map(String::as_str).collect();
+assert_eq!(encode_seq(&refs)?, data);
+```
+
 ## Error Handling
 
 All `gen_*_v0` functions use the `IsccResult<String>` return type. Errors are returned as

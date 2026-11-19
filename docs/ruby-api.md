@@ -6,7 +6,7 @@ description: Ruby API reference for the ISCC library via native Rust extension.
 # Ruby API Reference
 
 Ruby gem for ISCC (ISO 24138:2024) code generation via a native Rust extension
-([Magnus](https://github.com/matsadler/magnus)). All 33 Tier 1 symbols are exposed as module-level
+([Magnus](https://github.com/matsadler/magnus)). All 35 Tier 1 symbols are exposed as module-level
 methods, constants, and classes on `IsccLib`.
 
 ## Installation
@@ -552,6 +552,53 @@ puts "Digest: #{digest.unpack1("H*")}"
 
 ---
 
+### encode_seq
+
+Encode an ordered list of ISCC-UNIT strings as a binary ISCC-SEQ (IEP-0020).
+
+```ruby
+IsccLib.encode_seq(units)
+```
+
+| Parameter | Type            | Description                                        |
+| --------- | --------------- | -------------------------------------------------- |
+| `units`   | `Array<String>` | ISCC-UNIT strings (with or without `ISCC:` prefix) |
+
+Returns a binary (ASCII-8BIT) `String` with the header and body bytes of each unit, in the given
+order. Base32 input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. Units of
+MainType ISCC-CODE, ID or FLAKE are rejected. Raises `RuntimeError` on invalid input.
+
+---
+
+### decode_seq
+
+Decode a binary ISCC-SEQ (IEP-0020) into its ISCC-UNIT strings.
+
+```ruby
+IsccLib.decode_seq(data)
+```
+
+| Parameter | Type     | Description           |
+| --------- | -------- | --------------------- |
+| `data`    | `String` | Binary ISCC-SEQ bytes |
+
+Returns an `Array<String>` of `ISCC:`-prefixed unit strings in sequence order. Raises `RuntimeError`
+on empty, truncated, or malformed data.
+
+```ruby
+data = IsccLib.encode_seq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"])
+data.bytesize        # => 34
+data.unpack1("H12")  # => "2007a88248c5"
+
+units = IsccLib.decode_seq(data)
+# => ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+# The round trip is defined on bytes: encode_seq(decode_seq(data)) == data
+IsccLib.encode_seq(units) == data # => true
+```
+
+---
+
 ## Algorithm Primitives
 
 Low-level algorithm functions for SimHash, MinHash, content-defined chunking, video hashing, and
@@ -808,7 +855,8 @@ All methods that accept user input raise `RuntimeError` on invalid arguments:
 
 - Empty or nil required parameters (e.g., empty `name` in `gen_meta_code_v0`)
 - Invalid `bits` values (must be a multiple of 32, range 32–256)
-- Malformed ISCC strings passed to `iscc_decode` or `iscc_decompose`
+- Malformed ISCC strings passed to `iscc_decode`, `iscc_decompose` or `encode_seq`, and malformed
+    bytes passed to `decode_seq`
 - Streaming hasher operations after finalization
 
 ```ruby

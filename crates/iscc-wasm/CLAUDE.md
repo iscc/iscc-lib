@@ -139,7 +139,7 @@ wasm-pack test --node crates/iscc-wasm --test unit
 
 ## Exported API Surface
 
-All 33 Tier 1 symbols are bound (including `gen_iscc_id_v1`), plus 2 result structs and 3 streaming
+All 35 Tier 1 symbols are bound (including `gen_iscc_id_v1`), plus 2 result structs and 3 streaming
 types. Every `#[wasm_bindgen]` export in `lib.rs` maps 1:1 to an `iscc_lib` public symbol:
 
 - **10 gen functions:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
@@ -154,7 +154,8 @@ types. Every `#[wasm_bindgen]` export in `lib.rs` maps 1:1 to an `iscc_lib` publ
     on `pub const`)
 - **1 soft hash:** `soft_hash_video_v0`
 - **2 encoding:** `encode_base64`, `json_to_data_url`
-- **3 codec:** `encode_component`, `iscc_decode` (with `IsccDecodeResult` struct), `iscc_decompose`
+- **5 codec:** `encode_component`, `iscc_decode` (with `IsccDecodeResult` struct), `iscc_decompose`,
+    `encode_seq` (`units` accepts any JS iterable of strings), `decode_seq`
 - **1 diagnostic:** `conformance_selftest` (feature-gated behind `conformance` Cargo feature)
 - **2 result structs:** `WasmSumCodeResult` (returned by `gen_sum_code_v0`, with `iscc`, `datahash`,
     `filesize`, and optional `units` fields) and `IsccDecodeResult` (returned by `iscc_decode`)

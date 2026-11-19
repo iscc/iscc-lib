@@ -28,7 +28,7 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 
 ## API Tier Rules
 
-**Tier 1 -- public API, bound in all languages (33 symbols at crate root):**
+**Tier 1 -- public API, bound in all languages (35 symbols at crate root):**
 
 - 10 gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
@@ -38,7 +38,8 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 - 4 algorithm primitives: `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`
 - 1 soft hash: `soft_hash_video_v0`
 - 2 encoding utilities: `encode_base64`, `json_to_data_url`
-- 3 codec operations: `iscc_decompose`, `encode_component`, `iscc_decode`
+- 5 codec operations: `iscc_decompose`, `encode_component`, `iscc_decode`, `encode_seq`,
+    `decode_seq`
 - 5 algorithm constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`,
     `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
 - 2 streaming types: `DataHasher`, `InstanceHasher`

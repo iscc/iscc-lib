@@ -34,7 +34,8 @@ packages/dotnet/
     Iscc.Lib.Tests.csproj                # References Iscc.Lib, xunit.v3, Microsoft.NET.Test.Sdk (exact pinned versions)
     packages.lock.json                   # Committed NuGet lock file (CI restores with --locked-mode)
     SmokeTests.cs                        # End-to-end P/Invoke validation for every public method
-    ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions
+    ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions + encode_seq/decode_seq
+    SeqTests.cs                          # EncodeSeq / DecodeSeq error surfacing and accepted input forms
     testdata/data.json                   # Vendored ISCC conformance test vectors
 ```
 
@@ -91,7 +92,8 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 ### Conformance tests (`ConformanceTests.cs`)
 
 - `[Theory]` + `[MemberData]` pattern for parameterized tests from `testdata/data.json`
-- One test method per gen function, all 9 gen functions covered (50 vectors total)
+- One test method per gen function, all 9 gen functions covered (50 vectors total), plus `EncodeSeq`
+    / `DecodeSeq` (4 + 4 vectors) and `SeqRoundTripBytes` (`EncodeSeq(DecodeSeq(x)) == x`)
 - Static `Lazy<JsonElement>` caches the parsed JSON across test methods
 - `DecodeStream` helper converts `"stream:<hex>"` format to `byte[]`
 - `PrepareMeta` helper handles null / string / JSON-object meta parameter variants

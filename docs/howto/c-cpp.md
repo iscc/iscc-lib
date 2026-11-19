@@ -249,16 +249,16 @@ always a safe no-op.
 
 ### Ownership rules
 
-| Return type                | Free with                       | Example functions                          |
-| -------------------------- | ------------------------------- | ------------------------------------------ |
-| `char*`                    | `iscc_free_string()`            | `iscc_gen_*_v0`, text utilities, codec ops |
-| `char**`                   | `iscc_free_string_array()`      | `iscc_decompose`, `iscc_sliding_window`    |
-| `iscc_IsccByteBuffer`      | `iscc_free_byte_buffer()`       | `iscc_alg_simhash`, `iscc_alg_minhash_256` |
-| `iscc_IsccByteBufferArray` | `iscc_free_byte_buffer_array()` | `iscc_alg_cdc_chunks`                      |
-| `iscc_IsccDecodeResult`    | `iscc_free_decode_result()`     | `iscc_decode`                              |
-| `iscc_IsccSumCodeResult`   | `iscc_free_sum_code_result()`   | `iscc_gen_sum_code_v0`                     |
-| `iscc_FfiDataHasher*`      | `iscc_data_hasher_free()`       | `iscc_data_hasher_new`                     |
-| `iscc_FfiInstanceHasher*`  | `iscc_instance_hasher_free()`   | `iscc_instance_hasher_new`                 |
+| Return type                | Free with                       | Example functions                                             |
+| -------------------------- | ------------------------------- | ------------------------------------------------------------- |
+| `char*`                    | `iscc_free_string()`            | `iscc_gen_*_v0`, text utilities, codec ops                    |
+| `char**`                   | `iscc_free_string_array()`      | `iscc_decompose`, `iscc_decode_seq`, `iscc_sliding_window`    |
+| `iscc_IsccByteBuffer`      | `iscc_free_byte_buffer()`       | `iscc_alg_simhash`, `iscc_alg_minhash_256`, `iscc_encode_seq` |
+| `iscc_IsccByteBufferArray` | `iscc_free_byte_buffer_array()` | `iscc_alg_cdc_chunks`                                         |
+| `iscc_IsccDecodeResult`    | `iscc_free_decode_result()`     | `iscc_decode`                                                 |
+| `iscc_IsccSumCodeResult`   | `iscc_free_sum_code_result()`   | `iscc_gen_sum_code_v0`                                        |
+| `iscc_FfiDataHasher*`      | `iscc_data_hasher_free()`       | `iscc_data_hasher_new`                                        |
+| `iscc_FfiInstanceHasher*`  | `iscc_instance_hasher_free()`   | `iscc_instance_hasher_new`                                    |
 
 !!! warning "Common pitfalls"
 
@@ -454,6 +454,29 @@ auto units = iscc::iscc_decompose("ISCC:KEC...");
 for (const auto& unit : units) {
     std::cout << unit << std::endl;
 }
+```
+
+### ISCC-SEQ
+
+`iscc::encode_seq(const std::vector<std::string>&) -> std::vector<uint8_t>` packs an ordered list of
+ISCC-UNITs into an ISCC-SEQ byte string (IEP-0020): the header and body bytes of each unit, in the
+given order. `iscc::decode_seq(const std::vector<uint8_t>&) -> std::vector<std::string>` reads one
+back into `ISCC:`-prefixed unit strings. Base32 input is strict (no padding, zero spare bits) and
+upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected. The C functions
+are `iscc_encode_seq` (free the `IsccByteBuffer` with `iscc_free_byte_buffer()`) and
+`iscc_decode_seq` (free the `char**` with `iscc_free_string_array()`).
+
+```cpp
+#include <iscc/iscc.hpp>
+
+auto data = iscc::encode_seq({"ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"});
+std::cout << data.size() << std::endl; // 34, starts with 0x20 0x07 0xa8 0x82 0x48 0xc5
+
+auto units = iscc::decode_seq(data);
+std::cout << units[0] << std::endl; // "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"
+
+// The round trip is defined on bytes: encode_seq(decode_seq(data)) == data
+bool same = iscc::encode_seq(units) == data; // true
 ```
 
 ### ISCC-IDv1 (experimental)

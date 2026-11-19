@@ -100,8 +100,9 @@ The `cpp` job in `.github/workflows/ci.yml` runs on `ubuntu-latest`:
 - Single test file: `tests/test_iscc.cpp` with 35+ test cases
 - Custom assertion helpers: `assert_str_eq`, `assert_starts_with`, `assert_eq`, `assert_true`
 - Reports pass/fail counts and exits non-zero on any failure
-- Tests cover every wrapper function: gen functions, text utilities, encoding, codec, algorithm
-    primitives, streaming hashers, constants, error paths, and move semantics
+- Tests cover every wrapper function: gen functions, text utilities, encoding, codec (incl.
+    `encode_seq`/`decode_seq`; `encode_seq` rejects an embedded NUL before calling the FFI),
+    algorithm primitives, streaming hashers, constants, error paths, and move semantics
 - Expected values match the C test suite in `crates/iscc-ffi/tests/test_iscc.c`
 - Error path tests verify that `iscc::IsccError` is thrown for invalid inputs and nonexistent files
 - Temporary files for `gen_sum_code_v0` tests are created in
