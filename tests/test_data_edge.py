@@ -1,0 +1,281 @@
+"""Shared edge-case vectors (`data-edge.json`) checked against iscc_lib and iscc_core 1.5.0.
+
+Every vector is schema-checked, run against iscc_lib (honouring `except.python`),
+and run against the iscc_core reference: the reference must produce the stated
+outcome exactly when the vector carries no `diverges` marker. A seed-presence
+test pins the vectors the spec requires, since iterating the file cannot see a
+missing one.
+"""
+
+import json
+import re
+from pathlib import Path
+
+import iscc_core
+import pytest
+
+import iscc_lib
+
+DATA_EDGE_JSON = (
+    Path(__file__).parent.parent / "crates" / "iscc-lib" / "tests" / "data-edge.json"
+)
+
+SURFACE = "python"
+SURFACE_IDS = {
+    "rust",
+    "python",
+    "nodejs",
+    "wasm",
+    "c",
+    "cpp",
+    "java",
+    "go",
+    "ruby",
+    "dotnet",
+    "swift",
+    "kotlin",
+}
+VECTOR_KEYS = {"inputs", "outputs", "error", "note", "diverges", "except"}
+# Exception classes that count as a rejection. iscc_core raises ValueError (incl.
+# binascii.Error) or AssertionError; any other class propagates and fails the test.
+REJECTIONS = (ValueError, AssertionError)
+VECTOR_NAME = re.compile(r"^test_\d{4}_[a-z0-9_]+$")
+
+UNIT_256_SPARE_BITS = "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBJ"
+
+# (section, inputs) required by the spec's "Seed Set", plus the rows migrated
+# from the former STRICT_BASE32_DIVERGENCES list in tests/test_seq.py.
+SEED_SET = [
+    ("iscc_decode", ["ISCC:GAAAAAAAAA======"]),
+    ("iscc_decode", ["ISCC:GAAAAAAAAB"]),
+    ("iscc_decode", ["ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ"]),
+    ("iscc_decode", ["ISCC:GAAAAAAAAA"]),
+    ("encode_seq", [["gaawdlqng6\N{LATIN SMALL LETTER LONG S}sdpf2"]]),
+    ("encode_seq", [["gaawdlqng6\N{LATIN SMALL LETTER SHARP S}dpf2"]]),
+    ("encode_seq", [["gaawdlqng6ssdpf2"]]),
+    ("encode_seq", [[]]),
+    ("encode_seq", [["ISCC:GAAAAAAAAA\x00junk"]]),
+    ("encode_seq", [["ISCC:GAAAAAAAAB"]]),
+    ("encode_seq", [[UNIT_256_SPARE_BITS]]),
+    ("encode_seq", [["ISCC:GAAAAAAAAA======"]]),
+    ("gen_text_code_v0", ["Hello\x00World", 64]),
+    ("gen_mixed_code_v0", [[], 64]),
+    ("gen_iscc_code_v0", [[]]),
+]
+
+
+def load_doc():
+    """Load and parse data-edge.json."""
+    return json.loads(DATA_EDGE_JSON.read_text(encoding="utf-8"))
+
+
+def call_iscc_decode(module, inputs):
+    """Decode an ISCC string as `[maintype, subtype, version, length, "bytes:<hex>"]`."""
+    *header, digest = module.iscc_decode(*inputs)
+    return [int(field) for field in header] + [f"bytes:{digest.hex()}"]
+
+
+def call_encode_seq(module, inputs):
+    """Encode a unit list as a `bytes:<hex>` fixture value."""
+    return f"bytes:{module.encode_seq(*inputs).hex()}"
+
+
+def call_gen(name):
+    """Return a caller that runs `module.<name>(*inputs)` and returns its result dict."""
+    return lambda module, inputs: dict(getattr(module, name)(*inputs))
+
+
+# Section name -> caller taking (module, inputs); the same caller serves iscc_lib and iscc_core.
+CALLERS = {
+    "iscc_decode": call_iscc_decode,
+    "encode_seq": call_encode_seq,
+    "gen_text_code_v0": call_gen("gen_text_code_v0"),
+    "gen_mixed_code_v0": call_gen("gen_mixed_code_v0"),
+    "gen_iscc_code_v0": call_gen("gen_iscc_code_v0"),
+}
+
+
+def validate_vector(name, vector):
+    """Return the schema problems of one vector; an empty list means it is well-formed."""
+    if not isinstance(vector, dict):
+        return ["vector is not an object"]
+    problems = []
+    if not VECTOR_NAME.match(name):
+        problems.append(f"name {name!r} is not test_NNNN_<slug>")
+    unknown = sorted(str(key) for key in set(vector) - VECTOR_KEYS)
+    if unknown:
+        problems.append(f"unknown keys {unknown}")
+    if not isinstance(vector.get("inputs"), list):
+        problems.append("inputs is missing or not a list")
+    if not isinstance(vector.get("note"), str) or not vector["note"]:
+        problems.append("note is missing or empty")
+    if ("outputs" in vector) == ("error" in vector):
+        problems.append("needs exactly one of outputs / error")
+    if "error" in vector and (
+        not isinstance(vector["error"], str) or not vector["error"]
+    ):
+        problems.append("error must be a non-empty string")
+    diverges = vector.get("diverges")
+    if "diverges" in vector and not (
+        isinstance(diverges, str) and diverges.startswith("decisions.md ")
+    ):
+        problems.append("diverges must name a decisions.md entry")
+    problems.extend(validate_except(vector.get("except", {})))
+    return problems
+
+
+def validate_except(exceptions):
+    """Return the schema problems of an `except` map."""
+    if not isinstance(exceptions, dict):
+        return ["except is not an object"]
+    problems = [f"unknown surface {k!r}" for k in exceptions if k not in SURFACE_IDS]
+    problems += [
+        f"except {k!r} must be error or skip"
+        for k, v in exceptions.items()
+        if v not in ("error", "skip")
+    ]
+    return problems
+
+
+def outcome(module, section, inputs):
+    """Run a vector's inputs and return `("error", None)` or `("output", value)`."""
+    caller = CALLERS.get(section)
+    if caller is None:
+        pytest.fail(f"unknown section {section}")
+    try:
+        return "output", caller(module, inputs)
+    except REJECTIONS:  # Error text is never matched.
+        return "error", None
+
+
+def matches(vector, result):
+    """Return True if an outcome equals the vector's stated outcome."""
+    kind, value = result
+    if "error" in vector:
+        return kind == "error"
+    if kind == "error":
+        return False
+    expected = vector["outputs"]
+    if isinstance(expected, dict):
+        return all(value.get(k) == v for k, v in expected.items())
+    return value == expected
+
+
+def all_vectors():
+    """Return every vector of data-edge.json as a pytest param with a section/name id."""
+    return [
+        pytest.param(section, name, vector, id=f"{section}/{name}")
+        for section, vectors in load_doc().items()
+        for name, vector in vectors.items()
+    ]
+
+
+VECTORS = all_vectors()
+
+
+def test_file_is_not_vacuous():
+    """Every handled section holds vectors and the file holds no other section."""
+    doc = load_doc()
+    assert set(doc) == set(CALLERS)
+    assert all(doc[section] for section in CALLERS)
+
+
+@pytest.mark.parametrize(("section", "name", "vector"), VECTORS)
+def test_vector_schema(section, name, vector):
+    """Every vector is well-formed."""
+    assert validate_vector(name, vector) == []
+
+
+@pytest.mark.parametrize(("section", "name", "vector"), VECTORS)
+def test_iscc_lib_outcome(section, name, vector):
+    """iscc_lib produces each vector's stated outcome, honouring `except.python`."""
+    exception = vector.get("except", {}).get(SURFACE)
+    if exception == "skip":
+        return
+    if exception == "error" or "error" in vector:
+        with pytest.raises(ValueError):
+            CALLERS[section](iscc_lib, vector["inputs"])
+        return
+    result = outcome(iscc_lib, section, vector["inputs"])
+    assert matches(vector, result), f"expected {vector['outputs']!r}, got {result!r}"
+
+
+@pytest.mark.parametrize(("section", "name", "vector"), VECTORS)
+def test_reference_outcome(section, name, vector):
+    """iscc_core 1.5.0 produces the stated outcome iff the vector has no `diverges`."""
+    assert iscc_core.__version__ == "1.5.0"
+    agrees = matches(vector, outcome(iscc_core, section, vector["inputs"]))
+    if "diverges" in vector:
+        assert not agrees, f"iscc_core now agrees; drop diverges: {vector['diverges']}"
+    else:
+        assert agrees, (
+            "iscc_core disagrees; fix the vector or add a sanctioned diverges"
+        )
+
+
+@pytest.mark.parametrize(
+    ("section", "inputs"), [pytest.param(s, i, id=f"{s}/{i!r}") for s, i in SEED_SET]
+)
+def test_seed_vector_present(section, inputs):
+    """Each spec seed vector is present in data-edge.json."""
+    vectors = load_doc().get(section, {}).values()
+    assert any(v["inputs"] == inputs for v in vectors), f"missing seed {inputs!r}"
+
+
+GOOD = {"inputs": ["ISCC:GAAAAAAAAA"], "outputs": "x", "note": "n"}
+
+
+def test_validate_vector_accepts_good_vector():
+    """A minimal well-formed vector has no problems."""
+    assert validate_vector("test_0001_good", GOOD) == []
+
+
+@pytest.mark.parametrize(
+    ("name", "vector", "problem"),
+    [
+        pytest.param("test_0001_x", ["x"], "not an object", id="not_object"),
+        pytest.param("bad_name", GOOD, "test_NNNN", id="bad_name"),
+        pytest.param(
+            "test_0001_x",
+            {k: v for k, v in GOOD.items() if k != "inputs"},
+            "inputs",
+            id="no_inputs",
+        ),
+        pytest.param("test_0001_x", {**GOOD, "inputs": "x"}, "inputs", id="str_inputs"),
+        pytest.param(
+            "test_0001_x",
+            {k: v for k, v in GOOD.items() if k != "note"},
+            "note",
+            id="no_note",
+        ),
+        pytest.param(
+            "test_0001_x", {**GOOD, "error": "e"}, "exactly one", id="both_outcomes"
+        ),
+        pytest.param(
+            "test_0001_x",
+            {k: v for k, v in GOOD.items() if k != "outputs"},
+            "exactly one",
+            id="no_outcome",
+        ),
+        pytest.param("test_0001_x", {**GOOD, "excpet": {}}, "unknown keys", id="typo"),
+        pytest.param(
+            "test_0001_x",
+            {**GOOD, "diverges": "upstream bug"},
+            "diverges",
+            id="diverges",
+        ),
+        pytest.param(
+            "test_0001_x", {**GOOD, "except": {"perl": "skip"}}, "surface", id="surface"
+        ),
+        pytest.param(
+            "test_0001_x",
+            {**GOOD, "except": {"go": "ignore"}},
+            "error or skip",
+            id="except_value",
+        ),
+    ],
+)
+def test_validate_vector_rejects_malformed(name, vector, problem):
+    """Each malformed vector shape is reported."""
+    problems = validate_vector(name, vector)
+    assert any(problem in p for p in problems), problems

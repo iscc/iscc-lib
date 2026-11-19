@@ -158,3 +158,19 @@ macros-backend default-handling on every major bump, not just compiler warnings.
     use plain `//` comments; only non-annotated helper fns can keep `///` docstrings
 - For borrow-returning primitives (`alg_cdc_chunks` → `Vec<&[u8]>` borrowing the arg), the bench fn
     returns `.len()` (the Vec can't escape the fn); chunking work is fully measured before `len()`
+
+## Archived from MEMORY.md (iter 215)
+
+### Benchmarks
+
+- `crates/iscc-lib/benches/` (`harness = false`): `benchmarks.rs` criterion 0.8
+    (`std::hint::black_box`) + `iai_benches.rs` iai-callgrind 0.16.1 (needs valgrind + runner, NOT
+    preinstalled) → ci-gates.md
+
+### Streaming
+
+- `DataHasher`: persistent `buf` reused across `update()`; CDC → BLAKE3 chunk hash → MinHash; ~1.1
+    GiB/s. `InstanceHasher`: BLAKE3 → ISCC multihash (64-byte digest truncated)
+- `SumHasher` (#37): inner `DataHasher` + `InstanceHasher`; `finalize(bits, wide, add_units)`
+    composes via `gen_iscc_code_v0`. Path `iscc_lib::streaming::SumHasher` (NOT crate-root). All 7
+    bindings implement `gen_sum_code_v0` → MEMORY-archive.md

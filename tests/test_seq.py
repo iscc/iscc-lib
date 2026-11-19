@@ -1,4 +1,8 @@
-"""Tests for ISCC-SEQ (IEP-0020) `encode_seq` / `decode_seq` and their strict-base32 divergence."""
+"""Tests for ISCC-SEQ (IEP-0020) `encode_seq` / `decode_seq`, including differentials against iscc_core.
+
+Divergences from iscc_core (strict base32, ASCII-only casing) live in
+`crates/iscc-lib/tests/data-edge.json` and are checked by `tests/test_data_edge.py`.
+"""
 
 import contextlib
 import json
@@ -17,28 +21,6 @@ UNIT_32_HEX = "300000000000"
 UNIT_256 = "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"
 UNIT_256_HEX = "2007a88248c53a852c8d7e9c547047c9a36c4052b6acabef1e2a4ce15e586e0cb305"
 ISCC_CODE = "ISCC:KUAALNA7GRZESMRFUURK6SRMTS7WU"
-
-# Non-canonical base32 forms that iscc_core 1.5.0 accepts and iscc_lib rejects
-# (decisions.md 2026-11-18): (alias, canonical unit, canonical bytes hex). The
-# case-fold rows rely on `encode_seq` calling Unicode `str.upper()`, which maps
-# these letters to ASCII; iscc_lib upper-cases ASCII only.
-STRICT_BASE32_DIVERGENCES = [
-    pytest.param("ISCC:GAAAAAAAAB", UNIT_32, UNIT_32_HEX, id="32bit_spare_bits"),
-    pytest.param(UNIT_256[:-1] + "J", UNIT_256, UNIT_256_HEX, id="256bit_spare_bits"),
-    pytest.param("ISCC:GAAAAAAAAA======", UNIT_32, UNIT_32_HEX, id="padding"),
-    pytest.param(
-        "gaawdlqng6\N{LATIN SMALL LETTER LONG S}sdpf2",
-        "ISCC:GAAWDLQNG6SSDPF2",
-        "300161ae0d37a521bcba",
-        id="long_s_case_fold",
-    ),
-    pytest.param(
-        "gaawdlqng6\N{LATIN SMALL LETTER SHARP S}dpf2",
-        "ISCC:GAAWDLQNG6SSDPF2",
-        "300161ae0d37a521bcba",
-        id="sharp_s_case_fold",
-    ),
-]
 
 
 def load_vectors(function_name):
@@ -249,25 +231,6 @@ def test_differential_decode_rejects_same_inputs(data, exc):
         iscc_core.decode_seq(data)
     with pytest.raises(exc):
         iscc_lib.decode_seq(data)
-
-
-@pytest.mark.parametrize(("alias", "canonical", "hex_bytes"), STRICT_BASE32_DIVERGENCES)
-def test_differential_reference_accepts_non_canonical_base32(
-    alias, canonical, hex_bytes
-):
-    """iscc_core 1.5.0 accepts the non-canonical form and returns the canonical unit's bytes."""
-    assert iscc_core.encode_seq([alias]) == bytes.fromhex(hex_bytes)
-    assert iscc_core.encode_seq([canonical]) == bytes.fromhex(hex_bytes)
-
-
-@pytest.mark.parametrize(("alias", "canonical", "hex_bytes"), STRICT_BASE32_DIVERGENCES)
-def test_differential_iscc_lib_rejects_non_canonical_base32(
-    alias, canonical, hex_bytes
-):
-    """iscc_lib rejects the non-canonical form but accepts the canonical unit (strict base32)."""
-    assert iscc_lib.encode_seq([canonical]) == bytes.fromhex(hex_bytes)
-    with pytest.raises(ValueError, match="base32 decode error"):
-        iscc_lib.encode_seq([alias])
 
 
 # ── Whitespace trimming parity ───────────────────────────────────────────────

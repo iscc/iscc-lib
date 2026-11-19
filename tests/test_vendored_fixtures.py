@@ -17,7 +17,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).parent.parent
 
-FIXTURE_BASENAMES = {"data.json"}
+FIXTURE_BASENAMES = {"data.json", "data-edge.json"}
 
 # Canonical fixture -> tracked vendored copies (repo-relative POSIX paths).
 VENDORED_COPIES = {
@@ -27,6 +27,8 @@ VENDORED_COPIES = {
         "packages/kotlin/src/test/resources/data.json",
         "packages/swift/Tests/IsccLibTests/data.json",
     ],
+    # Copies arrive with the binding harnesses (specs/edge-vectors.md).
+    "crates/iscc-lib/tests/data-edge.json": [],
 }
 
 PAIRS = [
@@ -39,14 +41,14 @@ PAIRS = [
 def tracked_fixture_paths():
     """Return repo-relative paths of all git-tracked conformance fixture files."""
     out = subprocess.run(
-        ["git", "ls-files", "-z", "--", "*data.json"],
+        ["git", "ls-files", "-z", "--", "*data.json", "*data-edge.json"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=True,
     )
     paths = [p for p in out.stdout.split("\0") if p]
-    # The '*data.json' pathspec also matches names like 'foo_data.json', so
+    # The pathspecs also match names like 'foo_data.json', so
     # filter to exact basename matches rather than trusting the glob.
     return {p for p in paths if Path(p).name in FIXTURE_BASENAMES}
 

@@ -17,6 +17,12 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `encode_seq` + 4 `decode_seq`, outputs `bytes:<hex>`/list). Vendored copies
     (packages/{dotnet,go,kotlin,swift}) gated by `tests/test_vendored_fixtures.py` — any NEW tracked
     `data.json` copy → register in `VENDORED_COPIES` or the test reds
+- Edge vectors (215): `crates/iscc-lib/tests/data-edge.json` (spec `specs/edge-vectors.md`), no
+    `_metadata`; Rust `tests/test_data_edge.rs` (runtime read, excluded from package), Python
+    `tests/test_data_edge.py` (schema + lib + iscc_core iff-`diverges` + SEED_SET). `iscc_decode`
+    output = `[mt, st, vs, li, "bytes:<hex>"]`. Fan-out to 11 surfaces + 4 vendored copies pending
+- GOTCHA: `clippy --all-targets --no-default-features` fails on both benches (ungated imports; CI
+    lints no-default without `--all-targets`) — use `--tests`. Benches/Streaming notes → archive
 - Unicode freeze rule REMOVED 2026-07-30 (decisions.md, human): `text_clean`/`text_collapse` mirror
     the reference on dependency tables. Never reintroduce a freeze without a human decision
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
@@ -65,20 +71,6 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `--check-action-inputs`) + shape (9 inputs, 97 `uses:` refs) — keep green → release-gate.md
 - WASM SIMD (#42): `blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt `--enable-simd` →
     wasm-simd.md
-
-## Benchmarks
-
-- `crates/iscc-lib/benches/` (`harness = false`): `benchmarks.rs` criterion 0.8
-    (`std::hint::black_box`) + `iai_benches.rs` iai-callgrind 0.16.1 (needs valgrind + runner, NOT
-    preinstalled) → ci-gates.md
-
-## Streaming
-
-- `DataHasher`: persistent `buf` reused across `update()`; CDC → BLAKE3 chunk hash → MinHash; ~1.1
-    GiB/s. `InstanceHasher`: BLAKE3 → ISCC multihash (64-byte digest truncated)
-- `SumHasher` (#37): inner `DataHasher` + `InstanceHasher`; `finalize(bits, wide, add_units)`
-    composes via `gen_iscc_code_v0`. Path `iscc_lib::streaming::SumHasher` (NOT crate-root). All 7
-    bindings implement `gen_sum_code_v0` → MEMORY-archive.md
 
 ## API Design
 

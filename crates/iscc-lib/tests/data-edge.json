@@ -1,0 +1,158 @@
+{
+  "iscc_decode": {
+    "test_0001_base32_padding": {
+      "inputs": [
+        "ISCC:GAAAAAAAAA======"
+      ],
+      "error": "base32 padding characters",
+      "note": "Python's base32 decoder accepts padded input that the Rust core rejects.",
+      "diverges": "decisions.md 2026-11-18: Base32 decoding stays strict"
+    },
+    "test_0002_base32_spare_bits": {
+      "inputs": [
+        "ISCC:GAAAAAAAAB"
+      ],
+      "error": "non-zero spare bits in the last base32 character",
+      "note": "The Go port accepted this alias of ISCC:GAAAAAAAAA while Rust rejected it.",
+      "diverges": "decisions.md 2026-11-18: Base32 decoding stays strict"
+    },
+    "test_0003_base32_spare_bits_iscc_code": {
+      "inputs": [
+        "ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ"
+      ],
+      "error": "non-zero spare bits in the last base32 character",
+      "note": "An ISCC-CODE whose last base32 character carries non-zero spare bits is a non-canonical alias.",
+      "diverges": "decisions.md 2026-11-18: Base32 decoding stays strict"
+    },
+    "test_0004_canonical_unit": {
+      "inputs": [
+        "ISCC:GAAAAAAAAA"
+      ],
+      "outputs": [
+        3,
+        0,
+        0,
+        0,
+        "bytes:00000000"
+      ],
+      "note": "The canonical form of the base32 aliases above decodes to a zero Data-Code digest."
+    }
+  },
+  "encode_seq": {
+    "test_0001_long_s_case_fold": {
+      "inputs": [
+        [
+          "gaawdlqng6ſsdpf2"
+        ]
+      ],
+      "error": "non-ASCII letter that Unicode upper-cases to ASCII",
+      "note": "Unicode upper-casing maps the long s to S, so iscc-core reads an alias that ASCII-only casing rejects.",
+      "diverges": "decisions.md 2026-11-18: Codec input is upper-cased ASCII-only, encode_seq included"
+    },
+    "test_0002_sharp_s_case_fold": {
+      "inputs": [
+        [
+          "gaawdlqng6ßdpf2"
+        ]
+      ],
+      "error": "non-ASCII letter that Unicode upper-cases to ASCII",
+      "note": "Unicode upper-casing maps the sharp s to SS, so iscc-core reads an alias that ASCII-only casing rejects.",
+      "diverges": "decisions.md 2026-11-18: Codec input is upper-cased ASCII-only, encode_seq included"
+    },
+    "test_0003_ascii_twin": {
+      "inputs": [
+        [
+          "gaawdlqng6ssdpf2"
+        ]
+      ],
+      "outputs": "bytes:300161ae0d37a521bcba",
+      "note": "The lower-case ASCII twin of the case-fold aliases encodes on every surface."
+    },
+    "test_0004_empty_list": {
+      "inputs": [
+        []
+      ],
+      "error": "at least one ISCC-UNIT is required",
+      "note": "An empty unit list must be rejected rather than encoded as an empty sequence."
+    },
+    "test_0005_embedded_nul": {
+      "inputs": [
+        [
+          "ISCC:GAAAAAAAAA\u0000junk"
+        ]
+      ],
+      "error": "embedded NUL followed by trailing data",
+      "note": "C-string marshalling cuts the unit at the NUL and would encode the valid prefix.",
+      "except": {
+        "c": "skip"
+      }
+    },
+    "test_0006_base32_spare_bits": {
+      "inputs": [
+        [
+          "ISCC:GAAAAAAAAB"
+        ]
+      ],
+      "error": "non-zero spare bits in the last base32 character",
+      "note": "The Go port accepted this alias of ISCC:GAAAAAAAAA while Rust rejected it.",
+      "diverges": "decisions.md 2026-11-18: Base32 decoding stays strict"
+    },
+    "test_0007_base32_spare_bits_256": {
+      "inputs": [
+        [
+          "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBJ"
+        ]
+      ],
+      "error": "non-zero spare bits in the last base32 character",
+      "note": "A 256-bit unit whose last base32 character carries non-zero spare bits is a non-canonical alias.",
+      "diverges": "decisions.md 2026-11-18: Base32 decoding stays strict"
+    },
+    "test_0008_base32_padding": {
+      "inputs": [
+        [
+          "ISCC:GAAAAAAAAA======"
+        ]
+      ],
+      "error": "base32 padding characters",
+      "note": "Python's base32 decoder accepts padded input that the Rust core rejects.",
+      "diverges": "decisions.md 2026-11-18: Base32 decoding stays strict"
+    }
+  },
+  "gen_text_code_v0": {
+    "test_0001_embedded_nul": {
+      "inputs": [
+        "Hello\u0000World",
+        64
+      ],
+      "outputs": {
+        "iscc": "ISCC:EAASKDNZNYGUUF5A",
+        "characters": 10
+      },
+      "note": "C-string marshalling cut the text at the NUL; .NET and C++ reject it by decision.",
+      "except": {
+        "dotnet": "error",
+        "cpp": "error",
+        "c": "skip"
+      }
+    }
+  },
+  "gen_mixed_code_v0": {
+    "test_0001_empty_list": {
+      "inputs": [
+        [],
+        64
+      ],
+      "error": "at least two Content-Codes are required",
+      "note": "An empty code list must be rejected rather than mixed into an empty digest."
+    }
+  },
+  "gen_iscc_code_v0": {
+    "test_0001_empty_list": {
+      "inputs": [
+        []
+      ],
+      "error": "at least two ISCC-UNITs are required",
+      "note": "An empty unit list must be rejected rather than composed into an empty ISCC-CODE."
+    }
+  }
+}

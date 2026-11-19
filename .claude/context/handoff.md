@@ -1,63 +1,64 @@
-## 2026-11-19 — Review of: npm packages ship a license and a plain-text description
+## 2026-11-19 — `data-edge.json` seed set with the Rust and Python harnesses
 
-**Verdict:** PASS
+**Done:** Created `crates/iscc-lib/tests/data-edge.json`. It holds 15 vectors in 5 sections: the
+spec seed set plus the 3 migrated strict-base32 rows (2 case-fold rows were already seeds). It runs
+from a Rust harness (`check_doc` → failure list) and a Python suite (schema, iscc_lib, iscc_core
+1.5.0 reference, seed presence). `STRICT_BASE32_DIVERGENCES` and its 2 tests are gone from
+`test_seq.py`. The file and its Rust test are excluded from the packaged crate.
 
-**Summary:** `crates/iscc-wasm/Cargo.toml` now inherits `license` (Apache-2.0) and sets a
-browser-specific `description`, so wasm-pack writes both into `pkg/package.json`.
-`crates/iscc-napi/package.json` has its plain-text description. It is a two-file manifest change,
-within scope. The `publish = false` comment moved to its own line because taplo would otherwise push
-it out to column 119; the value is unchanged (`cargo metadata` `publish: []`). The `[human]` npm
-licence issue is resolved and deleted.
+**Files changed:**
+
+- `crates/iscc-lib/tests/data-edge.json`: new. It was generated with
+    `json.dumps(indent=2, ensure_ascii=False)`, the same style as data.json (literal `ſ`/`ß`; NUL
+    written as `\u0000`). It has no `_metadata` key, so harnesses see function sections only
+- `crates/iscc-lib/tests/test_data_edge.rs`: new. It reads the file at runtime via
+    `CARGO_MANIFEST_DIR`. Unknown sections fail through `KNOWN_SECTIONS`, `except.rust` is honoured,
+    and only the keys present in `outputs` are compared. It has 4 negative tests (one bad case each)
+    plus an `except` test and a section-coverage test
+- `tests/test_data_edge.py`: new. It has `validate_vector` + `validate_except`, one caller per
+    section shared by iscc_lib and iscc_core, and parametrized ids `section/name`. Tests: schema on
+    every vector, iscc_lib outcome (`ValueError` on errors), reference iff-`diverges`, a hard-coded
+    15-row `SEED_SET` presence list, and 11 malformed-shape negatives
+- `crates/iscc-lib/Cargo.toml`: `exclude = ["tests/data-edge.json", "tests/test_data_edge.rs"]`
+- `tests/test_vendored_fixtures.py`: `data-edge.json` is in `FIXTURE_BASENAMES`, there is a
+    `*data-edge.json` pathspec, and the canonical path is registered with an empty copy list
+- `tests/test_seq.py`: removed the list and its 2 tests, and updated the module docstring to point
+    at data-edge.json
 
 **Verification:**
 
-- [x] `wasm-pack build --target web --dev crates/iscc-wasm` exits 0. I ran a fresh build with
-    wasm-pack 0.13.1, version 0.7.0. It printed only the informational "no LICENSE file" note
-- [x] `node -e` on the fresh `pkg/package.json`: `license` is `"Apache-2.0"` and `description` is
-    the exact WASM string (`assert.strictEqual`)
-- [x] `node -e` on `crates/iscc-napi/package.json`: `description` is the exact napi string and
-    `license` is still `"Apache-2.0"`
-- [x] `cargo metadata --no-deps --format-version 1` parses; `iscc-wasm` has license `Apache-2.0` and
-    the description
-- [x] `mise run check` exits 0, and every hook passed
-- [x] Extra checks:
-    - `mise run version:check` exits 0 with 21 `OK:` lines (the napi `package.json` is one of the
-        targets)
-    - `cargo deny check licenses` reports `licenses ok`
-    - the wasm-pack installer that release.yml downloads (`init.sh`, fetched today) pins `UPDATE_ROOT`
-        to v0.13.1, the same version verified locally
-- I confirmed by reading release.yml's patch step (and Codex agrees) that it changes only `name`,
-    `repository` and `version`, so `license` and `description` survive. I did not re-run it; the
-    advance agent ran it on a copy
+- `cargo test -p iscc-lib --test test_data_edge`: 7 passed, including the 4 negatives. The same test
+    also passes 7/7 under `--no-default-features`
+- `uv run pytest tests/test_data_edge.py tests/test_seq.py tests/test_vendored_fixtures.py`: 151
+    passed (test_data_edge.py alone: 73)
+- `grep -n STRICT_BASE32_DIVERGENCES tests/test_seq.py`: no match (exit 1)
+- `cargo package --list -p iscc-lib --allow-dirty`: the only `data` line is `tests/data.json`
+- `cargo clippy -p iscc-lib --all-targets -- -D warnings`: clean
+- `mise run check`: exit 0, re-run with the new files staged. The first run had them untracked and
+    missed a ruff BLE001; fixed
+- Pre-push gates run by hand: `uv run ty check` passes (one `sorted(object)` diagnostic fixed),
+    `cargo test -p iscc-lib` passes (all binaries ok, 0 failed), full `uv run pytest`: 583 passed
+- Throwaway probe: `matches()` returns False for a wrong encode_seq output, for the reference
+    accepting a strict row, and for a wrong `characters` field
 
-**Issues found:**
-
-- Spec drift, not caused by this step: `specs/wasm-bindings.md` lists a committed
-    `crates/iscc-wasm/package.json` (in the crate tree and the Version Sync table). That file does
-    not exist, and `version_sync.py` has no WASM target. Filed as `normal` `[review]`, no escalation
-    needed (it is a file-list fact)
-- Nit: the npm tarball still ships no LICENSE file. next.md excluded copying one, and the `license`
-    field is what scanners read
-- Nit: wasm-pack logs "missing `repository`". release.yml adds it at release time, so it is harmless
-
-**Codex review:** No actionable findings. Codex confirmed that Cargo resolves the inherited
-Apache-2.0 licence, that both descriptions are correct, and that the release patch step keeps both
-fields.
-
-**Next:** Fix the Ruby negative-Bignum truncation (`normal`; `RBignum::to_i32` in
-`crates/iscc-rb/src/lib.rs`, test in `test_array_args.rb`). It was the runner-up this time. Other
-small `normal` candidates:
-
-- the Python `encode_seq` docstrings (`[human]`)
-- the wasm-bindings spec drift filed this iteration
-- the Dependabot refresh of `soupsieve`, `setuptools` and the `json` gem (alert #1, added to that
-    issue this review)
+**Next:** The binding fan-out. Copy `data-edge.json` next to the 4 vendored `data.json` copies, fill
+the empty `VENDORED_COPIES` entry, and add a harness on each of the other 11 surfaces. The
+`iscc_decode` output encoding is now fixed as `[mt, st, vs, li, "bytes:<hex>"]`.
 
 **Notes:**
 
-- `license.workspace` resolution is proven only for wasm-pack 0.13.1. release.yml installs wasm-pack
-    with a remote `init.sh`, so its version is controlled outside this repo. If a later release
-    shows an empty `license`, switch to the literal `license = "Apache-2.0"`
-- The fix reaches npm with the next release; the published 0.7.0 packages are unchanged
-- `learnings.md` is at 200/200 lines and `decisions.md` at 400/400, so every addition has to be
-    offset by a cut
+- Rust `gen_text_code_v0` is compiled out without `text-processing`. In that build the harness
+    returns `Ok(None)` for the section (a feature-gated skip, like `conformance_selftest`), not an
+    unknown-section failure
+- Rust `gen_iscc_code_v0` reads an optional `inputs[1]` bool as `wide` (default false). Python calls
+    `f(*inputs)` for gen sections
+- The `except.c: skip` on the encode_seq NUL row is from next.md. The other `except` maps are the
+    spec example, copied verbatim
+- Not caused by this step: `cargo clippy -p iscc-lib --all-targets --no-default-features` fails
+    because `benches/benchmarks.rs:9` and `benches/iai_benches.rs:31` import the gated
+    `gen_meta_code_v0`/`gen_text_code_v0` (E0432). CI's no-default clippy (ci.yml:36) has no
+    `--all-targets`, so CI is unaffected. `--tests --no-default-features` is clean
+- Deviation: next.md says that, for the reference, "any exception = error". ruff BLE001 rejects
+    `except Exception`, so `outcome()` catches `(ValueError, AssertionError)`. Those are the classes
+    iscc_core raises here (`binascii.Error` for the NUL unit is a ValueError subclass). Any other
+    class propagates and turns the test red instead of passing silently

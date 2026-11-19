@@ -11,6 +11,8 @@ description.workspace = true
 readme = "README.md"
 keywords = ["iscc", "content-id", "media", "fingerprint", "iso"]
 categories = ["multimedia", "encoding", "cryptography"]
+# Shared edge-case vectors are test data only, never shipped in the crate
+exclude = ["tests/data-edge.json", "tests/test_data_edge.rs"]
 
 [features]
 default = ["meta-code"]
