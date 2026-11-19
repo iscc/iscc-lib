@@ -15,7 +15,7 @@ The `json` lock entry is bumped 2.21.1 → 2.21.2. `docs/ruby-api.md` Error Hand
     conversion can now fail inside the function. Before, the same failure surfaced in Magnus'
     argument conversion. The two video functions use `frames_to_vec`. `function!` arities are
     unchanged
-- `crates/iscc-rb/test/test_array_args.rb` (new, 14 tests):
+- `crates/iscc-rb/test/test_array_args.rb` (new, 16 tests):
     - 7 crash tests. Element 0 of a 2000-element array clears the array and runs `GC.start` inside
         `to_str`/`to_int`. Each test asserts that the result equals the call on an unmutated snapshot
         and that the array really got emptied. They cover `encode_seq`, `gen_mixed_code_v0`,
@@ -23,9 +23,12 @@ The `json` lock entry is bumped 2.21.1 → 2.21.2. `docs/ruby-api.md` Error Hand
         `alg_minhash_256`, and an inner frame for `gen_video_code_v0` / `soft_hash_video_v0`
     - Behaviour checks: a frozen array works, `to_ary` coercion works
     - Exception classes: `TypeError` for `encode_seq([nil])`, a non-Array argument, a non-Integer
-        element and a non-Array frame; `RuntimeError` for an invalid unit value
+        element and a non-Array frame; `RangeError` for `gen_audio_code_v0([2**40])` and
+        `alg_minhash_256([-1])`; `RuntimeError` for an invalid unit value
 - `crates/iscc-rb/Gemfile.lock`: `json (2.21.2)`, the only changed line
-- `docs/ruby-api.md`: rewrote the Error Handling intro sentence (TypeError vs RuntimeError)
+- `docs/ruby-api.md`: Error Handling intro now says `TypeError` (nil for a required String,
+    non-Array, non-String element), `RangeError` (out-of-range integers) and `RuntimeError` (invalid
+    values). The first bullet drops "or nil"
 - `crates/iscc-rb/CLAUDE.md`: added a key-files row for `test_array_args.rb`
 
 **Verification:**
@@ -33,13 +36,17 @@ The `json` lock entry is bumped 2.21.1 → 2.21.2. `docs/ruby-api.md` Error Hand
 - **Pre-fix probe** (fresh `rake compile` of the unfixed tree; each test run alone with
     `-n /name/`): all 7 mutation tests aborted with exit 134, `[BUG] Segmentation fault`. That
     includes the integer path (`gen_audio`, `alg_minhash`, `gen_video`, `soft_hash`): `to_int`
-    mutation crashed today too. The 4 type-error, frozen and `to_ary` tests already passed on the
-    unfixed tree, so `TypeError` behaviour did not change
+    mutation crashed today too. All 7 non-mutation tests (4 `TypeError`, frozen, `to_ary`,
+    `RuntimeError`) already passed on the unfixed tree, so exception behaviour did not change
 - Grep criterion `grep -nE '^fn [a-z_0-9]+\([^)]*Vec<|Vec<i32> = TryConvert::try_convert\(frame\)'`
     printed nothing (exit 1)
 - After the fix, `bundle exec rake compile` exit 0 (`.so` mtime 07:20 today).
-    `bundle exec rake test` gives 152 runs, 432 assertions, 0 failures. `test_array_args.rb` alone
-    gives 14 runs, 29 assertions, 0 failures. The suite was re-run after the lock bump: still 152/0
+    `bundle exec rake test` gave 152 runs / 0 failures, and again after the lock bump. After adding
+    the 2 `RangeError` tests and recompiling: 154 runs, 434 assertions, 0 failures;
+    `test_array_args.rb` alone 16 runs, 31 assertions, 0 failures
+- Exception probes on the fresh `.so`: `gen_meta_code_v0(nil)` → TypeError; `gen_meta_code_v0("")` →
+    RuntimeError; `gen_audio_code_v0([2**40])` and `alg_minhash_256([-1])` → RangeError;
+    `gen_text_code_v0("Hello", bits: "64")` → TypeError. The docs follow these
 - `cargo clippy -p iscc-rb -- -D warnings` exit 0. `bundle exec standardrb` exit 0 (before and after
     the lock bump)
 - `Gemfile.lock` has `json (2.21.2)` and `rb_sys (0.9.123)`
@@ -58,6 +65,8 @@ step), which next.md named as the runner-up.
     because the lock pins 1.56.0
 - The integer path segfaulted too, which the issue had not probed. The issue text can now say all 7
     sites crashed, not just the `to_str` ones
+- Scope: the `crates/iscc-rb/CLAUDE.md` key-files row is outside next.md's Scope (docs only). Keep
+    or drop it as you see fit
 - No hot path touched (binding-only); the CRAP and iai gates do not apply
 - `alg_minhash_256`'s return type changed only inside the Ruby binding's Rust code. Ruby callers see
     the same method

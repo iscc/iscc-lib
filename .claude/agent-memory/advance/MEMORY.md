@@ -22,8 +22,7 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
-- Ruby: `crates/iscc-rb/` — src/lib.rs (Magnus bridge), lib/iscc_lib.rb (wrapper + Result classes).
-    Cargo lib name `iscc_rb` (not `iscc_lib` — matches package name for rb_sys)
+- Ruby: `crates/iscc-rb/` — src/lib.rs (Magnus), lib/iscc_lib.rb (wrapper); Cargo lib name `iscc_rb`
 - UniFFI: `crates/iscc-uniffi/` — proc-macro interface for Swift/Kotlin, `publish = false`. Full
     detail → uniffi-swift-kotlin.md
 - Go pure: `packages/go/` — one `.go` per algorithm/code-type (codec, utils, cdc, minhash, simhash,
@@ -69,10 +68,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
 
 ## Benchmarks
 
-- Two benches in `crates/iscc-lib/benches/`, both `harness = false`: `benchmarks.rs` (criterion 0.8,
-    wall-clock; use `std::hint::black_box` — `criterion::black_box` fails clippy) + `iai_benches.rs`
-    (iai-callgrind 0.16.1). iai needs valgrind + `iai-callgrind-runner` (NOT preinstalled;
-    `mise run bench:iai:check`) → ci-gates.md
+- `crates/iscc-lib/benches/` (`harness = false`): `benchmarks.rs` criterion 0.8
+    (`std::hint::black_box`) + `iai_benches.rs` iai-callgrind 0.16.1 (needs valgrind + runner, NOT
+    preinstalled) → ci-gates.md
 
 ## Streaming
 
@@ -131,9 +129,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
     0.8 dropped `old-api`: use `ruby.exception_runtime_error()` + `ruby.str_from_slice()`, never
     `magnus::exception::*` / `RString::from_slice`. `ExtensionTask.new("iscc-rb")` = Cargo pkg name;
     streaming `RefCell<Option<inner>>` one-shot finalize; `_` prefix for methods NOT class names
-- Ruby array args: NEVER Magnus `Vec<T>` params (borrowed-slice `to_vec` segfaults when an element's
-    `to_str`/`to_int` mutates the array, iter 212) — take `RArray` + `array_to_vec`/`frames_to_vec`
-    in rb lib.rs. Lock bumps: `bundle update <gem> --conservative --patch` (plain moved rubocop)
+- Ruby: never Magnus `Vec<T>` params (segfault, 212) — `RArray` + `array_to_vec`/`frames_to_vec`.
+    Gem lock bumps: `bundle update <gem> --conservative --patch` (plain moved rubocop)
 
 ## Other Bindings — pointers
 

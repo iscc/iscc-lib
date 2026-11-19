@@ -35,7 +35,8 @@ fn to_magnus_err(e: iscc_lib::IsccError) -> Error {
 /// place, as they cannot change), so an element conversion (`to_str`/`to_int`)
 /// that mutates the caller's array cannot invalidate the walk. Magnus' own
 /// `Vec<T>` conversion walks a borrowed slice and segfaults in that case.
-/// Raises `TypeError` for an element of the wrong type.
+/// Raises `TypeError` for an element of the wrong type and `RangeError` for
+/// an integer outside the target type's range.
 fn array_to_vec<T: TryConvert>(ary: RArray) -> Result<Vec<T>, Error> {
     ary.into_iter().map(TryConvert::try_convert).collect()
 }

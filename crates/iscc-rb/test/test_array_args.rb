@@ -4,8 +4,8 @@
 # An element whose implicit conversion (`to_str` / `to_int`) clears the
 # caller's array and runs GC must not crash the process: arguments are
 # converted from a private copy of the array. Also pins the exception
-# classes for wrong-type arguments (TypeError) versus invalid values
-# (RuntimeError).
+# classes for wrong-type arguments (TypeError), out-of-range integers
+# (RangeError) and invalid values (RuntimeError).
 
 require "test_helper"
 
@@ -153,6 +153,14 @@ class TestArrayArgs < Minitest::Test
 
   def test_non_array_frame_raises_type_error
     assert_raises(TypeError) { IsccLib.gen_video_code_v0([1]) }
+  end
+
+  def test_out_of_range_integer_element_raises_range_error
+    assert_raises(RangeError) { IsccLib.gen_audio_code_v0([2**40]) }
+  end
+
+  def test_negative_minhash_feature_raises_range_error
+    assert_raises(RangeError) { IsccLib.alg_minhash_256([-1]) }
   end
 
   def test_invalid_unit_value_raises_runtime_error
