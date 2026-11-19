@@ -118,3 +118,8 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     must be re-fetched (`/tmp/swifttc` does not persist). Runner-up: Magnus `Vec<T>` fix. Next: the
     33→35 doc sweep (Ruby, JNI, C++, .NET, Go, napi, wasm, py CLAUDE/README/docs pages), then the
     small `normal` issues.
+- **211 doc sweep:** a keyword-filtered `git grep` for stale counts missed sites (napi CLAUDE.md
+    says "3 codec functions", not "33"). Re-grep without the filter, and test the criterion's grep
+    against today's tree so it hits every stale site. Put the real per-surface signature table in
+    next.md (it guards against 190's fabricated return type). Keep the c-ffi type-name issue OUT of
+    a sweep, because rename vs alias is a design choice and that fails the fan-out valve.

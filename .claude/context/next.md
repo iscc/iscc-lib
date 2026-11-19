@@ -1,95 +1,106 @@
 # Next Work Package
 
-## Step: Bind `encode_seq` / `decode_seq` in the UniFFI crate (Swift + Kotlin)
+## Step: Tier-1 33→35 doc/count sweep + `encode_seq`/`decode_seq` doc entries
 
 ## Goal
 
-Export `encode_seq` / `decode_seq` from `crates/iscc-uniffi`, regenerate the Swift and Kotlin
-bindings, and run both data.json seq sections in each conformance harness. This binds ISCC-SEQ on
-the last two of the 11 surfaces (v0.8.0, GitHub #45).
+Bring the documentation in line with the 35-symbol Tier 1 surface now that ISCC-SEQ is bound on all
+11 surfaces (iter 210): every Tier-1 count reads 35, and the hand-written API pages and all 11
+how-to guides document `encode_seq`/`decode_seq`. Docs-only, no behaviour change. Follows the iter
+190 IDv1 sweep shape.
 
 ## Alternatives Considered
 
-- **Chosen:** UniFFI seq. It is the last missing surface of the v0.8.0 headline feature, and one
-    source file feeds both Swift and Kotlin.
-- **Rejected:** the Ruby Magnus `Vec<T>` segfault fix (`normal`, single file). It is self-contained
-    and can go next. Finishing the feature first unblocks the 33→35 doc sweep.
+- **Chosen:** the doc sweep. It is the last ISCC-SEQ gap in the target ("available everywhere"), and
+    today no doc page mentions seq at all (every howto/API page: 0 hits for `encode_?seq`).
+- **Rejected:** the Ruby Magnus `Vec<T>` segfault fix (`normal`, single file). It is a real crash
+    but not seq-specific. It goes next, once the seq feature set is complete and documented.
 
 ## Scope
 
-- **Modify**: `crates/iscc-uniffi/src/lib.rs` (the only hand-edited source file)
-- **Regenerate** (generated, outside the 3-file budget, as in `3c31f89` for IDv1):
-    `packages/swift/Sources/IsccLib/iscc_uniffi.swift`,
-    `packages/swift/Sources/iscc_uniffiFFI/iscc_uniffiFFI.h`,
-    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt`
-- **Tests**: `packages/swift/Tests/IsccLibTests/ConformanceTests.swift`,
-    `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt`, plus Rust unit tests in
-    `lib.rs`
-- **Reference**: `crates/iscc-lib/src/codec.rs` (`encode_seq` L818, `decode_seq` L857);
-    `crates/iscc-uniffi/src/lib.rs` `gen_iscc_code_v0` (string-list input) and `iscc_decompose`
-    (string-list output); `packages/swift/CLAUDE.md` and `packages/kotlin/CLAUDE.md` ("Binding
-    Generation", plus the Swift Linux toolchain recipe under "Common Pitfalls")
+**Fan-out:** one identical change (Tier-1 count → 35, plus a seq entry/example in each surface's own
+casing), applied across the doc surfaces below. All files are docs, notes, or comments, so they sit
+outside the 3-file code budget.
+
+- **Modify (count 33 → 35):** `crates/iscc-lib/CLAUDE.md:31`, `crates/iscc-wasm/CLAUDE.md:142`,
+    `docs/java-api.md:8`, `docs/ruby-api.md:9`, `notes/00-overview.md:153`,
+    `notes/04-api-compatibility-safety.md:21` (also extend its per-category breakdown: 5 codec
+    operations), `.claude/agents/advance.md:142`, and the module doc at
+    `crates/iscc-uniffi/src/lib.rs:3` (a comment-only edit).
+- **Modify (seq API entries):** `docs/rust-api.md` (Codec Functions, ~L396), `docs/java-api.md`
+    (Codec, ~L410), `docs/ruby-api.md` (Encoding & Codec, ~L440), `docs/c-ffi-api.md` (Codec
+    Operations, after `iscc_decompose`).
+- **Modify (seq howto example, in each page's codec section):** all 11 pages in `docs/howto/`.
+- **Modify (agent/registry docs, one line each where codec ops are already listed):**
+    `crates/iscc-napi/CLAUDE.md:11` (3 → 5 codec functions), the READMEs that already list codec ops
+    (`crates/iscc-rb`, `packages/{cpp,dotnet,go,kotlin}`), and the stale non-33 counts:
+    `crates/iscc-py/CLAUDE.md:28` (27 pyfunctions), `packages/go/CLAUDE.md:30,116`,
+    `packages/dotnet/CLAUDE.md:37,94`, `packages/{swift,kotlin}/CLAUDE.md:29`, and the
+    `crates/iscc-rb/CLAUDE.md` Key Files table (add `test_iscc_id.rb`, `test_seq.rb`).
+- **Reference:** `docs/howto/go.md:393-417` (IDv1 subsection, template for a codec subsection);
+    `crates/iscc-lib/tests/data.json` sections `encode_seq`/`decode_seq`.
 
 ## Not In Scope
 
-- The 33→35 doc sweep, including the Swift/Kotlin `CLAUDE.md` and README files. Steps 204–209 all
-    deferred docs to one sweep after the fan-out, and that sweep is the next step
-- Editing either vendored `data.json`: both are byte-identical to `crates/iscc-lib/tests/data.json`
-    and already carry the seq sections
-- Fixing embedded-NUL handling (see the notes) or any other `normal` issue
-- Hand-editing generated files, or touching the hand-maintained `module.modulemap`
+- `docs/c-ffi-api.md` type-name prefixing (open `normal` issue: rename vs alias is a design choice).
+    New `iscc_encode_seq`/`iscc_decode_seq` entries follow the page's current `IsccByteBuffer`
+    style.
+- The Python `encode_seq` docstring issue (source files) and `docs/api.md` (generated via
+    `::: iscc_lib`, which picks seq up from `__all__`). Do not hand-edit either.
+- Any source/signature/test change beyond the uniffi module-doc comment. No new docs page: that
+    would require four-place nav parity.
+- `target.md`, `specs/`, `learnings.md`, `state.md`, archives. Leave them alone.
 
 ## Implementation Notes
 
-- Wrappers: `encode_seq(units: Vec<String>) -> Result<Vec<u8>, IsccUniError>` (build `Vec<&str>` as
-    in `gen_iscc_code_v0`) and `decode_seq(data: Vec<u8>) -> Result<Vec<String>, IsccUniError>`.
-    Pass straight to core, with no guards in the binding. Core owns the error messages, e.g. "at
-    least one ISCC-UNIT" for `[]` and "Empty ISCC-SEQ" for empty bytes. Expected generated shapes:
-    Swift `encodeSeq(units:)` returns `Data`; Kotlin `encodeSeq(units)` returns `ByteArray`.
-- Regeneration (recipes are in the package `CLAUDE.md` files): run `cargo build -p iscc-uniffi`
-    first. Swift bindgen writes the `.h` and `.modulemap` into `Sources/IsccLib/`; move the `.h` to
-    `Sources/iscc_uniffiFFI/` and delete the generated `.modulemap`. Kotlin uses `--no-format`. Raw
-    bindgen output has trailing whitespace and EOF-newline issues, so run `mise run format`, which
-    may need two passes to settle.
-- **Harness traps:**
-    - The seq vectors use `bytes:<hex>`, not `stream:`. Swift `decodeStream` drops 7 characters
-        (`stream:`), so on `bytes:` (6 characters) it would silently eat a hex digit. Kotlin
-        `removePrefix("stream:")` leaves the prefix in place for `parseHex`. Add a `bytes:`-aware hex
-        helper in each harness.
-    - `outputs` is a string for `encode_seq` and an array for `decode_seq`, so the existing
-        `getAsJsonObject("outputs")` and `as! [String: Any]` patterns crash. `encode_seq` inputs are
-        nested: the unit list is `inputs[0]`. `decode_seq` input is `inputs[0]` (a `bytes:` string).
-    - Kotlin `assertEquals` on `ByteArray` compares references, so use `assertArrayEquals`.
-    - Hard-code the per-section counts (4 and 4) like the other test methods.
-- Add tests in both languages:
-    - a bytes round trip `encodeSeq(decodeSeq(x)) == x` over the `decode_seq` vectors
-    - negatives, one bad input per call: `[]`, empty bytes, truncated bytes (drop the last byte of a
-        vector), and the strict-padding unit `ISCC:GAAAAAAAAA======`
-    - the padding control `ISCC:GAAAAAAAAA` → hex `300000000000`. Do NOT use the `EEAY…====` literal:
-        iscc-core rejects it too, so it cannot catch a padding regression
-- **Embedded-NUL probe:** UniFFI passes strings length-delimited, so `unit + "\0junk"` should reach
-    core intact and be rejected (as on JNI/Ruby). Pin that with a test in both languages. If either
-    language returns a result instead, keep a test that records the observed behaviour, report it in
-    the handoff, and do not fix it: the NUL fix design is the human's call (open `normal` issue).
-- Binding-only step: no core or hot-path change, so the iai and CRAP gates are unaffected.
+Real signatures (from source, not memory). Copy them exactly:
+
+| Surface | encode                                                                         | decode                                                                      |
+| ------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Rust    | `encode_seq(units: &[&str]) -> IsccResult<Vec<u8>>`                            | `decode_seq(data: &[u8]) -> IsccResult<Vec<String>>`                        |
+| Python  | `encode_seq(units: Iterable[str]) -> bytes`                                    | `decode_seq(data: bytes-like) -> list[str]`                                 |
+| napi    | `encode_seq(units: Array<string>): Buffer`                                     | `decode_seq(data: Buffer): Array<string>`                                   |
+| WASM    | `encode_seq(units)` → `Uint8Array`                                             | `decode_seq(data: Uint8Array): string[]`                                    |
+| Java    | `byte[] IsccLib.encodeSeq(String[])`                                           | `String[] IsccLib.decodeSeq(byte[])`                                        |
+| Go      | `EncodeSeq(units []string) ([]byte, error)`                                    | `DecodeSeq(data []byte) ([]string, error)`                                  |
+| .NET    | `byte[] IsccLib.EncodeSeq(string[])`                                           | `string[] IsccLib.DecodeSeq(ReadOnlySpan<byte>)`                            |
+| C       | `iscc_encode_seq(const char *const *units, uintptr_t num_units)` → byte buffer | `char **iscc_decode_seq(const uint8_t *data, uintptr_t data_len)`           |
+| C++     | `iscc::encode_seq(const std::vector<std::string>&) -> std::vector<uint8_t>`    | `iscc::decode_seq(const std::vector<uint8_t>&) -> std::vector<std::string>` |
+| Ruby    | `IsccLib.encode_seq(Array)` → binary `String`                                  | `IsccLib.decode_seq(String)` → `Array`                                      |
+| Swift   | `encodeSeq(units: [String]) throws -> Data`                                    | `decodeSeq(data: Data) throws -> [String]`                                  |
+| Kotlin  | `encodeSeq(units: List<String>): ByteArray`                                    | `decodeSeq(data: ByteArray): List<String>`                                  |
+
+- C frees (verified in `iscc.h`): byte buffer → `iscc_free_byte_buffer`, string array →
+    `iscc_free_string_array`.
+- Example vector (`test_0002_single_unit`): unit
+    `ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI` ↔ 34 bytes, hex starts
+    `2007a88248c5`. Show the decoded units carrying the `ISCC:` prefix.
+- State the round trip as BYTES: `encode_seq(decode_seq(data)) == data`.
+- Traps:
+    - napi and WASM export snake_case names.
+    - WASM `units` accepts any JS iterable, so never write "throws on non-array" for WASM.
+    - Do not claim input-acceptance parity with iscc-core. Base32 input is strict (no padding, zero
+        spare bits) and upper-casing is ASCII-only.
+    - Never blanket-replace "9" with "10": the 9 conformance gen fns differ from the 10 gen fns.
+        Re-derive every non-33 count from source (`grep -c` the real file), or drop the number.
+- Run `mise run format` before committing (mdformat `--wrap 100`).
 
 ## Verification
 
-- `cargo test -p iscc-uniffi` and `cargo clippy -p iscc-uniffi -- -D warnings` both exit 0, with
-    Rust unit tests covering an `encode_seq` / `decode_seq` round trip and the empty-input errors
-- `./gradlew clean test` in `packages/kotlin` exits 0 (after `cargo build -p iscc-uniffi`), and the
-    JUnit XML report lists the seq test methods
-- `swift test` passes locally using the Linux toolchain recipe in `packages/swift/CLAUDE.md`
-    (`--scratch-path` outside the repo); do not defer this to macOS CI. The seq test methods appear
-    in the output
-- Regenerating Swift and Kotlin bindings into a temp dir and diffing against the committed files
-    after `sed 's/[[:space:]]*$//'` shows no difference (EOF blank lines aside), so the committed
-    bindings match `lib.rs`
-- `grep -n "func encodeSeq\|func decodeSeq" packages/swift/Sources/IsccLib/iscc_uniffi.swift` and
-    the Kotlin equivalent (`` fun `encodeSeq` ``/`` fun `decodeSeq` ``) each find a public export
-- `mise run check` exits 0
+- The stale-count grep prints nothing:
+    ```
+    grep -rnE "\b33 (Tier 1|symbols|public symbols)|all 33 Tier|Tier 1 \(33" docs notes crates/*/CLAUDE.md crates/*/README.md packages/*/CLAUDE.md packages/*/README.md README.md crates/iscc-uniffi/src/lib.rs .claude/agents/advance.md
+    ```
+- Every page documents seq. This command prints no filenames:
+    ```
+    grep -LiE "encode_?seq" docs/howto/*.md docs/rust-api.md docs/java-api.md docs/ruby-api.md docs/c-ffi-api.md
+    ```
+- Every seq signature in the docs matches the Implementation Notes table. This is a manual review,
+    with no fabricated return types.
+- `uv run zensical build` exits 0 and reports "No issues found".
+- `mise run check` passes, and `cargo build -p iscc-uniffi` still succeeds after the comment edit.
 
 ## Done When
 
-All six verification criteria pass, with the seq vectors running in both the Swift and the Kotlin
-conformance harnesses.
+Every Tier-1 count reads 35, all 11 how-to pages and the 4 hand-written API pages document
+`encode_seq`/`decode_seq` with signatures matching the table, and the verification commands pass.
