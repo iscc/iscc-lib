@@ -26,7 +26,7 @@ packages/swift/
       module.modulemap                       # Simplified modulemap for SPM (manual, not generated)
   Tests/
     IsccLibTests/
-      ConformanceTests.swift                 # data.json vectors: 9 gen_*_v0 functions, gen_iscc_id_v1, ISCC-SEQ
+      ConformanceTests.swift                 # data.json vectors (9 gen_*_v0 functions, ISCC-SEQ) + gen_iscc_id_v1 golden test
       data.json                              # Vendored ISCC conformance test vectors (SPM resource)
 ```
 

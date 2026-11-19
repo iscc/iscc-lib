@@ -1,85 +1,74 @@
-## 2026-11-19 — Tier-1 33→35 doc/count sweep + `encode_seq`/`decode_seq` doc entries
+## 2026-11-19 — Review of: Tier-1 33→35 doc/count sweep + `encode_seq`/`decode_seq` doc entries
 
-**Done:** Every Tier-1 count now reads 35. All 11 how-to guides gained an `### ISCC-SEQ` subsection
-in their codec section; `rust.md` had no codec section, so it gained a `## Codec operations`
-section. The 4 hand-written API pages got seq entries, and the per-crate CLAUDE.md/README codec
-lists plus the stale counts listed in next.md were re-derived from source. The changes are docs plus
-one uniffi module-doc comment. No behaviour change.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- Counts 33→35: `crates/iscc-uniffi/src/lib.rs:3` (comment only), `docs/{java,ruby}-api.md`,
-    `notes/00-overview.md`, `notes/04-api-compatibility-safety.md` (also "5 codec operations"),
-    `.claude/agents/advance.md:142`, `crates/iscc-lib/CLAUDE.md` + `crates/iscc-wasm/CLAUDE.md`
-    (count + codec list now includes `encode_seq`/`decode_seq`)
-- API entries: `docs/rust-api.md` (`### ISCC-SEQ` after Codec Functions), `docs/java-api.md`
-    (`encodeSeq`/`decodeSeq` under Codec), `docs/ruby-api.md` (`encode_seq`/`decode_seq` + Error
-    Handling bullet), `docs/c-ffi-api.md` (`iscc_encode_seq`/`iscc_decode_seq` after
-    `iscc_decompose`, + both free-function rows in the Memory Management table)
-- How-tos: all 11 `docs/howto/*.md`. `c-cpp.md` also adds the seq functions to its ownership-table
-    rows for `char**` and `IsccByteBuffer`
-- Registry docs: `crates/iscc-ffi/CLAUDE.md`, `crates/iscc-jni/CLAUDE.md`, `packages/cpp/CLAUDE.md`,
-    READMEs `crates/iscc-rb`, `packages/{cpp,dotnet,go,kotlin}`
-- Re-derived counts:
-    - `iscc-napi/CLAUDE.md`: 5 codec functions, plus it now names the missing `gen_iscc_id_v1` mint
-        function
-    - `iscc-py/CLAUDE.md`: 30 `#[pyfunction]`s (`grep -c` = 30, not 27)
-    - `packages/go/CLAUDE.md`:
-        - the selftest covers the 9 gen fns + ISCC-SEQ
-        - 58 vectors = 50 gen + 4 + 4 (from data.json section sizes; the old figure was 46)
-        - the codec.go row now lists ISCC-SEQ
-    - `packages/dotnet/CLAUDE.md`: adds `SeqTests.cs` to the tree, plus the seq conformance methods
-    - `packages/{swift,kotlin}/CLAUDE.md`: 19 methods (listed via grep: 9 gen + `testGenIsccIdV1` + 9
-        seq)
-    - `crates/iscc-rb/CLAUDE.md` Key Files: adds `test_iscc_id.rb` and `test_seq.rb`
+**Summary:** Docs-only fan-out (plus one uniffi module-doc comment) across 36 files, within the
+declared `**Fan-out:**` scope and nothing from Not In Scope. Every Tier-1 count reads 35. All 11
+how-to pages and the 4 hand-written API pages document `encode_seq`/`decode_seq`, and every
+signature matches its source. Each re-derived count (30 pyfunctions, 58 Go vectors = 50 + 4 + 4, 19
+Swift/Kotlin methods, napi 5 codec) checks out. Review fixed two small doc nits Codex found.
 
 **Verification:**
 
-- Stale-count grep from next.md: no output (exit 1). A looser
-    `\b3[1234]\b.*Tier|Tier.{0,12}\b3[1234]\b|3x/3x|3x (symbols|functions)` grep over the same paths
-    \+ `crates/*/src/lib.rs` + `.claude/agents/*.md`: no output
-- Seq-coverage `grep -LiE "encode_?seq" …` from next.md: no filenames (exit 1)
-- Each signature was checked against source:
-    - Rust: `codec.rs:818/857`
-    - Python: `__init__.py:111/136`
-    - napi: `index.d.ts:85/111`
-    - WASM: `lib.rs:357/368`
-    - Java: `IsccLib.java:288/300`
-    - Go: `codec.go:879/919`
-    - .NET: `IsccLib.cs:488/542`
-    - C: `iscc.h:645/670`
-    - C++: `iscc.hpp:366/384`
-    - Ruby: `lib.rs:329/340`
-    - Swift: `iscc_uniffi.swift:2125/2165`
-    - Kotlin: `iscc_uniffi.kt:3015/3066`
-- Examples were executed, not just eyeballed:
-    - Python (after `maturin develop`): `34`, `2007a88248c5`, `['ISCC:EAD2…']`, round-trip assert OK
-    - Rust: a throwaway integration test with the howto body passed (1 passed), then was deleted
-    - Go: a temp `_test.go` printed `34 / 2007a88248c5 / [ISCC:…] / true`, then was deleted
-    - Node: `node -e` against the napi `.node` printed `34 2007a88248c5 [ 'ISCC:…' ] true`. The
-        `.node` was built at 21:13, after the last napi src commit (20:54). The same session checked
-        the WASM element-wise compare logic on a `Uint8Array`
-    - Java/Kotlin/Swift/.NET/C++/Ruby/C examples were not compiled. They use the content-equality
-        idiom for each language (`Arrays.equals`, `contentEquals`, `AsSpan().SequenceEqual`, `==` on
-        `Data`/`vector`/`String`)
-- `uv run zensical build`: exit 0, "No issues found". `cargo build -p iscc-uniffi`: Finished
-- `mise run format` is idempotent on its second run. `mise run check`: exit 0
+- [x] Stale-count grep prints nothing (exit 1). It is non-vacuous: the same grep on `d3e10fa` finds
+    8 hits
+- [x] Seq-coverage `grep -LiE "encode_?seq"` prints no filenames. The rendered HTML for all 11
+    howtos carries seq (case-insensitive grep)
+- [x] Manual signature review: all 12 surfaces match the Implementation Notes table and the source
+    (`codec.rs:818/857`, `index.d.ts`, `IsccLib.java:288/300`, `codec.go:879/919`,
+    `IsccLib.cs:488/542`, `iscc.h:645/670`, `iscc.hpp:366/384`, rb `lib.rs:329/340`, Swift/Kotlin
+    generated files). Error contracts were also checked: Rust/C/Java/Ruby/.NET exception types and
+    excluded MainTypes. No fabricated return types
+- [x] `uv run zensical build`: exit 0, "No issues found" (`gen_llms_full.py` re-run afterwards)
+- [x] `mise run check` exit 0 with no rewrites. `cargo build -p iscc-uniffi` finished. Workspace
+    clippy `-D warnings` exit 0
+- [x] Extra probes:
+    - The C++ seq howto example, compiled with `g++ -Wall -Wextra -Werror` against `iscc.hpp`, printed
+        `34 / 2007a88248c5 / ISCC:… / true`
+    - The C example (with the prefixed type) printed the same, with `decoded[1] == NULL`
+    - The Ruby example on a fresh `.so` printed `34`, `"2007a88248c5"`, ASCII-8BIT, round trip `true`
+    - A tree-wide grep for stale `3 codec` / `46 vectors` / `9 test methods` / `27 #[pyfunction]`
+        found nothing
 
-**Next:** the Ruby Magnus `Vec<T>` segfault fix (`normal`, single file `crates/iscc-rb/src/lib.rs`;
-take `RArray` + `into_iter()`). Ruby `encode_seq` itself takes `Vec<String>` (lib.rs:329), so it is
-one of the affected call sites.
+**Issues found:**
+
+- Fixed in review:
+    - `docs/java-api.md:508` used `Arrays.equals` without an import → `java.util.Arrays.equals`,
+        matching the page's own `java.util.Arrays.copyOf`
+    - The Swift/Kotlin `CLAUDE.md` tree comments said `gen_iscc_id_v1` comes from `data.json`. It does
+        not; it is a hard-coded golden test. Reworded
+- The new `iscc_encode_seq`/`iscc_decode_seq` C snippets use the unprefixed `IsccByteBuffer`. This
+    follows page style as next.md directed, and the existing `docs/c-ffi-api.md` type-name issue
+    covers it
+- `docs/ruby-api.md` says invalid input raises `RuntimeError`. That holds for codec errors only:
+    `encode_seq([nil])` raises `TypeError` (probed). The page-wide "all methods raise
+    `RuntimeError`" sentence predates this step. Nit, not filed
+- Nit: the new C++ seq snippet lacks `#include <iostream>`. Its neighbouring codec/IDv1 snippets
+    omit it too (page convention)
+- Nit: the Swift/Kotlin "9 ISCC-SEQ methods … negatives" includes one positive control
+    (`testEncodeSeqPaddingControl`)
+
+**Codex review:** Run on `f386584`, the main commit; HEAD is handoff-only. Six findings:
+
+- Java `Arrays` import (P3) and the Swift/Kotlin IDv1 wording (P3): valid, fixed in review
+- C `IsccByteBuffer` (P2): already tracked; out of scope by next.md
+- .NET `EncodeSeq` accepts `unit + "\0junk"`, so the "strict" wording overstates (P2): already
+    tracked in the .NET/C++ NUL-truncation issue; fixing the behaviour makes the docs true
+- Ruby exception contract (P2): verified `TypeError`; pre-existing page wording, see above
+- C++ `<iostream>` (P3): page convention
+
+**Next:** the Ruby Magnus `Vec<T>` segfault fix (`normal`, single file `crates/iscc-rb/src/lib.rs`):
+take `RArray` and iterate with `into_iter()`, as `alg_simhash` already does. `encode_seq` and
+`gen_mixed_code_v0` are affected call sites. That fix rewrites exactly the argument conversion
+behind the `TypeError`-vs-`RuntimeError` contract. Have its tests pin which exception class a
+non-String element raises, and correct the `docs/ruby-api.md` Error Handling sentence in the same
+step if the class stays `TypeError`.
 
 **Notes:**
 
-- WASM docs say `units` "may be an array or any other iterable of strings". They never say it throws
-    on non-arrays
-- No input-acceptance parity claims. Every page states that base32 input is strict and casing is
-    ASCII-only
-- The C entries use `uintptr_t` exactly as in `iscc.h` (the next.md table). Older entries on the
-    page use `size_t`; that inconsistency predates this step
-- I did not mention .NET `EncodeSeq` NUL truncation in the docs, because it is an open `normal`
-    issue whose fix is Titusz's call. The C++ CLAUDE.md now notes that `encode_seq` guards NUL
-- `.claude/context/iterations.jsonl` was modified by the runner and is left unstaged
-- Follow-up commit `4503ed0`: the c-cpp howto seq prose now uses the page's prefixed
-    `iscc_IsccByteBuffer` name. Swift/Kotlin READMEs carry no test-method count, and a tree-wide
-    `git grep` for "32/33 … Tier|symbols" outside context files found nothing
+- ISCC-SEQ is now bound and documented on all 11 surfaces. The remaining seq-adjacent issues are
+    behaviour bugs (Ruby segfault, .NET/C++ NUL truncation, napi Buffer leak, the Python docstring)
+    and the C-page type-name question (rename vs alias is a design call)
+- Commit `4503ed0` changed the c-cpp howto prose to `iscc_IsccByteBuffer`, so the howto and
+    `docs/c-ffi-api.md` now differ in naming until that issue is decided
+- learnings.md: the two "Tier 1 = 33 / sweep pending" bullets now read 35 / done at 211

@@ -505,7 +505,7 @@ String[] units = IsccLib.decodeSeq(data);
 // units: ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
 
 // The round trip is defined on bytes: encodeSeq(decodeSeq(data)) reproduces data
-assert Arrays.equals(IsccLib.encodeSeq(units), data);
+assert java.util.Arrays.equals(IsccLib.encodeSeq(units), data);
 ```
 
 ---

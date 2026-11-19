@@ -538,3 +538,19 @@ Full text of entries compacted out of `MEMORY.md`.
     committed gates `scripts/check_release_workflow.py` + `… --check-action-inputs` (never a
     heredoc); zero `warning: skipped` is part of the pass; `always()` = NEEDS_WORK →
     `gha-workflow-reviews.md`
+
+## Multi-surface docs fan-out sweep (iter 211 — ISCC-SEQ docs on 11 surfaces, ~15 min)
+
+- **next.md's stale-count greps exclude `.claude/context/`** — `learnings.md` still said "Tier 1 =
+    33 / sweep pending" after a green sweep. Grep learnings + specs for the old count yourself; fix
+    learnings (yours), file sub-spec drift, never touch `target.md`
+- **Confirm the grep is non-vacuous**: `git grep <pat> <define-next-sha> -- <paths> | wc -l` (8 hits
+    before → 0 after)
+- **Compiling the C/C++ snippets takes seconds** (FFI `.so` already in `target/debug`):
+    `g++ -std=c++17 -Wall -Wextra -Werror -I packages/cpp/include -I crates/iscc-ffi/include x.cpp -L target/debug -liscc_ffi -Wl,-rpath,$PWD/target/debug`.
+    Ruby: `ruby -I crates/iscc-rb/lib -e 'require "iscc_lib"; …'` (check `.so` mtime > last
+    `crates/iscc-rb/src` commit)
+- **Rendered-HTML evidence must be case-insensitive** across casings (`EncodeSeq`/`encodeSeq`/
+    `encode_seq`): `grep -ciE 'encode_?seq' site/howto/*/index.html`
+- Codex on uncompiled doc examples finds missing imports (Java `Arrays`), fixture-vs-golden
+    mislabels, and exception-contract overstatements (Ruby `TypeError` from Magnus conversion)

@@ -7,15 +7,14 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 ## Architecture
 
 - Hub-and-spoke: `iscc-lib` (pure Rust core) → binding crates (py, napi, wasm, ffi, jni, rb,
-    uniffi), each depending only on the core. Tier 1 = 33 symbols `pub use`d at crate root (33rd =
-    `gen_iscc_id_v1`+`IsccIdResult`, iter 177; docs/count sweep to 33 done, iter 190); Tier 2 is
+    uniffi), each depending only on the core. Tier 1 = 35 symbols `pub use`d at crate root (IDv1
+    177, `encode_seq`/`decode_seq` 195; docs/count sweep to 35 done, iter 211); Tier 2 is
     `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
-- **ISCC-SEQ core (195)**: `encode_seq`/`decode_seq` at crate root (bound on all 11 surfaces since
-    210; the documented Tier-1 count moves 33 → 35 in ONE doc sweep); `read_unit`/`SEQ_MAINTYPES`
-    Tier 2 on private raw-`u32` header helpers — never the typed `decode_header` path (Go `uint8`
-    truncates SubType 4679 → 71, 202). Diff each port vs Rust via the Python binding on a corpus.
-    **The spec round trip is BYTES — `encode_seq(decode_seq(x)) == x` over the `decode_seq`
-    vectors** (205: next.md prescribed string decode-of-encode; py/napi/WASM/FFI assert bytes)
+- **ISCC-SEQ core (195)**: bound on all 11 surfaces (210) and documented everywhere (211);
+    `read_unit`/`SEQ_MAINTYPES` Tier 2 on private raw-`u32` header helpers — never the typed
+    `decode_header` path (Go `uint8` truncates SubType 4679 → 71, 202). **The spec round trip is
+    BYTES — `encode_seq(decode_seq(x)) == x` over the `decode_seq` vectors** (205: next.md
+    prescribed string decode-of-encode; py/napi/WASM/FFI assert bytes)
 - **`encode_seq` upper-cases before cleaning, so `b` + base32(`cc01` + unit) can read as a DIFFERENT
     valid bare unit** (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20 bytes) — iscc-core 1.5.0 returns the
     same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
@@ -26,7 +25,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `"Hello"`'s code on BOTH. C++ `encode_seq` guards NUL, .NET `EncodeSeq` does not — probe
     `x + "\0junk"` on every string input. JNI, Ruby + UniFFI keep the NUL, the core rejects
     (208-210). **Magnus `Vec<T>` params segfault Ruby** (209, filed) when an element's `to_str`
-    shrinks the array (`to_vec` holds the slice) — take `RArray` + `into_iter()`
+    shrinks the array (`to_vec` holds the slice) — take `RArray` + `into_iter()`. Magnus argument
+    conversion raises `TypeError` (`encode_seq([nil])`), not the codec's `RuntimeError` (211)
 - **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
     `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
     modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an

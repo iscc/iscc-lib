@@ -26,7 +26,7 @@ packages/kotlin/
     main/kotlin/uniffi/iscc_uniffi/
       iscc_uniffi.kt                        # UniFFI-generated Kotlin bindings (DO NOT EDIT)
     test/kotlin/uniffi/iscc_uniffi/
-      ConformanceTest.kt                    # data.json vectors: 9 gen_*_v0 functions, gen_iscc_id_v1, ISCC-SEQ
+      ConformanceTest.kt                    # data.json vectors (9 gen_*_v0 functions, ISCC-SEQ) + gen_iscc_id_v1 golden test
     test/resources/
       data.json                             # Vendored ISCC conformance test vectors
 ```
