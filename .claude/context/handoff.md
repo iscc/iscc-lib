@@ -1,44 +1,62 @@
-## 2026-11-19 — npm packages ship a license and a plain-text description
+## 2026-11-19 — Review of: npm packages ship a license and a plain-text description
 
-**Done:** `crates/iscc-wasm/Cargo.toml` now sets `license.workspace = true` (Apache-2.0) and a
-browser-specific `description` literal, so wasm-pack writes both into `pkg/package.json`.
-`crates/iscc-napi/package.json` gained the napi `description` right after `license`.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-wasm/Cargo.toml`: added `license.workspace = true` + `description`; moved the
-    `publish = false` trailing comment onto its own line (see Notes)
-- `crates/iscc-napi/package.json`: added `"description"`
-- `.claude/agent-memory/advance/MEMORY.md`: finished the truncated NUL line; npm metadata note
+**Summary:** `crates/iscc-wasm/Cargo.toml` now inherits `license` (Apache-2.0) and sets a
+browser-specific `description`, so wasm-pack writes both into `pkg/package.json`.
+`crates/iscc-napi/package.json` has its plain-text description. It is a two-file manifest change,
+within scope. The `publish = false` comment moved to its own line because taplo would otherwise push
+it out to column 119; the value is unchanged (`cargo metadata` `publish: []`). The `[human]` npm
+licence issue is resolved and deleted.
 
 **Verification:**
 
-- `wasm-pack build --target web --dev crates/iscc-wasm`: exit 0 (fresh build, version 0.7.0). The
-    generated `pkg/package.json` has `"license": "Apache-2.0"` and the exact WASM description, so
-    wasm-pack 0.13.1 does resolve `license.workspace`, and no literal fallback was needed. wasm-pack
-    logged an INFO line "License key is set ... no LICENSE file(s) were found", which next.md says
-    is informational
-- `node -e` with `assert.strictEqual`: WASM `license` + `description`, napi `description` +
-    `license` all match. Output: `node asserts OK`
-- `cargo metadata --no-deps --format-version 1`: parses; `iscc-wasm` shows license `Apache-2.0` and
+- [x] `wasm-pack build --target web --dev crates/iscc-wasm` exits 0. I ran a fresh build with
+    wasm-pack 0.13.1, version 0.7.0. It printed only the informational "no LICENSE file" note
+- [x] `node -e` on the fresh `pkg/package.json`: `license` is `"Apache-2.0"` and `description` is
+    the exact WASM string (`assert.strictEqual`)
+- [x] `node -e` on `crates/iscc-napi/package.json`: `description` is the exact napi string and
+    `license` is still `"Apache-2.0"`
+- [x] `cargo metadata --no-deps --format-version 1` parses; `iscc-wasm` has license `Apache-2.0` and
     the description
-- Ran release.yml's "Set npm package name and version" logic on a copy of the generated JSON: result
-    `@iscc/wasm 0.7.0 Apache-2.0 | Browser-compatible ...`, so both fields survive the patch
-- `mise run check`: the first run failed (taplo rewrote the TOML, see Notes). After the fix it exits
-    0 with no hook failures
+- [x] `mise run check` exits 0, and every hook passed
+- [x] Extra checks:
+    - `mise run version:check` exits 0 with 21 `OK:` lines (the napi `package.json` is one of the
+        targets)
+    - `cargo deny check licenses` reports `licenses ok`
+    - the wasm-pack installer that release.yml downloads (`init.sh`, fetched today) pins `UPDATE_ROOT`
+        to v0.13.1, the same version verified locally
+- I confirmed by reading release.yml's patch step (and Codex agrees) that it changes only `name`,
+    `repository` and `version`, so `license` and `description` survive. I did not re-run it; the
+    advance agent ran it on a copy
 
-**Next:** Ruby negative-Bignum truncation (`RBignum::to_i32`), the alternative next.md rejected for
-this step. The Dependabot `soupsieve`/`setuptools` lock refresh and the Python `encode_seq`
-docstrings are also small.
+**Issues found:**
+
+- Spec drift, not caused by this step: `specs/wasm-bindings.md` lists a committed
+    `crates/iscc-wasm/package.json` (in the crate tree and the Version Sync table). That file does
+    not exist, and `version_sync.py` has no WASM target. Filed as `normal` `[review]`, no escalation
+    needed (it is a file-list fact)
+- Nit: the npm tarball still ships no LICENSE file. next.md excluded copying one, and the `license`
+    field is what scanners read
+- Nit: wasm-pack logs "missing `repository`". release.yml adds it at release time, so it is harmless
+
+**Codex review:** No actionable findings. Codex confirmed that Cargo resolves the inherited
+Apache-2.0 licence, that both descriptions are correct, and that the release patch step keeps both
+fields.
+
+**Next:** Fix the Ruby negative-Bignum truncation (`normal`; `RBignum::to_i32` in
+`crates/iscc-rb/src/lib.rs`, test in `test_array_args.rb`). It was the runner-up this time. Other
+small `normal` candidates:
+
+- the Python `encode_seq` docstrings (`[human]`)
+- the wasm-bindings spec drift filed this iteration
+- the Dependabot refresh of `soupsieve` and `setuptools`
 
 **Notes:**
 
-- taplo lines up a trailing comment with the longest line in its block. With the long `description`
-    line it pushed `publish = false  # Published via npm...` out to column 119. I put the comment on
-    its own line above `publish = false`; the value did not change (cargo metadata `publish: []`,
-    same as before)
-- I did not rebuild wasm after moving the comment, because that edit only touches a comment.
-    `cargo metadata` was re-checked afterwards
-- Manifest-only change: the CRAP, iai and semver gates are not affected. No tests were added,
-    because next.md rules out a pytest that just restates the manifest
-- `crates/iscc-wasm/pkg/` is gitignored; the fresh build replaced the stale 0.5.0 copy on disk
+- `license.workspace` resolution is proven only for wasm-pack 0.13.1. release.yml installs wasm-pack
+    with a remote `init.sh`, so its version is controlled outside this repo. If a later release
+    shows an empty `license`, switch to the literal `license = "Apache-2.0"`
+- The fix reaches npm with the next release; the published 0.7.0 packages are unchanged
+- `learnings.md` is at 200/200 lines and `decisions.md` at 400/400, so every addition has to be
+    offset by a cut

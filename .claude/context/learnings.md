@@ -102,7 +102,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `Picked up JAVA_TOOL_OPTIONS` twice). **`-DargLine=…` is a no-op** (208, `mvn -X`): the pom's
     `<argLine>` beats the user property, so all earlier `-DargLine` "zero warnings" runs were
     vacuous. CI runs no `-Xcheck:jni`
-- **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
+- **Release pipeline** + `version_sync.py`'s 21 targets → `learnings-archive.md`. `@iscc/wasm`
+    metadata = wasm-pack output of its `Cargo.toml` (214; `license.workspace` OK in 0.13.1, the
+    `init.sh` pin on 2026-11-19); no `description` → npm shows the README badge line
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
     (guard shape, artifact wiring, `needs:` graph; prek hook +
@@ -148,10 +150,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A
     `files:`-scoped hook never sees deletions** — pair any consistency hook with a pytest anchor
     test against the real tree. Formatter caveats → `learnings-archive.md`
-- **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`; read
-    before touching `pom.xml` / `build.gradle.kts`. Gradle 9 writes `build/reports/problems` at the
-    END of every build, so a *concurrent* build (a background Codex run) makes `clean` fail "Unable
-    to delete directory" — re-run sequentially before believing it (165)
+- **JVM/Gradle gotchas** (128) → `learnings-archive.md`, read before touching `pom.xml`/`.kts`. A
+    *concurrent* Gradle 9 build (background Codex) makes `clean` fail "Unable to delete" (165)
 - **Prove a new gate with a REAL regression in a THROWAWAY repo, not a synthetic typo** (iters
     144/152/163): `git archive HEAD | tar -x -C /tmp/x && git init` gives a probe tree where
     `git add`/`git rm` are free; the cheapest *real* regression is the guarded file's own previous

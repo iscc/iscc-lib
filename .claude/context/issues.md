@@ -137,19 +137,6 @@ owning the handle lifecycle, but a one-line `if ptr == 0` → throw guard per fu
 boundary robust against misuse of the public JNI surface. Surfaced during the PR #44 review sweep
 (2026-07-30).
 
-## `@iscc/wasm` on npm has no license and a README-badge description `normal` [human]
-
-`npm view @iscc/wasm@0.7.0 license` is empty and its `description` is the README's badge markdown
-(`[![CI](…)`), while `@iscc/lib` shows `Apache-2.0`. Cause: `crates/iscc-wasm/Cargo.toml` declares
-no `license`/`description` (wasm-pack derives `pkg/package.json` from it), and the release
-workflow's "Set npm package name and version" step (`.github/workflows/release.yml`, `build-wasm`)
-patches only `name`, `repository` and `version`. npm and package scanners therefore treat the
-package as unlicensed.
-
-Resolved when a `wasm-pack build` of `crates/iscc-wasm` (or the release patch step) yields a
-`package.json` with `"license": "Apache-2.0"` and a plain-text description, verified by inspecting
-the generated `pkg/package.json`. Takes effect on npm with the next release.
-
 ## Python `encode_seq` docstrings omit the case-fold divergence from iscc-core `normal` [human]
 
 Since iteration 201, `encode_seq` upper-cases ASCII only, so a non-ASCII case-fold alias such as
@@ -256,3 +243,19 @@ out-of-range list elements, which is false for these inputs. `u32` elements were
 Resolved when a negative Bignum element in those three functions raises `RangeError` (for example,
 convert through `i64` and narrow with `i32::try_from`), pinned by a test next to the existing
 `RangeError` cases in `crates/iscc-rb/test/test_array_args.rb`.
+
+## `wasm-bindings.md` names a committed `crates/iscc-wasm/package.json` that does not exist `normal` [review]
+
+`.claude/context/specs/wasm-bindings.md` lists `package.json # npm package config (@iscc/wasm)` in
+the crate tree (L28) and a Version Sync row for `crates/iscc-wasm/package.json` (L165). No such file
+exists, and `scripts/version_sync.py` has no WASM target. The real mechanism (`ci-cd.md:355`):
+wasm-pack writes `pkg/package.json` from `crates/iscc-wasm/Cargo.toml` (version, `license`,
+`description`), and release.yml's "Set npm package name and version" step patches `name`,
+`repository` and `version`. Iter 214 made `Cargo.toml` the single source of npm metadata; a future
+step that "restores" the spec's file would create a second, unsynced source. File-list fact — no
+design change.
+
+Resolved when `wasm-bindings.md` drops the tree line and drops or realigns the Version Sync row to
+the `Cargo.toml` → wasm-pack → release.yml path.
+
+**Spec:** `.claude/context/specs/wasm-bindings.md` → "Crate Structure", "Version Sync"

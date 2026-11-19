@@ -104,6 +104,10 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see `gate-reviews.md` Audit)
+- **npm-manifest step (214, ~6 min)**: `wasm-pack build --target web --dev crates/iscc-wasm` +
+    `node` assert on the FRESH `pkg/package.json` (on-disk `pkg/` goes stale) +
+    `cargo deny check licenses`; release.yml's remote `init.sh` pinned wasm-pack 0.13.1 on
+    2026-11-19
 - **Bumps** (generated artifact, MSRV `cargo +1.85.0 check -p <c> --locked`, lockfile, wrapper,
     framework major) → `dep-refresh-reviews.md`
 - **Core text/codec change + generated data (≈12 min)**: Rust-only + full feature matrix +
