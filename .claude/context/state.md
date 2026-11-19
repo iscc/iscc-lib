@@ -1,30 +1,26 @@
-<!-- assessed-at: cc91ef5cd83c526939ea6469516eca8b66746aa6 -->
+<!-- assessed-at: 42e616816459b52d1553974a969171ce16fb0a61 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — data-edge.json seed set landed on Rust + Python; repair and binding fan-out owed
+## Phase: v0.8.0 — data-edge.json on Rust + Python; binding fan-out owed
 
-ISCC-SEQ is bound and documented on all 11 surfaces. The shared edge-case file `data-edge.json` now
-exists with 15 seed vectors and Rust and Python harnesses, but the last review returned NEEDS_WORK:
-the Rust harness fails the enforcing CI CRAP gate. That commit is at HEAD, unpushed, so CI is green
-only on the older pushed tip `6c619db`. 6 `normal` issues are open.
+ISCC-SEQ is bound and documented on all 11 surfaces. The shared edge-case file `data-edge.json` has
+16 seed vectors, and its Rust and Python harnesses passed review after the CRAP repair. All code is
+pushed, and CI is green on `origin/develop` (`bd99366`). Still owed for v0.8.0: harnesses on the
+other 10 bindings, and 6 open `normal` issues.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
 **Status**: partially met
 
-- `crates/iscc-lib/tests/data-edge.json` is tracked with 15 vectors in 5 sections (iscc_decode 4,
+- `crates/iscc-lib/tests/data-edge.json` is tracked with 16 vectors in 5 sections (iscc_decode 5,
     encode_seq 8, gen_text_code_v0 1, gen_mixed_code_v0 1, gen_iscc_code_v0 1). It is excluded from
-    the crate package; `test_vendored_fixtures.py` knows it, with an empty `VENDORED_COPIES` list
-- Rust harness `tests/test_data_edge.rs` (7 tests, incl. 4 negative) and Python harness
-    `tests/test_data_edge.py` (checks iscc-core 1.5.0) exist. `STRICT_BASE32_DIVERGENCES` is gone
-    from `tests/test_seq.py`
-- **Blocking (review NEEDS_WORK):** in `test_data_edge.rs`, `call` scores CRAP 210 and
-    `check_vector` 156, over the threshold of 30, so the enforcing CI gate would fail on push. Two
-    Python harness flaws are also owed: `pytest.raises` wraps the result conversion, and the
-    reference-side rejection tuple misses `IndexError`
+    the crate package; `VENDORED_COPIES` for it is still empty
+- Rust `tests/test_data_edge.rs` (7 tests) uses a `SECTIONS` table; the review measured CRAP max 20,
+    under the threshold. Python `tests/test_data_edge.py` checks against iscc-core 1.5.0 and asserts
+    rejections on the raw call only
 - **Missing:** vendored copies and harnesses on the other 10 bindings (Node, WASM, C, Java, Go,
     .NET, C++, Ruby, Swift, Kotlin)
 
@@ -33,9 +29,8 @@ only on the older pushed tip `6c619db`. 6 `normal` issues are open.
 **Status**: partially met
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES` live in `codec.rs`.
-    `conformance_selftest` runs the seq vectors. Data-edge harness present (see above)
-- iai Perf, Coverage + CRAP and semver-checks pass on the pushed tip (semver is informational). The
-    unpushed data-edge harness would fail CRAP
+    `conformance_selftest` runs the seq vectors. The data-edge harness is green
+- iai Perf, Coverage + CRAP and semver-checks pass on the pushed tip (semver is informational)
 - **Missing (human-gated, not v0.8.0):** crate `>= 1.0.0`; MSRV verification
 
 ## Python Bindings
@@ -43,9 +38,9 @@ only on the older pushed tip `6c619db`. 6 `normal` issues are open.
 **Status**: partially met
 
 - 35 Tier 1 symbols with `.pyi` stubs and `__all__`; abi3-py310 wheels for 4 platforms; 12
-    `py.detach` sites; 0.7.0 on PyPI. Data-edge harness with the iscc-core cross-check present
+    `py.detach` sites; 0.7.0 on PyPI. The data-edge harness with the iscc-core cross-check is green
 - **Missing (`normal` issue):** the `encode_seq` docstrings don't name the non-ASCII case-fold
-    divergence. The two harness repair items above
+    divergence from iscc-core
 
 ## Node.js Bindings
 
@@ -86,8 +81,9 @@ only on the older pushed tip `6c619db`. 6 `normal` issues are open.
 **Status**: partially met
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape, strict base32, 264
-    `func Test`. `seq_test.go` comment now points at the data-edge encode_seq rows
-- Missing: the data-edge harness (`seqStrictDivergences` is still a hand-written copy)
+    `func Test`
+- Missing: the data-edge harness (`seqStrictDivergences` is still a hand-written copy). Go has its
+    own decoder, so the `iscc_decode` empty-string vector is untested there
 
 ## C# / .NET Bindings
 
@@ -144,11 +140,9 @@ only on the older pushed tip `6c619db`. 6 `normal` issues are open.
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on the pushed tip `6c619db` (= `origin/develop`): 21/21 check-runs
-    succeeded, check-suite `success`
-- **Not covered by CI:** 10 unpushed commits at HEAD. Besides loop tooling (`tools/cid.py`,
-    `tests/test_cid.py`, `CLAUDE.md`) they carry the data-edge file and harnesses, which the review
-    found would fail the CI CRAP gate
+- **Latest CI: PASSING** on the pushed tip `bd99366` (= `origin/develop`): 21/21 check-runs
+    succeeded, GitHub Actions check-suite `success`. The only unpushed commit (`42e6168`, iteration
+    log) touches `.claude/` only, so green CI covers all code at HEAD
 - **Missing (`normal` issue):** Dependabot alerts on `soupsieve`, `setuptools` and the `json` gem
 
 ## Open Issues
@@ -159,6 +153,5 @@ derived-fact drift.
 
 ## Next Milestone
 
-Make the data-edge harnesses at HEAD pass the CI CRAP gate and fix the two Python harness flaws, so
-`develop` can be pushed green. Then bring `data-edge.json` to the other 10 bindings, and clear the 6
-open `normal` issues.
+Bring `data-edge.json` to the other 10 bindings (vendored copies registered, every vector run), and
+clear the 6 open `normal` issues, which together are what remains for v0.8.0.
