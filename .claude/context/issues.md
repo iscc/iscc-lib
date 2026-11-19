@@ -162,16 +162,6 @@ held comments in the Gemfile), so update `json` alone (`bundle update json --con
 Resolved when `Gemfile.lock` pins `json` >= 2.21.2 with `rb_sys` unchanged, the Ruby CI job is
 green, and `gh api repos/iscc/iscc-lib/dependabot/alerts/1 --jq .state` reports `fixed`.
 
-## Ruby conformance test depends on the process locale `normal` [human]
-
-`crates/iscc-rb/test/test_conformance.rb:13` reads `data.json` with `File.read(DATA_JSON)`, which
-uses `Encoding.default_external`. With `LANG`/`LC_ALL` unset (as in the devcontainer) Ruby reads the
-UTF-8 file as US-ASCII and the whole suite aborts with `Encoding::InvalidByteSequenceError` before
-any test runs. CI passes only because its runners have a UTF-8 locale.
-
-Resolved when every Ruby test that reads a JSON fixture passes an explicit `encoding: "UTF-8"` and
-`env -u LANG -u LC_ALL bundle exec rake test` passes in `crates/iscc-rb`.
-
 ## Python `encode_seq` docstrings omit the case-fold divergence from iscc-core `normal` [human]
 
 Since iteration 201, `encode_seq` upper-cases ASCII only, so a non-ASCII case-fold alias such as
@@ -284,3 +274,20 @@ Possible fix (unverified): `throw_and_default` / `throw_state_error` return the 
 throwing when `env.exception_check()` reports a pending exception. Resolved when a JNI-allocation
 failure reaches Java as the original `OutOfMemoryError` (test under a small `-Xmx`, or argue why
 untestable), and the existing `IllegalArgumentException` / `IllegalStateException` tests still pass.
+
+## Ruby `Vec<T>` parameters segfault when an element's `to_str` mutates the array `normal` [review]
+
+Magnus 0.8.2 converts a `Vec<T>` argument through `RArray::to_vec`
+(`magnus-0.8.2/src/r_array.rs:1148`), which iterates a borrowed slice of the caller's array while
+converting each element. `String` conversion can call a Ruby `to_str`, and if that callback shrinks
+the array, the iteration reads freed storage. Reproduced in iter 209 from plain Ruby: a 2000-element
+array whose first element's `to_str` runs `arr.clear` + `GC.start` crashes the process with
+`[BUG] Segmentation fault` in both `IsccLib.encode_seq(arr)` and the older
+`IsccLib.gen_mixed_code_v0(arr)`, while the same object without the mutation returns normally. Every
+`Vec<_>` parameter in `crates/iscc-rb/src/lib.rs` uses this conversion. `Vec<i32>`/`Vec<u32>` (via
+`to_int`) is likely affected too, but that has not been probed.
+
+Fix (verified in the source, not built): take `RArray` and convert elements through `into_iter()`,
+which dups and hides the array before iterating (`r_array.rs:1625`), as `alg_simhash` already does.
+Resolved when no `crates/iscc-rb` function takes a `Vec<_>` argument from Ruby, and a committed test
+runs the mutating-`to_str` case against `encode_seq` and `gen_mixed_code_v0` without crashing.

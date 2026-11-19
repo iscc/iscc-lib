@@ -83,6 +83,13 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 - Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate
 - Streaming classes: `#[magnus::wrap(class = "...")]` + `RefCell<Option<inner>>` for one-shot
     finalize
+- **Ruby seq step (209, ~6 min)**: `rake compile` →
+    `env -u LANG -u LC_ALL -u LC_CTYPE rake test   TESTOPTS=-v` (count
+    `TestConformance#test_*code_seq_*` = 8 + `TestSeq#*`) + `standardrb` + clippy. bundler lives in
+    `~/.local/share/gem/ruby/3.1.0/bin`. **Magnus `Vec<T>` args segfault** when an element's
+    `to_str` shrinks the array (`RArray::to_vec` holds the slice; `into_iter()` dups). The probe
+    script: 2000-elt array, `evil.to_str` → `arr.clear; GC.start` → `[BUG] Segmentation fault` (exit
+    134). Control = same object without the mutation. Filed crate-wide; not a seq regression
 
 ## Environment
 

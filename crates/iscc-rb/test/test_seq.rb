@@ -19,9 +19,9 @@ class TestSeq < Minitest::Test
     [value.delete_prefix("bytes:")].pack("H*")
   end
 
-  # The binary ISCC-SEQ of the first decode_seq vector.
-  def first_seq
-    seq_bytes(SEQ_DECODE_VECTORS.values.first["inputs"][0])
+  # The binary ISCC-SEQ of the four-unit decode_seq vector.
+  def four_unit_seq
+    seq_bytes(SEQ_DECODE_VECTORS["test_0001_four_units"]["inputs"][0])
   end
 
   def test_fixture_has_decode_seq_vectors
@@ -43,7 +43,7 @@ class TestSeq < Minitest::Test
   end
 
   def test_decode_seq_returns_prefixed_strings
-    result = IsccLib.decode_seq(first_seq)
+    result = IsccLib.decode_seq(four_unit_seq)
     assert_kind_of Array, result
     assert_equal 4, result.size
     result.each do |unit|
@@ -70,7 +70,12 @@ class TestSeq < Minitest::Test
   end
 
   def test_encode_seq_padded_unit
-    assert_raises(RuntimeError) { IsccLib.encode_seq(["ISCC:EEAYYNMFG5XOELK2===="]) }
+    # Correctly padded: iscc-core 1.5.0 accepts it, iscc-lib's strict base32 rejects it.
+    assert_raises(RuntimeError) { IsccLib.encode_seq(["ISCC:GAAAAAAAAA======"]) }
+  end
+
+  def test_encode_seq_padding_control
+    assert_equal ["300000000000"].pack("H*"), IsccLib.encode_seq(["ISCC:GAAAAAAAAA"])
   end
 
   def test_encode_seq_unpadded_control
@@ -84,7 +89,7 @@ class TestSeq < Minitest::Test
   end
 
   def test_decode_seq_truncated
-    data = first_seq
+    data = four_unit_seq
     err = assert_raises(RuntimeError) { IsccLib.decode_seq(data.byteslice(0, data.bytesize - 1)) }
     assert_match(/Truncated ISCC-UNIT/, err.message)
   end

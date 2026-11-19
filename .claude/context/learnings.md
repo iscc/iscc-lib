@@ -24,14 +24,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     (204). **C-string marshalling truncates at an embedded NUL** (206/207): .NET keeps the `\0` and
     C++ passes `c_str()`, the FFI's `CStr` stops there, so `gen_text_code_v0("Hello\0World")` gives
     `"Hello"`'s code on BOTH. C++ `encode_seq` guards NUL, .NET `EncodeSeq` does not — probe
-    `x + "\0junk"` on every string input. JNI keeps the NUL (208: `encodeSeq` test pins the reject);
-    Ruby/UniFFI also skip the C FFI, still unprobed
-- **Binding fan-out traps (IDv1 177-190, detail → `learnings-archive.md`)**: a surface with its OWN
-    enum (Python `VS`) can break a round trip the core allows; wide-int bindings check semantic
-    thresholds in the binding before narrowing. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
-    `NativeMethods.g.cs` on EVERY build** → pre-push clippy fails "files were modified";
-    regen+commit it (like `iscc.h`) in the SAME FFI-symbol step, never "the dotnet step". A
-    `///`-only edit on an export (even a review doc fix) moves BOTH files too (205)
+    `x + "\0junk"` on every string input. JNI + Ruby keep the NUL, the core rejects (208/209);
+    UniFFI unprobed. **Magnus `Vec<T>` params segfault Ruby** (209, filed) when an element's
+    `to_str` shrinks the array (`to_vec` holds the slice) — take `RArray` + `into_iter()`
+- **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
+    `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
+    modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an
+    export moves BOTH (205)
 
 ## Reference Implementation
 
@@ -52,12 +51,14 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)
 - **String-input divergences from iscc-core** hit any differential on *string* inputs (`encode_seq`,
     `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
-    \+ Go pinned (199); (2) Python `strip()`/`split()` also take U+001C–U+001F: Rust codec fixed
-    (198), Go codec (200: Go `unicode.IsSpace` + U+001C–U+001F IS the `strip()` set, 29 code points,
-    probed both ways), text utils (203); (3) ASCII-only upper-casing (201) rejects `ı`/`ſ`/`ß`/`ﬁ`:
-    ref `iscc_decode` rejects too, but ref `encode_seq` Unicode-`upper()`s first and ACCEPTS them —
-    **the reference's reject set differs per entry point; probe each before calling a fix
-    "reference-matching"**. A bare `b…` string reads as plain base32 in BOTH, so not a defect
+    \+ Go pinned (199); a padding negative must be validly padded (`ISCC:GAAAAAAAAA======`:
+    `EEAY…====` fails in the ref too); (2) Python `strip()`/`split()` also take U+001C–U+001F: Rust
+    codec fixed (198), Go codec (200: Go `unicode.IsSpace` + U+001C–U+001F IS the `strip()` set, 29
+    code points, probed both ways), text utils (203); (3) ASCII-only upper-casing (201) rejects
+    `ı`/`ſ`/`ß`/`ﬁ`: ref `iscc_decode` rejects too, but ref `encode_seq` Unicode-`upper()`s first
+    and ACCEPTS them — **the reference's reject set differs per entry point; probe each before
+    calling a fix "reference-matching"**. A bare `b…` string reads as plain base32 in BOTH, so not a
+    defect
 
 ## Tooling
 
@@ -75,8 +76,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **A docs page lives in FOUR places** — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
     `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`
     (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
-- **Devcontainer** (2026-10-17): export `LANG=C.UTF-8` for local gates (Ruby aborts reading UTF-8
-    fixtures otherwise); push via `git -c credential.helper='!gh auth git-credential' push`
+- **Devcontainer** (2026-10-17): Ruby fixtures read explicit UTF-8 since 209, so the suite passes
+    with no locale; push via `git -c credential.helper='!gh auth git-credential' push`
 
 ## ISCC Algorithm Knowledge
 

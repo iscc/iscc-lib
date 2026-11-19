@@ -129,6 +129,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **JNI binding step (208, ~8 min)**: `cargo build -p iscc-jni` → `mvn clean test` (count `tests=`
     in surefire XML) → `JAVA_TOOL_OPTIONS=-Xcheck:jni` run. **`-DargLine` never enables
     `-Xcheck:jni`** (pom pins `<argLine>`) — earlier JNI "-Xcheck clean" claims were vacuous
+- **Ruby binding step (209, ~6 min)**: compile + no-locale `rake test` + standardrb. Magnus `Vec<T>`
+    params segfault on a re-entrant `to_str` (filed); **a padding negative must be validly padded**
+    (`GAAAAAAAAA======`) — `EEAY…====` is rejected by the ref too → `binding-reviews.md`
 - **C++ header-wrapper step (207, ~8 min)**: ASAN cmake build + `test_iscc`; CMake sets no `-Wall`,
     so add a strict `g++ -Werror -fsyntax-only` pass; NUL-probe string inputs → `binding-reviews.md`
 - **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in
