@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-# Conformance tests for all 9 gen_*_v0 functions against data.json vectors.
+# Conformance tests for all 9 gen_*_v0 functions and the ISCC-SEQ codec
+# (encode_seq / decode_seq) against data.json vectors.
 # Mirrors tests/test_conformance.py using Ruby/Minitest idioms.
 
 require "test_helper"
@@ -9,8 +10,8 @@ require "json"
 # Path to the shared conformance vectors.
 DATA_JSON = File.expand_path("../../iscc-lib/tests/data.json", __dir__)
 
-# Load and parse the full data.json once.
-CONFORMANCE_DATA = JSON.parse(File.read(DATA_JSON))
+# Load and parse the full data.json once (explicit UTF-8, independent of the process locale).
+CONFORMANCE_DATA = JSON.parse(File.read(DATA_JSON, encoding: "UTF-8"))
 
 class TestConformance < Minitest::Test
   # Convert meta input from JSON value to Ruby argument for gen_meta_code_v0.
@@ -32,6 +33,13 @@ class TestConformance < Minitest::Test
     return "".b if hex_data.empty?
 
     [hex_data].pack("H*")
+  end
+
+  # Decode 'bytes:<hex>' value to binary string.
+  def self.decode_bytes(bytes_str)
+    raise "expected bytes: prefix, got #{bytes_str.inspect}" unless bytes_str.start_with?("bytes:")
+
+    [bytes_str.delete_prefix("bytes:")].pack("H*")
   end
 
   # ── gen_meta_code_v0 ─────────────────────────────────────────────────────
@@ -164,6 +172,26 @@ class TestConformance < Minitest::Test
       outputs = tc["outputs"]
       result = IsccLib.gen_iscc_code_v0(inputs[0])
       assert_equal outputs["iscc"], result["iscc"], "iscc mismatch for #{vector_name}"
+    end
+  end
+
+  # ── encode_seq ───────────────────────────────────────────────────────────
+
+  CONFORMANCE_DATA["encode_seq"].each do |vector_name, tc|
+    define_method("test_encode_seq_#{vector_name}") do
+      expected = self.class.decode_bytes(tc["outputs"])
+      result = IsccLib.encode_seq(tc["inputs"][0])
+      assert_equal expected, result, "bytes mismatch for #{vector_name}"
+    end
+  end
+
+  # ── decode_seq ───────────────────────────────────────────────────────────
+
+  CONFORMANCE_DATA["decode_seq"].each do |vector_name, tc|
+    define_method("test_decode_seq_#{vector_name}") do
+      data = self.class.decode_bytes(tc["inputs"][0])
+      result = IsccLib.decode_seq(data)
+      assert_equal tc["outputs"], result, "units mismatch for #{vector_name}"
     end
   end
 end

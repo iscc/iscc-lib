@@ -1,57 +1,52 @@
-## 2026-11-19 — Review of: Bind `encode_seq` / `decode_seq` in the Java JNI bindings
+## 2026-11-19 — Bind `encode_seq` / `decode_seq` in the Ruby bindings (+ locale-free conformance load)
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Added Magnus `encode_seq(Vec<String>) -> RString` (binary) and
+`decode_seq(RString) -> Vec<String>`, registered unprefixed next to `iscc_decode`. Header symbol
+list is now 35 of 35. The Ruby conformance harness reads data.json as explicit UTF-8 and runs both
+seq sections. `test_seq.rb` adds the byte round trip, type checks and 6 one-input negatives (plus
+controls). ISCC-SEQ is on 9 of 11 surfaces.
 
-**Summary:** Two JNI exports and two `native` declarations, in the crate's `match` →
-`throw_and_default` style, plus 19 Java tests: both data.json seq sections, the byte round trip, a
-`String[]` class check and 6 negatives with one bad input each. ISCC-SEQ is now on 8 of 11 surfaces.
-The code is clean and in scope. One handoff claim was false: advance's surefire `-Xcheck:jni` run
-never enabled JNI checks. Review re-ran the suite with checks enabled, and it is clean.
+**Files changed:**
+
+- `crates/iscc-rb/src/lib.rs`: `encode_seq` / `decode_seq` bridge fns (copy-before-call slice,
+    errors through `to_magnus_err`), two `define_module_function` registrations (L573-574), header
+    33→35
+- `crates/iscc-rb/test/test_conformance.rb`: `File.read(DATA_JSON, encoding: "UTF-8")`,
+    `decode_bytes` helper (raises unless `bytes:` prefix), `encode_seq` + `decode_seq` loops, header
+    comment
+- `crates/iscc-rb/test/test_seq.rb` (new): fixture guard (4 vectors, named key), byte round trip
+    `encode_seq(decode_seq(x)) == x` over every `decode_seq` vector, `Encoding::BINARY`, Array of
+    `ISCC:` Strings; negatives: `[]` ("at least one ISCC-UNIT"), `"\0junk"` suffix, `ſ` alias,
+    `====` padding, `"".b` ("Empty ISCC-SEQ"), truncated by one byte ("Truncated ISCC-UNIT")
 
 **Verification:**
 
-- [x] `cargo build -p iscc-jni && mvn … clean test` exits 0: surefire reports `tests="103"`, 0
-    failures/errors/skipped. That is 19 seq cases (3×4 dynamic + 7 static). Both sections hold 4
-    vectors
-- [x] `cargo clippy -p iscc-jni -- -D warnings` exits 0. `cargo clippy --workspace --all-targets` is
-    clean too
-- [x] `IsccLib.java:288/300` declares `byte[] encodeSeq(String[] units)` /
-    `String[] decodeSeq(byte[] data)`. `lib.rs:828/857` defines both `Java_…_encodeSeq/decodeSeq`
-- [x] `IsccLibTest.java` reads `encode_seq` and `decode_seq` and contains `seqByteRoundtrip`, the
-    "at least one ISCC-UNIT" assertion and the `"\0junk"` negative test
-- [x] `mise run check` exits 0, with a clean tree afterwards
-- Probes (3): (1) `mvn -X` shows `-DargLine` never reaches the forked JVM, because the pom's
-    explicit `<argLine>` wins; (2) `JAVA_TOOL_OPTIONS=-Xcheck:jni` full suite: 103 pass, 0
-    `WARNING in native method`; (3) padding control: `ISCC:EEAYYNMFG5XOELK2` encodes and the `====`
-    form is rejected ("invalid symbol at 16"), so the test fails for the intended reason
+- `bundle exec rake compile` exit 0; `env -u LANG -u LC_ALL bundle exec rake test`: 137 runs, 402
+    assertions, 0 failures/errors/skips. `TESTOPTS=-v` lists all 8
+    `TestConformance#test_{en,de}code_seq_*` and all 12 `TestSeq#*` tests
+- `cargo clippy -p iscc-rb -- -D warnings` exit 0; `bundle exec standardrb` exit 0
+- `grep` shows `"encode_seq"` / `"decode_seq"` registrations at lib.rs L573/L574
+- `mise run format` + `mise run check` exit 0, clean tree afterwards (except runner-owned
+    iterations.jsonl)
+- Probes. (1) Each negative fails for the intended reason: `"\0junk"` → "invalid symbol at 16", `ſ`
+    → "invalid length at 16", `====` → "invalid symbol at 16". Controls are committed tests: the
+    ASCII `gaawdlqng6ssdpf2` encodes to 10 bytes, and unpadded `ISCC:EEAYYNMFG5XOELK2` encodes to
+    `21018c3585376ee22d5a` (the test_0004 prefix). (2) Locale: the HEAD version of
+    `test_conformance.rb`, run with LANG/LC_ALL/LC_CTYPE unset, aborts with
+    `Encoding::InvalidByteSequenceError "\xC3" on US-ASCII` in bundled json 2.21.1 (the probe copy
+    was deleted). The new file passes in the same environment
 
-**Issues found:**
+**Next:** UniFFI seq (Swift + Kotlin; hard-coded per-section conformance counts), then the 33→35 doc
+sweep. For Ruby that sweep covers `crates/iscc-rb/README.md`, `crates/iscc-rb/CLAUDE.md` (Key Files
+table lacks `test_iscc_id.rb` and `test_seq.rb`) and `docs/howto/ruby.md`.
 
-- Filed `normal`: JNI exports turn a pending JVM exception (OOM) into `IllegalArgumentException`.
-    This is the crate-wide `throw_and_default` shape that next.md asked advance to copy, so it is
-    not a seq regression
-- The `-DargLine="-Xcheck:jni …"` command (in next.md, learnings and review memory since 168) is a
-    no-op, so every earlier "zero JNI warnings" claim was vacuous. Learnings and memory are now
-    corrected to `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test`
-- The NUL claim is narrower than the handoff said. Only the `String[]` path (`encodeSeq`) is pinned
-    by a committed test. `genTextCodeV0("Hello\0World")` not truncating rests on advance's `/tmp`
-    probe alone
-- Non-blocking checks: `lib.rs` is 1254 lines (split threshold ~1500), and the pom sets
-    `sourceEncoding` UTF-8, so the literal `ſ` in the test source is safe on Windows
+**Notes:**
 
-**Codex review:** (P2) with OOM, `IllegalArgumentException: JNI call failed`. Valid but crate-wide,
-so filed as an issue (see above); the 2026-07-28 decision does not settle it. (P3) the surefire
-`-DargLine` command does not enable `-Xcheck:jni`. Confirmed, and fixed in learnings/memory.
-
-**Next:** Ruby seq (`crates/iscc-rb`), then UniFFI (Swift/Kotlin hard-code per-section conformance
-counts). Keep asking each one for a `unit + "\0junk"` negative test. Then the 33→35 doc sweep, which
-must also cover `crates/iscc-jni/README.md`, `docs/howto/java.md`, `docs/java-api.md` and the
-`crates/iscc-jni/CLAUDE.md` test-pattern list (no `bytes:` helper or seq tests there yet).
-**define-next: stop writing `-DargLine="-Xcheck:jni …"` into next.md.** Use the `JAVA_TOOL_OPTIONS`
-form. Gate candidate: CI runs no `-Xcheck:jni` JNI suite at all. Note that `-Xcheck:jni` warnings do
-not fail tests, so a gate would have to grep for them.
-
-**Notes:** This is a binding-only step with no core or hot-path change, so iai and CRAP are not
-affected. The open `normal` queue still includes the Python `encode_seq` docstring, the wasm npm
-metadata, two Dependabot lock refreshes, Ruby locale, napi Buffer leak, FFI split, .NET pinning
-dedupe, the .NET/C++ NUL design issue (needs Titusz) and the JNI pending-exception issue (new).
+- Deviation: my first unpadded control expected 9 bytes, which was wrong. The 64-bit unit takes a
+    2-byte header (MainType 2, SubType 1 → `2101`), so the control now asserts the exact test_0004
+    prefix bytes
+- Ruby keeps the embedded NUL through `Vec<String>`, so the reject comes from the core, as in JNI
+- System ruby + json (no bundler) parses the file fine under US-ASCII. Only the bundled json 2.21.1
+    aborts. The locale issue is real for the `bundle exec rake test` path that CI and the gates use
+- Bindings-only step: no core or hot-path change, so iai and CRAP are not affected. No API change to
+    `iscc-lib`

@@ -4,12 +4,13 @@
 //! under the `IsccLib` module. The pure Ruby wrapper in `lib/iscc_lib.rb`
 //! provides idiomatic result classes and keyword arguments.
 //!
-//! Symbols (33 of 33):
+//! Symbols (35 of 35):
 //! - `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
 //! - `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`
 //! - `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`, `gen_iscc_id_v1`
 //! - `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 //! - `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`
+//! - `encode_seq`, `decode_seq`
 //! - `json_to_data_url`, `conformance_selftest`
 //! - `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
 //!   `soft_hash_video_v0`
@@ -321,6 +322,28 @@ fn iscc_decode(iscc: String) -> Result<RArray, Error> {
     Ok(arr)
 }
 
+/// Encode an ordered list of ISCC-UNIT strings as a binary ISCC-SEQ (IEP-0020).
+///
+/// Accepts a Ruby Array of ISCC-UNIT strings and returns a binary
+/// (ASCII-8BIT) Ruby String. Raises `RuntimeError` on invalid input.
+fn encode_seq(units: Vec<String>) -> Result<RString, Error> {
+    let refs: Vec<&str> = units.iter().map(|s| s.as_str()).collect();
+    let bytes = iscc_lib::encode_seq(&refs).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    Ok(ruby.str_from_slice(&bytes))
+}
+
+/// Decode a binary ISCC-SEQ (IEP-0020) into its ISCC-UNIT strings.
+///
+/// Returns a Ruby Array of `ISCC:`-prefixed unit strings in sequence order.
+/// Raises `RuntimeError` on empty, truncated, or malformed data.
+fn decode_seq(data: RString) -> Result<Vec<String>, Error> {
+    // Safety: we copy the bytes immediately and do not hold the slice
+    // across any Ruby API calls.
+    let bytes = unsafe { data.as_slice() }.to_vec();
+    iscc_lib::decode_seq(&bytes).map_err(to_magnus_err)
+}
+
 /// Convert a JSON string into a `data:` URL with JCS canonicalization.
 ///
 /// Uses `application/ld+json` media type when the JSON contains an `@context`
@@ -547,6 +570,8 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     module.define_module_function("iscc_decompose", function!(iscc_decompose, 1))?;
     module.define_module_function("encode_component", function!(encode_component, 5))?;
     module.define_module_function("iscc_decode", function!(iscc_decode, 1))?;
+    module.define_module_function("encode_seq", function!(encode_seq, 1))?;
+    module.define_module_function("decode_seq", function!(decode_seq, 1))?;
     module.define_module_function("json_to_data_url", function!(json_to_data_url, 1))?;
     module.define_module_function("conformance_selftest", function!(conformance_selftest, 0))?;
 
