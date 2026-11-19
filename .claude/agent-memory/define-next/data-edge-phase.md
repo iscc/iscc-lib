@@ -23,3 +23,9 @@ commit `ea69169`).
     (not only `encode_seq`); ref `gen_mixed_code_v0([])` raises AssertionError; ref seq NUL raises
     binascii.Error. gen_text NUL agrees (`ISCC:EAASKDNZNYGUUF5A`, 10 chars).
 - Fan-out needs per-surface `except`: .NET/C++ `error` on NUL strings, C `skip`.
+- 215 NEEDS_WORK: Rust test helpers score CRAP at 0% coverage (cc²+cc) → cc ≤ 5 per fn, else CI-only
+    `--fail-above` red. 216 = repair (section fn table, split check_vector/check_doc; Python
+    `pytest.raises` on raw call only; `REJECTIONS` += `IndexError`, proven by an `iscc_decode("")`
+    vector). Any harness `tests/*.rs` step must put CI's two CRAP lines in Verification.
+- Fan-out (after 216 passes): vendor next to the 4 data.json copies, fill `VENDORED_COPIES`, add
+    sdist/gem "not shipped" checks (review asked).
