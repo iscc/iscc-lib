@@ -67,11 +67,14 @@ per surface (Swift, Kotlin, Ruby).
     of all its fields (`TextCodeResult` → `iscc`, `characters`; `MixedCodeResult` → `iscc`, `parts`;
     `IsccCodeResult` → `iscc`). Every expected key must be present in that dictionary and equal; a
     missing key is a failure. `iscc_decode` → `[maintype, subtype, version, length, "bytes:<hex>"]`;
-    `encode_seq` → `"bytes:<hex>"`. Ruby: replace `actual.keys & expected.keys` with a check over
-    every expected key, failing on one the Hash lacks.
-- **Swift portability:** CI runs Swift on macOS, locally it runs on Linux. Stay with the JSON
-    casting idioms `ConformanceTests.swift` already uses (`JSONSerialization`, `as! [String: Any]`,
-    `as! Int`); numbers compared across Foundations behave differently with `as? NSNumber` tricks.
+    `encode_seq` → `"bytes:<hex>"`. Build the missing-key negative from a synthetic vector whose
+    `outputs` holds the correct `iscc` plus a key the caller does not produce (a record cannot lack
+    a field), so it stays one bad case. Ruby: replace `actual.keys & expected.keys` with a check
+    over every expected key, failing on one the Hash lacks.
+- **Swift portability:** CI runs Swift on macOS, locally it runs on Linux. Stay with the JSON idioms
+    `ConformanceTests.swift` already uses (`JSONSerialization`, `as! [String: Any]`), and compare
+    each expected value through a typed cast (`String`, `Int`, `[String]`), never through
+    `Any`/`AnyHashable` equality.
 - **Stop rule (from 217):** if a vector fails on a surface for a real behavioural reason, add no
     `except` and fix no binding. Leave that surface's harness out, finish the others, and name the
     vector in the handoff.
@@ -88,8 +91,8 @@ Each surface run must show its data-edge tests ran; exit 0 alone does not count.
     `cargo build -p iscc-uniffi` then `swift test` (recipe flags, `--scratch-path /tmp/swiftbuild`)
     in `packages/swift` passes and lists each `DataEdgeTests` test as passed
 - Kotlin: `cargo build -p iscc-uniffi` then `./gradlew cleanTest test` in `packages/kotlin` exits 0,
-    and `build/test-results/test/TEST-uniffi.iscc_uniffi.DataEdgeTest.xml` exists with
-    `failures="0" errors="0" skipped="0"` and at least six `testcase` elements
+    and `build/test-results/test/TEST-uniffi.iscc_uniffi.DataEdgeTest.xml` exists with `skipped`,
+    `failures` and `errors` each `0` on its `testsuite` element and at least six `testcase` elements
 - Ruby: in `crates/iscc-rb`, `bundle exec rake compile && bundle exec rake test` passes with
     `TestDataEdge` running at least six tests, and `bundle exec standardrb` is clean
 

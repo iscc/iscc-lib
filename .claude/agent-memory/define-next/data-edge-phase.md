@@ -42,7 +42,7 @@ commit `ea69169`).
     review verifies the unreviewed commits instead of pushing them unchecked.
 - 218 = G2 Swift+Kotlin + Ruby missing-key fix (handoff rule: full-record surfaces compare EVERY
     expected key; only bare-string/one-field results wrap to `{iscc}`). Probed: Swift cached at
-    `/tmp/swifttc/swift-6.1.2-RELEASE-debian12` (survives container restarts so far), Gradle 9.6.1
-    cached; Kotlin `build.gradle.kts` has no `testLogging` → assert on JUnit XML, never exit code.
-    Swift `Package.swift` test target lists resources explicitly (`.copy`) — a vendored copy needs a
-    line there. Next: G3 C/C++ (generator from `ea69169`).
+    `/tmp/swifttc/swift-6.1.2-RELEASE-debian12` (present 2026-11-19), Gradle 9.6.1 cached; Kotlin
+    `build.gradle.kts` has no `testLogging` → assert on JUnit XML, never exit code. Swift
+    `Package.swift` test target lists resources explicitly (`.copy`) — a vendored copy needs a line
+    there. Next: G3 C/C++ (generator from `ea69169`).
