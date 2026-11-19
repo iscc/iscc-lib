@@ -118,9 +118,9 @@ now `low` (human) — skip).
     the CI-unexercised `release.yml`, 139/140).
 - **Text-hot-path steps trip CI-only CRAP `--fail-regression` + `.iai-baseline.json` 10% Ir; a
     `tests/`-only or binding-only step trips neither** — say so in next.md.
-- Generator scripts needing an external pin: PEP 723 + `uv run --script`, never a dev-dep
-    ([ty gate trap](define-next-ty-generator-scripts.md)). `uv run zensical build` (exits 0, "No
-    issues found", ~8s) verifies any docs-only step.
+- Generator scripts: PEP 723 + `uv run --script`, never a dev-dep
+    ([ty trap](define-next-ty-generator-scripts.md)); `uv run zensical build` verifies docs-only
+    steps.
 - **Recurring**: cargo-deny reds on fresh RustSec advisories vs dev/bench deps — CI-red-first,
     prefer `cargo update -p <crate>` over a `deny.toml` ignore — but PROBE first (196:
     `cargo update --dry-run` + crates.io feature graph showed `basic-toml` survives every upgrade

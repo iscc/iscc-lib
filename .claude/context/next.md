@@ -75,6 +75,9 @@ the generator + header + pytest gate first, then C, then C++.
     per row through the file's existing helpers. Negative tests feed the check functions synthetic
     rows, one bad case each: an expected rejection that succeeds (`ISCC:GAAAAAAAAA`), an output
     mismatch (a wrong expected `iscc`), and for C the length/NUL mismatch.
+- **Total tally**: the generator emits a total-vector-count macro derived from the fixture; each
+    harness counts run plus skipped rows over all sections and fails when that differs from the
+    macro, so a section rendered but never looped goes red on the exit code.
 - **pytest gate**: fresh render equals the tracked header byte for byte; a mutated expected value
     changes the render; unknown section, bad arity and bad `except` key raise `SystemExit`; the NUL
     `gen_text_code_v0` row renders as c=skip, cpp=error. Derive counts from the fixture, never a
@@ -87,9 +90,9 @@ the generator + header + pytest gate first, then C, then C++.
     passes, and `mise run check` exits 0
 - `uv run --script scripts/gen_data_edge_vectors.py` leaves
     `git status --porcelain crates/iscc-ffi/tests` empty
-- `grep -nE 'case_fold|spare_bits|ascii_twin|canonical_unit|empty_string|base32_padding|empty_list|embedded_nul'`
+- `grep -nE 'test_[0-9]{4}_[a-z0-9_]*(case_fold|spare_bits|ascii_twin|canonical_unit|empty_string|base32_padding|empty_list|embedded_nul)'`
     over `crates/iscc-ffi/tests/test_iscc.c` and `packages/cpp/tests/test_iscc.cpp` prints nothing
-    (no data-edge vector named in harness code; existing `data.json` `test_0001` comments are fine)
+    (no data-edge vector named in harness code; plain identifiers like `empty_list` are fine)
 - C: `cargo build -p iscc-ffi`, then the `ci.yml` "Compile C test program" and "Run C test program"
     lines exit 0, and the output has a `PASS: data_edge/<section>/<name>` line for every fixture
     vector whose `except.c` is not `skip`, plus a PASS line for each negative test
