@@ -215,14 +215,16 @@ public class DataEdgeTests
     [Fact]
     public void DataEdgeFailsExpectedErrorThatSucceeds()
     {
-        // Valid inputs marked `error` prove each rejection-only caller reaches the binding.
+        // Valid inputs marked `error` prove each rejection-only caller reaches the binding
+        // (gen_text_code_v0 is one on .NET: its NUL vector carries except.dotnet = error).
         List<string> failures = CheckDoc(Parse("""
             {"gen_mixed_code_v0": {"test_0001_x": {"inputs": [["EUA6GIKXN42IQV3S", "EIAUKMOUIOYZCKA5"], 64],
                 "error": "e", "note": "n"}},
              "gen_iscc_code_v0": {"test_0001_x": {"inputs": [["GABVVC5DMJJGYKZ4ZBYVNYABFFYXG",
-                "IADWIK7A7JTUAQ2D6QARX7OBEIK3OOUAM42LOBLCZ4ZOGDLRHMDL6TQ"]], "error": "e", "note": "n"}}}
+                "IADWIK7A7JTUAQ2D6QARX7OBEIK3OOUAM42LOBLCZ4ZOGDLRHMDL6TQ"]], "error": "e", "note": "n"}},
+             "gen_text_code_v0": {"test_0001_x": {"inputs": ["Hello World", 64], "error": "e", "note": "n"}}}
             """));
-        Assert.Equal(2, failures.Count);
+        Assert.Equal(3, failures.Count);
         Assert.All(failures, f => Assert.Contains("expected an error", f));
     }
 
