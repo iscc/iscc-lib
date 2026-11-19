@@ -11,7 +11,7 @@ CI-red fix; 197 = Python seq binding; 198 = core `iscc_clean` trim parity; 199 =
 200 = Go `isccClean`; 201 = Rust+Go case-fold alias fix; 202 = Go seq; 203 = text-utils trim parity
 Rust+Go; 204 = napi+WASM seq; 205 = C FFI seq; 206 = .NET seq; 207 = C++ seq; 208 = JNI seq; 209 =
 Ruby seq; 210 = UniFFI seq, last surface; 211 = 33→35 doc sweep + seq doc entries, fan-out ~30 doc
-files; next = Ruby Magnus `Vec<T>` segfault, then remaining normals).
+files; 212 = Ruby `RArray` fix + json bump; next = wasm npm metadata, then remaining normals).
 
 ## Scope Calibration Principles
 

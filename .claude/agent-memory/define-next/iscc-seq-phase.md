@@ -123,3 +123,10 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     against today's tree so it hits every stale site. Put the real per-surface signature table in
     next.md (it guards against 190's fabricated return type). Keep the c-ffi type-name issue OUT of
     a sweep, because rename vs alias is a design choice and that fails the fan-out valve.
+- **212 = Ruby array args via `RArray::into_iter`** (lib.rs + Gemfile.lock `json` 2.21.2 bump + the
+    ruby-api.md Error Handling section). Trap: the issue named 5 `Vec<_>` params, but 2 more are
+    nested `try_convert(frame)` → `Vec<i32>` inside the video fns, and `Vec<T>::try_convert` is
+    `RArray::try_convert(v)?.to_vec()`. A grep criterion must not match the *fixed* form
+    (`RArray::try_convert(frame)?` would match a naive `try_convert\(frame\)` pattern), so test it
+    against the post-fix shape too. The `json` bump was probed with `bundle outdated` (rubocop pins
+    `~> 2.3`, 2.21.2 is the newest 2.x). Runner-up: wasm npm metadata.
