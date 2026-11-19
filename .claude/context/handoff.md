@@ -1,59 +1,73 @@
-## 2026-11-19 — Bind `encode_seq` / `decode_seq` in the C++ header-only wrapper
+## 2026-11-19 — Review of: Bind `encode_seq` / `decode_seq` in the C++ header-only wrapper
 
-**Done:** I added `iscc::encode_seq(const std::vector<std::string>&) -> std::vector<uint8_t>` and
-`iscc::decode_seq(const std::vector<uint8_t>&) -> std::vector<std::string>` to `iscc.hpp`, in the
-codec section after `iscc_decompose`. They use `UniqueByteBuffer` / `UniqueStringArray` RAII plus
-`check_ptr`. `encode_seq` throws `IsccError` ("ISCC-UNIT at index N contains an embedded NUL
-character") before marshalling any unit that contains `'\0'`. It passes a non-null sentinel array
-when `units` is empty, so the core's "at least one ISCC-UNIT" error reaches the caller. ISCC-SEQ now
-covers 7 of 11 surfaces.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/cpp/include/iscc/iscc.hpp`: new `detail::safe_data(const std::vector<const char*>&)`
-    overload (returns a static `nullptr` slot for empty vectors), `encode_seq` and `decode_seq`
-- `packages/cpp/tests/test_iscc.cpp`: `from_hex` and `assert_throws_with` (message substring)
-    helpers. Tests 39-45: the encode_seq `test_0001_four_units` full bytes, the decode_seq
-    `test_0001` units, the decode_seq `test_0004` byte round trip `encode_seq(decode_seq(x)) == x`,
-    and one bad input per negative test: empty encode, embedded NUL, empty decode, truncated decode
+**Summary:** `iscc::encode_seq` / `iscc::decode_seq` landed in `iscc.hpp` with RAII ownership
+(`UniqueByteBuffer` / `UniqueStringArray` + `check_ptr`), an empty-array sentinel so the core's "at
+least one ISCC-UNIT" error is the one that comes through, and an embedded-NUL guard that throws
+before marshalling. ISCC-SEQ is now on 7 of 11 surfaces. The tests hard-code data.json bytes, check
+the byte round trip in the correct direction (`encode_seq(decode_seq(x)) == x`), and use one bad
+input per negative case. Scope was exactly the two files next.md named.
 
 **Verification:**
 
-- `cargo build -p iscc-ffi`: OK. In `packages/cpp`,
-    `uv run --with cmake cmake -B build-seq …   -DSANITIZE_ADDRESS=ON` gave cfg=0 and
-    `cmake --build build-seq` gave exit 0, with no compiler output beyond the progress lines. The
-    CMake test target sets no `-Wall`, so I also ran
-    `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -fsyntax-only` on `test_iscc.cpp` (which
-    includes `iscc.hpp`). Result: clean
-- `LD_LIBRARY_PATH=../../target/debug ./build-seq/tests/test_iscc`: exit 0, "65 passed, 0 failed",
-    no FAIL lines, no ASAN report. PASS lines: `encode_seq(test_0001_four_units) bytes`,
-    `decode_seq(test_0001_four_units) units`, `encode_seq(decode_seq(test_0004)) byte round trip`,
-    `encode_seq(empty) throws 'at least one ISCC-UNIT'`,
-    `encode_seq(unit with embedded NUL) throws`, `decode_seq(empty) throws 'Empty ISCC-SEQ'`,
-    `decode_seq(truncated) throws 'Truncated ISCC-UNIT'`
-- Mutation probes (header copied to /tmp, test rebuilt against the copy):
-    - NUL guard disabled:
-        `FAIL: encode_seq(unit with embedded NUL) throws — expected IsccError,   nothing thrown`
-    - `safe_data(ptrs)` replaced by `ptrs.data()`:
-        `FAIL: encode_seq(empty) … message "units must   not be NULL" lacks "at least one ISCC-UNIT"`
-    - So both guards are pinned by a test
-- `git status --porcelain crates/iscc-ffi packages/dotnet`: empty
-- `mise run check`: exit 0. `mise run format` rewrote nothing
+- [x] `cargo build -p iscc-ffi` + `cmake -B build-seq … -DSANITIZE_ADDRESS=ON` + `cmake --build`
+    exit 0. There were no compiler warnings, only bind-mount clock-skew notices from gmake. The
+    CMake target sets no `-Wall`, so I also compiled `test_iscc.cpp` with
+    `g++ -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror`, and it was clean
+- [x] `LD_LIBRARY_PATH=../../target/debug ./build-seq/tests/test_iscc` exits 0: 65 passed, 0 failed,
+    no ASAN report. It prints PASS lines for the encode_seq vector, the decode_seq units, the
+    test_0004 byte round trip and all four negative cases
+- [x] `iscc.hpp:366` declares `std::vector<uint8_t> encode_seq(const std::vector<std::string>&)` and
+    `iscc.hpp:384` declares `std::vector<std::string> decode_seq(const std::vector<uint8_t>&)`
+- [x] Test 42 asserts that `encode_seq({})` throws `IsccError` containing "at least one ISCC-UNIT".
+    Test 43 asserts that a unit with an embedded `'\0'` throws (needle "index 1")
+- [x] `git status --porcelain crates/iscc-ffi packages/dotnet` is empty
+- [x] `mise run check` exits 0
+- [x] Extra probes: (1) the doc comment's claim holds — a lowercase unit, a hyphenated `iscc:` unit
+    and a bare unit all give the same bytes; non-UTF-8 and `""` units give clean `IsccError`s
+    (ASAN-built probe). (2) Advance's report that C++ also truncates at an embedded NUL reproduces:
+    `gen_text_code_v0("Hello\0World")` gives `"Hello"`'s code, and
+    `iscc_decompose(code + '\0' + "junk")` returns 4 units without throwing. I widened the NUL issue
+    to cover C++
+- [x] The unpushed range (update-state, define-next, advance) has no lint suppressions, skips or
+    hook changes
 
-**Next:** continue the seq fan-out: JNI (`crates/iscc-jni`), then Ruby, then UniFFI (Swift/Kotlin).
-Then the 33→35 doc sweep, which must cover `packages/cpp/CLAUDE.md` ("35+ test cases", the type map
-has no `std::vector<const char*>` sentinel row), `packages/cpp/README.md` and `docs/howto/c-cpp.md`.
-It also covers the .NET doc items from the last review.
+**Issues found:**
+
+- The embedded-NUL truncation now spans .NET and C++ (15 unguarded `c_str()` sites). I rewrote the
+    issue to cover both wrappers, including the new disagreement between surfaces: C++ `encode_seq`
+    rejects `unit + "\0junk"` while .NET `EncodeSeq` accepts the prefix
+- Stale C++ docs are deferred to the sweep as next.md planned, so nothing was filed. They are listed
+    under **Next**
+- (no defects in the diff itself)
+
+**Codex review:** clean, with no findings. It confirmed the empty-input error is preserved, the NUL
+check runs before truncation could happen, the RAII release is correct, and the suite passed with
+warnings treated as errors.
+
+**Next:** JNI seq (`crates/iscc-jni` + the Java wrapper and its tests), then Ruby, then UniFFI
+(Swift/Kotlin, which hard-code per-section conformance counts). Ask each remaining surface for a
+`unit + "\0junk"` negative test, so the cross-surface NUL behaviour is pinned as the fan-out
+proceeds. Those three bind the core directly rather than through the C FFI, so they should reject it
+the way iscc-core does. After all 11 surfaces, the 33→35 doc sweep must cover:
+
+- **C++:** `packages/cpp/CLAUDE.md` ("35+ test cases" twice; the type map has no
+    `const std::vector<std::string>&` → `const char* const*` row with its sentinel `safe_data`
+    overload), `packages/cpp/README.md`, `docs/howto/c-cpp.md`
+- **.NET:** `packages/dotnet/CLAUDE.md` (still says "all 9 gen functions (50 vectors total)", and
+    `SeqTests.cs` is missing from File Layout and Test Patterns), `packages/dotnet/README.md`,
+    `docs/howto/dotnet.md`
+- **Everywhere else:** the crate `CLAUDE.md` files, `notes/00`, `notes/04`, `docs/architecture.md`
+    and `docs/c-ffi-api.md`, which has no seq entries, plus its open type-name issue
 
 **Notes:**
 
-- **NUL probe (report-only, widen the NUL issue to C++):** existing C++ `c_str()` sites truncate at
-    an embedded NUL, the same as .NET. `iscc::gen_text_code_v0(std::string("Hello\0World", 11))` →
-    `ISCC:EAAWSPUDF7GJWQVD`, identical to `gen_text_code_v0("Hello")`.
-    `iscc::iscc_decompose(code + '\0' + "junk")` returns 2 units instead of throwing. Probe source:
-    `/tmp/cppprobe/probe.cpp`, not committed. I did not change these sites (out of scope)
-- The `units` sentinel is a `detail::safe_data` overload rather than a local static, which matches
-    the two existing overloads. `decode_seq` reuses the existing `uint8_t` `safe_data`. The FFI
-    checks `len == 0` first, so the core's "Empty ISCC-SEQ" error comes through
-- No core, FFI or hot-path change, so iai and CRAP are unaffected. `iscc.h` and `NativeMethods.g.cs`
-    are untouched
+- **Pending human decision, not escalated yet:** the NUL issue's fix (reject NUL at each wrapper's
+    choke point, or switch to a length-delimited FFI ABI) is Titusz's call. I did not set the HUMAN
+    REVIEW marker, because it pauses the loop and four mechanical seq surfaces remain. If the
+    fan-out finishes and this is still the blocking `normal` issue, escalate it then
+- Binding-only step: no core, FFI or hot-path change, so iai and CRAP are unaffected
+- A `/tmp` C++ probe needs only
+    `g++ -std=c++17 -fsanitize=address -Ipackages/cpp/include -Icrates/iscc-ffi/include x.cpp -Ltarget/debug -liscc_ffi`
+    and then `LD_LIBRARY_PATH=target/debug`. It is quicker than cmake for one-off checks

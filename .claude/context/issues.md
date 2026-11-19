@@ -232,25 +232,28 @@ Resolved when `lib.rs` is back under the documented threshold (or the threshold 
 changed in `crates/iscc-ffi/CLAUDE.md`), and `cbindgen` + `cargo build -p iscc-ffi` leave `iscc.h`
 and `NativeMethods.g.cs` byte-identical.
 
-## .NET wrapper silently truncates string inputs at an embedded NUL `normal` [review]
+## .NET and C++ wrappers silently truncate string inputs at an embedded NUL `normal` [review]
 
-`ToNativeUtf8` (`packages/dotnet/Iscc.Lib/IsccLib.cs`) encodes the whole managed string including
-any `\0`, but every `iscc-ffi` string parameter is read with `CStr::from_ptr`, which stops at the
-first NUL. So every `ToNativeUtf8` call site (gen functions, text utilities, codec, `EncodeSeq`)
-compute their result from the prefix and return it as a success. Probed in iter 206:
-`GenTextCodeV0("Hello\0World")` returns `ISCC:EAAWSPUDF7GJWQVD`, the code of `"Hello"`, while Python
-`gen_text_code_v0("Hello\x00World")` gives `ISCC:EAASKDNZNYGUUF5A`. `EncodeSeq([unit + "\0junk"])`
-and `IsccDecompose(code + "\0junk")` succeed on the prefix, while Python `encode_seq` raises "base32
-decode error". Found by Codex in the .NET seq review.
+Every `iscc-ffi` string parameter is read with `CStr::from_ptr`, which stops at the first NUL. Both
+wrappers over the C FFI hand it strings that may contain one: .NET `ToNativeUtf8`
+(`packages/dotnet/Iscc.Lib/IsccLib.cs`) keeps the `\0`, and C++ passes `std::string::c_str()` at 15
+sites in `packages/cpp/include/iscc/iscc.hpp`. So those calls compute their result from the prefix
+and return it as a success. .NET: `GenTextCodeV0("Hello\0World")` returns `ISCC:EAAWSPUDF7GJWQVD`,
+the code of `"Hello"`, while Python `gen_text_code_v0("Hello\x00World")` gives
+`ISCC:EAASKDNZNYGUUF5A`; `EncodeSeq([unit + "\0junk"])` and `IsccDecompose(code + "\0junk")` succeed
+on the prefix, where Python raises "base32 decode error". C++ behaves the same:
+`iscc::gen_text_code_v0(std::string("Hello\0World", 11))` gives `"Hello"`'s code, and
+`iscc::iscc_decompose(code + '\0' + "junk")` returns the units of `code` without throwing.
 
-The C++ wrapper hands `std::string::c_str()` to the same FFI at 15 sites in
-`packages/cpp/include/iscc/iscc.hpp`, so it probably has the same shape. That is not probed, and the
-C++ seq binding should not copy it. Fix options, both unverified: reject an embedded NUL at the
-choke point (`ToNativeUtf8`), which is loud but rejects text the core accepts, or pass
-length-delimited bytes, which changes the FFI ABI. Choosing between them is a design decision.
+The surfaces now disagree on one input: C++ `iscc::encode_seq` rejects a unit containing `'\0'`
+before marshalling (iscc-core rejects such a unit anyway), while .NET `EncodeSeq` accepts the
+prefix. Fix options, both unverified: reject an embedded NUL at each wrapper's choke point (loud,
+but it rejects gen/text input the core accepts), or pass length-delimited bytes (changes the FFI
+ABI). Choosing between them is a design decision for Titusz.
 
-Resolved when no .NET string input returns a result computed from a NUL-truncated string, pinned by
-tests covering at least one gen, one text and one codec method plus `EncodeSeq`.
+Resolved when no .NET or C++ string input returns a result computed from a NUL-truncated string,
+pinned per wrapper by tests covering at least one gen, one text and one codec function plus
+`encode_seq`.
 
 ## .NET string-array pinning is copied three times; the gen copies pass NULL for `[]` `normal` [review]
 

@@ -370,7 +370,7 @@ Full text of entries compacted out of `MEMORY.md`.
     - Codex's Kotlin run), Gradle publish (165), MSRV (172). CMake sets no `-Wall` → back "no warning"
         with `g++ -Wall -Wextra -c`
 
-## ISCC-SEQ surface ports (Go 202 … .NET 206; 5 surfaces to go)
+## ISCC-SEQ surface ports (Go 202 … C++ 207; 4 surfaces to go)
 
 - **Corpus differential vs Rust (~5 min, the probe that matters)**: `/tmp/seqprobe/gen.py` style
     corpus (whitespace/`\x1c`–`\x1f`/NBSP at each trim site, `ı ſ ß ﬁ K`, `b`/`f`/`z`/`u` prefixes,
@@ -396,4 +396,10 @@ Full text of entries compacted out of `MEMORY.md`.
     console project with a `ProjectReference` to `Iscc.Lib.csproj` is a cheap probe harness (run its
     dll with `LD_LIBRARY_PATH=target/debug`). **Embedded-NUL probe on every string-input surface
     over the C FFI**: .NET truncated `"Hello\0World"` to `"Hello"` wrapper-wide (filed 206); C++
-    `c_str()` is the next suspect
+    `c_str()` truncates the same (confirmed 207, issue widened)
+- **C++ seq (207, ~8 min)**: `cargo build -p iscc-ffi` →
+    `uv run --with cmake cmake -B build-seq …   -DSANITIZE_ADDRESS=ON` → build → run `test_iscc` (65
+    at 207). The CMake target sets NO `-Wall`, so "no warnings" needs
+    `g++ -std=c++17 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror   -fsyntax-only -Ipackages/cpp/include -Icrates/iscc-ffi/include packages/cpp/tests/test_iscc.cpp`.
+    One-off probe: `g++ … -fsanitize=address x.cpp -Ltarget/debug -liscc_ffi`, run with
+    `LD_LIBRARY_PATH=target/debug` (faster than cmake). Codex was clean in ~2 min

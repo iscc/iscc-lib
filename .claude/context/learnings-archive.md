@@ -1034,3 +1034,10 @@ runs on `opus`. Deliberate — do not "unify" them.
 - **Release-only toolchains drift unseen** (0.7.0): Maven 3.10 broke
     `central-publishing-maven-plugin` < 0.12.0; `setup-node@v7` dropped its dummy `NODE_AUTH_TOKEN`.
     First symptom is a failed publish
+
+## Archived from learnings.md (iter 207 — release-workflow gate fully met)
+
+- **A fail-open gate must publish a resolved/total counter** — without it "all checked" and "nothing
+    checked" are the same green (read `action-inputs: resolved R of T`, not the job status), and
+    "transport failure degrades to a warning" is NOT met by `except OSError` (`IncompleteRead` is an
+    `HTTPException`, captive-portal HTML raises `yaml.YAMLError`)
