@@ -21,6 +21,7 @@ crates/iscc-wasm/
     lib.rs            # All #[wasm_bindgen] exports (single file, flat)
   tests/
     conformance.rs       # 9 gen_*_v0 functions vs canonical data.json vectors
+    data_edge.rs         # every data-edge.json vector (except.wasm), unknown section fails
     unit.rs              # gen_sum_code_v0, text utils, encoding, codec, algorithm primitives, hashers
 ```
 
@@ -124,6 +125,7 @@ wasm-pack test --node crates/iscc-wasm --test unit
 - Conformance vectors are loaded at compile time via
     `include_str!("../../iscc-lib/tests/data.json")`.
 - Each conformance test function asserts an exact count of test cases to catch missing vectors.
+- `data_edge.rs` hardcodes no vector count: adding a vector to a handled section needs no edit.
 - No network access in tests. All test data is vendored.
 
 ## Publishing (npm via wasm-pack + npm publish)
