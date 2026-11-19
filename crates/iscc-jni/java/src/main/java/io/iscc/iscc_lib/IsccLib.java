@@ -273,6 +273,32 @@ public class IsccLib {
      */
     public static native String[] isccDecompose(String isccCode);
 
+    /**
+     * Encode ISCC-UNITs into an ISCC-SEQ byte string (IEP-0020).
+     *
+     * <p>Each unit may be given with or without the "ISCC:" prefix, in any case.
+     * Base32 decoding is strict: "=" padding, non-zero spare bits and non-ASCII
+     * case-fold aliases (e.g. "ſ") are rejected. Units of MainType ISCC-CODE, ID
+     * or FLAKE are rejected.
+     *
+     * @param units one or more ISCC-UNIT strings
+     * @return concatenated raw unit bytes (header + body per unit)
+     * @throws IllegalArgumentException if {@code units} is empty or a unit is invalid
+     */
+    public static native byte[] encodeSeq(String[] units);
+
+    /**
+     * Decode an ISCC-SEQ byte string into ISCC-UNITs (IEP-0020).
+     *
+     * <p>Strict reader: rejects empty input, malformed units and trailing bytes.
+     * {@code encodeSeq(decodeSeq(data))} reproduces {@code data}.
+     *
+     * @param data ISCC-SEQ bytes
+     * @return "ISCC:"-prefixed ISCC-UNIT strings in wire order
+     * @throws IllegalArgumentException if {@code data} is empty or malformed
+     */
+    public static native String[] decodeSeq(byte[] data);
+
     // ── Sliding window ──────────────────────────────────────────────────────
 
     /**

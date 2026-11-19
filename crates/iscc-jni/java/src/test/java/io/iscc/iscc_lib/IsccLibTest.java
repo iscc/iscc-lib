@@ -652,6 +652,119 @@ class IsccLibTest {
         }
     }
 
+    // ── encode_seq / decode_seq ──────────────────────────────────────────────
+
+    /** Decode a "bytes:&lt;hex&gt;" string to byte[]. */
+    private static byte[] decodeBytes(String bytesStr) {
+        assertTrue(bytesStr.startsWith("bytes:"), "expected bytes: prefix: " + bytesStr);
+        return HexFormat.of().parseHex(bytesStr.substring("bytes:".length()));
+    }
+
+    /** Test all encode_seq vectors. */
+    @TestFactory
+    Collection<DynamicTest> encodeSeq() {
+        JsonObject section = data.getAsJsonObject("encode_seq");
+        Collection<DynamicTest> tests = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : section.entrySet()) {
+            String name = entry.getKey();
+            JsonObject tc = entry.getValue().getAsJsonObject();
+            tests.add(DynamicTest.dynamicTest(name, () -> {
+                String[] units = jsonArrayToStrings(tc.getAsJsonArray("inputs").get(0).getAsJsonArray());
+                byte[] expected = decodeBytes(tc.get("outputs").getAsString());
+                assertArrayEquals(expected, IsccLib.encodeSeq(units));
+            }));
+        }
+        return tests;
+    }
+
+    /** Test all decode_seq vectors. */
+    @TestFactory
+    Collection<DynamicTest> decodeSeq() {
+        JsonObject section = data.getAsJsonObject("decode_seq");
+        Collection<DynamicTest> tests = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : section.entrySet()) {
+            String name = entry.getKey();
+            JsonObject tc = entry.getValue().getAsJsonObject();
+            tests.add(DynamicTest.dynamicTest(name, () -> {
+                byte[] seq = decodeBytes(tc.getAsJsonArray("inputs").get(0).getAsString());
+                String[] expected = jsonArrayToStrings(tc.getAsJsonArray("outputs"));
+                assertArrayEquals(expected, IsccLib.decodeSeq(seq));
+            }));
+        }
+        return tests;
+    }
+
+    /** Verify the byte round trip encodeSeq(decodeSeq(x)) == x over the decode_seq vectors. */
+    @TestFactory
+    Collection<DynamicTest> seqByteRoundtrip() {
+        JsonObject section = data.getAsJsonObject("decode_seq");
+        Collection<DynamicTest> tests = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : section.entrySet()) {
+            String name = entry.getKey();
+            JsonObject tc = entry.getValue().getAsJsonObject();
+            tests.add(DynamicTest.dynamicTest(name, () -> {
+                byte[] seq = decodeBytes(tc.getAsJsonArray("inputs").get(0).getAsString());
+                assertArrayEquals(seq, IsccLib.encodeSeq(IsccLib.decodeSeq(seq)));
+            }));
+        }
+        return tests;
+    }
+
+    /** Verify decodeSeq returns a genuine String[] (the JVM does not type-check native returns). */
+    @Test
+    void decodeSeqReturnsStringArray() {
+        byte[] seq = decodeBytes(data.getAsJsonObject("decode_seq")
+                .getAsJsonObject("test_0002_single_unit").getAsJsonArray("inputs").get(0).getAsString());
+        String[] units = IsccLib.decodeSeq(seq);
+        assertEquals("[Ljava.lang.String;", units.getClass().getName(),
+                "native must return a genuine String[]");
+    }
+
+    /** Verify encodeSeq rejects an empty unit array with the core message. */
+    @Test
+    void encodeSeqRejectsEmptyArray() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.encodeSeq(new String[0]));
+        assertTrue(e.getMessage().contains("at least one ISCC-UNIT"), e.getMessage());
+    }
+
+    /** Verify encodeSeq rejects a unit with an embedded NUL followed by junk. */
+    @Test
+    void encodeSeqRejectsEmbeddedNul() {
+        String unit = "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI";
+        assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.encodeSeq(new String[] {unit + "\0junk"}));
+    }
+
+    /** Verify encodeSeq rejects a non-ASCII case-fold alias ("ſ" for "s"). */
+    @Test
+    void encodeSeqRejectsCaseFoldAlias() {
+        assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.encodeSeq(new String[] {"gaawdlqng6ſsdpf2"}));
+    }
+
+    /** Verify encodeSeq rejects an "="-padded unit. */
+    @Test
+    void encodeSeqRejectsPadding() {
+        assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.encodeSeq(new String[] {"ISCC:EEAYYNMFG5XOELK2===="}));
+    }
+
+    /** Verify decodeSeq rejects empty input. */
+    @Test
+    void decodeSeqRejectsEmpty() {
+        assertThrows(IllegalArgumentException.class, () -> IsccLib.decodeSeq(new byte[0]));
+    }
+
+    /** Verify decodeSeq rejects a truncated sequence (last byte dropped). */
+    @Test
+    void decodeSeqRejectsTruncated() {
+        byte[] seq = decodeBytes(data.getAsJsonObject("decode_seq")
+                .getAsJsonObject("test_0002_single_unit").getAsJsonArray("inputs").get(0).getAsString());
+        byte[] truncated = java.util.Arrays.copyOf(seq, seq.length - 1);
+        assertThrows(IllegalArgumentException.class, () -> IsccLib.decodeSeq(truncated));
+    }
+
     // ── conformanceSelftest ──────────────────────────────────────────────────
 
     /** Verify conformanceSelftest passes against the vendored test vectors. */

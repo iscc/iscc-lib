@@ -63,3 +63,12 @@ not objects). Then the Tier-1 33→35 doc/count sweep (like IDv1 iter 190).
     the guard, compile with -I/tmp
 - Remaining surfaces: JNI, Ruby, UniFFI. Then 33→35 sweep (incl. `packages/go/CLAUDE.md` stale "9
     gen"/"46 vectors", `packages/dotnet/CLAUDE.md` "9 gen … 50 vectors")
+
+## JNI (iter 208)
+
+- Exports after `isccDecompose` in `crates/iscc-jni/src/lib.rs`; tests use a `decodeBytes`
+    (`bytes:<hex>`) helper. Count seq cases from `target/surefire-reports/*.xml` (`tests=` attr),
+    because `mvn -q … | tail` hides Maven's exit code
+- Probe JNI without surefire:
+    `java -Djava.library.path=$PWD/target/debug -cp crates/iscc-jni/java/target/classes /tmp/P.java`
+- JNI NUL survives the boundary → core rejects it (no C-FFI-style truncation)

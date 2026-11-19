@@ -820,6 +820,65 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_isccDecompose<'local>(
         .resolve::<ThrowRuntimeExAndDefault>()
 }
 
+/// Encode ISCC-UNIT strings into an ISCC-SEQ byte string (IEP-0020).
+///
+/// Takes a `String[]` of ISCC-UNITs. Returns the concatenated raw unit bytes as
+/// `byte[]`. Throws `IllegalArgumentException` on empty input or invalid units.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_encodeSeq<'local>(
+    mut unowned: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    units: JObjectArray<'local, JString<'local>>,
+) -> JByteArray<'local> {
+    unowned
+        .with_env(|env| -> jni::errors::Result<JByteArray<'local>> {
+            let unit_strs = match extract_string_array(env, &units) {
+                Ok(s) => s,
+                Err(e) => return throw_and_default(env, &e.to_string()),
+            };
+            let refs: Vec<&str> = unit_strs.iter().map(|s| s.as_str()).collect();
+            let seq = match iscc_lib::encode_seq(&refs) {
+                Ok(b) => b,
+                Err(e) => return throw_and_default(env, &e.to_string()),
+            };
+            match env.byte_array_from_slice(&seq) {
+                Ok(a) => Ok(a),
+                Err(e) => throw_and_default(env, &e.to_string()),
+            }
+        })
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Decode an ISCC-SEQ byte string into ISCC-UNIT strings (IEP-0020).
+///
+/// Returns a `String[]` of `ISCC:`-prefixed unit strings in wire order.
+/// Throws `IllegalArgumentException` on empty or malformed input.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_decodeSeq<'local>(
+    mut unowned: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    data: JByteArray<'local>,
+) -> JObjectArray<'local, JString<'local>> {
+    unowned
+        .with_env(
+            |env| -> jni::errors::Result<JObjectArray<'local, JString<'local>>> {
+                let bytes = match env.convert_byte_array(&data) {
+                    Ok(b) => b,
+                    Err(e) => return throw_and_default(env, &e.to_string()),
+                };
+                let units = match iscc_lib::decode_seq(&bytes) {
+                    Ok(u) => u,
+                    Err(e) => return throw_and_default(env, &e.to_string()),
+                };
+                match build_string_array(env, &units) {
+                    Ok(arr) => Ok(arr),
+                    Err(e) => throw_and_default(env, &e.to_string()),
+                }
+            },
+        )
+        .resolve::<ThrowRuntimeExAndDefault>()
+}
+
 // ── Sliding window ──────────────────────────────────────────────────────────
 
 /// Generate sliding window n-grams from a string.

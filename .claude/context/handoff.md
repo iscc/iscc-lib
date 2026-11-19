@@ -1,73 +1,57 @@
-## 2026-11-19 — Review of: Bind `encode_seq` / `decode_seq` in the C++ header-only wrapper
+## 2026-11-19 — Bind `encode_seq` / `decode_seq` in the Java JNI bindings
 
-**Verdict:** PASS
+**Done:** Added `Java_io_iscc_iscc_1lib_IsccLib_encodeSeq` (`String[]` → `byte[]`) and
+`Java_io_iscc_iscc_1lib_IsccLib_decodeSeq` (`byte[]` → `String[]`) to `crates/iscc-jni/src/lib.rs`.
+Both reuse `extract_string_array` / `build_string_array` / `byte_array_from_slice` in the crate's
+`match` → `throw_and_default` style, so core errors reach Java as `IllegalArgumentException` with
+the core message. Matching `native` declarations with Javadoc sit after `isccDecompose` in
+`IsccLib.java`. ISCC-SEQ is now on 8 of 11 surfaces.
 
-**Summary:** `iscc::encode_seq` / `iscc::decode_seq` landed in `iscc.hpp` with RAII ownership
-(`UniqueByteBuffer` / `UniqueStringArray` + `check_ptr`), an empty-array sentinel so the core's "at
-least one ISCC-UNIT" error is the one that comes through, and an embedded-NUL guard that throws
-before marshalling. ISCC-SEQ is now on 7 of 11 surfaces. The tests hard-code data.json bytes, check
-the byte round trip in the correct direction (`encode_seq(decode_seq(x)) == x`), and use one bad
-input per negative case. Scope was exactly the two files next.md named.
+**Files changed:**
+
+- `crates/iscc-jni/src/lib.rs`: two `extern "system"` exports after `isccDecompose`
+- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`:
+    `public static native byte[] encodeSeq(String[] units)` and
+    `public static native String[] decodeSeq(byte[] data)`. The Javadoc covers the optional `ISCC:`
+    prefix in any case, strict base32 (padding, spare bits, non-ASCII case-fold aliases) and the
+    `ISCC:`-prefixed output
+- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`: a `decodeBytes`
+    (`bytes:<hex>`) helper; `@TestFactory` `encodeSeq` and `decodeSeq` over the data.json sections;
+    `seqByteRoundtrip` (`encodeSeq(decodeSeq(x)) == x` over the `decode_seq` vectors); a
+    `[Ljava.lang.String;` class check; 6 negative tests with one bad input each (an empty array
+    checked for the "at least one ISCC-UNIT" message, `unit + "\0junk"`, the `ſ` alias
+    `gaawdlqng6ſsdpf2`, `EEAYYNMFG5XOELK2====`, empty bytes, and a truncated `test_0002` vector)
 
 **Verification:**
 
-- [x] `cargo build -p iscc-ffi` + `cmake -B build-seq … -DSANITIZE_ADDRESS=ON` + `cmake --build`
-    exit 0. There were no compiler warnings, only bind-mount clock-skew notices from gmake. The
-    CMake target sets no `-Wall`, so I also compiled `test_iscc.cpp` with
-    `g++ -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror`, and it was clean
-- [x] `LD_LIBRARY_PATH=../../target/debug ./build-seq/tests/test_iscc` exits 0: 65 passed, 0 failed,
-    no ASAN report. It prints PASS lines for the encode_seq vector, the decode_seq units, the
-    test_0004 byte round trip and all four negative cases
-- [x] `iscc.hpp:366` declares `std::vector<uint8_t> encode_seq(const std::vector<std::string>&)` and
-    `iscc.hpp:384` declares `std::vector<std::string> decode_seq(const std::vector<uint8_t>&)`
-- [x] Test 42 asserts that `encode_seq({})` throws `IsccError` containing "at least one ISCC-UNIT".
-    Test 43 asserts that a unit with an embedded `'\0'` throws (needle "index 1")
-- [x] `git status --porcelain crates/iscc-ffi packages/dotnet` is empty
-- [x] `mise run check` exits 0
-- [x] Extra probes: (1) the doc comment's claim holds — a lowercase unit, a hyphenated `iscc:` unit
-    and a bare unit all give the same bytes; non-UTF-8 and `""` units give clean `IsccError`s
-    (ASAN-built probe). (2) Advance's report that C++ also truncates at an embedded NUL reproduces:
-    `gen_text_code_v0("Hello\0World")` gives `"Hello"`'s code, and
-    `iscc_decompose(code + '\0' + "junk")` returns 4 units without throwing. I widened the NUL issue
-    to cover C++
-- [x] The unpushed range (update-state, define-next, advance) has no lint suppressions, skips or
-    hook changes
+- `cargo build -p iscc-jni` and `cargo clippy -p iscc-jni -- -D warnings` both finish clean
+- `mvn -q -f crates/iscc-jni/java/pom.xml clean test > /tmp/mvn.log; echo $?` gives `0` (unpiped,
+    re-run after review of the first piped run). Surefire reports `tests="103"` failures 0, errors
+    0, skipped 0. 19 test cases have "seq" in the name: 3×4 dynamic plus 7 static
+- `-Xcheck:jni`: surefire run with `-DargLine="-Xcheck:jni -Djava.library.path=$PWD/target/debug"`
+    exits 0, and there are no `.dumpstream` files. A direct `java -Xcheck:jni` run of a `/tmp` probe
+    (encodeSeq/decodeSeq success path plus both error paths) printed no `WARNING in native method`
+- Javadoc's "ISCC-CODE, ID or FLAKE are rejected" matches the `SEQ_MAINTYPES` doc (codec.rs:740).
+    Python `encode_seq([<ISCC-CODE>])` fails with "MainType 5 is not permitted in an ISCC-SEQ"
+- `mise run format` and then `mise run check` both exit 0
+- Checked the negative inputs against the Python binding first: the ASCII control `gaawdlqng6ssdpf2`
+    encodes fine (`300161ae0d37a521bcba`), the `ſ` variant fails with "invalid length at 16", and
+    `====` fails with "invalid symbol at 16". So each negative test fails for its intended reason,
+    not because the base unit is broken
 
-**Issues found:**
-
-- The embedded-NUL truncation now spans .NET and C++ (15 unguarded `c_str()` sites). I rewrote the
-    issue to cover both wrappers, including the new disagreement between surfaces: C++ `encode_seq`
-    rejects `unit + "\0junk"` while .NET `EncodeSeq` accepts the prefix
-- Stale C++ docs are deferred to the sweep as next.md planned, so nothing was filed. They are listed
-    under **Next**
-- (no defects in the diff itself)
-
-**Codex review:** clean, with no findings. It confirmed the empty-input error is preserved, the NUL
-check runs before truncation could happen, the RAII release is correct, and the suite passed with
-warnings treated as errors.
-
-**Next:** JNI seq (`crates/iscc-jni` + the Java wrapper and its tests), then Ruby, then UniFFI
-(Swift/Kotlin, which hard-code per-section conformance counts). Ask each remaining surface for a
-`unit + "\0junk"` negative test, so the cross-surface NUL behaviour is pinned as the fan-out
-proceeds. Those three bind the core directly rather than through the C FFI, so they should reject it
-the way iscc-core does. After all 11 surfaces, the 33→35 doc sweep must cover:
-
-- **C++:** `packages/cpp/CLAUDE.md` ("35+ test cases" twice; the type map has no
-    `const std::vector<std::string>&` → `const char* const*` row with its sentinel `safe_data`
-    overload), `packages/cpp/README.md`, `docs/howto/c-cpp.md`
-- **.NET:** `packages/dotnet/CLAUDE.md` (still says "all 9 gen functions (50 vectors total)", and
-    `SeqTests.cs` is missing from File Layout and Test Patterns), `packages/dotnet/README.md`,
-    `docs/howto/dotnet.md`
-- **Everywhere else:** the crate `CLAUDE.md` files, `notes/00`, `notes/04`, `docs/architecture.md`
-    and `docs/c-ffi-api.md`, which has no seq entries, plus its open type-name issue
+**Next:** Ruby seq (`crates/iscc-rb`), then UniFFI (Swift/Kotlin, which hard-code per-section
+conformance counts). Keep asking each one for a `unit + "\0junk"` negative test. After that comes
+the 33→35 doc sweep, which must now also cover `crates/iscc-jni/README.md`, `docs/howto/java.md`,
+`docs/java-api.md` and the `crates/iscc-jni/CLAUDE.md` test-pattern list (it doesn't mention the
+`bytes:` helper or the seq tests).
 
 **Notes:**
 
-- **Pending human decision, not escalated yet:** the NUL issue's fix (reject NUL at each wrapper's
-    choke point, or switch to a length-delimited FFI ABI) is Titusz's call. I did not set the HUMAN
-    REVIEW marker, because it pauses the loop and four mechanical seq surfaces remain. If the
-    fan-out finishes and this is still the blocking `normal` issue, escalate it then
-- Binding-only step: no core, FFI or hot-path change, so iai and CRAP are unaffected
-- A `/tmp` C++ probe needs only
-    `g++ -std=c++17 -fsanitize=address -Ipackages/cpp/include -Icrates/iscc-ffi/include x.cpp -Ltarget/debug -liscc_ffi`
-    and then `LD_LIBRARY_PATH=target/debug`. It is quicker than cmake for one-off checks
+- **JNI embedded NUL is now probed:** a `/tmp` Java probe against `target/classes` shows the NUL
+    survives the JNI boundary. `encodeSeq({unit + "\0junk"})` fails with
+    `invalid input: base32 decode error: invalid symbol at 55` (index 55 = the NUL after the 55-char
+    cleaned unit). `genTextCodeV0("Hello\0World", 64)` = `ISCC:EAASKDNZNYGUUF5A` ≠ `"Hello"`'s
+    `ISCC:EAAWSPUDF7GJWQVD`. So JNI does NOT share the .NET/C++ truncation defect, and the NUL issue
+    can stay scoped to the C-FFI wrappers
+- Binding-only step: no core, FFI or hot-path change, so iai and CRAP are unaffected. No null-input
+    policy was added (out of scope)
