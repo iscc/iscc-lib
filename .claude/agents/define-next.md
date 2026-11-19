@@ -91,8 +91,8 @@ Read anything else on demand, once.
         of the work, not a separate step.
 
 6. **Research if needed** — if unsure about APIs, patterns, or reference implementation details,
-    read the relevant `notes/` documents or files from `reference/iscc-core/` (see paths in
-    CLAUDE.md).
+    read the relevant spec under `.claude/context/specs/`, the crate's `CLAUDE.md`, or files from
+    `reference/iscc-core/` (see paths in CLAUDE.md).
 
 7. **Verify feasibility** — confirm that all files listed in "Reference" and "Modify" actually
     exist. If a file is missing or the code structure doesn't match expectations, adjust the
@@ -139,7 +139,7 @@ Read anything else on demand, once.
 
 - **Create**: <files to create, if any>
 - **Modify**: <files to modify, if any>
-- **Reference**: <files to read for context, including notes/ docs or iscc-core sources>
+- **Reference**: <files to read for context, including specs or iscc-core sources>
 
 ## Not In Scope
 

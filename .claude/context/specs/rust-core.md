@@ -16,10 +16,10 @@ complete field listing per function.
 
 **Verified when:**
 
-- [ ] Each `gen_*_v0` function returns a struct with named fields, not `String`
-- [ ] All fields from `specs/python-bindings.md` are present in the corresponding struct
-- [ ] Conformance tests verify additional fields (metahash, name, characters, datahash, filesize,
-    parts) match iscc-core output for every test vector
+- Each `gen_*_v0` function returns a struct with named fields, not `String`
+- All fields from `specs/python-bindings.md` are present in the corresponding struct
+- Conformance tests verify additional fields (metahash, name, characters, datahash, filesize, parts)
+    match iscc-core output for every test vector
 
 ## Text Utility Functions
 
@@ -66,16 +66,16 @@ implements the conditional mapping today — `packages/go`'s `TextCollapse` coll
 
 **Verified when:**
 
-- [ ] `iscc_lib::text_clean("hello\tworld")` returns `"helloworld"`
-- [ ] `iscc_lib::text_remove_newlines("hello\nworld")` returns `"hello world"`
-- [ ] `iscc_lib::text_trim("hello world", 5)` returns `"hello"`
-- [ ] `iscc_lib::text_trim("é", 1)` returns `""` (1-byte truncation splits 2-byte char)
-- [ ] `iscc_lib::text_collapse("Hello, World!")` returns `"helloworld"`
-- [ ] `iscc_lib::text_collapse("café")` returns `"cafe"`
-- [ ] All four functions are accessible from Python bindings as `iscc_lib.text_clean()` etc.
-- [ ] All four functions are accessible from Node.js, WASM, and C FFI bindings
-- [ ] `text_collapse` applies the conditional `Final_Sigma` mapping: `text_collapse("ΛΟΓΟΣ")`
-    returns `"λογος"` (not `"λογοσ"`) in the Rust core and in `packages/go`
+- `iscc_lib::text_clean("hello\tworld")` returns `"helloworld"`
+- `iscc_lib::text_remove_newlines("hello\nworld")` returns `"hello world"`
+- `iscc_lib::text_trim("hello world", 5)` returns `"hello"`
+- `iscc_lib::text_trim("é", 1)` returns `""` (1-byte truncation splits 2-byte char)
+- `iscc_lib::text_collapse("Hello, World!")` returns `"helloworld"`
+- `iscc_lib::text_collapse("café")` returns `"cafe"`
+- All four functions are accessible from Python bindings as `iscc_lib.text_clean()` etc.
+- All four functions are accessible from Node.js, WASM, and C FFI bindings
+- `text_collapse` applies the conditional `Final_Sigma` mapping: `text_collapse("ΛΟΓΟΣ")` returns
+    `"λογος"` (not `"λογοσ"`) in the Rust core and in `packages/go`
 
 ## Algorithm Primitives
 
@@ -97,15 +97,15 @@ Note: The bound `alg_simhash` takes `&[Vec<u8>]` (concrete type) rather than the
 
 **Verified when:**
 
-- [ ] `iscc_lib::sliding_window("abcde", 3)` returns `["abc", "bcd", "cde"]`
-- [ ] `iscc_lib::sliding_window("ab", 3)` returns `["ab"]` (input shorter than width)
-- [ ] `iscc_lib::alg_minhash_256(&[0, 1, 2, 3])` returns a 32-byte `Vec<u8>`
-- [ ] `iscc_lib::alg_cdc_chunks(data, false, 1024)` returns non-empty chunk list for non-empty input
-- [ ] `iscc_lib::alg_simhash(&[vec![0u8; 32]])` returns a 32-byte `Vec<u8>`
-- [ ] All four functions are accessible from Python bindings
-- [ ] All four functions are accessible from Node.js, WASM, and C FFI bindings
-- [ ] `alg_minhash_256` output matches iscc-core `alg_minhash_256` for identical input features
-- [ ] `alg_cdc_chunks` output matches iscc-core `alg_cdc_chunks` for identical input data
+- `iscc_lib::sliding_window("abcde", 3)` returns `["abc", "bcd", "cde"]`
+- `iscc_lib::sliding_window("ab", 3)` returns `["ab"]` (input shorter than width)
+- `iscc_lib::alg_minhash_256(&[0, 1, 2, 3])` returns a 32-byte `Vec<u8>`
+- `iscc_lib::alg_cdc_chunks(data, false, 1024)` returns non-empty chunk list for non-empty input
+- `iscc_lib::alg_simhash(&[vec![0u8; 32]])` returns a 32-byte `Vec<u8>`
+- All four functions are accessible from Python bindings
+- All four functions are accessible from Node.js, WASM, and C FFI bindings
+- `alg_minhash_256` output matches iscc-core `alg_minhash_256` for identical input features
+- `alg_cdc_chunks` output matches iscc-core `alg_cdc_chunks` for identical input data
 
 ## Soft Hash Functions
 
@@ -118,9 +118,9 @@ processing (generating per-segment simprints), independent of `gen_video_code_v0
 
 **Verified when:**
 
-- [ ] `iscc_lib::soft_hash_video_v0(frame_sigs, 256)` returns a 32-byte `Vec<u8>`
-- [ ] Output matches iscc-core `soft_hash_video_v0` for identical frame signatures
-- [ ] Function is accessible from all bindings
+- `iscc_lib::soft_hash_video_v0(frame_sigs, 256)` returns a 32-byte `Vec<u8>`
+- Output matches iscc-core `soft_hash_video_v0` for identical frame signatures
+- Function is accessible from all bindings
 
 ## Encoding Utilities
 
@@ -136,13 +136,11 @@ serializing to JSON once (language-specific) then delegating encoding to Rust.
 
 **Verified when:**
 
-- [ ] `iscc_lib::encode_base64(&[0, 1, 2, 3])` returns the correct base64 string
-- [ ] `iscc_lib::json_to_data_url("{\"key\":\"value\"}")` returns
-    `"data:application/json;base64,..."`
-- [ ] `iscc_lib::json_to_data_url("{\"@context\":...}")` returns
-    `"data:application/ld+json;base64,..."`
-- [ ] Output matches iscc-core behavior for identical input
-- [ ] Both functions are accessible from all bindings
+- `iscc_lib::encode_base64(&[0, 1, 2, 3])` returns the correct base64 string
+- `iscc_lib::json_to_data_url("{\"key\":\"value\"}")` returns `"data:application/json;base64,..."`
+- `iscc_lib::json_to_data_url("{\"@context\":...}")` returns `"data:application/ld+json;base64,..."`
+- Output matches iscc-core behavior for identical input
+- Both functions are accessible from all bindings
 
 ## Codec Operations
 
@@ -155,10 +153,10 @@ accepts padding and spare bits through Python's `b32decode`, and its `encode_seq
 case-fold aliases through Unicode `str.upper()`; iscc-lib deliberately does neither (decisions.md
 2026-11-18, both entries). Criteria below that say "matches iscc-core" apply to canonical input.
 
-- [ ] Rust and Go tests assert that decoding rejects `ISCC:GAAAAAAAAB`,
+- Rust and Go tests assert that decoding rejects `ISCC:GAAAAAAAAB`,
     `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` and `ISCC:GAAAAAAAAA======`
-- [ ] Rust and Go tests assert that decoding and `encode_seq` reject a non-ASCII case-fold alias
-    such as `gaawdlqng6ſsdpf2` while its ASCII twin `GAAWDLQNG6SSDPF2` is accepted
+- Rust and Go tests assert that decoding and `encode_seq` reject a non-ASCII case-fold alias such as
+    `gaawdlqng6ſsdpf2` while its ASCII twin `GAAWDLQNG6SSDPF2` is accepted
 
 ### iscc_decompose
 
@@ -175,14 +173,14 @@ containing the cleaned input.
 
 **Verified when:**
 
-- [ ] `iscc_decompose("ISCC:KEC...")` returns a `Vec<String>` with 4 elements (Meta, Content, Data,
+- `iscc_decompose("ISCC:KEC...")` returns a `Vec<String>` with 4 elements (Meta, Content, Data,
     Instance)
-- [ ] Each returned element is a bare base32 ISCC-UNIT string **without** the `"ISCC:"` prefix,
-    matching iscc-core (which returns e.g. `["AAAYPXW445FTYNJ3", "EAARMJLTQCUWAND2", …]`)
-- [ ] Output matches iscc-core `iscc_decompose` for identical input, including the input forms
+- Each returned element is a bare base32 ISCC-UNIT string **without** the `"ISCC:"` prefix, matching
+    iscc-core (which returns e.g. `["AAAYPXW445FTYNJ3", "EAARMJLTQCUWAND2", …]`)
+- Output matches iscc-core `iscc_decompose` for identical input, including the input forms
     `iscc_clean` accepts — dash-separated, surrounding whitespace, and a lowercase `iscc:` scheme
-- [ ] Single ISCC-UNITs (non-composite) return a single-element list
-- [ ] Function is accessible from all bindings
+- Single ISCC-UNITs (non-composite) return a single-element list
+- Function is accessible from all bindings
 
 ### encode_component
 
@@ -203,11 +201,11 @@ Rejects `MainType::Iscc` (composite codes are assembled in `gen_iscc_code_v0`). 
 
 **Verified when:**
 
-- [ ] `encode_component(3, 0, 0, 64, &digest)` returns a valid Data-Code ISCC unit string
-- [ ] Output matches iscc-core `encode_component` for identical inputs
-- [ ] Returns error for `MainType::Iscc` (mtype=5)
-- [ ] Returns error when digest is shorter than `bit_length / 8`
-- [ ] Function is accessible from all bindings
+- `encode_component(3, 0, 0, 64, &digest)` returns a valid Data-Code ISCC unit string
+- Output matches iscc-core `encode_component` for identical inputs
+- Returns error for `MainType::Iscc` (mtype=5)
+- Returns error when digest is shorter than `bit_length / 8`
+- Function is accessible from all bindings
 
 ### iscc_decode
 
@@ -225,10 +223,10 @@ enum fields (same pattern as `encode_component`).
 
 **Verified when:**
 
-- [ ] Round-trip: `iscc_decode(encode_component(mt, st, vs, bits, digest))` recovers original fields
-- [ ] Output matches iscc-core `iscc_decode` for identical inputs
-- [ ] Handles both `"ISCC:..."` prefixed and bare base32 input
-- [ ] Function is accessible from all bindings
+- Round-trip: `iscc_decode(encode_component(mt, st, vs, bits, digest))` recovers original fields
+- Output matches iscc-core `iscc_decode` for identical inputs
+- Handles both `"ISCC:..."` prefixed and bare base32 input
+- Function is accessible from all bindings
 
 ### encode_seq / decode_seq (ISCC-SEQ, IEP-0020)
 
@@ -301,14 +299,14 @@ Go seq tests need their own loader.
 **Also in scope:** align the `iscc_decompose` doc comment (`codec.rs`) with iscc-core 1.5.0 — its
 input is the base32 form of concatenated unit bytes, which concatenated unit *strings* only yield
 for 64-bit units; point to `decode_seq` as the strict byte-level reader. Update every place that
-repeats the Tier 1 count (crate `CLAUDE.md`, `notes/04-api-compatibility-safety.md`,
-`docs/architecture.md`, binding docs) in the step that makes it true.
+repeats the Tier 1 count (crate `CLAUDE.md`, `docs/architecture.md`, binding docs) in the step that
+makes it true.
 
 **Verified when:**
 
-- [ ] Rust: all `test_seq.py` cases ported (positive + negative), including the multibase-like and
+- Rust: all `test_seq.py` cases ported (positive + negative), including the multibase-like and
     tolerant-input cases and `read_unit` sequential offsets
-- [ ] Rust: the IEP-0020 decoder vectors are explicit tests (also reported in issue #45, where
+- Rust: the IEP-0020 decoder vectors are explicit tests (also reported in issue #45, where
     `iscc_decompose` fails several of them):
     - accept the IEP-0020 4-unit vector (`decode_seq` test_0001 in `data.json`) and `270000000000` →
         `["ISCC:E4AAAAAAAA"]` (SubType 7)
@@ -318,18 +316,18 @@ repeats the Tier 1 count (crate `CLAUDE.md`, `notes/04-api-compatibility-safety.
         zero bytes, `3000000000`, `30000000000000`,
         `5005578c7c8fbfbdb58fa88248c53a852c8d05b41f3472493225a522af4a2c9cbf6a` (ISCC-CODE),
         `60100000000000000000` (MainType 6)
-- [ ] Rust: `iscc_decode`, `iscc_decompose` and `encode_component` accept and reject exactly what
-    they did before (their existing tests pass unmodified)
-- [ ] Python: a pytest differential test asserts byte/list identity with `iscc_core.encode_seq` /
+- Rust: `iscc_decode`, `iscc_decompose` and `encode_component` accept and reject exactly what they
+    did before (their existing tests pass unmodified)
+- Python: a pytest differential test asserts byte/list identity with `iscc_core.encode_seq` /
     `decode_seq` (iscc-core 1.5.0 is the dev dependency) and that both sides reject the same inputs,
     except base32 with `=` padding, non-zero spare bits or non-ASCII case-fold aliases: iscc-lib
     rejects those and the test asserts that divergence explicitly (see "Base32 input is strict"
     above)
-- [ ] Every conformance harness (Rust, Python, Node, WASM, C, C++, Java, Go, Ruby, .NET, Swift,
-    Kotlin) runs the 4 `encode_seq` + 4 `decode_seq` vectors
-- [ ] `encode_seq` / `decode_seq` accessible from all 11 bindings with idiomatic names and types;
-    the pure-Go port carries its own implementation and test cases
-- [ ] Round trip `encode_seq(decode_seq(x)) == x` holds for every vector on every surface
+- Every conformance harness (Rust, Python, Node, WASM, C, C++, Java, Go, Ruby, .NET, Swift, Kotlin)
+    runs the 4 `encode_seq` + 4 `decode_seq` vectors
+- `encode_seq` / `decode_seq` accessible from all 11 bindings with idiomatic names and types; the
+    pure-Go port carries its own implementation and test cases
+- Round trip `encode_seq(decode_seq(x)) == x` holds for every vector on every surface
 
 ## ISCC-IDv1 Operations (Experimental)
 
@@ -524,29 +522,29 @@ and `VENDORED_COPIES` — miss any one and the copies drift unpoliced).
 
 **Verified when:**
 
-- [ ] Tier 1 `iscc_decode` and `iscc_decompose` accept MainType `ID` with Version 1 on every one of
-    the 11 surfaces, and still reject Version > 0 for every other MainType
-- [ ] `iscc_decode("ISCC:MAIGHFECJMOPMIAB")` returns `(6, 0, 1, 0, <8 bytes>)`, matching
+- Tier 1 `iscc_decode` and `iscc_decompose` accept MainType `ID` with Version 1 on every one of the
+    11 surfaces, and still reject Version > 0 for every other MainType
+- `iscc_decode("ISCC:MAIGHFECJMOPMIAB")` returns `(6, 0, 1, 0, <8 bytes>)`, matching
     `iscc_core.iscc_decode` exactly
-- [ ] `gen_iscc_id_v1(1751831876325218, 1, 0)` returns `ISCC:MAIGHFECJMOPMIAB`
-- [ ] Decoding that code through generic `iscc_decode` and the documented bit-math recipe recovers
-    realm 0, hub_id 1, timestamp 1751831876325218 — with and without the `ISCC:` prefix, on every
-    surface, using the recipe as written in that surface's how-to page
-- [ ] Round-trip `gen_iscc_id_v1` → `iscc_decode` holds across the parameter space: realm 0 and 1,
+- `gen_iscc_id_v1(1751831876325218, 1, 0)` returns `ISCC:MAIGHFECJMOPMIAB`
+- Decoding that code through generic `iscc_decode` and the documented bit-math recipe recovers realm
+    0, hub_id 1, timestamp 1751831876325218 — with and without the `ISCC:` prefix, on every surface,
+    using the recipe as written in that surface's how-to page
+- Round-trip `gen_iscc_id_v1` → `iscc_decode` holds across the parameter space: realm 0 and 1,
     hub_id 0 and 4095, timestamp 0 and `2^52 - 1`
-- [ ] No `decode_iscc_id_v1` exists on any surface, and `packages/go` no longer exports
-    `DecodeIsccID` or `IsccIDv1Result`
-- [ ] Output is byte-identical to `iscc_core.gen_iscc_id_v1` for every case above, asserted by a
-    pytest differential test against the installed `iscc-core` dev dependency
-- [ ] The three validation checks fire in reference order on every surface (message text asserted
-    for the Rust core only)
-- [ ] `crates/iscc-lib/src/codec.rs` declares `#[non_exhaustive]` on `enum Version` in the same
-    change that adds `V1 = 1`
-- [ ] The advance handoff carries an `**API-BREAK:**` note recording that `#[non_exhaustive]` is
-    itself a major break (`cargo-semver-checks` reports `enum_marked_non_exhaustive`), taken
-    deliberately inside the 0.x window. The tool is not installed locally and the CI `semver` job is
+- No `decode_iscc_id_v1` exists on any surface, and `packages/go` no longer exports `DecodeIsccID`
+    or `IsccIDv1Result`
+- Output is byte-identical to `iscc_core.gen_iscc_id_v1` for every case above, asserted by a pytest
+    differential test against the installed `iscc-core` dev dependency
+- The three validation checks fire in reference order on every surface (message text asserted for
+    the Rust core only)
+- `crates/iscc-lib/src/codec.rs` declares `#[non_exhaustive]` on `enum Version` in the same change
+    that adds `V1 = 1`
+- The advance handoff carries an `**API-BREAK:**` note recording that `#[non_exhaustive]` is itself
+    a major break (`cargo-semver-checks` reports `enum_marked_non_exhaustive`), taken deliberately
+    inside the 0.x window. The tool is not installed locally and the CI `semver` job is
     `continue-on-error: true`, so this is a written record, not a gate result.
-- [ ] Both functions are accessible from all 11 bindings with idiomatic names and types
+- Both functions are accessible from all 11 bindings with idiomatic names and types
 
 ## Single-Call ISCC-SUM Generation
 
@@ -577,13 +575,13 @@ pub struct SumCodeResult {
 
 **Verified when:**
 
-- [ ] `gen_sum_code_v0(path, 64, false)` produces the same ISCC as separate
-    `gen_data_code_v0(data, 64)` + `gen_instance_code_v0(data, 64)` → `gen_iscc_code_v0`
-- [ ] `datahash` matches `gen_instance_code_v0` output for the same file
-- [ ] `filesize` matches actual file size
-- [ ] Function is accessible from all bindings
-- [ ] Python binding accepts `str | os.PathLike` for path
-- [ ] Handles missing/unreadable files with appropriate error
+- `gen_sum_code_v0(path, 64, false)` produces the same ISCC as separate `gen_data_code_v0(data, 64)`
+    \+ `gen_instance_code_v0(data, 64)` → `gen_iscc_code_v0`
+- `datahash` matches `gen_instance_code_v0` output for the same file
+- `filesize` matches actual file size
+- Function is accessible from all bindings
+- Python binding accepts `str | os.PathLike` for path
+- Handles missing/unreadable files with appropriate error
 
 ## Streaming Hashers
 
@@ -605,15 +603,15 @@ accumulates a BLAKE3 streaming hash and byte count.
 
 **Verified when:**
 
-- [ ] `DataHasher::new().update(data).finalize(64)` produces the same ISCC as
+- `DataHasher::new().update(data).finalize(64)` produces the same ISCC as
     `gen_data_code_v0(data, 64)`
-- [ ] `InstanceHasher::new().update(data).finalize(64)` produces the same ISCC as
+- `InstanceHasher::new().update(data).finalize(64)` produces the same ISCC as
     `gen_instance_code_v0(data, 64)`
-- [ ] Splitting data across multiple `update()` calls produces identical output to a single call
-- [ ] `InstanceHasher` result includes correct `datahash` and `filesize`
-- [ ] Both types are accessible from Python as classes with `update()` and `finalize()` methods
-- [ ] Both types accept file-like objects in Python (anything with `.read()`)
-- [ ] Both types are accessible from Node.js, WASM, and C FFI bindings
+- Splitting data across multiple `update()` calls produces identical output to a single call
+- `InstanceHasher` result includes correct `datahash` and `filesize`
+- Both types are accessible from Python as classes with `update()` and `finalize()` methods
+- Both types accept file-like objects in Python (anything with `.read()`)
+- Both types are accessible from Node.js, WASM, and C FFI bindings
 
 ## Algorithm Constants
 
@@ -641,17 +639,17 @@ object for iscc-core API parity.
 
 **Verified when:**
 
-- [ ] Constants are `pub const` in the Rust core crate root
-- [ ] `iscc_lib::META_TRIM_NAME == 128`
-- [ ] `iscc_lib::META_TRIM_DESCRIPTION == 4096`
-- [ ] `iscc_lib::META_TRIM_META == 128_000`
-- [ ] `iscc_lib::IO_READ_SIZE == 4_194_304`
-- [ ] `iscc_lib::TEXT_NGRAM_SIZE == 13`
-- [ ] Constants are accessible from all bindings
-- [ ] Python binding exposes `core_opts.meta_trim_meta` (SimpleNamespace) for iscc-core parity
-- [ ] `gen_meta_code_v0` rejects payloads exceeding `META_TRIM_META` with `IsccError::InvalidInput`
-- [ ] Pre-decode fast check rejects obviously oversized Data-URL strings
-- [ ] Tests cover boundary cases: at limit (passes), over limit (error)
+- Constants are `pub const` in the Rust core crate root
+- `iscc_lib::META_TRIM_NAME == 128`
+- `iscc_lib::META_TRIM_DESCRIPTION == 4096`
+- `iscc_lib::META_TRIM_META == 128_000`
+- `iscc_lib::IO_READ_SIZE == 4_194_304`
+- `iscc_lib::TEXT_NGRAM_SIZE == 13`
+- Constants are accessible from all bindings
+- Python binding exposes `core_opts.meta_trim_meta` (SimpleNamespace) for iscc-core parity
+- `gen_meta_code_v0` rejects payloads exceeding `META_TRIM_META` with `IsccError::InvalidInput`
+- Pre-decode fast check rejects obviously oversized Data-URL strings
+- Tests cover boundary cases: at limit (passes), over limit (error)
 
 ## Conformance Selftest
 
@@ -664,9 +662,9 @@ pass/fail.
 
 **Verified when:**
 
-- [ ] `iscc_lib::conformance_selftest()` returns `true`
-- [ ] Function is accessible from all bindings
-- [ ] `iscc_lib.conformance_selftest()` returns `True` in Python
+- `iscc_lib::conformance_selftest()` returns `true`
+- Function is accessible from all bindings
+- `iscc_lib.conformance_selftest()` returns `True` in Python
 
 ## Complete Tier 1 API Summary
 
@@ -699,13 +697,13 @@ from the v1.0.0 stability lock** below while the upstream format is still evolvi
 
 ## Quality Gates
 
-- [ ] `cargo test -p iscc-lib` passes (all existing + new tests)
-- [ ] `cargo clippy -p iscc-lib -- -D warnings` clean
-- [ ] `cargo fmt -p iscc-lib --check` clean
-- [ ] No `unsafe` without documented justification
-- [ ] Crate has zero binding dependencies (no PyO3, napi, wasm-bindgen)
-- [ ] All new public functions have doc comments with examples
-- [ ] All new public functions have unit tests
+- `cargo test -p iscc-lib` passes (all existing + new tests)
+- `cargo clippy -p iscc-lib -- -D warnings` clean
+- `cargo fmt -p iscc-lib --check` clean
+- No `unsafe` without documented justification
+- Crate has zero binding dependencies (no PyO3, napi, wasm-bindgen)
+- All new public functions have doc comments with examples
+- All new public functions have unit tests
 
 ## API Stability & Performance Invariants
 
@@ -739,10 +737,10 @@ change is explicitly sanctioned by a human and reflected in the version number.
 
 **Verified when:**
 
-- [ ] Crate version is >= 1.0.0 and follows strict SemVer
-- [ ] `cargo-semver-checks` runs in CI against the last published release and fails on an
-    unsanctioned breaking change to the public API
-- [x] `iai-callgrind` instruction-count benches exist for the hot `gen_*_v0` paths with a committed
+- Crate version is >= 1.0.0 and follows strict SemVer
+- `cargo-semver-checks` runs in CI against the last published release and fails on an unsanctioned
+    breaking change to the public API
+- `iai-callgrind` instruction-count benches exist for the hot `gen_*_v0` paths with a committed
     baseline
-- [x] CI fails when any benchmarked path regresses > 10% vs the baseline
-- [ ] Conformance vectors still pass (output backward compatibility)
+- CI fails when any benchmarked path regresses > 10% vs the baseline
+- Conformance vectors still pass (output backward compatibility)

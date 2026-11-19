@@ -124,11 +124,11 @@ Build-flag + Cargo-feature change only, no source changes: conformance output is
 
 **Verified when:**
 
-- [x] Release workflow builds `@iscc/wasm` with `simd128` enabled
+- Release workflow builds `@iscc/wasm` with `simd128` enabled
     (`RUSTFLAGS="-C target-feature=+simd128"`) for all published targets
-- [x] `wasm-opt` flags in `crates/iscc-wasm/Cargo.toml` include `--enable-simd`
-- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` passes on the SIMD build
-- [x] Published `.wasm` binary contains SIMD instructions — the backend is definitively wired in
+- `wasm-opt` flags in `crates/iscc-wasm/Cargo.toml` include `--enable-simd`
+- `wasm-pack test --node crates/iscc-wasm --features conformance` passes on the SIMD build
+- Published `.wasm` binary contains SIMD instructions — the backend is definitively wired in
     (`cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"` shows blake3's
     `wasm32_simd` feature, so `Platform::detect()` returns `WASM32_SIMD` at compile time), and the
     release `.wasm` disassembly shows `v128` opcodes (`wasm-tools print`: 5370, up from 1993 before
@@ -171,14 +171,13 @@ wasm:
 
 ## Verification Criteria
 
-- [ ] `wasm-pack test --node` passes all conformance vectors
-- [ ] All 35 Tier 1 symbols accessible from JavaScript/TypeScript
-- [ ] Package builds with `wasm-pack build`
-- [ ] `DataHasher` and `InstanceHasher` streaming types work in WASM
-- [x] `SumHasher` streaming type works in WASM (single-pass ISCC-SUM, output matches two-hasher
-    pattern)
-- [ ] TypeScript declarations provide accurate type information
-- [ ] Package installs cleanly via `npm install @iscc/wasm`
-- [ ] Works in browser environments (no Node.js-specific APIs)
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
-- [ ] Per-crate README renders correctly on npmjs.com
+- `wasm-pack test --node` passes all conformance vectors
+- All 35 Tier 1 symbols accessible from JavaScript/TypeScript
+- Package builds with `wasm-pack build`
+- `DataHasher` and `InstanceHasher` streaming types work in WASM
+- `SumHasher` streaming type works in WASM (single-pass ISCC-SUM, output matches two-hasher pattern)
+- TypeScript declarations provide accurate type information
+- Package installs cleanly via `npm install @iscc/wasm`
+- Works in browser environments (no Node.js-specific APIs)
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- Per-crate README renders correctly on npmjs.com

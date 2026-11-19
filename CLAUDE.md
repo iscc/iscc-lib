@@ -23,10 +23,10 @@ This project uses two development modes that share the same codebase and context
     and measured) and writes everything else as proposals for the human. A sixth role, **audit**,
     runs after every 10th completed iteration (or via `mise run cid:audit`): a whole-codebase
     maintainability audit that reads metric trends, sweeps for debt (duplication, drift, dead code,
-    gate latency) with a parallel finder/verify workflow, and files at most 5 evidence-backed issues
-    — the runner reverts any audit commit that touches anything beyond issues.md and its own memory.
-    CID agents get their context through `@` references in their agent definitions — they do not
-    rely on this section.
+    gate latency, stale guidance) with a parallel finder/verify workflow, and files at most 5
+    evidence-backed issues — the runner reverts any audit commit that touches anything beyond
+    issues.md and its own memory. CID agents get their context through their context packs (see
+    below) — they do not rely on this section.
 
 ### Branching model
 
@@ -126,10 +126,15 @@ foundation — adapt and extend rather than rewriting from Python. Available via
 
 ## Architecture
 
-Detailed design is in `notes/00-overview.md` and sub-documents (01-09). Consult these when making
+`.claude/context/target.md` and the specs under `.claude/context/specs/` say what the project must
+be, and each crate and package has a `CLAUDE.md` for its local conventions. Read those when making
 design decisions — don't guess.
 
-| Document                               | When to consult                        |
+`notes/` (00-09) is the original design record from the project's start. It explains why the
+architecture looks the way it does, but it is not kept current: where it differs from the target,
+the specs or the code, they win. Do not update `notes/` in sweeps.
+
+| Document                               | Background on                          |
 | -------------------------------------- | -------------------------------------- |
 | `notes/00-overview.md`                 | Starting point, key decisions, tooling |
 | `notes/01-workspace-structure.md`      | Creating crates, workspace config      |

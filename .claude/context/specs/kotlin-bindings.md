@@ -262,20 +262,20 @@ Uses the existing Sonatype/Maven Central credentials from the Java/JNI publishin
 
 ## Verification Criteria
 
-- [ ] Kotlin tests pass conformance vectors on JVM target
-- [ ] Published to Maven Central as `io.iscc:iscc-lib-kotlin`
-- [ ] All 10 `gen_*_v0` functions return correct data classes
-- [ ] All 35 Tier 1 symbols accessible from Kotlin
-- [ ] Native libraries bundled for 5 desktop platforms (linux-x86-64, linux-aarch64, darwin-aarch64,
+- Kotlin tests pass conformance vectors on JVM target
+- Published to Maven Central as `io.iscc:iscc-lib-kotlin`
+- All 10 `gen_*_v0` functions return correct data classes
+- All 35 Tier 1 symbols accessible from Kotlin
+- Native libraries bundled for 5 desktop platforms (linux-x86-64, linux-aarch64, darwin-aarch64,
     darwin-x86-64, win32-x86-64)
-- [ ] Native libraries bundled for Android ABIs (arm64-v8a, armeabi-v7a, x86_64)
-- [ ] Android app can add Maven dependency and call ISCC functions without manual native lib setup
-- [ ] `DataHasher` / `InstanceHasher` work with `use { }` blocks (AutoCloseable)
-- [ ] Nullable types used for optional parameters
-- [ ] API uses Kotlin conventions: `camelCase`, data classes, null safety
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
-- [ ] `conformanceSelftest()` returns `true`
-- [ ] UniFFI scaffolding crate shared with Swift (no duplication)
-- [ ] The supported consumer Kotlin floor (2.3+) is stated in `packages/kotlin/README.md`,
+- Native libraries bundled for Android ABIs (arm64-v8a, armeabi-v7a, x86_64)
+- Android app can add Maven dependency and call ISCC functions without manual native lib setup
+- `DataHasher` / `InstanceHasher` work with `use { }` blocks (AutoCloseable)
+- Nullable types used for optional parameters
+- API uses Kotlin conventions: `camelCase`, data classes, null safety
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- `conformanceSelftest()` returns `true`
+- UniFFI scaffolding crate shared with Swift (no duplication)
+- The supported consumer Kotlin floor (2.3+) is stated in `packages/kotlin/README.md`,
     `docs/howto/kotlin.md`, and the root README Kotlin section, and matches the metadata version the
     declared `kotlin("jvm")` compiler produces

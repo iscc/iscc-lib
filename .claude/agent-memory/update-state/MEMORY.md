@@ -28,8 +28,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     (163).
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` both import
     under `uv run python` (check `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` mtime — stale
-    `.so` measures the previous commit). `uv run --with iscc-core` = live IDv1 oracle. →
-    `archive/unicode-contract.md`.
+    `.so` measures the previous commit). `uv run --with iscc-core` = live IDv1 oracle.
 - **Issue headers**: `grep -nE '^## ' issues.md`. **Trace a dep**: `cargo tree -i <crate>`. **Specs
     live at `.claude/context/specs/`, NOT `specs/`** — `git diff -- specs/` is empty for ANY commit
     and silently looks like "no spec change" (near-miss 144).
@@ -58,8 +57,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     toggle). `specs/ci-cd.md` job table EXHAUSTIVE since 163 (rows==keys, gated); prose counts
     unpinned (HAND edit).
 - **Unicode freeze REMOVED 2026-07-30** (decisions.md): no pin, no sweep gate, no boundary fixture —
-    `text_clean`/`text_collapse` use the dependencies' tables. `archive/unicode-contract.md` is
-    history.
+    `text_clean`/`text_collapse` use the dependencies' tables.
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`),
     gated. `streaming.rs`: `DataHasher`/`InstanceHasher` at crate root, `SumHasher` via
     `streaming::` only. iscc-wasm `blake3 wasm32_simd` = feature-unification, don't prune. `iscc-py`

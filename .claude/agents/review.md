@@ -101,7 +101,8 @@ context limits: run this protocol through to the push step.
     - **Correctness**: Does it do what next.md asked? Are edge cases handled?
     - **Conformance**: If applicable, do outputs match iscc-core reference?
     - **Simplicity**: Is the code as simple as it can be? No over-engineering?
-    - **Architecture**: Consistent with `notes/` design documents? No regressions?
+    - **Architecture**: Consistent with target.md, the specs and the crate's `CLAUDE.md`? No
+        regressions? (`notes/` is the original design record and is not kept current.)
     - **Tests**: Adequate coverage? Using real data, not mocks?
     - **Dead code**: Any unused functions, imports, or commented-out code?
     - **Technical debt**: Any shortcuts that should be addressed soon?
@@ -148,7 +149,9 @@ context limits: run this protocol through to the push step.
     `decisions.md` and `decisions-archive.md`, because rotation is a budget mechanism and carries
     no verdict about relevance. If a decision covers it, that decision is the answer — do not
     re-open it, re-derive it, or file an issue that re-litigates it. Re-opening a settled call
-    needs a new fact, and then the entry gets superseded by a new dated one that says so.
+    needs a new fact, and then the entry gets superseded by a new dated one that says so. Delete
+    the superseded entry in the same commit, from `decisions.md` or from the archive, so the title
+    list never shows both. Git history keeps it.
 
 7. **Manage issues** — scan issues.md for resolved entries AND manage new issues.
 
@@ -157,7 +160,7 @@ context limits: run this protocol through to the push step.
     growing unbounded is what previously turned the loop into a to-do list executor:
 
     - **40 lines per entry, maximum.** If a problem genuinely needs more explanation than that, the
-        explanation belongs in a `notes/` document or a decisions.md entry that the issue links to.
+        explanation belongs in a decisions.md entry or a spec section that the issue links to.
     - **Never record progress in an entry.** No "✅ slice 3 done (iter 157)", no per-iteration
         checklist, no plan of remaining sub-steps. Git history already records what was done, and a
         step queue inside an issue removes the choice define-next is supposed to make — with a queue
@@ -252,6 +255,8 @@ context limits: run this protocol through to the push step.
 
     ```
     git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/issues.md .claude/context/decisions.md .claude/agent-memory/review/MEMORY.md <any fixed files>
+    # If you deleted a superseded entry from the archive:
+    git add .claude/context/decisions-archive.md
     # If a human-sourced spec issue was resolved:
     git add .claude/context/target.md  # or affected sub-spec file
     git commit -m "cid(review): <summary of findings>"
@@ -390,7 +395,7 @@ If you find serious problems, prepend this to handoff.md:
 
 Use this when:
 
-- Architecture deviates from what's in `notes/`
+- Architecture deviates from target.md or the specs
 - Tests are failing and the fix is non-obvious
 - The advance agent went significantly out of scope
 - A design decision should be validated by the project owner

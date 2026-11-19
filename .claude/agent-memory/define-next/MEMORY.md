@@ -108,7 +108,7 @@ a defect class); next = Ruby Bignum, uv.lock alerts, Python docstrings, then rem
 - **Unicode chain (147–161) — REMOVED 2026-07-30 by the human (decisions.md); history only**:
     sentinel freeze, `Final_Sigma` freeze, `mise run unicode:sweep` gate, boundary vectors on all 11
     surfaces; never revive the superseded category override or a 15.1.0 declared version. A 13th
-    vector costs 12 suites — any fixture edit is its own slice. Details → `archive/` (history only).
+    vector costs 12 suites — any fixture edit is its own slice. Details are in git history only.
 - **Gate/checker steps in `scripts/`** → [gate scripts playbook](gate-scripts-playbook.md) +
     [release.yml static gates](release-yml-static-gates.md) (split behavioural from mechanical in
     the CI-unexercised `release.yml`, 139/140).

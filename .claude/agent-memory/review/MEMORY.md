@@ -4,8 +4,8 @@ Concise index — **one line per entry, detail belongs in a topic file.** `revie
 verification, claim-probing, gate scripts, parity gates), `gate-reviews.md` (CI +
 Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`; JNI CLOSED 33/33 at
 169), `dep-refresh-reviews.md` (v0.6.0 slices COMPLETE at 172 + framework/wrapper/lockfile/ regen
-majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integration.md`;
-removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
+majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integration.md`; Stale →
+`MEMORY-archive.md`.
 
 ## Quality Gate Details
 

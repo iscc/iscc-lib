@@ -7,7 +7,8 @@ It exists to keep agent prompts small, stable, and unambiguous.
 
 - **Small**: keep each file concise; move deep details into `specs/` (or the codebase) and link.
 - **Self-describing**: every file should make it clear *who updates it* and *how*.
-- **Mechanically checkable**: prefer checklists, counts, and commands over prose.
+- **Mechanically checkable**: prefer commands and checks over prose. A count or a file list is
+    written only where a script verifies it.
 - **Stable anchors**: avoid renaming headings that other files link to.
 
 ## Files (ownership + update policy)
@@ -87,5 +88,16 @@ Each iteration's output is the next one's input, so unchecked growth compounds. 
 - **Issues are defects, not a queue**: “what is wrong + where + how to verify”, then deleted. No
     progress logs — git history already has them, and a step queue inside an issue removes the gap
     analysis `define-next` exists to perform.
+- **Specs carry no status**: no checkboxes in `target.md` or `specs/`. `state.md` is the only record
+    of what is met.
+- **Derived facts are checked or not written**: a count, file list or symbol list that repeats what
+    the code already says needs a parity check (like the docs page-list and CI job-table hooks) or
+    it does not belong in guidance. Write "all Tier 1 functions", not a number.
+- **Retire, don't accumulate**: a decision that a later decision reverses is deleted, not kept
+    beside it. Requirements of a shipped milestone shrink to a pointer to the test that enforces
+    them (release skill, step 7.3). Agent memory holds what changes future work, not a record of
+    past work. Git history keeps everything that is removed.
+- **`notes/` is the original design record**: it is not kept current and loses to `target.md`,
+    `specs/` and the code wherever they differ.
 - **Log rotation** (optional): when `iterations.jsonl` becomes large, split by month into an
     `archive/` directory and keep only the recent window here.

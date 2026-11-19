@@ -452,82 +452,80 @@ API impact). A dependency deliberately held back gets a documented reason next t
 
 **Verified when:**
 
-- [ ] No dependency in any manifest above lags its latest stable release by a major version without
-    a documented hold-back reason
-- [ ] Lockfiles (`Cargo.lock`, `uv.lock`, `Gemfile.lock`) are regenerated on the refreshed set
-- [ ] All CI quality gates and conformance suites pass on the refreshed set
+- No dependency in any manifest above lags its latest stable release by a major version without a
+    documented hold-back reason
+- Lockfiles (`Cargo.lock`, `uv.lock`, `Gemfile.lock`) are regenerated on the refreshed set
+- All CI quality gates and conformance suites pass on the refreshed set
 
 ## Verification Criteria
 
 ### CI
 
-- [x] All quality gate jobs run on push to `main`/`develop` and on PRs to `main`
-- [x] Rust job checks fmt, clippy (workspace-wide), and tests
-- [x] Python job checks ruff and runs pytest
-- [x] Node.js job builds napi addon and runs tests
-- [x] WASM job runs wasm-pack tests
-- [x] C FFI job generates headers, compiles, and runs C test program
-- [x] Java job builds JNI crate and runs Maven tests
-- [x] Go job runs CGO_ENABLED=0 go test and go vet (pure Go, no Rust toolchain)
-- [ ] Ruby job compiles native extension and runs conformance tests
-- [x] Version job runs scripts/version_sync.py --check for manifest consistency
-- [x] Bench job runs cargo bench --no-run for compile-only benchmark verification
-- [x] CI does not use `mise` — calls tools directly
-- [x] Coverage job generates and uploads an LCOV report for `iscc-lib` via `cargo llvm-cov` (Phase
-    1\)
-- [x] CRAP job runs `cargo crap` in report-only mode with `--format github` annotations and uploads
+- All quality gate jobs run on push to `main`/`develop` and on PRs to `main`
+- Rust job checks fmt, clippy (workspace-wide), and tests
+- Python job checks ruff and runs pytest
+- Node.js job builds napi addon and runs tests
+- WASM job runs wasm-pack tests
+- C FFI job generates headers, compiles, and runs C test program
+- Java job builds JNI crate and runs Maven tests
+- Go job runs CGO_ENABLED=0 go test and go vet (pure Go, no Rust toolchain)
+- Ruby job compiles native extension and runs conformance tests
+- Version job runs scripts/version_sync.py --check for manifest consistency
+- Bench job runs cargo bench --no-run for compile-only benchmark verification
+- CI does not use `mise` — calls tools directly
+- Coverage job generates and uploads an LCOV report for `iscc-lib` via `cargo llvm-cov` (Phase 1)
+- CRAP job runs `cargo crap` in report-only mode with `--format github` annotations and uploads
     SARIF to GitHub Code Scanning (Phase 2)
-- [x] CRAP job fails on CRAP-score regression vs the committed `.crap-baseline.json`
+- CRAP job fails on CRAP-score regression vs the committed `.crap-baseline.json`
     (`--fail-regression --baseline`), refreshed via `mise run crap:baseline` in a reviewed commit
     (Phase 3)
-- [x] `cargo-crap` is pinned to a specific version and installed via `cargo binstall`
-- [x] `.cargo-crap.toml` configures threshold, excluded binding crates, and missing-coverage policy
-- [x] `mise run coverage` and `mise run crap` reproduce the gate locally
-- [x] Semver job runs `cargo semver-checks` for `iscc-lib` against the last published release
+- `cargo-crap` is pinned to a specific version and installed via `cargo binstall`
+- `.cargo-crap.toml` configures threshold, excluded binding crates, and missing-coverage policy
+- `mise run coverage` and `mise run crap` reproduce the gate locally
+- Semver job runs `cargo semver-checks` for `iscc-lib` against the last published release
     (informational pre-1.0 via `continue-on-error`; enforcing from v1.0.0)
-- [x] Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the
+- Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the
     committed baseline; baseline refreshes are reviewed commits
-- [x] CRAP job also fails via `--fail-above` on any function (including new/renamed entries absent
-    from the baseline) whose CRAP score exceeds the `.cargo-crap.toml` `threshold` (30), closing the
+- CRAP job also fails via `--fail-above` on any function (including new/renamed entries absent from
+    the baseline) whose CRAP score exceeds the `.cargo-crap.toml` `threshold` (30), closing the
     regression-only blind spot
-- [x] Audit job runs `cargo deny check` (advisories + bans + licenses) over the workspace via a root
+- Audit job runs `cargo deny check` (advisories + bans + licenses) over the workspace via a root
     `deny.toml`, failing CI on a flagged advisory, banned/duplicate crate, or disallowed license;
     `mise run audit` reproduces it locally
 
 ### Release
 
-- [x] `workflow_dispatch` trigger with boolean inputs for each registry (crates-io, pypi, npm,
-    maven)
-- [x] `workflow_dispatch` with `version` runs every registry chain and creates the release tags; a
-    tag push does not trigger the workflow
-- [x] `workflow_dispatch` with only `pypi: true` builds and publishes only Python wheels
-- [x] `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
-- [x] `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
-- [x] `workflow_dispatch` with only `maven: true` builds and publishes only to Maven Central
-- [ ] `workflow_dispatch` with only `rubygems: true` builds and publishes only to RubyGems
-- [x] `workflow_dispatch` with only `nuget: true` builds and publishes only to NuGet
-- [x] Each registry's jobs are independent — failure in one does not block others
-- [x] crates.io uses OIDC trusted publishing (no API key secret)
-- [x] PyPI uses OIDC trusted publishing (no API key secret)
-- [x] npm uses OIDC trusted publishing (no `NPM_TOKEN` secret)
-- [x] Maven Central uses GPG signing + Sonatype Central Portal credentials
-- [ ] RubyGems uses OIDC trusted publishing (or `GEM_HOST_API_KEY` fallback)
-- [x] NuGet uses scoped API key (`NUGET_API_KEY` secret)
-- [x] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
-- [ ] Python wheel matrix includes manylinux aarch64, built on a native ARM runner
-    (`ubuntu-24.04-arm`) and install-/import-tested on ARM before publish (see Build Matrices; plan:
+- `workflow_dispatch` trigger with boolean inputs for each registry (crates-io, pypi, npm, maven)
+- `workflow_dispatch` with `version` runs every registry chain and creates the release tags; a tag
+    push does not trigger the workflow
+- `workflow_dispatch` with only `pypi: true` builds and publishes only Python wheels
+- `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
+- `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
+- `workflow_dispatch` with only `maven: true` builds and publishes only to Maven Central
+- `workflow_dispatch` with only `rubygems: true` builds and publishes only to RubyGems
+- `workflow_dispatch` with only `nuget: true` builds and publishes only to NuGet
+- Each registry's jobs are independent — failure in one does not block others
+- crates.io uses OIDC trusted publishing (no API key secret)
+- PyPI uses OIDC trusted publishing (no API key secret)
+- npm uses OIDC trusted publishing (no `NPM_TOKEN` secret)
+- Maven Central uses GPG signing + Sonatype Central Portal credentials
+- RubyGems uses OIDC trusted publishing (or `GEM_HOST_API_KEY` fallback)
+- NuGet uses scoped API key (`NUGET_API_KEY` secret)
+- Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
+- Python wheel matrix includes manylinux aarch64, built on a native ARM runner (`ubuntu-24.04-arm`)
+    and install-/import-tested on ARM before publish (see Build Matrices; plan:
     `.claude/plans/restore-linux-aarch64-python-wheels.md`)
-- [x] Java JAR bundles 5-platform native libraries under `META-INF/native/`
-- [ ] Ruby precompiled gems available for 5 platforms (Linux x86_64/aarch64, macOS x86_64/arm64,
-    Windows x64)
-- [x] Publishing an existing version skips gracefully instead of failing
-- [x] All build artifacts uploaded via `actions/upload-artifact@v4`
+- Java JAR bundles 5-platform native libraries under `META-INF/native/`
+- Ruby precompiled gems available for 5 platforms (Linux x86_64/aarch64, macOS x86_64/arm64, Windows
+    x64)
+- Publishing an existing version skips gracefully instead of failing
+- All build artifacts uploaded via `actions/upload-artifact@v4`
 
 ### Version Sync
 
-- [x] Version defined once in root `Cargo.toml` `[workspace.package]`
-- [x] All Cargo crates inherit version via `version.workspace = true`
-- [x] Python version derived automatically via maturin `dynamic = ["version"]`
-- [x] WASM version synced automatically via CI script in release.yml
-- [x] `mise run version:sync` updates all 9 sync targets (manifests, docs, scripts)
-- [x] `mise run version:check` validates all targets match (run in CI on every push)
+- Version defined once in root `Cargo.toml` `[workspace.package]`
+- All Cargo crates inherit version via `version.workspace = true`
+- Python version derived automatically via maturin `dynamic = ["version"]`
+- WASM version synced automatically via CI script in release.yml
+- `mise run version:sync` updates all 9 sync targets (manifests, docs, scripts)
+- `mise run version:check` validates all targets match (run in CI on every push)

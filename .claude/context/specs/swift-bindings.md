@@ -417,29 +417,29 @@ Release asset (uses existing `contents: write` permission).
 
 ## Verification Criteria
 
-- [ ] `swift test` passes conformance vectors (CI, development Package.swift)
-- [ ] Package resolves via SPM from Git tag using `.binaryTarget` (no Rust toolchain needed)
-- [ ] All 10 `gen_*_v0` functions accessible with idiomatic Swift types
-- [ ] All 35 Tier 1 symbols accessible from Swift
-- [ ] XCFramework bundles static libraries for macOS (arm64 + x86_64), iOS device (arm64), iOS
-    simulator (arm64 + x86_64)
-- [ ] Root `Package.swift` uses variable toggle (`useLocalFramework`) with `releaseTag` +
+- `swift test` passes conformance vectors (CI, development Package.swift)
+- Package resolves via SPM from Git tag using `.binaryTarget` (no Rust toolchain needed)
+- All 10 `gen_*_v0` functions accessible with idiomatic Swift types
+- All 35 Tier 1 symbols accessible from Swift
+- XCFramework bundles static libraries for macOS (arm64 + x86_64), iOS device (arm64), iOS simulator
+    (arm64 + x86_64)
+- Root `Package.swift` uses variable toggle (`useLocalFramework`) with `releaseTag` +
     `releaseChecksum` for remote mode
-- [ ] XCFramework build cached by `actions/cache` — cache hit skips native compilation
-- [ ] Cache key covers `crates/iscc-uniffi/**`, `crates/iscc-lib/**`, `Cargo.lock`
-- [ ] `build_xcframework.sh` script works on local macOS and in CI
-- [ ] XCFramework zip uploaded as GitHub Release asset named `IsccLib.xcframework.zip`
-- [ ] Release workflow force-updates tag after updating checksum in `Package.swift`
-- [ ] Release workflow includes `swift` checkbox in `workflow_dispatch` inputs
-- [ ] `swift package compute-checksum` used for checksum (not raw sha256sum)
-- [ ] `ditto -c -k --sequesterRsrc --keepParent` used for zipping
-- [ ] `DataHasher` / `InstanceHasher` streaming types work correctly
-- [ ] `throws` error handling works for fallible functions
-- [ ] Binary data uses Swift `Data` type
-- [ ] `swiftformat --lint` passes
-- [ ] Swift CI runs on macOS runner (`macos-15`)
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
-- [ ] `conformanceSelftest()` returns `true`
+- XCFramework build cached by `actions/cache` — cache hit skips native compilation
+- Cache key covers `crates/iscc-uniffi/**`, `crates/iscc-lib/**`, `Cargo.lock`
+- `build_xcframework.sh` script works on local macOS and in CI
+- XCFramework zip uploaded as GitHub Release asset named `IsccLib.xcframework.zip`
+- Release workflow force-updates tag after updating checksum in `Package.swift`
+- Release workflow includes `swift` checkbox in `workflow_dispatch` inputs
+- `swift package compute-checksum` used for checksum (not raw sha256sum)
+- `ditto -c -k --sequesterRsrc --keepParent` used for zipping
+- `DataHasher` / `InstanceHasher` streaming types work correctly
+- `throws` error handling works for fallible functions
+- Binary data uses Swift `Data` type
+- `swiftformat --lint` passes
+- Swift CI runs on macOS runner (`macos-15`)
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- `conformanceSelftest()` returns `true`
 
 ## Reference Projects
 

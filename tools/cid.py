@@ -85,6 +85,11 @@ AUDIT_OK = frozenset(p.as_posix() for p in (ISSUES_FILE, METRICS_FILE))
 # so a meta change can never defer its own evaluation indefinitely.
 META_WINDOW_CAP = 10
 HUMAN_REVIEW_MARKER = "**HUMAN REVIEW REQUESTED**"
+
+# Verdict of an iteration that stopped because a role failed. It keeps the
+# iteration_summary series free of gaps, and the meta-rollback metrics count it as
+# rework so a change that makes roles crash registers as a regression.
+FAILED_VERDICT = "FAILED"
 IDLE_MARKER = "**IDLE**"
 VERDICT_MARKER = "**Verdict:**"
 
@@ -369,12 +374,14 @@ def parse_verdict(cwd):
     return None
 
 
-def append_iteration_summary(cwd, iteration, over_budget=None):
+def append_iteration_summary(cwd, iteration, over_budget=None, verdict=None):
     """Append a clean per-iteration summary row aggregating this iteration's roles.
 
     Provides a stable metric series (verdict + totals + artifact sizes) for
     meta-improve to evaluate. Recording the overruns makes artifact growth a
     first-class trend rather than something only visible by diffing the files.
+    Pass `verdict` when the handoff cannot supply it: after a failed role the
+    handoff still carries the previous iteration's verdict.
     """
     rows = [
         e
@@ -385,7 +392,7 @@ def append_iteration_summary(cwd, iteration, over_budget=None):
         "ts": datetime.now(timezone.utc).isoformat(),
         "type": "iteration_summary",
         "iteration": iteration,
-        "verdict": parse_verdict(cwd) or "UNKNOWN",
+        "verdict": verdict or parse_verdict(cwd) or "UNKNOWN",
         "turns_total": sum(_num(e, "turns") for e in rows),
         "cost_total": round(sum(_num(e, "cost_usd") for e in rows), 6),
         "duration_total": round(sum(_num(e, "duration_s") for e in rows), 1),
@@ -794,12 +801,18 @@ def _verdict_series(cwd):
 
 
 def _window_metrics(series, lo, hi):
-    """Compute (needs_work_rate, median_turns) over iterations in (lo, hi]."""
+    """Compute (needs_work_rate, median_turns) over iterations in (lo, hi].
+
+    A failed iteration counts as rework in the rate and is left out of the median.
+    """
     rows = [t for t in series if lo < t[0] <= hi]
     if not rows:
         return None
-    nw = sum(1 for _, v, _ in rows if v == "NEEDS_WORK") / len(rows)
-    turns = sorted(t[2] for t in rows)
+    nw = sum(1 for _, v, _ in rows if v in ("NEEDS_WORK", FAILED_VERDICT)) / len(rows)
+    # A failed iteration stopped early, so its turn count says nothing about effort.
+    turns = sorted(t[2] for t in rows if t[1] != FAILED_VERDICT)
+    if not turns:
+        return nw, 0
     mid = len(turns) // 2
     median = turns[mid] if len(turns) % 2 else (turns[mid - 1] + turns[mid]) / 2
     return nw, median
@@ -1414,8 +1427,8 @@ def run_iteration(
 
     Returns 'done' if the project reached target, 'idle' if no actionable work remains,
     'ok' if iteration succeeded, 'pause' if human review was requested, or 'fail' if a
-    role failed. Always records an iteration summary and commits the log on a
-    completed iteration.
+    role failed. Records an iteration summary (verdict FAILED when a role failed) and
+    commits the log.
     """
     result = "ok"
     for role in ROLES:
@@ -1445,7 +1458,9 @@ def run_iteration(
             result = "done"
             break
 
-    if result not in ("fail", "done"):
+    if result == "fail":
+        append_iteration_summary(cwd, iteration, verdict=FAILED_VERDICT)
+    elif result != "done":
         result = _classify_outcome(cwd)
         append_iteration_summary(cwd, iteration, enforce_artifact_budgets(cwd))
 

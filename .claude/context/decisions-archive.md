@@ -153,25 +153,6 @@ of consumer reach does not justify a soft hold-back plus its own verification st
 interactive session with Titusz, 2026-07-25, resolving the `[review]` issue filed at iter 128
 (empirical matrix: 2.1.10 FAIL, 2.2.21 FAIL, 2.3.21 PASS).
 
-## 2026-07-25 — Unicode data version is declared and gated, not chased
-
-**Decision:** the project **declares an explicit Unicode data version in `specs/rust-core.md`** and
-enforces it with conformance vectors covering post-Unicode-15 code points, rather than pinning the
-Rust core to whatever Unicode version the reference implementation happens to use. The concrete
-version (15.1.0 vs 16.0.0) is decided by a follow-up measurement step that reports the cost of each
-candidate; the policy — declare + gate — is settled now. **Why:** `iscc-core` inherits CPython's
-`unicodedata` tables, so the reference itself emits different ISCCs on 3.13 (Unicode 15.1) and 3.14
-(Unicode 16) for the same input. There is no stable target to chase: matching the reference today
-means re-pinning tomorrow, and the Rust/Go alignment inverts again when Go 1.27 lands. Declaring a
-version converts an invisible, undetected divergence (5,813 disagreeing code points, no gate) into a
-stated contract that CI enforces in all 12 bindings. **Alternatives:** pin the Rust core to the
-reference's current version — rejected: needs an older `unicode-general-category` or a vendored
-category table, forces a re-pin on every reference runtime change, and still leaves the drift
-ungated; document the divergence as out-of-contract — rejected: weakens the project's central
-"output matching iscc-core" claim for real-world text (newly assigned scripts and emoji) and adds no
-gate, so the next drift is again silent. **Context:** interactive session with Titusz, 2026-07-25,
-resolving the `[review]` issue filed at iter 129.
-
 ## 2026-07-25 — The unpinned Unicode version is raised upstream with iscc/iscc-core
 
 **Decision:** file a GitHub issue on `iscc/iscc-core` reporting that ISO 24138 pins no Unicode data
@@ -184,58 +165,6 @@ U+A7CB). **Alternatives:** settle our own position first and file a proposal —
 two slow decisions where the upstream input is most useful before ours is fixed; keep it local —
 rejected: leaves the reference non-deterministic and the spec gap unrecorded. **Context:**
 interactive session with Titusz, 2026-07-25.
-
-## 2026-07-25 — Unicode data version 16.0.0 with a freeze rule
-
-**Decision:** the declared Unicode data version is **16.0.0** (CPython 3.14's tables), combined with
-a **freeze rule**: code points unassigned in Unicode 16.0.0 are removed before any normalization or
-category lookup in `text_clean`/`text_collapse`, via a vendored table of 731 unassigned ranges.
-Runtimes with older tables get real 16.0 data (`iscc-core` adds
-`unicodedata2==16.0.0; python_version < '3.14'`, wheels cover cp39–cp313); runtimes with newer
-tables need nothing, ever — the freeze rule strips post-16 characters regardless of what the runtime
-ships, and normalization drift is impossible because removal precedes normalization. **Why:**
-measurements showed all table drift between 15.1, 16 and 17 comes from newly assigned code points
-(5,185 + 4,803 category changes, 56 + 1 normalization changes, zero changes to existing characters),
-so stripping the frozen unassigned set makes output permanently version-independent with zero
-ongoing maintenance — while pinning 16.0 as the baseline keeps modern coverage (Unicode 16 emoji,
-CJK Ext I) and matches current CPython natively. The backward-compat glitch (inputs with 15.1→16
-characters hash differently than on CPython ≤ 3.13 historically) is accepted; codes stay
-hamming-close. **Alternatives:** pin 15.1 everywhere — rejected: `unicodedata2==15.1.0` has no
-wheels past cp312 (old releases never gain new wheels), no Rust crate carries 15.1 category tables,
-and Go stdlib tables cannot be pinned at all; freeze at 15.1 without the 16 baseline — rejected:
-gives up Unicode 15.1/16 additions already in real-world use for no extra safety; pin 16 without the
-freeze rule — rejected: forces a coordinated re-pin at every future Unicode release (next: CPython
-3.15 / go1.27 ship Unicode 17 in 2026) with a permanent `unicodedata2` treadmill. Precedent:
-IDNA2003 froze at Unicode 3.2. **Context:** interactive session with Titusz, 2026-07-25 — compromise
-proposed by Titusz after comparing pin-old/pin-new/freeze options; supersedes the open version
-question in the 2026-07-25 "declared and gated, not chased" entry.
-
-## 2026-07-25 — The freeze rule's pre-normalization ordering is kept despite sequence divergence
-
-**Decision:** accept the iter-133 implementation of the Unicode 16.0.0 freeze rule (strip
-16.0-unassigned code points *before* normalization in `text_clean`/`text_collapse`) even though the
-review measured a new class of divergence from `iscc-core` that the decision record did not
-anticipate: because removal happens before normalization, it changes character *adjacency* and
-unblocks contextual transforms the reference still blocks — canonical composition
-(`text_clean("e\u{0378}\u{0301}")` → `U+00E9` vs `U+0065 U+0301`), Hangul jamo composition, and
-Rust's `Final_Sigma` lowercasing in `text_collapse` (`…σ…` vs `…ς…`). The divergence is independent
-of Unicode table version: it persists when both sides run 16.0 data. **Why:** the alternative —
-removing unassigned code points *after* normalization, as `iscc-core` does — reintroduces exactly
-the normalization drift the freeze rule exists to eliminate (measured 16→17: U+A7F1 NFKC-maps to `S`
-before any category filter can drop it), so pre-normalization removal is the only ordering that
-delivers table-version invariance. The affected inputs require an unassigned code point wedged
-between a base and a combining mark / jamo / cased letter, which no natural text produces, and the
-divergence disappears once `iscc-core` adopts the same ordering — which is what the upstream
-proposal asks for. **Alternatives:** revert to post-normalization removal — rejected, defeats the
-purpose of the rule; strip before normalization but re-insert a blocking sentinel (e.g. U+034F
-COMBINING GRAPHEME JOINER) — rejected as a novel, unspecified behaviour that would itself have to be
-mirrored by every implementation; block the merge pending a human ruling — rejected, the
-implementation matches the approved spec exactly and the open question is spec *wording*, not code.
-**Consequence:** spec criterion 4's "output-equivalent to uniform Unicode 16.0.0 tables" is false as
-literally worded (a per-code-point sweep cannot see this class), and the accepted-divergence
-paragraph does not cover it. Both are filed as a `normal` `[review]` issue with HUMAN REVIEW
-REQUESTED, to be settled before boundary vectors are wired into the bindings. **Context:** CID
-iteration 133 review.
 
 ## 2026-07-25 — Ruff `S`/`C901` enter the default select; the two pre-push hooks stay as redundancy
 
@@ -357,35 +286,6 @@ checks that stand in for a run are currently re-typed by hand each iteration; la
 `scripts/` gate is filed as a `[review]` issue. **Context:** CID iteration 140 (`ed2a06a`) review,
 closing the `release.yml` remainder of the v0.6.0 dependency-refresh issue.
 
-## 2026-07-25 — Unicode 16.0 boundary vectors ship as a second fixture file, duplicating the inline assertions
-
-**Decision:** the declared-Unicode-version boundary vectors live in a new
-`crates/iscc-lib/tests/unicode_boundary.json` + `tests/test_unicode_boundary.rs`, not in the
-vendored `crates/iscc-lib/tests/data.json`; the four equivalent inline assertions in
-`crates/iscc-lib/src/utils.rs` are deliberately **kept**, so the same expectations are asserted
-twice; the fixture covers **single code points only**, no sequences; and `conformance_selftest()`
-was **not** extended to run it. **Why:** `data.json` is a re-vendored upstream artifact whose vector
-counts are hardcoded in Rust core and WASM tests, so merging project-authored vectors into it would
-break the next re-vendor and force count-assert churn in two crates. The inline `utils.rs` tests
-cover the private `is_unassigned_in_unicode16` helper (which the public-API fixture cannot reach)
-and deleting them would move coverage and force a `.crap-baseline.json` refresh in a step that
-otherwise touches no source file. Sequences are excluded because the open `[review]` issue
-"Freeze-rule ordering diverges from iscc-core on sequences" is unresolved — any `base + Cn + mark`,
-`jamo + Cn + jamo` or `Σ + Cn + cased` expectation would have to be re-derived after the ruling,
-twice over once the fixture is copied into 11 bindings. `conformance_selftest()` is a Tier 1 symbol
-exposed in all 12 bindings; changing what it runs is an API-semantics decision, not a test-fixture
-decision. **Alternatives:** append the vectors to `data.json` — rejected (re-vendor + count
-asserts); replace the inline assertions with the fixture — rejected (private-helper coverage, CRAP
-baseline churn); include sequence vectors now — rejected (blocked on the parked ruling); extend
-`conformance_selftest()` — rejected, deferred to its own scoped package. **Consequence:** the
-duplication is the specified end state, not debt; a future reader finding the same four code points
-in two places should not "clean up" either copy. Because the vector tests compare the implementation
-against the fixture, the fixture's own content is guarded by an ungated assertion on the exact
-non-ASCII code-point set per section (added in review) — without it a weakened fixture would still
-pass every test. **Context:** CID iteration 141 (`918f8f4`), Rust half of `specs/rust-core.md`
-criterion 3; binding propagation (step b) stays blocked on the ordering ruling and the Go
-Unicode-15.0-tables decision.
-
 ## 2026-07-25 — release.yml artifact matching is a deliberately strict approximation of glob intersection
 
 **Decision:** `references_match` in `scripts/check_release_workflow.py` resolves a
@@ -411,47 +311,6 @@ now stated in the function's docstring. If that day comes the fix is a real inte
 looser skeleton match: a false negative here means a release publishes an artifact that was never
 built. **Context:** CID iteration 142 (`bcb3128`), closing checks 1–2 of the `[review]` issue "Land
 the `release.yml` static checks as an executable gate".
-
-## 2026-07-26 — The public Unicode page scopes its `iscc-core` agreement claim to single code points
-
-**Decision:** `docs/unicode.md` states that CPython 3.14 "agrees with iscc-lib **on the
-single-code-point behaviour described on this page**" and says nothing at all about multi-code-point
-sequences, even though a divergence class there is known and measured. **Why:** the freeze rule
-strips Unicode-16-unassigned code points *before* normalization while `iscc-core` strips them
-*after*, which changes character adjacency and therefore unblocks contextual transforms (canonical
-composition, Hangul jamo composition, `Final_Sigma`) — so an unqualified "3.14 agrees" is provably
-false, and it was published in the first draft of this page (caught in review by both the reviewer
-and the Codex second opinion). The corrective wording had to remove the false claim without
-*asserting* the sequence behaviour, because whether that behaviour is a bug or an accepted deviation
-is an open `HUMAN REVIEW REQUESTED` item (issues.md, "Freeze-rule ordering diverges from iscc-core
-on sequences") whose ruling also decides the upstream proposal's wording. **Alternatives:** document
-the sequence divergence now — rejected, it would publish a user-facing commitment to behaviour
-Titusz has not ruled on, and next.md explicitly excluded it; drop the CPython 3.14 sentence entirely
-— rejected, "3.14 ships 16.0 tables" is the single most useful fact for a Python adopter; leave the
-blanket claim and file an issue — rejected, the page's whole purpose is divergence accuracy.
-**Consequence:** the qualifier is a placeholder. When the ordering ruling lands, this sentence must
-be revisited in the same step — either widened back to an unqualified "agrees" (if the ordering
-changes) or expanded with the accepted sequence delta. **Context:** CID iteration 143 (`5b8b8f8` +
-the review fixup).
-
-## 2026-07-26 — "Practical guidance" quantifies the Unicode 16 delta instead of calling Latin text safe
-
-**Decision:** the page's guidance names the full **5,185** code points assigned in Unicode 16.0 —
-Egyptian Hieroglyph extensions, seven new scripts, 7 emoji and 32 Latin-script additions including
-`U+A7CB` — and limits the "unaffected" promise to ASCII plus the long-established repertoire of
-common scripts. **Why:** the draft (following next.md's Implementation Notes verbatim) claimed
-"ASCII and Latin text is never affected" and characterised the affected set as "realistically the
-seven emoji". Both are false: `U+A7CB` LATIN CAPITAL LETTER RAMS HORN is a Unicode 16 Latin addition
-and is the *exact* character in this project's own recorded Go-vs-Rust divergence reproduction, so
-the page — and the `docs/howto/go.md` note repeating it — told Go users their Latin corpus was safe
-against the one interop failure the project has actually demonstrated. Re-measured in review by
-diffing assigned-set dumps of `unicodedata2` 15.1.0 vs 16.0.0. **Alternatives:** NEEDS_WORK and a
-full define-next/advance cycle — rejected, the defect is two sentences of prose with the correct
-figures already measured, and holding the batch would have kept an otherwise accurate page
-unpublished for two iterations; leave the claim and file an issue — rejected, a false safety claim
-must not reach the published site. **Consequence:** guidance about "which inputs are affected" on
-this page is now numeric and source-checkable; any future edit must re-measure rather than restate.
-**Context:** CID iteration 143, review fixup on top of `5b8b8f8`.
 
 ## 2026-07-26 — The release-workflow action-input gate fails open on transport trouble
 
@@ -494,82 +353,6 @@ entry, a new page on disk, and a ghost page in a list — and that all three mal
 `nav` block, an unimportable `gen_llms_full.py`, a missing `llms.txt`) fail closed with a non-zero
 exit. **Context:** CID iteration 145 (`22c873c`).
 
-## 2026-07-26 — The Unicode 16.0.0 freeze rule is a category override, not a pre-normalization filter
-
-**Decision:** `is_unassigned_in_unicode16` moves out of the pre-normalization pass and into the
-existing category-filter predicate of `text_clean` and `text_collapse`: a code point unassigned in
-Unicode 16.0.0 is **treated as general category `C`** at the step where the reference removes
-category `C`, instead of being stripped before normalization. The vendored 731-range table and its
-generator (`scripts/gen_unicode16_unassigned.py`) are unchanged; only the call site moves. **Why:**
-IEP-0003 (Normative, ISO 24138:2024) defines conformance as pure output-equivalence — "an
-implementation … shall be regarded as conforming … as long as it creates the same Text-Code as the
-reference implementation for the same UTF-8 encoded text input" — not as prose-matching its 5-step
-Processing clause. The pre-normalization filter (iteration 133) therefore was not a wording defect
-but real non-conformance: stripping before NFD/NFKC changes character adjacency, unblocking
-canonical composition, Hangul jamo composition and `Final_Sigma` context that the reference still
-blocks. Crucially this class diverges from **every** reference version including CPython 3.14,
-unlike the single-code-point 15.1→16.0 glitch accepted on 2026-07-25, which resolves once
-`iscc-core` ships Unicode 16 tables — so it would have been permanent non-conformance of
-`text_clean`, `text_collapse`, Meta-Code and Text-Code. Note that `Cn ⊂ C`, so removing unassigned
-code points is already mandated by Processing step 4; iteration 133 moved that removal rather than
-adding one, and the override moves it back. Verified before the ruling that the override reproduces
-the reference exactly on all three known divergent inputs (`text_clean("e͸́")` → `U+0065 U+0301`,
-`text_clean("ᄀ͸ᅡ")` → `U+1100 U+1161`, `text_collapse("ΑΣ͸Β")` → `…U+03C2…`) and on the Cn-free
-controls, while the pre-filter diverges on all three. **Alternatives:** keep the pre-filter and
-accept the divergence, naming the class in the spec and proposing a norm change upstream — rejected
-by Titusz, conformance to the ISO norm is a hard constraint; measure the residual sweep under both
-designs before changing code — rejected as an extra iteration for a change that is strictly cheaper
-and provably conformant; post-normalization removal via the runtime's own tables with no vendored
-table — rejected, that is the table-version dependence the freeze rule exists to remove.
-**Consequence:** exact reference-order conformance and perfect table-version invariance are not
-simultaneously achievable, and this ruling makes conformance the exact property and invariance the
-*measured* one. With the filter after normalization, a post-16.0 code point that carries a
-decomposition under the runtime's tables decomposes before the filter sees it; the canonical/NFD
-side of that residual was measured at exactly 1 code point, the NFKC side is unmeasured. Bounding it
-is now the job of criterion 4 (reworded — see below). Performance and complexity both improve: the
-change deletes one full pass and one `String` allocation from each function and adds one `&&` to a
-predicate that already runs per character, so the iai-callgrind Ir budget should move down, not up.
-**Context:** interactive session 2026-07-26, unblocking the parked issue from CID iteration 133.
-IEP-0003 <https://github.com/iscc/iscc-ieps/blob/main/ieps/iep-0003.md>.
-
-## 2026-07-26 — Criterion 4 asserts a bounded residual, not blanket table equivalence
-
-**Decision:** `specs/rust-core.md` requirement 4 stops claiming that a full-code-space sweep "proves
-the freeze-rule implementation output-equivalent to uniform Unicode 16.0.0 tables". It instead
-requires the sweep to **enumerate** every code point and sequence class whose output differs from a
-uniform-Unicode-16.0.0-tables reference, with the resulting set either empty or explicitly listed
-and accepted. It stays a hard gate on any Unicode-table dependency bump. **Why:** as literally
-worded the old claim was false, and worse, cheaply "provable" — a per-code-point sweep over all
-1,112,032 code points passes while the sequence-adjacency divergences above go undetected, which is
-the false-assurance failure mode. Under the category-override ruling the honest residual is narrow
-and real (post-16.0 code points carrying a decomposition under the runtime's tables), so the
-criterion now has a true property to measure. **Alternatives:** specify a mandatory sequence-aware
-sweep (base+Cn+mark, jamo+Cn+jamo, Σ+Cn+cased) as the gate — not rejected on merit and retained as
-the recommended shape of the sweep, but the acceptance criterion is the enumerated residual, not the
-sweep's shape; delete criterion 4 — rejected, dependency bumps are exactly when this drift would
-land unnoticed. **Consequence:** the accepted-divergence paragraph now covers two classes only —
-runtimes with non-16.0 tables, and characters assigned between 15.1 and 16.0. The sequence-adjacency
-class is **removed** from it, because the override eliminates that divergence rather than accepting
-it. The scoped "single-code-point behaviour" qualifier in `docs/unicode.md` can be widened back to
-unqualified agreement with CPython 3.14 in the same step. **Context:** interactive session
-2026-07-26; supersedes the placeholder recorded 2026-07-26.
-
-## 2026-07-26 — Go skips the Unicode-16 boundary vectors until go1.27
-
-**Decision:** `packages/go` skips the Unicode 16.0 boundary conformance vectors with an explicit
-tracking note and issue, rather than vendoring the 15.0→16.0 assigned delta. The vectors are enabled
-for Go once go1.27 ships (Unicode 17 tables in stdlib and `x/text`, ~Aug 2026), at which point Go
-also needs the 731-range freeze table so post-16.0 characters are still removed. **Why:**
-`packages/go` is an independent pure-Go implementation on Unicode 15.0 tables (`x/text` gates its
-17.0 tables behind `//go:build go1.27`), so it cannot pass the vectors today. go1.27 is weeks out,
-which makes a vendored 5,813-code-point delta table throwaway code with its own generator and drift
-surface. **Alternatives:** vendor the 15.0→16.0 assigned delta with 16.0 categories now — rejected
-on throwaway cost; block criterion 3 until go1.27 — rejected, it would park the other ten bindings
-behind Go for no reason. **Consequence:** criterion 3 can close for 10 of 11 bindings; Go carries a
-documented, dated gap. The freeze table is needed in Go either way — go1.27 fixes Go's *missing*
-16.0 knowledge, not its need to strip post-16.0 characters. **Context:** interactive session
-2026-07-26, ruling on the parked point 3 of the Unicode issue.
-
 ## 2026-07-26 — `rubygems/configure-rubygems-credentials` is pinned to the exact tag `@v2.1.0`, not a SHA
 
 **Decision:** the only unpinned `uses:` in the repo moves from `@main` to `@v2.1.0` with an inline
@@ -589,90 +372,6 @@ against floating refs. **Consequence:** verification stays static (`workflow_dis
 the first real gem publish. If SHA pinning is ever adopted it should be adopted repo-wide, not for
 this step alone. **Context:** interactive session 2026-07-26, ruling on the parked `[review]` issue
 from iteration 140.
-
-## 2026-07-26 — Declared Unicode version stays 16.0.0, backported rather than lowered to 15.1.0
-
-**Decision:** the declared Unicode data version remains **16.0.0**. Lowering it to 15.1.0 to
-preserve CPython ≤ 3.13 output was proposed and **rejected by Titusz**. The upstream `iscc-core` fix
-backports 16.0.0 to older Pythons (`unicodedata2==16.0.0` for `python_version < '3.14'`), converging
-the whole supported range on one behaviour rather than pulling 3.14 back. **Why:** freezing upstream
-is a behavioural break for *someone* no matter which version is chosen, so "preserve the installed
-base" is not decisive. Measured facts behind the call: `iscc-core` declares
-`requires-python = ">=3.9,<4.0"`, which spans **four** Unicode versions (3.9/3.10 → 13.0, 3.11 →
-14.0, 3.12 → 15.0, 3.13 → 15.1, 3.14 → 16.0), with deltas of +838 / +4,489 / +627 / +5,185 newly
-retained code points. So the 3.14 break is the fifth instance of an ongoing non-determinism, not a
-new regression, and no freeze point restores compatibility with everything. Two further points
-decided it: the 15.1 → 16.0 delta contains **6 living scripts** (Gurung Khema, Kirat Rai, Todhri, Ol
-Onal, Garay, Sunuwar), and freezing at 15.1 would strip them entirely — so any document written
-wholly in one of those scripts collapses to `""` and all such documents collide on the same
-degenerate Text-Code, a correctness hazard rather than an aesthetic one; and the 3.13 cohort being
-protected is small in practice, since Unicode 16 shipped 2024-09 and CPython 3.14 shipped 2025-10,
-so little real content containing the 16.0 additions has been ISCC'd on 3.13. A large *code point*
-count was being weighted as if it were a large *content* count. **Alternatives:** freeze at 15.1.0 —
-rejected per above, though it does dominate 16.0.0 against every historical cohort (divergence 5,954
-/ 5,116 / 627 / 0 / 5,185 by CPython version, vs 11,139 / 10,301 / 5,812 / 5,185 / 0 for 16.0.0);
-freeze at 15.1.0 *and* pin the normalization crate to matching tables — rejected, it gives up free
-upgrades of table dependencies for a residual the sentinel design (below) eliminates anyway; add a
-`unicode_version` compatibility option so historical ISCCs stay reproducible — rejected, ISO
-conformance requires a single normative behaviour and it is exactly the API complexity Titusz ruled
-out. **Consequence:** ISCCs minted on CPython ≤ 3.13 for text containing Unicode 16.0 additions are
-not reproducible, by decision rather than by accident. Both `iscc-lib` and the upstream proposal
-declare 16.0.0. **Context:** interactive session 2026-07-26, after Titusz pushed back on the 15.1.0
-proposal.
-
-## 2026-07-26 — The freeze rule maps unassigned code points to a noncharacter sentinel (SUPERSEDES the category override)
-
-**Decision:** **supersedes the category-override decision recorded earlier on 2026-07-26.** Code
-points unassigned in Unicode 16.0.0 are **mapped to the noncharacter `U+FFFF` before
-normalization**, not deleted and not merely reclassified. The category filter in `text_clean` /
-`text_collapse` stays **exactly as the reference defines it** — no predicate change, no
-`is_unassigned_in_unicode16` call at the filter step — because `U+FFFF` is category `Cn` and the
-existing category-`C` filter already removes it. In Rust this is a one-token change from the
-iteration-133 code, inside the same fused iterator: `.filter(|&c| !is_unassigned_in_unicode16(c))`
-becomes `.map(|c| if is_unassigned_in_unicode16(c) { '\u{FFFF}' } else { c })`. **Why:** the
-category override was conformant on single code points but **not** on sequences. Measured against a
-uniform-Unicode-16.0-tables reference on a runtime with Unicode 17.0 normalization tables (what
-`unicode-normalization` 0.1.25 ships), the override differed on 1 of 1,114,112 single code points
-and **10 of 140 sequence cases**. The failure mode is worse than the count: `U+A7F1` is unassigned
-in 16.0 but has a *compatibility decomposition to `S`* under 17.0, so it dissolves during NFKC
-before the filter sees it and **injects a spurious letter** — `e U+A7F1 U+0301` produced
-`U+0065 U+015A` (`eŚ`) where the reference gives `U+0065 U+0301`. The sentinel fixes this because
-`U+FFFF` is a noncharacter: category `Cn`, `ccc = 0`, and no decomposition — **permanently**, under
-Unicode's Noncharacter stability policy, so it can never gain an assignment or a decomposition in
-any future version. It holds the original character's position through normalization, so
-composition-blocking and `Final_Sigma` context match the reference exactly, and it is then removed
-by the reference's own filter. If the input already contains `U+FFFF` it is itself unassigned in
-16.0, so it maps to the sentinel and is stripped — which is what the reference does with it too. No
-ambiguity. **Verified before the decision** — three designs swept against a uniform-16.0 reference
-built from `unicodedata2==16.0.0`, evaluated on `unicodedata2==17.0.0`:
-
-| design                         | single code points differing | sequence cases differing |
-| ------------------------------ | ---------------------------- | ------------------------ |
-| pre-filter (iteration 133)     | 0 of 1,114,112               | **42 of 140**            |
-| category override (superseded) | **1** (`U+A7F1`)             | **10 of 140**            |
-| sentinel map (this decision)   | **0**                        | **0**                    |
-
-The pre-filter's 0-of-1,114,112 on single code points is precisely the false assurance that
-motivated rewording criterion 4 — it passes a per-code-point sweep while failing 42 sequence cases.
-**Alternatives:** category override — superseded, see the table; pre-strip only the residual set
-before normalizing — rejected, it reintroduces the adjacency bug for exactly those code points; pin
-`unicode-normalization` to 16.0-era tables so nothing post-16.0 can decompose — rejected, it gives
-up requirement 2's free upgrades and needs an old crate tracked indefinitely; a private-use code
-point instead of a noncharacter — rejected, private-use characters are category `Co` (not stripped
-by the `C` filter... they are, but they are legitimately usable in input and could collide), whereas
-noncharacters are permanently reserved and are the semantically correct choice. **Consequence:** the
-trade-off asserted in the superseded entry — "exact reference-order conformance and perfect
-table-version invariance are not simultaneously achievable" — **is false**, and the spec text
-derived from it is corrected. The sentinel achieves both: residual **0**, and criterion 4 can assert
-exact equivalence to uniform Unicode 16.0.0 tables over single code points *and* sequence classes.
-Performance is neutral versus iteration 133 (a `map` replacing a `filter` in the same fused
-normalization iterator — same passes, same allocations) and strictly simpler than the override,
-which would have added a per-character test to the filter predicate. The vendored 731-range table
-and `scripts/gen_unicode16_unassigned.py` are unchanged. Implementations must confirm their
-normalization library passes `U+FFFF` through unchanged (required of any conformant implementation,
-but cheap to assert in a test). **Context:** interactive session 2026-07-26. Supersedes "The Unicode
-16.0.0 freeze rule is a category override, not a pre-normalization filter" (same day) and the
-criterion-4 entry's residual framing.
 
 ## 2026-07-26 — Unicode determinism is a bounded-severity issue; keep the fix minimal
 
@@ -709,46 +408,3 @@ place. **Consequence:** the specified work is bounded and finite. This entry is 
 the same proportionality argument is now stated for users in `docs/unicode.md` and for upstream in
 <https://github.com/iscc/iscc-core/issues/137#issuecomment-5082815029>. **Context:** interactive
 session 2026-07-26, Titusz halting further Unicode bikeshedding.
-
-## 2026-07-26 — Sentinel conformance accepted on sequence evidence; criterion-4 sweep still owed
-
-**Decision:** The `U+FFFF` sentinel map (iteration 148) is accepted as conformant, and
-`docs/unicode.md` is allowed to state unqualified agreement with CPython 3.14, on the strength of a
-**sequence-class** differential rather than the full criterion-4 sweep, which remains a separate
-step. **Why:** the class the pre-filter broke is adjacency-sensitive sequences, and that is exactly
-what was measured in review — 127 Unicode-16.0-unassigned code points × 10 contexts (1,270 cases)
-compared against a `unicodedata2==16.0.0` reimplementation of `iscc-core`'s `text_clean` /
-`text_collapse`: the sentinel scored **0 mismatches**, the deleted iteration-133 filter **504**
-(exactly the four adjacency-sensitive contexts: canonical composition, Hangul jamo, `Final_Sigma`,
-diaeresis). Analytically the equivalence is total, not statistical: any code point unassigned in
-16.0 and `U+FFFF` are both `Cn`, `ccc = 0`, undecomposable, uncased and not `Case_Ignorable`, so
-they are indistinguishable to every step of both pipelines. **Alternatives:** hold the docs claim
-qualified until the 1,112,064-value sweep lands — rejected, the qualifier existed specifically to
-hedge the sequence class that is now proven, and leaving it would document a defect that no longer
-exists; verdict NEEDS_WORK pending the sweep — rejected, next.md scoped the sweep out deliberately
-and the sweep's remaining value is *regression* protection, not initial proof. **Consequence:** the
-criterion-4 runnable check must still cover **both** single code points and sequence classes; if it
-ever contradicts this entry, this entry loses. **Context:** iteration 148 review, commit `7acf0fa`;
-probe harness not committed (throwaway `tests/tmp_probe.rs`, removed after the run).
-
-## 2026-07-26 — The Go boundary suite is left to red at the go1.27 bump, not version-gated
-
-**Decision:** `packages/go/unicode_boundary_test.go` keeps an **unconditional** three-entry skip map
-(the cases Go's Unicode 15.0 tables cannot pass) and is deliberately *not* build-tag-gated for
-go1.27, even though bumping the toolchain will turn 5 currently-green cases red. **Why:**
-`packages/go` implements no freeze rule, so it passes the two post-16.0 vectors (`U+20C1`, `U+A7F1`)
-only by accident — its 15.0 tables classify them `Cn` and the category-`C` filter drops them. Under
-go1.27 (`x/text`'s `tables17.0.0.go` is `//go:build go1.27`; the stdlib tables move too) both become
-assigned and the vectors fail, as does the sequence case
-`text_clean/test_0006_seq_ua7f1_no_decomposition_leak`. That red is precisely the signal that the
-731-range freeze table must land in `packages/go/utils.go`, which `decisions.md` 2026-07-26 ("Go
-skips the Unicode-16 boundary vectors until go1.27") already says Go needs regardless of the
-toolchain. **Alternatives:** version-gate the skip map with a `go1.27` build tag (raised as a P1 by
-the Codex review of iteration 150) — rejected: it converts a designed failure signal into silent
-pre-emptive test skipping, and would let a toolchain bump land with Go quietly non-conformant;
-vendor the 15.0→16.0 delta now — already rejected by the 2026-07-26 ruling on throwaway-cost
-grounds. **Consequence:** the go1.27 bump is a *bundled* step — toolchain + freeze table + skip-map
-removal in one commit. Risk of a surprise is low: `.github/workflows/ci.yml` pins Go via
-`go-version-file: packages/go/go.mod`, so nothing moves without editing the `go 1.26.1` directive. A
-checklist is recorded under the Unicode issue in `issues.md`. **Context:** iteration 150 review,
-commit `d12ceb1`; `x/text` build tags read from the local module cache (`v0.40.0`).

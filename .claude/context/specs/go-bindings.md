@@ -153,13 +153,13 @@ binding supports ISCC-IDv1.
 
 **Verified when:**
 
-- [ ] `GenIsccIDV1(1751831876325218, 1, 0)` returns `ISCC:MAIGHFECJMOPMIAB` (round-trip through
+- `GenIsccIDV1(1751831876325218, 1, 0)` returns `ISCC:MAIGHFECJMOPMIAB` (round-trip through
     `IsccDecode` holds for boundary values: hub_id 0 and 4095, realm 0 and 1, max 52-bit timestamp)
-- [ ] `packages/go` exports neither `DecodeIsccID` nor `IsccIDv1Result`, and the field-extraction
-    recipe is documented in `docs/howto/go.md` and `packages/go/README.md`
-- [x] `IsccDecode` accepts MainType `ID` with Version 1 and returns the header + 64-bit body
-- [x] Version > 0 is still rejected for every MainType other than `ID`
-- [x] Public ISCC-IDv1 symbols carry an "experimental" doc-comment marker
+- `packages/go` exports neither `DecodeIsccID` nor `IsccIDv1Result`, and the field-extraction recipe
+    is documented in `docs/howto/go.md` and `packages/go/README.md`
+- `IsccDecode` accepts MainType `ID` with Version 1 and returns the header + 64-bit body
+- Version > 0 is still rejected for every MainType other than `ID`
+- Public ISCC-IDv1 symbols carry an "experimental" doc-comment marker
 
 ## Dependencies
 
@@ -220,14 +220,14 @@ constant is synced for diagnostic purposes.
 
 ## Verification Criteria
 
-- [ ] `go test ./...` passes all conformance vectors from `data.json`
-- [ ] Output of every `gen_*_v0` function matches `iscc-core` reference for every test vector
-- [ ] Package installs cleanly via `go get` with no external dependencies beyond Go modules
-- [ ] No cgo required (`CGO_ENABLED=0` works)
-- [ ] Cross-compilation works (`GOOS`/`GOARCH` combinations)
-- [ ] All 35 Tier 1 symbols accessible with idiomatic Go types and error handling
-- [ ] API uses Go conventions: `PascalCase`, `error` returns, `[]byte`, `io.Reader`
-- [ ] No binary artifacts committed to the repository
-- [ ] `check-added-large-files` threshold at 256KB
-- [ ] `go vet ./...` clean
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
+- `go test ./...` passes all conformance vectors from `data.json`
+- Output of every `gen_*_v0` function matches `iscc-core` reference for every test vector
+- Package installs cleanly via `go get` with no external dependencies beyond Go modules
+- No cgo required (`CGO_ENABLED=0` works)
+- Cross-compilation works (`GOOS`/`GOARCH` combinations)
+- All 35 Tier 1 symbols accessible with idiomatic Go types and error handling
+- API uses Go conventions: `PascalCase`, `error` returns, `[]byte`, `io.Reader`
+- No binary artifacts committed to the repository
+- `check-added-large-files` threshold at 256KB
+- `go vet ./...` clean
+- Version synced from root `Cargo.toml` via `mise run version:sync`

@@ -18,9 +18,9 @@ patterns natural to their ecosystem.
 - **Idiomatic API surface**: naming conventions, error handling, types, and patterns follow each
     language's conventions (e.g., `snake_case` in Python/Rust, `camelCase` in JS, `PascalCase` in
     Go/Java, `Result<T>` in Rust, exceptions in Python/Java, `error` returns in Go)
-- **No cgo, no JNI manual setup, no DLL hell**: prefer pure-language packaging (WASM via wazero for
-    Go, bundled native libs in JARs for Java, abi3 wheels for Python) over approaches that leak C
-    toolchain requirements to the consumer
+- **No cgo, no JNI manual setup, no DLL hell**: prefer pure-language packaging (a pure Go
+    implementation for Go, bundled native libs in JARs for Java, abi3 wheels for Python) over
+    approaches that leak C toolchain requirements to the consumer
 - **Self-contained packages**: all platform-specific native code is embedded or bundled — the
     developer never downloads or configures shared libraries separately
 - **Conformance parity**: every binding passes the same conformance test vectors, so developers can
@@ -47,13 +47,12 @@ comes after it and remains human-gated** — do not treat any v1.0.0 criterion b
 - `mise run version:check` passes and CI is green on `develop` at the commit to be released
 - No `critical` or `normal` issue is open that is not blocked on the human or on an upstream release
 
-Explicitly **out of scope for v0.8.0**: the v1.0.0 stability cut and its MSRV prerequisite, the
-go1.27 tripwire (waiting on an upstream final release), `iscc_explain` (iscc-lib has no explain
-function, so iscc-core 1.4.0's ISCC-IDv1 explain change needs no port), and legacy **ISCC-IDv0** —
-deprecated, never part of ISO 24138, and owed no backward compatibility (see `rust-core.md` →
-"ISCC-IDv0 is out of scope — permanently"). Experimental ISCC-IDv1 support (`gen_iscc_id_v1`,
-generic decode) shipped in 0.6.0 and stays as specified in `rust-core.md`. The release itself is cut
-by the human via the `/release` skill — CID never cuts it.
+Explicitly **out of scope for v0.8.0**: the v1.0.0 stability cut and its MSRV prerequisite,
+`iscc_explain` (iscc-lib has no explain function, so iscc-core 1.4.0's ISCC-IDv1 explain change
+needs no port), and legacy **ISCC-IDv0** — deprecated, never part of ISO 24138, and owed no backward
+compatibility (see `rust-core.md` → "ISCC-IDv0 is out of scope — permanently"). Experimental
+ISCC-IDv1 support (`gen_iscc_id_v1`, generic decode) shipped in 0.6.0 and stays as specified in
+`rust-core.md`. The release itself is cut by the human via the `/release` skill — CID never cuts it.
 
 ## Shared Edge-Case Vectors — `data-edge.json`
 
@@ -484,4 +483,5 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
 - **Python reference**: `iscc/iscc-core` — the conformance baseline. Available via deepwiki MCP.
 - **Conformance vectors**:
     `https://raw.githubusercontent.com/iscc/iscc-core/master/iscc_core/data.json`
-- **Architecture notes**: @notes/00-overview.md — design decisions, tooling stack, workspace layout.
+- **Original design notes**: `notes/00-overview.md` — the design record from the project's start. It
+    is not kept current; this file and `specs/` win wherever they differ.

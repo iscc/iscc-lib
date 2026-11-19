@@ -419,7 +419,23 @@ re-checking later with:
 uv run scripts/test_install.py --version <version>
 ```
 
-### Step 7.3 — Summary
+### Step 7.3 — Retire met requirements
+
+A shipped milestone leaves text behind that only costs attention from then on. Shrink it in one
+`cid(human)` commit on `develop`, and show the user the diff before committing:
+
+1. `target.md`: replace the "Current Release Milestone" section with the next milestone. Ask the
+    user what it is if nothing defines it yet
+2. `.claude/context/specs/`: for every requirement of the shipped milestone that a test or a CI gate
+    now enforces, cut the prose down to one line that names the test or gate. Keep rationale only
+    where the code cannot show it
+3. `decisions.md` and `decisions-archive.md`: delete entries that a later decision superseded
+4. `issues.md`: delete entries the release resolved, and ask the user about `low` entries parked for
+    more than one release
+
+Leave requirements of milestones that have not shipped untouched.
+
+### Step 7.4 — Summary
 
 Print a final summary:
 

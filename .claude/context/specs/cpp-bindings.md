@@ -235,11 +235,11 @@ cpp:
 
 ## Verification Criteria
 
-- [ ] `#include <iscc/iscc.hpp>` compiles with C++17 on GCC, Clang, MSVC
-- [ ] All 10 `gen_*_v0` functions accessible with idiomatic C++ types
-- [ ] RAII ensures no memory leaks (valgrind/ASAN clean)
-- [ ] Conformance tests pass (C++ test program)
-- [ ] CMake `find_package(iscc)` works
-- [ ] vcpkg port manifest available
-- [ ] Header bundled in FFI release tarballs alongside `iscc.h`
-- [ ] `iscc::conformance_selftest()` returns `true`
+- `#include <iscc/iscc.hpp>` compiles with C++17 on GCC, Clang, MSVC
+- All 10 `gen_*_v0` functions accessible with idiomatic C++ types
+- RAII ensures no memory leaks (valgrind/ASAN clean)
+- Conformance tests pass (C++ test program)
+- CMake `find_package(iscc)` works
+- vcpkg port manifest available
+- Header bundled in FFI release tarballs alongside `iscc.h`
+- `iscc::conformance_selftest()` returns `true`

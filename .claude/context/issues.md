@@ -273,3 +273,20 @@ This is a trial. After iteration 224, compare iterations 215-224 with 196-214: v
 Keep the rules if at most 2 of the 10 iterations ended NEEDS_WORK and no fan-out push turned CI red.
 Otherwise revert the commit that introduced the decisions.md entry. Resolved when Titusz records
 "kept" or "reverted" in that decisions.md entry and deletes this issue.
+
+## Derived facts in guidance and docs are written by hand and drift `normal` [human]
+
+Counts, file lists and symbol lists are repeated across `docs/`, the READMEs, `CLAUDE.md` files and
+the specs with nothing checking them. Adding `encode_seq` / `decode_seq` (Tier 1 33 → 35) took a
+hand sweep of 35 files in iteration 211, and `wasm-bindings.md` listed a file that does not exist.
+The two facts that have a parity hook in `.pre-commit-config.yaml` (docs page list, CI job table) do
+not drift. Rule: `.claude/context/README.md` → "Hygiene rules" → "Derived facts are checked or not
+written".
+
+Resolved when both hold:
+
+- a pre-commit parity check fails when the Tier 1 symbol list in any doc or README that enumerates
+    it differs from the public API at the `iscc-lib` crate root
+- counts, file lists and line numbers that no check covers are gone from `.claude/context/specs/`
+    and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
+    functions") or brought under a check

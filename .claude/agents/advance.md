@@ -55,7 +55,8 @@ Beyond the pack, read only the files next.md's `## Reference` section names. Do 
 
     - Match the patterns and style of existing code in this project
     - Consult `CLAUDE.md` for project conventions
-    - Consult `notes/` documents referenced in next.md for architectural guidance
+    - Consult the spec sections next.md references for architectural guidance. `notes/` is the
+        original design record and is not kept current: where it differs from a spec, the spec wins
     - Keep it simple. Prefer explicit over clever.
     - Write short, pure functions with docstrings
     - Stay within the file scope defined in next.md: max 6 files excluding tests and docs, raised to

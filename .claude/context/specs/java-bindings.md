@@ -201,15 +201,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ## Verification Criteria
 
-- [ ] `mvn test` passes (65 tests) with all conformance vectors
-- [ ] All 10 `gen_*_v0` functions return correct ISCC strings matching `data.json`
-- [ ] All 35 Tier 1 symbols accessible from Java
-- [ ] `DataHasher` and `InstanceHasher` streaming types work correctly
-- [ ] Streaming hashers throw `IllegalStateException` after finalization
-- [ ] Invalid inputs throw `IllegalArgumentException` (not Rust panics)
-- [ ] `NativeLoader` extracts correct native library from JAR on all 5 platforms
-- [ ] JAR published to Maven Central with source and Javadoc JARs + GPG signatures
-- [ ] Duplicate version publish detected and skipped gracefully
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
-- [ ] Per-crate README renders correctly
-- [ ] Documentation site includes Java how-to guide and API reference
+- `mvn test` passes (65 tests) with all conformance vectors
+- All 10 `gen_*_v0` functions return correct ISCC strings matching `data.json`
+- All 35 Tier 1 symbols accessible from Java
+- `DataHasher` and `InstanceHasher` streaming types work correctly
+- Streaming hashers throw `IllegalStateException` after finalization
+- Invalid inputs throw `IllegalArgumentException` (not Rust panics)
+- `NativeLoader` extracts correct native library from JAR on all 5 platforms
+- JAR published to Maven Central with source and Javadoc JARs + GPG signatures
+- Duplicate version publish detected and skipped gracefully
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- Per-crate README renders correctly
+- Documentation site includes Java how-to guide and API reference

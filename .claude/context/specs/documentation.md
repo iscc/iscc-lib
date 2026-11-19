@@ -75,19 +75,19 @@ docs table must list the same set of languages, registry links, and install comm
 
 ## Verification Criteria
 
-- [ ] `uv run zensical build` succeeds
-- [ ] Built site has ISCC-branded header, footer, and links (matching iscc-usearch colors)
-- [ ] Logo and favicon are visible
-- [ ] Dark mode toggle works and brand colors adapt
-- [ ] Copy-page split-button is visible on all pages
-- [ ] `site/llms-full.txt` exists and contains content from all pages
-- [ ] `docs/llms.txt` exists with site metadata
-- [ ] Open Graph meta tags are present in built HTML
-- [ ] All code examples use tabbed multi-language format
-- [ ] Navigation has Diátaxis categories (tutorials, howto, explanation, reference)
-- [ ] Each top-level nav section has an icon (matching iscc-usearch style)
-- [ ] Abbreviations expand on hover
-- [ ] `docs/CNAME` contains `lib.iscc.codes`
-- [ ] Docs workflow generates `llms-full.txt` during build
-- [ ] "Available Bindings" table lists all languages from README (Rust, Python, Node.js, Java, Go,
-    Ruby, C#/.NET, C/C++, WASM) with correct registry links and install commands
+- `uv run zensical build` succeeds
+- Built site has ISCC-branded header, footer, and links (matching iscc-usearch colors)
+- Logo and favicon are visible
+- Dark mode toggle works and brand colors adapt
+- Copy-page split-button is visible on all pages
+- `site/llms-full.txt` exists and contains content from all pages
+- `docs/llms.txt` exists with site metadata
+- Open Graph meta tags are present in built HTML
+- All code examples use tabbed multi-language format
+- Navigation has Diátaxis categories (tutorials, howto, explanation, reference)
+- Each top-level nav section has an icon (matching iscc-usearch style)
+- Abbreviations expand on hover
+- `docs/CNAME` contains `lib.iscc.codes`
+- Docs workflow generates `llms-full.txt` during build
+- "Available Bindings" table lists all languages from README (Rust, Python, Node.js, Java, Go, Ruby,
+    C#/.NET, C/C++, WASM) with correct registry links and install commands

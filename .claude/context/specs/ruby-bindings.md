@@ -313,22 +313,22 @@ Ruby `VERSION` constant, which is synced by the version script.
 
 ## Verification Criteria
 
-- [ ] `gem install iscc-lib` succeeds (precompiled gem, no Rust toolchain needed)
-- [ ] All 10 `gen_*_v0` functions return `Hash` with the same keys/values as iscc-core
-- [ ] `result["iscc"]` and `result.iscc` both work (Hash + attribute access)
-- [ ] Streaming functions accept IO objects (anything with `.read`)
-- [ ] `gen_sum_code_v0` accepts path strings and `Pathname` objects
-- [ ] Conformance tests pass against vendored `data.json` vectors
-- [ ] All 35 Tier 1 symbols are accessible from Ruby
-- [ ] `DataHasher` and `InstanceHasher` streaming types work correctly
-- [ ] Precompiled gems available for Linux (x86_64, aarch64), macOS (x86_64, arm64), Windows (x64)
-- [ ] Source gem compiles on platforms without precompiled binaries (requires Rust)
-- [ ] `bundle exec rake test` passes in CI
-- [ ] RubyGems OIDC trusted publishing configured (or API key fallback)
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
-- [ ] Per-crate README renders correctly on rubygems.org
-- [ ] Documentation site includes Ruby how-to guide and API reference
-- [ ] `bundle exec standardrb` passes with zero offenses
-- [ ] Standard Ruby + rubocop-minitest configured in Gemfile and `.standard.yml`
-- [ ] Ruby linting wired into pre-commit (auto-fix) and pre-push (check) hooks
-- [ ] Ruby linting step runs in CI before tests
+- `gem install iscc-lib` succeeds (precompiled gem, no Rust toolchain needed)
+- All 10 `gen_*_v0` functions return `Hash` with the same keys/values as iscc-core
+- `result["iscc"]` and `result.iscc` both work (Hash + attribute access)
+- Streaming functions accept IO objects (anything with `.read`)
+- `gen_sum_code_v0` accepts path strings and `Pathname` objects
+- Conformance tests pass against vendored `data.json` vectors
+- All 35 Tier 1 symbols are accessible from Ruby
+- `DataHasher` and `InstanceHasher` streaming types work correctly
+- Precompiled gems available for Linux (x86_64, aarch64), macOS (x86_64, arm64), Windows (x64)
+- Source gem compiles on platforms without precompiled binaries (requires Rust)
+- `bundle exec rake test` passes in CI
+- RubyGems OIDC trusted publishing configured (or API key fallback)
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- Per-crate README renders correctly on rubygems.org
+- Documentation site includes Ruby how-to guide and API reference
+- `bundle exec standardrb` passes with zero offenses
+- Standard Ruby + rubocop-minitest configured in Gemfile and `.standard.yml`
+- Ruby linting wired into pre-commit (auto-fix) and pre-push (check) hooks
+- Ruby linting step runs in CI before tests

@@ -76,7 +76,9 @@ Surface ids: `rust`, `python`, `nodejs`, `wasm`, `c`, `cpp`, `java`, `go`, `ruby
     every deviation is visible in one place
 - **A vector costs one edit.** Adding a vector to a section the harnesses already handle needs no
     change to any harness. C and C++ test programs may read a generated table instead of parsing
-    JSON, provided a check fails when the table is stale
+    JSON, provided a check fails when the table is stale. A generator of this kind existed for the
+    removed Unicode boundary vectors (`scripts/gen_ffi_boundary_vectors.py`, added in commit
+    `ea69169`); recover it from git history instead of writing one from scratch
 - **Python checks the reference.** For every function iscc-core has, the Python suite runs each
     vector against iscc-core as well as iscc-lib. The two must agree when `diverges` is absent and
     must differ when it is present, so a divergence that upstream removes turns the test red. This
@@ -113,12 +115,12 @@ The first version of the file holds at least the cases already found:
 
 ## Verified When
 
-- [ ] `crates/iscc-lib/tests/data-edge.json` exists with the seed set, and a test rejects a vector
-    that lacks `inputs`, lacks `note`, or does not have exactly one of `outputs` / `error`
-- [ ] `tests/test_vendored_fixtures.py` covers the vendored copies of `data-edge.json`
-- [ ] The Rust core and all 11 bindings run every vector, honour `except`, and fail on a function
+- `crates/iscc-lib/tests/data-edge.json` exists with the seed set, and a test rejects a vector that
+    lacks `inputs`, lacks `note`, or does not have exactly one of `outputs` / `error`
+- `tests/test_vendored_fixtures.py` covers the vendored copies of `data-edge.json`
+- The Rust core and all 11 bindings run every vector, honour `except`, and fail on a function
     section their harness does not handle
-- [ ] No harness skips or special-cases a vector in code
-- [ ] The Python suite checks every vector against iscc-core 1.5.0 as described under "Rules", and
+- No harness skips or special-cases a vector in code
+- The Python suite checks every vector against iscc-core 1.5.0 as described under "Rules", and
     `tests/test_seq.py` keeps no separate hand-written divergence list
-- [ ] The file is absent from every published artifact
+- The file is absent from every published artifact

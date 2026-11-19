@@ -167,14 +167,14 @@ nodejs:
 
 ## Verification Criteria
 
-- [ ] `npm test` passes all conformance vectors (135 mocha tests)
-- [ ] All 10 `gen_*_v0` functions return objects with correct keys matching iscc-core
-- [ ] All 35 Tier 1 symbols accessible from JavaScript
-- [ ] `DataHasher` and `InstanceHasher` streaming types work correctly
-- [ ] TypeScript declarations provide accurate type information
-- [ ] Package installs cleanly via `npm install @iscc/lib`
-- [ ] Bundled native addons resolve correctly on all 5 platforms
-- [ ] Published package declares no `optionalDependencies` and ships no dangling sibling packages
+- `npm test` passes all conformance vectors (135 mocha tests)
+- All 10 `gen_*_v0` functions return objects with correct keys matching iscc-core
+- All 35 Tier 1 symbols accessible from JavaScript
+- `DataHasher` and `InstanceHasher` streaming types work correctly
+- TypeScript declarations provide accurate type information
+- Package installs cleanly via `npm install @iscc/lib`
+- Bundled native addons resolve correctly on all 5 platforms
+- Published package declares no `optionalDependencies` and ships no dangling sibling packages
     (`npm ci` succeeds in consumer projects)
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
-- [ ] Per-crate README renders correctly on npmjs.com
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- Per-crate README renders correctly on npmjs.com

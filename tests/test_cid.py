@@ -107,6 +107,37 @@ def test_parse_verdict_absent(tmp_path):
     assert cid.parse_verdict(tmp_path) is None
 
 
+def test_append_iteration_summary_takes_explicit_verdict(tmp_path):
+    """A failed iteration records FAILED, not the verdict left in the handoff."""
+    _write_log(
+        tmp_path, [_role_row(7, role="advance", turns=4, cost=0.2, duration=9.0)]
+    )
+    handoff = tmp_path / cid.HANDOFF_FILE
+    handoff.write_text("**Verdict:** PASS\n", encoding="utf-8")
+
+    cid.append_iteration_summary(tmp_path, 7, verdict=cid.FAILED_VERDICT)
+
+    summaries = [
+        e for e in cid.read_entries(tmp_path) if e.get("type") == "iteration_summary"
+    ]
+    assert [(s["iteration"], s["verdict"]) for s in summaries] == [(7, "FAILED")]
+
+
+def test_window_metrics_counts_failed_iterations_as_rework():
+    """FAILED rows raise the rework rate and stay out of the turn median."""
+    series = [(1, "PASS", 10), (2, "FAILED", 2), (3, "NEEDS_WORK", 12), (4, "PASS", 14)]
+
+    rate, median = cid._window_metrics(series, 0, 4)
+
+    assert rate == 0.5
+    assert median == 12
+
+
+def test_window_metrics_all_failed_has_zero_median():
+    """A window of failed iterations yields a rate and a neutral median."""
+    assert cid._window_metrics([(1, "FAILED", 3), (2, "FAILED", 1)], 0, 2) == (1.0, 0)
+
+
 def test_append_iteration_summary_aggregates(tmp_path):
     _write_log(
         tmp_path,

@@ -38,12 +38,12 @@ seen ISCC before.
 
 **Verified when:**
 
-- [x] `docs/howto/c-cpp.md` exists and is linked in site navigation
-- [x] Contains CMake integration snippet
-- [x] Contains streaming DataHasher + InstanceHasher example
-- [x] Contains ISCC-SUM one-shot example
-- [x] Contains C++ RAII wrapper example
-- [x] Contains error handling and memory management sections
+- `docs/howto/c-cpp.md` exists and is linked in site navigation
+- Contains CMake integration snippet
+- Contains streaming DataHasher + InstanceHasher example
+- Contains ISCC-SUM one-shot example
+- Contains C++ RAII wrapper example
+- Contains error handling and memory management sections
 
 ## 2. Standalone Example Program
 
@@ -63,11 +63,11 @@ comments explaining each step.
 
 **Verified when:**
 
-- [ ] `crates/iscc-ffi/examples/iscc_sum.c` exists and compiles
-- [ ] `crates/iscc-ffi/examples/CMakeLists.txt` exists and works with
+- `crates/iscc-ffi/examples/iscc_sum.c` exists and compiles
+- `crates/iscc-ffi/examples/CMakeLists.txt` exists and works with
     `cmake -B build && cmake   --build build`
-- [ ] Example produces correct ISCC-SUM output for a test file
-- [ ] Example demonstrates streaming (chunk loop), not just one-shot
+- Example produces correct ISCC-SUM output for a test file
+- Example demonstrates streaming (chunk loop), not just one-shot
 
 ## 3. Committed C Header with CI Freshness Check
 
@@ -87,9 +87,9 @@ without requiring cbindgen.
 
 **Verified when:**
 
-- [ ] `crates/iscc-ffi/include/iscc.h` exists in the repo and is not gitignored
-- [ ] CI C FFI job includes a freshness check that fails if the header is stale
-- [ ] The C test program compiles against the committed header
+- `crates/iscc-ffi/include/iscc.h` exists in the repo and is not gitignored
+- CI C FFI job includes a freshness check that fails if the header is stale
+- The C test program compiles against the committed header
 
 ## 4. Pre-Built FFI Release Artifacts
 
@@ -123,11 +123,11 @@ Add to `release.yml`:
 
 **Verified when:**
 
-- [x] `release.yml` includes `build-ffi` and `publish-ffi` jobs
-- [x] `workflow_dispatch` has `ffi` boolean input
-- [x] Tag push triggers FFI builds for all 5 platform targets
-- [x] Each platform produces a tarball with shared lib + static lib + header + LICENSE
-- [x] Tarballs are uploaded as GitHub Release assets
+- `release.yml` includes `build-ffi` and `publish-ffi` jobs
+- `workflow_dispatch` has `ffi` boolean input
+- Tag push triggers FFI builds for all 5 platform targets
+- Each platform produces a tarball with shared lib + static lib + header + LICENSE
+- Tarballs are uploaded as GitHub Release assets
 
 ## 5. Feature Flags for Minimal Builds
 

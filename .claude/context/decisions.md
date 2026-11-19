@@ -29,146 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-26 — Binding boundary suites link the canonical fixture instead of vendoring a copy
-
-**Decision:** The C# and Kotlin boundary suites read `crates/iscc-lib/tests/unicode_boundary.json`
-through a build-config indirection — an MSBuild
-`<Content Include="..\..\..\crates\iscc-lib\tests\unicode_boundary.json" Link="testdata\unicode_boundary.json">`
-item for `.NET` and an `iscc.fixtureDir` system property for Gradle — even though both packages
-already vendor a tracked *copy* of the sibling `data.json` in the same test tree. The Kotlin `Test`
-task additionally declares the fixture with
-`inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`. **Why:** every tracked copy is a
-byte-identity liability that `tests/test_vendored_fixtures.py` must police, and eight surfaces × one
-more copy is eight more chances to drift; linking removes the failure mode instead of gating it.
-Nothing published depends on the copy — test sources ship in neither the NuGet package nor the Maven
-artifact, so self-containment buys nothing here. The path sensitivity is `NONE` because the absolute
-fixture path differs between checkouts and must not by itself invalidate the task. **Alternatives:**
-vendor a copy in each package and register it in `VENDORED_COPIES`, matching the existing
-`data.json` precedent — rejected on drift-surface grounds, and the precedent is itself historical
-(`data.json` predates the drift gate); leave the Gradle input undeclared and rely on
-`cleanTest test` by convention — rejected, a convention that must be remembered is not a gate, and
-review measured the failure: after one green run, mutating the fixture left `./gradlew test`
-`UP-TO-DATE` and silently skipped all 13 boundary tests. **Consequence:** `data.json` and
-`unicode_boundary.json` are handled asymmetrically inside `packages/dotnet` and `packages/kotlin`;
-that is deliberate, not an oversight. Swift remains the one surface expected to need a real vendored
-copy (SwiftPM resource bundling), and it must be registered in `VENDORED_COPIES`. **Context:**
-iteration 154 (`84ce2f1`) plus the review fix; hazard independently reported by the Codex review and
-confirmed by a three-run Gradle probe.
-
-## 2026-07-27 — `Final_Sigma` is frozen by pre-substitution, not by vendoring the case-mapping table
-
-**Decision:** `text_collapse` keeps delegating the bulk of lowercasing to `str::to_lowercase()`.
-Only the *conditional* `Final_Sigma` mapping is taken over: `to_lowercase_unicode16` walks the
-(sentinel-mapped, NFD-normalized) string, replaces each `U+03A3` with `U+03C2`/`U+03C3` decided from
-a vendored Unicode 16.0.0 `Cased` / `Case_Ignorable` table, and only then calls std — which can
-never see a `U+03A3` and so can never run its own 17.0-table sigma branch. The vendored `Cased`
-table deliberately stores `Cased` **minus** `Case_Ignorable` (152 ranges / 4,311 code points), which
-is not the UCD-defined `Cased` set. **Why:** bare `str::to_lowercase()` reads the *compiler's*
-tables (rustc 1.97 ships Unicode 17.0, which moved `U+0295` from `Ll` to `Lo`), so hash output was a
-function of the rustc version — measured as 3 divergent rows at exactly `U+0295` in a 17,793,024-
-comparison differential against `iscc-core` on uniform 16.0.0 tables. Pre-substitution is the
-smallest change that removes that dependence: the freeze is scoped to the one property that actually
-diverges, and every unconditional mapping (e.g. `U+0130`) stays with std. The subtracted
-`Case_Ignorable` set is what the two behavioural probes in `scripts/gen_unicode16_case.py` can
-measure, and the restriction is unobservable because the `Final_Sigma` scan skips case-ignorable
-code points before it ever tests casedness — in CPython's `handle_capital_sigma` and in the port
-alike. **Alternatives:** vendor the full Unicode 16.0.0 lowercase *mapping* table and stop using
-`str::to_lowercase()` entirely — rejected as a large, mostly-dead table for a divergence that does
-not exist today (the same sweep shows 0 unconditional-mapping divergences across all 1,112,064
-scalars); pin the rustc toolchain — rejected, it makes a build-tool version part of the conformance
-contract and does nothing for downstreams building from source. **Consequence:** the *unconditional*
-half of lowercasing is still supplied by whatever Unicode tables rustc ships. That is an accepted,
-currently-zero residual whose only guard is the differential sweep, which is exactly why criterion 4
-of the Unicode issue (wiring the sweep in as a permanent, fail-closed check) must land next. A
-future rustc that changes a non-sigma lowercase mapping would silently change output until then.
-**Context:** iteration 156 (`a7e84c8`); sweep re-run independently at review, 0 divergences; tables
-independently cross-checked against CPython 3.14 category data (`Lu∪Ll∪Lt ⊆ Cased`,
-`Mn∪Me∪Cf∪Lm∪Sk ⊆ Case_Ignorable`, residuals exactly `Other_Uppercase`/`Other_Lowercase` and the 17
-UAX #29 MidLetter/MidNumLet/Single_Quote code points).
-
-## 2026-07-27 — The Unicode sweep gate trusts an mtime freshness guard, not a build-input hash
-
-**Decision:** `scripts/unicode_sweep.py` decides whether the extension it measures is current by
-comparing `_lowlevel.abi3.so`'s mtime against the newest `*.rs` under `crates/iscc-lib/src` and
-`crates/iscc-py/src`, and nothing else. `Cargo.toml`, `Cargo.lock`, the rustc version and every
-transitive Unicode-table crate are outside the guard; so is a missing source directory
-(`max(..., default=0.0)` passes vacuously). The authoritative execution paths — the `unicode-sweep`
-CI job and `mise run unicode:sweep` — both rebuild unconditionally before sweeping, so the guard
-only has to catch the local "edited Rust, then ran the script directly" case. **Why:** the guard is
-a convenience backstop on a path that is not the gate. Making it complete means either hashing the
-full cargo build-input closure (duplicating cargo's own fingerprint logic) or shelling out to
-`rustc -vV` plus `cargo metadata` on every run — real complexity to protect an invocation the docs
-do not recommend. **Alternatives:** widen the mtime set to `Cargo.toml`/`Cargo.lock` — cheap, but
-still blind to a toolchain-only bump, so it would buy a false sense of completeness; drop the guard
-and always rebuild inside the script — rejected, it makes the script un-runnable without a ~21 s
-maturin build and removes the fast fail-fast signal. **Consequence:** a `cargo update` or rustc
-upgrade that touches no `.rs` file can produce a false green from a bare
-`uv run scripts/unicode_sweep.py`. That is exactly the upgrade scenario the sweep exists to
-validate, so the operating rule is: **always re-run the sweep through `mise run unicode:sweep`**,
-never the script directly. Recorded in learnings.md and filed for hardening in issues.md.
-**Context:** iteration 157 (`186287e`); blind spot flagged by the advance agent's handoff,
-independently reported by the Codex review, and reproduced at review (a missing source directory
-also passes the guard vacuously).
-
-## 2026-07-27 — The sweep gate's rebuild precondition is a trusted caller assertion, not an observation
-
-**Decision:** `scripts/unicode_sweep.py` refuses to run unless its `argv` carries `--rebuilt`
-(`check_rebuilt`, the first statement of `main`). Only two callers pass it: the `unicode:sweep` mise
-task and the `unicode-sweep` CI step, each immediately after an unconditional
-`maturin develop --release`. The flag asserts nothing the script verifies — a human who exports it
-without rebuilding is trusted — and the mtime `check_extension_fresh` observation is deliberately
-kept behind it as cheap redundancy for the "edited a `.rs`, forgot to rebuild" case. **Why:** the
-2026-07-27 mtime entry above left the operating rule ("always run through `mise run unicode:sweep`")
-as convention only, which is unenforced by construction; a `cargo update` or rustc bump touches no
-`.rs` file, so a bare invocation reported a false green on exactly the upgrade the gate exists to
-validate. Turning the convention into a refusal costs one flag and closes the hole for every path
-that matters, because the two authoritative paths rebuild first by construction. **Alternatives:**
-widen the mtime set to `Cargo.toml`/`Cargo.lock`/`rust-toolchain*` — still blind to a toolchain-only
-bump, so it buys false completeness (already rejected above); embed `rustc -vV` plus a dependency
-fingerprint in the extension and compare it — the only *observing* fix, rejected because it adds an
-unbound public symbol to the Python surface and breaks the 32-symbol Tier 1 story for a hazard the
-refusal already covers; make the script shell out to `maturin` itself — rejected, it removes the ~2
-s fail-fast signal and makes the script un-runnable without a ~21 s build. **Consequence:** the gate
-now trades a *silent* failure mode for a *loud* one — the residual (`--rebuilt` passed without a
-rebuild) is a deliberate act rather than an accident, and is stated in the `check_rebuilt`
-docstring. `sweep()` also stopped retaining one record per divergence: it counts every divergence
-but keeps at most `MAX_REPORTED_DIVERGENCES` (20) samples, so a broad regression prints diagnostics
-instead of OOM-killing CI. The success line `TOTAL 17793024 comparisons, 0 divergences` is unchanged
-and stays byte-frozen. **Context:** iteration 158 (`aedb61e`); both blind spots were filed by the
-iteration-157 review and independently reported by that iteration's Codex review. Verified at review
-by a bare-invocation probe (exit 1, empty stdout), two near-miss flag forms, a full green sweep, and
-an in-process `main()` run over 30 scalars with a wrong oracle (20 sample lines +
-`showing first 20 of 480 divergences` + the exact TOTAL line, return code 1).
-
-## 2026-07-27 — A vector fixture reaches a JSON-less surface as a generated, tracked source file
-
-**Decision:** the C FFI conformance surface consumes the canonical
-`crates/iscc-lib/tests/unicode_boundary.json` through a checked-in, generated C header
-(`crates/iscc-ffi/tests/unicode_boundary_vectors.h`, rendered by the PEP 723
-`scripts/gen_ffi_boundary_vectors.py`) rather than by parsing the fixture at test time. The header
-is deliberately **not** registered in the `VENDORED_COPIES` table of
-`tests/test_vendored_fixtures.py`; its equivalent guarantee is a pytest anchor asserting
-`render(fixture) == tracked_header` byte for byte. **Why:** `test_iscc.c` links only libc and the
-FFI `cdylib` — adding a JSON reader means either a new third-party C dependency in the CI gcc line
-(`gcc … -liscc_ffi -lpthread -ldl -lm`, which the C FFI job runs verbatim) or a hand-rolled parser
-whose bugs would be indistinguishable from conformance failures. Generation moves the parsing to
-Python, where it is already exercised, and leaves C with a plain `static const` array. Placing the
-header beside its includer makes a quoted `#include` resolve with no new `-I`, so the CI job is
-untouched. **Alternatives:** hand-pin the 12 expected strings in `test_iscc.c` — rejected, it is the
-silent-drift failure mode the whole propagation effort exists to prevent (the fixture is the single
-source of truth for 9 surfaces); hand-roll a JSON parser in C — rejected, more untested code than
-the thing under test; register the header in `VENDORED_COPIES` — rejected, that gate asserts
-*byte-identity with the fixture* and discovers copies by basename, so a derived artifact cannot
-satisfy it; generate the header at build time instead of tracking it — rejected, it would put a
-Python dependency in the C job and remove the reviewable diff. **Consequence:** two rules now travel
-with any future JSON-less surface (C++ is the next candidate): the generated file must be pure
-ASCII, LF-only, one trailing newline — otherwise the prek hygiene hooks rewrite it and red the no-op
-gate — and non-ASCII UTF-8 must be escaped as 3-digit octal, never `\x`, because C hex escapes are
-greedy and unbounded. **Context:** iteration 159 (`ea69169`), criterion 3 of the Unicode issue, 9 of
-11 surfaces. Verified at review by decoding the tracked header's octal escapes back to code points
-and diffing against the fixture, and by five mutations (expected value, dropped case, version macro,
-hand-edited header, fixture vector added without regeneration) — every one reds.
-
 ## 2026-07-27 — Agent prompts state no token costs, and separate finding from filing
 
 **Decision:** two standing rules for every CID prompt and context pack. (1) Never frame inlined
@@ -265,9 +125,10 @@ complexity raised the risk of faulty third-party implementations and cost per-ch
 while the reference itself drifts across CPython versions — compatibility semantics belong upstream
 (iscc/iscc-core#137) and will be revisited once upstream decides. **Alternatives:** keep the pin —
 rejected by the human; pin without freeze trickery — rejected, still diverges from the unpinned
-reference. **Supersedes** the 2026-07-25/26 freeze-rule rulings; do not reintroduce any freeze
-mechanism without a new human decision. Agent memories describing the freeze design are stale.
-**Context:** interactive session 2026-07-30, this commit.
+reference. **Supersedes** the 2026-07-25 to 07-27 freeze-rule rulings. Those entries and the agent
+memories describing the freeze design were deleted on 2026-11-19; git history keeps them. Do not
+reintroduce any freeze mechanism without a new human decision. **Context:** interactive session
+2026-07-30, this commit.
 
 ## 2026-10-17 — npm publishes via OIDC trusted publishing, direct publish (not staged)
 
@@ -285,17 +146,6 @@ environment, "Allow npm publish" on). The two publish jobs carry no `NPM_TOKEN`,
 > switched on later without touching the workflow's auth. **Context:** interactive session
 > 2026-10-17, first validated by the v0.7.0 publish. Changing a trusted-publisher entry needs the
 > human's npm 2FA passkey.
-
-## 2026-10-17 — All CID roles run on Opus 5.5; Fable retired
-
-**Decision:** every role (`update-state`, `define-next`, `advance`, `review`, `audit`,
-`meta-improve`) and the runner's `PRIMARY_MODEL` are pinned to `claude-opus-5-5`, with the effort
-levels unchanged (xhigh: advance, review, audit, define-next; high: update-state, meta-improve).
-**Why:** human decision — Opus 5.5 at varying effort covers every role; a single model family keeps
-behaviour comparable across roles and runs. Opus 5.5 has a 1M-token window by default, so the `[1m]`
-suffix is dropped. **Alternatives:** keep `advance`/`audit` on Fable — rejected by the human.
-**Context:** interactive session 2026-10-17. Role timeouts and budgets were tuned under Fable/Opus
-4.8 and stay as they are until iteration data says otherwise.
 
 ## 2026-11-17 — The runner passes each role's frontmatter model and effort as CLI flags
 

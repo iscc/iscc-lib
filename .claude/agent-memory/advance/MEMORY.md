@@ -3,7 +3,7 @@
 Detail lives in topic files: [ci-gates.md](ci-gates.md), UniFFI/Swift/Kotlin (Gradle+JNA):
 [uniffi-swift-kotlin.md](uniffi-swift-kotlin.md), [deps-refresh.md](deps-refresh.md),
 [wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md), [release-gate.md](release-gate.md), Archived
-phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `archive/`.
+phases: [MEMORY-archive.md](MEMORY-archive.md).
 
 **Size budget:** Keep under 140 lines. Move detail to topic files; archive stale entries.
 

@@ -52,6 +52,11 @@ Read anything else on demand, once.
         metrics), deep nesting, unclear ownership
     - **docs-drift** — README, per-crate READMEs, `docs/` pages, and code examples vs the actual
         implementation
+    - **context-drift** — the guidance the loop itself reads, checked against the tree and against
+        itself: `target.md`, `specs/`, the decision titles (live and archive) and the per-crate
+        `CLAUDE.md` files. Statements the code contradicts, a decision that a later decision reversed
+        but that is still listed, one fact stated in two places that disagree, counts and file lists
+        that no check covers, and requirements of a shipped release still spelled out in full
     - **test-intent** — tests that assert implementation accidents rather than spec intent;
         unjustified suppressions (`#[allow]`, `noqa`) and skipped tests
     - **gate-latency** — quality-gate and build times from the metrics trend; a grinding loop is
@@ -164,7 +169,9 @@ Read anything else on demand, once.
 
 5. **File issues** — append to `.claude/context/issues.md` following the file's format, source tag
     `[audit]`, priority `normal` (use `critical` only for a correctness or security risk backed by
-    strong evidence — never `low`, which the loop skips). Each entry must contain:
+    strong evidence — never `low`, which the loop skips). One exception: a `context-drift` finding
+    in `target.md` or in the decisions log is the human's to fix, so file it `low` with a
+    `**Triage:** untriaged` line. Each entry must contain:
 
     - **Evidence:** concrete file:line references, commands run, or metric slopes
     - **Why it matters:** the compounding cost if left alone
