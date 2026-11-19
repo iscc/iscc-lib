@@ -23,8 +23,9 @@ copy.
 
 - **Create**: `crates/iscc-lib/tests/data-edge.json`, `crates/iscc-lib/tests/test_data_edge.rs`,
     `tests/test_data_edge.py`
-- **Modify**: `crates/iscc-lib/Cargo.toml` (add `exclude = ["tests/data-edge.json"]` to
-    `[package]`), `tests/test_vendored_fixtures.py`, `tests/test_seq.py`
+- **Modify**: `crates/iscc-lib/Cargo.toml` (`[package] exclude` both `tests/data-edge.json` and
+    `tests/test_data_edge.rs`, so a packaged crate's `cargo test` cannot hit a missing file),
+    `tests/test_vendored_fixtures.py`, `tests/test_seq.py`
 - **Reference**: `.claude/context/specs/edge-vectors.md` (format, rules, seed set),
     `tests/test_conformance.py` (loader style), `crates/iscc-lib/src/conformance.rs` (Rust JSON
     walking), `crates/iscc-lib/src/types.rs` (result fields)
@@ -38,6 +39,8 @@ copy.
 - Changing any library behaviour. All seed outcomes below match the current Rust/Python output
 - Seed vectors beyond the spec list plus the migrated `STRICT_BASE32_DIVERGENCES` rows
 - The `encode_seq` docstring issue
+- `SHARED_ENCODE_REJECTIONS` / `SHARED_DECODE_REJECTIONS` in `test_seq.py` stay: they are agreement
+    lists that also pin the exception class (and hold non-JSON `TypeError` cases), not divergences
 
 ## Implementation Notes
 
@@ -46,21 +49,21 @@ copy.
 - `iscc_decode` (input `[str]`). `ISCC:GAAAAAAAAA======`, `ISCC:GAAAAAAAAB` and
     `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` → error. The ref ACCEPTS all three, so each gets
     `"diverges": "decisions.md 2026-11-18: Base32 decoding stays strict"`. `ISCC:GAAAAAAAAA` →
-    output. **Output encoding (new, fix it here):**
-    `[maintype, subtype, version, length_index,   "bytes:<hex>"]` as JSON ints plus a `bytes:`
-    string, e.g. `[3, 0, 0, 0, "bytes:00000000"]`. Python iscc_lib returns IntEnums, so `int()` them
+    output. **Output encoding (new, fix it here):** a 5-element array of maintype, subtype, version
+    and length index as JSON ints, then the digest as a `bytes:` hex string. Example:
+    `[3, 0, 0, 0, "bytes:00000000"]`. Python iscc_lib returns IntEnums, so `int()` them
 - `encode_seq` (input `[[units]]`, output `"bytes:<hex>"` as in data.json):
     - `["gaawdlqng6ſsdpf2"]` and the sharp-s twin `["gaawdlqng6ßdpf2"]` → error. The ref accepts both
         (`300161ae0d37a521bcba`), so they get a `diverges` naming the decisions.md 2026-11-18 entry
         "Codec input is upper-cased ASCII-only, encode_seq included"
     - `["gaawdlqng6ssdpf2"]` → `bytes:300161ae0d37a521bcba`
     - `[]` → error (both)
-    - `["ISCC:GAAAAAAAAA\u0000junk"]` → error (both)
+    - `["ISCC:GAAAAAAAAA\u0000junk"]` → error (both), with `"except": {"c": "skip"}` (a C string
+        cannot hold the NUL)
     - Migrated from `STRICT_BASE32_DIVERGENCES`, all errors with the strict-base32 `diverges`:
         `ISCC:GAAAAAAAAB`, the 256-bit unit with last char `J`, and `ISCC:GAAAAAAAAA======`
-- `gen_text_code_v0` `["Hello\u0000World", 64]` →
-    `{"iscc": "ISCC:EAASKDNZNYGUUF5A",   "characters": 10}` (both agree; no `except` needed for
-    rust/python)
+- `gen_text_code_v0` `["Hello\u0000World", 64]`: copy the spec's example vector VERBATIM, including
+    its `except` (dotnet/cpp `error`, c `skip`). Rust and Python both match its outputs
 - `gen_mixed_code_v0` `[[], 64]` and `gen_iscc_code_v0` `[[]]` → error. The ref raises
     `AssertionError` / `ValueError` respectively, so they agree. data.json passes no `wide` for
     iscc-code: call with `false`
@@ -85,6 +88,9 @@ expected output that errors. Each must yield a failure.
 - (c) A reference check. For each vector, compute iscc_core's outcome (any exception = error; output
     compared like (b)). It must equal the stated outcome iff `diverges` is absent, and differ iff it
     is present
+- (d) A seed-presence test: a hard-coded list of (section, inputs) pairs from the spec's "Seed Set"
+    plus the migrated rows, each asserted present in the file (iterating the file cannot see a
+    missing vector)
 - Parametrize with vector ids so failures name the vector
 
 `test_seq.py`: delete `STRICT_BASE32_DIVERGENCES` and the two tests that use it. Leave the other
@@ -97,11 +103,11 @@ Neither iai nor CRAP is affected (tests and a manifest only).
 ## Verification
 
 - `cargo test -p iscc-lib --test test_data_edge` passes, including the 4 negative harness tests
-- `uv run pytest tests/test_data_edge.py tests/test_seq.py tests/test_vendored_fixtures.py` passes.
-    The file holds every seed input listed in the spec's "Seed Set"
+- `uv run pytest tests/test_data_edge.py tests/test_seq.py tests/test_vendored_fixtures.py` passes,
+    including the seed-presence test (d)
 - `grep -n STRICT_BASE32_DIVERGENCES tests/test_seq.py` finds nothing
-- `cargo package --list -p iscc-lib --allow-dirty` output contains no `data-edge` line, but still
-    lists `tests/data.json`
+- `cargo package --list -p iscc-lib --allow-dirty` output has no `data-edge` and no `data_edge`
+    line, but still lists `tests/data.json`
 - `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean
 - `mise run check` exits 0
 
