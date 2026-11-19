@@ -45,8 +45,7 @@ the last two of the 11 surfaces (v0.8.0, GitHub #45).
     in `gen_iscc_code_v0`) and `decode_seq(data: Vec<u8>) -> Result<Vec<String>, IsccUniError>`.
     Pass straight to core, with no guards in the binding. Core owns the error messages, e.g. "at
     least one ISCC-UNIT" for `[]` and "Empty ISCC-SEQ" for empty bytes. Expected generated shapes:
-    Swift `encodeSeq(units: [String]) throws -> Data`, Kotlin
-    `encodeSeq(units: List<String>):   ByteArray`.
+    Swift `encodeSeq(units:)` returns `Data`; Kotlin `encodeSeq(units)` returns `ByteArray`.
 - Regeneration (recipes are in the package `CLAUDE.md` files): run `cargo build -p iscc-uniffi`
     first. Swift bindgen writes the `.h` and `.modulemap` into `Sources/IsccLib/`; move the `.h` to
     `Sources/iscc_uniffiFFI/` and delete the generated `.modulemap`. Kotlin uses `--no-format`. Raw
