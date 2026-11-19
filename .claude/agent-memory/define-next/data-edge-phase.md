@@ -35,3 +35,8 @@ commit `ea69169`).
 - Go read 217: `isccClean` rejects `""`, `softHashCodesV0`/`GenIsccCodeV0` reject \<2 → Go expected
     green. Stop rule in next.md: a real behavioural failure leaves that surface out (no `except`, no
     Go/core fix inside a fan-out).
+- 217 restart: the devcontainer crashed ~17:35 during the first advance session (Go ~10 min, Node ~5
+    min of real work); the human committed Node during recovery. Diagnose a stalled iteration from
+    `~/.claude/projects/-workspace-iscc-lib/*.jsonl` (first/last timestamps per session) before
+    shrinking a step. Re-scoped next.md = WASM/Java/.NET/Ruby + Go/Node criteria CARRIED OVER, so
+    review verifies the unreviewed commits instead of pushing them unchecked.
