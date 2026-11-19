@@ -23,6 +23,7 @@ crates/iscc-ffi/
     lib.rs           # All extern "C" functions, #[repr(C)] types, memory management
   tests/
     test_iscc.c      # C test program that links against the shared library
+    data_edge_vectors.h  # Generated data-edge.json table (C99 + C++17), shared with packages/cpp
   examples/
     iscc_sum.c       # Streaming example: reads a file, produces ISCC-CODE
     CMakeLists.txt   # CMake build for the example
@@ -153,6 +154,12 @@ LD_LIBRARY_PATH=target/debug /tmp/test_iscc
 - Mirrors the Rust unit test cases with identical expected values
 - Reports pass/fail counts and exits non-zero on any failure
 - Every returned string/buffer is freed to validate the free functions
+- Runs every `crates/iscc-lib/tests/data-edge.json` vector from the generated
+    `tests/data_edge_vectors.h` (one check function per section, `RUN_EDGE_SECTION` loop, total row
+    tally against `ISCC_EDGE_TOTAL_COUNT`). Each row carries its resolved `c`/`cpp` expectation, so
+    a harness never names a vector. Regenerate after editing the fixture:
+    `uv run --script scripts/gen_data_edge_vectors.py`; `tests/test_gen_data_edge_vectors.py` fails
+    when the header is stale
 
 ## Safety Rules for `unsafe` Code
 

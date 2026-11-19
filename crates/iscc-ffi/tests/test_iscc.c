@@ -6,6 +6,7 @@
  */
 
 #include "iscc.h"
+#include "data_edge_vectors.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -70,6 +71,134 @@ static int tests_failed = 0;
         } else { \
             printf("PASS: %s\n", (test_name)); \
             tests_passed++; \
+        } \
+    } while (0)
+
+/* Return 1 if an edge-vector string reaches C intact: non-NULL and no embedded NUL,
+ * so a row whose input C cannot express fails instead of hashing the prefix. */
+static int edge_str_fits_c(struct iscc_edge_str s) {
+    return s.ptr != NULL && strlen(s.ptr) == s.len;
+}
+
+/* Return 1 if every item of an edge-vector list reaches C intact. */
+static int edge_list_fits_c(struct iscc_edge_list list) {
+    size_t i;
+    for (i = 0; i < list.count; i++) {
+        if (list.items[i] == NULL || strlen(list.items[i]) != list.lens[i]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Return 1 if a returned buffer equals an expected edge-vector byte string. */
+static int edge_bytes_eq(const uint8_t *data, size_t len, struct iscc_edge_str expected) {
+    return len == expected.len && (len == 0 || memcmp(data, expected.ptr, len) == 0);
+}
+
+/* Return 1 if a returned gen string meets the row expectation (rejection = NULL). */
+static int edge_gen_result_ok(int expect, const char *actual, struct iscc_edge_str iscc) {
+    if (expect == ISCC_EDGE_ERROR) {
+        return actual == NULL;
+    }
+    return expect == ISCC_EDGE_OK && actual != NULL && strlen(actual) == iscc.len &&
+           memcmp(actual, iscc.ptr, iscc.len) == 0;
+}
+
+/* Check one iscc_decode edge row against its c expectation (rejection = ok false). */
+static int check_edge_iscc_decode(const struct iscc_edge_iscc_decode_vector *v) {
+    struct iscc_IsccDecodeResult r;
+    int passed;
+    if (!edge_str_fits_c(v->input)) {
+        return 0;
+    }
+    r = iscc_decode(v->input.ptr);
+    if (v->c == ISCC_EDGE_ERROR) {
+        passed = !r.ok;
+    } else {
+        passed = v->c == ISCC_EDGE_OK && r.ok && r.maintype == v->maintype &&
+                 r.subtype == v->subtype && r.version == v->version &&
+                 r.length == v->length && r.digest.data != NULL &&
+                 edge_bytes_eq(r.digest.data, r.digest.len, v->digest);
+    }
+    iscc_free_decode_result(r);
+    return passed;
+}
+
+/* Check one encode_seq edge row against its c expectation (rejection = NULL data). */
+static int check_edge_encode_seq(const struct iscc_edge_encode_seq_vector *v) {
+    struct iscc_IsccByteBuffer buf;
+    int passed;
+    if (!edge_list_fits_c(v->units)) {
+        return 0;
+    }
+    buf = iscc_encode_seq(v->units.items, v->units.count);
+    if (v->c == ISCC_EDGE_ERROR) {
+        passed = buf.data == NULL;
+    } else {
+        passed = v->c == ISCC_EDGE_OK && buf.data != NULL &&
+                 edge_bytes_eq(buf.data, buf.len, v->seq);
+    }
+    iscc_free_byte_buffer(buf);
+    return passed;
+}
+
+/* Check one gen_text_code_v0 edge row against its c expectation. */
+static int check_edge_gen_text_code_v0(const struct iscc_edge_gen_text_code_v0_vector *v) {
+    char *actual;
+    int passed;
+    if (!edge_str_fits_c(v->text)) {
+        return 0;
+    }
+    actual = iscc_gen_text_code_v0(v->text.ptr, v->bits);
+    passed = edge_gen_result_ok(v->c, actual, v->iscc);
+    iscc_free_string(actual);
+    return passed;
+}
+
+/* Check one gen_mixed_code_v0 edge row against its c expectation. */
+static int check_edge_gen_mixed_code_v0(const struct iscc_edge_gen_mixed_code_v0_vector *v) {
+    char *actual;
+    int passed;
+    if (!edge_list_fits_c(v->codes)) {
+        return 0;
+    }
+    actual = iscc_gen_mixed_code_v0(v->codes.items, v->codes.count, v->bits);
+    passed = edge_gen_result_ok(v->c, actual, v->iscc);
+    iscc_free_string(actual);
+    return passed;
+}
+
+/* Check one gen_iscc_code_v0 edge row against its c expectation. */
+static int check_edge_gen_iscc_code_v0(const struct iscc_edge_gen_iscc_code_v0_vector *v) {
+    char *actual;
+    int passed;
+    if (!edge_list_fits_c(v->codes)) {
+        return 0;
+    }
+    actual = iscc_gen_iscc_code_v0(v->codes.items, v->codes.count, v->wide != 0);
+    passed = edge_gen_result_ok(v->c, actual, v->iscc);
+    iscc_free_string(actual);
+    return passed;
+}
+
+/* Run every row of one data-edge section: skip rows marked c skip, check the rest,
+ * print PASS/FAIL per row, and add each row (run or skipped) to `seen`. */
+#define RUN_EDGE_SECTION(section, rows, count, check, seen) \
+    do { \
+        size_t edge_i_; \
+        for (edge_i_ = 0; edge_i_ < (size_t)(count); edge_i_++) { \
+            char edge_name_[160]; \
+            int edge_passed_; \
+            (seen)++; \
+            snprintf(edge_name_, sizeof(edge_name_), "data_edge/%s/%s", (section), \
+                     (rows)[edge_i_].name); \
+            if ((rows)[edge_i_].c == ISCC_EDGE_SKIP) { \
+                printf("SKIP: %s\n", edge_name_); \
+                continue; \
+            } \
+            edge_passed_ = check(&(rows)[edge_i_]); \
+            ASSERT_EQ(edge_passed_, 1, edge_name_); \
         } \
     } while (0)
 
@@ -503,6 +632,45 @@ int main(void) {
         ASSERT_NULL(seq.data, "encode_seq(num_units=0) data is NULL");
         const char *err = iscc_last_error();
         ASSERT_NOT_NULL(err, "iscc_last_error() non-NULL after encode_seq error");
+    }
+
+    /* 33. Shared edge-case vectors (data-edge.json) via the generated header */
+    {
+        size_t edge_seen = 0;
+        RUN_EDGE_SECTION("iscc_decode", iscc_edge_iscc_decode, ISCC_EDGE_ISCC_DECODE_COUNT,
+                         check_edge_iscc_decode, edge_seen);
+        RUN_EDGE_SECTION("encode_seq", iscc_edge_encode_seq, ISCC_EDGE_ENCODE_SEQ_COUNT,
+                         check_edge_encode_seq, edge_seen);
+        RUN_EDGE_SECTION("gen_text_code_v0", iscc_edge_gen_text_code_v0,
+                         ISCC_EDGE_GEN_TEXT_CODE_V0_COUNT, check_edge_gen_text_code_v0,
+                         edge_seen);
+        RUN_EDGE_SECTION("gen_mixed_code_v0", iscc_edge_gen_mixed_code_v0,
+                         ISCC_EDGE_GEN_MIXED_CODE_V0_COUNT, check_edge_gen_mixed_code_v0,
+                         edge_seen);
+        RUN_EDGE_SECTION("gen_iscc_code_v0", iscc_edge_gen_iscc_code_v0,
+                         ISCC_EDGE_GEN_ISCC_CODE_V0_COUNT, check_edge_gen_iscc_code_v0,
+                         edge_seen);
+        ASSERT_EQ(edge_seen, ISCC_EDGE_TOTAL_COUNT,
+                  "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
+    }
+
+    /* 34. data-edge check functions fail a bad row (one bad case each) */
+    {
+        const struct iscc_edge_iscc_decode_vector accepted = {
+            "negative", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR, {"ISCC:GAAAAAAAAA", 15},
+            0, 0, 0, 0, {0, 0}};
+        const struct iscc_edge_gen_text_code_v0_vector mismatch = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {"Hello World", 11},
+            64, {"ISCC:EAAWSPUDF7GJWQVD", 21}};
+        const struct iscc_edge_gen_text_code_v0_vector truncated = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {"Hello\000World", 11},
+            64, {"ISCC:EAAWSPUDF7GJWQVD", 21}};
+        ASSERT_EQ(check_edge_iscc_decode(&accepted), 0,
+                  "data_edge negative: expected rejection that succeeds fails");
+        ASSERT_EQ(check_edge_gen_text_code_v0(&mismatch), 0,
+                  "data_edge negative: output mismatch fails");
+        ASSERT_EQ(check_edge_gen_text_code_v0(&truncated), 0,
+                  "data_edge negative: string with embedded NUL fails");
     }
 
     /* Summary */
