@@ -86,22 +86,22 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: cdd4fd5, iter 209 — incremental)
+## Current State (assessed-at: b00d83d, iter 210 — incremental)
 
-- **CI GREEN on `c0ba55e`** (run 44442490669, 21/21; codecov/cursor suites sit `queued` = noise).
+- **CI GREEN on `a15164b`** (run 44452418939, 21/21; codecov/cursor suites sit `queued` = noise).
     Local `origin/develop` ref can lag: a `cid(log)` HEAD may 422 on the check-runs API (not pushed)
     — use `git ls-remote origin develop` for the real tip. Runner-capacity cancels: suite `failure`
     w/ sole `cancelled` 0-step run = infra; still report FAILING.
-- **ISCC-SEQ bindings 8/11 (Python, Go, napi, WASM, C FFI 205, .NET 206, C++ 207, JNI 208)**; Ruby
-    next, then UniFFI. `-Xcheck:jni` via `-DargLine` is a NO-OP (pom argLine wins) — use
-    `JAVA_TOOL_OPTIONS`. C++ tests hard-code vectors (no data.json loader) — consistent, not a gap.
-    Probe: `grep -rlE` with QUOTED `--include='*.rs'` etc. (zsh globs unquoted `*.rs` → "no matches
-    found"); `data.json` = noise. dotnet `NativeMethods.g.cs` hit = generated P/Invoke only, NOT a
-    binding (check `IsccLib.cs`).
+- **ISCC-SEQ bindings 9/11 (Python, Go, napi, WASM, C FFI 205, .NET 206, C++ 207, JNI 208, Ruby
+    209)**; UniFFI (Swift+Kotlin) last, then 33→35 doc sweep. state.md now has a Ruby section.
+    `-Xcheck:jni` via `-DargLine` is a NO-OP (pom argLine wins) — use `JAVA_TOOL_OPTIONS`. C++ tests
+    hard-code vectors (no data.json loader) — consistent, not a gap. Probe: `grep -rlE` with QUOTED
+    `--include='*.rs'` etc. (zsh globs unquoted `*.rs` → "no matches found"); `data.json` = noise.
+    dotnet `NativeMethods.g.cs` hit = generated P/Invoke only, NOT a binding (check `IsccLib.cs`).
 - `encode_seq` strictness + multibase-ambiguous bare-unit reading = decisions.md rulings — do NOT
     re-flag. Text-utils U+001C–U+001F CLOSED 203; Go `TextClean` `TrimSpace` intentional.
-- **11 open `normal`** (208: +JNI pending-exception→IAE; NUL-truncation .NET+C++ awaits human), 7
-    low (18 headers). FFI 51 externs.
+- **11 open `normal`** (209: Ruby locale closed, +Magnus `Vec<T>` segfault), 7 low (18 headers). FFI
+    51 externs.
 - **`#[test]` count 426**; Go `func Test` **264**.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.
