@@ -71,6 +71,12 @@ Read anything else on demand, once.
     - Has clear, testable verification criteria (prefer boolean-testable: a command that exits 0 or
         an assertion that can be checked mechanically)
     - Builds on what already exists (don't skip ahead)
+    - **Finishes the pattern on the surface.** If the step introduces or changes how one surface
+        does something that sibling call sites on that surface also do (a guard, a helper, an error
+        mapping, a conversion), the step covers every such call site, also the ones outside the
+        feature being added. Never list those siblings under `## Not In Scope` and never leave them
+        for an issue: two forms of one thing on a surface are the defect. If covering them cannot
+        fit one step, scope the pattern change as its own step before the feature step.
     - If the step changes public API signatures, function behavior, configuration, or usage patterns
         that appear in documentation (README, per-crate READMEs, `docs/` pages, code examples),
         include affected doc files in the Scope section under "Modify". Keeping docs in sync is part

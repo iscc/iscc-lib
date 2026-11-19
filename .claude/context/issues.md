@@ -4,7 +4,9 @@ Tracked issues for the CID workflow. Priorities: `critical` (next iteration), `n
 against gaps), `low` (human-directed only — CID loop must skip these). Source tags: `[human]`,
 `[review]`, `[audit]`. Optional fields: `**Spec:**` (spec gap link), `**Upstream:**` (external
 repo). The review agent deletes resolved issues after verification (history in git). `[audit]`
-entries carry a `**Scope estimate:**` — a step citing one may modify up to 8 non-test files.
+entries carry a `**Scope estimate:**` — a step citing one may modify up to 8 non-test files. A `low`
+entry with `**Triage:** untriaged` is a review finding the human has not weighed yet: promote it to
+`normal`, or delete the line to park it.
 
 **This is a defect tracker, not a work queue.** An entry states the remaining problem and how to
 tell it is fixed, in **40 lines or fewer**, and is deleted once nothing is left to fix. Never record
@@ -167,7 +169,7 @@ Resolved when `uv.lock` pins `soupsieve` >= 4.0.0 and `setuptools` >= 84.1.0, `m
 (mdformat) is green, `Gemfile.lock` pins `json` >= 2.21.2, and
 `gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of #1-#6.
 
-## napi `Buffer` parameters leak a reference on non-Buffer object input `normal` [review]
+## napi `Buffer` parameters leak a reference on non-Buffer object input `low` [review]
 
 napi 3.11.0's `Buffer::from_napi_value`
 (`~/.cargo/registry/src/*/napi-3.11.0/src/bindgen_runtime/js_values/buffer.rs:489-501`) calls
@@ -186,7 +188,7 @@ inputs, e.g. plain `Uint8Array`, are accepted). Resolved when a loop of repeated
 to a `Buffer`-taking export shows no reference/heap growth, and every existing Buffer/Uint8Array
 input still works.
 
-## `crates/iscc-ffi/src/lib.rs` is past the crate's own split threshold `normal` [review]
+## `crates/iscc-ffi/src/lib.rs` is past the crate's own split threshold `low` [review]
 
 `crates/iscc-ffi/CLAUDE.md` says "do not split into submodules unless the file exceeds ~2500 lines";
 `lib.rs` is now 2870 (1715 of exported code, ~1155 of `mod tests` from line 1716). Constraint on any
@@ -210,7 +212,7 @@ both in iter 206 to keep the seq step to one file.
 Resolved when one private helper does the pinning for all three methods, and an empty or null input
 to the two gen methods fails the same way as `EncodeSeq` (tests assert the core's message for `[]`).
 
-## JNI exports report a pending JVM exception as `IllegalArgumentException` `normal` [review]
+## JNI exports report a pending JVM exception as `IllegalArgumentException` `low` [review]
 
 Every `extern "system"` function in `crates/iscc-jni/src/lib.rs` routes JNI-environment errors
 (`new_string`, `byte_array_from_slice`, `build_string_array`, `extract_string_array`, …) through
@@ -228,7 +230,7 @@ throwing when `env.exception_check()` reports a pending exception. Resolved when
 failure reaches Java as the original `OutOfMemoryError` (test under a small `-Xmx`, or argue why
 untestable), and the existing `IllegalArgumentException` / `IllegalStateException` tests still pass.
 
-## Ruby `i32` list elements silently truncate negative Bignums `normal` [review]
+## Ruby `i32` list elements silently truncate negative Bignums `low` [review]
 
 `IsccLib.gen_audio_code_v0([-(2**63)])` returns `ISCC:EIAQAAAAAAAAAAAA`, the code of `[0]`, and
 `[-(2**62) - 5]` returns a code too, where every other out-of-range element raises `RangeError`

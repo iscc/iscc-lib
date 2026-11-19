@@ -398,3 +398,34 @@ the wrappers are what breaks the contract; the check is one choke point per wrap
 .NET and C++ refuse NUL-bearing text that Rust and Python accept. **Alternatives:** strings with a
 length across the FFI. Rejected: it breaks every string-taking C function for a rare input.
 **Context:** human decision (Titusz, interactive session, 2026-11-19); issues.md has the evidence.
+
+## 2026-11-19 — Edge-case vectors are collected in `data-edge.json` and go upstream later
+
+**Decision:** edge-case inputs on which surfaces, or iscc-lib and iscc-core, disagree are collected
+in one shared file that every conformance harness runs (`specs/edge-vectors.md`). Titusz signals
+when the file is contributed to iscc/iscc-core; nobody opens an upstream PR or issue before that.
+**Why:** `data.json` has only well-formed inputs, and every cross-surface disagreement found so far
+(strict base32 in Go, case folding, embedded NUL, empty lists) was on an input it does not cover.
+**Alternatives:** per-binding negative tests only, the status quo. Rejected: eleven hand-written
+copies drift. **Context:** human decision (Titusz, interactive session, 2026-11-19).
+
+## 2026-11-19 — Review-found old defects are filed `low` until the human promotes them
+
+**Decision:** the review files a defect as `normal` only when the step caused it, ordinary
+documented use hits it, or an outside signal raised it (CI, a security advisory, an upstream
+release, a user report). Everything else is `low` with `**Triage:** untriaged`, and Titusz promotes
+what matters (`review.md` step 7). **Why:** `normal` blocks the release, and 10 of 16 open issues
+were review-filed, so the reviewer was setting the release bar from inside the loop.
+**Alternatives:** keep `normal` as the default. Rejected for that reason. **Context:** human
+decision (Titusz, interactive session, 2026-11-19), applied the same day to four open entries (napi
+`Buffer` leak, JNI pending exception, Ruby negative Bignum, `iscc-ffi` file split).
+
+## 2026-11-19 — A step that introduces a pattern on a surface covers all its call sites
+
+**Decision:** when a step introduces or changes how one surface does something (a guard, a helper,
+an error mapping, a conversion), it covers every sibling call site on that surface in the same step
+(`define-next.md` step 5, checked by the review). **Why:** minimal steps left the old form next to
+the new one and filed the rest as an issue: three .NET pin loops with two behaviours (iteration
+206), a NUL guard on 1 of 16 C++ call sites (207). **Alternatives:** keep minimal steps and track
+leftovers as issues. Rejected: the leftover is the defect. **Context:** human decision (Titusz,
+interactive session, 2026-11-19).

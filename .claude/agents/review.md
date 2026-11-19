@@ -88,6 +88,10 @@ context limits: run this protocol through to the push step.
             to. Verify the work really was identical across surfaces — a fan-out that smuggles in a
             per-surface design decision is out of scope. An honest fan-out has no file-count limit;
             that is the point of the valve.
+    - **Pattern completeness**: when the diff introduces or changes how one surface does something
+        (a guard, a helper, an error mapping, a conversion), search that surface for sibling call
+        sites that still use the old form. define-next must scope all of them (its step 5), so a
+        leftover is NEEDS_WORK if next.md listed it and a `normal` issue if next.md missed it.
     - **Correctness**: Does it do what next.md asked? Are edge cases handled?
     - **Conformance**: If applicable, do outputs match iscc-core reference?
     - **Simplicity**: Is the code as simple as it can be? No over-engineering?
@@ -160,16 +164,43 @@ context limits: run this protocol through to the push step.
     - **Sweep for stale entries**: compare each issue against state.md "met" sections. If an issue
         describes a feature/fix that is now complete, delete the entry (even if it was resolved in a
         prior iteration, not this one). This prevents stale accumulation.
+
     - **Current iteration**: if this iteration resolved an issue, delete it after verification.
+
     - **Trim on sight**: if an existing entry breaks the rules above, fix that entry as you pass it.
         Compressing an over-budget ledger is always in scope for this role.
+
     - **New issues**: this is the filter pass over everything step 5 turned up. A finding earns an
         entry when it affects correctness, architecture, or maintainability; style preferences and
         minor nits do not — note those in the handoff's **Issues found:** list instead of filing
-        them. File with source tag `[review]` and `normal` priority (or `critical` if it blocks
-        progress).
+        them. File with source tag `[review]`.
+
+    - **Priority of a new issue**: `normal` blocks the release, so a reviewer that hands out
+        `normal` freely moves the release bar from inside the loop. Use `normal` (or `critical` if
+        it blocks progress) only when one of these holds:
+
+        - the step under review introduced or exposed the defect, including a leftover the step itself
+            created (a guard or helper applied to some call sites and not to their siblings)
+        - ordinary documented use hits it: a caller who follows the docs and passes inputs of the
+            documented types gets a wrong result, a crash, or a build or install failure
+        - the signal comes from outside the loop: a failing CI job, a published security advisory
+            (Dependabot, RustSec), an upstream release, or a report from a user or the human
+
+        File everything else as `low` with a `**Triage:** untriaged` line that says in one sentence
+        who would hit it and how. That covers a pre-existing defect that needs hostile, contrived or
+        wrong-typed input or resource exhaustion, and a maintainability observation about code the
+        step did not touch. The human promotes what matters, so never raise the priority of an
+        existing entry yourself. Name each such entry in the handoff's **Issues found:** list, and
+        do not escalate it with `HUMAN REVIEW REQUESTED`.
+
+    - **Cross-surface disagreements**: when the finding is a JSON-expressible input on which two
+        surfaces behave differently, or on which a surface differs from iscc-core, the entry's
+        "Resolved when" requires a vector in `data-edge.json` (target.md → "Shared Edge-Case
+        Vectors"), not only a test on the surface at fault.
+
     - **Advance agent issues**: if the advance handoff mentions out-of-scope problems, evaluate and
         add to issues.md if warranted.
+
     - **Spec-rooted issues**: always include the `**Spec:**` field. Escalate with
         `HUMAN REVIEW REQUESTED` when the fix would change **rationale, acceptance criteria, or
         scope** — those are the human's call. A spec statement that is merely a *mechanically
@@ -179,6 +210,7 @@ context limits: run this protocol through to the push step.
         — a line count in a spec is drift by construction — over restating it. Do NOT modify
         `target.md` yourself under either branch; sub-specs under `.claude/context/specs/` are
         correctable, `target.md` is not.
+
     - **Upstream issues**: include `**Upstream:** iscc/iscc-core` + `HUMAN REVIEW REQUESTED` +
         concrete evidence. Do not file GitHub issues.
 

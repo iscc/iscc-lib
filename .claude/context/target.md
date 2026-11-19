@@ -40,6 +40,10 @@ comes after it and remains human-gated** — do not treat any v1.0.0 criterion b
     harness runs the `encode_seq` / `decode_seq` vectors. Full definition in `rust-core.md` →
     "encode_seq / decode_seq (ISCC-SEQ, IEP-0020)". Suggested order: Rust core + tests first, then
     the Go `iscc_clean` prerequisite (issues.md), then the bindings
+- **Shared edge-case vectors run everywhere:** `data-edge.json` holds the seed set, and the Rust
+    core and all 11 bindings run it (see "Shared Edge-Case Vectors" below). Suggested order: the
+    file with the Rust and Python harnesses first, then one fan-out step for the bindings that parse
+    JSON, then C and C++
 - `mise run version:check` passes and CI is green on `develop` at the commit to be released
 - No `critical` or `normal` issue is open that is not blocked on the human or on an upstream release
 
@@ -50,6 +54,28 @@ deprecated, never part of ISO 24138, and owed no backward compatibility (see `ru
 "ISCC-IDv0 is out of scope — permanently"). Experimental ISCC-IDv1 support (`gen_iscc_id_v1`,
 generic decode) shipped in 0.6.0 and stays as specified in `rust-core.md`. The release itself is cut
 by the human via the `/release` skill — CID never cuts it.
+
+## Shared Edge-Case Vectors — `data-edge.json`
+
+`data.json` holds only well-formed inputs, so the surfaces can drift apart on everything else
+without a test noticing. `crates/iscc-lib/tests/data-edge.json` closes that gap: one file of
+edge-case inputs with their expected outcome, in the `data.json` layout, run by the conformance
+harness of the Rust core and all 11 bindings. It is this project's extension of the reference
+vectors. It will be contributed to iscc/iscc-core when the maintainer signals it, and not before.
+
+Detailed spec: `.claude/context/specs/edge-vectors.md`
+
+**Collecting rule (every role):** when a JSON-expressible input makes two surfaces behave
+differently, or makes a surface differ from iscc-core, the fix adds a vector to `data-edge.json` in
+the same step. A test on one surface alone does not close such a finding.
+
+**Verified when:**
+
+- `data-edge.json` exists with the seed set from the spec and is vendored like `data.json`
+- The Rust core and all 11 bindings run every vector. Deviations exist only as `except` entries in
+    the file, never as skips in harness code
+- The Python suite checks every vector against iscc-core 1.5.0, and the `diverges` markers match
+    what it finds
 
 ## Rust Core Crate — `iscc-lib` on crates.io
 
