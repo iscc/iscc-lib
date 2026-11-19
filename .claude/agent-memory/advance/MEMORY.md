@@ -137,4 +137,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
 - .NET `packages/dotnet/` (P/Invoke over `iscc_ffi`, `dotnet-version: 8.0`); C++ `packages/cpp/`
     (header-only C++17, CMake + ASAN; no system cmake but `uv run --with cmake` works — build into
     gitignored `build-uv/`). Detail → MEMORY-archive.md
-- Embedded NUL (213): .NET `ToNativeUtf8` / C++ `detail::checked_c_str` throw; route new inputs
+- Embedded NUL (213): .NET `ToNativeUtf8` / C++ `detail::checked_c_str` throw; route every new
+    string input through them (bare `.c_str()` / `GetBytes` truncates at NUL)
+- npm metadata (214): `@iscc/wasm` package.json comes from `crates/iscc-wasm/Cargo.toml` via
+    wasm-pack (0.13.1 resolves `license.workspace`); `@iscc/lib` package.json is committed as-is.
+    taplo aligns trailing comments to the longest line in a block — put comments on their own line

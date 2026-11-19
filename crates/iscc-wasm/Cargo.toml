@@ -3,7 +3,10 @@ name = "iscc-wasm"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-publish = false               # Published via npm, not crates.io
+license.workspace = true
+description = "Browser-compatible WebAssembly bindings for ISO 24138:2024 International Standard Content Code (ISCC)"
+# Published via npm, not crates.io
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]

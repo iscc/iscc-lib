@@ -2,6 +2,7 @@
   "name": "@iscc/lib",
   "version": "0.7.0",
   "license": "Apache-2.0",
+  "description": "High-performance Node.js bindings for ISO 24138:2024 International Standard Content Code (ISCC)",
   "repository": {
     "type": "git",
     "url": "https://github.com/iscc/iscc-lib"

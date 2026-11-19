@@ -1,61 +1,44 @@
-## 2026-11-19 — Review of: .NET and C++ wrappers reject string inputs with an embedded NUL
+## 2026-11-19 — npm packages ship a license and a plain-text description
 
-**Verdict:** PASS
+**Done:** `crates/iscc-wasm/Cargo.toml` now sets `license.workspace = true` (Apache-2.0) and a
+browser-specific `description` literal, so wasm-pack writes both into `pkg/package.json`.
+`crates/iscc-napi/package.json` gained the napi `description` right after `license`.
 
-**Summary:** Both wrappers now reject a string containing `\0` before it reaches the C FFI. In .NET
-the check sits in `ToNativeUtf8`, which is the only string-marshalling path (grepped every
-non-generated `Iscc.Lib/*.cs`). In C++ the new `detail::checked_c_str` is now the only route from
-`std::string` to a C call, apart from `encode_seq`, which has its own guard. Tests cover every case
-next.md listed, plus `gen_sum_code_v0`'s path in C++. The issue is resolved and deleted from
-issues.md.
+**Files changed:**
+
+- `crates/iscc-wasm/Cargo.toml`: added `license.workspace = true` + `description`; moved the
+    `publish = false` trailing comment onto its own line (see Notes)
+- `crates/iscc-napi/package.json`: added `"description"`
+- `.claude/agent-memory/advance/MEMORY.md`: finished the truncated NUL line; npm metadata note
 
 **Verification:**
 
-- [x] `cargo build -p iscc-ffi && dotnet test …`: 125/125 passed, including all 9 `NulInputTests`.
-    The first run hit "apphost not found" because the background Codex run was building in the same
-    `obj/`; the re-run was clean
-- [x] C++ ASAN build (fresh `build/`) + `test_iscc`: exit 0, `76 passed, 0 failed`, no sanitizer
-    report. Re-run after my line wrap: same result
-- [x] `grep -n 'c_str()' iscc.hpp`: only L68 (inside `checked_c_str`) and L384 (`encode_seq`, right
-    after its NUL guard)
-- [x] `grep -n 'embedded NUL'`: matches `docs/howto/dotnet.md:447` and `docs/howto/c-cpp.md:428`
-- [x] `mise run check`: exit 0, and no formatter rewrites
-- Extra checks: a strict `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -fsyntax-only` pass over
-    `test_iscc.cpp` is clean. The .NET negatives cannot pass by accident: the new `ToNativeUtf8`
-    check is the only code that produces an `IsccException` containing "embedded NUL", so all 8 fail
-    against the old file. That means the pre-fix .NET run the advance agent skipped is not needed
+- `wasm-pack build --target web --dev crates/iscc-wasm`: exit 0 (fresh build, version 0.7.0). The
+    generated `pkg/package.json` has `"license": "Apache-2.0"` and the exact WASM description, so
+    wasm-pack 0.13.1 does resolve `license.workspace`, and no literal fallback was needed. wasm-pack
+    logged an INFO line "License key is set ... no LICENSE file(s) were found", which next.md says
+    is informational
+- `node -e` with `assert.strictEqual`: WASM `license` + `description`, napi `description` +
+    `license` all match. Output: `node asserts OK`
+- `cargo metadata --no-deps --format-version 1`: parses; `iscc-wasm` shows license `Apache-2.0` and
+    the description
+- Ran release.yml's "Set npm package name and version" logic on a copy of the generated JSON: result
+    `@iscc/wasm 0.7.0 Apache-2.0 | Browser-compatible ...`, so both fields survive the patch
+- `mise run check`: the first run failed (taplo rewrote the TOML, see Notes). After the fix it exits
+    0 with no hook failures
 
-**Issues found:**
+**Next:** Ruby negative-Bignum truncation (`RBignum::to_i32`), the alternative next.md rejected for
+this step. The Dependabot `soupsieve`/`setuptools` lock refresh and the Python `encode_seq`
+docstrings are also small.
 
-- Minor fix (mine): wrapped the two new `iscc.hpp` lines that ran to 105 columns (`gen_meta_code_v0`
-    and `gen_sum_code_v0`), so they fit in 100 like the rest of the header. No formatter config
-    enforces this; it was my choice, and I rebuilt and re-ran the tests afterwards
-- `packages/cpp/CLAUDE.md` and `packages/dotnet/CLAUDE.md` were edited although they are not in
-    Scope. I accepted this: the old type-mapping row told agents to call `.c_str()` at the call
-    site, which is exactly the bug pattern
-- The .NET message names no parameter or index, while C++ `encode_seq` says "ISCC-UNIT at index i".
-    This follows from having one shared check, as next.md prescribed. Noted, not filed
-- The advance memory's new NUL line stops mid-sentence ("route new inputs"). That file belongs to
-    the advance agent, so I did not edit it. learnings.md now states the full rule
+**Notes:**
 
-**Codex review:** Main commit `8f6ba5d`: clean, no findings (it also reproduced the 76 C++ and 125
-.NET passes). HEAD `7ba4763`: one P3, the truncated advance memory line above. Not actionable for
-review.
-
-**Next:** Nine `normal` issues remain. These are small and independent:
-
-- `@iscc/wasm` license/description metadata (`crates/iscc-wasm/Cargo.toml` + the release patch step)
-- Dependabot `soupsieve`/`setuptools` lock refresh (security alerts, dev-only)
-- Ruby negative-Bignum truncation (another wrong-result bug)
-- Python `encode_seq` docstrings (two docstrings)
-
-The .NET pin-loop dedup issue touches the same `IsccLib.cs` region that was just edited.
-
-Gate maintenance for define-next to weigh: nothing stops a future wrapper function from using a bare
-`.c_str()` (C++) or calling `Encoding.UTF8.GetBytes` directly (.NET), which would bring the
-truncation back. A small structural test pinning both helpers as the only marshalling paths would
-catch it.
-
-**Notes:** Binding-only change, so the CRAP, iai and semver gates are not affected. The C ABI stays
-NUL-terminated (decisions.md 2026-11-19). No new decision entry: 2026-11-19 already covers this
-change.
+- taplo lines up a trailing comment with the longest line in its block. With the long `description`
+    line it pushed `publish = false  # Published via npm...` out to column 119. I put the comment on
+    its own line above `publish = false`; the value did not change (cargo metadata `publish: []`,
+    same as before)
+- I did not rebuild wasm after moving the comment, because that edit only touches a comment.
+    `cargo metadata` was re-checked afterwards
+- Manifest-only change: the CRAP, iai and semver gates are not affected. No tests were added,
+    because next.md rules out a pytest that just restates the manifest
+- `crates/iscc-wasm/pkg/` is gitignored; the fresh build replaced the stale 0.5.0 copy on disk
