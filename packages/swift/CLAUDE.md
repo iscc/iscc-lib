@@ -27,7 +27,9 @@ packages/swift/
   Tests/
     IsccLibTests/
       ConformanceTests.swift                 # data.json vectors (9 gen_*_v0 functions, ISCC-SEQ) + gen_iscc_id_v1 golden test
+      DataEdgeTests.swift                    # data-edge.json edge-case vectors (every vector, except["swift"])
       data.json                              # Vendored ISCC conformance test vectors (SPM resource)
+      data-edge.json                         # Vendored edge-case vectors (SPM resource)
 ```
 
 ## Build Commands
@@ -59,6 +61,14 @@ swift test \
     the bytes round trip, and one-bad-input-per-test negatives)
 - `decodeStream` helper converts `"stream:<hex>"` format to `Data`
 - Asserts exact ISCC string equality against expected outputs
+
+### Edge-case vectors (`DataEdgeTests.swift`)
+
+- Runs every `data-edge.json` vector through a section -> caller table; `except["swift"]` is the
+    only deviation, an unknown section fails, and a rejection must throw `IsccUniError` from the raw
+    call alone
+- Every expected output key must be present in the converted record and equal (typed casts, no `Any`
+    equality); 6 test methods (the vector run plus five one-bad-case negatives)
 
 ## Binding Generation
 
