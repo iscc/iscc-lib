@@ -84,20 +84,18 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: be0c4d3, iter 217 — incremental, restart)
+## Current State (assessed-at: e14ba21, iter 218 — incremental)
 
-- **Iter 217 RESTART:** its first update-state/define-next/advance ran (commits 164a436..be0c4d3)
-    but left NO jsonl entries; review never ran. Go + Node data-edge harnesses committed UNREVIEWED
-    and UNPUSHED — CI green on `bd99366` does NOT cover them. Check jsonl for a 217 review next
-    time.
-- **data-edge fan-out group 1** (next.md): Node, WASM, Java, Go, .NET, Ruby. Done (unreviewed): Go
-    (`data_edge_test.go`, 5 tests), Node (`data_edge.test.mjs`, 5). .NET copy vendored but NO
-    `DataEdgeTests.cs`. `VENDORED_COPIES` = go + dotnet. Group 2/3 = C, C++, Swift, Kotlin.
-- 16 vectors / 5 sections; 3 `except` entries (c skip x2; dotnet/cpp error on text NUL).
+- **data-edge group 1 DONE + reviewed + pushed (217, CI green on 31e81cf):** Go, Node, WASM
+    (`include_str!` canonical), Java (`crates/iscc-jni/java/src/test/...` — NOT
+    `crates/iscc-jni/src`), .NET, Ruby. Remaining: Swift, Kotlin (group 2), C, C++ (group 3,
+    generated table; generator in `ea69169`). `VENDORED_COPIES` data-edge = go + dotnet; 3 tracked
+    `data-edge.json`.
+- 16 vectors / 5 sections; 2 `except` entries (c skip x2; dotnet/cpp error on text NUL).
 - **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
-    defects. 18 open: 6 normal, 12 low.
+    defects. 20 open: 7 normal (Ruby key-intersection added 217), 13 low.
 - **ISCC-SEQ done on all 11 surfaces (211); .NET+C++ NUL rejection done (213)** — do NOT re-flag.
-- FFI 51 externs. Go `func Test` 268; Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
+- FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
 - **Python heredoc**: plain `uv run python - << 'EOF'` works (VIRTUAL_ENV warning harmless).
 
 ## Durable Facts (carried, not per-iteration)
