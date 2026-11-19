@@ -1,14 +1,14 @@
-<!-- assessed-at: e14ba21b1be12aacf22cd51735c4afefd2c1f378 -->
+<!-- assessed-at: 09d68d32617a9efabbd5efc37183b900481086b6 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — data-edge.json binding fan-out (group 1 done, groups 2-3 owed)
+## Phase: v0.8.0 — data-edge.json binding fan-out (groups 1-2 done, C/C++ owed)
 
-ISCC-SEQ is bound and documented on all 11 surfaces. `data-edge.json` runs on Rust, Python and the
-six group-1 bindings (Go, Node, WASM, Java, .NET, Ruby). All of it is reviewed, pushed and green in
-CI. Still owed for v0.8.0: harnesses on Swift, Kotlin, C and C++, and 7 open `normal` issues.
+ISCC-SEQ is bound and documented on all 11 surfaces. `data-edge.json` now runs on Rust, Python and
+eight bindings (Go, Node, WASM, Java, .NET, Ruby, Swift, Kotlin). All of it is reviewed, pushed and
+green in CI. Still owed for v0.8.0: the C and C++ harnesses, and 6 open `normal` issues.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -16,15 +16,15 @@ CI. Still owed for v0.8.0: harnesses on Swift, Kotlin, C and C++, and 7 open `no
 
 - `crates/iscc-lib/tests/data-edge.json` has 16 vectors in 5 sections. 2 `except` entries: `c: skip`
     on 2 vectors, plus `dotnet`/`cpp: error` on the embedded-NUL text vector
-- Harnesses exist for Rust, Python (checked against iscc-core), Go (`data_edge_test.go`), Node
-    (`__tests__/data_edge.test.mjs`), WASM (`tests/data_edge.rs`, via `include_str!` of the
-    canonical file), Java (`DataEdgeTest.java`, reads the canonical file), .NET (`DataEdgeTests.cs`
-    - csproj content entry) and Ruby (`test/test_data_edge.rb`)
-- `VENDORED_COPIES` registers 2 data-edge copies, for Go and .NET. 3 `data-edge.json` files are
-    tracked
-- **Missing:** harnesses for Swift, Kotlin, C and C++. **`normal` issue:** the Ruby harness only
-    compares the keys a result happens to have, so a missing expected key passes. **`low` issue:**
-    the spec says "absent from every published artifact", but Go/Swift ship the file. Titusz decides
+- Harnesses exist for Rust, Python (checked against iscc-core), Go, Node, WASM, Java, .NET, Ruby,
+    Swift (`DataEdgeTests.swift`, 6 tests) and Kotlin (`DataEdgeTest.kt`, 6 tests). The fixture
+    validator rejects `outputs: {}`, and Ruby now fails on a missing expected key
+- `VENDORED_COPIES` registers 4 data-edge copies (Go, .NET, Kotlin, Swift). 5 `data-edge.json` files
+    are tracked
+- **Missing:** the C and C++ harnesses (nothing under `crates/iscc-ffi` or `packages/cpp` references
+    `data-edge`; a generated table is allowed). `low` issues: the Swift compare is looser than byte
+    equality; Go/Swift ship the file against the spec's "absent from every published artifact"
+    (Titusz decides)
 
 ## Rust Core Crate
 
@@ -66,8 +66,8 @@ CI. Still owed for v0.8.0: harnesses on Swift, Kotlin, C and C++, and 7 open `no
 
 - 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
-- **Missing:** the C data-edge harness (a generated table is allowed). **`normal` issue:**
-    `docs/c-ffi-api.md` type names differ from `iscc.h`. The `src/lib.rs` split is `low`
+- **Missing:** the C data-edge harness. **`normal` issue:** `docs/c-ffi-api.md` type names differ
+    from `iscc.h`. The `src/lib.rs` split is `low`
 
 ## Java Bindings
 
@@ -103,21 +103,21 @@ CI. Still owed for v0.8.0: harnesses on Swift, Kotlin, C and C++, and 7 open `no
 
 ## Ruby Bindings
 
-**Status**: partially met
+**Status**: met (v0.8.0 scope)
 
-- `encode_seq` / `decode_seq` run by `test_conformance.rb`; `test_data_edge.rb` is green in CI;
-    0.7.0 on RubyGems
-- **`normal` issue:** the data-edge key-intersection compare (see above). The negative-Bignum `i32`
-    truncation is `low`
+- `encode_seq` / `decode_seq` run by `test_conformance.rb`; `test_data_edge.rb` compares every
+    expected key and is green in CI; 0.7.0 on RubyGems
+- `low` issue: negative-Bignum `i32` truncation
 
 ## Swift and Kotlin Bindings
 
-**Status**: partially met
+**Status**: met (v0.8.0 scope)
 
-- `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`. Swift and Kotlin conformance suites run
-    all 8 seq vectors; both shipped 0.7.0
-- **Missing:** data-edge harnesses and vendored copies on both (nothing references `data-edge` under
-    `packages/swift` or `packages/kotlin`)
+- `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both conformance suites run all 8 seq
+    vectors; both shipped 0.7.0
+- Swift `DataEdgeTests` (6 tests, run by name in the macOS-15 arm64 CI job) and Kotlin
+    `DataEdgeTest` (6 tests) are green in CI, each with a registered vendored copy
+- `low` issue: the Swift compare uses canonical string equivalence and reads a JSON bool as an Int
 
 ## Documentation
 
@@ -141,18 +141,18 @@ CI. Still owed for v0.8.0: harnesses on Swift, Kotlin, C and C++, and 7 open `no
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `31e81cf`. All 21 check-runs succeeded; the GitHub
-    Actions check-suite is `success`. The only unpushed commit (`e14ba21`) touches `.claude/` only,
+- **Latest CI: PASSING** on `origin/develop` = `39cff64`. All 21 check-runs succeeded; the GitHub
+    Actions check-suite is `success`. The only unpushed commit (`09d68d3`) touches `.claude/` only,
     so green CI covers all code at HEAD
 - **Missing (`normal` issue):** Dependabot alerts on `soupsieve`, `setuptools` and the `json` gem
 
 ## Open Issues
 
-20 open: 0 critical, **7 normal**, 13 low. Normal: c-ffi-api type names, Python `encode_seq`
+20 open: 0 critical, **6 normal**, 14 low. Normal: c-ffi-api type names, Python `encode_seq`
 docstrings, Dependabot alerts, .NET pin-loop duplication, wasm-bindings spec drift, derived-fact
-drift, and the Ruby data-edge key compare.
+drift. issues.md sits at its 300-line budget.
 
 ## Next Milestone
 
-Bring `data-edge.json` to the last 4 surfaces (Swift, Kotlin, C, C++) and clear the 7 open `normal`
-issues. Together these are what remains for v0.8.0.
+Bring `data-edge.json` to the last 2 surfaces (C and C++) and clear the 6 open `normal` issues.
+Together these are what remains for v0.8.0.

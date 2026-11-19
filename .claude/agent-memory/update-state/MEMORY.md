@@ -84,16 +84,16 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: e14ba21, iter 218 — incremental)
+## Current State (assessed-at: 09d68d3, iter 219 — incremental)
 
-- **data-edge group 1 DONE + reviewed + pushed (217, CI green on 31e81cf):** Go, Node, WASM
-    (`include_str!` canonical), Java (`crates/iscc-jni/java/src/test/...` — NOT
-    `crates/iscc-jni/src`), .NET, Ruby. Remaining: Swift, Kotlin (group 2), C, C++ (group 3,
-    generated table; generator in `ea69169`). `VENDORED_COPIES` data-edge = go + dotnet; 3 tracked
-    `data-edge.json`.
+- **data-edge groups 1+2 DONE + reviewed + pushed (CI green on 39cff64):** Go, Node, WASM, Java,
+    .NET, Ruby, Swift, Kotlin. Remaining: C, C++ (group 3, generated table; generator in `ea69169`).
+    `VENDORED_COPIES` data-edge = go + dotnet + kotlin + swift; 5 tracked `data-edge.json`.
+- **macOS Swift proof**: `gh run view --job <check-run-id> --log | grep DataEdgeTests` (check-run id
+    == job id) — shows tests ran by name on `macos-15-arm64`.
 - 16 vectors / 5 sections; 2 `except` entries (c skip x2; dotnet/cpp error on text NUL).
 - **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
-    defects. 20 open: 7 normal (Ruby key-intersection added 217), 13 low.
+    defects. 20 open: 6 normal, 14 low. issues.md at 300-line budget.
 - **ISCC-SEQ done on all 11 surfaces (211); .NET+C++ NUL rejection done (213)** — do NOT re-flag.
 - FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
 - **Python heredoc**: plain `uv run python - << 'EOF'` works (VIRTUAL_ENV warning harmless).
