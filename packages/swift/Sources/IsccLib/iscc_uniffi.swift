@@ -2118,6 +2118,19 @@ public func conformanceSelftest() -> Bool  {
 })
 }
 /**
+ * Decode an ISCC-SEQ byte string to `ISCC:`-prefixed unit strings (IEP-0020).
+ *
+ * Validation and error messages come from the core (`iscc_lib::decode_seq`).
+ */
+public func decodeSeq(data: Data)throws  -> [String]  {
+    return try  FfiConverterSequenceString.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_decode_seq(
+        FfiConverterData.lower(data),uniffiCallStatus
+    )
+})
+}
+/**
  * Encode binary data as URL-safe base64 (no padding).
  */
 public func encodeBase64(data: Data) -> String  {
@@ -2140,6 +2153,20 @@ public func encodeComponent(mtype: UInt8, stype: UInt8, version: UInt8, bitLengt
         FfiConverterUInt8.lower(version),
         FfiConverterUInt32.lower(bitLength),
         FfiConverterData.lower(digest),uniffiCallStatus
+    )
+})
+}
+/**
+ * Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+ *
+ * Units are concatenated in the given order. Validation and error messages
+ * come from the core (`iscc_lib::encode_seq`).
+ */
+public func encodeSeq(units: [String])throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_encode_seq(
+        FfiConverterSequenceString.lower(units),uniffiCallStatus
     )
 })
 }
@@ -2463,10 +2490,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_iscc_uniffi_checksum_func_conformance_selftest() != 24279) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_iscc_uniffi_checksum_func_decode_seq() != 13261) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_iscc_uniffi_checksum_func_encode_base64() != 43598) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_iscc_uniffi_checksum_func_encode_component() != 11010) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_iscc_uniffi_checksum_func_encode_seq() != 49172) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_iscc_uniffi_checksum_func_gen_audio_code_v0() != 22048) {

@@ -1,5 +1,5 @@
-/// Conformance tests for all 9 gen_*_v0 functions against data.json vectors.
-/// Validates the Swift binding produces correct ISCC codes matching the iscc-core reference.
+/// Conformance tests for the 9 gen_*_v0 functions and encode_seq/decode_seq against data.json
+/// vectors. Validates the Swift binding produces output matching the iscc-core reference.
 
 import Foundation
 import XCTest
@@ -16,7 +16,18 @@ final class ConformanceTests: XCTestCase {
 
     /// Decode a "stream:<hex>" string to Data.
     static func decodeStream(_ streamStr: String) -> Data {
-        let hex = String(streamStr.dropFirst("stream:".count))
+        precondition(streamStr.hasPrefix("stream:"), "Expected stream: prefix: \(streamStr)")
+        return hexToData(String(streamStr.dropFirst("stream:".count)))
+    }
+
+    /// Decode a "bytes:<hex>" string to Data.
+    static func decodeBytes(_ bytesStr: String) -> Data {
+        precondition(bytesStr.hasPrefix("bytes:"), "Expected bytes: prefix: \(bytesStr)")
+        return hexToData(String(bytesStr.dropFirst("bytes:".count)))
+    }
+
+    /// Decode a plain hex string to Data.
+    static func hexToData(_ hex: String) -> Data {
         if hex.isEmpty { return Data() }
         var bytes = [UInt8]()
         var index = hex.startIndex
@@ -243,5 +254,98 @@ final class ConformanceTests: XCTestCase {
         XCTAssertEqual(a.hubId, 4095)
         XCTAssertEqual(a.version, 1)
         XCTAssertEqual(a.realm, 1)
+    }
+
+    // MARK: - encode_seq / decode_seq
+
+    /// Assert that `error` is an `IsccUniError` whose message contains `fragment`.
+    static func assertIsccError(
+        _ error: Error, contains fragment: String, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard case IsccUniError.IsccError(let msg) = error else {
+            return XCTFail("Unexpected error type: \(error)", file: file, line: line)
+        }
+        XCTAssertTrue(msg.contains(fragment), "Message \"\(msg)\" lacks \"\(fragment)\"", file: file, line: line)
+    }
+
+    /// First unit of the decode_seq vector `test_0003_two_128_bit_units`.
+    static let seqUnit = "ISCC:GABQLNA7GRZESMRF2J7NZPNWGI3II"
+
+    func testEncodeSeq() throws {
+        let vectors = Self.vectors(for: "encode_seq")
+        XCTAssertEqual(vectors.count, 4, "Expected 4 encode_seq vectors")
+
+        for (name, tc) in vectors {
+            let inputs = tc["inputs"] as! [Any]
+            let units = inputs[0] as! [String]
+            let expected = Self.decodeBytes(tc["outputs"] as! String)
+
+            let result = try encodeSeq(units: units)
+            XCTAssertEqual(result, expected, "Failed vector: \(name)")
+        }
+    }
+
+    func testDecodeSeq() throws {
+        let vectors = Self.vectors(for: "decode_seq")
+        XCTAssertEqual(vectors.count, 4, "Expected 4 decode_seq vectors")
+
+        for (name, tc) in vectors {
+            let inputs = tc["inputs"] as! [Any]
+            let data = Self.decodeBytes(inputs[0] as! String)
+            let expected = tc["outputs"] as! [String]
+
+            let result = try decodeSeq(data: data)
+            XCTAssertEqual(result, expected, "Failed vector: \(name)")
+        }
+    }
+
+    func testSeqBytesRoundTrip() throws {
+        let vectors = Self.vectors(for: "decode_seq")
+        XCTAssertEqual(vectors.count, 4, "Expected 4 decode_seq vectors")
+
+        for (name, tc) in vectors {
+            let inputs = tc["inputs"] as! [Any]
+            let data = Self.decodeBytes(inputs[0] as! String)
+            XCTAssertEqual(try encodeSeq(units: try decodeSeq(data: data)), data, "Failed vector: \(name)")
+        }
+    }
+
+    func testEncodeSeqRejectsEmptyList() {
+        XCTAssertThrowsError(try encodeSeq(units: [])) { error in
+            Self.assertIsccError(error, contains: "at least one ISCC-UNIT")
+        }
+    }
+
+    func testDecodeSeqRejectsEmptyBytes() {
+        XCTAssertThrowsError(try decodeSeq(data: Data())) { error in
+            Self.assertIsccError(error, contains: "Empty ISCC-SEQ")
+        }
+    }
+
+    func testDecodeSeqRejectsTruncatedBytes() throws {
+        let tc = Self.vectors(for: "decode_seq").first { $0.0 == "test_0003_two_128_bit_units" }!.1
+        let data = Self.decodeBytes((tc["inputs"] as! [Any])[0] as! String)
+        XCTAssertThrowsError(try decodeSeq(data: data.dropLast())) { error in
+            Self.assertIsccError(error, contains: "Truncated ISCC-UNIT")
+        }
+    }
+
+    func testEncodeSeqRejectsPadding() {
+        XCTAssertThrowsError(try encodeSeq(units: ["ISCC:GAAAAAAAAA======"])) { error in
+            Self.assertIsccError(error, contains: "base32 decode error")
+        }
+    }
+
+    func testEncodeSeqPaddingControl() throws {
+        let result = try encodeSeq(units: ["ISCC:GAAAAAAAAA"])
+        XCTAssertEqual(result, Self.hexToData("300000000000"))
+    }
+
+    func testEncodeSeqRejectsEmbeddedNul() throws {
+        // Control: the unit alone encodes, so the NUL suffix is what gets rejected.
+        XCTAssertNoThrow(try encodeSeq(units: [Self.seqUnit]))
+        XCTAssertThrowsError(try encodeSeq(units: [Self.seqUnit + "\0junk"])) { error in
+            Self.assertIsccError(error, contains: "base32 decode error")
+        }
     }
 }

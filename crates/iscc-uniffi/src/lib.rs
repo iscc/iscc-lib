@@ -392,6 +392,24 @@ pub fn json_to_data_url(json: String) -> Result<String, IsccUniError> {
     Ok(iscc_lib::json_to_data_url(&json)?)
 }
 
+/// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+///
+/// Units are concatenated in the given order. Validation and error messages
+/// come from the core (`iscc_lib::encode_seq`).
+#[uniffi::export]
+pub fn encode_seq(units: Vec<String>) -> Result<Vec<u8>, IsccUniError> {
+    let refs: Vec<&str> = units.iter().map(|s| s.as_str()).collect();
+    Ok(iscc_lib::encode_seq(&refs)?)
+}
+
+/// Decode an ISCC-SEQ byte string to `ISCC:`-prefixed unit strings (IEP-0020).
+///
+/// Validation and error messages come from the core (`iscc_lib::decode_seq`).
+#[uniffi::export]
+pub fn decode_seq(data: Vec<u8>) -> Result<Vec<String>, IsccUniError> {
+    Ok(iscc_lib::decode_seq(&data)?)
+}
+
 /// Decompose an ISCC-CODE into individual unit strings.
 #[uniffi::export]
 pub fn iscc_decompose(iscc_code: String) -> Result<Vec<String>, IsccUniError> {
@@ -728,6 +746,64 @@ mod tests {
         let digests = vec![vec![0u8; 4], vec![255u8; 4]];
         let result = alg_simhash(digests).unwrap();
         assert_eq!(result.len(), 4);
+    }
+
+    /// Hex bytes of the `decode_seq` data.json vector `test_0003_two_128_bit_units`.
+    const SEQ_TWO_UNITS_HEX: &str =
+        "300305b41f3472493225d27edcbdb63236844003a522af4a2c9cbf6a808924afd2acfa07";
+
+    /// Decode a lowercase hex string to bytes (test helper).
+    fn hex_bytes(hex: &str) -> Vec<u8> {
+        (0..hex.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn test_encode_seq_vector() {
+        let units = vec![
+            "ISCC:GABQLNA7GRZESMRF2J7NZPNWGI3II".to_string(),
+            "ISCC:IAB2KIVPJIWJZP3KQCESJL6SVT5AO".to_string(),
+        ];
+        assert_eq!(encode_seq(units).unwrap(), hex_bytes(SEQ_TWO_UNITS_HEX));
+    }
+
+    #[test]
+    fn test_decode_seq_vector() {
+        let units = decode_seq(hex_bytes(SEQ_TWO_UNITS_HEX)).unwrap();
+        assert_eq!(
+            units,
+            vec![
+                "ISCC:GABQLNA7GRZESMRF2J7NZPNWGI3II",
+                "ISCC:IAB2KIVPJIWJZP3KQCESJL6SVT5AO"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_seq_bytes_round_trip() {
+        let data = hex_bytes(SEQ_TWO_UNITS_HEX);
+        let units = decode_seq(data.clone()).unwrap();
+        assert_eq!(encode_seq(units).unwrap(), data);
+    }
+
+    #[test]
+    fn test_encode_seq_empty_list() {
+        let err = encode_seq(vec![]).unwrap_err();
+        assert!(err.to_string().contains("at least one ISCC-UNIT"));
+    }
+
+    #[test]
+    fn test_decode_seq_empty_bytes() {
+        let err = decode_seq(vec![]).unwrap_err();
+        assert!(err.to_string().contains("Empty ISCC-SEQ"));
+    }
+
+    #[test]
+    fn test_encode_seq_embedded_nul_rejected() {
+        let unit = "ISCC:GABQLNA7GRZESMRF2J7NZPNWGI3II\0junk".to_string();
+        assert!(encode_seq(vec![unit]).is_err());
     }
 
     #[test]
