@@ -86,20 +86,21 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 3210f61, iter 207 — incremental)
+## Current State (assessed-at: d6686f9, iter 208 — incremental)
 
-- **CI GREEN on `8dd5ee1`** (run 44425403748, 21/21; codecov/cursor suites sit `queued` = noise).
+- **CI GREEN on `dee8ba3`** (run 44434612334, 21/21; codecov/cursor suites sit `queued` = noise).
     Local `origin/develop` ref can lag: a `cid(log)` HEAD may 422 on the check-runs API (not pushed)
     — use `git ls-remote origin develop` for the real tip. Runner-capacity cancels: suite `failure`
     w/ sole `cancelled` 0-step run = infra; still report FAILING.
-- **ISCC-SEQ bindings 6/11 (Python, Go, napi, WASM, C FFI 205, .NET 206)**; C++ next. Probe:
+- **ISCC-SEQ bindings 7/11 (Python, Go, napi, WASM, C FFI 205, .NET 206, C++ 207)**; JNI next, then
+    Ruby, UniFFI. C++ tests hard-code vectors (no data.json loader) — consistent, not a gap. Probe:
     `grep -rlE` with QUOTED `--include='*.rs'` etc. (zsh globs unquoted `*.rs` → "no matches
     found"); `data.json` = noise. dotnet `NativeMethods.g.cs` hit = generated P/Invoke only, NOT a
     binding (check `IsccLib.cs`).
 - `encode_seq` strictness + multibase-ambiguous bare-unit reading = decisions.md rulings — do NOT
     re-flag. Text-utils U+001C–U+001F CLOSED 203; Go `TextClean` `TrimSpace` intentional.
-- **10 open `normal`** (.NET NUL-truncation + pin-loop added 206), 7 low (17 headers). FFI 51
-    externs.
+- **10 open `normal`** (NUL-truncation widened to .NET+C++ 207; fix awaits human), 7 low (17
+    headers). FFI 51 externs.
 - **`#[test]` count 426**; Go `func Test` **264**.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step (seq!) must regen
     `iscc.h` + `NativeMethods.g.cs` in-step.

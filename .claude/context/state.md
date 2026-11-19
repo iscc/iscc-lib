@@ -1,15 +1,15 @@
-<!-- assessed-at: 3210f619f4c5afc5a6291646c3bf3513de0b59df -->
+<!-- assessed-at: d6686f992a3a0255d151fe8a65c8d47f18d47876 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — ISCC-SEQ on Rust core + 6 of 11 surfaces (Python, Go, Node.js, WASM, C FFI, .NET); CI green
+## Phase: v0.8.0 — ISCC-SEQ on Rust core + 7 of 11 surfaces (Python, Go, Node.js, WASM, C FFI, .NET, C++); CI green
 
-The pushed `develop` tip `8dd5ee1` passes CI on all 21 check-runs. HEAD `3210f61` adds only a
-`cid(log)` commit, so that run covers HEAD's code. Iteration 206 bound `EncodeSeq` / `DecodeSeq` in
-the .NET wrapper, bringing ISCC-SEQ to 6 of 11 surfaces. 10 `normal` issues are open (two new, both
-.NET).
+The pushed `develop` tip `dee8ba3` passes CI on all 21 check-runs. HEAD `d6686f9` adds only a
+`cid(log)` commit, so that run covers HEAD's code. Iteration 207 bound `encode_seq` / `decode_seq`
+in the C++ header-only wrapper, bringing ISCC-SEQ to 7 of 11 surfaces. 10 `normal` issues are open;
+the embedded-NUL issue now covers both .NET and C++.
 
 ## Rust Core Crate
 
@@ -21,7 +21,7 @@ the .NET wrapper, bringing ISCC-SEQ to 6 of 11 surfaces. 10 `normal` issues are 
 - `text_trim` / `text_remove_newlines` use the Python `str.strip()` set (`codec::is_py_strip_char`,
     `pub(crate)`). Strict base32 with ASCII-only upper-casing is met; the `encode_seq` case-fold
     divergence is recorded in `rust-core.md` and decisions.md
-- iai Perf, Coverage + CRAP and semver-checks passed on `8dd5ee1` (semver is informational)
+- iai Perf, Coverage + CRAP and semver-checks passed on `dee8ba3` (semver is informational)
 - **Missing (human-gated, not v0.8.0 work):** the crate is not yet `>= 1.0.0`, and the MSRV
     criterion is unverified. Nothing in the Rust core is owed for v0.8.0
 
@@ -84,26 +84,36 @@ the .NET wrapper, bringing ISCC-SEQ to 6 of 11 surfaces. 10 `normal` issues are 
 
 **Status**: partially met
 
-- `IsccLib.EncodeSeq(string[])` → `byte[]` (L488) and `IsccLib.DecodeSeq(ReadOnlySpan<byte>)` →
-    `string[]` (L542) wrap the generated P/Invoke declarations. `ConformanceTests.cs` runs both
-    data.json seq sections plus a byte round trip; `SeqTests.cs` adds 10 tests. `Iscc.Lib` 0.7.0 is
-    on NuGet
-- **Missing (`normal` issues):** an embedded NUL silently truncates every string input
-    (`ToNativeUtf8` keeps the `\0`, the FFI's `CStr` stops there); the string-array pin loop is
-    copied three times and the gen copies pass NULL for `[]`
+- `IsccLib.EncodeSeq(string[])` → `byte[]` and `IsccLib.DecodeSeq(ReadOnlySpan<byte>)` → `string[]`
+    wrap the generated P/Invoke declarations. `ConformanceTests.cs` runs both data.json seq sections
+    plus a byte round trip; `SeqTests.cs` adds 10 tests. `Iscc.Lib` 0.7.0 is on NuGet
+- **Missing (`normal` issues):** an embedded NUL silently truncates every string input; the
+    string-array pin loop is copied three times and the gen copies pass NULL for `[]`
 - Stale doc: `packages/dotnet/CLAUDE.md` still says "all 9 gen functions (50 vectors total)" and
     omits `SeqTests.cs`
 
-## Java, Ruby, C++, Swift, Kotlin Bindings
+## C++ Bindings
 
 **Status**: partially met
 
-- All five expose the 33-symbol surface and shipped 0.7.0: Java and Kotlin on Maven Central, Ruby on
-    RubyGems, C++ through vcpkg/Conan metadata, Swift as an SPM XCFramework
-- **Missing on all five:** `encode_seq` / `decode_seq` and the seq vectors in each conformance
-    harness. Swift and Kotlin hard-code per-section counts. C++ `iscc.hpp` passes
-    `std::string::c_str()` to the FFI, so it likely shares the .NET embedded-NUL truncation
-    (unprobed)
+- `iscc.hpp` has `iscc::encode_seq(const std::vector<std::string>&)` → `std::vector<uint8_t>` (L366)
+    and `iscc::decode_seq(const std::vector<uint8_t>&)` → `std::vector<std::string>` (L384),
+    RAII-owned, with an embedded-NUL guard on `encode_seq` only. 0.7.0 ships via vcpkg/Conan
+    metadata
+- `tests/test_iscc.cpp` hard-codes vectors for every function (no data.json loader); seq coverage is
+    `encode_seq`/`decode_seq` test_0001, the test_0004 byte round trip, an empty-list and a NUL case
+- **Missing (`normal` issue):** the other 15 `c_str()` call sites still truncate at an embedded NUL
+- Stale docs: `packages/cpp/CLAUDE.md` ("35+ test cases", no string-array type-map row),
+    `packages/cpp/README.md`, `docs/howto/c-cpp.md`
+
+## Java, Ruby, Swift, Kotlin Bindings
+
+**Status**: partially met
+
+- All four expose the 33-symbol surface and shipped 0.7.0: Java and Kotlin on Maven Central, Ruby on
+    RubyGems, Swift as an SPM XCFramework
+- **Missing on all four:** `encode_seq` / `decode_seq` and the seq vectors in each conformance
+    harness. Swift and Kotlin hard-code per-section counts
 - Ruby has two open `normal` issues: `json` in `Gemfile.lock` (Dependabot) and the `File.read` call
     in `test_conformance.rb` that passes no encoding
 
@@ -133,7 +143,7 @@ the .NET wrapper, bringing ISCC-SEQ to 6 of 11 surfaces. 10 `normal` issues are 
 - `ci.yml` has 20 jobs; Swift is the only job on macOS (`macos-15`). `release.yml` is
     `workflow_dispatch`-only with 8 registry toggles. 21 version-sync targets are at 0.7.0
 - `deny.toml` ignores `RUSTSEC-2026-0374` with a documented reason (no upstream fix)
-- **Latest CI: PASSING** on `8dd5ee1`: https://github.com/iscc/iscc-lib/actions/runs/44425403748.
+- **Latest CI: PASSING** on `dee8ba3`: https://github.com/iscc/iscc-lib/actions/runs/44434612334.
     All 21 check-runs succeeded. No unpushed code changes at HEAD
 - **Missing:** the `uv.lock` Dependabot bump (`soupsieve` has two high alerts, `setuptools`),
     tracked as a `normal` issue
@@ -142,11 +152,12 @@ the .NET wrapper, bringing ISCC-SEQ to 6 of 11 surfaces. 10 `normal` issues are 
 
 17 open: 0 critical, **10 normal**, 7 low. The 10 `normal` issues: c-ffi-api type names, wasm npm
 metadata, the Ruby `json` alert, the Ruby locale fix, the Python `encode_seq` case-fold docstrings,
-the `uv.lock` alerts, the napi `Buffer` reference leak, the `iscc-ffi/src/lib.rs` split, .NET
-embedded-NUL truncation, and .NET pin-loop duplication. None is blocked.
+the `uv.lock` alerts, the napi `Buffer` reference leak, the `iscc-ffi/src/lib.rs` split, .NET + C++
+embedded-NUL truncation (fix approach awaits a human decision, not yet escalated), and .NET pin-loop
+duplication.
 
 ## Next Milestone
 
-Continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on the remaining 5 surfaces (C++, Java, Ruby,
+Continue v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on the remaining 4 surfaces (Java, Ruby,
 Swift, Kotlin), with every conformance harness running the seq vectors. Also clear the 10 open
 `normal` issues that block the release.
