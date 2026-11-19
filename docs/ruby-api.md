@@ -853,8 +853,9 @@ puts IsccLib.conformance_selftest # true
 
 Methods raise `TypeError` for arguments of the wrong type, such as `nil` for a required String, a
 non-Array where an Array is expected, or a non-String element in a list of ISCC units
-(`IsccLib.encode_seq([nil])`). Integers outside the native range (e.g., a negative feature for
-`alg_minhash_256` or a value beyond 32 bits for `gen_audio_code_v0`) raise `RangeError`. They raise
+(`IsccLib.encode_seq([nil])`). Integer list elements outside the native range (e.g., a negative
+feature for `alg_minhash_256` or a value beyond 32 bits for `gen_audio_code_v0`) raise `RangeError`;
+`gen_iscc_id_v1` checks its own integer arguments and raises `RuntimeError` instead. Methods raise
 `RuntimeError` for arguments of the right type with invalid values:
 
 - Empty required parameters (e.g., empty `name` in `gen_meta_code_v0`)

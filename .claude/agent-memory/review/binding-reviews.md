@@ -90,6 +90,14 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     `to_str` shrinks the array (`RArray::to_vec` holds the slice; `into_iter()` dups). The probe
     script: 2000-elt array, `evil.to_str` → `arr.clear; GC.start` → `[BUG] Segmentation fault` (exit
     134). Control = same object without the mutation. Filed crate-wide; not a seq regression
+- **Ruby array-arg fix (212, ~8 min)**: rake compile → test → standardrb → clippy. Prove a "crashed
+    before" claim by compiling `git show <define-next sha>:crates/iscc-rb/src/lib.rs` over the file,
+    `ruby -Ilib -Itest test/x.rb -n /name/` → exit 134, then `git checkout HEAD --` + recompile.
+    `.iscc` of `gen_mixed_code_v0` is INVARIANT under truncation to 2 units — mutation tests must
+    compare the full result Hash. Magnus `RBignum::to_i32` truncates negative Bignums (filed)
+- **ACCEPTED in 212, do not re-file:** an `RArray` param converts `bits` BEFORE `array_to_vec` takes
+    its copy, so a `bits.to_int` that empties the array makes audio/mixed hash the emptied array
+    (Codex). Memory-safe, the video functions always did this, the input is absurd
 
 ## Environment
 

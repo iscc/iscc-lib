@@ -91,7 +91,8 @@ class TestArrayArgs < Minitest::Test
   def test_gen_mixed_code_v0_survives_mutating_to_str
     arr, snapshot = mutating_units
     expected = IsccLib.gen_mixed_code_v0(snapshot)
-    assert_equal expected.iscc, IsccLib.gen_mixed_code_v0(arr).iscc
+    # Compare the whole result: `.iscc` alone matches for the first two units.
+    assert_equal expected, IsccLib.gen_mixed_code_v0(arr)
     assert_empty arr
   end
 

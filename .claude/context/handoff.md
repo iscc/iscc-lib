@@ -1,72 +1,69 @@
-## 2026-11-19 — Ruby array arguments via `RArray::into_iter` (Magnus `Vec<T>` segfault) + `json` lock bump
+## 2026-11-19 — Review of: Ruby array arguments via `RArray::into_iter` (Magnus `Vec<T>` segfault) + `json` lock bump
 
-**Done:** Every Ruby array argument now goes through a private helper `array_to_vec<T: TryConvert>`.
-It calls `RArray::into_iter()`, which walks a hidden copy and skips the copy for frozen arrays. A
-second helper, `frames_to_vec`, first runs `RArray::try_convert` on each video frame and then calls
-`array_to_vec`. Together they cover all 7 sites: 5 `Vec<T>` params plus 2 inner frame conversions.
-The `json` lock entry is bumped 2.21.1 → 2.21.2. `docs/ruby-api.md` Error Handling now says
-`TypeError` for wrong-type arguments and `RuntimeError` for invalid values.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `crates/iscc-rb/src/lib.rs`: added `array_to_vec` and `frames_to_vec` (with docstrings).
-    `gen_audio_code_v0`, `gen_mixed_code_v0`, `gen_iscc_code_v0`, `encode_seq` and `alg_minhash_256`
-    now take `RArray`. `alg_minhash_256` returns `Result<RString, Error>`, because element
-    conversion can now fail inside the function. Before, the same failure surfaced in Magnus'
-    argument conversion. The two video functions use `frames_to_vec`. `function!` arities are
-    unchanged
-- `crates/iscc-rb/test/test_array_args.rb` (new, 16 tests):
-    - 7 crash tests. Element 0 of a 2000-element array clears the array and runs `GC.start` inside
-        `to_str`/`to_int`. Each test asserts that the result equals the call on an unmutated snapshot
-        and that the array really got emptied. They cover `encode_seq`, `gen_mixed_code_v0`,
-        `gen_iscc_code_v0` (same value or the same RuntimeError message), `gen_audio_code_v0`,
-        `alg_minhash_256`, and an inner frame for `gen_video_code_v0` / `soft_hash_video_v0`
-    - Behaviour checks: a frozen array works, `to_ary` coercion works
-    - Exception classes: `TypeError` for `encode_seq([nil])`, a non-Array argument, a non-Integer
-        element and a non-Array frame; `RangeError` for `gen_audio_code_v0([2**40])` and
-        `alg_minhash_256([-1])`; `RuntimeError` for an invalid unit value
-- `crates/iscc-rb/Gemfile.lock`: `json (2.21.2)`, the only changed line
-- `docs/ruby-api.md`: Error Handling intro now says `TypeError` (nil for a required String,
-    non-Array, non-String element), `RangeError` (out-of-range integers) and `RuntimeError` (invalid
-    values). The first bullet drops "or nil"
-- `crates/iscc-rb/CLAUDE.md`: added a key-files row for `test_array_args.rb`
+**Summary:** All 7 Ruby array-conversion sites now go through `array_to_vec` (`RArray::into_iter`,
+which walks a hidden copy), so an element whose `to_str`/`to_int` empties the caller's array no
+longer crashes. The new `test_array_args.rb` (16 tests) compares each mutating call against an
+unmutated snapshot. `json` is bumped to 2.21.2 and is the only line changed in the lock. Review
+added three small fixes: a `TryConvertOwned` bound, a full-result assert in the mixed-code test, and
+a narrower `RangeError` sentence in the docs.
 
 **Verification:**
 
-- **Pre-fix probe** (fresh `rake compile` of the unfixed tree; each test run alone with
-    `-n /name/`): all 7 mutation tests aborted with exit 134, `[BUG] Segmentation fault`. That
-    includes the integer path (`gen_audio`, `alg_minhash`, `gen_video`, `soft_hash`): `to_int`
-    mutation crashed today too. All 7 non-mutation tests (4 `TypeError`, frozen, `to_ary`,
-    `RuntimeError`) already passed on the unfixed tree, so exception behaviour did not change
-- Grep criterion `grep -nE '^fn [a-z_0-9]+\([^)]*Vec<|Vec<i32> = TryConvert::try_convert\(frame\)'`
-    printed nothing (exit 1)
-- After the fix, `bundle exec rake compile` exit 0 (`.so` mtime 07:20 today).
-    `bundle exec rake test` gave 152 runs / 0 failures, and again after the lock bump. After adding
-    the 2 `RangeError` tests and recompiling: 154 runs, 434 assertions, 0 failures;
-    `test_array_args.rb` alone 16 runs, 31 assertions, 0 failures
-- Exception probes on the fresh `.so`: `gen_meta_code_v0(nil)` → TypeError; `gen_meta_code_v0("")` →
-    RuntimeError; `gen_audio_code_v0([2**40])` and `alg_minhash_256([-1])` → RangeError;
-    `gen_text_code_v0("Hello", bits: "64")` → TypeError. The docs follow these
-- `cargo clippy -p iscc-rb -- -D warnings` exit 0. `bundle exec standardrb` exit 0 (before and after
-    the lock bump)
-- `Gemfile.lock` has `json (2.21.2)` and `rb_sys (0.9.123)`
-- `mise run format` exit 0, `mise run check` exit 0
+- [x] Grep criterion (no `Vec<` param, no `Vec<i32> = TryConvert::try_convert(frame)`): prints
+    nothing (exit 1)
+- [x] `bundle exec rake compile && bundle exec rake test`: 154 runs, 434 assertions, 0 failures,
+    against a freshly compiled `.so`. Covers `to_str` (`encode_seq`, `gen_mixed_code_v0`,
+    `gen_iscc_code_v0`) and `to_int` (audio, minhash, 2 video frame cases)
+- [x] `cargo clippy -p iscc-rb -- -D warnings` exit 0 (workspace `--all-targets` too).
+    `bundle exec standardrb` exit 0
+- [x] `Gemfile.lock` has `json (2.21.2)` and `rb_sys (0.9.123)`
+- [x] `test_non_string_element_raises_type_error` asserts `TypeError` for `encode_seq([nil])`. The
+    docs Error Handling section names `TypeError` for wrong-type arguments
+- [x] `mise run check` exit 0, and no files were rewritten
+- [x] Probe: the advance claim that the `to_int` path crashed before the fix holds. I compiled the
+    `1d318eb` `lib.rs`, and the audio and minhash mutation tests each aborted with exit 134
+    (`[BUG] Segmentation fault`)
 
-**Next:** the `@iscc/wasm` npm license/description metadata (`Cargo.toml` + `release.yml` patch
-step), which next.md named as the runner-up.
+**Issues found:**
+
+- Codex: `gen_audio_code_v0([-(2**63)])` returns the code of `[0]`. Magnus `RBignum::to_i32` skips
+    the lower bound. This is pre-existing (same conversion as the old `Vec<i32>`). Probed and filed
+    as `normal`
+- Codex: `gen_iscc_id_v1(1 << 70, 0, 0)` raises `RuntimeError` by design (pinned in
+    `test_iscc_id.rb`), which contradicted the docs' blanket `RangeError` sentence. Fixed in review:
+    the docs now scope `RangeError` to list elements and name the `gen_iscc_id_v1` exception
+- Codex: the mixed-code test compared only `.iscc`, which matches for the first 2 of 2000 units
+    (probed: `.iscc` equal, `parts` differ). Fixed in review: it now asserts the whole result Hash
+- Codex: the `array_to_vec` bound was `TryConvert`. Review changed it to `TryConvertOwned` (the
+    bound Magnus' own `to_vec` uses), so `Vec<RString>` cannot compile. No behaviour change
+- Accepted, not filed: `bits` is now converted before the array copy is taken. If `bits.to_int`
+    empties the array, audio/mixed hash the emptied array instead of the original. Memory-safe, the
+    video functions already behaved this way, and the input is absurd
+- Nit: `test_gen_iscc_code_v0_survives_mutating_to_str` compares an error message ("Data-Code and
+    Instance-Code are mandatory"), which a truncated array would also produce. next.md allowed this
+- Out of scope but kept: the `crates/iscc-rb/CLAUDE.md` key-files row (docs only)
+
+**Codex review:** Two runs, one on `adf4160` (the main commit) and one on `91085fc`. Three findings
+were fixed in review (docs sentence, mixed-test assert, `TryConvertOwned` bound), one was filed, and
+one was accepted (`bits` ordering). The `adf4160` run's docs finding (`RangeError` vs
+`RuntimeError`, `nil`) was already fixed by `91085fc`.
+
+**Next:** Three `normal` candidates are ready. (1) The NUL-truncation issue, which Titusz decided
+today: .NET and C++ reject an embedded NUL at the wrapper boundary (decisions.md 2026-11-19). (2)
+`@iscc/wasm` license/description metadata. (3) The newly filed Ruby negative-Bignum truncation, a
+small fix in `iscc-rb`.
 
 **Notes:**
 
-- **Deviation on the json bump:** the prescribed `bundle update json --conservative` did NOT stay
-    json-only. It resolved `json (3.1.0)` and pulled in rubocop 1.88.2 → 1.91.0 (whose constraint is
-    `json >= 2.3`) and standard 1.56.0 → 1.57.0. I restored the lock and ran
-    `bundle update json --conservative --patch`, which gave exactly the one-line `json 2.21.2` diff.
-    Side effect: the first run installed standard 1.57.0 into the local gem dir. It is unused
-    because the lock pins 1.56.0
-- The integer path segfaulted too, which the issue had not probed. The issue text can now say all 7
-    sites crashed, not just the `to_str` ones
-- Scope: the `crates/iscc-rb/CLAUDE.md` key-files row is outside next.md's Scope (docs only). Keep
-    or drop it as you see fit
-- No hot path touched (binding-only); the CRAP and iai gates do not apply
-- `alg_minhash_256`'s return type changed only inside the Ruby binding's Rust code. Ruby callers see
-    the same method
+- **Titusz's uncommitted interactive edits were in the working tree** during this review: a
+    decisions.md entry, "Embedded NUL is rejected at the .NET and C++ wrapper boundary", and the
+    matching rewrite of the NUL issue. I left them verbatim and committed them with this review, so
+    prek's stash/restore during the push cannot take them away while his session is live
+- **Dependabot alert #1 is still `open`** (checked via `gh api`). The default branch is `main`, so
+    the alert closes only after develop merges into main. The `json` issue entry is deleted because
+    nothing is left for CID to fix. update-state must not report the alert as fixed before that
+    merge
+- The Ruby segfault issue is deleted: both of its "Resolved when" clauses are met
+- decisions.md sits at its 400-line budget, so I added no entry this review

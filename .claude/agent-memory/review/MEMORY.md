@@ -70,6 +70,10 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **"files were modified by this hook" often means SOMETHING ELSE WAS WRITING** (97/164): a second
     CID loop (confirm `ps aux` → HUMAN REVIEW REQUESTED, do not push or kill), or my own Edits
     landing while a backgrounded prek run held its snapshot. Never edit while prek runs
+- **Uncommitted HUMAN edits can appear mid-review** (212: Titusz's interactive `claude` on pts/0, no
+    `--agent`, wrote decisions.md + issues.md). Not a 2nd loop: Edit targeted hunks only (never
+    Write from the inlined copy), then commit his hunks verbatim + say so — leaving them unstaged
+    puts them through prek's stash for the whole pre-push run while his session is live
 
 ## Review Shortcuts (detail in the topic files named above)
 
@@ -130,7 +134,7 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     in surefire XML) → `JAVA_TOOL_OPTIONS=-Xcheck:jni` run. **`-DargLine` never enables
     `-Xcheck:jni`** (pom pins `<argLine>`) — earlier JNI "-Xcheck clean" claims were vacuous
 - **Ruby binding step (209, ~6 min)**: compile + no-locale `rake test` + standardrb. Magnus `Vec<T>`
-    params segfault on a re-entrant `to_str` (filed); **a padding negative must be validly padded**
+    params segfault fixed 212 (`array_to_vec`); **a padding negative must be validly padded**
     (`GAAAAAAAAA======`) — `EEAY…====` is rejected by the ref too → `binding-reviews.md`
 - **C++ header-wrapper step (207, ~8 min)**: ASAN cmake build + `test_iscc`; CMake sets no `-Wall`,
     so add a strict `g++ -Werror -fsyntax-only` pass; NUL-probe string inputs → `binding-reviews.md`

@@ -20,6 +20,7 @@
 
 use magnus::{
     Error, Integer, RArray, RHash, RString, Ruby, TryConvert, function, method, prelude::*,
+    try_convert::TryConvertOwned,
 };
 use std::cell::RefCell;
 
@@ -35,9 +36,10 @@ fn to_magnus_err(e: iscc_lib::IsccError) -> Error {
 /// place, as they cannot change), so an element conversion (`to_str`/`to_int`)
 /// that mutates the caller's array cannot invalidate the walk. Magnus' own
 /// `Vec<T>` conversion walks a borrowed slice and segfaults in that case.
-/// Raises `TypeError` for an element of the wrong type and `RangeError` for
-/// an integer outside the target type's range.
-fn array_to_vec<T: TryConvert>(ary: RArray) -> Result<Vec<T>, Error> {
+/// The `TryConvertOwned` bound keeps Ruby handles (which the GC cannot see
+/// inside a Rust `Vec`) out of the result. Element errors are Magnus' own:
+/// `TypeError` for a wrong type, `RangeError` for most out-of-range integers.
+fn array_to_vec<T: TryConvertOwned>(ary: RArray) -> Result<Vec<T>, Error> {
     ary.into_iter().map(TryConvert::try_convert).collect()
 }
 

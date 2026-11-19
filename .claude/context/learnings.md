@@ -24,9 +24,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     C++ passes `c_str()`, the FFI's `CStr` stops there, so `gen_text_code_v0("Hello\0World")` gives
     `"Hello"`'s code on BOTH. C++ `encode_seq` guards NUL, .NET `EncodeSeq` does not — probe
     `x + "\0junk"` on every string input. JNI, Ruby + UniFFI keep the NUL, the core rejects
-    (208-210). **Magnus `Vec<T>` params segfault Ruby** (209, filed) when an element's `to_str`
-    shrinks the array (`to_vec` holds the slice) — take `RArray` + `into_iter()`. Magnus argument
-    conversion raises `TypeError` (`encode_seq([nil])`), not the codec's `RuntimeError` (211)
+    (208-210). **Never take `Vec<T>` from Ruby** — Magnus `to_vec` holds a slice, so a shrinking
+    `to_str`/`to_int` segfaulted all 7 sites (212): use `array_to_vec`. Magnus raises `TypeError`
+    for wrong types; `RBignum::to_i32` truncates negative Bignums (filed 212)
 - **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
     `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
     modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an

@@ -150,18 +150,6 @@ Resolved when a `wasm-pack build` of `crates/iscc-wasm` (or the release patch st
 `package.json` with `"license": "Apache-2.0"` and a plain-text description, verified by inspecting
 the generated `pkg/package.json`. Takes effect on npm with the next release.
 
-## Dependabot alert: Ruby `json` gem in `crates/iscc-rb/Gemfile.lock` `normal` [human]
-
-GitHub Dependabot alert #1 (low): `json` 2.21.1 is affected by "JSON::ResumableParser#partial_value
-dereferences a freed input buffer" (vulnerable `>= 2.20.0, <= 2.21.1`, patched in 2.21.2). The lock
-file pins the Ruby binding's development/test environment only — the published gem does not pin
-`json`. Constraint: `rb_sys` is deliberately held at 0.9.123 (see `crates/iscc-rb/CLAUDE.md` and the
-held comments in the Gemfile), so update `json` alone (`bundle update json --conservative` in
-`crates/iscc-rb`) rather than refreshing all gems.
-
-Resolved when `Gemfile.lock` pins `json` >= 2.21.2 with `rb_sys` unchanged, the Ruby CI job is
-green, and `gh api repos/iscc/iscc-lib/dependabot/alerts/1 --jq .state` reports `fixed`.
-
 ## Python `encode_seq` docstrings omit the case-fold divergence from iscc-core `normal` [human]
 
 Since iteration 201, `encode_seq` upper-cases ASCII only, so a non-ASCII case-fold alias such as
@@ -237,13 +225,13 @@ on the prefix, where Python raises "base32 decode error". C++ behaves the same:
 
 The surfaces now disagree on one input: C++ `iscc::encode_seq` rejects a unit containing `'\0'`
 before marshalling (iscc-core rejects such a unit anyway), while .NET `EncodeSeq` accepts the
-prefix. Fix options, both unverified: reject an embedded NUL at each wrapper's choke point (loud,
-but it rejects gen/text input the core accepts), or pass length-delimited bytes (changes the FFI
-ABI). Choosing between them is a design decision for Titusz.
+prefix. **Decided by Titusz (decisions.md 2026-11-19):** each wrapper rejects an embedded NUL before
+marshalling, in .NET at `ToNativeUtf8` and in C++ with `IsccError` as `iscc::encode_seq` does. The C
+FFI ABI stays NUL-terminated.
 
-Resolved when no .NET or C++ string input returns a result computed from a NUL-truncated string,
-pinned per wrapper by tests covering at least one gen, one text and one codec function plus
-`encode_seq`.
+Resolved when every .NET and C++ string input containing a NUL fails with an error instead of
+returning a result, pinned per wrapper by tests covering at least one gen, one text and one codec
+function plus `encode_seq`, and the .NET and C++ docs name the restriction.
 
 ## .NET string-array pinning is copied three times; the gen copies pass NULL for `[]` `normal` [review]
 
@@ -275,19 +263,19 @@ throwing when `env.exception_check()` reports a pending exception. Resolved when
 failure reaches Java as the original `OutOfMemoryError` (test under a small `-Xmx`, or argue why
 untestable), and the existing `IllegalArgumentException` / `IllegalStateException` tests still pass.
 
-## Ruby `Vec<T>` parameters segfault when an element's `to_str` mutates the array `normal` [review]
+## Ruby `i32` list elements silently truncate negative Bignums `normal` [review]
 
-Magnus 0.8.2 converts a `Vec<T>` argument through `RArray::to_vec`
-(`magnus-0.8.2/src/r_array.rs:1148`), which iterates a borrowed slice of the caller's array while
-converting each element. `String` conversion can call a Ruby `to_str`, and if that callback shrinks
-the array, the iteration reads freed storage. Reproduced in iter 209 from plain Ruby: a 2000-element
-array whose first element's `to_str` runs `arr.clear` + `GC.start` crashes the process with
-`[BUG] Segmentation fault` in both `IsccLib.encode_seq(arr)` and the older
-`IsccLib.gen_mixed_code_v0(arr)`, while the same object without the mutation returns normally. Every
-`Vec<_>` parameter in `crates/iscc-rb/src/lib.rs` uses this conversion. `Vec<i32>`/`Vec<u32>` (via
-`to_int`) is likely affected too, but that has not been probed.
+`IsccLib.gen_audio_code_v0([-(2**63)])` returns `ISCC:EIAQAAAAAAAAAAAA`, the code of `[0]`, and
+`[-(2**62) - 5]` returns a code too, where every other out-of-range element raises `RangeError`
+(`[2**40]`, `[-(2**40)]`). Cause: Magnus 0.8.2 `RBignum::to_i32`
+(`~/.cargo/registry/src/*/magnus-0.8.2/src/r_bignum.rs:194`) checks only `res > i32::MAX` after
+`rb_num2long`, then narrows with `as i32`; a Fixnum takes a path that checks both bounds, so only
+Bignums from -2**63 to -(2**62)-1 slip through. It reaches every `i32` element conversion in
+`crates/iscc-rb/src/lib.rs`: `gen_audio_code_v0` elements and the video frame elements
+(`gen_video_code_v0`, `soft_hash_video_v0`). Pre-existing (the old `Vec<i32>` argument used the same
+conversion); found by Codex in iter 212. `docs/ruby-api.md` Error Handling promises `RangeError` for
+out-of-range list elements, which is false for these inputs. `u32` elements were not probed.
 
-Fix (verified in the source, not built): take `RArray` and convert elements through `into_iter()`,
-which dups and hides the array before iterating (`r_array.rs:1625`), as `alg_simhash` already does.
-Resolved when no `crates/iscc-rb` function takes a `Vec<_>` argument from Ruby, and a committed test
-runs the mutating-`to_str` case against `encode_seq` and `gen_mixed_code_v0` without crashing.
+Resolved when a negative Bignum element in those three functions raises `RangeError` (for example,
+convert through `i64` and narrow with `i32::try_from`), pinned by a test next to the existing
+`RangeError` cases in `crates/iscc-rb/test/test_array_args.rb`.
