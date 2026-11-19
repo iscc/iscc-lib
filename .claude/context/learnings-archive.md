@@ -1047,3 +1047,12 @@ runs on `opus`. Deliberate — do not "unify" them.
     `memchr` scans (`split_once(':')` + `contains('-')`); a scalar single pass is *slower*, and a
     single SIMD pass needs the out-of-scope `memchr` crate, so removing allocations alone will not
     restore a baseline set for cheaper-but-wrong code — regen the baseline in the SAME step
+
+- **GitHub retires pinned runner labels** (196, moved from learnings.md at 217): `macos-14`,
+    2026-11-02 → job `cancelled`, no step log. Check the `actions/runner-images` README for the
+    successor's arch (`macos-15` = arm64)
+
+- **rustc floor detail** (171-173, moved from learnings.md at 217): uniffi 0.32's
+    `cargo-platform 0.3.3` (1.91) broke `iscc-uniffi` on inherited 1.85 while `-p iscc-lib` stayed
+    fine; a per-crate `rust-version` override (173) makes cargo say `requires rustc 1.91`, not a
+    resolution error

@@ -93,7 +93,11 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     framework major) → `dep-refresh-reviews.md`
 - **`data-edge.json` / any `crates/iscc-lib/tests/*.rs` helper (215/216)**: CI CRAP lines (~4 min,
     bg; test files score 0% coverage → cc > 5 = red CI) + feature matrix (zsh: no quoted multi-flag
-    `for` loop). Fan-out next: each harness must assert rejection on the raw call only
+    `for` loop). **Binding harness fan-out (217, ~12 min)**: next.md's per-surface commands, each
+    grepped for the data-edge tests BY NAME (surefire XML,
+    `dotnet --logger console;verbosity=normal`, `rake test TESTOPTS=-v`); check raw-call-only
+    rejection AND that full-result surfaces fail on a missing expected key (Ruby used a key
+    intersection)
 - **Waiting on a background run**:
     `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15;   done'` in the foreground works
     (bare `sleep` is blocked); never edit while prek runs
@@ -125,9 +129,10 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     Expect a real finding wherever a green run proves less than it appears to: matching/parsing
     rules, exception contracts, user-facing factual claims, build-config lines (154), and any
     declared-but-ungated fact such as MSRV (172)
-- **`--commit HEAD` reviews ONLY the last commit** — when advance splits its work (195: main commit
-    \+ a docs-only fixup), `git log @{upstream}..HEAD` first and launch a 2nd Codex run on the main
-    commit (`--commit <sha>`, own output file); every real 195 finding came from that run
+- **`--commit HEAD` reviews ONLY the last commit** — advance often ends with a handoff-only commit
+    (195, 217). `git log @{upstream}..HEAD` first; for a multi-commit range use ONE run with
+    `codex exec review --base <sha-before-the-range>` (217: worked with a bare sha, ~5 min, covered
+    six per-surface commits) instead of per-commit runs
 - **The background Codex run executes real build/test commands in the SAME tree** (164 dotnet, 165 +
     172 Gradle) — a build tool failing once while Codex runs may be losing a race on
     `bin/`/`obj/`/`build/`. Re-run sequentially; hold any Gradle `clean` until it exits

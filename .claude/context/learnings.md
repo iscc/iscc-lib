@@ -110,14 +110,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     (guard shape, artifact wiring, `needs:` graph; prek hook +
     `tests/test_check_release_workflow.py`) plus the CI-only bidirectional `--check-action-inputs`.
     Never hand-retype either into a heredoc
-- **A rustc floor travels the dependency graph — measure it, don't argue it** (171/172/173): floor
-    IS the **max `rust_version` over the non-dev resolve graph**, one `cargo metadata --locked` walk
-    (`cargo tree -i <dep> -e no-dev --target all` printing nothing proves a major is dev-only;
-    without `--target all` it hides platform-gated transitives). uniffi 0.32's
-    `cargo-platform 0.3.3` (1.91) broke `iscc-uniffi` on inherited 1.85 while `-p iscc-lib` stayed
-    fine; a per-crate `rust-version` override (173) makes cargo say `requires rustc 1.91` not a
-    resolution error. Settle by building — **1.85 is installed**:
-    `cargo +1.85.0 check -p <c> --locked`
+- **A rustc floor travels the dependency graph — measure it** (171-173): it is the max
+    `rust_version` over the non-dev resolve graph (`cargo tree -i <dep> -e no-dev --target all`
+    printing nothing proves a major dev-only; omit `--target all` and platform-gated transitives
+    hide). Settle by building — **1.85 is installed**: `cargo +1.85.0 check -p <c> --locked`
 - `semver` (informational pre-1.0) + `coverage` (enforcing) CI jobs: `mise run semver`/`coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
@@ -141,8 +137,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     try `cargo update -p <crate>` FIRST; ignore only when `cargo update --dry-run` keeps the crate
     AND the feature edge pinning it is proven at the latest upstream (196: uniffi_bindgen 0.32.2
     hard-enables askama `config` → `basic-toml`; crates.io `/dependencies` shows `features`)
-- **GitHub retires pinned runner labels** (196: `macos-14`, 2026-11-02 → job `cancelled`, no step
-    log). Check the `actions/runner-images` README for the successor's arch (`macos-15` = arm64)
 - **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
     dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = tag misses). `.pyi` is tagged
     `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A
@@ -192,7 +186,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     earlier, with "Trailing data". Positive mirror: one input form per trim site (200: outer-only
     forms missed the post-colon trims). **Assert a rejection on the raw API call alone** (215):
     `pytest.raises(ValueError)` around a caller that also converts the result (`dict()`, `int()`)
-    stays green when the binding RETURNS garbage, because those conversions raise `ValueError` too
+    stays green when the binding RETURNS garbage, because those conversions raise `ValueError` too.
+    **And compare EVERY expected output key on a full-result surface** (217: Ruby's
+    `actual.keys & expected.keys` passed a result without `iscc`); only a bare-string result is
+    wrapped to `{iscc}`
+- **A source-distributed surface ships its test data** (217): the Go module zip carries all of
+    `packages/go/` incl. `testdata/`, and SwiftPM clones the whole repo, so a "not in any published
+    artifact" rule needs a reading for them (filed); the Rust crate uses `exclude` in `Cargo.toml`
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
