@@ -26,6 +26,7 @@ Magnus 0.8 bridge between Rust `iscc-lib` core and Ruby. Compiled as a native ex
 | `test/test_iscc_id.rb`     | ISCC-IDv1 tests — golden vector, decode round trip, validation |
 | `test/test_seq.rb`         | ISCC-SEQ tests — byte round trip, return types, rejections     |
 | `test/test_array_args.rb`  | Array-argument conversion — mutating elements, TypeError       |
+| `test/test_data_edge.rb`   | Every data-edge.json vector (except.ruby), unknown section     |
 | `test/test_helper.rb`      | Test setup — load path and minitest require                    |
 
 ## Cross-Compilation (Critical Knowledge)
