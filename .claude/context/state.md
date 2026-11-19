@@ -1,28 +1,29 @@
-<!-- assessed-at: 42e616816459b52d1553974a969171ce16fb0a61 -->
+<!-- assessed-at: be0c4d387df7778b3c5388280ce68e7ef060307b -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — data-edge.json on Rust + Python; binding fan-out owed
+## Phase: v0.8.0 — data-edge.json binding fan-out (group 1 partly committed, unreviewed)
 
-ISCC-SEQ is bound and documented on all 11 surfaces. The shared edge-case file `data-edge.json` has
-16 seed vectors, and its Rust and Python harnesses passed review after the CRAP repair. All code is
-pushed, and CI is green on `origin/develop` (`bd99366`). Still owed for v0.8.0: harnesses on the
-other 10 bindings, and 6 open `normal` issues.
+ISCC-SEQ is bound and documented on all 11 surfaces. `data-edge.json` runs on Rust and Python. The
+fan-out has started: Go and Node harnesses are committed locally, but they are unreviewed and
+unpushed. CI is green on `origin/develop` (`bd99366`), but that run does not include those two
+commits. Still owed for v0.8.0: harnesses on the other 8 bindings, and 6 open `normal` issues.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
 **Status**: partially met
 
-- `crates/iscc-lib/tests/data-edge.json` is tracked with 16 vectors in 5 sections (iscc_decode 5,
-    encode_seq 8, gen_text_code_v0 1, gen_mixed_code_v0 1, gen_iscc_code_v0 1). It is excluded from
-    the crate package; `VENDORED_COPIES` for it is still empty
-- Rust `tests/test_data_edge.rs` (7 tests) uses a `SECTIONS` table; the review measured CRAP max 20,
-    under the threshold. Python `tests/test_data_edge.py` checks against iscc-core 1.5.0 and asserts
-    rejections on the raw call only
-- **Missing:** vendored copies and harnesses on the other 10 bindings (Node, WASM, C, Java, Go,
-    .NET, C++, Ruby, Swift, Kotlin)
+- `crates/iscc-lib/tests/data-edge.json` holds 16 vectors in 5 sections. The `except` entries are
+    `c: skip` on two vectors and `dotnet`/`cpp: error` on the embedded-NUL text vector. Rust (7
+    tests) and Python (cross-checked against iscc-core) harnesses are reviewed and green
+- `VENDORED_COPIES` registers 2 copies: `packages/go/testdata/` and
+    `packages/dotnet/Iscc.Lib.Tests/testdata/`
+- **Unreviewed, unpushed (`a84b665`, `be0c4d3`):** `packages/go/data_edge_test.go` (5 tests; the
+    copy in `seq_test.go` is removed) and `crates/iscc-napi/__tests__/data_edge.test.mjs`
+- **Missing:** harnesses for WASM, Java, .NET (the copy is vendored, but there is no
+    `DataEdgeTests.cs` and no csproj entry), Ruby, C, C++, Swift and Kotlin
 
 ## Rust Core Crate
 
@@ -47,15 +48,15 @@ other 10 bindings, and 6 open `normal` issues.
 **Status**: partially met
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance and seq tests run the seq vectors;
-    plain-text `description` in `package.json`; `@iscc/lib` 0.7.0 on npm (OIDC)
-- Missing: the data-edge harness. The napi `Buffer` reference leak is a `low` issue
+    `@iscc/lib` 0.7.0 on npm (OIDC)
+- The data-edge harness (5 tests) is committed, but unreviewed and not covered by CI. The napi
+    `Buffer` reference leak is a `low` issue
 
 ## WASM Bindings
 
 **Status**: partially met
 
-- 35 Tier 1 symbols; conformance and unit tests cover seq; SIMD release build met. `Cargo.toml`
-    inherits `license` and has a `description` (the published 0.7.0 package still lacks them)
+- 35 Tier 1 symbols; conformance and unit tests cover seq; SIMD release build met
 - **Missing:** the data-edge harness. **`normal` issue:** `specs/wasm-bindings.md` names a
     `crates/iscc-wasm/package.json` that does not exist
 
@@ -80,10 +81,10 @@ other 10 bindings, and 6 open `normal` issues.
 
 **Status**: partially met
 
-- Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape, strict base32, 264
+- Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape, strict base32, 268
     `func Test`
-- Missing: the data-edge harness (`seqStrictDivergences` is still a hand-written copy). Go has its
-    own decoder, so the `iscc_decode` empty-string vector is untested there
+- The data-edge harness with its vendored copy is committed, but unreviewed and not covered by CI.
+    It adds no Go `except` entry, so the `iscc_decode("")` vector is claimed to pass
 
 ## C# / .NET Bindings
 
@@ -91,8 +92,8 @@ other 10 bindings, and 6 open `normal` issues.
 
 - `EncodeSeq` / `DecodeSeq` wrap the generated P/Invoke code; embedded NUL rejected via
     `ToNativeUtf8`; 0.7.0 on NuGet
-- **Missing:** the data-edge harness. **`normal` issue:** the string-array pin loop is copied three
-    times and the gen copies pass NULL for `[]`
+- **Missing:** the data-edge harness (only the vendored copy exists). **`normal` issue:** the
+    string-array pin loop is copied three times and the gen copies pass NULL for `[]`
 
 ## C++ Bindings
 
@@ -106,8 +107,7 @@ other 10 bindings, and 6 open `normal` issues.
 
 **Status**: partially met
 
-- `encode_seq` / `decode_seq` registered and run by `test_conformance.rb`; array args go through
-    `array_to_vec`; 0.7.0 on RubyGems
+- `encode_seq` / `decode_seq` registered and run by `test_conformance.rb`; 0.7.0 on RubyGems
 - Missing: the data-edge harness. The negative-Bignum `i32` truncation is a `low` issue
 
 ## Swift and Kotlin Bindings
@@ -140,9 +140,10 @@ other 10 bindings, and 6 open `normal` issues.
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on the pushed tip `bd99366` (= `origin/develop`): 21/21 check-runs
-    succeeded, GitHub Actions check-suite `success`. The only unpushed commit (`42e6168`, iteration
-    log) touches `.claude/` only, so green CI covers all code at HEAD
+- **Latest CI: PASSING** on the pushed tip `bd99366` (= `origin/develop`). All 21 check-runs
+    succeeded and the GitHub Actions check-suite is `success`
+- **Not covered by CI:** 6 unpushed commits, including the Go and Node harness commits (code in
+    `packages/go/`, `crates/iscc-napi/__tests__/`, and `tests/test_vendored_fixtures.py`)
 - **Missing (`normal` issue):** Dependabot alerts on `soupsieve`, `setuptools` and the `json` gem
 
 ## Open Issues
@@ -153,5 +154,6 @@ derived-fact drift.
 
 ## Next Milestone
 
-Bring `data-edge.json` to the other 10 bindings (vendored copies registered, every vector run), and
-clear the 6 open `normal` issues, which together are what remains for v0.8.0.
+Get the committed Go and Node harnesses reviewed and pushed. Then bring `data-edge.json` to the
+remaining 8 bindings, and clear the 6 open `normal` issues. Together these are what remains for
+v0.8.0.

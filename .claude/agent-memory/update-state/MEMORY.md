@@ -84,22 +84,21 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 42e6168, iter 217 — incremental)
+## Current State (assessed-at: be0c4d3, iter 217 — incremental, restart)
 
-- **CI GREEN on pushed tip `bd99366`** (21/21) = origin/develop; only unpushed commit is `.claude/`
-    (iteration log) — HEAD code fully covered.
-- **data-edge.json (215, repaired 216 PASS):** 16 vectors / 5 sections (iscc_decode 5), Rust
-    `test_data_edge.rs` (7 tests, `SECTIONS` table, CRAP max 20) + Python harness green.
-    `VENDORED_COPIES` empty. Owed: fan-out to 10 bindings. Track with
-    `git ls-files | grep -i data-edge` (count vectors via `uv run python` json load;
-    `grep -c '"name"'` = 0).
+- **Iter 217 RESTART:** its first update-state/define-next/advance ran (commits 164a436..be0c4d3)
+    but left NO jsonl entries; review never ran. Go + Node data-edge harnesses committed UNREVIEWED
+    and UNPUSHED — CI green on `bd99366` does NOT cover them. Check jsonl for a 217 review next
+    time.
+- **data-edge fan-out group 1** (next.md): Node, WASM, Java, Go, .NET, Ruby. Done (unreviewed): Go
+    (`data_edge_test.go`, 5 tests), Node (`data_edge.test.mjs`, 5). .NET copy vendored but NO
+    `DataEdgeTests.cs`. `VENDORED_COPIES` = go + dotnet. Group 2/3 = C, C++, Swift, Kotlin.
+- 16 vectors / 5 sections; 3 `except` entries (c skip x2; dotnet/cpp error on text NUL).
 - **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
     defects. 18 open: 6 normal, 12 low.
-- **ISCC-SEQ done on all 11 surfaces (211); .NET+C++ NUL rejection done (213); npm license +
-    description done (214)** — do NOT re-flag. Go `TextClean` `TrimSpace` intentional.
-- FFI 51 externs. Go `func Test` 264; Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
-- **Python heredoc**: plain `uv run python - << 'EOF'` works (cid sets a VIRTUAL_ENV; warning is
-    harmless).
+- **ISCC-SEQ done on all 11 surfaces (211); .NET+C++ NUL rejection done (213)** — do NOT re-flag.
+- FFI 51 externs. Go `func Test` 268; Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
+- **Python heredoc**: plain `uv run python - << 'EOF'` works (VIRTUAL_ENV warning harmless).
 
 ## Durable Facts (carried, not per-iteration)
 
