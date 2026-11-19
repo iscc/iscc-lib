@@ -1,73 +1,110 @@
 # Next Work Package
 
-## Step: npm packages ship a license and a plain-text description
+## Step: `data-edge.json` seed set with the Rust and Python harnesses
 
 ## Goal
 
-Fix the `normal` issue "`@iscc/wasm` on npm has no license and a README-badge description". Probing
-showed the same badge-markdown description on `@iscc/lib` (`npm view @iscc/lib description`), so
-both npm manifests get a real description in this step. Then npm and license scanners stop treating
-`@iscc/wasm` as unlicensed.
+Start the v0.8.0 criterion "Shared edge-case vectors run everywhere". Create
+`crates/iscc-lib/tests/data-edge.json` with the spec's seed set and a schema test, run it from the
+Rust core and Python (Python also checks each vector against iscc-core 1.5.0), and fold
+`STRICT_BASE32_DIVERGENCES` in `tests/test_seq.py` into the file. This is the spec's suggested first
+slice. It fixes the file format and the `iscc_decode` output encoding that the binding fan-out will
+copy.
 
 ## Alternatives Considered
 
-- **Chosen:** npm metadata for both packages. It affects every consumer of a published artifact
-    (licence scanning), it is a two-file manifest change, and a fresh `wasm-pack` build verifies it
-    locally.
-- **Rejected:** Ruby negative-Bignum truncation. It is a real wrong-result bug, but it only fires
-    for inputs from -2**63 to -(2**62)-1. It goes next, and it needs its own Ruby rebuild and test
-    cycle.
+- **Chosen:** data-edge seed + Rust/Python harnesses. It is the only unstarted v0.8.0 release
+    criterion, and the binding fan-out is blocked until the format exists
+- **Rejected:** the Python `encode_seq` docstrings (`normal`, `[human]`). It is small, but it
+    touches different files and does nothing for the release criterion. The handoff's Ruby Bignum
+    pick is now `low`, so it is skipped
 
 ## Scope
 
-- **Modify**: `crates/iscc-wasm/Cargo.toml`, `crates/iscc-napi/package.json`
-- **Reference**: `.github/workflows/release.yml` (`build-wasm`, "Set npm package name and version"
-    step, L428-439), root `Cargo.toml` `[workspace.package]`, `crates/iscc-wasm/README.md` and
-    `crates/iscc-napi/README.md` (taglines)
+- **Create**: `crates/iscc-lib/tests/data-edge.json`, `crates/iscc-lib/tests/test_data_edge.rs`,
+    `tests/test_data_edge.py`
+- **Modify**: `crates/iscc-lib/Cargo.toml` (add `exclude = ["tests/data-edge.json"]` to
+    `[package]`), `tests/test_vendored_fixtures.py`, `tests/test_seq.py`
+- **Reference**: `.claude/context/specs/edge-vectors.md` (format, rules, seed set),
+    `tests/test_conformance.py` (loader style), `crates/iscc-lib/src/conformance.rs` (Rust JSON
+    walking), `crates/iscc-lib/src/types.rs` (result fields)
 
 ## Not In Scope
 
-- Editing `release.yml`. Its patch step reads the generated JSON, changes only `name`, `repository`
-    and `version`, and writes it back, so fields that come from `Cargo.toml` survive. Keep
-    `Cargo.toml` as the single source of truth.
-- Copying a `LICENSE` file into `crates/iscc-wasm/`. If wasm-pack warns about a missing licence
-    file, that warning is informational.
-- Adding `keywords`, `homepage` or other npm fields beyond `license` and `description`.
-- Editing the published 0.7.0 packages on npm. The fix ships with the next release.
-- A pytest that re-reads `Cargo.toml` with tomllib. It would only restate the manifest.
+- Vendored copies for Go/.NET/Kotlin/Swift and harnesses on the other 11 surfaces. Those belong to
+    the next fan-out step (copy the file into the four `data.json` dirs then). Copying them now
+    could hit surface build quirks, such as SwiftPM's unhandled-resource warning
+- C/C++ generated table and recovering `scripts/gen_ffi_boundary_vectors.py`
+- Changing any library behaviour. All seed outcomes below match the current Rust/Python output
+- Seed vectors beyond the spec list plus the migrated `STRICT_BASE32_DIVERGENCES` rows
+- The `encode_seq` docstring issue
 
 ## Implementation Notes
 
-- **WASM**: wasm-pack builds `pkg/package.json` from the crate manifest. Add to `[package]` in
-    `crates/iscc-wasm/Cargo.toml`:
-    - `license.workspace = true` (the workspace value is `Apache-2.0`)
-    - a crate-specific `description` literal. Do NOT use `description.workspace = true`, because the
-        workspace text says "Rust implementation", which is the wrong pitch for a browser package.
-- wasm-pack 0.13.1 already resolves `version.workspace = true`, so it probably resolves `license`
-    the same way. That is unverified. If the generated JSON has no `license`, use the literal
-    `license = "Apache-2.0"`.
-- Exact WASM description string:
-    `Browser-compatible WebAssembly bindings for ISO 24138:2024 International Standard Content Code (ISCC)`
-- **napi**: `crates/iscc-napi/package.json` is committed and published as-is. Add a `"description"`
-    key right after `"license"` with the exact string:
-    `High-performance Node.js bindings for ISO 24138:2024 International Standard Content Code (ISCC)`
-- The `crates/iscc-wasm/pkg/` already on disk is stale (version 0.5.0, built in July) and
-    gitignored. Only a fresh build proves the fix.
-- Manifest-only change: the CRAP, iai and semver gates are unaffected.
+**Seed outcomes, probed with iscc_core 1.5.0 and the current iscc_lib** (re-check while writing):
+
+- `iscc_decode` (input `[str]`). `ISCC:GAAAAAAAAA======`, `ISCC:GAAAAAAAAB` and
+    `ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` → error. The ref ACCEPTS all three, so each gets
+    `"diverges": "decisions.md 2026-11-18: Base32 decoding stays strict"`. `ISCC:GAAAAAAAAA` →
+    output. **Output encoding (new, fix it here):**
+    `[maintype, subtype, version, length_index,   "bytes:<hex>"]` as JSON ints plus a `bytes:`
+    string, e.g. `[3, 0, 0, 0, "bytes:00000000"]`. Python iscc_lib returns IntEnums, so `int()` them
+- `encode_seq` (input `[[units]]`, output `"bytes:<hex>"` as in data.json):
+    - `["gaawdlqng6ſsdpf2"]` and the sharp-s twin `["gaawdlqng6ßdpf2"]` → error. The ref accepts both
+        (`300161ae0d37a521bcba`), so they get a `diverges` naming the decisions.md 2026-11-18 entry
+        "Codec input is upper-cased ASCII-only, encode_seq included"
+    - `["gaawdlqng6ssdpf2"]` → `bytes:300161ae0d37a521bcba`
+    - `[]` → error (both)
+    - `["ISCC:GAAAAAAAAA\u0000junk"]` → error (both)
+    - Migrated from `STRICT_BASE32_DIVERGENCES`, all errors with the strict-base32 `diverges`:
+        `ISCC:GAAAAAAAAB`, the 256-bit unit with last char `J`, and `ISCC:GAAAAAAAAA======`
+- `gen_text_code_v0` `["Hello\u0000World", 64]` →
+    `{"iscc": "ISCC:EAASKDNZNYGUUF5A",   "characters": 10}` (both agree; no `except` needed for
+    rust/python)
+- `gen_mixed_code_v0` `[[], 64]` and `gen_iscc_code_v0` `[[]]` → error. The ref raises
+    `AssertionError` / `ValueError` respectively, so they agree. data.json passes no `wide` for
+    iscc-code: call with `false`
+
+**Rust harness** (`test_data_edge.rs`): read the file at runtime from
+`concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data-edge.json")`, not `include_str!`, because the file
+is excluded from the package. Structure it as a pure `fn check_doc(&Value) -> Vec<String>` (failure
+list) plus one `#[test]` asserting the real file yields none. Dispatch on the section name.
+**Unknown section → failure.** `except.rust`: `"error"` means assert Err, `"skip"` means skip.
+Compare only the keys present in `outputs`. Add negative tests, ONE bad case each (learnings: one
+bad case per call): an unknown section, an output mismatch, an expected error that succeeds, and an
+expected output that errors. Each must yield a failure.
+
+**Python** (`test_data_edge.py`):
+
+- (a) A `validate_vector` schema check: requires `inputs` and `note`, and exactly one of `outputs` /
+    `error`. `except` keys must be valid surface ids and values `error`/`skip`. `diverges` must
+    start with `decisions.md `. Run it on every real vector, plus negative tests for each malformed
+    shape
+- (b) An iscc_lib harness over every vector. Unknown section → fail, honour `except.python`, and
+    expect `ValueError` on errors
+- (c) A reference check. For each vector, compute iscc_core's outcome (any exception = error; output
+    compared like (b)). It must equal the stated outcome iff `diverges` is absent, and differ iff it
+    is present
+- Parametrize with vector ids so failures name the vector
+
+`test_seq.py`: delete `STRICT_BASE32_DIVERGENCES` and the two tests that use it. Leave the other
+differential tests alone. `test_vendored_fixtures.py`: add `data-edge.json` to `FIXTURE_BASENAMES`,
+widen the `git ls-files` pathspec so it matches, and register the canonical path with an empty copy
+list (the copies arrive in the fan-out).
+
+Neither iai nor CRAP is affected (tests and a manifest only).
 
 ## Verification
 
-- `wasm-pack build --target web --dev crates/iscc-wasm` exits 0. A `--release` build also needs
-    `RUSTFLAGS` with SIMD; `--dev` skips wasm-opt, and the manifest mapping is the same for both
-- `node -e` on the freshly generated `crates/iscc-wasm/pkg/package.json` asserts `license` equals
-    `"Apache-2.0"` and `description` equals the exact WASM string above
-- `node -e` on `crates/iscc-napi/package.json` asserts `description` equals the exact napi string
-    above and `license` is still `"Apache-2.0"`
-- `cargo metadata --no-deps --format-version 1` parses, and for `iscc-wasm` it shows
-    `"license": "Apache-2.0"`
+- `cargo test -p iscc-lib --test test_data_edge` passes, including the 4 negative harness tests
+- `uv run pytest tests/test_data_edge.py tests/test_seq.py tests/test_vendored_fixtures.py` passes.
+    The file holds every seed input listed in the spec's "Seed Set"
+- `grep -n STRICT_BASE32_DIVERGENCES tests/test_seq.py` finds nothing
+- `cargo package --list -p iscc-lib --allow-dirty` output contains no `data-edge` line, but still
+    lists `tests/data.json`
+- `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean
 - `mise run check` exits 0
 
 ## Done When
 
-A fresh wasm-pack build produces a `package.json` with the Apache-2.0 licence and the plain-text
-WASM description, the napi manifest has its description, and `mise run check` is green.
+All six verification criteria pass on the working tree.

@@ -15,7 +15,8 @@ files; 212 = Ruby `RArray` fix + json bump; 213 = .NET+C++ embedded-NUL rejectio
 2026-11-19; .NET throws `IsccException` at `ToNativeUtf8`, C++ one `detail` helper); 214 = npm
 `license`/`description` for `@iscc/wasm` (Cargo.toml) + `@iscc/lib` (package.json had the same
 badge-markdown description — npm derives it from the README when missing; probe sibling packages for
-a defect class); next = Ruby Bignum, uv.lock alerts, Python docstrings, then remaining normals).
+a defect class); 215 = data-edge.json seed + Rust/Python harnesses, see
+[data-edge phase](data-edge-phase.md); Ruby Bignum/napi/JNI/ffi-split now `low` (human) — skip).
 
 ## Scope Calibration Principles
 
