@@ -50,7 +50,8 @@ small `normal` candidates:
 
 - the Python `encode_seq` docstrings (`[human]`)
 - the wasm-bindings spec drift filed this iteration
-- the Dependabot refresh of `soupsieve` and `setuptools`
+- the Dependabot refresh of `soupsieve`, `setuptools` and the `json` gem (alert #1, added to that
+    issue this review)
 
 **Notes:**
 

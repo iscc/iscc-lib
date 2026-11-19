@@ -153,18 +153,19 @@ spare bits as inputs iscc-lib rejects and iscc_core accepts.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations" ("Base32 input is strict")
 
-## Dependabot alerts: `soupsieve` and `setuptools` in `uv.lock` `normal` [review]
+## Dependabot alerts: `soupsieve`, `setuptools` (`uv.lock`) and `json` (`Gemfile.lock`) `normal` [review]
 
 GitHub reports 5 open alerts on `uv.lock` (2026-11-18): `soupsieve` 2.9.1 has #6 high (ReDoS, fixed
 3.0.2), #4 high (polynomial-time descendant combinator, fixed **4.0.0**), #5 and #3 medium;
 `setuptools` 83.0.0 has #2 low (fixed 84.1.0). Both are dev-environment only: `soupsieve` arrives
 via `beautifulsoup4` ← `mdformat-web` ← `mdformat-mkdocs[recommended]` (dev group), so no published
-artifact pins them. Check that `beautifulsoup4` accepts `soupsieve` 4.x before bumping; refresh only
-these packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
+artifact pins them. Also open: #1 low, the `json` gem in `crates/iscc-rb/Gemfile.lock` (fixed
+2.21.2). Check that `beautifulsoup4` accepts `soupsieve` 4.x before bumping; refresh only these
+packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
 
 Resolved when `uv.lock` pins `soupsieve` >= 4.0.0 and `setuptools` >= 84.1.0, `mise run check`
-(mdformat) is green, and `gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of
-#2-#6.
+(mdformat) is green, `Gemfile.lock` pins `json` >= 2.21.2, and
+`gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of #1-#6.
 
 ## napi `Buffer` parameters leak a reference on non-Buffer object input `normal` [review]
 
