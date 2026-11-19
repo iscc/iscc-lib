@@ -56,7 +56,7 @@ and Ruby. Commit once per surface.
     file. .NET reads its vendored `testdata/data-edge.json` from the output directory, like
     `ConformanceTests.cs`.
 
-- **Harness shape:** mirror the Node/Go harnesses in the surface's idiom:
+- **Harness shape:** copy the reviewed Rust/Python templates (Node/Go for idiom only):
 
     - a section-name → small-caller table for the five sections;
     - a `checkDoc(doc)` that returns failures;
@@ -103,7 +103,7 @@ Each surface run must name its data-edge tests as passed; exit 0 alone does not 
 - Go (carried over): in `packages/go`, `CGO_ENABLED=0 go test -count=1 ./...` and `go vet ./...`
     pass, and `grep -l data-edge packages/go/*.go | grep -v _test.go` prints nothing
 - Node (carried over): in `crates/iscc-napi`, `npm run build:debug && npm test` passes, including
-    both data-edge tests
+    the data-edge tests
 - WASM: `wasm-pack test --node crates/iscc-wasm --features conformance` passes
 - Java: `cargo build -p iscc-jni && mvn clean test -f crates/iscc-jni/java/pom.xml` passes
 - .NET:
