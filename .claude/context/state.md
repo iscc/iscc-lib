@@ -1,16 +1,15 @@
-<!-- assessed-at: d254b44f3d388dc8b32d9bef8e4cb90d3bd07932 -->
+<!-- assessed-at: bf86d128b7a55014c5e30ac99d8649f0b5da969e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — ISCC-SEQ bound and documented on all 11 surfaces; 11 normal issues remain
+## Phase: v0.8.0 — ISCC-SEQ bound and documented on all 11 surfaces; 10 normal issues remain
 
-The pushed `develop` tip `2ed2065` passes CI on all 21 check-runs. HEAD `d254b44` adds only a
-`cid(log)` commit, so that run covers HEAD's code. Iteration 211 finished the 33 → 35 documentation
-sweep: every Tier 1 count reads 35, and all 11 how-to pages plus the 4 hand-written API pages
-document `encode_seq` / `decode_seq`. The only thing between the tree and v0.8.0 is the 11 open
-`normal` issues.
+HEAD `bf86d12` is the pushed `develop` tip and passes CI on all 21 check-runs. Iteration 212 fixed
+the Ruby Magnus `Vec<T>` segfault at all 7 array-argument sites and bumped `json` in the Ruby lock;
+review filed one new `normal` issue (Ruby negative-Bignum truncation). ISCC-SEQ is complete on every
+surface, so the only thing between the tree and v0.8.0 is the 10 open `normal` issues.
 
 ## Rust Core Crate
 
@@ -21,7 +20,7 @@ document `encode_seq` / `decode_seq`. The only thing between the tree and v0.8.0
     the seq vectors
 - Strict base32 with ASCII-only upper-casing is met. The `encode_seq` case-fold divergence is
     recorded in `rust-core.md` and decisions.md
-- iai Perf, Coverage + CRAP and semver-checks passed on `2ed2065` (semver is informational)
+- iai Perf, Coverage + CRAP and semver-checks passed on `bf86d12` (semver is informational)
 - **Missing (human-gated, not v0.8.0 work):** the crate is not yet `>= 1.0.0`, and the MSRV
     criterion is unverified. Nothing in the Rust core is owed for v0.8.0
 
@@ -59,12 +58,12 @@ document `encode_seq` / `decode_seq`. The only thing between the tree and v0.8.0
 
 - 51 `#[unsafe(no_mangle)]` exports, including `iscc_encode_seq` (returns `IsccByteBuffer`) and
     `iscc_decode_seq` (returns `char**`). Committed `iscc.h` declares both; `tests/test_iscc.c` adds
-    a round trip and a zero-count case. `docs/c-ffi-api.md` now has seq entries
+    a round trip and a zero-count case. `docs/c-ffi-api.md` has seq entries
 - Existing: header freshness check, `examples/iscc_sum.c` + CMake, `docs/howto/c-cpp.md`, 0.7.0
     tarballs on GitHub Releases
-- **Missing (`normal` issues):** `docs/c-ffi-api.md` uses unprefixed type names (its new seq
-    snippets too), while `docs/howto/c-cpp.md` now uses the prefixed `iscc_IsccByteBuffer`, so the
-    two pages disagree; `src/lib.rs` is 2870 lines, past the crate's ~2500 split threshold
+- **Missing (`normal` issues):** `docs/c-ffi-api.md` uses unprefixed type names while
+    `docs/howto/c-cpp.md` uses the prefixed `iscc_IsccByteBuffer`, so the two pages disagree;
+    `src/lib.rs` is 2870 lines, past the crate's ~2500 split threshold
 
 ## Java Bindings
 
@@ -95,9 +94,10 @@ document `encode_seq` / `decode_seq`. The only thing between the tree and v0.8.0
 - `IsccLib.EncodeSeq(string[])` → `byte[]` and `IsccLib.DecodeSeq(ReadOnlySpan<byte>)` → `string[]`
     wrap the generated P/Invoke declarations. `ConformanceTests.cs` runs both seq sections;
     `SeqTests.cs` adds 10 tests. `Iscc.Lib` 0.7.0 is on NuGet
-- **Missing (`normal` issues):** an embedded NUL silently truncates every string input (so the docs'
-    "strict" `EncodeSeq` wording overstates); the string-array pin loop is copied three times and
-    the gen copies pass NULL for `[]`
+- **Missing (`normal` issues):** an embedded NUL silently truncates every string input; the
+    string-array pin loop is copied three times and the gen copies pass NULL for `[]`
+- The NUL fix approach is now decided (decisions.md 2026-11-19): reject an embedded NUL at the
+    wrapper boundary in .NET and C++; the C ABI stays NUL-terminated
 
 ## C++ Bindings
 
@@ -106,19 +106,23 @@ document `encode_seq` / `decode_seq`. The only thing between the tree and v0.8.0
 - `iscc.hpp` has `iscc::encode_seq` → `std::vector<uint8_t>` and `iscc::decode_seq` →
     `std::vector<std::string>`, RAII-owned, with an embedded-NUL guard on `encode_seq` only. 0.7.0
     ships via vcpkg/Conan metadata. `tests/test_iscc.cpp` hard-codes the seq vectors it runs
-- **Missing (`normal` issue):** the other 15 `c_str()` call sites still truncate at an embedded NUL
+- **Missing (`normal` issue, shared with .NET):** the other 15 `c_str()` call sites still truncate
+    at an embedded NUL; the reject-at-boundary approach is decided
 
 ## Ruby Bindings
 
 **Status**: partially met
 
-- `crates/iscc-rb/src/lib.rs` registers `encode_seq` (Array → binary String) and `decode_seq`
-    (String → Array of `ISCC:` units). `test_conformance.rb` runs both seq sections; `test_seq.rb`
-    adds 13 tests. `docs/ruby-api.md` and `docs/howto/ruby.md` document both. 0.7.0 is on RubyGems
-- **Missing (`normal` issues):** Magnus 0.8.2 `Vec<T>` parameters segfault when an element's
-    `to_str` mutates the array (every `Vec<_>` param); the `json` alert in `Gemfile.lock`
-- `docs/ruby-api.md` says every method raises `RuntimeError`, but `encode_seq([nil])` raises
-    `TypeError` (doc nit, not filed)
+- `encode_seq` / `decode_seq` registered; `test_conformance.rb` runs both seq sections. 0.7.0 is on
+    RubyGems. All 7 array-argument sites go through `array_to_vec` (`RArray::into_iter` over a
+    hidden copy, `TryConvertOwned` bound); no `Vec<_>` parameter remains
+- `test_array_args.rb` (16 tests) pins that a mutating `to_str`/`to_int` no longer segfaults.
+    `Gemfile.lock` has `json (2.21.2)`; Dependabot alert #1 stays open until develop merges into
+    `main` (the default branch). `docs/ruby-api.md` Error Handling now names
+    `TypeError`/`RangeError`
+- **Missing (`normal` issue):** negative Bignum elements in the `i32` lists (`gen_audio_code_v0`,
+    video frames) truncate instead of raising `RangeError` (Magnus `RBignum::to_i32` skips the lower
+    bound), contradicting the docs' `RangeError` promise
 
 ## Swift and Kotlin Bindings
 
@@ -140,7 +144,7 @@ document `encode_seq` / `decode_seq`. The only thing between the tree and v0.8.0
     READMEs are present
 - No stale Tier 1 count of 33 remains outside `.claude/`. All 11 how-to pages and the Rust, Java,
     Ruby and C FFI API pages cover `encode_seq` / `decode_seq`
-- Open doc questions are tracked by the C-page type-name issue and the .NET NUL issue (above)
+- Open doc questions are tracked by the C-page type-name issue and the Ruby Bignum issue (above)
 
 ## Benchmarks
 
@@ -158,20 +162,20 @@ document `encode_seq` / `decode_seq`. The only thing between the tree and v0.8.0
 - `ci.yml` has 20 jobs; Swift is the only job on macOS (`macos-15`). `release.yml` is
     `workflow_dispatch`-only with 8 registry toggles. 21 version-sync targets are at 0.7.0
 - `deny.toml` ignores `RUSTSEC-2026-0374` with a documented reason (no upstream fix)
-- **Latest CI: PASSING** on `2ed2065`: https://github.com/iscc/iscc-lib/actions/runs/44474071767.
-    All 21 check-runs succeeded. No unpushed code changes at HEAD
+- **Latest CI: PASSING** on `bf86d12` (= HEAD, pushed):
+    https://github.com/iscc/iscc-lib/actions/runs/44492092328. All 21 check-runs succeeded
 - **Missing:** the `uv.lock` Dependabot bump (`soupsieve` has two high alerts, `setuptools`),
     tracked as a `normal` issue
 
 ## Open Issues
 
-18 open: 0 critical, **11 normal**, 7 low. The 11 `normal` issues: c-ffi-api type names, wasm npm
-metadata, the Ruby `json` alert, the Python `encode_seq` case-fold docstrings, the `uv.lock` alerts,
-the napi `Buffer` reference leak, the `iscc-ffi/src/lib.rs` split, .NET + C++ embedded-NUL
-truncation (fix approach awaits a human decision), .NET pin-loop duplication, the JNI
-pending-exception mapping, and the Ruby Magnus `Vec<T>` segfault.
+17 open: 0 critical, **10 normal**, 7 low. The 10 `normal` issues: c-ffi-api type names, wasm npm
+metadata, the Python `encode_seq` case-fold docstrings, the `uv.lock` alerts, the napi `Buffer`
+reference leak, the `iscc-ffi/src/lib.rs` split, .NET + C++ embedded-NUL truncation (approach now
+decided), .NET pin-loop duplication, the JNI pending-exception mapping, and the Ruby negative-Bignum
+truncation. The Ruby segfault and `json` issues are closed.
 
 ## Next Milestone
 
-Clear the 11 open `normal` issues that block the v0.8.0 release (or get them marked as blocked on
+Clear the 10 open `normal` issues that block the v0.8.0 release (or get them marked as blocked on
 the human or upstream), keeping CI green on `develop`.
