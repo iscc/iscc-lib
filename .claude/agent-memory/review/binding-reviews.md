@@ -437,3 +437,44 @@ Full text of entries compacted out of `MEMORY.md`.
     differs from the hand-maintained one (`use "Darwin"`). Ignore both.
 - Embedded NUL: JNI, Ruby, UniFFI and Python keep it and the core rejects it (napi/WASM not probed).
     Only .NET/C++ over the C FFI truncate (open issue).
+
+## Per-surface step commands (moved from the MEMORY.md index, 216)
+
+Use surface by surface when reviewing a fan-out (one advance commit per surface).
+
+- **ISCC-SEQ surface port (202, ~20 min)**: surface tests + corpus differential vs `iscc_lib` +
+    `test_seq.rs` name diff + drop-SEMANTIC mutation (no vector carries one) → `binding-reviews.md`
+- **JS-surface (napi + WASM) binding step (204, ~15 min)**: napi `build:debug` + `test`,
+    `wasm-pack test --node … --features conformance`, workspace clippy. Doc claims about argument
+    rejection are hypotheses: WASM list params accept ANY iterable, napi `Buffer` leaks a ref on bad
+    input (filed)
+- **C-FFI / thin-wrapper seq step (205, ~12 min)**: no corpus differential needed; header diff + C
+    test + valgrind + generated-file `git status`. **Check the round-trip DIRECTION** — spec wants
+    bytes over `decode_seq` vectors; next.md wrote decode-of-encode → `binding-reviews.md`
+- **.NET wrapper step (206, ~10 min)**: FFI build → locked restore → build (0 warnings) → detailed
+    `dotnet test`, count rows per class. **Any NEW string input must route through `ToNativeUtf8`**
+    (C++: `detail::checked_c_str`) — grep all non-generated `Iscc.Lib/*.cs` for `GetBytes` (213)
+- **JNI binding step (208, ~8 min)**: `cargo build -p iscc-jni` → `mvn clean test` (count `tests=`
+    in surefire XML) → `JAVA_TOOL_OPTIONS=-Xcheck:jni` run. **`-DargLine` never enables
+    `-Xcheck:jni`** (pom pins `<argLine>`) — earlier JNI "-Xcheck clean" claims were vacuous
+- **Ruby binding step (209, ~6 min)**: compile + no-locale `rake test` + standardrb. Magnus `Vec<T>`
+    params segfault fixed 212 (`array_to_vec`); **a padding negative must be validly padded**
+    (`GAAAAAAAAA======`) — `EEAY…====` is rejected by the ref too → `binding-reviews.md`
+- **C++ header-wrapper step (207, ~8 min)**: ASAN cmake build + `test_iscc`; CMake sets no `-Wall`,
+    so add a strict `g++ -Werror -fsyntax-only` pass; every `c_str()` must sit in `checked_c_str` or
+    the guarded `encode_seq` (213). **A `dotnet test` "apphost not found" while Codex runs is the
+    shared-`obj/` race** — re-run once Codex is idle → `binding-reviews.md`
+- **UniFFI Swift+Kotlin step (210, ~10 min)**: `gradlew -p packages/kotlin clean test --offline`
+    (JUnit XML) + `swift test --package-path packages/swift` with `/tmp/swifttc` on PATH, a fresh
+    `--scratch-path` and ABSOLUTE `-L`/rpath + bindgen regen into a temp dir → `binding-reviews.md`
+- **Binding boundary-fixture slices (150–161) — CLOSED, all 12 suites gated.** Commands, mutations,
+    standing traps (`cargo test -p iscc-wasm` = 0 tests; Gradle UP-TO-DATE stale green; verify a
+    generated artifact by decoding it back) → `binding-reviews.md`
+- **Every "not locally verifiable" toolchain claim has been FALSE so far** (cmake, swift, Gradle
+    publish, MSRV) → `binding-reviews.md` "Moved from the index"
+- **Ruby-only / Kotlin-only / published-`.pyi`** command sets → `binding-reviews.md` "Per-binding
+    review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
+- **npm-manifest step (214, ~6 min)**: `wasm-pack build --target web --dev crates/iscc-wasm` +
+    `node` assert on the FRESH `pkg/package.json` (on-disk `pkg/` goes stale) +
+    `cargo deny check licenses`; release.yml's remote `init.sh` pinned wasm-pack 0.13.1 on
+    2026-11-19

@@ -554,3 +554,17 @@ Full text of entries compacted out of `MEMORY.md`.
     `encode_seq`): `grep -ciE 'encode_?seq' site/howto/*/index.html`
 - Codex on uncompiled doc examples finds missing imports (Java `Arrays`), fixture-vs-golden
     mislabels, and exception-contract overstatements (Ruby `TypeError` from Magnus conversion)
+
+## Codec probes (moved from the MEMORY.md index, 216)
+
+- **On ANY canonical-form/decode change, probe non-ASCII case-fold aliases** (199: `ı`/`ſ`/`ß`/`ﬁ`
+    upper-case to ASCII, so Rust+Go alias codes the ASCII-only ref `b32decode` rejects; a re-encode
+    compare after `ToUpper` cannot see it). Probe via the Python binding — build it first
+- **"The fix matches the reference" — probe EVERY entry point it touches** (201: ref `iscc_decode`
+    rejects `ı`/`ſ`, ref `encode_seq` `.upper()`s first and ACCEPTS — the issue + next.md missed it,
+    Codex caught it). A new divergence → a `diverges` vector in `data-edge.json`, file a `**Spec:**`
+    issue, escalate (spec exception lists are acceptance criteria)
+- **Python-reference differentials: Python `strip()`/`split()` ⊋ Rust `trim`/`split_whitespace`** by
+    U+001C–U+001F: codec (198/200) + text utils (203) fixed in Rust AND Go. A one-way sweep proves
+    only ⊇ — demand the reverse (live `Z*`/`Cc`/`Cf` − strip set, 0.6s); `binascii.Error` ⊂
+    `ValueError`

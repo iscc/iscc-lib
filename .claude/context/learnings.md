@@ -124,12 +124,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a
     new branch in a covered fn — or merely **moving lines below the edit point** — is green locally,
     red in CI unless the baseline moves in the SAME step (never widen epsilon/threshold). **A new
-    stable rustc re-scores untouched fns** (195: 1.99.1 → 1.100.0 lowered 11 entries, raised 3): CI
-    uses `@stable`, so read the toolchain in CI's CRAP log before blaming the diff. **Rust
-    integration-test helpers (`crates/iscc-lib/tests/*.rs`) score at 0% coverage**
-    (`missing =   "pessimistic"`; CRAP = cc² + cc), so any helper above cyclomatic 5 fails
-    `--fail-above` in CI only (215: a `match`-per-section dispatcher scored 210). Run the CI CRAP
-    lines on any new `tests/*.rs`
+    stable rustc re-scores untouched fns** (195): read the toolchain in CI's CRAP log before blaming
+    the diff. **Rust test helpers (`crates/iscc-lib/tests/*.rs`) score at 0% coverage**
+    (pessimistic; CRAP = cc² + cc): cc > 5 fails `--fail-above` in CI only (215: 210). Fix = a
+    `const` table of small `fn` callers (216). cargo-crap 0.2.2 counts `?`, `||`, `if`, top-level
+    `match` arms; NOT closure bodies, `let … else`, `.then()`. Run the CI CRAP lines on `tests/*.rs`
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
     load-bearing (stripped → `summary: 0` false-green). **NOT in `mise run check`** — run
     `mise run bench:iai:check` on any benchmarked hot-path change (191's +36% reached red CI). A

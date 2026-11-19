@@ -37,19 +37,11 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     hypothesis (168) → `review-patterns.md` "Moved from the index"
 - **On ANY codec input-cleaning change, probe empty/garbage inputs** (191: cleaned `""` →
     `iscc_decompose` `Ok([])`) → `review-patterns.md`
-- **On ANY canonical-form/decode change, probe non-ASCII case-fold aliases** (199: `ı`/`ſ`/`ß`/`ﬁ`
-    upper-case to ASCII, so Rust+Go alias codes the ASCII-only ref `b32decode` rejects; a re-encode
-    compare after `ToUpper` cannot see it). Probe via the Python binding — build it first
-- **"The fix matches the reference" — probe EVERY entry point it touches** (201: ref `iscc_decode`
-    rejects `ı`/`ſ`, ref `encode_seq` `.upper()`s first and ACCEPTS — the issue + next.md missed it,
-    Codex caught it). A new divergence → a `diverges` vector in `data-edge.json`, file a `**Spec:**`
-    issue, escalate (spec exception lists are acceptance criteria)
+- **Codec/string-input differentials** — probe non-ASCII case-fold aliases, EVERY reference entry
+    point (201), strip/split ⊋ trim by U+001C–U+001F both ways (198–203) → `review-patterns.md`
+    "Codec probes"
 - **next.md under-scoping a spec's "Verified when"**, display-form suites, `.crap-baseline.json`
     scope cap, Go `FieldsFunc` cost (197–203) → `review-patterns.md` "Moved from the index (204)"
-- **Python-reference differentials: Python `strip()`/`split()` ⊋ Rust `trim`/`split_whitespace`** by
-    U+001C–U+001F: codec (198/200) + text utils (203) fixed in Rust AND Go. A one-way sweep proves
-    only ⊇ — demand the reverse (live `Z*`/`Cc`/`Cf` − strip set, 0.6s); `binascii.Error` ⊂
-    `ValueError`
 - **Advance agent idle claims**: verify remaining issue priorities independently — it may claim
     "only low-priority remain" when `normal` issues still exist
 - **Run the full CI feature matrix on any core change** — only `--no-default-features` catches a
@@ -95,27 +87,16 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     `review-patterns.md` "Moved from the index (204)"
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
     `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go` (empty)
-- **Binding boundary-fixture slices (150–161) — CLOSED, all 12 suites gated.** Commands, mutations,
-    standing traps (`cargo test -p iscc-wasm` = 0 tests; Gradle UP-TO-DATE stale green; verify a
-    generated artifact by decoding it back) → `binding-reviews.md`
-- **Every "not locally verifiable" toolchain claim has been FALSE so far** (cmake, swift, Gradle
-    publish, MSRV) → `binding-reviews.md` "Moved from the index"
-- **Ruby-only / Kotlin-only / published-`.pyi`** command sets → `binding-reviews.md` "Per-binding
-    review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see `gate-reviews.md` Audit)
-- **npm-manifest step (214, ~6 min)**: `wasm-pack build --target web --dev crates/iscc-wasm` +
-    `node` assert on the FRESH `pkg/package.json` (on-disk `pkg/` goes stale) +
-    `cargo deny check licenses`; release.yml's remote `init.sh` pinned wasm-pack 0.13.1 on
-    2026-11-19
 - **Bumps** (generated artifact, MSRV `cargo +1.85.0 check -p <c> --locked`, lockfile, wrapper,
     framework major) → `dep-refresh-reviews.md`
-- **Any new/changed Rust test helper in `crates/iscc-lib/tests/*.rs` → run the CI CRAP lines**
-    (`cargo llvm-cov -p iscc-lib --lcov …` then `cargo crap … --fail-regression --fail-above`, ~4
-    min, background). Test files score at 0% coverage → helper cyclomatic > 5 = red CI (215)
-- **`data-edge.json` harness step (215, ~10 min)**: the next.md six + CRAP lines + feature matrix on
-    `--test test_data_edge`; Codex found the CRAP failure and the `pytest.raises`-over-conversion
-    hole
+- **`data-edge.json` / any `crates/iscc-lib/tests/*.rs` helper (215/216)**: CI CRAP lines (~4 min,
+    bg; test files score 0% coverage → cc > 5 = red CI) + feature matrix (zsh: no quoted multi-flag
+    `for` loop). Fan-out next: each harness must assert rejection on the raw call only
+- **Waiting on a background run**:
+    `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15;   done'` in the foreground works
+    (bare `sleep` is blocked); never edit while prek runs
 - **Core text/codec change + generated data (≈12 min)**: Rust-only + full feature matrix +
     coverage/CRAP + `bench:iai:check` + generator no-op + pre-push `ty`/ruff/pytest on any new `.py`
     test (203, ~20 min) → `gate-reviews.md`
@@ -128,31 +109,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     sequentially, with `run_in_background` — `--all-files` also runs `standardrb`, ~15 min total on
     the bind mount (200)
 - **CI/Audit/Perf/Semver/CRAP gates** → `gate-reviews.md`
-- **ISCC-SEQ surface port (202, ~20 min)**: surface tests + corpus differential vs `iscc_lib` +
-    `test_seq.rs` name diff + drop-SEMANTIC mutation (no vector carries one) → `binding-reviews.md`
-- **JS-surface (napi + WASM) binding step (204, ~15 min)**: napi `build:debug` + `test`,
-    `wasm-pack test --node … --features conformance`, workspace clippy. Doc claims about argument
-    rejection are hypotheses: WASM list params accept ANY iterable, napi `Buffer` leaks a ref on bad
-    input (filed)
-- **C-FFI / thin-wrapper seq step (205, ~12 min)**: no corpus differential needed; header diff + C
-    test + valgrind + generated-file `git status`. **Check the round-trip DIRECTION** — spec wants
-    bytes over `decode_seq` vectors; next.md wrote decode-of-encode → `binding-reviews.md`
-- **.NET wrapper step (206, ~10 min)**: FFI build → locked restore → build (0 warnings) → detailed
-    `dotnet test`, count rows per class. **Any NEW string input must route through `ToNativeUtf8`**
-    (C++: `detail::checked_c_str`) — grep all non-generated `Iscc.Lib/*.cs` for `GetBytes` (213)
-- **JNI binding step (208, ~8 min)**: `cargo build -p iscc-jni` → `mvn clean test` (count `tests=`
-    in surefire XML) → `JAVA_TOOL_OPTIONS=-Xcheck:jni` run. **`-DargLine` never enables
-    `-Xcheck:jni`** (pom pins `<argLine>`) — earlier JNI "-Xcheck clean" claims were vacuous
-- **Ruby binding step (209, ~6 min)**: compile + no-locale `rake test` + standardrb. Magnus `Vec<T>`
-    params segfault fixed 212 (`array_to_vec`); **a padding negative must be validly padded**
-    (`GAAAAAAAAA======`) — `EEAY…====` is rejected by the ref too → `binding-reviews.md`
-- **C++ header-wrapper step (207, ~8 min)**: ASAN cmake build + `test_iscc`; CMake sets no `-Wall`,
-    so add a strict `g++ -Werror -fsyntax-only` pass; every `c_str()` must sit in `checked_c_str` or
-    the guarded `encode_seq` (213). **A `dotnet test` "apphost not found" while Codex runs is the
-    shared-`obj/` race** — re-run once Codex is idle → `binding-reviews.md`
-- **UniFFI Swift+Kotlin step (210, ~10 min)**: `gradlew -p packages/kotlin clean test --offline`
-    (JUnit XML) + `swift test --package-path packages/swift` with `/tmp/swifttc` on PATH, a fresh
-    `--scratch-path` and ABSOLUTE `-L`/rpath + bindgen regen into a temp dir → `binding-reviews.md`
+- **Per-binding commands + standing traps** (seq 202 … UniFFI 210, npm 214, boundary slices 150–161,
+    "not locally verifiable" claims — all FALSE so far) → `binding-reviews.md` "Per-surface step
+    commands"
 - **Multi-surface docs fan-out (211, ~15 min)**: next.md greps skip `.claude/context/` (grep
     learnings for the old count); compile C/C++ snippets with g++ against `target/debug` in seconds
     → `review-patterns.md`
