@@ -23,7 +23,8 @@ packages/cpp/
     iscc/
       iscc.hpp             # The entire C++ wrapper (single header)
   tests/
-    CMakeLists.txt          # Test build config (links test_iscc against iscc::iscc + iscc_ffi)
+    CMakeLists.txt          # Test build config (links test_iscc against iscc::iscc + iscc_ffi;
+                            # PRIVATE include of crates/iscc-ffi/tests for data_edge_vectors.h)
     test_iscc.cpp           # Comprehensive smoke tests (35+ test cases)
   build/                    # Local debug build output (gitignored)
   build-ci/                 # CI build output (gitignored)
@@ -105,6 +106,12 @@ The `cpp` job in `.github/workflows/ci.yml` runs on `ubuntu-latest`:
     algorithm primitives, streaming hashers, constants, error paths, and move semantics
 - Expected values match the C test suite in `crates/iscc-ffi/tests/test_iscc.c`
 - Error path tests verify that `iscc::IsccError` is thrown for invalid inputs and nonexistent files
+- Runs every `crates/iscc-lib/tests/data-edge.json` vector from the generated header
+    `crates/iscc-ffi/tests/data_edge_vectors.h`, shared with the C test (one check function per
+    section, `run_edge_section` loop, total row tally against `ISCC_EDGE_TOTAL_COUNT`). A row's
+    `cpp` field is its resolved expectation; a rejection is `iscc::IsccError` from the raw call.
+    Regenerate after editing the fixture: `uv run --script scripts/gen_data_edge_vectors.py`;
+    `tests/test_gen_data_edge_vectors.py` fails when the header is stale
 - Temporary files for `gen_sum_code_v0` tests are created in
     `std::filesystem::temp_directory_path()` and cleaned up after
 

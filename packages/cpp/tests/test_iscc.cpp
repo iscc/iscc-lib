@@ -7,6 +7,8 @@
 
 #include <iscc/iscc.hpp>
 
+#include "data_edge_vectors.h"
+
 #include <cassert>
 #include <cstdio>
 #include <cstring>
@@ -97,6 +99,113 @@ static void assert_throws_with(F&& f, const std::string& needle, const char* nam
         return;
     }
     fail(name, "expected IsccError, nothing thrown");
+}
+
+/// Build a std::string from an edge-vector string, keeping any embedded NUL.
+static std::string edge_string(const iscc_edge_str& s) {
+    return s.ptr ? std::string(s.ptr, s.len) : std::string();
+}
+
+/// Build a string vector from an edge-vector list (an empty list stays empty).
+static std::vector<std::string> edge_strings(const iscc_edge_list& list) {
+    std::vector<std::string> out;
+    for (size_t i = 0; i < list.count; ++i) {
+        out.emplace_back(list.items[i], list.lens[i]);
+    }
+    return out;
+}
+
+/// Build a byte vector from an expected edge-vector byte string.
+static std::vector<uint8_t> edge_bytes(const iscc_edge_str& s) {
+    const std::string bytes = edge_string(s);
+    return std::vector<uint8_t>(bytes.begin(), bytes.end());
+}
+
+/// Check one iscc_decode edge row against its cpp expectation (rejection = IsccError).
+static bool check_edge_iscc_decode(const iscc_edge_iscc_decode_vector& v) {
+    const std::string input = edge_string(v.input);
+    iscc::DecodeResult r;
+    try {
+        r = iscc::iscc_decode(input);
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && r.maintype == v.maintype && r.subtype == v.subtype &&
+           r.version == v.version && r.length == v.length && r.digest == edge_bytes(v.digest);
+}
+
+/// Check one encode_seq edge row against its cpp expectation (rejection = IsccError).
+static bool check_edge_encode_seq(const iscc_edge_encode_seq_vector& v) {
+    const std::vector<std::string> units = edge_strings(v.units);
+    std::vector<uint8_t> seq;
+    try {
+        seq = iscc::encode_seq(units);
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && seq == edge_bytes(v.seq);
+}
+
+/// Check one gen_text_code_v0 edge row against its cpp expectation.
+static bool check_edge_gen_text_code_v0(const iscc_edge_gen_text_code_v0_vector& v) {
+    const std::string text = edge_string(v.text);
+    std::string iscc;
+    try {
+        iscc = iscc::gen_text_code_v0(text, v.bits).iscc;
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && iscc == edge_string(v.iscc);
+}
+
+/// Check one gen_mixed_code_v0 edge row against its cpp expectation.
+static bool check_edge_gen_mixed_code_v0(const iscc_edge_gen_mixed_code_v0_vector& v) {
+    const std::vector<std::string> codes = edge_strings(v.codes);
+    std::string iscc;
+    try {
+        iscc = iscc::gen_mixed_code_v0(codes, v.bits).iscc;
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && iscc == edge_string(v.iscc);
+}
+
+/// Check one gen_iscc_code_v0 edge row against its cpp expectation.
+static bool check_edge_gen_iscc_code_v0(const iscc_edge_gen_iscc_code_v0_vector& v) {
+    const std::vector<std::string> codes = edge_strings(v.codes);
+    std::string iscc;
+    try {
+        iscc = iscc::gen_iscc_code_v0(codes, v.wide != 0).iscc;
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && iscc == edge_string(v.iscc);
+}
+
+/// Run every row of one data-edge section: skip rows marked cpp skip, check the rest,
+/// print PASS/FAIL per row, and return the number of rows seen (run or skipped).
+template <typename Row, typename Check>
+static size_t run_edge_section(const char* section, const Row* rows, size_t count,
+                               Check check) {
+    for (size_t i = 0; i < count; ++i) {
+        const std::string name = std::string("data_edge/") + section + "/" + rows[i].name;
+        if (rows[i].cpp == ISCC_EDGE_SKIP) {
+            std::printf("SKIP: %s\n", name.c_str());
+            continue;
+        }
+        assert_true(check(rows[i]), name.c_str());
+    }
+    return count;
 }
 
 int main() {
@@ -548,6 +657,37 @@ int main() {
         assert_throws_with(
             [&] { iscc::gen_sum_code_v0(std::string("/tmp/x\0junk", 11)); }, nul_needle,
             "gen_sum_code_v0(path with embedded NUL) throws");
+    }
+
+    // Shared edge-case vectors (data-edge.json) via the generated header
+    {
+        size_t seen = 0;
+        seen += run_edge_section("iscc_decode", iscc_edge_iscc_decode,
+                                 ISCC_EDGE_ISCC_DECODE_COUNT, check_edge_iscc_decode);
+        seen += run_edge_section("encode_seq", iscc_edge_encode_seq,
+                                 ISCC_EDGE_ENCODE_SEQ_COUNT, check_edge_encode_seq);
+        seen += run_edge_section("gen_text_code_v0", iscc_edge_gen_text_code_v0,
+                                 ISCC_EDGE_GEN_TEXT_CODE_V0_COUNT, check_edge_gen_text_code_v0);
+        seen += run_edge_section("gen_mixed_code_v0", iscc_edge_gen_mixed_code_v0,
+                                 ISCC_EDGE_GEN_MIXED_CODE_V0_COUNT,
+                                 check_edge_gen_mixed_code_v0);
+        seen += run_edge_section("gen_iscc_code_v0", iscc_edge_gen_iscc_code_v0,
+                                 ISCC_EDGE_GEN_ISCC_CODE_V0_COUNT, check_edge_gen_iscc_code_v0);
+        assert_eq(seen, ISCC_EDGE_TOTAL_COUNT, "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
+    }
+
+    // data-edge check functions fail a bad row (one bad case each)
+    {
+        const iscc_edge_iscc_decode_vector accepted = {
+            "negative", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR, {"ISCC:GAAAAAAAAA", 15},
+            0, 0, 0, 0, {nullptr, 0}};
+        const iscc_edge_gen_text_code_v0_vector mismatch = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {"Hello World", 11},
+            64, {"ISCC:EAAWSPUDF7GJWQVD", 21}};
+        assert_true(!check_edge_iscc_decode(accepted),
+                    "data_edge negative: expected rejection that succeeds fails");
+        assert_true(!check_edge_gen_text_code_v0(mismatch),
+                    "data_edge negative: output mismatch fails");
     }
 
     // Summary
