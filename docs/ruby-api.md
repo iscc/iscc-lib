@@ -851,7 +851,9 @@ puts IsccLib.conformance_selftest # true
 
 ## Error Handling
 
-All methods that accept user input raise `RuntimeError` on invalid arguments:
+Methods raise `TypeError` for arguments of the wrong type, such as a non-Array where an Array is
+expected or a non-String element in a list of ISCC units (`IsccLib.encode_seq([nil])`). They raise
+`RuntimeError` for arguments of the right type with invalid values:
 
 - Empty or nil required parameters (e.g., empty `name` in `gen_meta_code_v0`)
 - Invalid `bits` values (must be a multiple of 32, range 32–256)

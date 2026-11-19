@@ -131,6 +131,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
     0.8 dropped `old-api`: use `ruby.exception_runtime_error()` + `ruby.str_from_slice()`, never
     `magnus::exception::*` / `RString::from_slice`. `ExtensionTask.new("iscc-rb")` = Cargo pkg name;
     streaming `RefCell<Option<inner>>` one-shot finalize; `_` prefix for methods NOT class names
+- Ruby array args: NEVER Magnus `Vec<T>` params (borrowed-slice `to_vec` segfaults when an element's
+    `to_str`/`to_int` mutates the array, iter 212) — take `RArray` + `array_to_vec`/`frames_to_vec`
+    in rb lib.rs. Lock bumps: `bundle update <gem> --conservative --patch` (plain moved rubocop)
 
 ## Other Bindings — pointers
 

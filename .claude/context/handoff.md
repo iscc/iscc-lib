@@ -1,74 +1,63 @@
-## 2026-11-19 — Review of: Tier-1 33→35 doc/count sweep + `encode_seq`/`decode_seq` doc entries
+## 2026-11-19 — Ruby array arguments via `RArray::into_iter` (Magnus `Vec<T>` segfault) + `json` lock bump
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Every Ruby array argument now goes through a private helper `array_to_vec<T: TryConvert>`.
+It calls `RArray::into_iter()`, which walks a hidden copy and skips the copy for frozen arrays. A
+second helper, `frames_to_vec`, first runs `RArray::try_convert` on each video frame and then calls
+`array_to_vec`. Together they cover all 7 sites: 5 `Vec<T>` params plus 2 inner frame conversions.
+The `json` lock entry is bumped 2.21.1 → 2.21.2. `docs/ruby-api.md` Error Handling now says
+`TypeError` for wrong-type arguments and `RuntimeError` for invalid values.
 
-**Summary:** Docs-only fan-out (plus one uniffi module-doc comment) across 36 files, within the
-declared `**Fan-out:**` scope and nothing from Not In Scope. Every Tier-1 count reads 35. All 11
-how-to pages and the 4 hand-written API pages document `encode_seq`/`decode_seq`, and every
-signature matches its source. Each re-derived count (30 pyfunctions, 58 Go vectors = 50 + 4 + 4, 19
-Swift/Kotlin methods, napi 5 codec) checks out. Review fixed two small doc nits Codex found.
+**Files changed:**
+
+- `crates/iscc-rb/src/lib.rs`: added `array_to_vec` and `frames_to_vec` (with docstrings).
+    `gen_audio_code_v0`, `gen_mixed_code_v0`, `gen_iscc_code_v0`, `encode_seq` and `alg_minhash_256`
+    now take `RArray`. `alg_minhash_256` returns `Result<RString, Error>`, because element
+    conversion can now fail inside the function. Before, the same failure surfaced in Magnus'
+    argument conversion. The two video functions use `frames_to_vec`. `function!` arities are
+    unchanged
+- `crates/iscc-rb/test/test_array_args.rb` (new, 14 tests):
+    - 7 crash tests. Element 0 of a 2000-element array clears the array and runs `GC.start` inside
+        `to_str`/`to_int`. Each test asserts that the result equals the call on an unmutated snapshot
+        and that the array really got emptied. They cover `encode_seq`, `gen_mixed_code_v0`,
+        `gen_iscc_code_v0` (same value or the same RuntimeError message), `gen_audio_code_v0`,
+        `alg_minhash_256`, and an inner frame for `gen_video_code_v0` / `soft_hash_video_v0`
+    - Behaviour checks: a frozen array works, `to_ary` coercion works
+    - Exception classes: `TypeError` for `encode_seq([nil])`, a non-Array argument, a non-Integer
+        element and a non-Array frame; `RuntimeError` for an invalid unit value
+- `crates/iscc-rb/Gemfile.lock`: `json (2.21.2)`, the only changed line
+- `docs/ruby-api.md`: rewrote the Error Handling intro sentence (TypeError vs RuntimeError)
+- `crates/iscc-rb/CLAUDE.md`: added a key-files row for `test_array_args.rb`
 
 **Verification:**
 
-- [x] Stale-count grep prints nothing (exit 1). It is non-vacuous: the same grep on `d3e10fa` finds
-    8 hits
-- [x] Seq-coverage `grep -LiE "encode_?seq"` prints no filenames. The rendered HTML for all 11
-    howtos carries seq (case-insensitive grep)
-- [x] Manual signature review: all 12 surfaces match the Implementation Notes table and the source
-    (`codec.rs:818/857`, `index.d.ts`, `IsccLib.java:288/300`, `codec.go:879/919`,
-    `IsccLib.cs:488/542`, `iscc.h:645/670`, `iscc.hpp:366/384`, rb `lib.rs:329/340`, Swift/Kotlin
-    generated files). Error contracts were also checked: Rust/C/Java/Ruby/.NET exception types and
-    excluded MainTypes. No fabricated return types
-- [x] `uv run zensical build`: exit 0, "No issues found" (`gen_llms_full.py` re-run afterwards)
-- [x] `mise run check` exit 0 with no rewrites. `cargo build -p iscc-uniffi` finished. Workspace
-    clippy `-D warnings` exit 0
-- [x] Extra probes:
-    - The C++ seq howto example, compiled with `g++ -Wall -Wextra -Werror` against `iscc.hpp`, printed
-        `34 / 2007a88248c5 / ISCC:… / true`
-    - The C example (with the prefixed type) printed the same, with `decoded[1] == NULL`
-    - The Ruby example on a fresh `.so` printed `34`, `"2007a88248c5"`, ASCII-8BIT, round trip `true`
-    - A tree-wide grep for stale `3 codec` / `46 vectors` / `9 test methods` / `27 #[pyfunction]`
-        found nothing
+- **Pre-fix probe** (fresh `rake compile` of the unfixed tree; each test run alone with
+    `-n /name/`): all 7 mutation tests aborted with exit 134, `[BUG] Segmentation fault`. That
+    includes the integer path (`gen_audio`, `alg_minhash`, `gen_video`, `soft_hash`): `to_int`
+    mutation crashed today too. The 4 type-error, frozen and `to_ary` tests already passed on the
+    unfixed tree, so `TypeError` behaviour did not change
+- Grep criterion `grep -nE '^fn [a-z_0-9]+\([^)]*Vec<|Vec<i32> = TryConvert::try_convert\(frame\)'`
+    printed nothing (exit 1)
+- After the fix, `bundle exec rake compile` exit 0 (`.so` mtime 07:20 today).
+    `bundle exec rake test` gives 152 runs, 432 assertions, 0 failures. `test_array_args.rb` alone
+    gives 14 runs, 29 assertions, 0 failures. The suite was re-run after the lock bump: still 152/0
+- `cargo clippy -p iscc-rb -- -D warnings` exit 0. `bundle exec standardrb` exit 0 (before and after
+    the lock bump)
+- `Gemfile.lock` has `json (2.21.2)` and `rb_sys (0.9.123)`
+- `mise run format` exit 0, `mise run check` exit 0
 
-**Issues found:**
-
-- Fixed in review:
-    - `docs/java-api.md:508` used `Arrays.equals` without an import → `java.util.Arrays.equals`,
-        matching the page's own `java.util.Arrays.copyOf`
-    - The Swift/Kotlin `CLAUDE.md` tree comments said `gen_iscc_id_v1` comes from `data.json`. It does
-        not; it is a hard-coded golden test. Reworded
-- The new `iscc_encode_seq`/`iscc_decode_seq` C snippets use the unprefixed `IsccByteBuffer`. This
-    follows page style as next.md directed, and the existing `docs/c-ffi-api.md` type-name issue
-    covers it
-- `docs/ruby-api.md` says invalid input raises `RuntimeError`. That holds for codec errors only:
-    `encode_seq([nil])` raises `TypeError` (probed). The page-wide "all methods raise
-    `RuntimeError`" sentence predates this step. Nit, not filed
-- Nit: the new C++ seq snippet lacks `#include <iostream>`. Its neighbouring codec/IDv1 snippets
-    omit it too (page convention)
-- Nit: the Swift/Kotlin "9 ISCC-SEQ methods … negatives" includes one positive control
-    (`testEncodeSeqPaddingControl`)
-
-**Codex review:** Run on `f386584`, the main commit; HEAD is handoff-only. Six findings:
-
-- Java `Arrays` import (P3) and the Swift/Kotlin IDv1 wording (P3): valid, fixed in review
-- C `IsccByteBuffer` (P2): already tracked; out of scope by next.md
-- .NET `EncodeSeq` accepts `unit + "\0junk"`, so the "strict" wording overstates (P2): already
-    tracked in the .NET/C++ NUL-truncation issue; fixing the behaviour makes the docs true
-- Ruby exception contract (P2): verified `TypeError`; pre-existing page wording, see above
-- C++ `<iostream>` (P3): page convention
-
-**Next:** the Ruby Magnus `Vec<T>` segfault fix (`normal`, single file `crates/iscc-rb/src/lib.rs`):
-take `RArray` and iterate with `into_iter()`, as `alg_simhash` already does. `encode_seq` and
-`gen_mixed_code_v0` are affected call sites. That fix rewrites exactly the argument conversion
-behind the `TypeError`-vs-`RuntimeError` contract. Have its tests pin which exception class a
-non-String element raises, and correct the `docs/ruby-api.md` Error Handling sentence in the same
-step if the class stays `TypeError`.
+**Next:** the `@iscc/wasm` npm license/description metadata (`Cargo.toml` + `release.yml` patch
+step), which next.md named as the runner-up.
 
 **Notes:**
 
-- ISCC-SEQ is now bound and documented on all 11 surfaces. The remaining seq-adjacent issues are
-    behaviour bugs (Ruby segfault, .NET/C++ NUL truncation, napi Buffer leak, the Python docstring)
-    and the C-page type-name question (rename vs alias is a design call)
-- Commit `4503ed0` changed the c-cpp howto prose to `iscc_IsccByteBuffer`, so the howto and
-    `docs/c-ffi-api.md` now differ in naming until that issue is decided
-- learnings.md: the two "Tier 1 = 33 / sweep pending" bullets now read 35 / done at 211
+- **Deviation on the json bump:** the prescribed `bundle update json --conservative` did NOT stay
+    json-only. It resolved `json (3.1.0)` and pulled in rubocop 1.88.2 → 1.91.0 (whose constraint is
+    `json >= 2.3`) and standard 1.56.0 → 1.57.0. I restored the lock and ran
+    `bundle update json --conservative --patch`, which gave exactly the one-line `json 2.21.2` diff.
+    Side effect: the first run installed standard 1.57.0 into the local gem dir. It is unused
+    because the lock pins 1.56.0
+- The integer path segfaulted too, which the issue had not probed. The issue text can now say all 7
+    sites crashed, not just the `to_str` ones
+- No hot path touched (binding-only); the CRAP and iai gates do not apply
+- `alg_minhash_256`'s return type changed only inside the Ruby binding's Rust code. Ruby callers see
+    the same method
