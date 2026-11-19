@@ -80,3 +80,6 @@ one of the affected call sites.
 - I did not mention .NET `EncodeSeq` NUL truncation in the docs, because it is an open `normal`
     issue whose fix is Titusz's call. The C++ CLAUDE.md now notes that `encode_seq` guards NUL
 - `.claude/context/iterations.jsonl` was modified by the runner and is left unstaged
+- Follow-up commit `4503ed0`: the c-cpp howto seq prose now uses the page's prefixed
+    `iscc_IsccByteBuffer` name. Swift/Kotlin READMEs carry no test-method count, and a tree-wide
+    `git grep` for "32/33 … Tier|symbols" outside context files found nothing
