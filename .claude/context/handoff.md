@@ -34,7 +34,9 @@ controls). ISCC-SEQ is on 9 of 11 surfaces.
     `21018c3585376ee22d5a` (the test_0004 prefix). (2) Locale: the HEAD version of
     `test_conformance.rb`, run with LANG/LC_ALL/LC_CTYPE unset, aborts with
     `Encoding::InvalidByteSequenceError "\xC3" on US-ASCII` in bundled json 2.21.1 (the probe copy
-    was deleted). The new file passes in the same environment
+    was deleted). The full suite with the new files passes under `env -u LANG -u LC_ALL -u LC_CTYPE`
+    (default_external US-ASCII): 137 runs, 0 failures, all 12 `TestSeq#*` incl.
+    `test_byte_round_trip`
 
 **Next:** UniFFI seq (Swift + Kotlin; hard-coded per-section conformance counts), then the 33→35 doc
 sweep. For Ruby that sweep covers `crates/iscc-rb/README.md`, `crates/iscc-rb/CLAUDE.md` (Key Files
