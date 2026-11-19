@@ -1,16 +1,15 @@
-<!-- assessed-at: b00d83d654d3062a72f431397e63ee4562f6575d -->
+<!-- assessed-at: d1810cb41d653bec23a4b22b1e86119a17ce8ace -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — ISCC-SEQ on Rust core + 9 of 11 surfaces (all but Swift and Kotlin); CI green
+## Phase: v0.8.0 — ISCC-SEQ bound on Rust core + all 11 surfaces; doc sweep and normal issues remain
 
-The pushed `develop` tip `a15164b` passes CI on all 21 check-runs. HEAD `b00d83d` adds only a
-`cid(log)` commit, so that run covers HEAD's code. Iteration 209 bound `encode_seq` / `decode_seq`
-in the Ruby gem, bringing ISCC-SEQ to 9 of 11 surfaces; only the shared UniFFI crate (Swift +
-Kotlin) remains. 11 `normal` issues are open, including a new Ruby one: Magnus `Vec<T>` parameters
-can segfault.
+The pushed `develop` tip `8eacfcf` passes CI on all 21 check-runs. HEAD `d1810cb` adds only
+`.claude/` commits (log, audit metrics snapshot), so that run covers HEAD's code. Iteration 210
+bound `encode_seq` / `decode_seq` in the UniFFI crate, so ISCC-SEQ is now on all 11 surfaces. The
+remaining v0.8.0 work is the 33 → 35 documentation sweep and the 11 open `normal` issues.
 
 ## Rust Core Crate
 
@@ -22,7 +21,7 @@ can segfault.
 - `text_trim` / `text_remove_newlines` use the Python `str.strip()` set. Strict base32 with
     ASCII-only upper-casing is met; the `encode_seq` case-fold divergence is recorded in
     `rust-core.md` and decisions.md
-- iai Perf, Coverage + CRAP and semver-checks passed on `a15164b` (semver is informational)
+- iai Perf, Coverage + CRAP and semver-checks passed on `8eacfcf` (semver is informational)
 - **Missing (human-gated, not v0.8.0 work):** the crate is not yet `>= 1.0.0`, and the MSRV
     criterion is unverified. Nothing in the Rust core is owed for v0.8.0
 
@@ -81,7 +80,7 @@ can segfault.
 - No CI job runs the JNI suite under `-Xcheck:jni`. `encodeSeqRejectsPadding` uses a literal the
     padding-tolerant reference also rejects, so it cannot catch a padding regression
 - Stale docs: `crates/iscc-jni/README.md`, `crates/iscc-jni/CLAUDE.md`, `docs/howto/java.md`,
-    `docs/java-api.md` have no seq entries
+    `docs/java-api.md` (still says 33) have no seq entries
 
 ## Go Bindings
 
@@ -120,24 +119,26 @@ can segfault.
 **Status**: partially met
 
 - `crates/iscc-rb/src/lib.rs` registers `encode_seq` (Array → binary String) and `decode_seq`
-    (String → Array of `ISCC:` units) at L573-574, giving 35 Tier 1 symbols. `test_conformance.rb`
-    reads `data.json` as explicit UTF-8 and runs both seq sections; `test_seq.rb` adds 13 tests
-    (padding negative + control, `"\0junk"`). 0.7.0 is on RubyGems
+    (String → Array of `ISCC:` units), giving 35 Tier 1 symbols. `test_conformance.rb` runs both seq
+    sections; `test_seq.rb` adds 13 tests. 0.7.0 is on RubyGems
 - **Missing (`normal` issues):** Magnus 0.8.2 `Vec<T>` parameters segfault when an element's
     `to_str` mutates the array (every `Vec<_>` param); the `json` alert in `Gemfile.lock`
-- Stale docs: `crates/iscc-rb/README.md`, `docs/howto/ruby.md`, `crates/iscc-rb/CLAUDE.md` have no
-    seq entries; the CLAUDE.md Key Files table lacks `test_iscc_id.rb` and `test_seq.rb`
+- Stale docs: `crates/iscc-rb/README.md`, `docs/howto/ruby.md`, `docs/ruby-api.md` (still says 33),
+    `crates/iscc-rb/CLAUDE.md` (Key Files table lacks `test_iscc_id.rb` and `test_seq.rb`)
 
 ## Swift and Kotlin Bindings
 
 **Status**: partially met
 
-- Both expose the 33-symbol surface through `crates/iscc-uniffi` and shipped 0.7.0: Kotlin on Maven
-    Central, Swift as an SPM XCFramework
-- **Missing on both:** `encode_seq` / `decode_seq` (no hit in `crates/iscc-uniffi` or the package
-    sources; only the vendored `data.json` matches) and the seq vectors in each conformance harness.
-    Swift and Kotlin hard-code per-section counts
-- UniFFI is the last surface whose embedded-NUL handling has not been probed
+- `crates/iscc-uniffi/src/lib.rs` exports `encode_seq(Vec<String>)` → `Vec<u8>` and
+    `decode_seq(Vec<u8>)` → `Vec<String>` (L400, L409); 28 `#[test]` in the crate. Regenerated
+    bindings expose Swift `encodeSeq(units:)` / `decodeSeq(data:)` and Kotlin `encodeSeq` /
+    `decodeSeq`
+- Swift `ConformanceTests.swift` and Kotlin `ConformanceTest.kt` each have 19 tests, running the 4 +
+    4 data.json seq vectors, a round trip, negatives and an embedded-NUL probe. Both shipped 0.7.0
+    (Kotlin on Maven Central, Swift as an SPM XCFramework)
+- Stale docs: the `crates/iscc-uniffi/src/lib.rs` module doc still says "all 33 Tier 1 symbols"; the
+    Swift/Kotlin `CLAUDE.md` and READMEs have stale conformance-test counts and no seq entries
 
 ## Documentation
 
@@ -146,8 +147,10 @@ can segfault.
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, and a
     Development section; the site deploys from `main`. The root README and 12 per-crate/package
     READMEs are present
-- Pending for v0.8.0: seq API entries, and updating the 33 → 35 count in the crate `CLAUDE.md`
-    files, `notes/00`, `notes/04`, `docs/architecture.md` and the binding docs
+- Pending for v0.8.0: seq API entries across the per-language docs, and the 33 → 35 count. "33" is
+    still in `crates/iscc-lib/CLAUDE.md`, `crates/iscc-wasm/CLAUDE.md`, `docs/java-api.md`,
+    `docs/ruby-api.md`, `notes/00-overview.md` and `notes/04-api-compatibility-safety.md`, plus the
+    binding docs listed above
 
 ## Benchmarks
 
@@ -165,7 +168,7 @@ can segfault.
 - `ci.yml` has 20 jobs; Swift is the only job on macOS (`macos-15`). `release.yml` is
     `workflow_dispatch`-only with 8 registry toggles. 21 version-sync targets are at 0.7.0
 - `deny.toml` ignores `RUSTSEC-2026-0374` with a documented reason (no upstream fix)
-- **Latest CI: PASSING** on `a15164b`: https://github.com/iscc/iscc-lib/actions/runs/44452418939.
+- **Latest CI: PASSING** on `8eacfcf`: https://github.com/iscc/iscc-lib/actions/runs/44461448316.
     All 21 check-runs succeeded. No unpushed code changes at HEAD
 - **Missing:** the `uv.lock` Dependabot bump (`soupsieve` has two high alerts, `setuptools`),
     tracked as a `normal` issue
@@ -176,10 +179,10 @@ can segfault.
 metadata, the Ruby `json` alert, the Python `encode_seq` case-fold docstrings, the `uv.lock` alerts,
 the napi `Buffer` reference leak, the `iscc-ffi/src/lib.rs` split, .NET + C++ embedded-NUL
 truncation (fix approach awaits a human decision), .NET pin-loop duplication, the JNI
-pending-exception mapping, and the Ruby Magnus `Vec<T>` segfault. The Ruby locale issue is resolved.
+pending-exception mapping, and the Ruby Magnus `Vec<T>` segfault. The iteration-210 audit filed no
+new issues.
 
 ## Next Milestone
 
-Finish v0.8.0 ISCC-SEQ: `encode_seq` / `decode_seq` on the last two surfaces (Swift and Kotlin via
-UniFFI), with every conformance harness running the seq vectors. Then the 33 → 35 documentation
-sweep, and clear the 11 open `normal` issues that block the release.
+Bring the documentation in line with the 35-symbol Tier 1 surface (seq entries and the 33 → 35 count
+everywhere), then clear the 11 open `normal` issues that block the v0.8.0 release.
