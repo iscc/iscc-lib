@@ -12,10 +12,8 @@ the v0.8.0 "Shared edge-case vectors run everywhere" criterion.
 
 - **Chosen:** group 1 of the fan-out. Its behaviour is fixed by `specs/edge-vectors.md` → Rules, and
     every surface's toolchain is on `$PATH`, so all six suites can be checked in this session
-- **Rejected:** all 10 bindings in one step. Swift needs a toolchain install of about 5 minutes, and
-    Kotlin is its UniFFI twin, while C and C++ need the recovered table generator. Together they
-    exceed one ~90-minute session, so those four become groups 2 and 3. Also rejected: the `normal`
-    Python `encode_seq` docstring issue. It is a one-file fix, so it gives way to the target gap
+- **Rejected:** all 10 bindings at once. Swift needs a toolchain install, Kotlin is its UniFFI twin,
+    and C/C++ need the recovered generator, so together they exceed one ~90-minute session
 
 ## Scope
 
@@ -43,10 +41,8 @@ Go, .NET and Ruby. Commit once per surface. The shared edits go in the first com
 
 - Swift and Kotlin harnesses (group 2), C and C++ (group 3, generated table plus staleness check).
     Do not vendor Swift or Kotlin copies yet: `test_no_unregistered_tracked_copy` would demand them
-- Python harness changes. The Python `encode_seq` docstring issue and the .NET pin-loop issue
-    (`normal`, separate steps)
-- Checks that the file is absent from published artifacts (sdist, gem, npm, Go zip). These belong to
-    a later step once all groups land
+- Python harness changes; the `normal` Python docstring and .NET pin-loop issues
+- Published-artifact absence checks (sdist, gem, npm, Go zip): a later step after all groups
 - Deleting single per-binding tests that happen to share an input with a vector (napi
     `seq.test.mjs`, JNI `IsccLibTest`, Ruby `test_seq.rb`, WASM `unit.rs`, Go `codec_test.go`
     decoder tables). They also pin each surface's error type
@@ -84,10 +80,8 @@ Go, .NET and Ruby. Commit once per surface. The shared edits go in the first com
     - for gen `outputs` objects, compare each listed key (`iscc`, `characters`) to the result field in
         that surface's naming.
 
-    Adding a vector to a handled section must need no harness edit.
-
-- **.NET** expects `error` on `gen_text_code_v0/test_0001_embedded_nul` through its `except` entry.
-    Go, JNI and Ruby keep the NUL and must produce the stated `outputs`.
+    Adding a vector to a handled section must need no harness edit. .NET rejects the gen_text NUL
+    vector via its `except` entry; Go, JNI and Ruby keep the NUL and match the stated `outputs`.
 
 - **Go:** `seqStrictDivergences` in `seq_test.go` declares itself a mirror of the file. Delete
     `TestEncodeSeqStrictBase32DivergencesRejected`, because the harness covers it. Keep the twin
@@ -99,8 +93,7 @@ Go, .NET and Ruby. Commit once per surface. The shared edits go in the first com
     not fix the binding or the Go port in this step. Leave that surface's harness out, finish the
     others, and report the vector in your handoff.
 
-- None of this touches `crates/iscc-lib/src` or `crates/iscc-lib/tests/*.rs`, so neither the CRAP
-    gate nor the iai gate is affected.
+- Nothing here touches `crates/iscc-lib/src` or `tests/*.rs`: CRAP and iai gates are unaffected.
 
 ## Verification
 
