@@ -37,7 +37,9 @@ packages/dotnet/
     ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions + encode_seq/decode_seq
     SeqTests.cs                          # EncodeSeq / DecodeSeq error surfacing and accepted input forms
     NulInputTests.cs                     # Embedded-NUL rejection across string-input methods
+    DataEdgeTests.cs                     # every data-edge.json vector (except.dotnet), unknown section fails
     testdata/data.json                   # Vendored ISCC conformance test vectors
+    testdata/data-edge.json              # Vendored shared edge-case vectors
 ```
 
 ## C FFI to C# Type Mapping
@@ -99,6 +101,12 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 - `DecodeStream` helper converts `"stream:<hex>"` format to `byte[]`
 - `PrepareMeta` helper handles null / string / JSON-object meta parameter variants
 - Asserts exact ISCC string equality against expected outputs
+
+### Edge-case tests (`DataEdgeTests.cs`)
+
+- Runs every vector of `testdata/data-edge.json` through a section → caller table; `except.dotnet`
+    is the only deviation and an unknown section fails. A rejection must be an `IsccException` from
+    the raw call; no vector count is hardcoded
 
 ## Publishing (NuGet)
 
