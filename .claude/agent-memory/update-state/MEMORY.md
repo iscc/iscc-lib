@@ -86,21 +86,21 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: d1810cb, iter 211 — incremental)
+## Current State (assessed-at: d254b44, iter 212 — incremental)
 
-- **CI GREEN on `8eacfcf`** (run 44461448316, 21/21; codecov/cursor suites sit `queued` = noise).
-    Local `origin/develop` ref can lag: a `cid(log)` HEAD may 422 on the check-runs API (not pushed)
-    — use `git ls-remote origin develop` for the real tip. Runner-capacity cancels: suite `failure`
-    w/ sole `cancelled` 0-step run = infra; still report FAILING.
-- **ISCC-SEQ bound on ALL 11 surfaces (UniFFI 210 last)** — do NOT re-flag. Remaining v0.8.0: the
-    33→35 doc sweep + 11 `normal` issues. Stale-"33" probe:
-    `grep -rlnE '33 (Tier|symbols|public)|all 33'` with QUOTED `--include` globs (zsh). Swift/Kotlin
-    ConformanceTests = 19 each; uniffi 28 `#[test]`. C++ tests hard-code vectors (consistent, not a
-    gap). dotnet `NativeMethods.g.cs` = generated P/Invoke only (check `IsccLib.cs`).
-- Iter-210 audit (jsonl `audit` OK) filed NO issues — only a metrics snapshot commit.
+- **CI GREEN on `2ed2065`** (run 44474071767, 21/21; codecov/cursor suites sit `queued` = noise).
+    Local `origin/develop` ref can lag: use `git ls-remote origin develop` for the real tip.
+    Runner-capacity cancels: suite `failure` w/ sole `cancelled` 0-step run = infra; still FAILING.
+- **ISCC-SEQ bound + DOCUMENTED on all 11 surfaces; 33→35 sweep DONE (211)** — do NOT re-flag.
+    Stale-"33" probe (quoted `--include` globs) now hits only `.claude/`. Remaining "9 gen functions
+    / 50 vectors" phrasing in dotnet/go/swift/kotlin CLAUDE.md is ACCURATE (gen vectors; seq counted
+    separately). Only v0.8.0 blocker: the **11 `normal` issues**.
+- Go + Swift/Kotlin have no open `normal` issue → reported "met for v0.8.0". C-page naming:
+    `docs/howto/c-cpp.md` uses `iscc_IsccByteBuffer`, `docs/c-ffi-api.md` unprefixed (issue open).
 - `encode_seq` strictness + multibase-ambiguous bare-unit reading = decisions.md rulings — do NOT
     re-flag. Go `TextClean` `TrimSpace` intentional. `-Xcheck:jni` via `-DargLine` is a NO-OP.
-- **11 open `normal`**, 7 low (18 headers). FFI 51 externs. **`#[test]` 426**; Go `func Test` 264.
+- **11 open `normal`**, 7 low (18 headers). FFI 51 externs, lib.rs 2870 lines. **`#[test]` 426**; Go
+    `func Test` 264; Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step must regen `iscc.h` +
     `NativeMethods.g.cs` in-step.
 - **Python heredoc**: plain `uv run --active python - << 'EOF'` works (cid sets a VIRTUAL_ENV).
