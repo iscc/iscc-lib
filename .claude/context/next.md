@@ -1,94 +1,86 @@
 # Next Work Package
 
-## Step: Bind `encode_seq` / `decode_seq` in the C++ header-only wrapper
+## Step: Bind `encode_seq` / `decode_seq` in the Java JNI bindings
 
 ## Goal
 
-Add `iscc::encode_seq` and `iscc::decode_seq` to `packages/cpp/include/iscc/iscc.hpp`, with RAII
-ownership of the returned FFI buffer and string array. This brings ISCC-SEQ to 7 of 11 surfaces for
-v0.8.0. The wrapper must not copy the `c_str()` embedded-NUL truncation that the open .NET issue
-describes.
+Expose ISCC-SEQ as `IsccLib.encodeSeq(String[]) → byte[]` and `IsccLib.decodeSeq(byte[]) → String[]`
+in `crates/iscc-jni`, with the Java suite running both data.json seq sections. This brings ISCC-SEQ
+to 8 of 11 surfaces (v0.8.0 release criterion).
 
 ## Alternatives Considered
 
-- **Chosen:** C++ seq. It continues the fan-out (FFI → .NET → C++), which needs only one header and
-    its smoke test, and it is the handoff's "Next".
-- **Rejected:** fix embedded-NUL truncation across .NET and C++ first. The issue says choosing
-    between "reject NUL" and "length-delimited FFI ABI" is a design decision, and that needs
-    sign-off before it is scoped. C++ seq can avoid the problem on its own, because every seq unit
-    containing a NUL is already an error in iscc-core (base32 decode error).
-- **Rejected:** small `normal` issues (Python docstring, WASM npm metadata, `uv.lock`). Finish the
-    coherent seq fan-out first; these remain open and block the release.
+- **Chosen:** JNI seq. It is the next unbound surface in the fan-out the handoff planned, uses 2
+    source files, and JNI binds the core directly, so it also pins how a non-C-FFI surface treats an
+    embedded NUL.
+- **Rejected:** a small `normal` issue (Python `encode_seq` docstring, wasm npm metadata). Each is a
+    one-file fix, but finishing the ISCC-SEQ feature set across the remaining 4 surfaces comes
+    first; these fit after the fan-out, next to the 33→35 doc sweep.
 
 ## Scope
 
-- **Modify**: `packages/cpp/include/iscc/iscc.hpp`
-- **Modify (tests)**: `packages/cpp/tests/test_iscc.cpp`
-- **Reference**: `crates/iscc-ffi/include/iscc.h` (`iscc_encode_seq` L645, `iscc_decode_seq` L670),
-    `crates/iscc-ffi/src/lib.rs` L1075 (null check order), `crates/iscc-ffi/tests/test_iscc.c` cases
-    31/32 (the seq case pinned in iter 205), `crates/iscc-lib/tests/data.json` (`encode_seq` /
-    `decode_seq` sections, `bytes:<hex>` values), `.claude/context/specs/rust-core.md` → "encode_seq
-    / decode_seq" (canonical, since `cpp-bindings.md` has no seq section)
+- **Modify**: `crates/iscc-jni/src/lib.rs` (two `extern "system"` exports),
+    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (two `native` declarations
+    with Javadoc, in the Codec section after `isccDecompose`)
+- **Tests**: `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
+- **Reference**: `crates/iscc-jni/CLAUDE.md` (type map), `crates/iscc-lib/src/codec.rs:818`
+    (`encode_seq(units: &[&str])`) and `:857` (`decode_seq(data: &[u8]) -> Vec<String>`),
+    `.claude/context/specs/rust-core.md` → "encode_seq / decode_seq (ISCC-SEQ, IEP-0020)"
 
 ## Not In Scope
 
-- The 15 existing `c_str()` call sites and the NUL issue's design choice. Leave them untouched.
-- The NULL-on-empty flaw in the existing `gen_mixed_code_v0` / `gen_iscc_code_v0` wrappers.
-- A JSON parser or fixture generator for C++ tests, and a raw-pointer `decode_seq` overload.
-- Docs and the 33→35 count (`packages/cpp/CLAUDE.md`, `README.md`, `docs/howto/c-cpp.md`). The sweep
-    step owns these.
-- Java, Ruby, Swift and Kotlin seq.
+- `crates/iscc-jni/README.md`, `docs/howto/java.md`, `crates/iscc-jni/CLAUDE.md` and every 33→35
+    count. These belong to the single doc sweep after all 11 surfaces bind seq
+- Null-array / null-element handling. No existing JNI method tests null input, so don't add a policy
+    here. Also leave out the `low` JNI streaming-hasher null-handle issue
+- Ruby, Swift or Kotlin seq, and the .NET/C++ embedded-NUL design issue
+- Refactoring `extract_string_array` / `build_string_array` (reuse them as they are)
 
 ## Implementation Notes
 
-- Signatures, placed in the "Codec functions" section next to `iscc_decompose`:
-    `inline std::vector<uint8_t> encode_seq(const std::vector<std::string>& units)` and
-    `inline std::vector<std::string> decode_seq(const std::vector<uint8_t>& data)`.
-- `encode_seq` uses the existing `detail::UniqueByteBuffer` guard, then `check_ptr`-style error
-    handling on `buf.data`, then `.to_vec()`. `decode_seq` uses `detail::UniqueStringArray`,
-    `check_ptr` and `.to_vec()`, passing `detail::safe_data(data)` and `data.size()`. The FFI checks
-    `len == 0` before NULL, so the core's empty-input error still comes through.
-- **Empty-vector trap:** `std::vector<const char*>{}.data()` may be NULL, and `iscc_encode_seq`
-    checks `units.is_null()` first. That would surface "units must not be NULL" instead of the
-    core's "at least one ISCC-UNIT". Pass a non-null sentinel pointer when `units` is empty. No
-    `safe_data` overload exists for `const char*`: add one in `detail`, or use a local static.
-- **Embedded NUL:** before marshalling, throw `iscc::IsccError` if any unit contains `'\0'`
-    (`find('\0') != npos`). The message should name the unit index. This matches iscc-core, which
-    rejects such a unit, so it settles nothing about the open NUL issue.
-- The C++ side has no data.json reader, so hard-code literal vectors, following C case 31. Use
-    `encode_seq` `test_0001_four_units`: assert the full expected bytes from data.json, not just the
-    length. Also hard-code at least one `decode_seq` input as a byte literal and assert the bytes
-    round trip `encode_seq(decode_seq(x)) == x`. Coverage of all 4+4 vectors already comes through
-    `conformance_selftest` (test 1), which runs the seq sections in the Rust core.
-- Negative tests use one bad input per call, catching `iscc::IsccError` and checking a message
-    substring: `encode_seq({})` → "at least one ISCC-UNIT"; `encode_seq({unit + '\0' + "junk"})`
-    throws; `decode_seq({})` throws; a truncated `decode_seq` input (drop the last byte of a valid
-    seq) throws. Read the error strings in `crates/iscc-lib/src/codec.rs`, not from this note.
-- Optional and report-only: when the test binary is built, probe one existing site, e.g.
-    `iscc::text_clean("a\0b")` or `iscc_decompose(code + '\0' + "junk")`. Put one handoff line on
-    whether it truncates, so review can widen the NUL issue to C++. Do not fix it.
-- Binding-only step: no core, FFI or hot-path change, so neither the iai nor the CRAP gate is
-    affected. `iscc.h` and `NativeMethods.g.cs` must not change.
-- Local cmake: `uv run --with cmake cmake …`. Use a dedicated build dir (e.g. `build-seq`), because
-    `packages/cpp/build*` dirs already exist.
+- Templates: `genMixedCodeV0` (L311) for `String[]` input via `extract_string_array` plus the
+    `Vec<&str>` refs, `isccDecompose` (L798) for `String[]` output via `build_string_array`, and
+    `algMinhash256` (L907) for a `JByteArray` return via `env.byte_array_from_slice`. Use the
+    crate's `match` → `throw_and_default` style throughout, not `?`, so core errors reach Java as
+    `IllegalArgumentException` carrying the core message
+- Javadoc in `IsccLib.java` should say that `encodeSeq` accepts units with or without the `ISCC:`
+    prefix in any case, and that base32 decoding is strict (`=` padding, non-zero spare bits and
+    non-ASCII case-fold aliases are rejected). Also say that `decodeSeq` returns `ISCC:`-prefixed
+    units
+- data.json shape: `encode_seq` inputs are `[[unit, …]]` (one argument, a list) and outputs are
+    `"bytes:<hex>"`. `decode_seq` inputs are `["bytes:<hex>"]` and outputs are a list of
+    `ISCC:`-prefixed strings. 4 cases each, no error cases. The existing hex helper strips only
+    `stream:`, so add a `bytes:` decoder (or generalise the helper)
+- Tests to add (one bad input per `assertThrows`):
+    - `@TestFactory` over `encode_seq` (assert `assertArrayEquals` on bytes) and over `decode_seq`
+        (assert the unit list)
+    - Byte round trip `encodeSeq(decodeSeq(x))` equals `x` over the `decode_seq` vectors (the spec's
+        round trip is BYTES, not strings)
+    - `decodeSeq` result `getClass().getName()` is `[Ljava.lang.String;` (the JVM type-checks no
+        native return; see the `isccDecompose` test)
+    - Negatives: `encodeSeq(new String[0])` throws with a message containing "at least one ISCC-UNIT";
+        `unit + "\0junk"` throws (assert only the throw, not the message — NUL handling on JNI is
+        unprobed; jni-rs reads modified UTF-8, so the NUL should survive to the core and be rejected
+        there); a `ſ` case-fold alias unit (e.g. `gaawdlqng6ſsdpf2`) throws; an `=`-padded unit
+        throws; `decodeSeq(new byte[0])` throws; a truncated `decode_seq` vector (drop the last byte)
+        throws
+- Rebuild the native lib before every `mvn` run. The `.so` is gitignored and goes stale silently.
+    Optional JNI-safety probe:
+    `mvn -f crates/iscc-jni/java/pom.xml test -DargLine="-Xcheck:jni -Djava.library.path=$PWD/target/debug"`
+- Binding-only step: no core or hot-path change, so iai and CRAP are unaffected
 
 ## Verification
 
-- `cargo build -p iscc-ffi`, then in `packages/cpp`:
-    `uv run --with cmake cmake -B build-seq -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=../../target/debug -DSANITIZE_ADDRESS=ON`
-    and `uv run --with cmake cmake --build build-seq` exit 0 with no warnings from `iscc.hpp`
-- `LD_LIBRARY_PATH=../../target/debug ./build-seq/tests/test_iscc` exits 0 with no FAIL lines and no
-    ASAN report, and prints PASS lines for the encode_seq vector, the decode_seq byte round trip and
-    each negative case
-- `iscc.hpp` declares `encode_seq(const std::vector<std::string>&)` returning
-    `std::vector<uint8_t>`, and `decode_seq(const std::vector<uint8_t>&)` returning
-    `std::vector<std::string>`
-- A test asserts that `encode_seq({})` throws `IsccError` whose message contains "at least one
-    ISCC-UNIT", and another asserts that a unit with an embedded `'\0'` throws
-- `git status --porcelain crates/iscc-ffi packages/dotnet` is empty
+- `cargo build -p iscc-jni && mvn -f crates/iscc-jni/java/pom.xml clean test` exits 0
+- `cargo clippy -p iscc-jni -- -D warnings` exits 0
+- `IsccLib.java` declares `public static native byte[] encodeSeq(String[] units)` and
+    `public static native String[] decodeSeq(byte[] data)`; `src/lib.rs` defines
+    `Java_io_iscc_iscc_1lib_IsccLib_encodeSeq` and `Java_io_iscc_iscc_1lib_IsccLib_decodeSeq`
+- `IsccLibTest.java` reads both the `encode_seq` and `decode_seq` sections of data.json and contains
+    the byte round trip, the empty-array message assertion and the `"\0junk"` negative test
 - `mise run check` exits 0
 
 ## Done When
 
-All six verification criteria pass, with `encode_seq` / `decode_seq` callable from C++ and pinned by
-the vector, byte round trip and negative tests above.
+All verification criteria pass, and the Java suite runs every data.json seq vector plus the listed
+negative cases against the JNI exports.

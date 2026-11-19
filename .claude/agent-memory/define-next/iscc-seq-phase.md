@@ -98,3 +98,10 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     (sentinel); embedded-NUL reject in `encode_seq` only is reference-matching (iscc-core errors on
     such a unit), so it pre-empts nothing in the open NUL design issue. Next: JNI, Ruby, UniFFI
     (Swift+Kotlin hard-code counts), then the 33→35 sweep; NUL fix needs a design call first.
+- **208 = JNI seq** (lib.rs + IsccLib.java + IsccLibTest.java; lib.rs 1195 of a ~1500 split
+    threshold). Templates: `genMixedCodeV0` (string-array input), `isccDecompose` (String[] out),
+    `algMinhash256` (byte[] out). Java hex helper strips only `stream:` → needs `bytes:`. No JNI
+    null-input tests exist anywhere → null policy kept out of scope. CI runs
+    `cargo build -p iscc-jni` + `mvn test -f …/pom.xml`; criterion uses `clean test`. Next: Ruby
+    (also fix the locale `normal` issue nearby?), UniFFI (Swift+Kotlin hard-code counts), then the
+    33→35 sweep + small normal issues; NUL design call escalates if it is the last blocker.
