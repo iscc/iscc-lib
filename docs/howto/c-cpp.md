@@ -463,7 +463,7 @@ ISCC-UNITs into an ISCC-SEQ byte string (IEP-0020): the header and body bytes of
 given order. `iscc::decode_seq(const std::vector<uint8_t>&) -> std::vector<std::string>` reads one
 back into `ISCC:`-prefixed unit strings. Base32 input is strict (no padding, zero spare bits) and
 upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected. The C functions
-are `iscc_encode_seq` (free the `IsccByteBuffer` with `iscc_free_byte_buffer()`) and
+are `iscc_encode_seq` (free the `iscc_IsccByteBuffer` with `iscc_free_byte_buffer()`) and
 `iscc_decode_seq` (free the `char**` with `iscc_free_string_array()`).
 
 ```cpp
