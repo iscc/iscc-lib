@@ -27,5 +27,11 @@ commit `ea69169`).
     `--fail-above` red. 216 = repair (section fn table, split check_vector/check_doc; Python
     `pytest.raises` on raw call only; `REJECTIONS` += `IndexError`, proven by an `iscc_decode("")`
     vector). Any harness `tests/*.rs` step must put CI's two CRAP lines in Verification.
-- Fan-out (after 216 passes): vendor next to the 4 data.json copies, fill `VENDORED_COPIES`, add
-    sdist/gem "not shipped" checks (review asked).
+- 216 PASS. Fan-out split into 3 surface groups (217): G1 = Node/WASM/Java/Go/.NET/Ruby (toolchains
+    on `$PATH`; vendored copies only Go+.NET, others read canonical path); G2 = Swift+Kotlin (Swift
+    needs tarball install; vendor their copies WITH the harness — the unregistered-copy gate fires
+    otherwise); G3 = C+C++ (generator from `ea69169`). Then a published-artifact-absence step
+    (sdist, gem, npm, Go zip carries testdata like data.json).
+- Go read 217: `isccClean` rejects `""`, `softHashCodesV0`/`GenIsccCodeV0` reject \<2 → Go expected
+    green. Stop rule in next.md: a real behavioural failure leaves that surface out (no `except`, no
+    Go/core fix inside a fan-out).

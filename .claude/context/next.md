@@ -1,96 +1,126 @@
 # Next Work Package
 
-## Step: Repair the data-edge harnesses — CRAP-clean Rust helpers, tight Python rejection checks
+## Step: data-edge.json fan-out, group 1 — Node, WASM, Java, Go, .NET, Ruby harnesses
 
 ## Goal
 
-Fix the three findings from the iter-215 NEEDS_WORK review so the unpushed data-edge commit at HEAD
-passes the enforcing CI CRAP gate and `develop` can be pushed green. The Python harness shape gets
-fixed now because the 11-surface fan-out will copy it. This is a repair of the same step with the
-fix the review prescribed, not a third attempt at a failed approach.
+Run every `data-edge.json` vector from the conformance suites of the six bindings that parse JSON
+and build locally (Node, WASM, Java, Go, .NET, Ruby). This is the first of three surface groups for
+the v0.8.0 "Shared edge-case vectors run everywhere" criterion.
 
 ## Alternatives Considered
 
-- **Chosen:** harness repair. HEAD is CI-red (CRAP `--fail-above`) and unpushed, so it comes before
-    everything else, and the fan-out must not copy a flawed harness shape.
-- **Rejected:** the binding fan-out of `data-edge.json`. It stacks 10 surfaces on a red, unpushed
-    HEAD and would copy the `pytest.raises` / rejection-tuple flaws. The Python `encode_seq`
-    docstring issue (`normal`) is unrelated to this repair; it stays out to keep the diff small and
-    a CI result easy to attribute.
+- **Chosen:** group 1 of the fan-out. Its behaviour is fixed by `specs/edge-vectors.md` → Rules, and
+    every surface's toolchain is on `$PATH`, so all six suites can be checked in this session
+- **Rejected:** all 10 bindings in one step. Swift needs a toolchain install of about 5 minutes, and
+    Kotlin is its UniFFI twin, while C and C++ need the recovered table generator. Together they
+    exceed one ~90-minute session, so those four become groups 2 and 3. Also rejected: the `normal`
+    Python `encode_seq` docstring issue. It is a one-file fix, so it gives way to the target gap
 
 ## Scope
 
-- **Modify**: `crates/iscc-lib/tests/test_data_edge.rs`, `tests/test_data_edge.py`,
-    `crates/iscc-lib/tests/data-edge.json` (add one vector, see note 3)
-- **Reference**: `.claude/context/specs/edge-vectors.md` (Rules), `.cargo-crap.toml`,
-    `.github/workflows/ci.yml` lines 386-410 (the CRAP job)
+**Fan-out:** `edge-vectors.md` → Rules (every vector runs, `except` is the only deviation, an
+unknown section fails, the rejection is asserted on the raw call only), applied to Node, WASM, Java,
+Go, .NET and Ruby. Commit once per surface. The shared edits go in the first commit.
+
+- **Create**: `crates/iscc-napi/__tests__/data_edge.test.mjs`,
+    `crates/iscc-wasm/tests/data_edge.rs`,
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java`,
+    `packages/go/data_edge_test.go`, `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs`,
+    `crates/iscc-rb/test/test_data_edge.rb`, and the vendored copies
+    `packages/go/testdata/data-edge.json` and
+    `packages/dotnet/Iscc.Lib.Tests/testdata/data-edge.json`
+- **Modify**: `crates/iscc-lib/tests/data-edge.json` (one note, see below),
+    `tests/test_vendored_fixtures.py` (register the two copies),
+    `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` (add a `Content` entry for the copy),
+    `packages/go/seq_test.go` (remove the mirrored list, see below), and the "Test Patterns" / "File
+    Layout" lines of `crates/iscc-wasm/CLAUDE.md` and `packages/dotnet/CLAUDE.md`
+- **Reference**: `tests/test_data_edge.py` and `crates/iscc-lib/tests/test_data_edge.rs` (the
+    templates), `.claude/context/specs/edge-vectors.md`, and each surface's existing conformance
+    test for how it loads JSON and decodes `bytes:<hex>`
 
 ## Not In Scope
 
-- Changing `.cargo-crap.toml` (no `exclude` for `crates/iscc-lib/tests/**`, no threshold change) or
-    `--epsilon`. Only Titusz can narrow the gate
-- Editing `.crap-baseline.json`. New functions show as "NEW" and do not trip `--fail-regression`;
-    only `--fail-above` failed
-- Vendoring `data-edge.json` into other binding trees, filling `VENDORED_COPIES`, or any binding
-    harness (that is the next step)
-- The Python `encode_seq` docstring issue, and the pre-existing
-    `clippy --all-targets --no-default-features` E0432 in `benches/*.rs`
-- Adding a local CRAP hook to `mise run check` (separate gate-maintenance decision)
+- Swift and Kotlin harnesses (group 2), C and C++ (group 3, generated table plus staleness check).
+    Do not vendor Swift or Kotlin copies yet: `test_no_unregistered_tracked_copy` would demand them
+- Python harness changes. The Python `encode_seq` docstring issue and the .NET pin-loop issue
+    (`normal`, separate steps)
+- Checks that the file is absent from published artifacts (sdist, gem, npm, Go zip). These belong to
+    a later step once all groups land
+- Deleting single per-binding tests that happen to share an input with a vector (napi
+    `seq.test.mjs`, JNI `IsccLibTest`, Ruby `test_seq.rb`, WASM `unit.rs`, Go `codec_test.go`
+    decoder tables). They also pin each surface's error type
+- Any Go-port or core behaviour change (see the stop rule below)
 
 ## Implementation Notes
 
-1. **Rust (CRAP).** Integration-test functions get 0% coverage in LCOV and `missing = "pessimistic"`
-    applies, so CRAP = cc² + cc. Every function in the file must have cyclomatic complexity ≤ 5
-    (score ≤ 30). Aim for ≤ 4 everywhere, including `check_doc`, which sits at exactly 30.0 today.
-    Today `call` is cc 14 (210) and `check_vector` cc 12 (156); which constructs cargo-crap counts
-    is not obvious, so measure with the CI lines instead of estimating. Suggested shape:
-    - One small function per section (`call_decode`, `call_seq`, `call_text`, `call_mixed`,
-        `call_iscc_code`) with a shared signature such as
-        `fn(&[Value]) -> Result<Option<Outcome>, String>`. A `const SECTIONS: &[(&str, Caller)]`
-        table replaces both the `match` and `KNOWN_SECTIONS` (one list, not two). Lookup is a `find`
-        on the table, and the unknown-section error comes from the `None` case.
-    - Keep the feature gating: `gen_text_code_v0` returns `Ok(None)` under
-        `not(feature = "text-processing")`. Put the `#[cfg]` on the two `call_text` bodies, not on
-        the table entry, so the section stays known in every feature set.
-    - Split `check_vector` into small parts, for example `exception(vector) -> Option<&str>`, the
-        call, and a `judge(expect_error, outcome, vector)` step. Split `check_doc`'s inner loop into
-        a per-section helper.
-    - Keep all 7 tests and their assertions unchanged; failure messages must keep the substrings the
-        negative tests match. Check the result with CI's own lines (Verification), not by estimating.
-2. **Python `pytest.raises` scope.** In `test_iscc_lib_outcome`, only the raw call
-    `getattr(iscc_lib, section)(*vector["inputs"])` goes inside `pytest.raises(ValueError)`.
-    Conversions (`dict()`, `int()`, `.hex()`) must also leave the `try` in `outcome()`, or a
-    conversion `ValueError` on the reference side counts as a rejection. Split each caller into a
-    raw call and a converter, so `pytest.raises` and the `try` both wrap only the raw call. Keep
-    `ValueError` as the iscc_lib-side contract.
-3. **Reference-side rejections.** Probed: `iscc_core.iscc_decode("")` raises `IndexError` (iscc_lib
-    raises `ValueError`). Add `IndexError` to `REJECTIONS` and update its comment. No bare/broad
-    `except Exception` (ruff BLE001), no `# noqa`. To prove that the "one edit" rule now holds, add
-    `test_0005_empty_string` to the `iscc_decode` section of `data-edge.json`: `"inputs": [""]`, an
-    `error` text, a `note`, and no `diverges` (both sides reject). Do not add it to `SEED_SET` (it
-    is not a spec seed). The Rust harness must pass it unchanged, because the core rejects empty
-    input (empty guard in `iscc_clean`).
+- **Note fix first:** in `iscc_decode/test_0005_empty_string`, replace "the Rust core a
+    ValueError-class error" with wording such as "the Rust core rejects it". Then copy the file
+    byte-for-byte to the two vendored paths.
 
-Neither change touches `src/`, so iai Perf is unaffected; CRAP is affected only through the test
-file, and the Verification checks that.
+- **Where each surface loads the file.** Node, Java and Ruby read the canonical
+    `crates/iscc-lib/tests/data-edge.json` with the same relative-path scheme as their `data.json`
+    test. WASM uses `include_str!("../../iscc-lib/tests/data-edge.json")` in a
+    `#[wasm_bindgen_test]` file. Go and .NET read their vendored copy. Go reads it only from
+    `_test.go`, never through `//go:embed` in `conformance.go` or any other non-test file.
+
+- **Harness shape, per surface.** Copy the Rust template's shape in the surface's idiom:
+
+    - a table that maps each section name (`iscc_decode`, `encode_seq`, `gen_text_code_v0`,
+        `gen_mixed_code_v0`, `gen_iscc_code_v0`) to a small caller;
+    - a `checkDoc(doc)` that returns a list of failures;
+    - a test that the real file yields no failures;
+    - a test that a synthetic doc with an unknown section yields an "unknown section" failure.
+
+    The effective expectation is `except[<surface id>]` if present, else `error`/`outputs`. Surface
+    ids: `nodejs`, `wasm`, `java`, `go`, `dotnet`, `ruby`. `skip` means no call. On an expected
+    rejection, assert that the raw call alone raises the surface's error type: Node `Error`, WASM
+    `Err`, Java `IllegalArgumentException`, Go non-nil `error`, .NET `IsccException`, Ruby
+    `RuntimeError`. Probe the type before relying on it, and never match error text. Convert results
+    only after a successful call:
+
+    - `iscc_decode` → `[mt, st, vs, length, "bytes:<hex>"]`;
+    - `encode_seq` → `"bytes:<hex>"`;
+    - for gen `outputs` objects, compare each listed key (`iscc`, `characters`) to the result field in
+        that surface's naming.
+
+    Adding a vector to a handled section must need no harness edit.
+
+- **.NET** expects `error` on `gen_text_code_v0/test_0001_embedded_nul` through its `except` entry.
+    Go, JNI and Ruby keep the NUL and must produce the stated `outputs`.
+
+- **Go:** `seqStrictDivergences` in `seq_test.go` declares itself a mirror of the file. Delete
+    `TestEncodeSeqStrictBase32DivergencesRejected`, because the harness covers it. Keep the twin
+    acceptance test, but give it a twin-only table (name, twin, hex).
+
+- **Stop rule:** scoping read the Go source and found that `isccClean` rejects `""` and
+    `softHashCodesV0` / `GenIsccCodeV0` reject fewer than 2 codes, so Go is expected to pass. If any
+    vector still fails on a surface for a real behavioural reason, do not add an `except`, and do
+    not fix the binding or the Go port in this step. Leave that surface's harness out, finish the
+    others, and report the vector in your handoff.
+
+- None of this touches `crates/iscc-lib/src` or `crates/iscc-lib/tests/*.rs`, so neither the CRAP
+    gate nor the iai gate is affected.
 
 ## Verification
 
-- `cargo test -p iscc-lib --test test_data_edge` passes (7 tests), also with `--no-default-features`
-    and with `--no-default-features --features text-processing`
-- `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` followed by
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
-    exits 0, and the report shows no `test_data_edge.rs` function scoring above 30
-- `uv run pytest tests/test_data_edge.py tests/test_seq.py tests/test_vendored_fixtures.py` passes,
-    including `iscc_decode/test_0005_empty_string` in both `test_iscc_lib_outcome` and
-    `test_reference_outcome`
-- In `tests/test_data_edge.py`, the `with pytest.raises(ValueError):` block contains only the raw
-    `getattr(iscc_lib, section)(…)` call, and `REJECTIONS` includes `IndexError` (checked by
-    reading)
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean, and
-    `uv run ruff check tests/test_data_edge.py` exits 0 with no `noqa` in that file
+- `uv run pytest tests/test_vendored_fixtures.py tests/test_data_edge.py` passes, both copies are
+    registered under `data-edge.json`, and
+    `grep -q "ValueError-class" crates/iscc-lib/tests/data-edge.json` exits 1
+- Node: in `crates/iscc-napi`, `npm run build:debug && npm test` passes, including both data-edge
+    tests
+- WASM: `wasm-pack test --node crates/iscc-wasm --features conformance` passes
+- Java: `cargo build -p iscc-jni && mvn clean test -f crates/iscc-jni/java/pom.xml` passes
+- Go: in `packages/go`, `CGO_ENABLED=0 go test -count=1 ./...` and `go vet ./...` pass, and
+    `grep -l data-edge packages/go/*.go | grep -v _test.go` prints nothing
+- .NET:
+    `cargo build -p iscc-ffi && dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`
+    passes
+- Ruby: in `crates/iscc-rb`, `bundle exec rake compile && bundle exec rake test` passes, and
+    `bundle exec standardrb` is clean
 - `mise run check` exits 0
 
 ## Done When
 
-All six checks pass, with the CI CRAP gate line exiting 0 on the working tree.
+All six harnesses run every vector with an unknown-section negative test, the two vendored copies
+are registered, and every verification command above passes.
