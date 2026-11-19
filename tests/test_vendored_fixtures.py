@@ -27,8 +27,10 @@ VENDORED_COPIES = {
         "packages/kotlin/src/test/resources/data.json",
         "packages/swift/Tests/IsccLibTests/data.json",
     ],
-    # Copies arrive with the binding harnesses (specs/edge-vectors.md).
-    "crates/iscc-lib/tests/data-edge.json": [],
+    "crates/iscc-lib/tests/data-edge.json": [
+        "packages/dotnet/Iscc.Lib.Tests/testdata/data-edge.json",
+        "packages/go/testdata/data-edge.json",
+    ],
 }
 
 PAIRS = [

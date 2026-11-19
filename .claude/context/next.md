@@ -31,8 +31,8 @@ Go, .NET and Ruby. Commit once per surface. The shared edits go in the first com
 - **Modify**: `crates/iscc-lib/tests/data-edge.json` (one note, see below),
     `tests/test_vendored_fixtures.py` (register the two copies),
     `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` (add a `Content` entry for the copy),
-    `packages/go/seq_test.go` (remove the mirrored list, see below), and the "Test Patterns" / "File
-    Layout" lines of `crates/iscc-wasm/CLAUDE.md` and `packages/dotnet/CLAUDE.md`
+    `packages/go/seq_test.go` (remove the mirrored list, see below), and every surface CLAUDE.md
+    that lists its test files
 - **Reference**: `tests/test_data_edge.py` and `crates/iscc-lib/tests/test_data_edge.rs` (the
     templates), `.claude/context/specs/edge-vectors.md`, and each surface's existing conformance
     test for how it loads JSON and decodes `bytes:<hex>`
@@ -60,13 +60,10 @@ Go, .NET and Ruby. Commit once per surface. The shared edits go in the first com
     `#[wasm_bindgen_test]` file. Go and .NET read their vendored copy. Go reads it only from
     `_test.go`, never through `//go:embed` in `conformance.go` or any other non-test file.
 
-- **Harness shape, per surface.** Copy the Rust template's shape in the surface's idiom:
-
-    - a table that maps each section name (`iscc_decode`, `encode_seq`, `gen_text_code_v0`,
-        `gen_mixed_code_v0`, `gen_iscc_code_v0`) to a small caller;
-    - a `checkDoc(doc)` that returns a list of failures;
-    - a test that the real file yields no failures;
-    - a test that a synthetic doc with an unknown section yields an "unknown section" failure.
+- **Harness shape, per surface** (Rust template, in the surface's idiom): a section-name → small
+    caller table for the five sections, a `checkDoc(doc)` returning failures, a test that the real
+    file yields none, and a test that a synthetic doc with an unknown section yields an "unknown
+    section" failure.
 
     The effective expectation is `except[<surface id>]` if present, else `error`/`outputs`. Surface
     ids: `nodejs`, `wasm`, `java`, `go`, `dotnet`, `ruby`. `skip` means no call. On an expected
@@ -77,8 +74,9 @@ Go, .NET and Ruby. Commit once per surface. The shared edits go in the first com
 
     - `iscc_decode` → `[mt, st, vs, length, "bytes:<hex>"]`;
     - `encode_seq` → `"bytes:<hex>"`;
-    - for gen `outputs` objects, compare each listed key (`iscc`, `characters`) to the result field in
-        that surface's naming.
+    - gen `outputs` objects: compare each listed key the surface's result exposes. A bare string
+        result (napi, WASM, JNI) is compared to `iscc`, as its `data.json` test does. Never widen a
+        binding's return type.
 
     Adding a vector to a handled section must need no harness edit. .NET rejects the gen_text NUL
     vector via its `except` entry; Go, JNI and Ruby keep the NUL and match the stated `outputs`.
@@ -96,6 +94,8 @@ Go, .NET and Ruby. Commit once per surface. The shared edits go in the first com
 - Nothing here touches `crates/iscc-lib/src` or `tests/*.rs`: CRAP and iai gates are unaffected.
 
 ## Verification
+
+Each surface run's output must name its data-edge tests as passed, not only exit 0.
 
 - `uv run pytest tests/test_vendored_fixtures.py tests/test_data_edge.py` passes, both copies are
     registered under `data-edge.json`, and
@@ -115,5 +115,6 @@ Go, .NET and Ruby. Commit once per surface. The shared edits go in the first com
 
 ## Done When
 
-All six harnesses run every vector with an unknown-section negative test, the two vendored copies
-are registered, and every verification command above passes.
+The six harnesses run every vector, each with an unknown-section negative test, and every command
+above passes. The one sanctioned exception is a surface held back under the stop rule and reported
+in the handoff.

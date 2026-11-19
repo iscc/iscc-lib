@@ -1,6 +1,5 @@
 // Tests for the ISCC-SEQ codec (IEP-0020): EncodeSeq, DecodeSeq, readUnit and
-// the raw header helpers. Port of crates/iscc-lib/tests/test_seq.rs plus the
-// strict-base32 divergence rows of tests/test_seq.py.
+// the raw header helpers. Port of crates/iscc-lib/tests/test_seq.rs.
 package iscc
 
 import (
@@ -70,18 +69,15 @@ var seqUnknownSTHeaders = []struct {
 	{4679, 0, "2efff070"}, {4679, 1, "2efff170"},
 }
 
-// seqStrictDivergences mirrors the encode_seq `diverges` rows of
-// crates/iscc-lib/tests/data-edge.json:
-// non-canonical base32 forms that iscc-core 1.5.0 accepts and iscc-lib rejects
-// (decisions.md 2026-11-18), each with its canonical twin and bytes.
-var seqStrictDivergences = []struct {
-	name, alias, twin, hex string
+// seqStrictTwins lists the canonical twins of the non-canonical base32 encode_seq
+// vectors in testdata/data-edge.json (decisions.md 2026-11-18), each with its bytes.
+// The rejection of the aliases themselves is covered by data_edge_test.go.
+var seqStrictTwins = []struct {
+	name, twin, hex string
 }{
-	{"32bit_spare_bits", "ISCC:GAAAAAAAAB", "ISCC:GAAAAAAAAA", "300000000000"},
-	{"256bit_spare_bits", seqUnits[1][:len(seqUnits[1])-1] + "J", seqUnits[1], seqSingleHex},
-	{"padding", "ISCC:GAAAAAAAAA======", "ISCC:GAAAAAAAAA", "300000000000"},
-	{"long_s_case_fold", "gaawdlqng6ſsdpf2", "ISCC:GAAWDLQNG6SSDPF2", "300161ae0d37a521bcba"},
-	{"sharp_s_case_fold", "gaawdlqng6ßdpf2", "ISCC:GAAWDLQNG6SSDPF2", "300161ae0d37a521bcba"},
+	{"32bit", "ISCC:GAAAAAAAAA", "300000000000"},
+	{"256bit", seqUnits[1], seqSingleHex},
+	{"case_fold", "ISCC:GAAWDLQNG6SSDPF2", "300161ae0d37a521bcba"},
 }
 
 // hx decodes a hex test constant into bytes.
@@ -543,18 +539,8 @@ func TestEncodeSeqMultipleUnitsInOneString(t *testing.T) {
 	assertErrContains(t, err, "Trailing data")
 }
 
-func TestEncodeSeqStrictBase32DivergencesRejected(t *testing.T) {
-	for _, c := range seqStrictDivergences {
-		t.Run(c.name, func(t *testing.T) {
-			if got, err := EncodeSeq([]string{c.alias}); err == nil {
-				t.Fatalf("alias %q accepted as %x", c.alias, got)
-			}
-		})
-	}
-}
-
 func TestEncodeSeqStrictBase32TwinsAccepted(t *testing.T) {
-	for _, c := range seqStrictDivergences {
+	for _, c := range seqStrictTwins {
 		t.Run(c.name, func(t *testing.T) {
 			if got := hex.EncodeToString(mustEncodeSeq(t, []string{c.twin})); got != c.hex {
 				t.Fatalf("twin %q: got %s want %s", c.twin, got, c.hex)

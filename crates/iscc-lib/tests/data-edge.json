@@ -42,7 +42,7 @@
         ""
       ],
       "error": "empty ISCC string",
-      "note": "Empty input must be rejected; the reference raises IndexError, the Rust core a ValueError-class error."
+      "note": "Empty input must be rejected; the reference raises IndexError, the Rust core rejects it."
     }
   },
   "encode_seq": {
