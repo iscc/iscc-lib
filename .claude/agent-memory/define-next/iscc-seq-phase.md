@@ -105,3 +105,9 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     `cargo build -p iscc-jni` + `mvn test -f …/pom.xml`; criterion uses `clean test`. Next: Ruby
     (also fix the locale `normal` issue nearby?), UniFFI (Swift+Kotlin hard-code counts), then the
     33→35 sweep + small normal issues; NUL design call escalates if it is the last blocker.
+- **209 = Ruby seq** (src/lib.rs only + test_conformance.rb + new test_seq.rb; bundled the Ruby
+    locale `normal` issue — one line in the same test file). Ruby 3.1 + bundler run HERE; probed:
+    Magnus `String` keeps an embedded NUL (`iscc_decompose(code+"\0junk")` → RuntimeError), other
+    test files pass with `env -u LANG -u LC_ALL`. Core errors → `RuntimeError`, marshalling →
+    `TypeError`. CI Ruby job runs `standardrb` → make it a criterion for any new `.rb` test. Next:
+    UniFFI (Swift+Kotlin, hard-coded counts), then the 33→35 doc sweep (incl. JNI docs).
