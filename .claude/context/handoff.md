@@ -1,69 +1,66 @@
-## 2026-11-19 — Review of: Ruby array arguments via `RArray::into_iter` (Magnus `Vec<T>` segfault) + `json` lock bump
+## 2026-11-19 — .NET and C++ wrappers reject string inputs with an embedded NUL
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Both wrappers now reject a NUL-bearing string before marshalling. .NET: `ToNativeUtf8`
+throws `IsccException("string input contains an embedded NUL character")`. C++: a new
+`detail::checked_c_str()` throws `IsccError` with the same message and is the only path from
+`std::string` to `const char*`, apart from `encode_seq`, which keeps its own indexed guard. Both
+howto pages now document the restriction.
 
-**Summary:** All 7 Ruby array-conversion sites now go through `array_to_vec` (`RArray::into_iter`,
-which walks a hidden copy), so an element whose `to_str`/`to_int` empties the caller's array no
-longer crashes. The new `test_array_args.rb` (16 tests) compares each mutating call against an
-unmutated snapshot. `json` is bumped to 2.21.2 and is the only line changed in the lock. Review
-added three small fixes: a `TryConvertOwned` bound, a full-result assert in the mixed-code test, and
-a narrower `RangeError` sentence in the docs.
+**Files changed:**
+
+- `packages/cpp/include/iscc/iscc.hpp`: added `detail::checked_c_str`. 17 call sites route through
+    it: text_clean/remove_newlines/trim/collapse, json_to_data_url, iscc_decode, iscc_decompose,
+    sliding_window, gen_meta_code_v0 (name + optional description/meta), gen_text_code_v0, the
+    gen_mixed/gen_iscc element loops, and the gen_sum_code_v0 path
+- `packages/dotnet/Iscc.Lib/IsccLib.cs`: NUL check in `ToNativeUtf8` (with `<remarks>`/`<exception>`
+    docs). The `EncodeSeq` `<exception>` doc now lists the embedded NUL case. The array methods
+    still convert every element before the first `GCHandle.Alloc`, so the throw cannot leak a pin
+- `packages/dotnet/Iscc.Lib.Tests/NulInputTests.cs` (new): 9 facts, 1 positive control
+    (`GenTextCodeV0("Hello World")` == `ISCC:EAASKDNZNYGUUF5A`) + 8 NUL negatives (GenTextCodeV0,
+    TextClean, IsccDecompose, IsccDecode, EncodeSeq, GenMetaCodeV0 description, GenIsccCodeV0
+    element, GenMixedCodeV0 element). Each asserts `IsccException` with "embedded NUL" in the
+    message
+- `packages/cpp/tests/test_iscc.cpp`: test block 46 with a literal-length sanity check, a positive
+    control, and 9 negatives (the same 8 as .NET plus a gen_sum_code_v0 path). They use
+    `assert_throws_with(..., "embedded NUL", ...)` and `std::string("Hello\0World", 11)`-style
+    literals
+- `docs/howto/dotnet.md`, `docs/howto/c-cpp.md` (C++ "Error handling"): one sentence each with the
+    words "embedded NUL"
+- `packages/cpp/CLAUDE.md`, `packages/dotnet/CLAUDE.md`: these are outside the Scope list. I updated
+    the type-mapping rows (they said `.c_str()` at call site), the string-marshalling bullet, and
+    the test-file layout entry, so the agent guidance matches the code
 
 **Verification:**
 
-- [x] Grep criterion (no `Vec<` param, no `Vec<i32> = TryConvert::try_convert(frame)`): prints
-    nothing (exit 1)
-- [x] `bundle exec rake compile && bundle exec rake test`: 154 runs, 434 assertions, 0 failures,
-    against a freshly compiled `.so`. Covers `to_str` (`encode_seq`, `gen_mixed_code_v0`,
-    `gen_iscc_code_v0`) and `to_int` (audio, minhash, 2 video frame cases)
-- [x] `cargo clippy -p iscc-rb -- -D warnings` exit 0 (workspace `--all-targets` too).
-    `bundle exec standardrb` exit 0
-- [x] `Gemfile.lock` has `json (2.21.2)` and `rb_sys (0.9.123)`
-- [x] `test_non_string_element_raises_type_error` asserts `TypeError` for `encode_seq([nil])`. The
-    docs Error Handling section names `TypeError` for wrong-type arguments
-- [x] `mise run check` exit 0, and no files were rewritten
-- [x] Probe: the advance claim that the `to_int` path crashed before the fix holds. I compiled the
-    `1d318eb` `lib.rs`, and the audio and minhash mutation tests each aborted with exit 134
-    (`[BUG] Segmentation fault`)
+- `cargo build -p iscc-ffi && dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`:
+    exit 0, `Passed: 125, Failed: 0`. That total includes the 9 new facts
+- C++ ASAN build (`uv run --with cmake cmake -B build ... -DSANITIZE_ADDRESS=ON`, then `--build`,
+    then `LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc`): exit 0,
+    `76 passed, 0 failed`, no ASAN report in the output
+- Non-vacuity probe (C++): I compiled the new test file with g++ against the HEAD (pre-fix)
+    `iscc.hpp` in `/tmp/nulprobe`. Result: `68 passed, 8 failed`. Every new negative fails except
+    `encode_seq`, which was already guarded. gen_text, text_clean, decompose, decode, meta and mixed
+    report "nothing thrown". gen_iscc and gen_sum fail with the wrong message, because the truncated
+    input hits a different core error. I did not run the same probe for .NET, but the issue entry
+    documents the prefix successes on .NET
+- `grep -n 'c_str()' packages/cpp/include/iscc/iscc.hpp` prints line 68 (`return s.c_str();` inside
+    `checked_c_str`) and line 384 (`encode_seq`, after its own NUL guard). Nothing else
+- `grep -n 'embedded NUL' docs/howto/dotnet.md docs/howto/c-cpp.md` matches dotnet.md:447 and
+    c-cpp.md:428
+- `mise run check`: exit 0, run after `mise run format`
 
-**Issues found:**
-
-- Codex: `gen_audio_code_v0([-(2**63)])` returns the code of `[0]`. Magnus `RBignum::to_i32` skips
-    the lower bound. This is pre-existing (same conversion as the old `Vec<i32>`). Probed and filed
-    as `normal`
-- Codex: `gen_iscc_id_v1(1 << 70, 0, 0)` raises `RuntimeError` by design (pinned in
-    `test_iscc_id.rb`), which contradicted the docs' blanket `RangeError` sentence. Fixed in review:
-    the docs now scope `RangeError` to list elements and name the `gen_iscc_id_v1` exception
-- Codex: the mixed-code test compared only `.iscc`, which matches for the first 2 of 2000 units
-    (probed: `.iscc` equal, `parts` differ). Fixed in review: it now asserts the whole result Hash
-- Codex: the `array_to_vec` bound was `TryConvert`. Review changed it to `TryConvertOwned` (the
-    bound Magnus' own `to_vec` uses), so `Vec<RString>` cannot compile. No behaviour change
-- Accepted, not filed: `bits` is now converted before the array copy is taken. If `bits.to_int`
-    empties the array, audio/mixed hash the emptied array instead of the original. Memory-safe, the
-    video functions already behaved this way, and the input is absurd
-- Nit: `test_gen_iscc_code_v0_survives_mutating_to_str` compares an error message ("Data-Code and
-    Instance-Code are mandatory"), which a truncated array would also produce. next.md allowed this
-- Out of scope but kept: the `crates/iscc-rb/CLAUDE.md` key-files row (docs only)
-
-**Codex review:** Two runs, one on `adf4160` (the main commit) and one on `91085fc`. Three findings
-were fixed in review (docs sentence, mixed-test assert, `TryConvertOwned` bound), one was filed, and
-one was accepted (`bits` ordering). The `adf4160` run's docs finding (`RangeError` vs
-`RuntimeError`, `nil`) was already fixed by `91085fc`.
-
-**Next:** Three `normal` candidates are ready. (1) The NUL-truncation issue, which Titusz decided
-today: .NET and C++ reject an embedded NUL at the wrapper boundary (decisions.md 2026-11-19). (2)
-`@iscc/wasm` license/description metadata. (3) The newly filed Ruby negative-Bignum truncation, a
-small fix in `iscc-rb`.
+**Next:** Two remaining `normal` items are small. One is the `@iscc/wasm` license/description
+metadata. The other is the Ruby negative-Bignum truncation in `iscc-rb`. The .NET pin-loop dedup
+issue (3 copies, NULL for `[]`) touches the same `IsccLib.cs` region I just edited, so it would be a
+natural follow-up.
 
 **Notes:**
 
-- **Titusz's uncommitted interactive edits were in the working tree** during this review: a
-    decisions.md entry, "Embedded NUL is rejected at the .NET and C++ wrapper boundary", and the
-    matching rewrite of the NUL issue. I left them verbatim and committed them with this review, so
-    prek's stash/restore during the push cannot take them away while his session is live
-- **Dependabot alert #1 is still `open`** (checked via `gh api`). The default branch is `main`, so
-    the alert closes only after develop merges into main. The `json` issue entry is deleted because
-    nothing is left for CID to fix. update-state must not report the alert as fixed before that
-    merge
-- The Ruby segfault issue is deleted: both of its "Resolved when" clauses are met
-- decisions.md sits at its 400-line budget, so I added no entry this review
+- The C++ `encode_seq` message ("ISCC-UNIT at index i contains an embedded NUL character") also
+    contains "embedded NUL", so a single needle works for every C++ string input
+- The .NET message carries no parameter name or index: `ToNativeUtf8` is shared and does not know
+    them. .NET `EncodeSeq` therefore does not say which unit was bad, unlike C++. I accepted this to
+    keep the check in one place, as next.md prescribed
+- In C++ `gen_meta_code_v0`, `description`/`meta` are checked before `name`. Each string is checked
+    on its own, so the order only decides which input gets reported when several contain a NUL
+- Binding-only change. No hot path, CRAP or iai gate is affected

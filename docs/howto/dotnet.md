@@ -444,8 +444,9 @@ Console.WriteLine($"Conformance: {ok}"); // true
 ## Error handling
 
 Methods throw `IsccException` on invalid input (wrong bit count, empty data where content is
-required, etc.). Streaming hashers throw `InvalidOperationException` when used after finalization.
-Use try-catch for error handling:
+required, etc.). String inputs with an embedded NUL (`\0`) are rejected with `IsccException` rather
+than truncated at the NUL. Streaming hashers throw `InvalidOperationException` when used after
+finalization. Use try-catch for error handling:
 
 ```csharp
 try

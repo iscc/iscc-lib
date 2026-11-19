@@ -58,6 +58,16 @@ inline const char* const* safe_data(const std::vector<const char*>& v) {
     return v.empty() ? &sentinel : v.data();
 }
 
+/// Return the C string of `s` for a C FFI call, or throw IsccError if `s` contains an
+/// embedded NUL character. The C FFI reads strings up to the first NUL, so an
+/// unchecked string would be silently truncated.
+inline const char* checked_c_str(const std::string& s) {
+    if (s.find('\0') != std::string::npos) {
+        throw IsccError("string input contains an embedded NUL character");
+    }
+    return s.c_str();
+}
+
 /// Check the thread-local error from the C FFI and throw if set.
 inline void check_error() {
     const char* err = iscc_last_error();
@@ -261,28 +271,28 @@ inline uint32_t text_ngram_size() { return iscc_text_ngram_size(); }
 
 /// Clean and normalize text for display.
 inline std::string text_clean(const std::string& text) {
-    detail::UniqueString s(iscc_text_clean(text.c_str()));
+    detail::UniqueString s(iscc_text_clean(detail::checked_c_str(text)));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
 
 /// Remove newlines and collapse whitespace to single spaces.
 inline std::string text_remove_newlines(const std::string& text) {
-    detail::UniqueString s(iscc_text_remove_newlines(text.c_str()));
+    detail::UniqueString s(iscc_text_remove_newlines(detail::checked_c_str(text)));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
 
 /// Trim text so its UTF-8 encoded size does not exceed nbytes.
 inline std::string text_trim(const std::string& text, size_t nbytes) {
-    detail::UniqueString s(iscc_text_trim(text.c_str(), nbytes));
+    detail::UniqueString s(iscc_text_trim(detail::checked_c_str(text), nbytes));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
 
 /// Normalize and simplify text for similarity hashing.
 inline std::string text_collapse(const std::string& text) {
-    detail::UniqueString s(iscc_text_collapse(text.c_str()));
+    detail::UniqueString s(iscc_text_collapse(detail::checked_c_str(text)));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
@@ -307,7 +317,7 @@ inline std::string encode_base64(const uint8_t* data, size_t len) {
 
 /// Convert a JSON string into a data: URL with JCS canonicalization.
 inline std::string json_to_data_url(const std::string& json) {
-    detail::UniqueString s(iscc_json_to_data_url(json.c_str()));
+    detail::UniqueString s(iscc_json_to_data_url(detail::checked_c_str(json)));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
@@ -328,7 +338,7 @@ inline std::string encode_component(uint8_t mtype, uint8_t stype, uint8_t versio
 
 /// Decode an ISCC unit string into header components and raw digest.
 inline DecodeResult iscc_decode(const std::string& code) {
-    iscc_IsccDecodeResult dr = ::iscc_decode(code.c_str());
+    iscc_IsccDecodeResult dr = ::iscc_decode(detail::checked_c_str(code));
     if (!dr.ok) {
         iscc_free_decode_result(dr);
         detail::check_error();
@@ -353,7 +363,7 @@ inline DecodeResult iscc_decode(const std::string& code) {
 
 /// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
 inline std::vector<std::string> iscc_decompose(const std::string& iscc_code) {
-    detail::UniqueStringArray arr(::iscc_decompose(iscc_code.c_str()));
+    detail::UniqueStringArray arr(::iscc_decompose(detail::checked_c_str(iscc_code)));
     detail::check_ptr(arr.ptr);
     return arr.to_vec();
 }
@@ -389,7 +399,7 @@ inline std::vector<std::string> decode_seq(const std::vector<uint8_t>& data) {
 
 /// Generate sliding window n-grams from a string.
 inline std::vector<std::string> sliding_window(const std::string& seq, uint32_t width) {
-    detail::UniqueStringArray arr(::iscc_sliding_window(seq.c_str(), width));
+    detail::UniqueStringArray arr(::iscc_sliding_window(detail::checked_c_str(seq), width));
     detail::check_ptr(arr.ptr);
     return arr.to_vec();
 }
@@ -481,16 +491,16 @@ inline MetaCodeResult gen_meta_code_v0(
     const std::optional<std::string>& description = std::nullopt,
     const std::optional<std::string>& meta = std::nullopt,
     uint32_t bits = 64) {
-    const char* desc_ptr = description ? description->c_str() : nullptr;
-    const char* meta_ptr = meta ? meta->c_str() : nullptr;
-    detail::UniqueString s(iscc_gen_meta_code_v0(name.c_str(), desc_ptr, meta_ptr, bits));
+    const char* desc_ptr = description ? detail::checked_c_str(*description) : nullptr;
+    const char* meta_ptr = meta ? detail::checked_c_str(*meta) : nullptr;
+    detail::UniqueString s(iscc_gen_meta_code_v0(detail::checked_c_str(name), desc_ptr, meta_ptr, bits));
     detail::check_ptr(s.ptr);
     return MetaCodeResult{s.to_string()};
 }
 
 /// Generate a Text-Code from plain text content.
 inline TextCodeResult gen_text_code_v0(const std::string& text, uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_text_code_v0(text.c_str(), bits));
+    detail::UniqueString s(iscc_gen_text_code_v0(detail::checked_c_str(text), bits));
     detail::check_ptr(s.ptr);
     return TextCodeResult{s.to_string()};
 }
@@ -543,7 +553,7 @@ inline MixedCodeResult gen_mixed_code_v0(const std::vector<std::string>& codes,
     std::vector<const char*> ptrs;
     ptrs.reserve(codes.size());
     for (const auto& c : codes) {
-        ptrs.push_back(c.c_str());
+        ptrs.push_back(detail::checked_c_str(c));
     }
     detail::UniqueString s(iscc_gen_mixed_code_v0(ptrs.data(), codes.size(), bits));
     detail::check_ptr(s.ptr);
@@ -589,7 +599,7 @@ inline IsccCodeResult gen_iscc_code_v0(const std::vector<std::string>& codes,
     std::vector<const char*> ptrs;
     ptrs.reserve(codes.size());
     for (const auto& c : codes) {
-        ptrs.push_back(c.c_str());
+        ptrs.push_back(detail::checked_c_str(c));
     }
     detail::UniqueString s(iscc_gen_iscc_code_v0(ptrs.data(), codes.size(), wide));
     detail::check_ptr(s.ptr);
@@ -606,7 +616,7 @@ inline IsccIdResult gen_iscc_id_v1(uint64_t timestamp, uint16_t hub_id, uint8_t 
 /// Generate a composite ISCC-CODE from a file path (Data-Code + Instance-Code).
 inline SumCodeResult gen_sum_code_v0(const std::string& path, uint32_t bits = 64,
                                       bool wide = false, bool add_units = false) {
-    iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(path.c_str(), bits, wide, add_units);
+    iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(detail::checked_c_str(path), bits, wide, add_units);
     if (!sr.ok) {
         iscc_free_sum_code_result(sr);
         detail::check_error();

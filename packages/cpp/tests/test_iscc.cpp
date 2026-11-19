@@ -500,6 +500,56 @@ int main() {
                            "decode_seq(truncated) throws 'Truncated ISCC-UNIT'");
     }
 
+    // 46. embedded NUL in any string input is rejected (not truncated)
+    {
+        const std::string nul_needle = "embedded NUL";
+        const std::string hello_world("Hello\0World", 11);
+        assert_eq(hello_world.size(), 11, "NUL test literal keeps all 11 bytes");
+
+        // Positive control: NUL-free input still yields the documented code.
+        assert_str_eq(iscc::gen_text_code_v0("Hello World").iscc, "ISCC:EAASKDNZNYGUUF5A",
+                      "gen_text_code_v0(NUL-free) positive control");
+
+        assert_throws_with([&] { iscc::gen_text_code_v0(hello_world); }, nul_needle,
+                           "gen_text_code_v0(embedded NUL) throws");
+        assert_throws_with([&] { iscc::text_clean(hello_world); }, nul_needle,
+                           "text_clean(embedded NUL) throws");
+
+        auto data_code = iscc::gen_data_code_v0(
+            reinterpret_cast<const uint8_t*>("Hello World"), 11);
+        auto inst_code = iscc::gen_instance_code_v0(
+            reinterpret_cast<const uint8_t*>("Hello World"), 11);
+        auto iscc_code = iscc::gen_iscc_code_v0({data_code.iscc, inst_code.iscc});
+        std::string code_junk = iscc_code.iscc;
+        code_junk.push_back('\0');
+        code_junk += "junk";
+        assert_throws_with([&] { iscc::iscc_decompose(code_junk); }, nul_needle,
+                           "iscc_decompose(embedded NUL) throws");
+        std::string unit_junk = data_code.iscc;
+        unit_junk.push_back('\0');
+        unit_junk += "junk";
+        assert_throws_with([&] { iscc::iscc_decode(unit_junk); }, nul_needle,
+                           "iscc_decode(embedded NUL) throws");
+        assert_throws_with(
+            [&] { iscc::gen_meta_code_v0("Title", std::string("Desc\0junk", 9)); },
+            nul_needle, "gen_meta_code_v0(description with embedded NUL) throws");
+        assert_throws_with([&] { iscc::gen_iscc_code_v0({data_code.iscc, unit_junk}); },
+                           nul_needle, "gen_iscc_code_v0(element with embedded NUL) throws");
+        auto text_code = iscc::gen_text_code_v0("Hello World");
+        std::vector<uint8_t> pixels(1024, 0);
+        auto image_code = iscc::gen_image_code_v0(pixels);
+        std::string image_junk = image_code.iscc;
+        image_junk.push_back('\0');
+        image_junk += "junk";
+        assert_throws_with([&] { iscc::gen_mixed_code_v0({text_code.iscc, image_junk}); },
+                           nul_needle, "gen_mixed_code_v0(element with embedded NUL) throws");
+        assert_throws_with([&] { iscc::encode_seq({unit_junk}); }, "embedded NUL",
+                           "encode_seq(embedded NUL) throws");
+        assert_throws_with(
+            [&] { iscc::gen_sum_code_v0(std::string("/tmp/x\0junk", 11)); }, nul_needle,
+            "gen_sum_code_v0(path with embedded NUL) throws");
+    }
+
     // Summary
     std::printf("\n%d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;

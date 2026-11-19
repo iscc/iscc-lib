@@ -425,7 +425,8 @@ int main() {
 ### Error handling
 
 All `iscc::` functions throw `iscc::IsccError` (inherits `std::runtime_error`) on failure — no NULL
-checks needed:
+checks needed. A `std::string` input with an embedded NUL (`\0`) is rejected with `iscc::IsccError`
+rather than truncated at the NUL:
 
 ```cpp
 #include <iscc/iscc.hpp>

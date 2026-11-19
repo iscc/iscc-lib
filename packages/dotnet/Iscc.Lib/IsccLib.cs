@@ -484,7 +484,7 @@ public static partial class IsccLib
     /// <summary>Encode ISCC-UNIT strings into an ISCC-SEQ byte string (IEP-0020).</summary>
     /// <param name="units">One or more ISCC-UNIT strings (ISCC-CODE, ID and FLAKE are not permitted).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="units"/> or an element is null.</exception>
-    /// <exception cref="IsccException">Thrown when the list is empty or a unit is invalid.</exception>
+    /// <exception cref="IsccException">Thrown when the list is empty, a unit contains an embedded NUL character, or a unit is invalid.</exception>
     public static byte[] EncodeSeq(string[] units)
     {
         ArgumentNullException.ThrowIfNull(units);
@@ -700,10 +700,17 @@ public static partial class IsccLib
     // ── Private Helpers ─────────────────────────────────────────────────────
 
     /// <summary>Convert a C# string to a null-terminated UTF-8 byte array for native calls.</summary>
+    /// <remarks>
+    /// The native library reads strings up to the first NUL, so a string with an embedded NUL
+    /// is rejected instead of being silently truncated.
+    /// </remarks>
+    /// <exception cref="IsccException">Thrown when <paramref name="s"/> contains an embedded NUL character.</exception>
     private static byte[]? ToNativeUtf8(string? s)
     {
         if (s is null)
             return null;
+        if (s.Contains('\0'))
+            throw new IsccException("string input contains an embedded NUL character");
         int len = Encoding.UTF8.GetByteCount(s);
         byte[] buf = new byte[len + 1];
         Encoding.UTF8.GetBytes(s, 0, s.Length, buf, 0);

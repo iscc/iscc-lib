@@ -36,6 +36,7 @@ packages/dotnet/
     SmokeTests.cs                        # End-to-end P/Invoke validation for every public method
     ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions + encode_seq/decode_seq
     SeqTests.cs                          # EncodeSeq / DecodeSeq error surfacing and accepted input forms
+    NulInputTests.cs                     # Embedded-NUL rejection across string-input methods
     testdata/data.json                   # Vendored ISCC conformance test vectors
 ```
 
@@ -117,9 +118,10 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 
 ### String marshalling
 
-- **Input strings:** converted to NUL-terminated UTF-8 byte arrays via `ToNativeUtf8()`, then pinned
-    with `fixed` and passed as `byte*`. Optional strings pass `null` when the `byte[]?` is null (the
-    `fixed` statement produces a null pointer for null arrays).
+- **Input strings:** converted to NUL-terminated UTF-8 byte arrays via `ToNativeUtf8()` (which
+    throws `IsccException` on an embedded NUL, since the native side would truncate there), then
+    pinned with `fixed` and passed as `byte*`. Optional strings pass `null` when the `byte[]?` is
+    null (the `fixed` statement produces a null pointer for null arrays).
 - **Output strings:** native returns `byte*` (heap-allocated by Rust). `ConsumeNativeString`
     marshals to `string` via `Marshal.PtrToStringUTF8`, then frees via `iscc_free_string`. Throws
     `IsccException` if the pointer is null.

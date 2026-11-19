@@ -41,8 +41,8 @@ in `include/iscc/iscc.hpp`. Do not split into multiple headers unless the file e
 | `char**` (NULL-terminated array) | `std::vector<std::string>`          | `detail::UniqueStringArray` guard + `.to_vec()`                   |
 | `iscc_IsccByteBuffer`            | `std::vector<uint8_t>`              | `detail::UniqueByteBuffer` guard + `.to_vec()`                    |
 | `iscc_IsccByteBufferArray`       | `std::vector<std::vector<uint8_t>>` | `detail::UniqueByteBufferArray` guard + `.to_vec()`               |
-| `const char*` (input)            | `const std::string&`                | `.c_str()` at call site                                           |
-| `const char*` (optional input)   | `const std::optional<std::string>&` | Ternary: `opt ? opt->c_str() : nullptr`                           |
+| `const char*` (input)            | `const std::string&`                | `detail::checked_c_str()` (throws on embedded NUL)                |
+| `const char*` (optional input)   | `const std::optional<std::string>&` | Ternary: `opt ? detail::checked_c_str(*opt) : nullptr`            |
 | `const uint8_t*` + `size_t`      | `const std::vector<uint8_t>&`       | `.data()` + `.size()`, or `detail::safe_data()` for empty vectors |
 | `const int32_t*` + `size_t`      | `const std::vector<int32_t>&`       | `.data()` + `.size()`, or `detail::safe_data()` for empty vectors |
 | `uint32_t bits`                  | `uint32_t bits = 64`                | Direct pass-through with default                                  |
