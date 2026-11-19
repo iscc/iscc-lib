@@ -24,7 +24,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     (204). **C-string marshalling truncates at an embedded NUL** (206/207): .NET keeps the `\0` and
     C++ passes `c_str()`, the FFI's `CStr` stops there, so `gen_text_code_v0("Hello\0World")` gives
     `"Hello"`'s code on BOTH. C++ `encode_seq` guards NUL, .NET `EncodeSeq` does not — probe
-    `x + "\0junk"` on every string input; JNI/Ruby/UniFFI skip the C FFI, but that is unprobed
+    `x + "\0junk"` on every string input. JNI keeps the NUL (208: `encodeSeq` test pins the reject);
+    Ruby/UniFFI also skip the C FFI, still unprobed
 - **Binding fan-out traps (IDv1 177-190, detail → `learnings-archive.md`)**: a surface with its OWN
     enum (Python `VS`) can break a round trip the core allows; wide-int bindings check semantic
     thresholds in the binding before narrowing. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
@@ -96,9 +97,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     after a dep bump `strings <artifact>` shows the dep version linked in (167). Local-only
 - **The JVM type-checks nothing a native method returns** (168): an `Object[]` returned where
     `String[]` is declared survives every element read — assert `getClass().getName()` and probe
-    under `-Xcheck:jni` (`mvn test -DargLine="-Xcheck:jni -Djava.library.path=$PWD/target/debug"` —
-    surefire's `argLine` is *overridden*, so re-supply the library path). All 33 have a caller since
-    169
+    under `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test` (log shows
+    `Picked up JAVA_TOOL_OPTIONS` twice). **`-DargLine=…` is a no-op** (208, `mvn -X`): the pom's
+    `<argLine>` beats the user property, so all earlier `-DargLine` "zero warnings" runs were
+    vacuous. CI runs no `-Xcheck:jni`
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`

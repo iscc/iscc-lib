@@ -126,6 +126,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **.NET wrapper step (206, ~10 min)**: FFI build → locked restore → build (0 warnings) → detailed
     `dotnet test`, count rows per class. **Probe `x + "\0junk"` on string inputs of any binding over
     the C FFI** — .NET truncates silently (Codex found it, filed) → `binding-reviews.md`
+- **JNI binding step (208, ~8 min)**: `cargo build -p iscc-jni` → `mvn clean test` (count `tests=`
+    in surefire XML) → `JAVA_TOOL_OPTIONS=-Xcheck:jni` run. **`-DargLine` never enables
+    `-Xcheck:jni`** (pom pins `<argLine>`) — earlier JNI "-Xcheck clean" claims were vacuous
 - **C++ header-wrapper step (207, ~8 min)**: ASAN cmake build + `test_iscc`; CMake sets no `-Wall`,
     so add a strict `g++ -Werror -fsyntax-only` pass; NUL-probe string inputs → `binding-reviews.md`
 - **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in

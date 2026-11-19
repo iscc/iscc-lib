@@ -266,3 +266,21 @@ both in iter 206 to keep the seq step to one file.
 
 Resolved when one private helper does the pinning for all three methods, and an empty or null input
 to the two gen methods fails the same way as `EncodeSeq` (tests assert the core's message for `[]`).
+
+## JNI exports report a pending JVM exception as `IllegalArgumentException` `normal` [review]
+
+Every `extern "system"` function in `crates/iscc-jni/src/lib.rs` routes JNI-environment errors
+(`new_string`, `byte_array_from_slice`, `build_string_array`, `extract_string_array`, …) through
+`throw_and_default`, which calls `env.throw_new(IllegalArgumentException)` unconditionally. When the
+failed JNI call already left an exception pending (Java heap exhaustion → `OutOfMemoryError`), the
+caller gets an `IllegalArgumentException` instead, so code that catches `IllegalArgumentException`
+as "invalid input" will discard valid data. Codex reproduced it in iter 208 (not re-verified): with
+`-Xmx16m`, `encodeSeq` over 500,000 copies of a valid unit threw
+`IllegalArgumentException: JNI call failed`. This is the crate-wide pattern, not a seq regression.
+Calling `ThrowNew` while an exception is pending also breaks the JNI spec. The 2026-07-28 decision
+keeps hand-thrown exceptions at the call site, and a fix must not change that.
+
+Possible fix (unverified): `throw_and_default` / `throw_state_error` return the default without
+throwing when `env.exception_check()` reports a pending exception. Resolved when a JNI-allocation
+failure reaches Java as the original `OutOfMemoryError` (test under a small `-Xmx`, or argue why
+untestable), and the existing `IllegalArgumentException` / `IllegalStateException` tests still pass.

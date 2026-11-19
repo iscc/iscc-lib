@@ -173,12 +173,13 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     `re.findall(r'native\s+[\w\[\]<>., ]+?\s+(\w+)\s*\(', IsccLib.java)` and check each name for
     `IsccLib.<name>(` across `java/src/test/**/*.java`. Expect 33 declared, 0 uncovered.
 - **Run the suite under `-Xcheck:jni` on any marshalling change** —
-    `mvn test -f crates/iscc-jni/java/pom.xml -DargLine="-Xcheck:jni -Djava.library.path=$PWD/target/debug"`;
-    surefire's `argLine` is **overridden, not merged**, so the library path must be repeated or
-    every test errors with `UnsatisfiedLinkError`. Grep the log for `WARNING: JNI` /
-    `FATAL ERROR in   native`; zero at 168 and 169. (The older standalone `Probe.java` route via
-    `javac -cp crates/iscc-jni/java/target/classes` still works and is only needed for natives the
-    suite cannot reach.)
+    `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test -Dsurefire.useFile=false`;
+    expect `Picked up JAVA_TOOL_OPTIONS` TWICE in the log (Maven + forked JVM), then grep
+    `WARNING in native method` / `FATAL ERROR` (0 at 208, 103 tests). **`-DargLine=…` is a NO-OP**
+    (208, Codex, confirmed by `mvn -X` "Forking command line"): the pom's explicit `<argLine>` wins
+    over the user property, so the 168/169 "zero warnings" surefire runs were vacuous. A standalone
+    `java -Djava.library.path=$PWD/target/debug -cp crates/iscc-jni/java/target/classes P.java`
+    probe does honour `-Xcheck:jni`
 - **HotSpot type-checks nothing a native returns** — assert `getClass().getName()` is
     `[Ljava.lang.String;` / `[[B` / `[B`, and stress the five `with_local_frame` sites past the ~512
     local-ref limit (2 MiB through `algCdcChunks` → 1025 chunks, 5000-char `slidingWindow`, 1000
