@@ -56,16 +56,16 @@ module DataEdge
   end
 
   # Compare an actual output with the expected one; return a failure or nil.
-  # For a Hash, only the expected keys the result exposes are compared.
+  # For a Hash, every expected key must be present in the result and equal.
   def self.compare(expected, actual)
     unless expected.is_a?(Hash)
       return (expected == actual) ? nil : "expected #{expected.inspect}, got #{actual.inspect}"
     end
 
-    keys = actual.keys & expected.keys
-    return "no expected field in #{actual.inspect}" if keys.empty?
+    missing = expected.keys.find { |k| !actual.key?(k) }
+    return "missing field #{missing} in #{actual.inspect}" if missing
 
-    key = keys.find { |k| expected[k] != actual[k] }
+    key = expected.keys.find { |k| expected[k] != actual[k] }
     key && "field #{key}: expected #{expected[key].inspect}, got #{actual[key].inspect}"
   end
 
@@ -159,6 +159,18 @@ class TestDataEdge < Minitest::Test
 
     assert_equal 1, failures.size, failures.inspect
     assert_includes failures[0], 'expected "bytes:300000000001"'
+  end
+
+  def test_data_edge_fails_missing_output_key
+    # `iscc` is correct; the only bad case is a key the result does not have.
+    doc = {"gen_text_code_v0" => {"test_0001_x" => {
+      "inputs" => ["Hello\u0000World", 64],
+      "outputs" => {"iscc" => "ISCC:EAASKDNZNYGUUF5A", "datahash" => "x"}, "note" => "n"
+    }}}
+    failures = DataEdge.check_doc(doc)
+
+    assert_equal 1, failures.size, failures.inspect
+    assert_includes failures[0], "missing field datahash"
   end
 
   def test_data_edge_honours_except
