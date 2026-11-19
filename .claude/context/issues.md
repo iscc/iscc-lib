@@ -210,29 +210,6 @@ Resolved when `lib.rs` is back under the documented threshold (or the threshold 
 changed in `crates/iscc-ffi/CLAUDE.md`), and `cbindgen` + `cargo build -p iscc-ffi` leave `iscc.h`
 and `NativeMethods.g.cs` byte-identical.
 
-## .NET and C++ wrappers silently truncate string inputs at an embedded NUL `normal` [review]
-
-Every `iscc-ffi` string parameter is read with `CStr::from_ptr`, which stops at the first NUL. Both
-wrappers over the C FFI hand it strings that may contain one: .NET `ToNativeUtf8`
-(`packages/dotnet/Iscc.Lib/IsccLib.cs`) keeps the `\0`, and C++ passes `std::string::c_str()` at 15
-sites in `packages/cpp/include/iscc/iscc.hpp`. So those calls compute their result from the prefix
-and return it as a success. .NET: `GenTextCodeV0("Hello\0World")` returns `ISCC:EAAWSPUDF7GJWQVD`,
-the code of `"Hello"`, while Python `gen_text_code_v0("Hello\x00World")` gives
-`ISCC:EAASKDNZNYGUUF5A`; `EncodeSeq([unit + "\0junk"])` and `IsccDecompose(code + "\0junk")` succeed
-on the prefix, where Python raises "base32 decode error". C++ behaves the same:
-`iscc::gen_text_code_v0(std::string("Hello\0World", 11))` gives `"Hello"`'s code, and
-`iscc::iscc_decompose(code + '\0' + "junk")` returns the units of `code` without throwing.
-
-The surfaces now disagree on one input: C++ `iscc::encode_seq` rejects a unit containing `'\0'`
-before marshalling (iscc-core rejects such a unit anyway), while .NET `EncodeSeq` accepts the
-prefix. **Decided by Titusz (decisions.md 2026-11-19):** each wrapper rejects an embedded NUL before
-marshalling, in .NET at `ToNativeUtf8` and in C++ with `IsccError` as `iscc::encode_seq` does. The C
-FFI ABI stays NUL-terminated.
-
-Resolved when every .NET and C++ string input containing a NUL fails with an error instead of
-returning a result, pinned per wrapper by tests covering at least one gen, one text and one codec
-function plus `encode_seq`, and the .NET and C++ docs name the restriction.
-
 ## .NET string-array pinning is copied three times; the gen copies pass NULL for `[]` `normal` [review]
 
 `GenMixedCodeV0`, `GenIsccCodeV0` and `EncodeSeq` (`packages/dotnet/Iscc.Lib/IsccLib.cs`) each carry

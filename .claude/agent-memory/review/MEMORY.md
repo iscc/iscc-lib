@@ -128,8 +128,8 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     test + valgrind + generated-file `git status`. **Check the round-trip DIRECTION** — spec wants
     bytes over `decode_seq` vectors; next.md wrote decode-of-encode → `binding-reviews.md`
 - **.NET wrapper step (206, ~10 min)**: FFI build → locked restore → build (0 warnings) → detailed
-    `dotnet test`, count rows per class. **Probe `x + "\0junk"` on string inputs of any binding over
-    the C FFI** — .NET truncates silently (Codex found it, filed) → `binding-reviews.md`
+    `dotnet test`, count rows per class. **Any NEW string input must route through `ToNativeUtf8`**
+    (C++: `detail::checked_c_str`) — grep all non-generated `Iscc.Lib/*.cs` for `GetBytes` (213)
 - **JNI binding step (208, ~8 min)**: `cargo build -p iscc-jni` → `mvn clean test` (count `tests=`
     in surefire XML) → `JAVA_TOOL_OPTIONS=-Xcheck:jni` run. **`-DargLine` never enables
     `-Xcheck:jni`** (pom pins `<argLine>`) — earlier JNI "-Xcheck clean" claims were vacuous
@@ -137,7 +137,9 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
     params segfault fixed 212 (`array_to_vec`); **a padding negative must be validly padded**
     (`GAAAAAAAAA======`) — `EEAY…====` is rejected by the ref too → `binding-reviews.md`
 - **C++ header-wrapper step (207, ~8 min)**: ASAN cmake build + `test_iscc`; CMake sets no `-Wall`,
-    so add a strict `g++ -Werror -fsyntax-only` pass; NUL-probe string inputs → `binding-reviews.md`
+    so add a strict `g++ -Werror -fsyntax-only` pass; every `c_str()` must sit in `checked_c_str` or
+    the guarded `encode_seq` (213). **A `dotnet test` "apphost not found" while Codex runs is the
+    shared-`obj/` race** — re-run once Codex is idle → `binding-reviews.md`
 - **UniFFI Swift+Kotlin step (210, ~10 min)**: `gradlew -p packages/kotlin clean test --offline`
     (JUnit XML) + `swift test --package-path packages/swift` with `/tmp/swifttc` on PATH, a fresh
     `--scratch-path` and ABSOLUTE `-L`/rpath + bindgen regen into a temp dir → `binding-reviews.md`

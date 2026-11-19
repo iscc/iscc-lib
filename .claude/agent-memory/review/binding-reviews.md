@@ -411,8 +411,9 @@ Full text of entries compacted out of `MEMORY.md`.
     and count rows per class (`ConformanceTests.Gen` 50, `SmokeTests` 44, seq 22 = 116). A `/tmp`
     console project with a `ProjectReference` to `Iscc.Lib.csproj` is a cheap probe harness (run its
     dll with `LD_LIBRARY_PATH=target/debug`). **Embedded-NUL probe on every string-input surface
-    over the C FFI**: .NET truncated `"Hello\0World"` to `"Hello"` wrapper-wide (filed 206); C++
-    `c_str()` truncates the same (confirmed 207, issue widened)
+    over the C FFI**: .NET + C++ truncated `"Hello\0World"` to `"Hello"` wrapper-wide (206/207);
+    FIXED 213 — both reject before marshalling (`ToNativeUtf8`, `detail::checked_c_str`). The 8 .NET
+    negatives are non-vacuous by construction: only the new check emits "embedded NUL"
 - **C++ seq (207, ~8 min)**: `cargo build -p iscc-ffi` →
     `uv run --with cmake cmake -B build-seq …   -DSANITIZE_ADDRESS=ON` → build → run `test_iscc` (65
     at 207). The CMake target sets NO `-Wall`, so "no warnings" needs

@@ -1,66 +1,61 @@
-## 2026-11-19 — .NET and C++ wrappers reject string inputs with an embedded NUL
+## 2026-11-19 — Review of: .NET and C++ wrappers reject string inputs with an embedded NUL
 
-**Done:** Both wrappers now reject a NUL-bearing string before marshalling. .NET: `ToNativeUtf8`
-throws `IsccException("string input contains an embedded NUL character")`. C++: a new
-`detail::checked_c_str()` throws `IsccError` with the same message and is the only path from
-`std::string` to `const char*`, apart from `encode_seq`, which keeps its own indexed guard. Both
-howto pages now document the restriction.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/cpp/include/iscc/iscc.hpp`: added `detail::checked_c_str`. 15 call sites route through
-    it: text_clean/remove_newlines/trim/collapse, json_to_data_url, iscc_decode, iscc_decompose,
-    sliding_window, gen_meta_code_v0 (name + optional description/meta), gen_text_code_v0, the
-    gen_mixed/gen_iscc element loops, and the gen_sum_code_v0 path
-- `packages/dotnet/Iscc.Lib/IsccLib.cs`: NUL check in `ToNativeUtf8` (with `<remarks>`/`<exception>`
-    docs). The `EncodeSeq` `<exception>` doc now lists the embedded NUL case. The array methods
-    still convert every element before the first `GCHandle.Alloc`, so the throw cannot leak a pin
-- `packages/dotnet/Iscc.Lib.Tests/NulInputTests.cs` (new): 9 facts, 1 positive control
-    (`GenTextCodeV0("Hello World")` == `ISCC:EAASKDNZNYGUUF5A`) + 8 NUL negatives (GenTextCodeV0,
-    TextClean, IsccDecompose, IsccDecode, EncodeSeq, GenMetaCodeV0 description, GenIsccCodeV0
-    element, GenMixedCodeV0 element). Each asserts `IsccException` with "embedded NUL" in the
-    message
-- `packages/cpp/tests/test_iscc.cpp`: test block 46 with a literal-length sanity check, a positive
-    control, and 9 negatives (the same 8 as .NET plus a gen_sum_code_v0 path). They use
-    `assert_throws_with(..., "embedded NUL", ...)` and `std::string("Hello\0World", 11)`-style
-    literals
-- `docs/howto/dotnet.md`, `docs/howto/c-cpp.md` (C++ "Error handling"): one sentence each with the
-    words "embedded NUL"
-- `packages/cpp/CLAUDE.md`, `packages/dotnet/CLAUDE.md`: these are outside the Scope list. I updated
-    the type-mapping rows (they said `.c_str()` at call site), the string-marshalling bullet, and
-    the test-file layout entry, so the agent guidance matches the code
+**Summary:** Both wrappers now reject a string containing `\0` before it reaches the C FFI. In .NET
+the check sits in `ToNativeUtf8`, which is the only string-marshalling path (grepped every
+non-generated `Iscc.Lib/*.cs`). In C++ the new `detail::checked_c_str` is now the only route from
+`std::string` to a C call, apart from `encode_seq`, which has its own guard. Tests cover every case
+next.md listed, plus `gen_sum_code_v0`'s path in C++. The issue is resolved and deleted from
+issues.md.
 
 **Verification:**
 
-- `cargo build -p iscc-ffi && dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`:
-    exit 0, `Passed: 125, Failed: 0`. That total includes the 9 new facts
-- C++ ASAN build (`uv run --with cmake cmake -B build ... -DSANITIZE_ADDRESS=ON`, then `--build`,
-    then `LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc`): exit 0,
-    `76 passed, 0 failed`, no ASAN report in the output
-- Non-vacuity probe (C++): I compiled the new test file with g++ against the HEAD (pre-fix)
-    `iscc.hpp` in `/tmp/nulprobe`. Result: `68 passed, 8 failed`. Every new negative fails except
-    `encode_seq`, which was already guarded. gen_text, text_clean, decompose, decode, meta and mixed
-    report "nothing thrown". gen_iscc and gen_sum fail with the wrong message, because the truncated
-    input hits a different core error. I did not run the same probe for .NET, but the issue entry
-    documents the prefix successes on .NET
-- `grep -n 'c_str()' packages/cpp/include/iscc/iscc.hpp` prints line 68 (`return s.c_str();` inside
-    `checked_c_str`) and line 384 (`encode_seq`, after its own NUL guard). Nothing else
-- `grep -n 'embedded NUL' docs/howto/dotnet.md docs/howto/c-cpp.md` matches dotnet.md:447 and
-    c-cpp.md:428
-- `mise run check`: exit 0, run after `mise run format`
+- [x] `cargo build -p iscc-ffi && dotnet test …`: 125/125 passed, including all 9 `NulInputTests`.
+    The first run hit "apphost not found" because the background Codex run was building in the same
+    `obj/`; the re-run was clean
+- [x] C++ ASAN build (fresh `build/`) + `test_iscc`: exit 0, `76 passed, 0 failed`, no sanitizer
+    report. Re-run after my line wrap: same result
+- [x] `grep -n 'c_str()' iscc.hpp`: only L68 (inside `checked_c_str`) and L384 (`encode_seq`, right
+    after its NUL guard)
+- [x] `grep -n 'embedded NUL'`: matches `docs/howto/dotnet.md:447` and `docs/howto/c-cpp.md:428`
+- [x] `mise run check`: exit 0, and no formatter rewrites
+- Extra checks: a strict `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -fsyntax-only` pass over
+    `test_iscc.cpp` is clean. The .NET negatives cannot pass by accident: the new `ToNativeUtf8`
+    check is the only code that produces an `IsccException` containing "embedded NUL", so all 8 fail
+    against the old file. That means the pre-fix .NET run the advance agent skipped is not needed
 
-**Next:** Two remaining `normal` items are small. One is the `@iscc/wasm` license/description
-metadata. The other is the Ruby negative-Bignum truncation in `iscc-rb`. The .NET pin-loop dedup
-issue (3 copies, NULL for `[]`) touches the same `IsccLib.cs` region I just edited, so it would be a
-natural follow-up.
+**Issues found:**
 
-**Notes:**
+- Minor fix (mine): wrapped the two new `iscc.hpp` lines that ran to 105 columns (`gen_meta_code_v0`
+    and `gen_sum_code_v0`), so they fit in 100 like the rest of the header. No formatter config
+    enforces this; it was my choice, and I rebuilt and re-ran the tests afterwards
+- `packages/cpp/CLAUDE.md` and `packages/dotnet/CLAUDE.md` were edited although they are not in
+    Scope. I accepted this: the old type-mapping row told agents to call `.c_str()` at the call
+    site, which is exactly the bug pattern
+- The .NET message names no parameter or index, while C++ `encode_seq` says "ISCC-UNIT at index i".
+    This follows from having one shared check, as next.md prescribed. Noted, not filed
+- The advance memory's new NUL line stops mid-sentence ("route new inputs"). That file belongs to
+    the advance agent, so I did not edit it. learnings.md now states the full rule
 
-- The C++ `encode_seq` message ("ISCC-UNIT at index i contains an embedded NUL character") also
-    contains "embedded NUL", so a single needle works for every C++ string input
-- The .NET message carries no parameter name or index: `ToNativeUtf8` is shared and does not know
-    them. .NET `EncodeSeq` therefore does not say which unit was bad, unlike C++. I accepted this to
-    keep the check in one place, as next.md prescribed
-- In C++ `gen_meta_code_v0`, `description`/`meta` are checked before `name`. Each string is checked
-    on its own, so the order only decides which input gets reported when several contain a NUL
-- Binding-only change. No hot path, CRAP or iai gate is affected
+**Codex review:** Main commit `8f6ba5d`: clean, no findings (it also reproduced the 76 C++ and 125
+.NET passes). HEAD `7ba4763`: one P3, the truncated advance memory line above. Not actionable for
+review.
+
+**Next:** Nine `normal` issues remain. These are small and independent:
+
+- `@iscc/wasm` license/description metadata (`crates/iscc-wasm/Cargo.toml` + the release patch step)
+- Dependabot `soupsieve`/`setuptools` lock refresh (security alerts, dev-only)
+- Ruby negative-Bignum truncation (another wrong-result bug)
+- Python `encode_seq` docstrings (two docstrings)
+
+The .NET pin-loop dedup issue touches the same `IsccLib.cs` region that was just edited.
+
+Gate maintenance for define-next to weigh: nothing stops a future wrapper function from using a bare
+`.c_str()` (C++) or calling `Encoding.UTF8.GetBytes` directly (.NET), which would bring the
+truncation back. A small structural test pinning both helpers as the only marshalling paths would
+catch it.
+
+**Notes:** Binding-only change, so the CRAP, iai and semver gates are not affected. The C ABI stays
+NUL-terminated (decisions.md 2026-11-19). No new decision entry: 2026-11-19 already covers this
+change.

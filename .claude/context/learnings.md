@@ -20,9 +20,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
 - **Binding input-marshalling traps**: WASM `serde_wasm_bindgen` `Vec<T>` accepts ANY iterable while
     napi `Vec<String>` throws `ArrayExpected`, so never document "throws on non-array" for WASM
-    (204). **C-string marshalling truncates at an embedded NUL** (206/207): .NET keeps the `\0` and
-    C++ passes `c_str()`, the FFI's `CStr` stops there, so `gen_text_code_v0("Hello\0World")` gives
-    `"Hello"`'s code on BOTH. C++ `encode_seq` guards NUL, .NET `EncodeSeq` does not — probe
+    (204). **The FFI's `CStr` truncates at an embedded NUL**, so both C-FFI wrappers reject it first
+    (213, decisions.md 2026-11-19): a new .NET string input MUST go through `ToNativeUtf8`, a new
+    C++ one through `detail::checked_c_str` — a bare `.c_str()` silently hashes the prefix. Probe
     `x + "\0junk"` on every string input. JNI, Ruby + UniFFI keep the NUL, the core rejects
     (208-210). **Never take `Vec<T>` from Ruby** — Magnus `to_vec` holds a slice, so a shrinking
     `to_str`/`to_int` segfaulted all 7 sites (212): use `array_to_vec`. Magnus raises `TypeError`

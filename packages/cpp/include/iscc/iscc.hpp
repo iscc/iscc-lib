@@ -493,7 +493,8 @@ inline MetaCodeResult gen_meta_code_v0(
     uint32_t bits = 64) {
     const char* desc_ptr = description ? detail::checked_c_str(*description) : nullptr;
     const char* meta_ptr = meta ? detail::checked_c_str(*meta) : nullptr;
-    detail::UniqueString s(iscc_gen_meta_code_v0(detail::checked_c_str(name), desc_ptr, meta_ptr, bits));
+    detail::UniqueString s(
+        iscc_gen_meta_code_v0(detail::checked_c_str(name), desc_ptr, meta_ptr, bits));
     detail::check_ptr(s.ptr);
     return MetaCodeResult{s.to_string()};
 }
@@ -616,7 +617,8 @@ inline IsccIdResult gen_iscc_id_v1(uint64_t timestamp, uint16_t hub_id, uint8_t 
 /// Generate a composite ISCC-CODE from a file path (Data-Code + Instance-Code).
 inline SumCodeResult gen_sum_code_v0(const std::string& path, uint32_t bits = 64,
                                       bool wide = false, bool add_units = false) {
-    iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(detail::checked_c_str(path), bits, wide, add_units);
+    iscc_IsccSumCodeResult sr =
+        iscc_gen_sum_code_v0(detail::checked_c_str(path), bits, wide, add_units);
     if (!sr.ok) {
         iscc_free_sum_code_result(sr);
         detail::check_error();
