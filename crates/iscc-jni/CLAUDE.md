@@ -28,6 +28,7 @@ crates/iscc-jni/
       NativeLoader.java       # Platform-aware native library loader (JAR extraction + fallback)
     src/test/java/io/iscc/iscc_lib/
       IsccLibTest.java        # JUnit 6 conformance + unit tests
+      DataEdgeTest.java       # every data-edge.json vector (except.java), unknown section fails
   README.md                   # Maven installation and API overview
 ```
 
@@ -91,6 +92,12 @@ cd crates/iscc-jni/java && mvn test
 - `stream:<hex>` prefixed byte data decoded via `HexFormat.of().parseHex()`
 - `meta` inputs that are JSON objects are serialized with sorted keys via `TreeMap` before passing
     to Rust
+
+### Edge-case tests (`DataEdgeTest.java`)
+
+- Runs every vector of `crates/iscc-lib/tests/data-edge.json` through a section → caller table;
+    `except.java` is the only deviation and an unknown section fails. A rejection must be an
+    `IllegalArgumentException` from the raw call; no vector count is hardcoded
 
 ### Streaming hasher tests
 
