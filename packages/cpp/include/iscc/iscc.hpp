@@ -51,6 +51,13 @@ inline const int32_t* safe_data(const std::vector<int32_t>& v) {
     return v.empty() ? &sentinel : v.data();
 }
 
+/// Return a non-null pointer for empty C string pointer vectors.
+/// Some C FFI functions reject a NULL array pointer before checking the count.
+inline const char* const* safe_data(const std::vector<const char*>& v) {
+    static const char* const sentinel = nullptr;
+    return v.empty() ? &sentinel : v.data();
+}
+
 /// Check the thread-local error from the C FFI and throw if set.
 inline void check_error() {
     const char* err = iscc_last_error();
@@ -347,6 +354,35 @@ inline DecodeResult iscc_decode(const std::string& code) {
 /// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
 inline std::vector<std::string> iscc_decompose(const std::string& iscc_code) {
     detail::UniqueStringArray arr(::iscc_decompose(iscc_code.c_str()));
+    detail::check_ptr(arr.ptr);
+    return arr.to_vec();
+}
+
+/// Encode ISCC-UNIT strings as a binary ISCC-SEQ (IEP-0020).
+///
+/// Units may carry the `ISCC:` prefix, be lowercase, or contain hyphens.
+/// Throws IsccError if `units` is empty, a unit contains an embedded NUL
+/// character, or a unit is malformed or of an excluded MainType.
+inline std::vector<uint8_t> encode_seq(const std::vector<std::string>& units) {
+    std::vector<const char*> ptrs;
+    ptrs.reserve(units.size());
+    for (size_t i = 0; i < units.size(); ++i) {
+        if (units[i].find('\0') != std::string::npos) {
+            throw IsccError("ISCC-UNIT at index " + std::to_string(i) +
+                            " contains an embedded NUL character");
+        }
+        ptrs.push_back(units[i].c_str());
+    }
+    detail::UniqueByteBuffer buf(iscc_encode_seq(detail::safe_data(ptrs), ptrs.size()));
+    detail::check_ptr(buf.buf.data);
+    return buf.to_vec();
+}
+
+/// Decode a binary ISCC-SEQ to canonical `ISCC:`-prefixed ISCC-UNIT strings.
+///
+/// Throws IsccError if `data` is empty, malformed, or has trailing bytes.
+inline std::vector<std::string> decode_seq(const std::vector<uint8_t>& data) {
+    detail::UniqueStringArray arr(::iscc_decode_seq(detail::safe_data(data), data.size()));
     detail::check_ptr(arr.ptr);
     return arr.to_vec();
 }

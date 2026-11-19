@@ -72,6 +72,33 @@ static void assert_true(bool val, const char* name) {
     }
 }
 
+/// Decode a lowercase hex string to bytes.
+static std::vector<uint8_t> from_hex(const std::string& hex) {
+    std::vector<uint8_t> out;
+    for (size_t i = 0; i + 1 < hex.size(); i += 2) {
+        out.push_back(static_cast<uint8_t>(std::stoul(hex.substr(i, 2), nullptr, 16)));
+    }
+    return out;
+}
+
+/// Assert that a callable throws IsccError whose message contains `needle`.
+template <typename F>
+static void assert_throws_with(F&& f, const std::string& needle, const char* name) {
+    try {
+        f();
+    } catch (const iscc::IsccError& e) {
+        std::string msg = e.what();
+        if (msg.find(needle) != std::string::npos) {
+            pass(name);
+        } else {
+            std::string detail = "message \"" + msg + "\" lacks \"" + needle + "\"";
+            fail(name, detail.c_str());
+        }
+        return;
+    }
+    fail(name, "expected IsccError, nothing thrown");
+}
+
 int main() {
     // 1. conformance_selftest
     assert_true(iscc::conformance_selftest(), "conformance_selftest");
@@ -412,6 +439,65 @@ int main() {
     {
         auto dr = iscc::iscc_decode("ISCC:MAIGHFECJMOPMIAB");
         assert_eq(dr.version, 1, "gen_iscc_id_v1 decode version == 1");
+    }
+
+    // 39. encode_seq — data.json encode_seq test_0001_four_units (full bytes)
+    const std::string seq_four_hex =
+        "0007578c7c8fbfbdb58f29f63efeb3871553faa75ff97458d49eff5ee4ddf36bb6c9"
+        "2007a88248c53a852c8d7e9c547047c9a36c4052b6acabef1e2a4ce15e586e0cb305"
+        "300705b41f3472493225d27edcbdb63236846a53ee28deca5e3561acc0c9bbdf81b5"
+        "4007a522af4a2c9cbf6a808924afd2acfa0793347b936678f5982e22fdd3dd4a0e37";
+    const std::vector<std::string> seq_four_units = {
+        "ISCC:AADVPDD4R6733NMPFH3D57VTQ4KVH6VHL74XIWGUT37V5ZG56NV3NSI",
+        "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI",
+        "ISCC:GADQLNA7GRZESMRF2J7NZPNWGI3II2ST5YUN5SS6GVQ2ZQGJXPPYDNI",
+        "ISCC:IAD2KIVPJIWJZP3KQCESJL6SVT5APEZUPOJWM6HVTAXCF7OT3VFA4NY",
+    };
+    {
+        auto seq = iscc::encode_seq(seq_four_units);
+        assert_true(seq == from_hex(seq_four_hex), "encode_seq(test_0001_four_units) bytes");
+    }
+
+    // 40. decode_seq — data.json decode_seq test_0001_four_units (units)
+    {
+        auto units = iscc::decode_seq(from_hex(seq_four_hex));
+        assert_true(units == seq_four_units, "decode_seq(test_0001_four_units) units");
+    }
+
+    // 41. decode_seq / encode_seq byte round trip (data.json decode_seq test_0004)
+    {
+        auto data = from_hex(
+            "21018c3585376ee22d5a22039f07f3ff9e0061ff3ef7cbffffef37ff"
+            "300705b41f3472493225d27edcbdb63236846a53ee28deca5e3561acc0c9bbdf81b5");
+        auto units = iscc::decode_seq(data);
+        assert_eq(units.size(), 3, "decode_seq(test_0004) count == 3");
+        assert_true(iscc::encode_seq(units) == data,
+                    "encode_seq(decode_seq(test_0004)) byte round trip");
+    }
+
+    // 42. encode_seq — empty list surfaces the core error (not the NULL-array error)
+    assert_throws_with([] { iscc::encode_seq({}); }, "at least one ISCC-UNIT",
+                       "encode_seq(empty) throws 'at least one ISCC-UNIT'");
+
+    // 43. encode_seq — embedded NUL in a unit is rejected (not truncated)
+    {
+        std::string bad = seq_four_units[1];
+        bad.push_back('\0');
+        bad += "junk";
+        assert_throws_with([&] { iscc::encode_seq({seq_four_units[0], bad}); },
+                           "index 1", "encode_seq(unit with embedded NUL) throws");
+    }
+
+    // 44. decode_seq — empty input throws the core error
+    assert_throws_with([] { iscc::decode_seq({}); }, "Empty ISCC-SEQ",
+                       "decode_seq(empty) throws 'Empty ISCC-SEQ'");
+
+    // 45. decode_seq — truncated input (last byte dropped) throws
+    {
+        auto data = from_hex(seq_four_hex);
+        data.pop_back();
+        assert_throws_with([&] { iscc::decode_seq(data); }, "Truncated ISCC-UNIT",
+                           "decode_seq(truncated) throws 'Truncated ISCC-UNIT'");
     }
 
     // Summary

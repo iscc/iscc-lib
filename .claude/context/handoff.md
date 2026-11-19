@@ -1,63 +1,59 @@
-## 2026-11-18 — Review of: Bind `EncodeSeq` / `DecodeSeq` in the .NET wrapper
+## 2026-11-19 — Bind `encode_seq` / `decode_seq` in the C++ header-only wrapper
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** I added `iscc::encode_seq(const std::vector<std::string>&) -> std::vector<uint8_t>` and
+`iscc::decode_seq(const std::vector<uint8_t>&) -> std::vector<std::string>` to `iscc.hpp`, in the
+codec section after `iscc_decompose`. They use `UniqueByteBuffer` / `UniqueStringArray` RAII plus
+`check_ptr`. `encode_seq` throws `IsccError` ("ISCC-UNIT at index N contains an embedded NUL
+character") before marshalling any unit that contains `'\0'`. It passes a non-null sentinel array
+when `units` is empty, so the core's "at least one ISCC-UNIT" error reaches the caller. ISCC-SEQ now
+covers 7 of 11 surfaces.
 
-**Summary:** `IsccLib.EncodeSeq(string[])` and `IsccLib.DecodeSeq(ReadOnlySpan<byte>)` wrap the
-existing P/Invoke declarations correctly, and the generated files are untouched. They cover the null
-and empty-array guards, use the stack sentinel that lets the core's empty-list message through, and
-free native memory through the `Consume*` helpers. The harness runs both data.json seq sections plus
-the byte round trip `EncodeSeq(DecodeSeq(x)) == x`. ISCC-SEQ now covers 6 of 11 surfaces. The review
-found one pre-existing problem that affects the whole wrapper (embedded NUL, below), filed as an
-issue rather than blocking.
+**Files changed:**
+
+- `packages/cpp/include/iscc/iscc.hpp`: new `detail::safe_data(const std::vector<const char*>&)`
+    overload (returns a static `nullptr` slot for empty vectors), `encode_seq` and `decode_seq`
+- `packages/cpp/tests/test_iscc.cpp`: `from_hex` and `assert_throws_with` (message substring)
+    helpers. Tests 39-45: the encode_seq `test_0001_four_units` full bytes, the decode_seq
+    `test_0001` units, the decode_seq `test_0004` byte round trip `encode_seq(decode_seq(x)) == x`,
+    and one bad input per negative test: empty encode, embedded NUL, empty decode, truncated decode
 
 **Verification:**
 
-- [x] `cargo build -p iscc-ffi && dotnet restore … --locked-mode && dotnet build … --no-restore`:
-    Build succeeded, 0 Warning(s), 0 Error(s)
-- [x] `dotnet test … --no-restore -e LD_LIBRARY_PATH=$PWD/target/debug`: exit 0, 116/116 passed. The
-    detailed log lists `ConformanceTests.EncodeSeq` ×4, `DecodeSeq` ×4, `SeqRoundTripBytes` ×4 and
-    10 `SeqTests`. Per-class counts: 50 `ConformanceTests.Gen*` rows (no rows lost), 44
-    `SmokeTests`, 22 seq tests
-- [x] `IsccLib.cs` declares `public static byte[] EncodeSeq(string[] units)` (L488) and
-    `public static string[] DecodeSeq(ReadOnlySpan<byte> data)` (L542)
-- [x] `EncodeSeq([])` throws `IsccException` containing "at least one ISCC-UNIT", asserted by
-    `SeqTests.EncodeSeq_Empty_ThrowsAtLeastOneUnit`
-- [x] `git status --porcelain packages/dotnet/Iscc.Lib/NativeMethods.g.cs crates/iscc-ffi` is empty
-    after the build
-- [x] `mise run check`: exit 0, no files rewritten
-- [x] Extra: the unpushed range (define-next, update-state, advance) contains no lint suppressions
-    or skipped tests. All five tracked `data.json` copies are identical and have 4+4 seq vectors
+- `cargo build -p iscc-ffi`: OK. In `packages/cpp`,
+    `uv run --with cmake cmake -B build-seq …   -DSANITIZE_ADDRESS=ON` gave cfg=0 and
+    `cmake --build build-seq` gave exit 0, with no compiler output beyond the progress lines. The
+    CMake test target sets no `-Wall`, so I also ran
+    `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -fsyntax-only` on `test_iscc.cpp` (which
+    includes `iscc.hpp`). Result: clean
+- `LD_LIBRARY_PATH=../../target/debug ./build-seq/tests/test_iscc`: exit 0, "65 passed, 0 failed",
+    no FAIL lines, no ASAN report. PASS lines: `encode_seq(test_0001_four_units) bytes`,
+    `decode_seq(test_0001_four_units) units`, `encode_seq(decode_seq(test_0004)) byte round trip`,
+    `encode_seq(empty) throws 'at least one ISCC-UNIT'`,
+    `encode_seq(unit with embedded NUL) throws`, `decode_seq(empty) throws 'Empty ISCC-SEQ'`,
+    `decode_seq(truncated) throws 'Truncated ISCC-UNIT'`
+- Mutation probes (header copied to /tmp, test rebuilt against the copy):
+    - NUL guard disabled:
+        `FAIL: encode_seq(unit with embedded NUL) throws — expected IsccError,   nothing thrown`
+    - `safe_data(ptrs)` replaced by `ptrs.data()`:
+        `FAIL: encode_seq(empty) … message "units must   not be NULL" lacks "at least one ISCC-UNIT"`
+    - So both guards are pinned by a test
+- `git status --porcelain crates/iscc-ffi packages/dotnet`: empty
+- `mise run check`: exit 0. `mise run format` rewrote nothing
 
-**Issues found:**
+**Next:** continue the seq fan-out: JNI (`crates/iscc-jni`), then Ruby, then UniFFI (Swift/Kotlin).
+Then the 33→35 doc sweep, which must cover `packages/cpp/CLAUDE.md` ("35+ test cases", the type map
+has no `std::vector<const char*>` sentinel row), `packages/cpp/README.md` and `docs/howto/c-cpp.md`.
+It also covers the .NET doc items from the last review.
 
-- **Embedded NUL truncates every .NET string input** (filed, `normal`). Probed:
-    `EncodeSeq([unit + "\0junk"])` and `IsccDecompose(code + "\0junk")` succeed using only the text
-    before the NUL; Python raises "base32 decode error". `GenTextCodeV0("Hello\0World")` returns the
-    code for `"Hello"`, `ISCC:EAAWSPUDF7GJWQVD`, while Python returns `ISCC:EAASKDNZNYGUUF5A`.
-    Cause: `ToNativeUtf8` keeps the `\0`, and the FFI's `CStr` stops reading there. This step
-    followed the prescribed pattern, so it is not a regression
-- **Three copies of the string-array pin loop**, plus NULL-on-empty in `GenIsccCodeV0` /
-    `GenMixedCodeV0` (filed, `normal`). next.md deferred this on purpose; the entry keeps it from
-    getting lost
-- Nit: `ConsumeByteBuffer` casts `buf.len` to `int` without a check. An output over 4 GiB wraps to a
-    small length and is cut short silently (2–4 GiB goes negative and throws). That takes hundreds
-    of millions of units, and the helper is shared and pre-existing. Not filed
+**Notes:**
 
-**Codex review:** reviewed the main commit `e79a035`, since HEAD only holds handoff text. Two
-findings. P2 (embedded NUL makes `EncodeSeq` encode only the text before the NUL) is real; probing
-showed the whole wrapper is affected, filed as above. P3 (unchecked `nuint`→`int` length cast in
-`ConsumeByteBuffer`) is valid in theory but needs an output over 4 GiB; noted above, not filed.
-
-**Next:** C++ `iscc.hpp` seq, as planned. It needs RAII ownership of the returned `IsccByteBuffer`
-and string array, the byte round trip over the `decode_seq` vectors, and one bad input per negative
-test. **Watch:** `iscc.hpp` passes `std::string::c_str()` to the FFI at 15 sites, so it probably has
-the same embedded-NUL truncation (unprobed). Either probe `unit + '\0' + "junk"` in that step and
-widen the NUL issue, or sequence the NUL fix first so C++ seq does not copy the problem. Then JNI,
-Ruby and UniFFI seq, then the 33→35 doc sweep. The sweep includes `packages/dotnet/CLAUDE.md`, which
-still says "all 9 gen functions (50 vectors total)" and does not list `SeqTests.cs` in File Layout
-or Test Patterns, plus `packages/dotnet/README.md` and `docs/howto/dotnet.md`.
-
-**Notes:** binding-only step: no core, FFI or hot-path changes, so iai and CRAP are unaffected.
-`maturin develop --release` was rebuilt before the push. A `/tmp` console project with a
-`ProjectReference` to `Iscc.Lib.csproj` makes a cheap .NET probe harness; run its dll with
-`LD_LIBRARY_PATH=target/debug`.
+- **NUL probe (report-only, widen the NUL issue to C++):** existing C++ `c_str()` sites truncate at
+    an embedded NUL, the same as .NET. `iscc::gen_text_code_v0(std::string("Hello\0World", 11))` →
+    `ISCC:EAAWSPUDF7GJWQVD`, identical to `gen_text_code_v0("Hello")`.
+    `iscc::iscc_decompose(code + '\0' + "junk")` returns 2 units instead of throwing. Probe source:
+    `/tmp/cppprobe/probe.cpp`, not committed. I did not change these sites (out of scope)
+- The `units` sentinel is a `detail::safe_data` overload rather than a local static, which matches
+    the two existing overloads. `decode_seq` reuses the existing `uint8_t` `safe_data`. The FFI
+    checks `len == 0` first, so the core's "Empty ISCC-SEQ" error comes through
+- No core, FFI or hot-path change, so iai and CRAP are unaffected. `iscc.h` and `NativeMethods.g.cs`
+    are untouched
