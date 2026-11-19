@@ -1,61 +1,65 @@
-## 2026-11-19 — Review of: Repair the data-edge harnesses — CRAP-clean Rust helpers, tight Python rejection checks
+## 2026-11-19 — data-edge.json fan-out, group 1 finish — WASM, Java, .NET, Ruby harnesses
 
-**Verdict:** PASS
+**Done:** Added the `data-edge.json` harness to WASM, Java, .NET and Ruby, one commit per surface
+(`77f84c9`, `00f4778`, `e5910a1` + follow-up `9d294a3`, `60993af`). Each copies the reviewed
+Rust/Node shape: a section → caller table, `checkDoc` returning failures, the real-file test, an
+unknown-section test, plus expected-error-that-succeeds, output-mismatch and `except` tests. The
+committed Go and Node harnesses were verified as they stand, not rewritten. No surface was held back
+under the stop rule.
 
-**Summary:** The three iter-215 findings are fixed within the three scoped files. The Rust harness
-is now a `SECTIONS` table of small callers, and its highest CRAP score is 20 (`check_vector`, cc 4),
-down from 210. The Python `pytest.raises` and `outcome()`'s `try` now wrap only the raw
-`getattr(module, section)(*inputs)` call. `REJECTIONS` gains `IndexError`, and
-`iscc_decode/test_0005_empty_string` passed without any harness edit. The batch also carries the
-iter-215 data-edge commit, which is now green, so the whole range is pushed.
+**Files changed:**
+
+- `crates/iscc-wasm/tests/data_edge.rs`: new; `include_str!` of the canonical file, rejection =
+    `Err`
+- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java`: new; canonical file,
+    rejection = `IllegalArgumentException`, any other throwable reported as a failure
+- `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs`: new; vendored `testdata/data-edge.json`,
+    rejection = `IsccException`, any other exception a failure
+- `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj`: `Content` entry for
+    `testdata\data-edge.json`
+- `crates/iscc-rb/test/test_data_edge.rb`: new; canonical file (explicit UTF-8), rejection =
+    `RuntimeError` (`rescue RuntimeError` on the raw call only; other errors reported as failures)
+- `crates/{iscc-wasm,iscc-jni,iscc-rb}/CLAUDE.md`, `packages/dotnet/CLAUDE.md`: test-file lists
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib --test test_data_edge`: 7 passed under default,
-    `--no-default-features`, `--no-default-features --features text-processing` and `--all-features`
-- [x] CI CRAP lines (rustc 1.100.0): `cargo llvm-cov` exit 0, then
-    `cargo crap … --fail-regression --fail-above` exit 0 (0 regressed, 26 new, 119 unchanged). No
-    `test_data_edge.rs` function scores above 20
-- [x] `uv run pytest tests/test_data_edge.py tests/test_seq.py tests/test_vendored_fixtures.py`: 154
-    passed. `iscc_decode/test_0005_empty_string` PASSED in `test_vector_schema`,
-    `test_iscc_lib_outcome` and `test_reference_outcome`
-- [x] By reading: `with pytest.raises(ValueError):` holds only the raw
-    `getattr(iscc_lib, section)(…)` call, conversion sits outside the `try` in `outcome()`, and
-    `REJECTIONS` includes `IndexError`
-- [x] `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean (also
-    `--tests --no-default-features`). `ruff check tests/test_data_edge.py` passes, with 0 `noqa`
-- [x] `mise run check` exit 0, and the tree was unchanged afterwards
-- Extra checks (3): `iscc_core.iscc_decode("")` raises `IndexError` and `iscc_lib` raises
-    `ValueError: Empty ISCC string`, as the vector's note says. No other `pytest.raises` in `tests/`
-    wraps a conversion. The full pre-push stage (`prek run --hook-stage pre-push --all-files`) exits
-    0 over the 13-commit push range, which includes the human `tools/cid.py` / `tests/test_cid.py`
-    changes
+- Go: `CGO_ENABLED=0 go test -count=1 -run DataEdge -v ./...` → 5 named `TestDataEdge*` PASS; full
+    `go test ./...` ok; `go vet ./...` clean;
+    `grep -l data-edge packages/go/*.go | grep -v _test.go` printed nothing
+- Node: `npm run build:debug && npm test` exit 0 → `ok 12 - data-edge.json` with 5 subtests (passes
+    every vector / unknown section / expected error / output mismatch / honours except); 179 pass, 0
+    fail
+- WASM: `wasm-pack test --node crates/iscc-wasm --features conformance` → `tests/data_edge.rs` 5
+    passed (conformance 11, unit 94, all ok). `cargo clippy -p iscc-wasm --tests -- -D warnings`
+    clean, `cargo fmt` applied
+- Java: `cargo build -p iscc-jni && mvn clean test -f crates/iscc-jni/java/pom.xml` exit 0 →
+    surefire `DataEdgeTest` Tests run: 5, Failures: 0, Errors: 0 (5 named testcases); `IsccLibTest`
+    103
+- .NET: `cargo build -p iscc-ffi && dotnet test … -e LD_LIBRARY_PATH=$PWD/target/debug` → 5 named
+    `DataEdgeTests.*` Passed, 130 total, 0 failed (re-run after the follow-up edit)
+- Ruby: `bundle exec rake compile && bundle exec rake test` → `TestDataEdge` 5 runs, 0 failures;
+    suite 159 runs, 0 failures. `bundle exec standardrb` exit 0
+- `uv run pytest tests/test_vendored_fixtures.py tests/test_data_edge.py` → 84 passed
+- `mise run check` exit 0 on the final tree (an earlier run flagged "files were modified" only
+    because handoff/memory were being edited concurrently; a mdformat reflow of them followed)
 
-**Issues found:**
-
-- (none filed) Nit: the new vector's `note` calls the Rust error "ValueError-class", which is Python
-    terminology. Reword it to "rejects" when the file is vendored
-- Gate scan of every unpushed commit (`@{upstream}..HEAD`, 13 commits): no suppression, skip,
-    threshold or hook change. The only manifest change is `exclude` for the data-edge files in
-    `crates/iscc-lib/Cargo.toml` (from iter 215, per spec)
-
-**Codex review:** Ran on HEAD and found nothing to act on. It confirmed that dispatch, feature
-gating and failure reporting are preserved, and re-ran the 154 Python tests and the 7 Rust tests.
-
-**Next:** The binding fan-out of `data-edge.json`: the 11 surfaces plus the vendored copies
-(register them in `VENDORED_COPIES` in `tests/test_vendored_fixtures.py`). Declare a `**Fan-out:**`
-line that names the decided behaviour (`edge-vectors.md` → Rules: every vector runs, only `except`
-deviates, an unknown section fails) and make one commit per surface. Each harness copies the Python
-shape: the raw call is separate from conversion, and the rejection is asserted on the raw call only.
-C and C++ may read a generated table guarded by a staleness check (generator in commit `ea69169`).
-Fallback if the fan-out is judged too big: the `normal` Python `encode_seq` docstring issue, a
-one-file fix.
+**Next:** Fan-out group 2 (Swift, Kotlin — UniFFI) and then group 3 (C, C++ via a generated table +
+staleness check, generator recoverable from commit `ea69169`). Each needs a vendored copy registered
+in `VENDORED_COPIES` in the same step as its harness. Fallback: the `normal` Python `encode_seq`
+docstring issue.
 
 **Notes:**
 
-- `iscc_decode("")` is proven on Rust and Python only. Go has its own decoder, so the fan-out should
-    expect this vector to fail there first. A real Go defect is fixed in Go, never by an `except`
-    entry
-- The CRAP gate scores only `-p iscc-lib`, so binding harnesses are not CRAP-scored. The 0% coverage
-    trap applies only to `crates/iscc-lib/tests/*.rs`
-- `learnings.md` is at 199/200 lines and `issues.md` at 292/300. Any addition must be net-zero
+- .NET `GenMixedCodeV0([])` and `GenIsccCodeV0([])` raise `IsccException`, so they pass; the
+    gen_text NUL vector passes through `except.dotnet = error`. JNI and Ruby keep the NUL and match
+    the stated `outputs` (`ISCC:EAASKDNZNYGUUF5A`, Ruby also `characters: 10`)
+- Gen `outputs` comparison: WASM, JNI and .NET results expose only `iscc` (bare string or one-field
+    record), so only `iscc` is compared there; Ruby's Hash results also expose `characters`/`parts`,
+    which are compared. An object result exposing none of the expected keys is a failure, never a
+    pass
+- .NET follow-up commit: `gen_text_code_v0` is a rejection-only caller on .NET (its only vector is
+    `except.dotnet = error`), so the expected-error-that-succeeds test now also feeds it a valid
+    input and asserts 3 failures — proving the caller reaches the binding
+- Ruby: `RuntimeError` includes `FrozenError`; acceptable since it is the surface's error type
+- No `except` entry, binding change or `data-edge.json` edit was made. No vector counts hardcoded
+- Nothing touches `crates/iscc-lib/src` or `crates/iscc-lib/tests/*.rs` (CRAP/iai unaffected)

@@ -171,6 +171,10 @@ macros-backend default-handling on every major bump, not just compiler warnings.
 
 - `DataHasher`: persistent `buf` reused across `update()`; CDC → BLAKE3 chunk hash → MinHash; ~1.1
     GiB/s. `InstanceHasher`: BLAKE3 → ISCC multihash (64-byte digest truncated)
+
 - `SumHasher` (#37): inner `DataHasher` + `InstanceHasher`; `finalize(bits, wide, add_units)`
     composes via `gen_iscc_code_v0`. Path `iscc_lib::streaming::SumHasher` (NOT crate-root). All 7
     bindings implement `gen_sum_code_v0` → MEMORY-archive.md
+
+- Unicode freeze rule REMOVED 2026-07-30 (decisions.md, human): `text_clean`/`text_collapse` mirror
+    the reference on dependency tables. Never reintroduce a freeze without a human decision

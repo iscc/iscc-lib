@@ -21,12 +21,12 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `_metadata`; Rust `tests/test_data_edge.rs` (runtime read, excluded from package; CRAP-clean
     caller table, see ci-gates.md), Python `tests/test_data_edge.py` (schema + lib + iscc_core
     iff-`diverges` + SEED_SET; raw call apart from converter, rejections on raw call only).
-    `iscc_decode` output = `[mt, st, vs, li, "bytes:<hex>"]`. Fan-out to 11 surfaces + 4 vendored
-    copies pending
+    `iscc_decode` output = `[mt, st, vs, li, "bytes:<hex>"]`. Group 1 harnesses DONE (217): Go
+    `data_edge_test.go`, Node `__tests__/data_edge.test.mjs`, WASM `tests/data_edge.rs`, JNI
+    `DataEdgeTest.java`, .NET `DataEdgeTests.cs` (vendored), Ruby `test/test_data_edge.rb`. Pending:
+    Swift/Kotlin (group 2), C/C++ (group 3, generated table)
 - GOTCHA: `clippy --all-targets --no-default-features` fails on both benches (ungated imports; CI
     lints no-default without `--all-targets`) — use `--tests`. Benches/Streaming notes → archive
-- Unicode freeze rule REMOVED 2026-07-30 (decisions.md, human): `text_clean`/`text_collapse` mirror
-    the reference on dependency tables. Never reintroduce a freeze without a human decision
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
@@ -53,6 +53,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     GHA action majors probed current 2026-07-28; ruff 0.16; prek ruff hooks carry `pyi` in
     `types_or`; NEVER blanket `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`.
     Detail + prek staged-probe gotcha → deps-refresh.md
+- Commit quirks (217): Ruby `standardrb --fix` hook takes minutes (long timeout); trust
+    `prek run --files` over bare `uv run mdformat`; never edit files while `mise run check` runs
 - GOTCHAs: ci.yml `cancel-in-progress: true` per ref — a second develop push cancels the previous
     sha's in-flight CI run; system `python3` lacks PyYAML (use `uv run python`); piping cargo-crap
     or cargo-deny to a pager makes `$?` the pager's exit — redirect to a file instead
