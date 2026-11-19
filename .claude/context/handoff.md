@@ -34,8 +34,8 @@ bound on all 11 surfaces.
     "Executed 19 tests, with 0 failures". The same 9 seq methods passed, and the suite was re-run
     after formatting
 - Regen no-op: bindgen run into a temp dir, compared after `sed 's/[[:space:]]*$//'` + stripping
-    trailing EOF blank lines: `.h` and `.kt` identical. The `.swift` differs only by the missing
-    final newline in the raw bindgen output
+    trailing EOF blank lines: `.h` and `.kt` identical. The `.swift`, re-diffed against the
+    committed HEAD bytes, differs only by the missing final newline in the raw bindgen output
 - `grep`: Swift `public func decodeSeq(data: Data)throws -> [String]` /
     `public func encodeSeq(units: [String])throws -> Data`; Kotlin `` fun `decodeSeq` `` /
     `` fun `encodeSeq` `` found
@@ -54,7 +54,7 @@ Ruby files listed in the previous handoff. After that, the Magnus `Vec<T>` segfa
 - **Embedded NUL on UniFFI: the NUL is kept and the core rejects it**, in both Swift and Kotlin
     (strings cross as length-delimited RustBuffers). Each test has a control that the bare unit
     encodes, so the rejection comes from the NUL suffix. UniFFI was the last surface left to probe.
-    Only C-string surfaces (.NET, and C++ without its guard) truncate
+    Per learnings 206/207, only the C-string surfaces (.NET, and C++ without its guard) truncate
 - `mise run format` failed once with
     `failed to write ... iscc_uniffi.swift: Invalid argument (os   error 22)` (looks like a WSL
     bind-mount flake). It left 86 trailing-whitespace lines in the Swift file. Re-running the hook

@@ -61,9 +61,9 @@ not objects). Then the Tier-1 33→35 doc/count sweep (like IDv1 iter 190).
     `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -fsyntax-only -Ipackages/cpp/include   -Icrates/iscc-ffi/include packages/cpp/tests/test_iscc.cpp`.
     Other C++ c_str() sites truncate at NUL (probed). Mutation probe: copy header to /tmp, sed out
     the guard, compile with -I/tmp
-- Remaining surfaces: UniFFI (JNI 208, Ruby 209 done). Then 33→35 sweep (incl.
-    `packages/go/CLAUDE.md` stale "9 gen"/"46 vectors", `packages/dotnet/CLAUDE.md` "9 gen … 50
-    vectors")
+- All 11 surfaces bound (UniFFI 210: Swift+Kotlin, NUL kept → core rejects). Next: 33→35 sweep
+    (incl. `packages/go/CLAUDE.md` stale "9 gen"/"46 vectors", `packages/dotnet/CLAUDE.md` "9 gen …
+    50 vectors")
 
 ## JNI (iter 208)
 
