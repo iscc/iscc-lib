@@ -125,17 +125,16 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     new branch in a covered fn — or merely **moving lines below the edit point** — is green locally,
     red in CI unless the baseline moves in the SAME step (never widen epsilon/threshold). **A new
     stable rustc re-scores untouched fns** (195: 1.99.1 → 1.100.0 lowered 11 entries, raised 3): CI
-    uses `@stable`, so read the toolchain in CI's CRAP log before blaming the diff
+    uses `@stable`, so read the toolchain in CI's CRAP log before blaming the diff. **Rust
+    integration-test helpers (`crates/iscc-lib/tests/*.rs`) score at 0% coverage**
+    (`missing =   "pessimistic"`; CRAP = cc² + cc), so any helper above cyclomatic 5 fails
+    `--fail-above` in CI only (215: a `match`-per-section dispatcher scored 210). Run the CI CRAP
+    lines on any new `tests/*.rs`
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
-    load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`.
-    **NOT in `mise run check`** — a benchmarked hot-path change (codec `iscc_clean`, text utils)
-    needs `mise run bench:iai:check` run explicitly (iter 191's +36% four_units regression slipped
-    past a green `check` into red develop CI). A committed baseline reflects the code AT baseline
-    time: a *correctness* change to a hot path can raise cost irreducibly (191/192 reference-correct
-    `iscc_clean` = two std `memchr` scans `split_once(':')`+`contains('-')`; a scalar single-pass is
-    *slower*, a single SIMD pass needs the out-of-scope `memchr` crate), so removing allocations
-    alone won't restore a baseline set for cheaper-but-wrong code — regen the baseline in the SAME
-    step
+    load-bearing (stripped → `summary: 0` false-green). **NOT in `mise run check`** — run
+    `mise run bench:iai:check` on any benchmarked hot-path change (191's +36% reached red CI). A
+    correctness change to a hot path can raise cost irreducibly: regen the baseline in the SAME step
+    (191/192 `iscc_clean` detail → `learnings-archive.md`)
 - **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, `ignore` list
     with a per-entry justification) + `audit` CI job (`cargo-deny@0.19.9`, not in the devcontainer —
     install the prebuilt release) + `mise run audit`; reads Cargo.lock so green locally is
@@ -173,10 +172,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - Never force-push to `develop` during a CID loop (agents commit incrementally)
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central, `gh api`)
-- **Pre-push mdformat blocks on non-conforming context files**: the hook runs mdformat
-    (`--wrap 100 --number`, isolated env) over every file in the push range — incl. `next.md` and
-    per-agent `MEMORY*.md` — so one non-conforming file rejects the whole batch even though
-    staged-only `git commit` passed. Unblock by reformatting + amending
+- **Pre-push mdformat blocks on non-conforming context files**: it runs over every file in the push
+    range (incl. `next.md`, per-agent `MEMORY*.md`), so one non-conforming file rejects the batch
+    although `git commit` passed. Unblock by reformatting + amending
 - **Never write an exact count, substring `grep -c`, unverified CLI flag, or unverified
     `#[deprecated]` claim into a criterion** (139: `ruff format --check` saw 155 not 153; 148:
     `--fail-above 30.0` is a `cargo crap` syntax error; 168: a "must not appear" grep banned the
@@ -193,7 +191,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     when `f` allocates** (the copy is optimized away) — assign to a package-level sink (202). And
     check that each "mismatch" fixture reaches the comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed
     earlier, with "Trailing data". Positive mirror: one input form per trim site (200: outer-only
-    forms missed the post-colon trims)
+    forms missed the post-colon trims). **Assert a rejection on the raw API call alone** (215):
+    `pytest.raises(ValueError)` around a caller that also converts the result (`dict()`, `int()`)
+    stays green when the binding RETURNS garbage, because those conversions raise `ValueError` too
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:

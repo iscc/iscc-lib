@@ -1041,3 +1041,9 @@ runs on `opus`. Deliberate — do not "unify" them.
     checked" are the same green (read `action-inputs: resolved R of T`, not the job status), and
     "transport failure degrades to a warning" is NOT met by `except OSError` (`IncompleteRead` is an
     `HTTPException`, captive-portal HTML raises `yaml.YAMLError`)
+
+- **iai baseline vs a correctness fix (191/192, moved from learnings.md at 215)**: a committed
+    baseline reflects the code AT baseline time. The reference-correct `iscc_clean` is two std
+    `memchr` scans (`split_once(':')` + `contains('-')`); a scalar single pass is *slower*, and a
+    single SIMD pass needs the out-of-scope `memchr` crate, so removing allocations alone will not
+    restore a baseline set for cheaper-but-wrong code — regen the baseline in the SAME step

@@ -145,10 +145,10 @@ Since iteration 201, `encode_seq` upper-cases ASCII only, so a non-ASCII case-fo
 `gaawdlqng6ſsdpf2` (likewise `ı`, `ß`, `ﬁ`) fails, while iscc-core 1.5.0 `encode_seq` accepts it
 through Unicode `str.upper()` (`codec.py:503`). Titusz confirmed this divergence (decisions.md
 2026-11-18, "Codec input is upper-cased ASCII-only"; `rust-core.md` "Base32 input is strict"), and
-`tests/test_seq.py` `STRICT_BASE32_DIVERGENCES` already pins it. The Python docstrings still name
-only padding and spare bits as differences from iscc_core: `_lowlevel.pyi:56` says "Base32 decoding
-is strict: `=` padding and non-zero spare bits are rejected", and the `iscc_lib/__init__.py` wrapper
-says nothing about it.
+the `encode_seq` case-fold vectors in `crates/iscc-lib/tests/data-edge.json` pin it. The Python
+docstrings still name only padding and spare bits as differences from iscc_core: `_lowlevel.pyi:56`
+says "Base32 decoding is strict: `=` padding and non-zero spare bits are rejected", and the
+`iscc_lib/__init__.py` wrapper says nothing about it.
 
 Resolved when both `encode_seq` docstrings name non-ASCII case-fold aliases next to padding and
 spare bits as inputs iscc-lib rejects and iscc_core accepts.

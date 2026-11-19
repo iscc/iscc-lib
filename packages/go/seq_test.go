@@ -70,7 +70,8 @@ var seqUnknownSTHeaders = []struct {
 	{4679, 0, "2efff070"}, {4679, 1, "2efff170"},
 }
 
-// seqStrictDivergences mirrors STRICT_BASE32_DIVERGENCES in tests/test_seq.py:
+// seqStrictDivergences mirrors the encode_seq `diverges` rows of
+// crates/iscc-lib/tests/data-edge.json:
 // non-canonical base32 forms that iscc-core 1.5.0 accepts and iscc-lib rejects
 // (decisions.md 2026-11-18), each with its canonical twin and bytes.
 var seqStrictDivergences = []struct {

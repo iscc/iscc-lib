@@ -42,7 +42,7 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     compare after `ToUpper` cannot see it). Probe via the Python binding — build it first
 - **"The fix matches the reference" — probe EVERY entry point it touches** (201: ref `iscc_decode`
     rejects `ı`/`ſ`, ref `encode_seq` `.upper()`s first and ACCEPTS — the issue + next.md missed it,
-    Codex caught it). A new divergence → pin it in `STRICT_BASE32_DIVERGENCES`, file a `**Spec:**`
+    Codex caught it). A new divergence → a `diverges` vector in `data-edge.json`, file a `**Spec:**`
     issue, escalate (spec exception lists are acceptance criteria)
 - **next.md under-scoping a spec's "Verified when"**, display-form suites, `.crap-baseline.json`
     scope cap, Go `FieldsFunc` cost (197–203) → `review-patterns.md` "Moved from the index (204)"
@@ -110,6 +110,12 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     2026-11-19
 - **Bumps** (generated artifact, MSRV `cargo +1.85.0 check -p <c> --locked`, lockfile, wrapper,
     framework major) → `dep-refresh-reviews.md`
+- **Any new/changed Rust test helper in `crates/iscc-lib/tests/*.rs` → run the CI CRAP lines**
+    (`cargo llvm-cov -p iscc-lib --lcov …` then `cargo crap … --fail-regression --fail-above`, ~4
+    min, background). Test files score at 0% coverage → helper cyclomatic > 5 = red CI (215)
+- **`data-edge.json` harness step (215, ~10 min)**: the next.md six + CRAP lines + feature matrix on
+    `--test test_data_edge`; Codex found the CRAP failure and the `pytest.raises`-over-conversion
+    hole
 - **Core text/codec change + generated data (≈12 min)**: Rust-only + full feature matrix +
     coverage/CRAP + `bench:iai:check` + generator no-op + pre-push `ty`/ruff/pytest on any new `.py`
     test (203, ~20 min) → `gate-reviews.md`
