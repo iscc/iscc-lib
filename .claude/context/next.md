@@ -1,97 +1,83 @@
 # Next Work Package
 
-## Step: Ruby array arguments via `RArray::into_iter` (Magnus `Vec<T>` segfault) + `json` lock bump
+## Step: .NET and C++ wrappers reject string inputs with an embedded NUL
 
 ## Goal
 
-Fix the `normal` issue "Ruby `Vec<T>` parameters segfault when an element's `to_str` mutates the
-array". Every Ruby array argument gets converted through `RArray::into_iter()` (dup + hide) instead
-of Magnus' borrowed-slice `to_vec`. The step also bundles the `normal` issue "Dependabot alert: Ruby
-`json` gem in `crates/iscc-rb/Gemfile.lock`", which touches the same crate.
+Fix the `normal` issue ".NET and C++ wrappers silently truncate string inputs at an embedded NUL"
+using the approach Titusz chose (decisions.md 2026-11-19): each wrapper rejects a NUL-bearing string
+before marshalling, so it never returns a prefix's ISCC as a success. .NET throws `IsccException`,
+which matches the .NET howto's "methods throw `IsccException` on invalid input" and mirrors C++
+`IsccError`.
 
 ## Alternatives Considered
 
-- **Chosen:** Ruby array-conversion fix + `json` bump. It is a memory-safety crash reachable from
-    plain Ruby and the handoff's "Next". Both fixes live in one crate, so one Ruby CI run covers
-    both.
-- **Rejected:** `@iscc/wasm` npm license/description (`Cargo.toml` + `release.yml` patch step). It
-    is small, but it is metadata that only takes effect at release, and a crash outranks it. Good
-    next pick.
-- **Rejected:** `docs/c-ffi-api.md` type names. Rename vs cbindgen alias is a design call.
+- **Chosen:** NUL rejection in .NET and C++. Today's decision unblocked it, and it fixes a
+    silent-wrong-result bug: the worst failure class among the 10 open normals.
+- **Rejected:** `@iscc/wasm` license/description metadata. It is tiny and only takes effect at the
+    next release, so it costs nothing to do next. The Ruby negative-Bignum fix also waits: it is
+    another wrong-result bug, but on a much narrower input range.
 
 ## Scope
 
-- **Modify**: `crates/iscc-rb/src/lib.rs`, `crates/iscc-rb/Gemfile.lock` (lock file, outside the
-    budget), `docs/ruby-api.md` (Error Handling section only)
-- **Create / modify tests**: a new `crates/iscc-rb/test/test_array_args.rb`, or extend
-    `test/test_seq.rb` / `test/test_iscc_lib.rb`
-- **Reference**: `~/.cargo/registry/src/*/magnus-0.8.2/src/r_array.rs` (`to_vec` L1148, `into_iter`
-    L1625: dups unless frozen), `src/try_convert.rs:239` (`Vec<T>` =
-    `RArray::try_convert(val)?.to_vec()`), and `alg_simhash` in `lib.rs` (the existing safe pattern)
+- **Modify**: `packages/dotnet/Iscc.Lib/IsccLib.cs`, `packages/cpp/include/iscc/iscc.hpp`,
+    `docs/howto/dotnet.md`, `docs/howto/c-cpp.md`
+- **Tests (outside budget)**: `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` (or a new
+    `NulInputTests.cs`), `packages/cpp/tests/test_iscc.cpp`
+- **Reference**: the issue entry in issues.md (it has the probe inputs and the expected codes),
+    `packages/dotnet/CLAUDE.md`, the existing C++ `encode_seq` NUL guard (`iscc.hpp` ~L364-375) and
+    its test #43 in `test_iscc.cpp`
 
 ## Not In Scope
 
-- A page-wide audit of every "Raises `RuntimeError`" line in `docs/ruby-api.md`. Change only the
-    Error Handling section (around L852-866).
-- Return-type `Vec<String>` (`iscc_decompose`, `decode_seq`, `sliding_window`). Outputs are safe.
-- Refreshing other gems, or touching `rb_sys` (held at 0.9.123, see the `Gemfile` comment).
-- The `lib/iscc_lib.rb` wrapper, unless a test proves it needs a change.
-- Upstream Magnus reports, and the other bindings' array marshalling.
+- Any change to `crates/iscc-ffi`, `iscc.h` or `NativeMethods.g.cs`. The C ABI stays NUL-terminated.
+- The .NET pin-loop dedup and the `[]`/null handling in `GenMixedCodeV0`/`GenIsccCodeV0`. Both
+    belong to a separate issue, so do not touch the pin loops beyond what the NUL check needs.
+- `docs/c-ffi-api.md` type names, the JNI/Ruby/UniFFI surfaces (these keep the NUL, and the core
+    rejects it), and any length-carrying FFI redesign (rejected in the decision).
 
 ## Implementation Notes
 
-**There are 7 conversion sites, not 5.** The 5 parameters are `gen_audio_code_v0(cv: Vec<i32>)`,
-`gen_mixed_code_v0(codes: Vec<String>)`, `gen_iscc_code_v0(codes: Vec<String>)`,
-`encode_seq(units: Vec<String>)` and `alg_minhash_256(features: Vec<u32>)`. The other 2 are inside
-`gen_video_code_v0` and `soft_hash_video_v0`: they iterate the outer `RArray` safely, but each frame
-goes through `TryConvert::try_convert(frame)` into `Vec<i32>`, which is the same `to_vec` walk over
-the inner array.
-
-Write one small private generic helper, `RArray` → `into_iter()` → `TryConvert` per element →
-`Vec<T>`, and use it at all 7 sites. Parameters become `RArray`. Each inner frame is converted with
-`RArray::try_convert(frame)?` first, then the helper. Keep the `function!` arities unchanged.
-`RArray::try_convert` still coerces through `to_ary` and raises `TypeError` for a non-Array, the
-same as today's `Vec<T>` path. A frozen array is not dup'd, but it also cannot be mutated.
-
-The segfault repro from the issue (iter 209) is a ~2000-element array whose first element defines
-`to_str`, which runs `arr.clear` then `GC.start`. Tests must:
-
-- run that object through `encode_seq`, `gen_mixed_code_v0` and `gen_iscc_code_v0` without crashing.
-    Assert the result equals the call on an unmutated array snapshot (or the expected error), not
-    just "no crash"
-- cover the integer path: an element whose `to_int` mutates the array, against `gen_audio_code_v0`
-    or `alg_minhash_256`, plus one inner video frame. Whether this crashes today has not been
-    probed. Do not claim it did
-- pin the exception class for a non-Array argument and for a non-String element (e.g.
-    `encode_seq([nil])`). Today that is `TypeError`. Update the `docs/ruby-api.md` Error Handling
-    sentence to match: `TypeError` for wrong-type arguments, `RuntimeError` for invalid values
-
-A test that runs a mutating callback should run in-process. A crash fails the whole `rake test` run,
-and that failure is the signal.
-
-**`json` bump (probed read-only):** `bundle outdated json` resolves. The rubocop constraint is
-`json (~> 2.3)`, and 2.21.2 is the newest 2.x, so run `bundle update json --conservative` in
-`crates/iscc-rb`. It should land 2.21.2 with no other line changes. If it moves anything besides
-`json`, revert the lock and record why in the handoff.
-
-**Rebuild the native extension before testing** (`bundle exec rake compile`). The gitignored `.so`
-goes stale silently. This step is binding-only, so it trips neither the CRAP gate nor the iai gate.
+- **.NET:** `ToNativeUtf8` is the only string-marshalling path in `Iscc.Lib` (checked: no other
+    `GetBytes`/`StringToCoTaskMemUTF8` in non-generated files). Add the check there:
+    `s.Contains('\0')` → throw `IsccException` with a clear message, e.g. "string input contains an
+    embedded NUL character". The three array methods already convert every element before the first
+    `GCHandle.Alloc` (the loop before `try`), so a throw cannot leak pinned handles. Keep it that
+    way. Update the `<exception>` XML docs where a method already lists them (`EncodeSeq`).
+- **C++:** add one `detail` helper that throws `IsccError` if the string contains `'\0'` and returns
+    `c_str()`, e.g. `inline const char* checked_c_str(const std::string& s)`. Route every
+    `std::string` → C call through it, including the `std::optional` description/meta in
+    `gen_meta_code_v0` (`->c_str()`) and the element loops in `gen_mixed_code_v0`,
+    `gen_iscc_code_v0` and `gen_sum_code_v0`'s `path`. `encode_seq` keeps its own guard and its
+    "ISCC-UNIT at index i" message, because test #43 pins `"index 1"`.
+- **C++ test literals:** `std::string("Hello\0World")` stops at the NUL in the constructor. Use
+    `std::string("Hello\0World", 11)` or `s + '\0' + "junk"`. Use the existing `assert_throws_with`
+    with a needle taken from the helper's message.
+- **Test matrix (per wrapper):** at least one gen function (`gen_text_code_v0`), one text function
+    (`text_clean`), one codec function (`iscc_decompose` or `iscc_decode`), `encode_seq`, one
+    optional argument (`gen_meta_code_v0` with a NUL in `description`) and one array element
+    (`gen_mixed_code_v0` or `gen_iscc_code_v0`). Add one positive control showing that NUL-free
+    input still returns the documented code.
+- **Docs:** in the "Error handling" sections of `docs/howto/dotnet.md` and `docs/howto/c-cpp.md`
+    (C++ part), add a sentence saying that string inputs with an embedded NUL (`\0`) are rejected
+    rather than truncated. Use the words "embedded NUL".
+- Binding-only step, so neither the CI-only CRAP gate nor the iai Perf gate is affected.
+- Tooling: `dotnet` is on `$PATH`. Run cmake as `uv run --with cmake cmake`.
 
 ## Verification
 
-- `grep -nE '^fn [a-z_0-9]+\([^)]*Vec<|Vec<i32> = TryConvert::try_convert\(frame\)' crates/iscc-rb/src/lib.rs`
-    prints nothing (checked against today's tree: it hits exactly the 7 sites and no return types or
-    `collect` targets)
-- In `crates/iscc-rb`: `bundle exec rake compile && bundle exec rake test` exits 0, and the tests
-    include the mutating-`to_str` case for `encode_seq` and `gen_mixed_code_v0` plus the `to_int`
-    case
-- `cargo clippy -p iscc-rb -- -D warnings` and `bundle exec standardrb` (in `crates/iscc-rb`) exit 0
-- `crates/iscc-rb/Gemfile.lock` contains `json (2.21.2)` (or a later 2.x) and `rb_sys (0.9.123)`
-- A test asserts the `TypeError` class for `encode_seq([nil])`, and `docs/ruby-api.md` Error
-    Handling names `TypeError` for wrong-type arguments
+- `cargo build -p iscc-ffi && dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`
+    passes, including the new NUL tests
+- In `packages/cpp`,
+    `uv run --with cmake cmake -B build -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=../../target/debug -DSANITIZE_ADDRESS=ON`,
+    then `uv run --with cmake cmake --build build`, then
+    `LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc` exits 0 with no ASAN report
+- Every line that `grep -n 'c_str()' packages/cpp/include/iscc/iscc.hpp` prints is either inside the
+    NUL-check helper or in `encode_seq` right after its own NUL guard
+- `grep -n 'embedded NUL' docs/howto/dotnet.md docs/howto/c-cpp.md` matches in both files
 - `mise run check` exits 0
 
 ## Done When
 
-The advance agent is done when all six verification criteria pass, with the Ruby suite run against a
-freshly compiled extension.
+All five verification criteria pass, and a NUL-bearing string reaching any .NET or C++ string input
+raises `IsccException` / `IsccError` instead of returning a result.
