@@ -84,21 +84,19 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 8908dd3, iter 215 — incremental)
+## Current State (assessed-at: cc91ef5, iter 216 — incremental)
 
-- **CI GREEN on pushed tip `6c619db`** (21/21). HEAD `8908dd3` has 4 unpushed commits; non-.claude
-    diff = `tools/cid.py`, `tests/test_cid.py`, `CLAUDE.md` only (loop tooling) — report as gap.
-- **NEW v0.8.0 criterion (human 5c982e5, 2026-11-19): `data-edge.json`** — spec
-    `specs/edge-vectors.md`. NOT STARTED at 215 (no file, no harness; `STRICT_BASE32_DIVERGENCES`
-    still in `tests/test_seq.py`). Check `git ls-files | grep data-edge` each iteration; per-surface
-    harness = the main v0.8.0 gap now, so every binding section is "partially met".
+- **CI GREEN on pushed tip `6c619db`** (21/21) = origin/develop. HEAD has **10 unpushed commits**
+    incl. the 215 NEEDS_WORK advance (data-edge file + harnesses) — CRAP-red per review, uncovered.
+- **data-edge.json EXISTS (215):** 15 vectors / 5 sections, Rust `test_data_edge.rs` (7 tests) +
+    Python `tests/test_data_edge.py`; `VENDORED_COPIES` entry empty. Owed: CRAP repair (`call` 210,
+    `check_vector` 156 — test-file fns score at 0% cov, need cc ≤ 5), 2 Python harness fixes, then
+    fan-out to 10 bindings. Track with `git ls-files | grep -i data-edge`.
 - **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
-    defects; napi Buffer, JNI exception, Ruby Bignum, ffi split LOWERED to `low`. 18 open: 6 normal,
-    12 low. `wasm-bindings.md` package.json drift still present (L28, L165).
+    defects. 18 open: 6 normal, 12 low.
 - **ISCC-SEQ done on all 11 surfaces (211); .NET+C++ NUL rejection done (213); npm license +
     description done (214)** — do NOT re-flag. Go `TextClean` `TrimSpace` intentional.
-- FFI 51 externs, lib.rs 2870 lines. `#[test]` 426; Go `func Test` 264; Swift/Kotlin Conformance 19
-    each; uniffi 28 `#[test]`.
+- FFI 51 externs. Go `func Test` 264; Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
 - **Python heredoc**: plain `uv run python - << 'EOF'` works (cid sets a VIRTUAL_ENV).
 
 ## Durable Facts (carried, not per-iteration)
