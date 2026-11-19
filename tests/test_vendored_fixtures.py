@@ -30,6 +30,7 @@ VENDORED_COPIES = {
     "crates/iscc-lib/tests/data-edge.json": [
         "packages/dotnet/Iscc.Lib.Tests/testdata/data-edge.json",
         "packages/go/testdata/data-edge.json",
+        "packages/kotlin/src/test/resources/data-edge.json",
         "packages/swift/Tests/IsccLibTests/data-edge.json",
     ],
 }

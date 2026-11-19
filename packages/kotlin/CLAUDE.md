@@ -27,8 +27,10 @@ packages/kotlin/
       iscc_uniffi.kt                        # UniFFI-generated Kotlin bindings (DO NOT EDIT)
     test/kotlin/uniffi/iscc_uniffi/
       ConformanceTest.kt                    # data.json vectors (9 gen_*_v0 functions, ISCC-SEQ) + gen_iscc_id_v1 golden test
+      DataEdgeTest.kt                       # data-edge.json edge-case vectors (every vector, except["kotlin"])
     test/resources/
       data.json                             # Vendored ISCC conformance test vectors
+      data-edge.json                        # Vendored edge-case vectors
 ```
 
 ## Build Commands
@@ -60,6 +62,14 @@ point to `../../target/debug/` relative to the Kotlin package root.
 - `decodeStream` helper converts `"stream:<hex>"` format to `ByteArray`
 - Asserts exact ISCC string equality against expected outputs
 - Uses JUnit 6 (`org.junit.jupiter`) and Gson (`com.google.code.gson:gson`) for JSON parsing
+
+### Edge-case vectors (`DataEdgeTest.kt`)
+
+- Runs every `data-edge.json` vector through a section -> caller table; `except["kotlin"]` is the
+    only deviation, an unknown section fails, and a rejection must throw
+    `IsccUniException.IsccException` from the raw call alone
+- Every expected output key must be present in the converted record and equal; 6 test methods (the
+    vector run plus five one-bad-case negatives)
 
 ## Binding Generation
 
