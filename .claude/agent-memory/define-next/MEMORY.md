@@ -40,10 +40,10 @@ a defect class); next = Ruby Bignum, uv.lock alerts, Python docstrings, then rem
     `~/.cargo/registry/src/*/<crate>-<ver>/`, seeing which item an attribute belongs to** (168: a
     misattributed `#[deprecated]` cost iter 169; manifests carry `rust-version`).
 - **A fix touching surfaces no test exercises → scope fix + missing tests as ONE step** (169; tests
-    are outside the 3-file budget). **Run an expensive probe while scoping when it can invert the
+    are outside the file budget). **Run an expensive probe while scoping when it can invert the
     plan** (155/157; 161 Swift fetch killed a 10-iter-old veto).
 - **Generated/tool-output files (Cargo.lock — moves even for a dev-dep already in the graph, 205 —
-    bindings) and docs don't count toward the 3-file limit** — batch related small changes (version
+    bindings) and docs don't count toward the file limit** — batch related small changes (version
     sync + docs; several fixes in one crate).
 - **IDLE is valid** only when all target sections met and just `low` issues remain — an
     already-specced, locally-verifiable target gap or infra/release fix is NOT idle work. **HUMAN

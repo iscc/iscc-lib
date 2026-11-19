@@ -57,9 +57,12 @@ context limits: run this protocol through to the push step.
     carry the marker (verbatim) to the top of your own handoff whatever your verdict — never
     silently downgrade an advance-agent escalation into a plain NEEDS_WORK.
 
-3. **Inspect the changes** — run `git diff HEAD~1..HEAD` to see the advance agent's diff (HEAD is
-    the advance commit, HEAD~1 is the define-next commit). Read the modified files in full.
-    Compare against what next.md asked for.
+3. **Inspect the changes** — the advance agent's work is everything after the define-next commit,
+    and it may span several commits (a fan-out has one per surface). The revision
+    `'HEAD^{/^cid.define-next.:}'` names that commit, so run
+    `git log --oneline 'HEAD^{/^cid.define-next.:}..HEAD'` and
+    `git diff 'HEAD^{/^cid.define-next.:}..HEAD'`. Read the modified files in full. Compare
+    against what next.md asked for.
 
 4. **Run verification** — run `mise run check` (runs all quality gates via pre-commit hooks). Then
     execute each specific check from next.md's `## Verification` section individually and record
@@ -81,13 +84,16 @@ context limits: run this protocol through to the push step.
 
     - **Scope discipline**: Does the diff touch only what next.md asked for? Check the
         `## Not In Scope` section — if the advance agent did something explicitly excluded, flag it.
-        If the diff modifies more than 3 non-test, non-doc files, next.md must have declared one of
+        If the diff modifies more than 6 non-test, non-doc files, next.md must have declared one of
         the two escape valves in its Scope, otherwise the verdict is NEEDS_WORK:
         - an `[audit]`-tagged issue cited by title, with the raised budget (max 8) stated; or
-        - a `**Fan-out:**` line naming one mechanically identical change and the surfaces it applies
-            to. Verify the work really was identical across surfaces — a fan-out that smuggles in a
-            per-surface design decision is out of scope. An honest fan-out has no file-count limit;
-            that is the point of the valve.
+        - a `**Fan-out:**` line naming one already-decided behaviour and the surfaces it applies to.
+            Surfaces may differ in idiom, never in behaviour. Verify that a spec, a decision or the
+            core fixed the behaviour beforehand, that no surface made a design decision the specs
+            leave open, and that the step did not also change core behaviour. Review a fan-out surface
+            by surface along the advance agent's per-surface commits and run each surface's own check.
+            If one surface fails, name it in the handoff so the next step repairs that surface only.
+            An honest fan-out has no file-count limit; that is the point of the valve.
     - **Pattern completeness**: when the diff introduces or changes how one surface does something
         (a guard, a helper, an error mapping, a conversion), search that surface for sibling call
         sites that still use the old form. define-next must scope all of them (its step 5), so a

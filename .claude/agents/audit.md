@@ -169,7 +169,7 @@ Read anything else on demand, once.
     - **Evidence:** concrete file:line references, commands run, or metric slopes
     - **Why it matters:** the compounding cost if left alone
     - **Suggested fix:** concrete enough for define-next to scope
-    - **Scope estimate:** how many non-test files a fix touches; if more than 3, say "needs
+    - **Scope estimate:** how many non-test files a fix touches; if more than 6, say "needs
         audit-scope step (≤8 files)" so define-next can invoke the escape valve
 
     **40 lines per entry, maximum**, and issues.md has a 300-line budget overall — the runner tells

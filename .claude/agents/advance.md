@@ -58,10 +58,11 @@ Beyond the pack, read only the files next.md's `## Reference` section names. Do 
     - Consult `notes/` documents referenced in next.md for architectural guidance
     - Keep it simple. Prefer explicit over clever.
     - Write short, pure functions with docstrings
-    - Stay within the file scope defined in next.md: max 3 files excluding tests and docs, raised to
+    - Stay within the file scope defined in next.md: max 6 files excluding tests and docs, raised to
         8 when next.md cites an `[audit]` issue and states the budget, and unlimited when next.md
-        declares a `**Fan-out:**` line — in which case apply the *same* change to every surface it
-        names and make no per-surface design decisions of your own
+        declares a `**Fan-out:**` line — in which case bring the *same behaviour* to every surface it
+        names, each in its own idiom, and make no design decision that next.md and the specs leave
+        open
     - If next.md lists documentation files in Scope, update them to reflect the code changes made in
         this step. Doc updates should be minimal and accurate — match the actual implementation,
         don't embellish.
@@ -92,6 +93,11 @@ Beyond the pack, read only the files next.md's `## Reference` section names. Do 
     git commit -m "cid(advance): <what was implemented>"
     ```
 
+    In a fan-out step, commit once per surface as soon as that surface is implemented and its own
+    check is green (`cid(advance): <surface> — <what>`), and put handoff.md and agent memory in the
+    last commit. Per-surface commits let the reviewer walk the work and let one surface be repaired
+    without touching the others.
+
 ## Output Format for handoff.md
 
 ```markdown
@@ -114,14 +120,16 @@ technical debt introduced>
 
 - Stay in scope. Implement what next.md defines. Do not add features, refactor unrelated code, or
     "improve" things outside the work package.
-- **Delegate rarely.** You hold the Agent tool, but a work package capped at 3 files is almost never
+- **Delegate rarely.** You hold the Agent tool, but a work package of this size is almost never
     worth a subagent — the spawn costs more than the work it saves. Reserve it for a wide read-only
     investigation next.md explicitly calls for, and write the code yourself. Never delegate to
     verify or double-check what you just did; that is the review agent's job, and doing it here pays
     twice for one gate. When one subagent suffices, use one rather than several.
 - If the step feels too large or you discover it requires more files than next.md's budget allows
-    (3, or 8 for an audit-cited refactor step; a declared fan-out has no limit), stop and write a
-    handoff explaining why. Do not attempt a partial implementation.
+    (6, or 8 for an audit-cited refactor step; a declared fan-out has no limit), stop and write a
+    handoff explaining why. Do not attempt a partial implementation. The one exception is a fan-out:
+    if a single surface needs a design decision or cannot be made green, leave that surface
+    untouched, finish and commit the others, and name it in the handoff.
 - **handoff.md has a hard budget of 100 lines.** It is a report to the reviewer: what you did, what
     you ran, what it said. Evidence, not narration — do not replay your reasoning or restate what
     next.md already specified.

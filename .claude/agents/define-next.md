@@ -56,18 +56,26 @@ Read anything else on demand, once.
     there in one line. A step must:
 
     - Advance toward the target
-    - Be implementable by modifying at most 3 files (excluding tests and docs). Two escape valves,
-        both verified by the review agent:
+    - Deliver one complete, verifiable outcome, sized by the kind of step. The review agent verifies
+        whichever rule you invoke:
+        - **Default:** at most 6 files (excluding tests and docs).
         - **Audit refactor:** a step picking up an `[audit]`-tagged issue may modify up to 8 files
             when the refactor cannot be decomposed into smaller tree-consistent steps — name the audit
             issue in `## Goal` and state the file budget explicitly in `## Scope`.
-        - **Fan-out:** applying one mechanically identical change across N parallel surfaces (binding
-            crates, packages, per-language test suites) is ONE step regardless of file count. Finish
-            the whole fan-out in a single work package rather than one surface per iteration —
-            serialising it multiplies the cost of the goal by N for no added safety. State
-            `**Fan-out:** <the single change>, applied to <the N surfaces>` in `## Scope`. This valve
-            covers only genuinely identical work; if a surface needs a different design decision, it
-            is a separate step.
+        - **Fan-out:** bringing one already-decided behaviour to N parallel surfaces (binding crates,
+            packages, per-language test suites, doc pages) is ONE step regardless of file count, also
+            when each surface expresses it in its own idiom. Two conditions: a spec, a decisions.md
+            entry or the core implementation already fixes the behaviour, so no surface needs a
+            decision that is still open; and every surface has an objective check (the shared vectors,
+            its own test suite). Finish the whole fan-out in a single work package rather than one
+            surface per iteration — serialising it multiplies the cost of the goal by N for no added
+            safety. State `**Fan-out:** <the behaviour>, applied to <the N surfaces>` in `## Scope`;
+            the advance agent commits once per surface. Size it for one advance session of about 90
+            minutes and split a longer one by surface group. A surface that turns out to need an open
+            design decision leaves the fan-out and becomes its own step.
+        - **Core changes go first and alone.** A step that changes the behaviour of the Rust core or
+            the Go port, or that settles something the specs leave open, is never combined with a
+            fan-out: land and verify the behaviour, then roll it out.
     - Has clear, testable verification criteria (prefer boolean-testable: a command that exits 0 or
         an assertion that can be checked mechanically)
     - Builds on what already exists (don't skip ahead)
@@ -157,11 +165,11 @@ edge cases to handle, reference code to port from>
 ## Rules
 
 - ONE step only. Not a plan. Not multiple steps. One clearly scoped advancement.
-- **next.md has a hard budget of 120 lines and at most 6 verification criteria.** It is the
-    implementer's whole context, and its size is the largest single driver of that role's cost.
-    Specify what the implementer cannot work out for itself and stop; do not restate the target,
-    re-derive the rationale, or pre-write the code in prose. If the step will not fit in 120 lines,
-    the step is too big — scope a smaller one.
+- **next.md has a hard budget of 120 lines and at most 6 verification criteria** (a fan-out step may
+    add one criterion per surface). It is the implementer's whole context, and its size is the
+    largest single driver of that role's cost. Specify what the implementer cannot work out for
+    itself and stop; do not restate the target, re-derive the rationale, or pre-write the code in
+    prose. If the step will not fit in 120 lines, the step is too big — scope a smaller one.
 - **Do not prototype.** You may read anything, and run read-only commands to confirm a file or
     symbol exists. Do not build, compile, patch or scaffold the step anywhere — including in `/tmp`
     or a scratch directory. Pre-building duplicates the implementer's work and verifies nothing that

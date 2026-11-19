@@ -101,17 +101,17 @@ ROLE_ENTRY_KEYS = frozenset(
 # catch stuck runs, not normal long iterations like advance + a 30-min codex review).
 # A role that already committed its deliverable when the guard fires does not fail
 # the iteration — see _role_commit_landed.
-# advance's single requests on hard tasks can run for many minutes, so it gets
-# extra headroom over the other roles.
+# advance and review get the most headroom: a fan-out step implements and then
+# verifies one behaviour on many surfaces in a single session, and define-next
+# sizes such a step for about 90 minutes of advance work.
 ROLE_TIMEOUT_S = {
     "update-state": 1200,
     "define-next": 1200,
-    "advance": 3600,
+    "advance": 7200,
     # review runs the widest gate set (full feature matrix, coverage regen from
-    # scratch, iai benches, docs build) plus an independent codex pass, so it needs
-    # the same headroom as advance: p90 is ~1800s and iteration 148 legitimately
-    # exceeded 3000s.
-    "review": 3600,
+    # scratch, iai benches, docs build) plus an independent codex pass, once per
+    # surface in a fan-out, so it needs the same headroom as advance.
+    "review": 7200,
     META_ROLE: 1800,
     # Whole-codebase sweep with a parallel finder/verifier workflow — long but
     # rare (every AUDIT_EVERY iterations).
@@ -122,12 +122,13 @@ ROLE_TIMEOUT_S = {
 # --print, and every role runs under -p). Companion to ROLE_TIMEOUT_S: the timeout
 # catches a role that hangs, this catches one that thrashes productively-looking
 # but unboundedly. Values are ~2x the worst run observed to date, so they never
-# fire on a normal iteration.
+# fire on a normal iteration; advance and review are sized for a fan-out step
+# across all bindings.
 ROLE_BUDGET_USD = {
     "update-state": 10.0,
     "define-next": 10.0,
-    "advance": 20.0,
-    "review": 20.0,
+    "advance": 40.0,
+    "review": 40.0,
     META_ROLE: 15.0,
     AUDIT_ROLE: 15.0,
 }

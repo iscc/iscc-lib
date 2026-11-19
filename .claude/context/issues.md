@@ -262,3 +262,14 @@ Resolved when `wasm-bindings.md` drops the tree line and drops or realigns the V
 the `Cargo.toml` → wasm-pack → release.yml path.
 
 **Spec:** `.claude/context/specs/wasm-bindings.md` → "Crate Structure", "Version Sync"
+
+## Evaluate the larger-step trial after iteration 224 `low` [human]
+
+Since 2026-11-19 a default step may touch 6 non-test files and a fan-out brings one decided
+behaviour to all surfaces in one iteration (decisions.md 2026-11-19, "Steps are sized by outcome").
+This is a trial. After iteration 224, compare iterations 215-224 with 196-214: verdicts
+(`mise run cid:stats`), CI results of the pushed review commits, and cost per iteration.
+
+Keep the rules if at most 2 of the 10 iterations ended NEEDS_WORK and no fan-out push turned CI red.
+Otherwise revert the commit that introduced the decisions.md entry. Resolved when Titusz records
+"kept" or "reverted" in that decisions.md entry and deletes this issue.
