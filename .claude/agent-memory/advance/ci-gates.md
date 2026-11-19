@@ -41,6 +41,13 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
     nondeterministic coverage flap, by running `cargo llvm-cov`+`cargo crap` TWICE and diffing the
     JSON: identical scores = deterministic → safe to bake in. Map each moved fn to a reviewed
     commit.
+- RUST TEST FILES (iter 215/216): `crates/iscc-lib/tests/*.rs` helpers score at 0% coverage (CRAP =
+    cc² + cc), so each needs cc ≤ 5 (≤ 4 preferred). cargo-crap 0.2.2 counts +1 per `?` and per
+    `match` arm; `let … else`, closures, `.then()` count 0. Pattern: a
+    `&[(&str, fn(&[Value]) -> …)]` table of small callers instead of a `match` dispatcher
+    (`test_data_edge.rs`). cargo-crap + llvm-cov were present in the container at iter 216 (if
+    missing, install from source as in the iter-122 gotcha above); write lcov to `/tmp/lcov.info` to
+    keep the tree clean
 - `.cargo-crap.toml`: `threshold=30.0`, `missing="pessimistic"`, `exclude` globs MUST list
     `crates/iscc-lib/benches/**` (built-in excludes are repo-root only → harness leaks at CRAP ~42).
 

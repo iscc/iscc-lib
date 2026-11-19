@@ -18,9 +18,11 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     (packages/{dotnet,go,kotlin,swift}) gated by `tests/test_vendored_fixtures.py` — any NEW tracked
     `data.json` copy → register in `VENDORED_COPIES` or the test reds
 - Edge vectors (215): `crates/iscc-lib/tests/data-edge.json` (spec `specs/edge-vectors.md`), no
-    `_metadata`; Rust `tests/test_data_edge.rs` (runtime read, excluded from package), Python
-    `tests/test_data_edge.py` (schema + lib + iscc_core iff-`diverges` + SEED_SET). `iscc_decode`
-    output = `[mt, st, vs, li, "bytes:<hex>"]`. Fan-out to 11 surfaces + 4 vendored copies pending
+    `_metadata`; Rust `tests/test_data_edge.rs` (runtime read, excluded from package; CRAP-clean
+    caller table, see ci-gates.md), Python `tests/test_data_edge.py` (schema + lib + iscc_core
+    iff-`diverges` + SEED_SET; raw call apart from converter, rejections on raw call only).
+    `iscc_decode` output = `[mt, st, vs, li, "bytes:<hex>"]`. Fan-out to 11 surfaces + 4 vendored
+    copies pending
 - GOTCHA: `clippy --all-targets --no-default-features` fails on both benches (ungated imports; CI
     lints no-default without `--all-targets`) — use `--tests`. Benches/Streaming notes → archive
 - Unicode freeze rule REMOVED 2026-07-30 (decisions.md, human): `text_clean`/`text_collapse` mirror

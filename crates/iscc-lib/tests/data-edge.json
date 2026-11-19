@@ -36,6 +36,13 @@
         "bytes:00000000"
       ],
       "note": "The canonical form of the base32 aliases above decodes to a zero Data-Code digest."
+    },
+    "test_0005_empty_string": {
+      "inputs": [
+        ""
+      ],
+      "error": "empty ISCC string",
+      "note": "Empty input must be rejected; the reference raises IndexError, the Rust core a ValueError-class error."
     }
   },
   "encode_seq": {

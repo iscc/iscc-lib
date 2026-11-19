@@ -37,8 +37,9 @@ SURFACE_IDS = {
 }
 VECTOR_KEYS = {"inputs", "outputs", "error", "note", "diverges", "except"}
 # Exception classes that count as a rejection. iscc_core raises ValueError (incl.
-# binascii.Error) or AssertionError; any other class propagates and fails the test.
-REJECTIONS = (ValueError, AssertionError)
+# binascii.Error), AssertionError, or IndexError (`iscc_decode("")`); any other class
+# propagates and fails the test.
+REJECTIONS = (ValueError, AssertionError, IndexError)
 VECTOR_NAME = re.compile(r"^test_\d{4}_[a-z0-9_]+$")
 
 UNIT_256_SPARE_BITS = "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBJ"
@@ -69,29 +70,26 @@ def load_doc():
     return json.loads(DATA_EDGE_JSON.read_text(encoding="utf-8"))
 
 
-def call_iscc_decode(module, inputs):
-    """Decode an ISCC string as `[maintype, subtype, version, length, "bytes:<hex>"]`."""
-    *header, digest = module.iscc_decode(*inputs)
+def convert_iscc_decode(result):
+    """Encode an `iscc_decode` result as `[maintype, subtype, version, length, "bytes:<hex>"]`."""
+    *header, digest = result
     return [int(field) for field in header] + [f"bytes:{digest.hex()}"]
 
 
-def call_encode_seq(module, inputs):
-    """Encode a unit list as a `bytes:<hex>` fixture value."""
-    return f"bytes:{module.encode_seq(*inputs).hex()}"
+def convert_encode_seq(result):
+    """Encode `encode_seq` bytes as a `bytes:<hex>` fixture value."""
+    return f"bytes:{result.hex()}"
 
 
-def call_gen(name):
-    """Return a caller that runs `module.<name>(*inputs)` and returns its result dict."""
-    return lambda module, inputs: dict(getattr(module, name)(*inputs))
-
-
-# Section name -> caller taking (module, inputs); the same caller serves iscc_lib and iscc_core.
-CALLERS = {
-    "iscc_decode": call_iscc_decode,
-    "encode_seq": call_encode_seq,
-    "gen_text_code_v0": call_gen("gen_text_code_v0"),
-    "gen_mixed_code_v0": call_gen("gen_mixed_code_v0"),
-    "gen_iscc_code_v0": call_gen("gen_iscc_code_v0"),
+# Section name -> converter of the raw result into its fixture form. The raw call is
+# always `getattr(module, section)(*inputs)`, for iscc_lib and iscc_core alike, and is
+# kept apart from the conversion so a conversion error never counts as a rejection.
+CONVERTERS = {
+    "iscc_decode": convert_iscc_decode,
+    "encode_seq": convert_encode_seq,
+    "gen_text_code_v0": dict,
+    "gen_mixed_code_v0": dict,
+    "gen_iscc_code_v0": dict,
 }
 
 
@@ -139,13 +137,14 @@ def validate_except(exceptions):
 
 def outcome(module, section, inputs):
     """Run a vector's inputs and return `("error", None)` or `("output", value)`."""
-    caller = CALLERS.get(section)
-    if caller is None:
+    convert = CONVERTERS.get(section)
+    if convert is None:
         pytest.fail(f"unknown section {section}")
     try:
-        return "output", caller(module, inputs)
+        result = getattr(module, section)(*inputs)
     except REJECTIONS:  # Error text is never matched.
         return "error", None
+    return "output", convert(result)
 
 
 def matches(vector, result):
@@ -176,8 +175,8 @@ VECTORS = all_vectors()
 def test_file_is_not_vacuous():
     """Every handled section holds vectors and the file holds no other section."""
     doc = load_doc()
-    assert set(doc) == set(CALLERS)
-    assert all(doc[section] for section in CALLERS)
+    assert set(doc) == set(CONVERTERS)
+    assert all(doc[section] for section in CONVERTERS)
 
 
 @pytest.mark.parametrize(("section", "name", "vector"), VECTORS)
@@ -194,7 +193,7 @@ def test_iscc_lib_outcome(section, name, vector):
         return
     if exception == "error" or "error" in vector:
         with pytest.raises(ValueError):
-            CALLERS[section](iscc_lib, vector["inputs"])
+            getattr(iscc_lib, section)(*vector["inputs"])
         return
     result = outcome(iscc_lib, section, vector["inputs"])
     assert matches(vector, result), f"expected {vector['outputs']!r}, got {result!r}"
