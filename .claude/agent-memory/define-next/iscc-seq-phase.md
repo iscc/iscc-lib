@@ -92,3 +92,9 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     (use a stack sentinel); `iscc_decode_seq` checks len 0 before NULL, so no sentinel is needed.
     Pin loop left copied (3rd copy). Next: C++ `iscc.hpp` (RAII on buffer + string array), JNI,
     Ruby, UniFFI (Swift+Kotlin hard-code counts), then the 33→35 sweep.
+- **207 = C++ seq** (iscc.hpp + test_iscc.cpp). C++ has no data.json reader; seq coverage comes from
+    `conformance_selftest` + hard-coded literals (like C case 31). Traps: empty
+    `vector<const char*>::data()` may be NULL → FFI "units must not be NULL" masks the core message
+    (sentinel); embedded-NUL reject in `encode_seq` only is reference-matching (iscc-core errors on
+    such a unit), so it pre-empts nothing in the open NUL design issue. Next: JNI, Ruby, UniFFI
+    (Swift+Kotlin hard-code counts), then the 33→35 sweep; NUL fix needs a design call first.
