@@ -1,71 +1,61 @@
-## 2026-11-19 — Review of: data-edge.json fan-out, group 1 finish — WASM, Java, .NET, Ruby harnesses
+## 2026-11-19 — data-edge.json fan-out, group 2 — Swift and Kotlin harnesses, plus the Ruby key-compare fix
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Swift (`DataEdgeTests.swift`) and Kotlin (`DataEdgeTest.kt`) now run every
+`data-edge.json` vector through registered vendored copies. Each uses a section → caller table, a
+`checkDoc` that returns failures, the surface's `except` id, the raw-call-only rejection (Swift
+`IsccUniError`, Kotlin `IsccUniException.IsccException`; any other error type is a failure), and no
+hardcoded vector count. Ruby's compare now fails on any missing expected key. All three surfaces
+gained the sixth test, `…fails_missing_output_key`. One commit per surface: Ruby `cc53186`, Swift
+`616f5ae`, Kotlin `a75832b`.
 
-**Summary:** All six group-1 harnesses now run every `data-edge.json` vector: Go and Node (carried
-over, `a84b665`/`be0c4d3`) and WASM, Java, .NET and Ruby (one commit per surface). Each has a
-section → caller table, asserts the rejection on the raw call only with the surface's error type,
-honours its `except` id, fails on an unknown section, and hardcodes no vector count. One weakness:
-the Ruby harness compares only the keys a result happens to have. It is filed `normal`, does not
-fail any criterion, and did not hold anything back.
+**Files changed:**
+
+- `crates/iscc-rb/test/test_data_edge.rb`: the `actual.keys & expected.keys` intersection is
+    replaced by a check over every expected key (`actual.key?`), giving "missing field <k>". Adds
+    `test_data_edge_fails_missing_output_key`
+- `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift` (new): 6 tests. Typed-cast comparison
+    (`String`/`Int`/`[Any]` element-wise, fail-closed on any other type). Record fields are boxed as
+    `Int(...)`. No `as!`/`fatalError` in the harness path
+- `packages/swift/Tests/IsccLibTests/data-edge.json` (new, byte copy);
+    `packages/swift/Package.swift`: `.copy("data-edge.json")`
+- `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/DataEdgeTest.kt` (new): 6 tests. Strict input
+    readers. Comparison is against plain Kotlin values (`Long`, `String`, `List`, `Map`); numbers
+    are compared by their JSON text, so Gson's double coercion plays no part
+- `packages/kotlin/src/test/resources/data-edge.json` (new, byte copy)
+- `tests/test_vendored_fixtures.py`: both copies registered under the `data-edge.json` key
+- `packages/swift/CLAUDE.md`, `packages/kotlin/CLAUDE.md`: file trees plus an "Edge-case vectors"
+    subsection
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_vendored_fixtures.py tests/test_data_edge.py`: 84 passed.
-    `mise run check` exit 0
-- [x] Go: `TestDataEdge*` 5 PASS by name; full `CGO_ENABLED=0 go test -count=1 ./...` ok; `go vet`
-    clean; the `grep -l data-edge` over non-test `.go` files prints nothing
-- [x] Node: `npm run build:debug && npm test` exit 0. `ok 12 - data-edge.json` with 5 named
-    subtests; 179 pass, 0 fail
-- [x] WASM: `wasm-pack test --node crates/iscc-wasm --features conformance`: `tests/data_edge.rs` 5
-    passed by name (conformance 11, unit 94)
-- [x] Java: `cargo build -p iscc-jni && mvn clean test`: surefire `DataEdgeTest` 5 run, 0 failures
-    (5 named testcases); `IsccLibTest` 103
-- [x] .NET: `dotnet test … -e LD_LIBRARY_PATH=$PWD/target/debug`: 5 `DataEdgeTests.*` Passed; 130
-    total, 0 failed
-- [x] Ruby: `rake compile && rake test`: `TestDataEdge` 5 tests by name; 159 runs, 0 failures.
-    `standardrb` exit 0
-- [x] Extra checks (3 of 3): `cargo clippy --workspace --all-targets -D warnings` clean and
-    `cargo test -p iscc-lib` green (`test_data_edge` 7 passed after the `a84b665` note reword); the
-    CRAP gate cannot see `crates/iscc-wasm/**` (`.cargo-crap.toml` excludes it); and
-    published-artifact exclusion (see the second issue below)
-- [x] Gate integrity: the unpushed diff adds no suppressions, skips, exclusions or hook changes
+- Ruby: the sixth test went red against the old intersection compare (`Expected: 1 Actual: 0`), then
+    green after the fix. `rake compile && rake test`: 160 runs, 0 failures. `TestDataEdge` ran 6
+    named tests (`-v`). Bare `bundle exec standardrb` in `crates/iscc-rb`: exit 0
+- Swift (`/tmp/swifttc` 6.1.2, `--scratch-path /tmp/swiftbuild`, after
+    `cargo build -p iscc-uniffi`): exit 0. `DataEdgeTests` executed 6 tests, all 6 listed as passed
+    by name. 25 total, 0 failures. No compiler warnings from `DataEdgeTests.swift`. **Linux only**:
+    the macOS CI `swift` job has not run this code yet
+- Kotlin: `./gradlew cleanTest test` exit 0. `TEST-uniffi.iscc_uniffi.DataEdgeTest.xml` shows
+    tests=6, skipped=0, failures=0, errors=0, with 6 `testcase` elements
+- Mutation probe on both surfaces: the vendored `"characters": 10` was changed to 11. Swift and
+    Kotlin each went red on `field characters: expected 11, got 10`. Both copies were restored with
+    `cp` (`cmp` identical); then the full Swift suite (exit 0, 6 `DataEdgeTests` passed, 25 total)
+    and the Kotlin suite (XML above) were re-run green on the restored copies
+- `uv run pytest tests/test_vendored_fixtures.py tests/test_data_edge.py`: 86 passed.
+    `mise run check`: exit 0
 
-**Issues found:**
-
-- Filed `normal`: **Ruby `data-edge.json` harness passes a gen result that lacks an expected key.**
-    `actual.keys & expected.keys`, where the Rust/Python templates and Go fail on a missing key.
-    Introduced this step
-- Filed `low`, untriaged: **Go and Swift ship `data-edge.json` despite "absent from every published
-    artifact".** The Go module zip includes `packages/go/testdata/`, and SwiftPM clones the whole
-    repo. The spec also demands a copy next to every `data.json` copy. Which line wins is Titusz's
-    call, not a defect of this step
-- Nit (handoff only): the Node harness uses `SECTIONS[section]`, which resolves inherited names such
-    as `constructor`. Only a fixture section named after an `Object.prototype` member could exploit
-    it; `Object.hasOwn` would close it
-- Process note: the "keys the result exposes" wording first appeared in a `next.md` hunk committed
-    inside advance's Go commit `a84b665`, replacing "compare each listed key". That wording is where
-    the Ruby weakness came from
-
-**Codex review:** one run over `14adaa9..HEAD`, which covers all six harnesses. It found two things,
-both test-only: the Ruby key-intersection compare (P2, valid, filed) and the Node inherited section
-lookup (P3, valid but contrived, nit above).
-
-**Next:** Fan-out group 2: Swift and Kotlin (UniFFI) harnesses, each with a vendored copy registered
-in `VENDORED_COPIES` in the same step. Use this compare rule: a surface that returns a full result
-fails on any missing expected key, and only a bare-string or one-field result is wrapped to
-`{iscc}`. Do not copy Ruby's intersection. The Ruby fix (a few lines plus one negative test) can
-ride along as its own per-surface commit. Then group 3 (C, C++ through a generated table plus a
-staleness check; recover the generator from `ea69169`). Cheap `normal` fallback: the Python
+**Next:** Fan-out group 3: C and C++ through a generated table plus a staleness check. Recover
+`scripts/gen_ffi_boundary_vectors.py` from `ea69169`. Cheap `normal` fallback: the Python
 `encode_seq` docstring issue.
 
 **Notes:**
 
-- Swift group 2: do not treat `edge-vectors.md` → "absent from every published artifact" as settled
-    for source-distributed surfaces. The filed issue waits on Titusz. Vendor the copy as the spec's
-    "The File" section says, and do not invent an exclusion mechanism
-- .NET meets the gen_text NUL vector through `except.dotnet = error` (the wrapper raises
-    `IsccException`). `GenMixedCodeV0([])` and `GenIsccCodeV0([])` raise `IsccException` with the
-    FFI's NULL message, so they pass; the pin-loop issue stays open
-- Ruby's error type is `RuntimeError` (`to_magnus_err` → `exception_runtime_error`). A
-    `TypeError`/`ArgumentError` from the raw call is reported as a failure, never as a pass
+- No vector needed an `except` on Swift or Kotlin. UniFFI keeps the embedded NUL, so the core
+    returns the expected `gen_text` output and rejects the seq NUL unit
+- The missing-key negative uses `gen_text_code_v0` with outputs `{iscc: <correct>, datahash: "x"}`
+    and no `characters`, so it is one bad case. The assertion checks for "missing field datahash"
+- Swift, Kotlin and Ruby check every key now. Go still compares `gotFields[key]` without an explicit
+    presence check; that only works because a missing key reads as nil. It is out of scope and
+    unchanged
+- The Swift copy ships with the SwiftPM checkout. That is the open `low` issue; no exclusion
+    mechanism was added, as next.md specified

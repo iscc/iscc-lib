@@ -65,10 +65,15 @@ Detail moved out of MEMORY.md index. See also [[ci-gates]] for the swift/kotlin 
     to `/tmp/swifttc`, `cargo build -p iscc-uniffi`,
     `swift test --scratch-path   /tmp/swiftbuild -Xlinker -L<repo>/target/debug -Xlinker -rpath -Xlinker …`).
     Use `--scratch-path` outside the repo; `.build/` is gitignored since iter 161.
-- Tests: `ConformanceTests.swift` (19 methods since iter 210; `UnicodeBoundaryTests.swift` and
-    `unicode_boundary.json` are gone with the freeze removal). **Never compare Swift `String ==` on
-    Unicode sequences** — it folds canonical equivalence; compare `unicodeScalars`. Vendored
-    `data.json` is an SPM `.copy(...)` resource, registered in `tests/test_vendored_fixtures.py`.
+- Swift harness rule (218): convert record fields to `Int(...)` before boxing in `Any` and compare
+    via typed casts, so the same code holds on macOS CI and Linux (unprobed cross-platform).
+    `swift test --package-path   packages/swift` with absolute `$PWD/target/debug` linker paths
+    works from the repo root.
+- Tests: `DataEdgeTests.swift` (6, iter 218), `ConformanceTests.swift` (19 methods since iter 210;
+    `UnicodeBoundaryTests.swift` and `unicode_boundary.json` are gone with the freeze removal).
+    **Never compare Swift `String ==` on Unicode sequences** — it folds canonical equivalence;
+    compare `unicodeScalars`. Vendored `data.json` is an SPM `.copy(...)` resource, registered in
+    `tests/test_vendored_fixtures.py`.
 - `scripts/build_xcframework.sh`: 5 Rust targets → `lipo` → `xcodebuild -create-xcframework` →
     `ditto` zip → checksum. Output `target/ios/IsccLib.xcframework.zip` (`--release`/`--debug`).
 - Version constant: `packages/swift/Sources/IsccLib/Constants.swift` (`isccLibVersion`). CI job

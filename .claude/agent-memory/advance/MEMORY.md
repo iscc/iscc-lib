@@ -23,10 +23,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     iff-`diverges` + SEED_SET; raw call apart from converter, rejections on raw call only).
     `iscc_decode` output = `[mt, st, vs, li, "bytes:<hex>"]`. Group 1 harnesses DONE (217): Go
     `data_edge_test.go`, Node `__tests__/data_edge.test.mjs`, WASM `tests/data_edge.rs`, JNI
-    `DataEdgeTest.java`, .NET `DataEdgeTests.cs` (vendored), Ruby `test/test_data_edge.rb`. Pending:
-    Swift/Kotlin (group 2), C/C++ (group 3, generated table)
-- GOTCHA: `clippy --all-targets --no-default-features` fails on both benches (ungated imports; CI
-    lints no-default without `--all-targets`) — use `--tests`. Benches/Streaming notes → archive
+    `DataEdgeTest.java`, .NET `DataEdgeTests.cs` (vendored), Ruby `test/test_data_edge.rb`. Group 2
+    (218): Swift/Kotlin `DataEdge*`. Pending: C/C++ (group 3, table gen in `ea69169`)
+- GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
+    `--tests`
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
