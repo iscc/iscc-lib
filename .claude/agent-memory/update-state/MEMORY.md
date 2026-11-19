@@ -86,25 +86,24 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: bf86d12, iter 213 — incremental)
+## Current State (assessed-at: b324a0c, iter 214 — incremental)
 
-- **CI GREEN on `bf86d12` = HEAD** (run 44492092328, 21/21; codecov/cursor suites sit `queued` =
-    noise). Local `origin/develop` ref can lag: use `git ls-remote origin develop` for the real tip.
-    Iter 212 review was TIMEOUT but `recovered: true` — its commit landed; not a crash.
+- **CI GREEN on `f2b068f`** (pushed tip; HEAD `b324a0c` = cid(log), `.claude`-only diff), 21/21;
+    codecov/cursor suites sit `queued` = noise. Use `git ls-remote origin develop` for the real tip.
 - **ISCC-SEQ bound + DOCUMENTED on all 11 surfaces; 33→35 sweep DONE (211)** — do NOT re-flag. Only
-    v0.8.0 blocker: the **10 `normal` issues** (17 headers, 7 low).
-- **Ruby Magnus segfault FIXED (212)**: `array_to_vec` (`RArray::into_iter`) at all 7 sites; `json`
-    2.21.2. Dependabot alert #1 stays OPEN until develop→main merge — do NOT report it fixed. New
-    `normal`: Ruby negative-Bignum `i32` truncation.
-- **NUL truncation approach DECIDED** (decisions.md 2026-11-19): .NET + C++ reject at wrapper
-    boundary. Go + Swift/Kotlin: no open `normal` → "met for v0.8.0".
+    v0.8.0 blocker: the **9 `normal` issues** (16 headers, 7 low).
+- **.NET + C++ embedded-NUL rejection DONE (213)**: .NET `ToNativeUtf8` (sole `UTF8.GetBytes`), C++
+    `detail::checked_c_str` (only other `c_str()` = `encode_seq` L384 after guard). No gate stops a
+    future bypass (untracked). C++ now has no `normal` issue.
+- **Ruby Magnus segfault FIXED (212)**; Dependabot alert #1 stays OPEN until develop→main merge.
+    Open `normal`: Ruby negative-Bignum `i32` truncation.
 - `encode_seq` strictness + multibase-ambiguous bare-unit reading = decisions.md rulings — do NOT
     re-flag. Go `TextClean` `TrimSpace` intentional. `-Xcheck:jni` via `-DargLine` is a NO-OP.
 - FFI 51 externs, lib.rs 2870 lines. **`#[test]` 426**; Go `func Test` 264; Swift/Kotlin Conformance
-    19 each; uniffi 28 `#[test]`; Ruby `test_array_args.rb` 16.
+    19 each; uniffi 28 `#[test]`; Ruby `test_array_args.rb` 16; .NET `NulInputTests` 9.
 - **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step must regen `iscc.h` +
     `NativeMethods.g.cs` in-step.
-- **Python heredoc**: plain `uv run --active python - << 'EOF'` works (cid sets a VIRTUAL_ENV).
+- **Python heredoc**: plain `uv run python - << 'EOF'` works (cid sets a VIRTUAL_ENV).
 
 ## Durable Facts (carried, not per-iteration)
 
