@@ -22,21 +22,25 @@ how-to guides document `encode_seq`/`decode_seq`. Docs-only, no behaviour change
 casing), applied across the doc surfaces below. All files are docs, notes, or comments, so they sit
 outside the 3-file code budget.
 
-- **Modify (count 33 → 35):** `crates/iscc-lib/CLAUDE.md:31`, `crates/iscc-wasm/CLAUDE.md:142`,
+- **Modify (count 33 → 35):** `crates/iscc-lib/CLAUDE.md:31` and `crates/iscc-wasm/CLAUDE.md:142`
+    (both head symbol lists, so add `encode_seq`/`decode_seq` to the list too),
     `docs/java-api.md:8`, `docs/ruby-api.md:9`, `notes/00-overview.md:153`,
     `notes/04-api-compatibility-safety.md:21` (also extend its per-category breakdown: 5 codec
     operations), `.claude/agents/advance.md:142`, and the module doc at
-    `crates/iscc-uniffi/src/lib.rs:3` (a comment-only edit).
+    `crates/iscc-uniffi/src/lib.rs:3`. That last edit is comment-only: the generated Swift/Kotlin
+    bindings do not carry it, so no regen.
 - **Modify (seq API entries):** `docs/rust-api.md` (Codec Functions, ~L396), `docs/java-api.md`
     (Codec, ~L410), `docs/ruby-api.md` (Encoding & Codec, ~L440), `docs/c-ffi-api.md` (Codec
     Operations, after `iscc_decompose`).
 - **Modify (seq howto example, in each page's codec section):** all 11 pages in `docs/howto/`.
 - **Modify (agent/registry docs, one line each where codec ops are already listed):**
-    `crates/iscc-napi/CLAUDE.md:11` (3 → 5 codec functions), the READMEs that already list codec ops
-    (`crates/iscc-rb`, `packages/{cpp,dotnet,go,kotlin}`), and the stale non-33 counts:
-    `crates/iscc-py/CLAUDE.md:28` (27 pyfunctions), `packages/go/CLAUDE.md:30,116`,
-    `packages/dotnet/CLAUDE.md:37,94`, `packages/{swift,kotlin}/CLAUDE.md:29`, and the
-    `crates/iscc-rb/CLAUDE.md` Key Files table (add `test_iscc_id.rb`, `test_seq.rb`).
+    `crates/iscc-ffi/CLAUDE.md:65`, `crates/iscc-jni/CLAUDE.md`, `packages/cpp/CLAUDE.md`, and the
+    READMEs that already list codec ops (`crates/iscc-rb`, `packages/{cpp,dotnet,go,kotlin}`).
+    **Stale counts (re-derive each from source):** `crates/iscc-napi/CLAUDE.md:11` (codec function
+    count), `crates/iscc-py/CLAUDE.md:28` (27 pyfunctions), `packages/go/CLAUDE.md:30,116`,
+    `packages/dotnet/CLAUDE.md:37,94`, `packages/{swift,kotlin}/CLAUDE.md:29,57` (test methods are
+    now 19), and the `crates/iscc-rb/CLAUDE.md` Key Files table (add `test_iscc_id.rb`,
+    `test_seq.rb`).
 - **Reference:** `docs/howto/go.md:393-417` (IDv1 subsection, template for a codec subsection);
     `crates/iscc-lib/tests/data.json` sections `encode_seq`/`decode_seq`.
 
@@ -50,6 +54,7 @@ outside the 3-file code budget.
 - Any source/signature/test change beyond the uniffi module-doc comment. No new docs page: that
     would require four-place nav parity.
 - `target.md`, `specs/`, `learnings.md`, `state.md`, archives. Leave them alone.
+- READMEs that list only gen functions (e.g. `crates/iscc-jni`, `packages/swift`) need no seq line.
 
 ## Implementation Notes
 
@@ -93,7 +98,7 @@ Real signatures (from source, not memory). Copy them exactly:
     ```
 - Every page documents seq. This command prints no filenames:
     ```
-    grep -LiE "encode_?seq" docs/howto/*.md docs/rust-api.md docs/java-api.md docs/ruby-api.md docs/c-ffi-api.md
+    grep -LiE "encode_?seq" docs/howto/*.md docs/rust-api.md docs/java-api.md docs/ruby-api.md docs/c-ffi-api.md crates/iscc-{lib,wasm,ffi,jni}/CLAUDE.md packages/cpp/CLAUDE.md crates/iscc-rb/README.md packages/{cpp,dotnet,go,kotlin}/README.md
     ```
 - Every seq signature in the docs matches the Implementation Notes table. This is a manual review,
     with no fabricated return types.
