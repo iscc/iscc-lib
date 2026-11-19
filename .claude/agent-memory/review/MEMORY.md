@@ -65,6 +65,8 @@ removed-feature history in `archive/`. Stale → `MEMORY-archive.md`.
 - **No-op / human-handoff iteration** (111/173): verdict PASS; `low`-only + human spec work or an
     upstream-gated `normal` → HUMAN REVIEW REQUESTED, never `**IDLE**` → `review-patterns.md`
 - **Unicode freeze rule REMOVED 2026-07-30** — reintroducing any freeze mechanism = NEEDS_WORK
+- **`git push` failing "index.lock: File exists" while prek stashes is a WSL2 race, NOT a hook
+    rejection** (207): no check ran — confirm no 2nd loop in `ps aux`, then retry once
 - **"files were modified by this hook" often means SOMETHING ELSE WAS WRITING** (97/164): a second
     CID loop (confirm `ps aux` → HUMAN REVIEW REQUESTED, do not push or kill), or my own Edits
     landing while a backgrounded prek run held its snapshot. Never edit while prek runs

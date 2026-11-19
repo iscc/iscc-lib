@@ -24,8 +24,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     (204). **C-string marshalling truncates at an embedded NUL** (206/207): .NET keeps the `\0` and
     C++ passes `c_str()`, the FFI's `CStr` stops there, so `gen_text_code_v0("Hello\0World")` gives
     `"Hello"`'s code on BOTH. C++ `encode_seq` guards NUL, .NET `EncodeSeq` does not — probe
-    `x + "\0junk"` on every string input of a binding over the C FFI (JNI/Ruby/UniFFI bind the core
-    directly)
+    `x + "\0junk"` on every string input; JNI/Ruby/UniFFI skip the C FFI, but that is unprobed
 - **Binding fan-out traps (IDv1 177-190, detail → `learnings-archive.md`)**: a surface with its OWN
     enum (Python `VS`) can break a round trip the core allows; wide-int bindings check semantic
     thresholds in the binding before narrowing. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked
