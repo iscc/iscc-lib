@@ -1,6 +1,6 @@
 # Advance Agent Memory
 
-Detail lives in topic files: [ci-gates.md](ci-gates.md),
+Detail lives in topic files: [ci-gates.md](ci-gates.md), UniFFI/Swift/Kotlin (Gradle+JNA):
 [uniffi-swift-kotlin.md](uniffi-swift-kotlin.md), [deps-refresh.md](deps-refresh.md),
 [wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md), [release-gate.md](release-gate.md), Archived
 phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `archive/`.
@@ -137,7 +137,4 @@ phases: [MEMORY-archive.md](MEMORY-archive.md); removed-feature history in `arch
 - .NET `packages/dotnet/` (P/Invoke over `iscc_ffi`, `dotnet-version: 8.0`); C++ `packages/cpp/`
     (header-only C++17, CMake + ASAN; no system cmake but `uv run --with cmake` works — build into
     gitignored `build-uv/`). Detail → MEMORY-archive.md
-- Embedded NUL (213): .NET `ToNativeUtf8` + C++ `detail::checked_c_str` throw before marshalling (C
-    ABI stays NUL-terminated). Any new C++ `std::string` input MUST go through `checked_c_str`.
-    Quick pre-fix probe: g++ the test file against `git show HEAD:…/iscc.hpp` in `/tmp`
-- UniFFI scaffolding, Swift package, Kotlin/JVM (Gradle + JNA) → uniffi-swift-kotlin.md
+- Embedded NUL (213): .NET `ToNativeUtf8` / C++ `detail::checked_c_str` throw; route new inputs

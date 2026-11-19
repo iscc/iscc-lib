@@ -8,7 +8,7 @@ howto pages now document the restriction.
 
 **Files changed:**
 
-- `packages/cpp/include/iscc/iscc.hpp`: added `detail::checked_c_str`. 17 call sites route through
+- `packages/cpp/include/iscc/iscc.hpp`: added `detail::checked_c_str`. 15 call sites route through
     it: text_clean/remove_newlines/trim/collapse, json_to_data_url, iscc_decode, iscc_decompose,
     sliding_window, gen_meta_code_v0 (name + optional description/meta), gen_text_code_v0, the
     gen_mixed/gen_iscc element loops, and the gen_sum_code_v0 path
