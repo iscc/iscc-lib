@@ -111,3 +111,10 @@ re-export, conformance.rs (seq sections), new `tests/test_seq.rs`.
     test files pass with `env -u LANG -u LC_ALL`. Core errors → `RuntimeError`, marshalling →
     `TypeError`. CI Ruby job runs `standardrb` → make it a criterion for any new `.rb` test. Next:
     UniFFI (Swift+Kotlin, hard-coded counts), then the 33→35 doc sweep (incl. JNI docs).
+- **210 = UniFFI seq** (lib.rs only; 3 regenerated artifacts outside budget per `3c31f89`; 2 harness
+    test files). Harness traps: Swift `decodeStream` drops 7 chars (`bytes:` is 6 → eats a hex
+    digit), Kotlin `removePrefix("stream:")`; seq `outputs` non-object; Kotlin ByteArray needs
+    `assertArrayEquals`. NUL probe expected to reject (length-delimited RustBuffer). Swift toolchain
+    must be re-fetched (`/tmp/swifttc` does not persist). Runner-up: Magnus `Vec<T>` fix. Next: the
+    33→35 doc sweep (Ruby, JNI, C++, .NET, Go, napi, wasm, py CLAUDE/README/docs pages), then the
+    small `normal` issues.
