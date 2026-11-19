@@ -46,3 +46,14 @@ commit `ea69169`).
     `build.gradle.kts` has no `testLogging` → assert on JUnit XML, never exit code. Swift
     `Package.swift` test target lists resources explicitly (`.copy`) — a vendored copy needs a line
     there. Next: G3 C/C++ (generator from `ea69169`).
+- 219 = G3 C+C++: ONE generated header `crates/iscc-ffi/tests/data_edge_vectors.h` (C99 + C++17,
+    positional init) from `scripts/gen_data_edge_vectors.py` (adapted from `ea69169`); strings carry
+    explicit length (NUL vectors; C++ `checked_c_str` must see them); generator resolves `except`
+    per row for `c`/`cpp` and fails closed on unknown sections (pytest pins it). C++ test target
+    gets the include dir PRIVATE. Probed: C FFI gen_text returns only the iscc string (no
+    `characters`); C++ gen results are `{iscc}` structs; C++ gen wrappers use `ptrs.data()` (NULL on
+    empty) vs `encode_seq`'s `safe_data` — left out of scope. `release.yml:784` also compiles
+    `test_iscc.c` from a checkout, so a quote-include next to it needs no workflow edit. Trap:
+    `test_iscc.cpp` comments already say `data.json … test_0001_…` → a "no vector named" grep must
+    use data-edge slugs, not `test_0NNN`. After 219: published-artifact-absence (Go/Swift reading is
+    `low`, human).

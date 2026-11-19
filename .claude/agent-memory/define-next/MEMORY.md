@@ -17,8 +17,9 @@ files; 212 = Ruby `RArray` fix + json bump; 213 = .NET+C++ embedded-NUL rejectio
 badge-markdown description — npm derives it from the README when missing; probe sibling packages for
 a defect class); 215 = data-edge.json seed + Rust/Python harnesses (NEEDS_WORK: CRAP); 216 = harness
 repair; 217 = data-edge fan-out G1 (6 surfaces; container crash after Go+Node → restart re-scoped
-the other 4 with Go/Node criteria carried over); 218 = G2 Swift+Kotlin + Ruby key fix, see
-[data-edge phase](data-edge-phase.md); Ruby Bignum/napi/JNI/ffi-split now `low` (human) — skip).
+the other 4 with Go/Node criteria carried over); 218 = G2 Swift+Kotlin + Ruby key fix; 219 = G3
+C+C++ generated header, see [data-edge phase](data-edge-phase.md); Ruby Bignum/napi/JNI/ffi-split
+now `low` (human) — skip).
 
 ## Scope Calibration Principles
 
