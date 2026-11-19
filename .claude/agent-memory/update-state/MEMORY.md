@@ -84,23 +84,21 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: b324a0c, iter 214 — incremental)
+## Current State (assessed-at: 8908dd3, iter 215 — incremental)
 
-- **CI GREEN on `f2b068f`** (pushed tip; HEAD `b324a0c` = cid(log), `.claude`-only diff), 21/21;
-    codecov/cursor suites sit `queued` = noise. Use `git ls-remote origin develop` for the real tip.
-- **ISCC-SEQ bound + DOCUMENTED on all 11 surfaces; 33→35 sweep DONE (211)** — do NOT re-flag. Only
-    v0.8.0 blocker: the **9 `normal` issues** (16 headers, 7 low).
-- **.NET + C++ embedded-NUL rejection DONE (213)**: .NET `ToNativeUtf8` (sole `UTF8.GetBytes`), C++
-    `detail::checked_c_str` (only other `c_str()` = `encode_seq` L384 after guard). No gate stops a
-    future bypass (untracked). C++ now has no `normal` issue.
-- **Ruby Magnus segfault FIXED (212)**; Dependabot alert #1 stays OPEN until develop→main merge.
-    Open `normal`: Ruby negative-Bignum `i32` truncation.
-- `encode_seq` strictness + multibase-ambiguous bare-unit reading = decisions.md rulings — do NOT
-    re-flag. Go `TextClean` `TrimSpace` intentional. `-Xcheck:jni` via `-DargLine` is a NO-OP.
-- FFI 51 externs, lib.rs 2870 lines. **`#[test]` 426**; Go `func Test` 264; Swift/Kotlin Conformance
-    19 each; uniffi 28 `#[test]`; Ruby `test_array_args.rb` 16; .NET `NulInputTests` 9.
-- **IDv1 (#43) fully closed — do NOT re-flag.** dotnet: any FFI-symbol step must regen `iscc.h` +
-    `NativeMethods.g.cs` in-step.
+- **CI GREEN on pushed tip `6c619db`** (21/21). HEAD `8908dd3` has 4 unpushed commits; non-.claude
+    diff = `tools/cid.py`, `tests/test_cid.py`, `CLAUDE.md` only (loop tooling) — report as gap.
+- **NEW v0.8.0 criterion (human 5c982e5, 2026-11-19): `data-edge.json`** — spec
+    `specs/edge-vectors.md`. NOT STARTED at 215 (no file, no harness; `STRICT_BASE32_DIVERGENCES`
+    still in `tests/test_seq.py`). Check `git ls-files | grep data-edge` each iteration; per-surface
+    harness = the main v0.8.0 gap now, so every binding section is "partially met".
+- **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
+    defects; napi Buffer, JNI exception, Ruby Bignum, ffi split LOWERED to `low`. 18 open: 6 normal,
+    12 low. `wasm-bindings.md` package.json drift still present (L28, L165).
+- **ISCC-SEQ done on all 11 surfaces (211); .NET+C++ NUL rejection done (213); npm license +
+    description done (214)** — do NOT re-flag. Go `TextClean` `TrimSpace` intentional.
+- FFI 51 externs, lib.rs 2870 lines. `#[test]` 426; Go `func Test` 264; Swift/Kotlin Conformance 19
+    each; uniffi 28 `#[test]`.
 - **Python heredoc**: plain `uv run python - << 'EOF'` works (cid sets a VIRTUAL_ENV).
 
 ## Durable Facts (carried, not per-iteration)
