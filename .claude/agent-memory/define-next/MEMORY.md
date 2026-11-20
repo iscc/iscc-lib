@@ -28,12 +28,17 @@ issue named 1 file; a backticked-path existence loop over `specs/*.md` found go 
 `go-api.md`, `nodejs-api.md` too — the loop is a reusable probe); 224 =
 `scripts/check_spec_paths.py` (trees + backticked paths vs `git ls-files` — NOT disk: untracked
 napi/wasm build output made a disk probe falsely green; `GENERATED`/`NOT_PATHS` dicts, no in-spec
-marker; phantom tree lines often have prose twins — grep basenames outside the tree); next: Tier 1
-parity check (probe which pages enumerate Tier 1); setuptools bump resolves to 84.2.1 via
-`uv lock --upgrade-package setuptools` (dry-run 223); Ruby Bignum/napi/JNI/ ffi-split now `low`
-(human) — skip). **Dependabot soupsieve is human-blocked**: 3.0.2/4.x need Python >=3.11.5 but
-`uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a Maven/portal probe proves nothing:
-`curl -sL` to follow it (220: Kotlin red was a portal outage).
+marker; phantom tree lines often have prose twins — grep basenames outside the tree); 225 =
+`alg_simhash([])` rejects in core + Go (behaviour files: simhash.rs + 4 Go; pass-through bindings
+need only their zero-pinning tests flipped + comment-only docs — NOT a fan-out; CRAP baseline regen
+for the new branch). Next in chain: `alg_simhash` data-edge section (fan-out, `bytes:<hex>` inputs,
+new section = handler on all 12) + 5 C++ `safe_data` wrappers. Trap: the issue says C/C++ fail
+`alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits `num_digests == 0` to
+the core — re-probe before restating. Still open: gate leniency, Tier 1 parity check; setuptools
+bump resolves to 84.2.1 via `uv lock --upgrade-package setuptools` (dry-run 223); Ruby
+Bignum/napi/JNI/ ffi-split now `low` (human) — skip). **Dependabot soupsieve is human-blocked**:
+3.0.2/4.x need Python >=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a
+Maven/portal probe proves nothing: `curl -sL` to follow it (220: Kotlin red was a portal outage).
 
 ## Scope Calibration Principles
 
