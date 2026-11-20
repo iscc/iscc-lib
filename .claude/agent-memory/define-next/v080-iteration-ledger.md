@@ -87,4 +87,11 @@ then drift-issue gate holes. A 303 from a Maven/portal probe proves nothing: `cu
 `ruby-versions` — a version range in docs is a derived fact, so it ships with a parity test).
 Wording branch only; never claim 3.4/4.0 support (source build unmeasured). Next: drift-issue gate
 holes (fail-closed lib.rs parser + register rust.md/c-cpp.md/rust-api.md/architecture.md), then part
-3 count sweep.
+3 count sweep. 239 = Ruby source gem made buildable (issue branch 1, NOT "drop the source gem":
+`ruby-bindings.md` L164/L323 mandate a source gem, so dropping it amends a spec criterion → Titusz).
+Facts: crates.io core can't work (HEAD uses `encode_seq`, absent in 0.7.0) → carry the core in the
+gem via a staging script (`cargo package -p iscc-lib` normalizes its manifest; `conformance.rs`
+needs `tests/data.json`); cross-gem greps `^    rb_sys \(` (4 spaces) so a gemspec rb_sys dep
+(6-space PATH line) is safe; rb_sys 0.9.130 needs Ruby >=2.7; `--local` install fails once rb_sys is
+a dep; never name the carried dir `vendor/`/`tmp/` (gitignored, swept into platform gems). Next:
+drift gate holes, then part 3 count sweep.

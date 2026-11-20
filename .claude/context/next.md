@@ -1,105 +1,110 @@
 # Next Work Package
 
-## Step: Fix the Java how-to `genSumCodeV0` example and state the precompiled Ruby gem range
+## Step: Make the Ruby source gem buildable and install-check it in CI
 
 ## Goal
 
-Closes two `normal` v0.8.0 blockers in one docs step: "Java how-to `genSumCodeV0` example does not
-compile" and "Precompiled Ruby gems stop at Ruby 3.3". For Ruby this takes the **wording branch**:
-the docs say which Ruby series get a precompiled gem. It does not widen the `release.yml` matrix, so
-Ruby 3.4 / 4.0 users still build from source; the review should state this in the handoff for
-Titusz.
+Resolve the `normal` issue "The Ruby source gem cannot be built" through its first branch: a
+standalone source gem that carries the core, built by one staging command that both workflows use.
+CI installs it into a clean gem home outside the workspace on a Ruby with no precompiled gem.
+`ruby-bindings.md` requires a source gem that compiles where no precompiled gem exists, so this
+restores a spec criterion and needs no human decision.
 
 ## Alternatives Considered
 
-- **Chosen:** Java example + Ruby gem range wording. Both are user-facing defects in published docs,
-    small, and locally verifiable. The handoff points here.
-- **Rejected:** the drift issue's gate holes (fail-closed `lib.rs` parser, register the 4
-    sub-threshold docs). The work is larger, it is tooling, and it blocks nothing a reader sees. It
-    is next.
-- **Rejected:** widening the cross-gem `ruby-versions` list. The change would need the rb_sys pin
-    and the Docker image tag to move together, and `release.yml` never runs in CI, so the only
-    evidence would be static.
+- **Chosen:** buildable, CI-checked source gem. It is user-facing (Ruby 3.4/4.0 installs fail
+    today), the Ruby docs on `develop` state a false fallback, and the spec mandates the fallback.
+- **Rejected:** stop publishing the source gem and reword the docs. Cheaper, but it removes
+    `ruby-bindings.md` lines 164 and 323 (a source gem compiles where no precompiled gem exists).
+    Dropping an acceptance criterion is Titusz's call. The realignment decision of 2026-11-20 covers
+    renaming a mechanism, not dropping a capability.
+- **Runner-up (next step):** the drift issue's gate holes (fail-closed `lib.rs` parser, register the
+    4 sub-threshold docs). Autonomous, but it fixes no user-facing defect.
 
 ## Scope
 
-- **Create**: `tests/test_ruby_gem_docs.py` (a parity test, outside the file budget)
-- **Modify**: `docs/howto/java.md`, `docs/howto/ruby.md`, `crates/iscc-rb/README.md`
-- **Reference**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (line 161),
-    `.../SumCodeResult.java` (`public final` fields `iscc`, `datahash`, `filesize`, `units`),
-    `docs/java-api.md` (around line 337, the correct form), `.github/workflows/release.yml` (the
-    cross-gem step, `ruby-versions: 3.1, 3.2, 3.3`, around line 850), `tests/test_check_docs_nav.py`
-    (style for a repo-reading pytest)
+- **Create**: `scripts/build_ruby_source_gem.py` (PEP 723, `uv run --script`),
+    `tests/test_build_ruby_source_gem.py`
+- **Modify**: `crates/iscc-rb/iscc-lib.gemspec`, `.github/workflows/ci.yml`,
+    `.github/workflows/release.yml`, `crates/iscc-rb/Gemfile.lock` (regenerated),
+    `docs/howto/ruby.md`, `crates/iscc-rb/README.md`, `crates/iscc-rb/CLAUDE.md` (Publishing)
+- **Reference**: `.claude/context/specs/ruby-bindings.md` (lines ~150-165, 310-330),
+    `crates/iscc-rb/{Cargo.toml,extconf.rb,Rakefile,Gemfile}`, `crates/iscc-lib/Cargo.toml`, root
+    `Cargo.toml`, issues.md entry, `release.yml` jobs `build-gem` / `publish-rubygems`
 
 ## Not In Scope
 
-- Any edit to `release.yml`, `Gemfile.lock`, the rb_sys pin or the gemspec `required_ruby_version`.
-    That is the matrix branch of the Ruby issue
-- `crates/iscc-rb/CLAUDE.md`'s "5 platforms" count, and other hand-written counts. They belong to
-    part 3 of the drift issue
-- Other Java how-to sections, `docs/java-api.md`, Kotlin and Swift how-tos. A grep found the
-    accessor-call error only at `docs/howto/java.md` lines 205–207
-- Deleting either issue from issues.md. The review does that
+- Widening the cross-gem `ruby-versions` list or bumping the `rb_sys` 0.9.123 pin or image tag
+- Yanking or re-publishing the broken 0.6.0/0.7.0 source gems: that is a registry action for Titusz
+- Editing `ruby-bindings.md` or any Rust source
+- Changing the `test-gem` smoke job or the precompiled-gem build
+- The derived-fact drift issue
 
 ## Implementation Notes
 
-**Java** (`docs/howto/java.md`, the "single pass" block, around line 204): call
-`IsccLib.genSumCodeV0("example.bin", 64, false, false)`, which takes 4 arguments: path, bits, wide,
-addUnits. Read the fields directly: `result.iscc`, `result.datahash`, `result.filesize`. You may add
-a second call with `addUnits = true` that prints `result.units`, as `docs/java-api.md` does, but it
-is optional.
+Measured or read while scoping:
 
-To prove the example compiles:
+- HEAD's binding uses `encode_seq`, which crates.io `iscc-lib` 0.7.0 lacks. So the gem must **carry
+    the core source**. A crates.io dependency cannot pass a CI check on `develop`.
+- `conformance.rs` has a non-test `include_str!("../tests/data.json")`, so the carried core needs
+    `tests/data.json`. `cargo package -p iscc-lib --list --allow-dirty` works and lists it.
+- Both `crates/iscc-rb/Cargo.toml` and `crates/iscc-lib/Cargo.toml` inherit workspace keys, so the
+    gem needs a standalone manifest for each.
+- `cross-gem` reads the rb_sys version with `grep -E '^    rb_sys \(' Gemfile.lock | head -n 1`
+    (exactly 4 spaces). A gemspec dependency adds `      rb_sys (~> …)` under PATH with 6 spaces,
+    which that grep does not match. Re-check after regenerating the lock.
+- Latest rb_sys (0.9.130) requires Ruby `>= 2.7`. The gemspec constraint must be a loose
+    `~> 0.9`-style range, never `= 0.9.123`. The Gemfile pin must still resolve.
 
-1. Run `mvn -f crates/iscc-jni/java/pom.xml compile`.
-2. Wrap the block verbatim in a `main` method of a class in a scratch dir under `/tmp`, with
-    `import io.iscc.iscc_lib.*;` and `throws Exception`.
-3. Compile it with `javac -cp crates/iscc-jni/java/target/classes`.
+Hypotheses for advance to confirm or replace:
 
-Running it is optional, because it needs the native library.
+- The staging script copies the gem files into a fresh directory outside the repo (or under
+    `target/`). It writes the iscc-rb manifest standalone: concrete version, edition and
+    rust-version, the magnus requirement read from `cargo metadata`, the core as
+    `path = "<in-gem dir>"`, and an empty `[workspace]` table so cargo never walks up into an
+    enclosing workspace. It drops in the core from the extracted
+    `cargo package -p iscc-lib   --no-verify` crate, whose manifest is already normalized. Then it
+    runs `gem build` there and writes the `.gem` to `--out DIR`. Keep the rendering in small pure
+    functions, unit-tested without Rust.
+- Do **not** name the carried-core directory `vendor/` or `tmp/`. Both are gitignored Bundler and
+    rake dirs in `crates/iscc-rb`, and a gemspec glob over them would sweep junk into the platform
+    gems that `cross-gem` builds from the repo dir.
+- Platform gems built by rake-compiler will likely inherit the `rb_sys` runtime dependency. Other
+    Rust gems (wasmtime) accept that. Leave it unless it breaks the `test-gem` install.
+- The workspace `[profile.release]` does not carry over. rb_sys picks its own profile, which is
+    fine.
+- The ci.yml job runs the script and then installs with network access (rb_sys and crates.io).
+    Running `gem install --local` in a clean `GEM_HOME` fails once rb_sys is a dependency. Use a
+    Ruby series outside the cross-gem list (`3.4`) so the job proves the fallback the docs promise.
+    It needs Rust + `libclang-dev`, and runs from a cwd outside the checkout.
+- In `release.yml`, `publish-rubygems` replaces the bare `gem build` with the script. It needs a
+    Rust toolchain and uv on that runner. The push loop must push the staged gem.
+    `scripts/check_release_workflow.py` must stay green.
+- Docs: both Ruby docs list exactly what the CI install needed (Rust toolchain, `libclang-dev`, Ruby
+    headers, network access for rb_sys and crates.io). Do not claim Ruby 4.0 unless CI tests it.
 
-**Ruby wording.** State only measured facts:
-
-- precompiled platform gems are built for the Ruby series in the cross-gem list (3.1 to 3.3)
-- on a newer Ruby, or on a platform with no precompiled gem, `gem install iscc-lib` compiles the
-    extension from source, which needs a Rust toolchain and `libclang-dev`
-
-Do **not** write that the gem "works on" or "supports" Ruby 3.4 / 4.0: nothing has measured the
-source build there. Use the literal form `Ruby 3.1 to 3.3` in both files, so the test can match it.
-Put it in `docs/howto/ruby.md`: in the intro sentence at line 9 and/or the "Build from source" note
-at line 30. Put it in `crates/iscc-rb/README.md` at lines 31–32.
-
-**Parity test** (`tests/test_ruby_gem_docs.py`; functions only, no test classes). It turns the range
-into a checked derived fact:
-
-- Load `release.yml` with `yaml.safe_load` (pyyaml is a dev dep). Find the step whose `uses` starts
-    with `oxidize-rb/actions/cross-gem` and read `with["ruby-versions"]`. It may be a string or a
-    float, so normalise it with `str()`, then split on commas. Fail if fewer than 1 series parses,
-    or if no such step is found.
-- Derive `Ruby {min} to {max}` from the series, sorted as version tuples. Check
-    whitespace-normalised text (mdformat reflows at 100 columns, so collapse `\s+` to one space) and
-    assert both docs contain the phrase.
-- Keep the derivation and matching in small helpers. Add a fire case: a doc text that names a
-    different range (e.g. `Ruby 3.1 to 3.4`) must fail the matching helper, and a helper call on a
-    workflow dict with no cross-gem step must raise.
-
-This is a docs + tests step: no binding or core source changes, so the CRAP, iai and semver gates
-are unaffected.
+No core or binding source changes, so the CRAP, iai and semver gates are unaffected. The container
+has Ruby 3.1.2, which is enough for the local install check. Export `LANG=C.UTF-8` for Ruby runs.
 
 ## Verification
 
-- The fixed Java block, wrapped in a class, compiles:
-    `javac -cp crates/iscc-jni/java/target/classes` exits 0 after
-    `mvn -f crates/iscc-jni/java/pom.xml compile`
-- `grep -nE "result\.(iscc|datahash|filesize|units)\(\)" docs/howto/java.md` prints nothing, and the
-    howto's `genSumCodeV0(` calls each pass 4 arguments
-- `uv run pytest tests/test_ruby_gem_docs.py` passes, including the fire cases
-- `docs/howto/ruby.md` and `crates/iscc-rb/README.md` both say a newer Ruby builds from source and
-    needs Rust and `libclang-dev`. Neither claims Ruby 3.4 / 4.0 support
-- `uv run zensical build` exits 0
-- `mise run check` exits 0
+- `uv run --script scripts/build_ruby_source_gem.py --out /tmp/rbgem` exits 0 and writes exactly one
+    `iscc-lib-<workspace version>.gem`. After `gem unpack` of it,
+    `grep -rnE 'workspace *= *true|path *= *"\.\./' --include=Cargo.toml <unpacked>` prints nothing
+- From `/tmp` with `LANG=C.UTF-8` and a fresh empty `GEM_HOME`/`GEM_PATH`,
+    `gem install /tmp/rbgem/iscc-lib-*.gem --no-document` exits 0. Then
+    `ruby -e 'require "iscc_lib"; exit(IsccLib.conformance_selftest ? 0 : 1)'` exits 0 with the same
+    env
+- In `crates/iscc-rb`, `bundle install && bundle exec rake compile test` passes, and
+    `grep -E '^    rb_sys \(' Gemfile.lock | head -n 1` names `0.9.123`
+- `uv run pytest tests/test_build_ruby_source_gem.py tests/test_ruby_gem_docs.py` passes. The tests
+    cover manifest rendering, assert that `ci.yml` and `release.yml` both invoke the script, and
+    assert that no workflow runs a bare `gem build iscc-lib.gemspec`
+- `mise run check` exits 0 and `uv run zensical build` exits 0
+- Both Ruby docs name every prerequisite the ci.yml source-gem job installs, and no longer
+    contradict a working source build (manual check)
 
 ## Done When
 
-The advance agent is done when the Java example compiles against the real classes, both Ruby docs
-state the range that `release.yml` builds and a test pins it, and every check above passes.
+The staged source gem builds, installs into a clean gem home outside the workspace and passes
+`conformance_selftest`. Both workflows build it the same way, and all criteria above pass.

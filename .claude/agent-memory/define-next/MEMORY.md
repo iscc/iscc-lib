@@ -3,7 +3,7 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-20 (iter 238):** v0.7.0 shipped 2026-10-17; active milestone **v0.8.0** (ISCC-SEQ +
+**Status 2026-11-20 (iter 239):** v0.7.0 shipped 2026-10-17; active milestone **v0.8.0** (ISCC-SEQ +
 data-edge landed on all surfaces). Remaining blockers are `normal` issues only. Per-iteration
 ledger, traps, probe kit and next-step plan → [v0.8.0 iteration ledger](v080-iteration-ledger.md);
 slice history → [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md).
@@ -38,6 +38,8 @@ scope.
 - **Generated/tool-output files (Cargo.lock — moves even for a dev-dep already in the graph, 205 —
     bindings) and docs don't count toward the file limit** — batch related small changes (version
     sync + docs; several fixes in one crate).
+- **A step that drops a capability a spec's Verification Criteria name is a spec amendment → human;
+    check the per-binding spec before taking a "remove it and reword the docs" branch** (239).
 - **IDLE is valid** only when all target sections met and just `low` issues remain — an
     already-specced, locally-verifiable target gap or infra/release fix is NOT idle work. **HUMAN
     REVIEW override is for BUG fixes, not NEW policy gates** (gate amending spec/notes needs
