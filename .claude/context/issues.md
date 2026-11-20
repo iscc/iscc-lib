@@ -196,35 +196,41 @@ a negative test on each surface proves it.
 
 **Spec:** `.claude/context/specs/edge-vectors.md` → "Rules" → "Every surface runs every vector"
 
-## Dependencies and language runtimes are not checked for security releases before v0.8.0 `normal` [human]
+## Precompiled Ruby gems stop at Ruby 3.3 `normal` [review]
 
-Many upstream security releases have shipped recently, and nothing guarantees v0.8.0 picks them up.
-`target.md` → "Third-party dependencies are fresh" fails only on a *major-version* lag, so a pin one
-patch behind a security fix passes it; the "are secure" criterion is not verified yet. `cargo deny`
-gates RustSec in CI, but no other ecosystem has an advisory gate, and Dependabot alerts cover only
-`main` (the open `soupsieve`, `setuptools` and `json` alerts are already fixed on `develop`).
+`release.yml` → the cross-gem step builds with `ruby-versions: 3.1, 3.2, 3.3`, so every published
+platform gem declares `required_ruby_version >= 3.1, < 3.4.dev` (rubygems.org, 0.6.0 and 0.7.0). On
+Ruby 3.4 and 4.0 `gem install iscc-lib` therefore falls back to the source gem, which needs a Rust
+toolchain and `libclang-dev`, and fails without them. `docs/howto/ruby.md` and
+`crates/iscc-rb/README.md` promise precompiled gems "for common platforms" and name only a missing
+*platform* as the reason for a source build. Of the three series, 3.1 and 3.2 are past end of life.
 
-Scope is the manifest table in `ci-cd.md` → "Dependency Freshness", plus two surfaces it misses:
+The list is tied to the rb_sys pin. The comments in `release.yml` say the `0.9.123` cross-gem image
+carries rbconfigs for 3.1, 3.2 and 3.3 and that the `0.9.124` image breaks `RbSys::ExtensionTask`
+(`ci-cd.md` → "Known pinning constraints"). `release.yml` never runs in CI, so a change there has
+static evidence only. Whether the source build works on Ruby 3.4 / 4.0 is unmeasured.
 
-- **Language runtimes in CI** (`node-version`, `python-version`, `java-version`, `dotnet-version`,
-    `ruby-version`, Go and Swift toolchains in `.github/workflows/`) and in
-    `.devcontainer/Dockerfile` (`node:22-bookworm`, `GO_VERSION`). `ci.yml` still builds napi on
-    Node 20, which reached end of life in April 2026
-- **The table's "`mise.toml` tool pins" row is stale**: `mise.toml` has no `[tools]` section
+Resolved when either the cross-gem list covers Ruby 3.4 (and 4.0 if rb_sys supports it) with
+`rb_sys` in `Gemfile.lock` and the image tag moved together, or the Ruby how-to and README state
+which Ruby versions get a precompiled gem and that newer ones build from source.
 
-Supported-version *floors* (abi3-py310, Java 17, .NET 8, Ruby 3.1, Rust MSRV 1.85) are compatibility
-promises, not freshness items. Do not raise one; escalate it to the human if a runtime below it is
-end-of-life or a dependency fix requires a higher floor.
+## Three supported-version floors are past end of life `low` [review]
 
-Resolved when, on `develop`:
+**Triage:** untriaged — a decision for Titusz: CI tests these surfaces only on runtimes that no
+longer get security fixes, and the packages promise to support them. CID must not raise a floor.
 
-- every dependency whose pinned version has a published security advisory is bumped to a fixed
-    release (or held back with a documented reason next to the pin), shown by each ecosystem's
-    advisory check (`cargo deny`, `uv`/`pip-audit`, `npm audit`, `bundle audit`, `govulncheck`,
-    `dotnet list package --vulnerable`, the Maven/Gradle equivalent) reporting nothing unhandled
-- every CI and devcontainer runtime version that only runs tests (not a floor) is on a supported
-    release, and floors are listed with their end-of-life dates for the human
-- all CI gates are green on the refreshed set
+End-of-life dates from endoflife.date, read 2026-11-20:
 
-**Spec:** `target.md` → "Third-party dependencies are secure"; `ci-cd.md` → "Dependency Freshness"
-(missing runtime surface, stale `mise.toml` row)
+- **Python 3.10** (abi3-py310; `python-version: '3.10'` in `ci.yml` and `release.yml`): 2026-10-01
+- **.NET 8** (`dotnet-version: '8.0'`, devcontainer `--channel 8.0`): 2026-11-10
+- **Ruby 3.1** (gemspec `>= 3.1.0`, CI `ruby-version: '3.1'`, devcontainer apt `ruby`): 2025-03-26.
+    Ruby 3.2 in the cross-gem list: 2026-03-31
+
+Not end-of-life: Java 17, MSRV 1.85, the Go `go 1.26.1` directive (CI tests on the `toolchain`
+line). Raising the Python floor changes the abi3 tag of the wheel; raising .NET or Ruby changes the
+target framework or the gemspec.
+
+Resolved when each of the three floors is either raised by the human or kept on purpose (a
+decisions.md entry), and CI tests on a supported runtime wherever the floor moved.
+
+**Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness" → Policy

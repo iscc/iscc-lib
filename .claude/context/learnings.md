@@ -10,11 +10,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     uniffi), each depending only on the core. Tier 1 = 35 symbols `pub use`d at crate root (IDv1
     177, `encode_seq`/`decode_seq` 195); Tier 2 is `pub(crate)`, never crosses FFI. `packages/go` is
     NOT a binding — a pure-Go reimplementation
-- **ISCC-SEQ core (195)**: bound on all 11 surfaces (210) and documented everywhere (211);
-    `read_unit`/`SEQ_MAINTYPES` Tier 2 on private raw-`u32` header helpers — never the typed
-    `decode_header` path (Go `uint8` truncates SubType 4679 → 71, 202). **The spec round trip is
-    BYTES — `encode_seq(decode_seq(x)) == x` over the `decode_seq` vectors** (205: next.md
-    prescribed string decode-of-encode; py/napi/WASM/FFI assert bytes)
 - **Binding input-marshalling traps**: WASM `serde_wasm_bindgen` `Vec<T>` accepts ANY iterable (napi
     `Vec<String>` throws `ArrayExpected`): never document "throws on non-array" for WASM (204).
     **The FFI's `CStr` truncates at an embedded NUL**, so both C-FFI wrappers reject it first (213):
@@ -40,9 +35,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - A dependency shipping DATA TABLES (Unicode, locale, tz) can change output without any `data.json`
     vector catching it (every vector predates Unicode 16) — call out table-version changes in dep
     bumps explicitly
-- **`decode_base32("")` returns `Ok(empty)`, not an error** (191; empty guard in `iscc_clean` 192):
-    a cleaning helper that can yield `""` (blank/dash-only/`"iscc:"`) must reject empty before
-    decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage
 - **String-input divergences from iscc-core** hit any differential on *string* inputs (`encode_seq`,
     `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
     \+ Go pinned (199); a padding negative must be validly padded (`ISCC:GAAAAAAAAA======`:
@@ -135,6 +127,14 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     try `cargo update -p <crate>` FIRST; ignore only when `cargo update --dry-run` keeps the crate
     AND the feature edge pinning it is proven at the latest upstream (196: uniffi_bindgen 0.32.2
     hard-enables askama `config` → `basic-toml`; crates.io `/dependencies` shows `features`)
+- **`cargo deny` is not the only advisory source** (235): it was green with rustix 1.1.4 while osv
+    listed RUSTSEC-2026-0486. One pass over the tracked lockfiles, run from an empty `/tmp` dir:
+    `go run github.com/google/osv-scanner/v2/cmd/osv-scanner@latest scan source -r <repo>` (~1 min;
+    Cargo, uv, Gemfile, Maven, .NET, Go — NOT npm, Gradle or Actions pins). Expected: exit 1 with
+    exactly the 3 unmaintained crates that `deny.toml` ignores
+- **Go has two versions in `go.mod`** (235): `go` is the consumer floor (human-only), `toolchain` is
+    what CI tests on. setup-go v7 reads `go-version-file` BEFORE it sets `GOTOOLCHAIN=local`, so the
+    `toolchain` line wins; a workflow that exports `GOTOOLCHAIN=local` falls back to the `go` line
 - **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
     dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = tag misses). `.pyi` is tagged
     `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A

@@ -38,16 +38,16 @@ The `postCreateCommand` runs automatically: trusts the mise config, installs Pyt
 
 ### Included Tools
 
-| Tool             | Purpose                       |
-| ---------------- | ----------------------------- |
-| Rust (stable)    | Core library                  |
-| Python 3.12 + uv | Python bindings, dev tools    |
-| Node.js 20       | Node.js bindings, Claude Code |
-| JDK 17 + Maven   | Java JNI bindings             |
-| Go 1.24          | Go bindings                   |
-| mise             | Tool versions + task runner   |
-| Claude Code      | AI agent loop                 |
-| gh               | GitHub CLI                    |
+| Tool           | Purpose                       |
+| -------------- | ----------------------------- |
+| Rust (stable)  | Core library                  |
+| Python + uv    | Python bindings, dev tools    |
+| Node.js        | Node.js bindings, Claude Code |
+| JDK 17 + Maven | Java JNI bindings             |
+| Go             | Go bindings                   |
+| mise           | Task runner                   |
+| Claude Code    | AI agent loop                 |
+| gh             | GitHub CLI                    |
 
 !!! tip "Git identity"
 

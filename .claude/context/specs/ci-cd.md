@@ -386,8 +386,8 @@ above). CI runs `version:check` on every push to catch drift.
 
 ### Tool Management
 
-**mise** (`mise.toml`) manages tool versions and task definitions. **uv** manages the Python
-environment. Neither is used in CI — CI installs tools via GitHub Actions.
+**mise** (`mise.toml`) holds the task definitions. **uv** manages the Python environment. Neither is
+used in CI — CI installs tools via GitHub Actions.
 
 ### Task Runner (mise tasks)
 

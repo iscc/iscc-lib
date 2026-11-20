@@ -109,6 +109,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     deps changed — see `gate-reviews.md` Audit)
 - **Bumps** (generated artifact, MSRV `cargo +1.85.0 check -p <c> --locked`, lockfile, wrapper,
     framework major) → `dep-refresh-reviews.md`
+- **Security-pass / advisory-bump step (235, ~15 min)**: prebuilt cargo-deny + govulncheck + ONE
+    osv-scanner pass over all lockfiles; `diff -rq` the Go module cache for an "only package X
+    changed" claim; read a setup-action's source for a README claim → `dep-refresh-reviews.md`
 - **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table recipes (215-221)**,
     **new data-edge SECTION = 12-surface script + `uvx cmake` + 4-surface mutation (226, ~12 min)**
     → `binding-reviews.md` "Moved from the index (223)"

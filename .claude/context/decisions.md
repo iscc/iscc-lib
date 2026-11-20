@@ -29,22 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-27 — Agent prompts state no token costs, and separate finding from filing
-
-**Decision:** two standing rules for every CID prompt and context pack. (1) Never frame inlined
-content as a cost, a billing event, or a context-limit risk — state the fact and leave accounting to
-`tools/cid.py`. (2) Instructions that narrow *what to look for* are forbidden in a finding pass; the
-severity bar belongs at the filing step. **Why:** the Claude Fable 5 guide documents that surfacing
-token budgets makes a model trim its own work, and the Opus 5 guide documents that a review prompt
-saying "be conservative" is followed literally and reports less — "ask it to report everything and
-filter in a separate pass instead". Both misfires were live: `review` was told it "runs closest to
-the context limit … Guard it" (it is the quality gate and the costliest role, 103 turns /
-$7.89 at iteration 161), and `audit` suppressed nits in the finder prompt *and* had its
-skeptics refute them by default. **Evidence:** audit iterations 130/140/150/160 filed zero issues
-for $11.53. **Alternatives:** leave the audit alone and read 4/4 clean passes as real — rejected,
-the double suppression makes a clean pass uninformative either way. **Context:** interactive
-session, 2026-07-27, against the platform prompting guides for Opus 5 and Fable 5.
-
 ## 2026-07-27 — The xunit v3 test project stays in VSTest runner mode
 
 **Decision:** `packages/dotnet/Iscc.Lib.Tests` moves to `xunit.v3` 3.x + `Microsoft.NET.Test.Sdk`
@@ -395,3 +379,18 @@ behaviour (`Array.isArray(chunk)`, `JSON.stringify`, a widening `chunk.map`) see
 bindings carry no 1.0 stability commitment. **Alternatives:** a `js_sys::Array` return (the `.d.ts`
 says `any[]`); keeping `to_value` and correcting the docs instead (keeps the one byte output that is
 not a typed array). `js-sys` was already in the dependency graph. **Context:** iteration 234 review.
+
+## 2026-11-20 — Go CI tests on the latest patch through a `toolchain` line; the `go` directive stays the floor
+
+**Decision:** `packages/go/go.mod` keeps `go 1.26.1` and adds `toolchain go1.26.11`. CI (`setup-go`
+with `go-version-file`) and the devcontainer use the toolchain version, so the test runtime carries
+the current stdlib security fixes while consumers keep the 1.26.1 minimum (Go ignores a dependency's
+`toolchain` line). The CI napi job moves from Node 20 to 22 on the same reasoning: `@iscc/lib`
+declares no `engines` floor, so the CI version is a test runtime, not a promise. **Trade-off:** CI
+no longer runs on go1.26.1 itself; the suite passed there once at this review (Codex run), and
+nothing gates it afterwards. **Alternatives:** raising the `go` directive to 1.26.11 (forces every
+consumer up for advisories in code they compile with their own toolchain anyway); a two-version CI
+matrix (doubles the job for a floor that differs only in patch level); leaving 1.26.1 (govulncheck:
+about 40 stdlib advisories in the tested toolchain). Floors stay the human's call (`ci-cd.md` →
+"Dependency Freshness" → Policy). **Context:** iteration 235; next.md flagged it "Decision for
+Titusz".

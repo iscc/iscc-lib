@@ -451,3 +451,27 @@ Full text of entries compacted out of `MEMORY.md`.
     (170, warm `dotnet restore` validates NOTHING); build-tool WRAPPER / BINARY blob (165, checksum
     \+ independent regeneration, never the diff); test-FRAMEWORK major (164/166, demand the pre-bump
     total; only `mvn clean test` proves the new framework compiles)
+
+## Security-pass / advisory-bump step (235, ~15 min)
+
+- **Recipe**: `mise run check`; prebuilt cargo-deny (not in the devcontainer — tarball
+    `…/cargo-deny/releases/download/0.19.9/cargo-deny-0.19.9-x86_64-unknown-linux-musl.tar.gz` into
+    `/tmp/<dir>`, `--strip-components=1`); in `packages/go`: `go test`, `go vet`,
+    `go mod tidy -diff`, `go mod verify`, `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
+- **One cross-ecosystem advisory pass** instead of seven tools: from an EMPTY `/tmp` dir,
+    `go run github.com/google/osv-scanner/v2/cmd/osv-scanner@latest scan source -r /workspace/iscc-lib`
+    (log to a file, ~1 min once built; it switches to a newer Go itself). Reads Cargo.lock, both
+    `uv.lock`, `Gemfile.lock`, `pom.xml`, the .NET lock and `go.mod`; NOT npm (lock gitignored),
+    Gradle, Actions pins. Baseline at 235: exit 1 with exactly the 3 `deny.toml`-ignored crates
+- **A Go dependency bump "changes only package X" is a hypothesis** — `go mod download <m>@<old>`
+    then `diff -rq` the two `$(go env GOMODCACHE)/<m>@<v>` dirs (235: x/text v0.40.0 → v0.41.0
+    touched only `secure/precis`, tables untouched)
+- **A setup-action claim from a README** (235: setup-go v7 honours `toolchain`): read the action
+    source at the pinned ref (`raw.githubusercontent.com/actions/setup-go/v7/src/…`) — the order of
+    calls in `main.ts` decided it (version file parsed BEFORE `GOTOOLCHAIN=local` is set)
+- **Closing a `[human]` issue whose "Resolved when" needs CI green**: delete it, say so in the
+    handoff, and move any part that waits on the human (235: EOL floors) into its own `low`
+    `[review]` entry with `**Triage:** untriaged` — the handoff is overwritten next cycle, so a list
+    "for the human" must live in issues.md
+- **Stale hand-written runtime versions** hide in `docs/development.md` ("Included Tools") and
+    `ci-cd.md` "Tool Management": grep them whenever a Dockerfile or CI runtime version moves

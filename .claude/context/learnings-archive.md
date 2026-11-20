@@ -1080,3 +1080,14 @@ runs on `opus`. Deliberate — do not "unify" them.
     same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
 - **iscc-core 1.5.0 `data.json`** (2026-10-17): `encode_seq`/`decode_seq` sections have non-object
     outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)
+
+## Archived from learnings.md (review 235)
+
+- **ISCC-SEQ core (195)**: bound on all 11 surfaces (210) and documented everywhere (211);
+    `read_unit`/`SEQ_MAINTYPES` Tier 2 on private raw-`u32` header helpers — never the typed
+    `decode_header` path (Go `uint8` truncates SubType 4679 → 71, 202). **The spec round trip is
+    BYTES — `encode_seq(decode_seq(x)) == x` over the `decode_seq` vectors** (205: next.md
+    prescribed string decode-of-encode; py/napi/WASM/FFI assert bytes)
+- **`decode_base32("")` returns `Ok(empty)`, not an error** (191; empty guard in `iscc_clean` 192):
+    a cleaning helper that can yield `""` (blank/dash-only/`"iscc:"`) must reject empty before
+    decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage

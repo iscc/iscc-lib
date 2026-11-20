@@ -408,3 +408,19 @@ place. **Consequence:** the specified work is bounded and finite. This entry is 
 the same proportionality argument is now stated for users in `docs/unicode.md` and for upstream in
 <https://github.com/iscc/iscc-core/issues/137#issuecomment-5082815029>. **Context:** interactive
 session 2026-07-26, Titusz halting further Unicode bikeshedding.
+
+## 2026-07-27 — Agent prompts state no token costs, and separate finding from filing
+
+**Decision:** two standing rules for every CID prompt and context pack. (1) Never frame inlined
+content as a cost, a billing event, or a context-limit risk — state the fact and leave accounting to
+`tools/cid.py`. (2) Instructions that narrow *what to look for* are forbidden in a finding pass; the
+severity bar belongs at the filing step. **Why:** the Claude Fable 5 guide documents that surfacing
+token budgets makes a model trim its own work, and the Opus 5 guide documents that a review prompt
+saying "be conservative" is followed literally and reports less — "ask it to report everything and
+filter in a separate pass instead". Both misfires were live: `review` was told it "runs closest to
+the context limit … Guard it" (it is the quality gate and the costliest role, 103 turns /
+$7.89 at iteration 161), and `audit` suppressed nits in the finder prompt *and* had its
+skeptics refute them by default. **Evidence:** audit iterations 130/140/150/160 filed zero issues
+for $11.53. **Alternatives:** leave the audit alone and read 4/4 clean passes as real — rejected,
+the double suppression makes a clean pass uninformative either way. **Context:** interactive
+session, 2026-07-27, against the platform prompting guides for Opus 5 and Fable 5.
