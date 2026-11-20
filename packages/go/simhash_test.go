@@ -1,7 +1,10 @@
 // Tests for the pure Go SimHash and SlidingWindow module.
 package iscc
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // ---- AlgSimhash tests ----
 
@@ -26,11 +29,19 @@ func TestSimhashSingleDigest(t *testing.T) {
 }
 
 func TestSimhashEmpty(t *testing.T) {
-	// Empty input → 32 zero bytes
+	// Empty input → error naming the empty list
 	result, err := AlgSimhash([][]byte{})
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatalf("expected error for empty input, got %x", result)
 	}
+	if !strings.Contains(err.Error(), "must not be empty") {
+		t.Errorf("error should mention empty list, got: %v", err)
+	}
+}
+
+func TestAlgSimhashUncheckedEmpty(t *testing.T) {
+	// The unexported generator helper keeps 32 zero bytes for empty input
+	result := algSimhash([][]byte{})
 	if len(result) != 32 {
 		t.Fatalf("length: got %d, want 32", len(result))
 	}

@@ -6,25 +6,31 @@ package iscc
 import "fmt"
 
 // AlgSimhash computes a SimHash from a sequence of equal-length hash digests.
-// Validates that all digests have equal length. Returns 32 zero bytes for
-// empty input. Uses MSB-first bit ordering and majority-vote aggregation.
+// Returns an error for an empty list or mismatched digest lengths, then
+// delegates to algSimhash. Uses MSB-first bit ordering and majority-vote
+// aggregation.
 func AlgSimhash(hashDigests [][]byte) ([]byte, error) {
-	// Validate equal lengths
-	if len(hashDigests) >= 2 {
-		expectedLen := len(hashDigests[0])
-		for i := 1; i < len(hashDigests); i++ {
-			if len(hashDigests[i]) != expectedLen {
-				return nil, fmt.Errorf(
-					"all hash digests must have equal length (expected %d, got %d at index %d)",
-					expectedLen, len(hashDigests[i]), i,
-				)
-			}
+	if len(hashDigests) == 0 {
+		return nil, fmt.Errorf("hash_digests must not be empty")
+	}
+	expectedLen := len(hashDigests[0])
+	for i := 1; i < len(hashDigests); i++ {
+		if len(hashDigests[i]) != expectedLen {
+			return nil, fmt.Errorf(
+				"all hash digests must have equal length (expected %d, got %d at index %d)",
+				expectedLen, len(hashDigests[i]), i,
+			)
 		}
 	}
+	return algSimhash(hashDigests), nil
+}
 
-	// Empty input returns 32 zero bytes
+// algSimhash computes a SimHash without validation. Callers must guarantee
+// all digests have equal length. Returns 32 zero bytes for empty input,
+// which the generators rely on.
+func algSimhash(hashDigests [][]byte) []byte {
 	if len(hashDigests) == 0 {
-		return make([]byte, 32), nil
+		return make([]byte, 32)
 	}
 
 	nBytes := len(hashDigests[0])
@@ -53,7 +59,7 @@ func AlgSimhash(hashDigests [][]byte) ([]byte, error) {
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 // SlidingWindow generates overlapping substrings of width runes from a string.

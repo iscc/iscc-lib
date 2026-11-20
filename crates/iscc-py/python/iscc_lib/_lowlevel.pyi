@@ -281,10 +281,11 @@ def alg_simhash(hash_digests: list[bytes]) -> bytes:
 
     Produces a similarity-preserving hash by counting bit frequencies across
     all input digests. Each output bit is set when its frequency meets or
-    exceeds half the input count. Returns 32 zero bytes for empty input.
+    exceeds half the input count.
 
-    :param hash_digests: List of equal-length byte hash digests.
+    :param hash_digests: Non-empty list of equal-length byte hash digests.
     :return: Similarity-preserving hash as bytes (same length as input digests).
+    :raises ValueError: If the list is empty or digest lengths differ.
     """
 
 def alg_minhash_256(features: list[int]) -> bytes:

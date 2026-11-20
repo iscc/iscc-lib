@@ -60,9 +60,11 @@ public class ArrayInputTests
     }
 
     [Fact]
-    public void AlgSimhash_Empty_Returns32ZeroBytes()
+    public void AlgSimhash_Empty_ThrowsCoreError()
     {
-        Assert.Equal(new byte[32], IsccLib.AlgSimhash([]));
+        var ex = Assert.Throws<IsccException>(() => IsccLib.AlgSimhash([]));
+        Assert.Contains("must not be empty", ex.Message);
+        Assert.DoesNotContain(FfiNullMessage, ex.Message);
     }
 
     // ── Null array ──────────────────────────────────────────────────────────

@@ -604,7 +604,8 @@ namespace Iscc.Lib
         ///  Compute a SimHash digest from an array of byte digests.
         ///
         ///  The output length matches the input digest length (e.g., 4-byte digests
-        ///  produce a 4-byte SimHash). Returns an empty 32-byte buffer for empty input.
+        ///  produce a 4-byte SimHash). An empty list (`num_digests == 0`) is rejected:
+        ///  `.data` is `NULL` and `iscc_last_error()` names the empty list.
         ///
         ///  # Parameters
         ///

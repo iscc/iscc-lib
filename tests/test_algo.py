@@ -1,16 +1,17 @@
 """Tests for algorithm primitive functions exposed via Python bindings."""
 
 import iscc_core
+import pytest
 
 from iscc_lib import alg_cdc_chunks, alg_minhash_256, alg_simhash
 
 # ── alg_simhash ────────────────────────────────────────────────────────────
 
 
-def test_alg_simhash_empty_returns_zero_bytes():
-    """Verify empty input returns 32 zero bytes."""
-    result = alg_simhash([])
-    assert result == b"\x00" * 32
+def test_alg_simhash_empty_raises():
+    """Verify an empty list is rejected with ValueError."""
+    with pytest.raises(ValueError, match="must not be empty"):
+        alg_simhash([])
 
 
 def test_alg_simhash_single_digest():

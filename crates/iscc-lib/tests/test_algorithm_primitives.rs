@@ -70,10 +70,15 @@ fn test_sliding_window_width_too_small_returns_error() {
 
 #[test]
 fn test_alg_simhash_empty_input() {
-    // Empty input returns 32 zero bytes
+    // Empty input is rejected
     let empty: Vec<Vec<u8>> = vec![];
-    let result = iscc_lib::alg_simhash(&empty).unwrap();
-    assert_eq!(result, vec![0u8; 32]);
+    let result = iscc_lib::alg_simhash(&empty);
+    assert!(result.is_err(), "expected error for empty input");
+    let msg = result.unwrap_err().to_string();
+    assert!(
+        msg.contains("must not be empty"),
+        "error should mention empty list, got: {msg}"
+    );
 }
 
 #[test]
@@ -290,8 +295,7 @@ fn test_soft_hash_video_v0_consistency_with_gen_video_code() {
 fn test_flat_crate_root_imports() {
     // Verify all 5 algorithm primitives are callable via iscc_lib::<fn>
     let _ = iscc_lib::sliding_window("test", 2).unwrap();
-    let empty: &[Vec<u8>] = &[];
-    let _ = iscc_lib::alg_simhash(empty).unwrap();
+    let _ = iscc_lib::alg_simhash(&[vec![0u8; 32]]).unwrap();
     let _ = iscc_lib::alg_minhash_256(&[]);
     let _ = iscc_lib::alg_cdc_chunks(b"", false, 1024).unwrap();
     let frame = vec![0i32; 380];

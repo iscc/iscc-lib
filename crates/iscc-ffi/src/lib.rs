@@ -1178,7 +1178,8 @@ pub unsafe extern "C" fn iscc_sliding_window(seq: *const c_char, width: u32) -> 
 /// Compute a SimHash digest from an array of byte digests.
 ///
 /// The output length matches the input digest length (e.g., 4-byte digests
-/// produce a 4-byte SimHash). Returns an empty 32-byte buffer for empty input.
+/// produce a 4-byte SimHash). An empty list (`num_digests == 0`) is rejected:
+/// `.data` is `NULL` and `iscc_last_error()` names the empty list.
 ///
 /// # Parameters
 ///
@@ -2280,11 +2281,15 @@ mod tests {
 
     #[test]
     fn test_alg_simhash_empty() {
-        // Zero digests yields 32-byte default output
+        // Zero digests forwards the core's empty-list rejection
         let buf = unsafe { iscc_alg_simhash(ptr::null(), ptr::null(), 0) };
-        assert!(!buf.data.is_null());
-        assert_eq!(buf.len, 32);
-        unsafe { iscc_free_byte_buffer(buf) };
+        assert!(buf.data.is_null());
+        assert_eq!(buf.len, 0);
+        let err = iscc_last_error();
+        assert!(!err.is_null());
+        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
+        assert!(msg.contains("must not be empty"), "got: {msg}");
+        assert!(!msg.contains("must not be NULL"), "got: {msg}");
     }
 
     // ── alg_minhash_256 tests ──────────────────────────────────────────────

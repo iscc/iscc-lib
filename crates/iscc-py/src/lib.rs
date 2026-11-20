@@ -557,8 +557,8 @@ fn sliding_window(seq: &str, width: usize) -> PyResult<Vec<String>> {
 /// Compute a SimHash from a sequence of equal-length hash digests.
 ///
 /// Returns a similarity-preserving hash as bytes. Each output bit is set
-/// when its frequency meets or exceeds half the input count. Returns 32
-/// zero bytes for empty input. Raises `ValueError` on mismatched digest lengths.
+/// when its frequency meets or exceeds half the input count. Raises `ValueError`
+/// on an empty list or mismatched digest lengths.
 #[pyfunction]
 fn alg_simhash(hash_digests: Vec<Vec<u8>>) -> PyResult<Vec<u8>> {
     iscc_lib::alg_simhash(&hash_digests).map_err(|e| PyValueError::new_err(e.to_string()))

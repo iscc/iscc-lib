@@ -432,8 +432,8 @@ pub fn sliding_window(seq: &str, width: u32) -> Result<Vec<String>, JsError> {
 /// Compute a SimHash from a sequence of equal-length hash digests.
 ///
 /// Accepts a JS array of `Uint8Array` values. Returns a similarity-preserving
-/// hash whose length matches the input digest length. Returns 32 zero bytes
-/// for empty input. Throws on mismatched digest lengths.
+/// hash whose length matches the input digest length. Throws on an empty list
+/// or mismatched digest lengths.
 #[wasm_bindgen]
 pub fn alg_simhash(hash_digests: JsValue) -> Result<Vec<u8>, JsError> {
     let digests: Vec<Vec<u8>> =

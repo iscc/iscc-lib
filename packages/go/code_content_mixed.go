@@ -89,7 +89,7 @@ func softHashCodesV0(ccDigests [][]byte, bits uint32) ([]byte, error) {
 		prepared = append(prepared, entry)
 	}
 
-	// All entries have identical length (nbytes), so AlgSimhash validation passes
-	result, _ := AlgSimhash(prepared)
+	// All entries have identical length (nbytes), so the unchecked algSimhash is safe
+	result := algSimhash(prepared)
 	return result, nil
 }

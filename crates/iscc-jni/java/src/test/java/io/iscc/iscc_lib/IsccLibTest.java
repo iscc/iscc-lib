@@ -803,10 +803,12 @@ class IsccLibTest {
         assertArrayEquals(expected, IsccLib.algSimhash(digests));
     }
 
-    /** Verify algSimhash of an empty digest list returns 32 zero bytes. */
+    /** Verify algSimhash rejects an empty digest list. */
     @Test
     void algSimhashEmptyInput() {
-        assertArrayEquals(new byte[32], IsccLib.algSimhash(new byte[0][]));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> IsccLib.algSimhash(new byte[0][]));
+        assertTrue(ex.getMessage().contains("must not be empty"), ex.getMessage());
     }
 
     /** Verify algSimhash returns a single digest unchanged. */

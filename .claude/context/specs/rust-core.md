@@ -82,12 +82,12 @@ implements the conditional mapping today — `packages/go`'s `TextCollapse` coll
 Four algorithm functions are public Tier 1 API, callable from all bindings. These are the building
 blocks used by `iscc-sdk` for granular content processing (text chunking, text fingerprinting).
 
-| Function          | Signature (Rust)                                         | Behavior                                                      |
-| ----------------- | -------------------------------------------------------- | ------------------------------------------------------------- |
-| `sliding_window`  | `fn(text: &str, width: usize) -> Vec<String>`            | Generate overlapping character n-grams of given width         |
-| `alg_minhash_256` | `fn(features: &[u32]) -> Vec<u8>`                        | 64-dimensional MinHash compressed to 256-bit (32-byte) digest |
-| `alg_cdc_chunks`  | `fn(data: &[u8], utf32: bool, avg_chunk_size: u32) -> …` | Content-defined chunking with gear rolling hash               |
-| `alg_simhash`     | `fn(hash_digests: &[Vec<u8>]) -> Vec<u8>`                | Similarity-preserving hash from equal-length digests          |
+| Function          | Signature (Rust)                                         | Behavior                                                                    |
+| ----------------- | -------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `sliding_window`  | `fn(text: &str, width: usize) -> Vec<String>`            | Generate overlapping character n-grams of given width                       |
+| `alg_minhash_256` | `fn(features: &[u32]) -> Vec<u8>`                        | 64-dimensional MinHash compressed to 256-bit (32-byte) digest               |
+| `alg_cdc_chunks`  | `fn(data: &[u8], utf32: bool, avg_chunk_size: u32) -> …` | Content-defined chunking with gear rolling hash                             |
+| `alg_simhash`     | `fn(hash_digests: &[Vec<u8>]) -> Vec<u8>`                | Similarity-preserving hash from equal-length digests; rejects an empty list |
 
 Note: The bound `alg_cdc_chunks` returns owned data (`Vec<Vec<u8>>`) suitable for FFI. The internal
 implementation may use borrowed slices for performance.
@@ -102,6 +102,7 @@ Note: The bound `alg_simhash` takes `&[Vec<u8>]` (concrete type) rather than the
 - `iscc_lib::alg_minhash_256(&[0, 1, 2, 3])` returns a 32-byte `Vec<u8>`
 - `iscc_lib::alg_cdc_chunks(data, false, 1024)` returns non-empty chunk list for non-empty input
 - `iscc_lib::alg_simhash(&[vec![0u8; 32]])` returns a 32-byte `Vec<u8>`
+- `iscc_lib::alg_simhash` returns `Err(IsccError::InvalidInput)` for an empty list
 - All four functions are accessible from Python bindings
 - All four functions are accessible from Node.js, WASM, and C FFI bindings
 - `alg_minhash_256` output matches iscc-core `alg_minhash_256` for identical input features

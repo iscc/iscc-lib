@@ -389,14 +389,12 @@ fn test_alg_simhash_known_input() {
 }
 
 #[wasm_bindgen_test]
-fn test_alg_simhash_empty_returns_32_zero_bytes() {
+fn test_alg_simhash_empty_errors() {
     let digests: Vec<Vec<u8>> = vec![];
     let input = serde_wasm_bindgen::to_value(&digests).unwrap();
-    let result = iscc_wasm::alg_simhash(input).unwrap();
-    assert_eq!(result.len(), 32);
     assert!(
-        result.iter().all(|&b| b == 0),
-        "empty input should return all zeros"
+        iscc_wasm::alg_simhash(input).is_err(),
+        "empty list should error"
     );
 }
 

@@ -380,8 +380,8 @@ pub fn sliding_window(seq: String, width: u32) -> napi::Result<Vec<String>> {
 /// Compute a SimHash from a sequence of equal-length hash digests.
 ///
 /// Returns a similarity-preserving hash as a Buffer. Each output bit is set
-/// when its frequency meets or exceeds half the input count. Returns 32
-/// zero bytes for empty input. Throws on mismatched digest lengths.
+/// when its frequency meets or exceeds half the input count. Throws on an
+/// empty list or mismatched digest lengths.
 #[napi(js_name = "alg_simhash")]
 pub fn alg_simhash(hash_digests: Vec<Buffer>) -> napi::Result<Buffer> {
     iscc_lib::alg_simhash(&hash_digests)

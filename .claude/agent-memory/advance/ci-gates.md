@@ -28,7 +28,9 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
     binstall'd cargo-crap 0.2.2 binary needs `GLIBC_2.39` (container glibc is older) — install it
     from source: `cargo install cargo-crap --version 0.2.2` (~1.5 min). No cargo-binstall in the
     container (iter 195) → `cargo install cargo-llvm-cov --locked` too. Also
-    `rustup component add llvm-tools-preview` first.
+    `rustup component add llvm-tools-preview` first. Iter 225: all three steps took ~2.5 min total;
+    baseline then 145 fns (26 un-baselined fns from earlier iters got baked in — new fns only face
+    `--fail-above`, never `--fail-regression`).
 - `cargo clippy -p iscc-lib --all-targets --no-default-features` ALWAYS fails (benches import gated
     `gen_meta/text_code_v0`) — pre-existing; CI runs that feature set WITHOUT `--all-targets`.
 - GUARD GAP: the CRAP regression gate runs ONLY in CI (not in `mise run check`/pre-commit). Any

@@ -333,12 +333,10 @@ public class SmokeTests
     }
 
     [Fact]
-    public void AlgSimhash_EmptyInput_Returns32Bytes()
+    public void AlgSimhash_EmptyInput_ThrowsIsccException()
     {
         byte[][] digests = [];
-        byte[] result = IsccLib.AlgSimhash(digests);
-        Assert.Equal(32, result.Length);
-        Assert.All(result, b => Assert.Equal(0, b));
+        Assert.Throws<IsccException>(() => IsccLib.AlgSimhash(digests));
     }
 
     [Fact]

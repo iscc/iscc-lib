@@ -136,7 +136,7 @@ func metaNameSimhash(name string) []byte {
 		digest := blake3.Sum256([]byte(ng))
 		hashes[i] = digest[:]
 	}
-	result, _ := AlgSimhash(hashes)
+	result := algSimhash(hashes)
 	return result
 }
 
@@ -157,7 +157,7 @@ func softHashMetaV0(name string, extra *string) []byte {
 		digest := blake3.Sum256([]byte(ng))
 		extraHashes[i] = digest[:]
 	}
-	extraSimhash, _ := AlgSimhash(extraHashes)
+	extraSimhash := algSimhash(extraHashes)
 
 	return interleaveDigests(nameSimhash, extraSimhash)
 }
@@ -178,7 +178,7 @@ func softHashMetaV0WithBytes(name string, extra []byte) []byte {
 		digest := blake3.Sum256(ng)
 		byteHashes[i] = digest[:]
 	}
-	byteSimhash, _ := AlgSimhash(byteHashes)
+	byteSimhash := algSimhash(byteHashes)
 
 	return interleaveDigests(nameSimhash, byteSimhash)
 }

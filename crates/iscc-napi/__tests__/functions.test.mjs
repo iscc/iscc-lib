@@ -191,11 +191,8 @@ describe('sliding_window', () => {
 // ── Algorithm primitives ─────────────────────────────────────────────────────
 
 describe('alg_simhash', () => {
-    it('returns 32 zero bytes for empty input', () => {
-        const result = alg_simhash([]);
-        strictEqual(Buffer.isBuffer(result), true);
-        strictEqual(result.length, 32);
-        ok(result.every((b) => b === 0));
+    it('throws on empty input', () => {
+        throws(() => alg_simhash([]), /must not be empty/);
     });
 
     it('returns the same bytes for a single digest', () => {
