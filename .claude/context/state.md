@@ -1,25 +1,27 @@
-<!-- assessed-at: d5760ca96f012278765d3c7a48f52eade0acc771 -->
+<!-- assessed-at: 70bd975f1d944d96423de35b67e3737b02c65961 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 3 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 4 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 233 added a Tier 1 doc-parity gate (`scripts/check_tier1_docs.py`) and
-filled the gaps it found in the docs. Review filed two more `normal` issues (a WASM return type and
-a broken Java how-to example), so 3 `normal` issues now block v0.8.0. CI is green on the pushed tip.
+all 11 bindings. Iteration 234 fixed the WASM `alg_cdc_chunks` return type (issue closed). Titusz
+then added a "dependencies are secure" criterion to `target.md` and filed two `normal` issues (a
+dependency/runtime security pass, and partial-key compares in 4 data-edge harnesses), so 4 `normal`
+issues now block v0.8.0. CI is green on the pushed tip.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
-**Status**: met (v0.8.0 scope)
+**Status**: partially met — 1 `normal` `[human]` issue
 
 - `crates/iscc-lib/tests/data-edge.json` has 6 sections: `iscc_decode`, `encode_seq`,
     `gen_text_code_v0`, `gen_mixed_code_v0`, `gen_iscc_code_v0`, `alg_simhash`; harnesses on all 12
     surfaces; the 5 tracked copies are byte-identical and match `VENDORED_COPIES`
-- Unfiled open question: .NET, Java, napi and WASM compare only the expected keys their result
-    exposes
+- **`normal`:** the .NET, Java, napi and WASM harnesses compare only the keys their result exposes,
+    so expected keys like `characters` are dropped in harness code. This breaks the spec rule that
+    every deviation is declared in the file. Ruby was made strict at 218; these four were not
 
 ## Rust Core Crate
 
@@ -40,19 +42,20 @@ a broken Java how-to example), so 3 `normal` issues now block v0.8.0. CI is gree
 
 ## Node.js Bindings
 
-**Status**: met (v0.8.0 scope)
+**Status**: met (v0.8.0 scope); data-edge harness covered by the partial-compare issue
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and data-edge tests green in CI;
     `@iscc/lib` 0.7.0 on npm (OIDC)
+- `ci.yml` builds napi on Node `20`, which is end-of-life (part of the security-pass issue)
 - `low` issue: the napi `Buffer` reference leak
 
 ## WASM Bindings
 
-**Status**: partially met — 1 `normal` issue
+**Status**: met (v0.8.0 scope); data-edge harness covered by the partial-compare issue
 
 - 35 Tier 1 symbols; conformance, unit and data-edge tests green in CI; SIMD release build met
-- **`normal`:** `alg_cdc_chunks` returns nested plain arrays, while its doc comment (and the
-    published JSDoc) promises `Uint8Array` chunks; no wasm test checks the element type
+- `alg_cdc_chunks` returns `Vec<js_sys::Uint8Array>` (`.d.ts`: `Uint8Array[]`); issue closed at 234.
+    The runtime shape of a published export changed — worth a v0.8.0 release-notes line
 
 ## C FFI
 
@@ -66,7 +69,8 @@ a broken Java how-to example), so 3 `normal` issues now block v0.8.0. CI is gree
 
 **Status**: met (v0.8.0 scope); 1 `normal` doc issue
 
-- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 6 sections, green in CI; 0.7.0 on Maven Central
+- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 6 sections (partial-key compare, see above),
+    green in CI; 0.7.0 on Maven Central
 - **`normal`:** `docs/howto/java.md` `genSumCodeV0` example passes 3 args (method takes 4) and calls
     accessors on `public final` fields; it does not compile
 - `low` issue: the pending-exception guard has no test
@@ -80,7 +84,7 @@ a broken Java how-to example), so 3 `normal` issues now block v0.8.0. CI is gree
 
 ## C# / .NET Bindings
 
-**Status**: met (v0.8.0 scope)
+**Status**: met (v0.8.0 scope); data-edge harness covered by the partial-compare issue
 
 - `EncodeSeq` / `DecodeSeq`; `PinnedRows` pins all jagged-array inputs; `DataEdgeTests.cs` runs all
     6 sections, green in CI; 0.7.0 on NuGet
@@ -97,8 +101,9 @@ a broken Java how-to example), so 3 `normal` issues now block v0.8.0. CI is gree
 
 **Status**: met (v0.8.0 scope)
 
-- `encode_seq` / `decode_seq` in `test_conformance.rb`; `test_data_edge.rb` runs all 6 sections,
-    green in CI; 0.7.0 on RubyGems
+- `encode_seq` / `decode_seq` in `test_conformance.rb`; `test_data_edge.rb` runs all 6 sections
+    strictly, green in CI; 0.7.0 on RubyGems
+- CI tests on Ruby `3.1`, the supported floor, which is end-of-life — a floor only the human raises
 - `low` issue: integer list elements accept a Float and truncate it (Titusz decides)
 
 ## Swift and Kotlin Bindings
@@ -115,9 +120,8 @@ a broken Java how-to example), so 3 `normal` issues now block v0.8.0. CI is gree
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs
-- Tier 1 doc gate: `scripts/check_tier1_docs.py` (prek hook `check-tier1-docs` + 15 pytest tests)
-    checks registered docs name every symbol derived from `lib.rs`; Python, Node.js, WASM, Java and
-    C FFI docs completed to pass it
+- Tier 1 doc gate `scripts/check_tier1_docs.py` (prek hook + 15 pytest tests) checks registered docs
+    name every symbol derived from `lib.rs`
 - **Remaining in the `[human]` issue:** the gate fails open on `lib.rs` forms it does not parse;
     `docs/howto/rust.md`, `docs/howto/c-cpp.md`, `docs/rust-api.md` (stale `IsccResult<String>`
     return types) and `docs/architecture.md` are unregistered and incomplete; hand-written counts
@@ -132,22 +136,27 @@ a broken Java how-to example), so 3 `normal` issues now block v0.8.0. CI is gree
 
 ## CI/CD and Publishing
 
-**Status**: partially met
+**Status**: partially met — "dependencies are secure" criterion unverified (`normal` `[human]`)
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `8361fbf`
-    (https://github.com/iscc/iscc-lib/actions/runs/44778797244): all 21 check-runs `success`
-- Unpushed: 1 commit (the iteration-233 log), under `.claude/` only; green CI covers all code at
-    HEAD
-- GitHub Dependabot alerts track `main` and stay open until the next release (triaged, no issue)
+- **Missing:** the security criterion added to `target.md` at `70bd975`. Only Rust has an advisory
+    gate (`cargo deny`); no other ecosystem is audited. Test runtimes include Node `20` (EOL); the
+    `ci-cd.md` freshness table omits runtimes and lists a `mise.toml` `[tools]` row that doesn't
+    exist. Dependabot (tracks `main`) shows 6 open alerts: `soupsieve` x4, `setuptools`, `json`
+- **Latest CI: PASSING** on `origin/develop` = `7af33e9` (`github-actions` suite `success`, 21/21
+    check-runs `success`), covering the WASM fix
+- Unpushed: 5 commits; besides `.claude/`, they change `tools/cid.py` + `tests/test_cid.py` (loop
+    infra), which no CI run has covered yet
 
 ## Open Issues
 
-10 open: 0 critical, **3 normal**, 7 low. Normal: derived-fact drift `[human]`, Java how-to
-`genSumCodeV0` example, WASM `alg_cdc_chunks` return type. issues.md is at 189 of 300 lines.
+11 open: 0 critical, **4 normal**, 7 low. Normal: derived-fact drift `[human]`, Java how-to
+`genSumCodeV0` example, data-edge partial-key compare `[human]`, dependency/runtime security pass
+`[human]`. issues.md is at 230 of 300 lines.
 
 ## Next Milestone
 
-Clear the 3 open `normal` issues (the WASM `alg_cdc_chunks` return type, the broken Java how-to
-example, and the remaining derived-fact drift) — the remaining v0.8.0 release blockers.
+Clear the 4 open `normal` issues — the remaining v0.8.0 release blockers: the dependency and runtime
+security pass, strict data-edge compares on .NET/Java/napi/WASM, the broken Java how-to example, and
+the remaining derived-fact drift.
