@@ -1,100 +1,96 @@
 # Next Work Package
 
-## Step: Pre-release security pass — bump advisory-flagged pins and EOL test runtimes
+## Step: data-edge output-subset rule — spec, validator and C/C++ generator
 
 ## Goal
 
-Pick up "Dependencies and language runtimes are not checked for security releases before v0.8.0"
-(`normal`, `[human]`). Bump the two locked dependencies that have a fixed advisory release, move the
-test-only runtimes off end-of-life or patch-stale versions, and make the `ci-cd.md` freshness table
-name the runtime surface. Decision for Titusz: Go CI tests on the latest 1.26 patch through a
-`toolchain` line in `go.mod`, no longer on 1.26.1 itself. The `go 1.26.1` directive (the floor that
-consumers see) stays as it is.
+Settle the rule that the four lenient data-edge harnesses wait on (issue "Four `data-edge.json`
+harnesses ignore expected output keys their result lacks"): which expected output keys a surface
+with a reduced gen result may leave uncompared, declared statically instead of intersected at
+runtime. Land it in `edge-vectors.md`, the central validator, and the C/C++ generator, which has the
+same silent drop (`gen_iscc` reads `outputs["iscc"]` and ignores every other key).
 
 ## Alternatives Considered
 
-- **Chosen:** the security pass. It is the newest release blocker, the probes below found real
-    fixed-advisory pins, and every change is small and locally checkable
-- **Rejected:** strict compares in the 4 data-edge harnesses. On .NET even `TextCodeResult` carries
-    only `Iscc`, and napi/WASM/Java return a bare string, so a strict compare fails
-    `gen_text_code_v0/test_0001_embedded_nul` (it expects `characters`) on all four. That needs an
-    output-subset rule in `edge-vectors.md` plus a decisions.md entry before any harness changes. It
-    is a design step and comes later. The Java how-to fix and the doc-gate holes wait too
+- **Chosen:** the rule plus its two Python landing sites. It is the design decision the issue names
+    as its route, and the .NET/Java/napi/WASM fan-out cannot start without it. A spec-settling step
+    must land alone, before the fan-out.
+- **Rejected:** Java how-to `genSumCodeV0` fix plus the Ruby "precompiled up to 3.3" docs line. Both
+    are cheap docs fixes but unblock nothing. They make a good next docs step.
+- **Rejected (design):** a per-surface `except` value carrying reduced outputs, or a top-level
+    metadata key. The generator accepts only `error`/`skip` and every harness fails on an unknown
+    section, so either is a 12-surface change, and an `except` per subset surface breaks "a vector
+    costs one edit".
 
 ## Scope
 
-- **Modify**: `packages/go/go.mod`, `.github/workflows/ci.yml`, `.devcontainer/Dockerfile`,
-    `.claude/context/specs/ci-cd.md` (doc)
-- **Regenerated (not counted)**: `Cargo.lock`, `packages/go/go.sum`
-- **Reference**: issues.md entry above; `ci-cd.md` → "Dependency Freshness"
+- **Modify**: `.claude/context/specs/edge-vectors.md`, `scripts/gen_data_edge_vectors.py`,
+    `tests/test_data_edge.py` (validator), `tests/test_gen_data_edge_vectors.py`
+- **Regenerated (must not change)**: `crates/iscc-ffi/tests/data_edge_vectors.h`
+- **Reference**: `crates/iscc-lib/tests/data.json` (the gen sections' `outputs` keys),
+    `crates/iscc-lib/tests/data-edge.json`, `packages/cpp/include/iscc/iscc.hpp` (result structs,
+    around line 177: `TextCodeResult` and `MixedCodeResult` hold only `iscc`)
 
 ## Not In Scope
 
-- Raising any floor: `go 1.26.1` directive, abi3-py310, Java 17, .NET 8 (`dotnet-version: '8.0'`,
-    devcontainer `--channel 8.0`), Ruby 3.1 (CI `ruby-version: '3.1'`, devcontainer apt `ruby`),
-    MSRV 1.85, the `ruby-versions: 3.1, 3.2, 3.3` cross-gem list in `release.yml`. List them for the
-    human (see notes) and change none
-- Adding an advisory CI gate (osv-scanner, govulncheck, npm audit job): that is new policy and needs
-    Titusz's sign-off
-- `deny.toml` ignores for the 3 unmaintained crates (basic-toml, bincode, proc-macro-error2). They
-    have no fixed release and are already justified
-- Bumping x/text past v0.41.0, or any other dependency without an advisory (freshness is not this
-    step)
-- Writing EOL dates into `ci-cd.md`. Hand-written dates in a spec are the drift that the
-    derived-facts issue is about, so they go in the handoff only
+- The .NET, Java, napi and WASM harnesses (`Compare`/`compare` in the four files the issue names).
+    They are the next step, one fan-out with a negative test per surface. Do not touch them here
+- Changing any binding to return a structured result (an API/DX decision for Titusz)
+- Adding vectors or new sections to `data-edge.json`; adding a new `except` value form
+- The Java how-to, the Ruby gem docs, and the Tier 1 doc-gate holes (other `normal` issues)
 
 ## Implementation Notes
 
-Probed while scoping (2026-11-20). Do not redo the clean ones:
+**The rule** (write it into `edge-vectors.md`: amend the "Every surface runs every vector" bullet,
+add an "Output subset" rule under Rules, and add a Verified When line):
 
-- **Rust:** `cargo update -p rustix` moves only rustix 1.1.4 → 1.1.6 (RUSTSEC-2026-0486, xattr
-    soundness; reached via tempfile ← uniffi_pipeline and dev deps). CI `cargo deny` did not flag
-    it, so osv is the source here
-- **Go:** `golang.org/x/text` v0.40.0 → **v0.41.0** (GO-2026-6629, a panic in `secure/precis`, which
-    we don't call). A full diff of v0.40.0 against v0.41.0 changes only `secure/precis/*.go` and its
-    go.mod (`go 1.25.0`). The Unicode tables are unchanged (`tables15.0.0.go` + `tables17.0.0.go` in
-    both), so the text/Unicode output cannot move. Use
-    `go get golang.org/x/text@v0.41.0 && go mod tidy`
-- **Go toolchain:** govulncheck finds about 40 stdlib advisories in go1.26.1, all fixed by
-    **go1.26.11** (latest 1.26 patch; go1.27.4 is also current). setup-go v7's README says: "If the
-    `toolchain` directive is present, its version is used; otherwise … falls back to the `go`
-    directive". So add `toolchain go1.26.11` to `go.mod` and keep `go-version-file` in `ci.yml`.
-    Consumers ignore a dependency's `toolchain` line. Set `ARG GO_VERSION=1.26.11` in the
-    Dockerfile. Local `GOTOOLCHAIN=auto` downloads go1.26.11 on the first `go` command
-- **Node:** the `ci.yml` napi job uses `node-version: '20'` (EOL 2026-04-30); make it `'22'`, the
-    oldest supported LTS (EOL 2027-04-30), the same as the `release.yml` smoke jobs
-- **Clean, nothing to change:** npm (`package-lock.json` is gitignored and CI runs `npm install`; a
-    fresh resolve of `@napi-rs/cli ^3` pulls js-yaml 5.5.0 and `npm audit` reports 0 — the local
-    stale lock's js-yaml 4.x finding is not a pin), Python (`pip-audit`: none), .NET (both projects:
-    `dotnet list … package --vulnerable --include-transitive` reports none), Ruby `Gemfile.lock`,
-    Maven `pom.xml` deps and plugins, Kotlin (jna 5.19.1, junit 6.1.2, gson 2.14.0, kotlin 2.4.10),
-    GitHub Actions pins (the osv hits on download-artifact/pypi-publish affect versions below our
-    `@v8` / `release/v1`)
-- **`ci-cd.md` table:** delete the stale "`mise.toml` tool pins" phrase (`mise.toml` has only
-    `[tasks]`). Add a "Runtimes" row naming the setup-action `*-version` inputs in
-    `.github/workflows/`, the `go.mod` `toolchain` line, and the `.devcontainer/Dockerfile` base
-    image and `GO_VERSION`. Add one sentence: supported-version floors are compatibility promises
-    that only the human raises
-- **Handoff, for the human (EOL dates from endoflife.date, 2026-11-20):** floors that are already
-    past EOL: Python 3.10 (2026-10-01), .NET 8 (2026-11-10), Ruby 3.1 (2025-03-26). Cross-gem build
-    ABI Ruby 3.2 (2026-03-31). Java 17 and MSRV 1.85 are not EOL. Also worth filing: the precompiled
-    gem ABIs stop at 3.3, so Ruby 3.4 / 4.0 users may get no precompiled gem (check the gemspec's
-    fallback before filing)
-- No core code changes, so CRAP, iai and semver are unaffected
+1. For a `gen_*` section, `outputs` is an object that must hold `iscc` and may hold only keys that
+    the same function's vectors in `data.json` carry (`gen_text_code_v0`: `iscc`, `characters`;
+    `gen_mixed_code_v0`: `iscc`, `parts`; `gen_iscc_code_v0`: `iscc`). Read these from `data.json`
+    when you verify, but **do not write the key list into the spec**: the open derived-fact issue
+    forbids hand-written lists there. State the rule by reference to `data.json`.
+2. `iscc` is always compared. A surface whose result type for that function lacks some of the
+    allowed keys leaves exactly those uncompared. That set is fixed statically from the result
+    type, once per harness, and never computed from the returned value. Intersecting with the
+    returned keys is the defect being fixed.
+3. An expected key that the function's `data.json` vectors do not carry fails the vector on every
+    surface. A key the surface's result type has is always compared.
+
+**Validator** (`tests/test_data_edge.py`): `validate_vector` currently has no section argument. Make
+the gen-section check able to see the section, derive the allowed keys per gen section from
+`data.json` (read it once; fail closed if a gen section of `data-edge.json` has no `data.json`
+counterpart), and report: outputs not an object, `iscc` missing, a key outside the allowed set. Add
+one-bad-case-per-call negative tests, each feeding exactly one fault: missing `iscc`, an unknown key
+such as `"foo"`, and a non-object. Also add a positive test that `characters` passes for
+`gen_text_code_v0`.
+
+**Generator** (`scripts/gen_data_edge_vectors.py`): C and C++ results expose only `iscc`, so every
+other allowed key is uncompared there. `gen_iscc` must fail closed (`SystemExit`, like the existing
+checks) on a key outside the allowed set. Derive the allowed set from `data.json` in the generator
+too (it is a PEP 723 script; stdlib `json` suffices), rather than keeping a hand-written table. Add
+`*_fails_closed(tmp_path)` tests next to the existing ones (an unknown key in a `gen_text_code_v0`
+vector fails; a vector holding only `iscc` and `characters` still renders). The rendered header must
+be byte-identical: `test_tracked_header_matches_fresh_render` already proves that.
+
+**Decision record:** advance does not write `decisions.md`. Put a proposed entry in the handoff
+Notes, "data-edge output subset: allowed keys come from `data.json`, uncompared keys are fixed per
+harness from the result type", with the rejected routes above, for review to record.
+
+No core or binding code changes: CRAP, iai and semver are unaffected.
 
 ## Verification
 
-- `Cargo.lock` locks `rustix` at `1.1.6` and no `1.1.4` entry remains; `cargo deny check` exits 0
-- `packages/go/go.mod` reads `go 1.26.1`, `toolchain go1.26.11` and `golang.org/x/text v0.41.0`. In
-    `packages/go`, `CGO_ENABLED=0 go test ./...` and `go vet ./...` pass, and
-    `go run golang.org/x/vuln/cmd/govulncheck@latest -show verbose ./...` prints no `Found in:` line
-- `.github/workflows/ci.yml` has no `node-version: '20'` and the napi job has `node-version: '22'`
-- `.devcontainer/Dockerfile` has `ARG GO_VERSION=1.26.11`, and
-    `curl -fsIL https://go.dev/dl/go1.26.11.linux-amd64.tar.gz` exits 0
-- `ci-cd.md` no longer contains `` `mise.toml` tool pins `` and names `.devcontainer/Dockerfile` in
-    the freshness table; `uv run scripts/check_spec_paths.py` exits 0
+- `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py` exits 0, including the
+    new negative tests (missing `iscc`, unknown key, non-object; generator unknown-key fail)
+- With an unknown output key added to `gen_text_code_v0/test_0001_embedded_nul` in a temp copy of
+    the fixture, both the validator and the generator reject it (covered by the tests above)
+- `uv run --script scripts/gen_data_edge_vectors.py` followed by
+    `git status --porcelain   crates/iscc-ffi/tests/data_edge_vectors.h` prints nothing
+- `edge-vectors.md` states the output-subset rule and has a matching Verified When line, and
+    contains no literal list of the gen result keys; `uv run scripts/check_spec_paths.py` exits 0
 - `mise run check` exits 0
 
 ## Done When
 
-All six verification criteria pass, and the handoff lists the EOL floors for the human.
+The rule is in `edge-vectors.md`, and the validator and the C/C++ generator both enforce it with
+negative tests, while the generated header stays unchanged.

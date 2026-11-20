@@ -64,10 +64,15 @@ govulncheck `-show verbose`, `dotnet list <csproj> package --vulnerable`, osv `/
 Maven/Actions, endoflife.date API for runtime EOLs. Data-edge strict-compare issue needs an
 output-subset DECISION first: .NET `TextCodeResult` has only `Iscc` too. Next: that decision step,
 gate holes (fail-closed parser + register 4 sub-threshold docs) + Java how-to fix, then part 2
-sweep. Unfiled: ref truncates mismatched digest lengths, Rust/Go reject — needs a human decision.
-Trap: the issue says C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash`
-short-circuits `num_digests == 0` to the core — re-probe before restating. Still open: gate
-leniency, Tier 1 parity check; setuptools bump resolves to 84.2.1 via
+sweep. 236 = data-edge output-subset rule (spec + validator + C/C++ generator, harnesses next):
+C/C++ generator `gen_iscc` had the SAME silent key drop as the 4 named harnesses
+(finish-the-pattern: 6 surfaces, not 4); allowed keys DERIVED from `data.json` gen outputs (no hand
+list — drift issue); uncompared keys fixed statically per harness; advance can't write decisions.md
+→ review records. Next: 4-harness strict fan-out (.NET/Java/napi/WASM, negative test each), then
+Java how-to + Ruby gem docs line, then gate holes. Unfiled: ref truncates mismatched digest lengths,
+Rust/Go reject — needs a human decision. Trap: the issue says C/C++ fail `alg_simhash([])` with the
+NULL error, but `iscc_alg_simhash` short-circuits `num_digests == 0` to the core — re-probe before
+restating. Still open: gate leniency, Tier 1 parity check; setuptools bump resolves to 84.2.1 via
 `uv lock --upgrade-package setuptools` (dry-run 223); napi Buffer leak is `low` — skip;
 Ruby/JNI/ffi-split are `normal`). **Dependabot soupsieve is human-blocked**: 3.0.2/4.x need Python
 \>=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a Maven/portal probe
