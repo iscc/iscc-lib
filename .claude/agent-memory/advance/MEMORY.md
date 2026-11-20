@@ -30,9 +30,7 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     pre-commit only — run `prek run --hook-stage pre-push --files …` too
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
-- C FFI docs (221): C type names in `docs/c-ffi-api.md` + `crates/iscc-ffi/README.md` must be
-    `iscc_`-prefixed (cbindgen `[export] prefix`); gated by `tests/test_c_ffi_docs.py` (derives set
-    from `iscc.h`). New pytest helpers need type hints or pre-push `ty` reds on `str.join`
+- C FFI docs (221): C type names `iscc_`-prefixed, gated by `tests/test_c_ffi_docs.py`
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
@@ -125,14 +123,7 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `serde_json` non-optional. When gating `pub(crate)` fns, gate their tests too (dead-code lint
     fires in library builds; `tests/test_text_utils.rs` needs per-function gating)
 
-## Ruby Bindings (Magnus) — full details → MEMORY-archive.md
-
-- Magnus 0.8 (iter 167; Ruby 3.0-3.4, MSRV 1.65); `function!` no `&Ruby` param — use `Ruby::get()`.
-    0.8 dropped `old-api`: use `ruby.exception_runtime_error()` + `ruby.str_from_slice()`, never
-    `magnus::exception::*` / `RString::from_slice`. `ExtensionTask.new("iscc-rb")` = Cargo pkg name;
-    streaming `RefCell<Option<inner>>` one-shot finalize; `_` prefix for methods NOT class names
-- Ruby: never Magnus `Vec<T>` params (segfault, 212) — `RArray` + `array_to_vec`/`frames_to_vec`.
-    Gem lock bumps: `bundle update <gem> --conservative --patch` (plain moved rubocop)
+## Ruby Bindings (Magnus) → MEMORY-archive.md (Magnus 0.8 API, never `Vec<T>` params)
 
 ## Other Bindings — pointers
 

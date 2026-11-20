@@ -7,11 +7,11 @@ pytest derives the type set from `iscc.h` and fails on any bare name in either d
 
 **Files changed:**
 
-- `docs/c-ffi-api.md`: cbindgen command replaced with the ci.yml L138 line; one prefix sentence
-    under "Types"; the four struct blocks rewritten as `typedef struct iscc_X { … } iscc_X;` with
-    `uintptr_t len`/`count` and `struct iscc_IsccByteBuffer` members (copied from `iscc.h`, field
-    comments kept); headings, prose, signatures, both examples, the streaming signatures and the
-    free table renamed (32 boundary-aware substitutions, then mdformat reflow)
+- `docs/c-ffi-api.md`: cbindgen command replaced with the ci.yml L138 line; two sentences under
+    "Types" (see Notes); the four struct blocks rewritten as `typedef struct iscc_X { … } iscc_X;`
+    with `uintptr_t len`/`count` and `struct iscc_IsccByteBuffer` members (copied from `iscc.h`,
+    field comments kept); headings, prose, signatures, both examples, the streaming signatures and
+    the free table renamed (32 boundary-aware substitutions, then mdformat reflow)
 - `crates/iscc-ffi/README.md`: L79, L105, L106 renamed (table reflowed). The "Streaming" bullet
     (`DataHasher`/`InstanceHasher`, Rust concept names) is unchanged as next.md allows
 - `tests/test_c_ffi_docs.py` (new): `header_type_names` (regex `typedef struct iscc_(\w+)`),
@@ -45,6 +45,11 @@ pytest derives the type set from `iscc.h` and fails on any bare name in either d
     `sorted(names, key=len)`); fixed by adding type hints to the three helpers, not a suppression
 - I realigned the trailing `//` comments of the IDv1 snippet after the rename made its first line
     longer (whitespace only)
+- Deviation: next.md asked for one sentence under "Types"; I added a second ("Each type has a
+    `typedef`, so the `struct` keyword is optional."), which `iscc.h` confirms for all six types
+- Out-of-scope sweep (read-only): bare C type names remain in `packages/cpp/CLAUDE.md` L61, L174 and
+    `packages/cpp/include/iscc/iscc.hpp` L126, L147 (comments/prose only, no compiled code). Hits in
+    `docs/howto/{java,nodejs,wasm}.md` are those bindings' own class names, not C types
 - The prefix sentence names `iscc_IsccByteBuffer` as its example rather than the Rust name, so the
     doc stays free of bare names under the test's rule
 - `size_t` parameter types in function signatures are unchanged (out of scope per next.md), so the

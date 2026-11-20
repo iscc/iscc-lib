@@ -178,3 +178,12 @@ macros-backend default-handling on every major bump, not just compiler warnings.
 
 - Unicode freeze rule REMOVED 2026-07-30 (decisions.md, human): `text_clean`/`text_collapse` mirror
     the reference on dependency tables. Never reintroduce a freeze without a human decision
+
+## Ruby Bindings (Magnus) — summary (moved from MEMORY.md, iter 221)
+
+- Magnus 0.8 (iter 167; Ruby 3.0-3.4, MSRV 1.65); `function!` no `&Ruby` param — use `Ruby::get()`.
+    0.8 dropped `old-api`: use `ruby.exception_runtime_error()` + `ruby.str_from_slice()`, never
+    `magnus::exception::*` / `RString::from_slice`. `ExtensionTask.new("iscc-rb")` = Cargo pkg name;
+    streaming `RefCell<Option<inner>>` one-shot finalize; `_` prefix for methods NOT class names
+- Ruby: never Magnus `Vec<T>` params (segfault, 212) — `RArray` + `array_to_vec`/`frames_to_vec`.
+    Gem lock bumps: `bundle update <gem> --conservative --patch` (plain moved rubocop)
