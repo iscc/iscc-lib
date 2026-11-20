@@ -1,14 +1,15 @@
-<!-- assessed-at: 1ffa2d91caa93fd7fe98583db0a9481810233ef7 -->
+<!-- assessed-at: 2589f1b21a8b735fa6771b4d1e2a6caef007f2e8 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 6 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 5 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 228 tightened `scripts/check_spec_paths.py` and closed that issue; CI is
-fully green on the pushed tip `5498b6c`. Six `normal` issues still block v0.8.0.
+all 11 bindings. Iteration 229 made Ruby `i32` list elements raise `RangeError` for out-of-range
+Bignums and closed that issue; CI is fully green on the pushed tip `e4156c8`. Five `normal` issues
+still block v0.8.0.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -92,11 +93,14 @@ fully green on the pushed tip `5498b6c`. Six `normal` issues still block v0.8.0.
 
 ## Ruby Bindings
 
-**Status**: met (v0.8.0 scope); 1 `normal` issue
+**Status**: met (v0.8.0 scope)
 
 - `encode_seq` / `decode_seq` in `test_conformance.rb`; `test_data_edge.rb` runs all 6 sections,
     green in CI; 0.7.0 on RubyGems
-- **`normal`:** negative Bignums in `i32` list elements truncate instead of raising `RangeError`
+- `array_to_i32_vec` in `src/lib.rs` narrows through `i64` with `i32::try_from`; both `i32` sites
+    (`frames_to_vec`, `gen_audio_code_v0`) use it; 5 tests in `test_array_args.rb`; issue closed
+- `low` issue (new): integer list elements accept a Float and truncate it (Ruby `to_int` convention;
+    Titusz decides)
 
 ## Swift and Kotlin Bindings
 
@@ -113,9 +117,7 @@ fully green on the pushed tip `5498b6c`. Six `normal` issues still block v0.8.0.
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; all how-tos cover the seq functions
-- `scripts/check_spec_paths.py` now matches globs with its own `glob_regex` (`*` stays in one
-    segment), applies `NOT_PATHS` to backticked spans only, and replays on a frozen path set (18
-    tests); the leniency issue is closed
+- `scripts/check_spec_paths.py` gates spec paths with its own `glob_regex` (18 tests)
 - **`normal` `[human]`:** no Tier 1 list parity check; hand-written counts and file lists remain in
     specs and per-crate `CLAUDE.md` files
 
@@ -132,17 +134,16 @@ fully green on the pushed tip `5498b6c`. Six `normal` issues still block v0.8.0.
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `5498b6c`
-    (https://github.com/iscc/iscc-lib/actions/runs/44736457762): all 21 check-runs `success`
-- Only the iteration log commit `1ffa2d9` is unpushed; green CI covers all code at HEAD
+- **Latest CI: PASSING** on `origin/develop` = `e4156c8`
+    (https://github.com/iscc/iscc-lib/actions/runs/44741475490): all 21 check-runs `success`
+- Only the iteration log commit `2589f1b` is unpushed; green CI covers all code at HEAD
 - GitHub Dependabot alerts track `main` and stay open until the next release (triaged, no issue)
 
 ## Open Issues
 
-11 open: 0 critical, **6 normal**, 5 low. Normal: data-edge compare looseness, derived-fact drift,
-iscc-ffi `lib.rs` size, JNI null guard, JNI pending exception, Ruby Bignum truncation. issues.md is
-at 183 of 300 lines.
+10 open: 0 critical, **5 normal**, 5 low. Normal: data-edge compare looseness, derived-fact drift,
+iscc-ffi `lib.rs` size, JNI null guard, JNI pending exception. issues.md is at 188 of 300 lines.
 
 ## Next Milestone
 
-Clear the 6 open `normal` issues, which are the only remaining v0.8.0 release blockers.
+Clear the 5 open `normal` issues, which are the only remaining v0.8.0 release blockers.

@@ -87,15 +87,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 1ffa2d9, iter 229 — incremental)
+## Current State (assessed-at: 2589f1b, iter 230 — incremental)
 
-- **CI GREEN on tip `5498b6c`** (21/21, run 44736457762). Unpushed = `1ffa2d9` log only.
-- **228: spec-path-gate leniency issue CLOSED** — `check_spec_paths.py` uses own `glob_regex` (no
-    `fnmatchcase`), `NOT_PATHS` spans-only, frozen replay set; 18 tests. Don't re-flag.
-- **227: C++ NULL-wrapper issue CLOSED** (`detail::safe_data`, held by `test_cpp_safe_data.py`).
+- **CI GREEN on tip `e4156c8`** (21/21, run 44741475490). Unpushed = `2589f1b` log only.
+- **229: Ruby i32 Bignum issue CLOSED** (`array_to_i32_vec` in `crates/iscc-rb/src/lib.rs`); new
+    `low` filed: Ruby int list elements accept Float. Don't re-flag.
+- **228: spec-path-gate CLOSED; 227: C++ NULL-wrapper CLOSED** (`detail::safe_data`).
 - data-edge.json sections (6): iscc_decode, encode_seq, gen_text/mixed/iscc_code_v0, alg_simhash.
     Vendored-copy check: `md5sum $(git ls-files -- '*data-edge.json')`.
-- **11 open: 6 normal, 5 low.** issues.md 183/300.
+- **10 open: 5 normal, 5 low.** issues.md 188/300. Next per handoff: the two JNI issues.
 - decisions 2026-11-20: comment-only/regenerated files don't count against the 6-file cap.
 - **Review runs on Fable 5.2, no advisor**; `model_costs` in jsonl.
 - FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`. C++ suite 107 tests.
