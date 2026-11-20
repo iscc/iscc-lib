@@ -1,14 +1,14 @@
-<!-- assessed-at: 7bd45fc74a3ad60bf803e65682070be6fbd1cd2e -->
+<!-- assessed-at: 1ffa2d91caa93fd7fe98583db0a9481810233ef7 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 7 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 6 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 227 routed every C++ vector input through `detail::safe_data` and closed
-that issue; CI is fully green on the pushed tip `3df8a2e`. Seven `normal` issues still block v0.8.0.
+all 11 bindings. Iteration 228 tightened `scripts/check_spec_paths.py` and closed that issue; CI is
+fully green on the pushed tip `5498b6c`. Six `normal` issues still block v0.8.0.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -26,8 +26,7 @@ that issue; CI is fully green on the pushed tip `3df8a2e`. Seven `normal` issues
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
     `conformance_selftest` runs the seq vectors; iai, Coverage + CRAP and semver jobs pass in CI
-- `alg_simhash` returns `InvalidInput` for `[]`; the `rust-core.md` Tier 1 table now shows
-    `IsccResult` for `alg_simhash` and `sliding_window`, matching the code
+- `alg_simhash` returns `InvalidInput` for `[]`; `rust-core.md` Tier 1 table matches the code
 - **Missing (human-gated, not v0.8.0):** crate `>= 1.0.0`; MSRV verification
 
 ## Python Bindings
@@ -89,9 +88,7 @@ that issue; CI is fully green on the pushed tip `3df8a2e`. Seven `normal` issues
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; embedded NUL rejected; all data-edge rows run
     from the generated header; ASAN `cpp` job green; 0.7.0 vcpkg/Conan
-- Every vector input goes through `detail::safe_data` (the only `.data()` left in `iscc.hpp` is
-    inside the helper); `{}` tests for the five list wrappers in `test_iscc.cpp`
-- `tests/test_cpp_safe_data.py` fails on any `.data()` outside the helper, so pytest in CI holds it
+- Every vector input goes through `detail::safe_data`, held by `tests/test_cpp_safe_data.py`
 
 ## Ruby Bindings
 
@@ -112,12 +109,13 @@ that issue; CI is fully green on the pushed tip `3df8a2e`. Seven `normal` issues
 
 ## Documentation
 
-**Status**: met (v0.8.0 scope)
+**Status**: met (v0.8.0 scope); 1 `normal` issue
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; all how-tos cover the seq functions
-- **`normal`:** `scripts/check_spec_paths.py` is looser than its docstring (`*` crosses `/`,
-    `NOT_PATHS` exempts tree entries, replay tests read the live index)
+- `scripts/check_spec_paths.py` now matches globs with its own `glob_regex` (`*` stays in one
+    segment), applies `NOT_PATHS` to backticked spans only, and replays on a frozen path set (18
+    tests); the leniency issue is closed
 - **`normal` `[human]`:** no Tier 1 list parity check; hand-written counts and file lists remain in
     specs and per-crate `CLAUDE.md` files
 
@@ -134,17 +132,17 @@ that issue; CI is fully green on the pushed tip `3df8a2e`. Seven `normal` issues
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `3df8a2e`
-    (https://github.com/iscc/iscc-lib/actions/runs/44730591657): all 21 check-runs `success`
-- Only the iteration log commit `7bd45fc` is unpushed; green CI covers all code at HEAD
+- **Latest CI: PASSING** on `origin/develop` = `5498b6c`
+    (https://github.com/iscc/iscc-lib/actions/runs/44736457762): all 21 check-runs `success`
+- Only the iteration log commit `1ffa2d9` is unpushed; green CI covers all code at HEAD
 - GitHub Dependabot alerts track `main` and stay open until the next release (triaged, no issue)
 
 ## Open Issues
 
-12 open: 0 critical, **7 normal**, 5 low. Normal: data-edge compare looseness, spec path gate
-leniency, derived-fact drift, iscc-ffi `lib.rs` size, JNI null guard, JNI pending exception, Ruby
-Bignum truncation. issues.md is at 205 of 300 lines.
+11 open: 0 critical, **6 normal**, 5 low. Normal: data-edge compare looseness, derived-fact drift,
+iscc-ffi `lib.rs` size, JNI null guard, JNI pending exception, Ruby Bignum truncation. issues.md is
+at 183 of 300 lines.
 
 ## Next Milestone
 
-Clear the 7 open `normal` issues, which are the only remaining v0.8.0 release blockers.
+Clear the 6 open `normal` issues, which are the only remaining v0.8.0 release blockers.

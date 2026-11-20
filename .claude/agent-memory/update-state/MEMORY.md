@@ -87,15 +87,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 7bd45fc, iter 228 — incremental)
+## Current State (assessed-at: 1ffa2d9, iter 229 — incremental)
 
-- **CI GREEN on tip `3df8a2e`** (21/21, run 44730591657). Unpushed = `7bd45fc` log only.
-- **227: C++ NULL-wrapper issue CLOSED** — all vector inputs via `detail::safe_data`; held by
-    `tests/test_cpp_safe_data.py` (pytest). `rust-core.md` Tier 1 table fixed (`IsccResult`). Don't
-    re-flag either.
+- **CI GREEN on tip `5498b6c`** (21/21, run 44736457762). Unpushed = `1ffa2d9` log only.
+- **228: spec-path-gate leniency issue CLOSED** — `check_spec_paths.py` uses own `glob_regex` (no
+    `fnmatchcase`), `NOT_PATHS` spans-only, frozen replay set; 18 tests. Don't re-flag.
+- **227: C++ NULL-wrapper issue CLOSED** (`detail::safe_data`, held by `test_cpp_safe_data.py`).
 - data-edge.json sections (6): iscc_decode, encode_seq, gen_text/mixed/iscc_code_v0, alg_simhash.
     Vendored-copy check: `md5sum $(git ls-files -- '*data-edge.json')`.
-- **12 open: 7 normal, 5 low.** issues.md 205/300.
+- **11 open: 6 normal, 5 low.** issues.md 183/300.
 - decisions 2026-11-20: comment-only/regenerated files don't count against the 6-file cap.
 - **Review runs on Fable 5.2, no advisor**; `model_costs` in jsonl.
 - FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`. C++ suite 107 tests.
