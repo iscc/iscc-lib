@@ -30,6 +30,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     pre-commit only — run `prek run --hook-stage pre-push --files …` too
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
+- C FFI docs (221): C type names in `docs/c-ffi-api.md` + `crates/iscc-ffi/README.md` must be
+    `iscc_`-prefixed (cbindgen `[export] prefix`); gated by `tests/test_c_ffi_docs.py` (derives set
+    from `iscc.h`). New pytest helpers need type hints or pre-push `ty` reds on `str.join`
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`

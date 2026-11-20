@@ -1,60 +1,51 @@
-## 2026-11-20 — Review of: .NET — one private helper pins every jagged-array input; empty inputs reach the core
+## 2026-11-20 — C FFI docs use the `iscc_`-prefixed type names of the generated `iscc.h`
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Every exported C type name in `docs/c-ffi-api.md` and `crates/iscc-ffi/README.md` now
+carries the `iscc_` prefix that cbindgen emits. The four struct blocks are the header's tagged
+declarations with `uintptr_t` fields. The generation command is the CI line with `--config`. A
+pytest derives the type set from `iscc.h` and fails on any bare name in either doc.
 
-**Summary:** A private `PinnedRows : IDisposable` in `IsccLib.cs` now pins the inner arrays for all
-six jagged-array methods. A null array or element throws `ArgumentNullException` before anything is
-pinned, and `[]` reaches the core's error on the four methods that used to report the FFI's "must
-not be NULL". The code is short, frees every handle on all paths, and changes no public signature.
-`ArrayInputTests.cs` adds 20 focused tests. The resolved `normal` issue is deleted.
+**Files changed:**
+
+- `docs/c-ffi-api.md`: cbindgen command replaced with the ci.yml L138 line; one prefix sentence
+    under "Types"; the four struct blocks rewritten as `typedef struct iscc_X { … } iscc_X;` with
+    `uintptr_t len`/`count` and `struct iscc_IsccByteBuffer` members (copied from `iscc.h`, field
+    comments kept); headings, prose, signatures, both examples, the streaming signatures and the
+    free table renamed (32 boundary-aware substitutions, then mdformat reflow)
+- `crates/iscc-ffi/README.md`: L79, L105, L106 renamed (table reflowed). The "Streaming" bullet
+    (`DataHasher`/`InstanceHasher`, Rust concept names) is unchanged as next.md allows
+- `tests/test_c_ffi_docs.py` (new): `header_type_names` (regex `typedef struct iscc_(\w+)`),
+    `find_bare_names` (identifier-boundary regex, longest name first, returns `(line, name)`);
+    tests: parse anchor (`IsccByteBuffer`, `FfiDataHasher` in set), one per doc file (failure
+    message lists `file:line: name`), negative test (bare `IsccByteBuffer` on line 2 flagged,
+    prefixed line 1 not), and a longer-name test (`IsccByteBufferArray` reported whole, not as its
+    prefix)
 
 **Verification:**
 
-- [x] `cargo build -p iscc-ffi` + `dotnet test … -e LD_LIBRARY_PATH=…/target/debug` exits 0: 150
-    passed, 0 failed; the per-test log shows all 20 `ArrayInputTests` passing
-- [x] `git status --porcelain` on `NativeMethods.g.cs` and `iscc.h` prints nothing after the build
-- [x] Reviewer-read: all six methods (`GenVideoCodeV0`, `SoftHashVideoV0`, `AlgSimhash`,
-    `GenMixedCodeV0`, `GenIsccCodeV0`, `EncodeSeq`) route through `PinnedRows`; the only
-    `GCHandle.Alloc` in `packages/dotnet` is inside `PinnedRows.Pin`
-- [x] `dotnet build --no-incremental …Iscc.Lib.Tests.csproj`: `0 Warning(s)`, `0 Error(s)`. I forced
-    a full rebuild because an incremental build would pass this check without compiling anything
-- [x] `mise run check` exits 0
-- [x] Gate integrity: no suppression, skip or threshold change anywhere in `@{upstream}..HEAD`
+- [x] `uv run pytest tests/test_c_ffi_docs.py`: 5 passed, including `test_bare_name_is_flagged`
+- [x] The helper run against `git show HEAD:docs/c-ffi-api.md` (pre-fix doc) reports 39 hits (first:
+    line 32 `IsccByteBuffer`), so the test would have caught the defect
+- [x] Compile check: IDv1 snippet and `encode_seq` snippet, each copied verbatim (awk-extracted from
+    the doc) into its own `/tmp/*.c` inside `int main(void) { … return 0; }` after `<stdio.h>` +
+    `"iscc.h"`. `gcc -std=c11 -fsyntax-only -I crates/iscc-ffi/include`: both exit 0. Control: the
+    same file with the old `IsccByteBuffer seq` fails with "unknown type name 'IsccByteBuffer'; did
+    you mean 'iscc_IsccByteBuffer'?"
+- [x] `grep -c -- '--config crates/iscc-ffi/cbindgen.toml' docs/c-ffi-api.md` prints 1
+- [x] `git status --porcelain` on `iscc.h` and `NativeMethods.g.cs` prints nothing
+- [x] `uv run zensical build` exits 0 ("No issues found")
+- [x] `mise run check` exits 0; `prek run --hook-stage pre-push --files <3 files>` exits 0
 
-**Issues found:**
-
-- The advance handoff says putting the null check before the NUL check "matches the old `EncodeSeq`
-    precedence". It does not. The old loop checked each element for null and then for NUL, in order,
-    so `EncodeSeq(["bad\0unit", null])` threw `IsccException`; it now throws
-    `ArgumentNullException`. This is a small behaviour change and an acceptable one. I recorded it
-    in decisions.md (2026-11-20) together with the `max(Count, 1)` padding, which replaced next.md's
-    stack sentinel
-- `docs/howto/dotnet.md` "Error handling" names only `IsccException` and
-    `InvalidOperationException`. The `ArgumentNullException` on null arrays is documented in the XML
-    docs of all six methods but not in that section. Handoff note only, no issue: null was never
-    documented, and `EncodeSeq` threw `ArgumentNullException` before this step
-- Nit: `PinStrings` checks for nulls twice (once itself, once inside `Pin`). It costs almost
-    nothing, so it is not worth changing
-
-**Codex review:** Ran over the full advance range (`--base d588f04`); all 150 tests pass and the
-handles are freed on every path. Two P3s: (1) the `Lengths` array is allocated but never used for
-the three string methods. Dismissed: it is one shared path, and the cost is a single `nuint[]` per
-call. (2) The advance handoff got the precedence wrong. Confirmed, see the first item above.
-
-**Next:** The `normal` issues that CID can work on now are: Python `encode_seq` docstrings (two
-docstrings), the `wasm-bindings.md` spec fact (delete one tree line, realign one Version Sync row),
-`docs/c-ffi-api.md` type names (needs a compile check against `iscc.h`), and the derived-facts
-parity check, which is the largest of the four. Skip the C++ `iscc.hpp` empty-vector entry: it is
-`low` and untriaged, so CID must not pick it, even though it is the same defect on another surface.
+**Next:** Python `encode_seq` docstrings (the rejected alternative from this step), then the
+`wasm-bindings.md` spec line, then the derived-facts parity check.
 
 **Notes:**
 
-- Dependabot entry: I confirmed define-next's probe and recorded it in the issue. Every fixed
-    `soupsieve` release (3.0.2 up to 4.1.2) needs `requires-python >=3.11.5`, but the lock resolves
-    for `>=3.10`, so that part needs Titusz. `setuptools` 84.1.0 needs `>=3.10` and could move on
-    its own, but the entry is resolved only when both are fixed. I did not escalate, because other
-    `normal` work is available
-- The push reported 6 open Dependabot alerts on `main`. The 6th, #1 (`json` gem in
-    `crates/iscc-rb/Gemfile.lock`), is already fixed on `develop` and clears at the next merge to
-    `main`. Nothing to do; it is noted in the Dependabot entry
-- No Rust source changed, so CRAP, iai and semver are unaffected
+- The first pre-push run failed `ty check` (`no-matching-overload` on `str.join` over an unannotated
+    `sorted(names, key=len)`); fixed by adding type hints to the three helpers, not a suppression
+- I realigned the trailing `//` comments of the IDv1 snippet after the rename made its first line
+    longer (whitespace only)
+- The prefix sentence names `iscc_IsccByteBuffer` as its example rather than the Rust name, so the
+    doc stays free of bare names under the test's rule
+- `size_t` parameter types in function signatures are unchanged (out of scope per next.md), so the
+    page still mixes `size_t` (signatures) and `uintptr_t` (struct fields and `iscc_encode_seq`)
