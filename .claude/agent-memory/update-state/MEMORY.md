@@ -87,21 +87,24 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 42ba4a4, iter 224 — incremental)
+## Current State (assessed-at: 32d6686, iter 225 — incremental)
 
-- **CI GREEN on tip `2ff2e5f`** (21/21 check-runs, run 44682503336). Unpushed = `.claude/` only; no
-    code change since `bf4f395`.
-- **223: spec phantom paths removed** (wasm/go/nodejs specs); wasm `normal` issue RESOLVED → WASM
-    met. Follow-up `normal` filed: Go + napi spec structure trees list nonexistent files (wasm tree
-    matches disk — do NOT re-flag wasm).
-- Python `encode_seq` docs DONE (222), C FFI docs DONE (221), .NET PinnedRows DONE (220).
-- **18 open: 3 normal, 15 low.** Normal: Dependabot (`soupsieve` → human), structure-tree phantoms,
-    derived-fact drift `[human]`. issues.md 269/300. Larger-step trial evaluation due after 224.
+- **CI GREEN on tip `7225fce`** (21/21, run 44697229566). Unpushed `32d6686` = loop infra
+    (`tools/cid.py`, `tests/test_cid.py`) — no library code.
+- **2026-11-20 human triage (566b159):** 5 defects promoted low→normal (JNI null guard, JNI pending
+    exception, Ruby Bignum, ffi `lib.rs` 2870 lines, data-edge compare looseness); `alg_simhash([])`
+    must ERROR (decisions.md) — NOT implemented yet (`simhash.rs`, Go `AlgSimhash`); Dependabot
+    issue dropped (mdformat left dev deps → no `soupsieve` in `uv.lock`; GitHub alerts are vs
+    `main`).
+- `edge-vectors.md` now allows Go/Swift to carry data-edge.json (old low issue gone).
+- **224: `scripts/check_spec_paths.py`** prek hook + 15 tests; structure-tree issue RESOLVED; its
+    own leniency filed `normal`.
+- **13 open: 8 normal, 5 low.** issues.md 231/300. Larger-step trial KEPT (decisions.md).
 - data-edge fan-out COMPLETE on 12 surfaces (219); ISCC-SEQ on all 11 (211) — do NOT re-flag.
-- **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
-    defects.
+- **Review now runs on Fable 5.2, no advisor** (decisions 2026-11-20); `model_costs` in jsonl.
 - FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
-- **Structure-tree probe**: `grep -nE '^[│├└ ]*(├|└)── ' <spec>` then `ls` the root dir.
+- **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` — alerts track
+    the DEFAULT branch (`main`), so a develop-only lockfile fix leaves them open until release.
 
 ## Durable Facts (carried, not per-iteration)
 
