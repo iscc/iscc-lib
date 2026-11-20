@@ -280,7 +280,7 @@ the new one and filed the rest as an issue: three .NET pin loops with two behavi
 leftovers as issues. Rejected: the leftover is the defect. **Context:** human decision (Titusz,
 interactive session, 2026-11-19).
 
-## 2026-11-19 — Steps are sized by outcome: 6-file default, fan-out by behaviour (trial)
+## 2026-11-19 — Steps are sized by outcome: 6-file default, fan-out by behaviour
 
 **Decision:** the default step cap rises from 3 to 6 non-test files, and the fan-out valve covers
 bringing one already-decided behaviour to N surfaces, each in its own idiom, with one commit per
@@ -289,8 +289,8 @@ advance and review get 2 hours and $40 per run. **Why:** over iterations 196-214
 24% of the cost of an iteration, and a step's cost barely moved with its size ($10 for under 50
 changed lines, $14-16 for over 400). 5 of 119 iterations were sent back, none of the 13 largest. The
 ISCC-SEQ bindings took 8 iterations because the valve required mechanically identical changes.
-**Trial:** Titusz evaluates after iteration 224 (issues.md). Revert the commit that introduced this
-entry if more than 2 of iterations 215-224 end NEEDS_WORK or a fan-out push turns CI red.
+**Trial — kept** (Titusz, 2026-11-20): iterations 215-224 had 1 NEEDS_WORK, every fan-out push was
+green in CI, and the edge vectors reached all 12 surfaces in 5 iterations at $11.1 per iteration.
 **Context:** human decision (Titusz, interactive session, 2026-11-19).
 
 ## 2026-11-20 — .NET jagged-array inputs: null check first, padded pin arrays
@@ -316,3 +316,14 @@ target.md already say. A bullet that only names the real mechanism is a checkabl
 acceptance criterion. Review cut advance's "(no in-repo package-version string)" clause from the Go
 bullet: it forbade something no spec forbids. **Alternatives:** revert the bullets to the false
 mechanism; escalate with HUMAN REVIEW REQUESTED. **Context:** iteration 223 review.
+
+## 2026-11-20 — `alg_simhash` rejects an empty list
+
+**Decision:** the public `alg_simhash` (Rust core, Go port, every binding) returns an error for an
+empty list instead of 32 zero bytes. The unchecked internal helpers keep returning zeros for the
+generators. **Why:** human decision. A SimHash of nothing has no natural length, the 32-byte answer
+was undocumented and arbitrary, an empty list is almost always a caller bug, and iscc-core fails on
+it too (`IndexError`). Nothing in the library called the public function with an empty list.
+**Alternatives:** keep the zeros and record them as a divergence — rejected, it would make the
+arbitrary constant official. **Context:** human decision (Titusz, interactive session, 2026-11-20);
+issues.md carries the rollout.

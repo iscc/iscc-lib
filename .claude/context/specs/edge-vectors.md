@@ -13,8 +13,10 @@ idiosyncrasies surface, and it is meant to be contributed to iscc/iscc-core late
 
 - Canonical path: `crates/iscc-lib/tests/data-edge.json`. It is vendored next to every vendored copy
     of `data.json`, and `tests/test_vendored_fixtures.py` keeps the copies identical
-- Test data only: not embedded in any published crate or package, and not run by
-    `conformance_selftest`
+- Test data only: no library code embeds or loads it, and `conformance_selftest` does not run it.
+    Packaged artifacts (crate, wheel, npm package, gem, jar, NuGet package) exclude it. Surfaces
+    that are distributed as source (the Go module, the Swift package) carry it as test data next to
+    their `data.json` copy
 - Same layout and value encodings as `data.json`: a top-level object keyed by Tier 1 function name
     (snake_case, as in iscc-core), each holding named vectors (`test_NNNN_<slug>`)
 
@@ -123,4 +125,4 @@ The first version of the file holds at least the cases already found:
 - No harness skips or special-cases a vector in code
 - The Python suite checks every vector against iscc-core 1.5.0 as described under "Rules", and
     `tests/test_seq.py` keeps no separate hand-written divergence list
-- The file is absent from every published artifact
+- The file is absent from every packaged artifact, and no library code embeds or loads it

@@ -18,18 +18,6 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
-## iscc-core mints 88-bit ISCC-IDv0 codes it cannot decode `low` [review]
-
-`iscc_core.encode_length` accepts an 88-bit `ID` body, but the `LN` enum (`constants.py`) has no 88:
-on `iscc_core` 1.3.0 `gen_iscc_id_v0(code, 1, wallet, uc=20000)` → `ISCC:MEBUAGCA47NDLBDXUCOAC`, and
-`iscc_decode` on it raises `ValueError: 88 is not a valid LN`. iscc-lib decodes it. **No local
-change**: ISCC-IDv0 is out of scope, and matching would replicate a defect, so a conformance sweep
-must not "fix" it.
-
-Resolved when filed upstream and the outcome noted.
-
-**Upstream:** iscc/iscc-core
-
 ## Track upstream decision on Unicode version drift `low` [human]
 
 **Human-only — CID must not act on this.** iscc-lib removed its Unicode 16.0.0 pin (sentinel freeze
@@ -66,9 +54,9 @@ workspace (per the 1.0.0 decision). This is the one release allowed to break the
 afterward 1.x is locked under strict SemVer. Drive via the `/release` skill — do NOT let the CID
 loop cut this release autonomously.
 
-**Status (2026-07-28):** Titusz reaffirmed **not yet** — the project is working toward **v0.6.0**,
-and v1.0.0 comes after it. The two hardening gates the 2026-06-18 hold waited on have both landed
-and are enforcing (`ci.yml` → `cargo crap … --fail-regression --fail-above` with a committed
+**Status (2026-11-20):** Titusz: **not yet** — no milestone is set after **v0.8.0**; he decides what
+comes next after the v0.8.0 release. The two hardening gates the 2026-06-18 hold waited on have both
+landed and are enforcing (`ci.yml` → `cargo crap … --fail-regression --fail-above` with a committed
 `.crap-baseline.json`, and `Audit (cargo-deny)`), so they are no longer the blocker. What remains
 for the cut itself: flip `cargo-semver-checks` from `continue-on-error: true` to enforcing, and
 settle the MSRV question (see the MSRV issue below). Do not re-derive this hold from the gate status
@@ -96,12 +84,7 @@ Resolved when either the job exists and passes, or `rust-version` is dropped/rai
 
 **Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
 
-## Add programming language logos to docs site `low` [human]
-
-README language logos added (iteration 3). Consider adding matching logos to `docs/index.md` and
-howto guide headers on the documentation site for visual consistency. Purely cosmetic follow-up.
-
-## JNI streaming-hasher functions dereference Java-supplied handle without null guard `low` [human]
+## JNI streaming-hasher functions dereference Java-supplied handle without null guard `normal` [human]
 
 `dataHasherUpdate`/`dataHasherFinalize`/`instanceHasherUpdate`/`instanceHasherFinalize` in
 `crates/iscc-jni/src/lib.rs` dereference the `jlong` handle via `unsafe { &mut *(ptr as *mut …) }`
@@ -111,25 +94,8 @@ owning the handle lifecycle, but a one-line `if ptr == 0` → throw guard per fu
 boundary robust against misuse of the public JNI surface. Surfaced during the PR #44 review sweep
 (2026-07-30).
 
-## Dependabot alerts: `soupsieve`, `setuptools` (`uv.lock`) `normal` [review]
-
-GitHub reports open alerts on `uv.lock` (2026-11-18): `soupsieve` 2.9.1 has #6 high (ReDoS, fixed
-3.0.2), #4 high (polynomial-time descendant combinator, fixed **4.0.0**), #5 and #3 medium;
-`setuptools` 83.0.0 has #2 low (fixed 84.1.0). Both are dev-environment only: `soupsieve` arrives
-via `beautifulsoup4` ← `mdformat-web` ← `mdformat-mkdocs[recommended]` (dev group), so no published
-artifact pins them. Check that `beautifulsoup4` accepts `soupsieve` 4.x before bumping; refresh only
-these packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
-
-**Needs Titusz for `soupsieve`:** every fixed release (3.0.2 up to 4.1.2) declares
-`requires-python >=3.11.5`, while `pyproject.toml` resolves the lock for `>=3.10`, so the bump needs
-a call on a split dev marker, dropping `mdformat-web` on 3.10, or a higher dev floor. `setuptools`
-84.1.0 declares `>=3.10`, so it could move alone (untested). Alert #1 (`json` gem,
-`crates/iscc-rb/Gemfile.lock`) is already fixed on `develop` (2.21.2) and clears at the next merge
-to `main`.
-
-Resolved when `uv.lock` pins `soupsieve` >= 4.0.0 and `setuptools` >= 84.1.0, `mise run check`
-(mdformat) is green, and `gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of
-#2-#6.
+Resolved when each of the four functions throws on a zero handle instead of dereferencing it, pinned
+by a Java test per function.
 
 ## napi `Buffer` parameters leak a reference on non-Buffer object input `low` [review]
 
@@ -144,7 +110,7 @@ Every `Buffer` parameter in `crates/iscc-napi/src/lib.rs` has this shape. Pre-ex
 Resolved when repeated `ArrayBuffer` calls to a `Buffer`-taking export show no reference or heap
 growth, and every existing Buffer/Uint8Array input still works.
 
-## `crates/iscc-ffi/src/lib.rs` is past the crate's own split threshold `low` [review]
+## `crates/iscc-ffi/src/lib.rs` is past the crate's own split threshold `normal` [review]
 
 `crates/iscc-ffi/CLAUDE.md` says "do not split into submodules unless the file exceeds ~2500 lines";
 `lib.rs` is now 2870 (1715 of exported code, ~1155 of `mod tests` from line 1716). Constraint on any
@@ -156,7 +122,7 @@ Resolved when `lib.rs` is back under the documented threshold (or the threshold 
 changed in `crates/iscc-ffi/CLAUDE.md`), and `cbindgen` + `cargo build -p iscc-ffi` leave `iscc.h`
 and `NativeMethods.g.cs` byte-identical.
 
-## JNI exports report a pending JVM exception as `IllegalArgumentException` `low` [review]
+## JNI exports report a pending JVM exception as `IllegalArgumentException` `normal` [review]
 
 `throw_and_default` in `crates/iscc-jni/src/lib.rs` throws `IllegalArgumentException`
 unconditionally, also when a failed JNI call (`new_string`, `byte_array_from_slice`, …) already left
@@ -170,7 +136,7 @@ re-verified): `-Xmx16m`, `encodeSeq` over 500,000 valid units →
 Resolved when a JNI-allocation failure reaches Java as the original `OutOfMemoryError` (test under a
 small `-Xmx`, or argue why untestable) and the existing exception tests still pass.
 
-## Ruby `i32` list elements silently truncate negative Bignums `low` [review]
+## Ruby `i32` list elements silently truncate negative Bignums `normal` [review]
 
 `IsccLib.gen_audio_code_v0([-(2**63)])` returns the code of `[0]`, where other out-of-range elements
 raise `RangeError`. Magnus 0.8.2 `RBignum::to_i32` (`r_bignum.rs:194`) checks only the upper bound
@@ -205,17 +171,6 @@ Resolved when `*` stays within one path segment while `**` recurses (the six `**
 `swift-bindings.md` still resolve), `NOT_PATHS` is honoured only for backticked spans, the two
 replay tests use a fixed known-path set, and one test pins each of the three cases.
 
-## Evaluate the larger-step trial after iteration 224 `low` [human]
-
-Since 2026-11-19 a default step may touch 6 non-test files and a fan-out brings one decided
-behaviour to all surfaces in one iteration (decisions.md 2026-11-19, "Steps are sized by outcome").
-This is a trial. After iteration 224, compare iterations 215-224 with 196-214: verdicts
-(`mise run cid:stats`), CI results of the pushed review commits, and cost per iteration.
-
-Keep the rules if at most 2 of the 10 iterations ended NEEDS_WORK and no fan-out push turned CI red.
-Otherwise revert the commit that introduced the decisions.md entry. Resolved when Titusz records
-"kept" or "reverted" in that decisions.md entry and deletes this issue.
-
 ## Derived facts in guidance and docs are written by hand and drift `normal` [human]
 
 Counts, file lists and symbol lists are repeated across `docs/`, the READMEs, `CLAUDE.md` files and
@@ -233,41 +188,44 @@ Resolved when both hold:
     and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
     functions") or brought under a check
 
-## Swift `data-edge.json` compare is looser than byte equality `low` [review]
+## `data-edge.json` harnesses accept a value that only resembles the expected one `normal` [human]
 
-**Triage:** untriaged. Nobody hits it today: the Rust harness pins the same bytes strictly.
-
-`compareValue` in `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift` compares with Swift
+Swift: `compareValue` in `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift` compares with
 `String ==`, which uses canonical equivalence (`"K" == "\u{212A}"` is `true`, checked on 6.1.2), and
 reads expected numbers with `as? Int`, which also accepts a JSON `false`/`true` from
-`JSONSerialization`. So a Swift-only marshalling bug that returned a canonically equivalent
-non-ASCII string would pass this harness. Found by Codex in iter 218; the Python template conflates
-`0`/`False` too.
+`JSONSerialization`. Python: the harness template conflates `0` and `False`. No current vector has a
+non-ASCII or Boolean expected output, so nothing slips through today; the first one added would get
+a weaker check on these surfaces with no harness edit to warn anyone (`edge-vectors.md` → "A vector
+costs one edit"). Found by Codex in iter 218. Promoted by Titusz 2026-11-20.
 
 Resolved when the Swift compare matches strings by Unicode scalars and rejects Boolean-backed
-numbers, on both Linux and macOS.
+numbers (on Linux and macOS), and the Python harness rejects a `bool` where a number is expected and
+vice versa.
 
-## Go and Swift ship `data-edge.json` despite "absent from every published artifact" `low` [review]
+**Spec:** `.claude/context/specs/edge-vectors.md` → "Rules"
 
-**Triage:** untriaged. No user is harmed (one extra test file in a download); the question is which
-of two spec lines wins.
+## `alg_simhash` accepts an empty list; C++ list wrappers pass NULL for an empty vector `normal` [human]
 
-`edge-vectors.md` requires a copy "next to every vendored copy of `data.json`" and also "The file is
-absent from every published artifact". The Rust crate meets the second with `exclude` in
-`crates/iscc-lib/Cargo.toml`. Go cannot: the module zip that `proxy.golang.org` serves carries all
-of `packages/go/`, `testdata/` included, so `packages/go/testdata/data-edge.json` (iter 217) ships.
-Swift Package Manager clones the whole repository, canonical copy included. Possible readings: (a)
-"published artifact" means built or packaged output, and a source module is exempt; (b) Go reads the
-canonical file through `../../crates/iscc-lib/tests/` like its `code_*_test.go` do, and the Go copy
-is dropped. (b) leaves the Swift case open.
+On `alg_simhash([])` the surfaces disagree: the Rust core and the Go port return 32 zero bytes (an
+undocumented constant, `alg_simhash_inner` / `AlgSimhash`), so do the bindings that pass the list
+through; C and C++ fail with the FFI's null-pointer error; iscc-core crashes with `IndexError`.
+Titusz decided 2026-11-20 (decisions.md): `alg_simhash` rejects an empty list. Only the public
+checked function changes; `alg_simhash_inner` keeps its internal contract. **Trap in Go:** the
+generators in `code_content_audio.go`, `code_content_mixed.go` and `code_meta.go` call the public
+`AlgSimhash`, discard its error and rely on the 32 zero bytes for an empty list (short audio). They
+must move to an unexported unchecked helper, as Rust's generators use `alg_simhash_inner`, or Go
+output changes silently.
 
-Resolved when Titusz picks a reading and the spec says how a source-distributed surface meets it.
+Separately, five wrappers in `packages/cpp/include/iscc/iscc.hpp` (`gen_mixed_code_v0`,
+`gen_iscc_code_v0`, `gen_video_code_v0`, `alg_simhash`, `soft_hash_video_v0`) pass `ptrs.data()`,
+NULL when empty, where `encode_seq` uses `detail::safe_data`. So `{}` fails with the FFI's NULL
+message instead of reaching the core's own check (iter 219).
 
-**Spec:** `.claude/context/specs/edge-vectors.md` → "The File", "Verified When"
+Order: the core and Go change lands first and alone (decisions.md 2026-11-19, "Core changes go first
+and alone"), then the C++ fix and the vector reach all surfaces.
 
-## C++ list wrappers pass NULL for an empty vector `low` [review]
+Resolved when the Rust core and the Go port reject `alg_simhash([])` with an error, an `alg_simhash`
+`[]` vector with `error` in `data-edge.json` passes on all 12 surfaces, and the five C++ wrappers
+pass a non-NULL pointer, each pinned by a test on `{}`.
 
-**Triage:** untriaged. `gen_mixed_code_v0`/`gen_iscc_code_v0` still throw `iscc::IsccError` on `{}`,
-with the FFI's NULL message (iter 219); `gen_video_code_v0`, `alg_simhash`, `soft_hash_video_v0` are
-unprobed. All five in `iscc.hpp` pass `ptrs.data()`, NULL when empty, where `encode_seq` uses
-`detail::safe_data`. Resolved when they pass a non-NULL pointer and a test on `{}` pins each.
+**Spec:** `.claude/context/specs/rust-core.md` → Tier 1 table (`alg_simhash`)
