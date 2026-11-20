@@ -51,6 +51,31 @@ enum DataEdge {
         "bytes:" + data.map { String(format: "%02x", $0) }.joined()
     }
 
+    /// Decode a `bytes:<hex>` fixture value into `Data`, or throw a harness error.
+    static func decodeBytes(_ value: String) throws -> Data {
+        guard value.hasPrefix("bytes:") else {
+            throw EdgeHarnessError(description: "expected a bytes:<hex> input, got \(value)")
+        }
+        let digits = Array(value.dropFirst("bytes:".count))
+        guard digits.count % 2 == 0 else {
+            throw EdgeHarnessError(description: "odd-length hex in \(value)")
+        }
+        var data = Data()
+        for index in stride(from: 0, to: digits.count, by: 2) {
+            let pair = String(digits[index..<index + 2])
+            guard let byte = UInt8(pair, radix: 16) else {
+                throw EdgeHarnessError(description: "non-hex digits in \(value)")
+            }
+            data.append(byte)
+        }
+        return data
+    }
+
+    /// Read the input at `index` as a list of `bytes:<hex>` values decoded into `Data`.
+    static func bytesList(_ inputs: [Any], _ index: Int) throws -> [Data] {
+        try arg(inputs, index, as: [String].self).map(decodeBytes)
+    }
+
     /// Prepare `isccDecode` on the vector's string input.
     static func prepareDecode(_ inputs: [Any]) throws -> () throws -> Any {
         let iscc = try arg(inputs, 0, as: String.self)
@@ -69,10 +94,16 @@ enum DataEdge {
         return { try encodeSeq(units: units) }
     }
 
-    /// Convert `encodeSeq` bytes to a `bytes:<hex>` value.
+    /// Convert `encodeSeq` or `algSimhash` bytes to a `bytes:<hex>` value.
     static func convertSeq(_ result: Any) -> Any {
         guard let data = result as? Data else { return "not Data: \(result)" }
         return bytesValue(data)
+    }
+
+    /// Prepare `algSimhash` on the vector's digest list.
+    static func prepareSimhash(_ inputs: [Any]) throws -> () throws -> Any {
+        let digests = try bytesList(inputs, 0)
+        return { try algSimhash(hashDigests: digests) }
     }
 
     /// Prepare `genTextCodeV0` on the vector's text and bits.
@@ -121,6 +152,7 @@ enum DataEdge {
         "gen_text_code_v0": EdgeCaller(prepare: prepareText, convert: convertText),
         "gen_mixed_code_v0": EdgeCaller(prepare: prepareMixed, convert: convertMixed),
         "gen_iscc_code_v0": EdgeCaller(prepare: prepareIsccCode, convert: convertIsccCode),
+        "alg_simhash": EdgeCaller(prepare: prepareSimhash, convert: convertSeq),
     ]
 
     /// Load and parse the vendored data-edge.json.
