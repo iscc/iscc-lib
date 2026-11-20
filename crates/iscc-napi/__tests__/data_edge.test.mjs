@@ -80,17 +80,32 @@ function loadDoc() {
 }
 
 /**
- * Compare an actual output with the expected one and return a failure, or null.
- * For an object, only the expected keys the result exposes are compared.
+ * Section name -> expected output keys its napi result does not carry, which are
+ * therefore not compared (an absent section compares every key). The gen functions
+ * here return a bare ISCC string, so text drops `characters` and mixed drops `parts`.
  */
-function compare(expected, actual) {
+const UNCOMPARED = {
+    gen_text_code_v0: ['characters'],
+    gen_mixed_code_v0: ['parts'],
+};
+
+/**
+ * Compare an actual output with the expected one and return a failure, or null.
+ * For an object, every expected key outside the section's static uncompared set must
+ * be present in the result and equal; a missing key fails.
+ */
+function compare(section, expected, actual) {
     if (expected === null || typeof expected !== 'object' || Array.isArray(expected)) {
         const same = JSON.stringify(expected) === JSON.stringify(actual);
         return same ? null : `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`;
     }
-    const keys = Object.keys(actual).filter((key) => key in expected);
-    if (keys.length === 0) return `no expected field among ${Object.keys(actual)}`;
-    for (const key of keys) {
+    if (actual === null || typeof actual !== 'object' || Array.isArray(actual)) {
+        return `expected an object, got ${JSON.stringify(actual)}`;
+    }
+    const uncompared = UNCOMPARED[section] ?? [];
+    for (const key of Object.keys(expected)) {
+        if (uncompared.includes(key)) continue;
+        if (!Object.hasOwn(actual, key)) return `missing field ${key} in ${JSON.stringify(actual)}`;
         if (JSON.stringify(expected[key]) !== JSON.stringify(actual[key])) {
             return `field ${key}: expected ${JSON.stringify(expected[key])}, got ${JSON.stringify(actual[key])}`;
         }
@@ -109,7 +124,7 @@ function rawCall(fn, inputs) {
 }
 
 /** Check one vector against the surface's effective expectation; return a failure or null. */
-function checkVector([fn, convert, prepare], vector) {
+function checkVector(section, [fn, convert, prepare], vector) {
     const exception = vector.except?.[SURFACE];
     if (exception === 'skip') return null;
     const expectError = exception === 'error' || 'error' in vector;
@@ -119,7 +134,7 @@ function checkVector([fn, convert, prepare], vector) {
     }
     if (error) return `expected an output, got error: ${error.message}`;
     if (!('outputs' in vector)) return 'vector has neither outputs nor error';
-    return compare(vector.outputs, convert(result));
+    return compare(section, vector.outputs, convert(result));
 }
 
 /** Run every vector of a parsed document; return one `section/vector: reason` per failure. */
@@ -132,7 +147,7 @@ function checkDoc(doc) {
             continue;
         }
         for (const [name, vector] of Object.entries(vectors)) {
-            const reason = checkVector(entry, vector);
+            const reason = checkVector(section, entry, vector);
             if (reason) failures.push(`${section}/${name}: ${reason}`);
         }
     }
@@ -198,5 +213,30 @@ describe('data-edge.json', () => {
         const failures = checkDoc(doc);
         strictEqual(failures.length, 1);
         ok(failures[0].startsWith('iscc_decode/test_0001_error: expected an error'), failures[0]);
+    });
+
+    it('compares an object output', () => {
+        // The data.json Hello World vector: `characters` is uncompared, `iscc` matches.
+        const outputs = { iscc: 'ISCC:EAASKDNZNYGUUF5A', characters: 10 };
+        const doc = { gen_text_code_v0: { test_0001_x: { inputs: ['Hello World', 64], outputs, note: 'n' } } };
+        deepStrictEqual(checkDoc(doc), []);
+    });
+
+    it('fails an expected key outside the uncompared set', () => {
+        // `parts` is uncompared for mixed only, so a text result lacking it fails.
+        const outputs = { iscc: 'ISCC:EAASKDNZNYGUUF5A', parts: [] };
+        const doc = { gen_text_code_v0: { test_0001_x: { inputs: ['Hello World', 64], outputs, note: 'n' } } };
+        const failures = checkDoc(doc);
+        strictEqual(failures.length, 1, failures.join('\n'));
+        ok(failures[0].includes('missing field parts'), failures[0]);
+    });
+
+    it('fails a result without iscc', () => {
+        const failure = compare(
+            'gen_text_code_v0',
+            { iscc: 'ISCC:EAASKDNZNYGUUF5A', characters: 10 },
+            { characters: 10 },
+        );
+        ok(failure?.includes('missing field iscc'), String(failure));
     });
 });
