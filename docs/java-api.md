@@ -608,7 +608,7 @@ corresponding `*Free` method to release native memory.
 !!! warning
 
     `*Finalize()` consumes the hasher state. After finalizing, subsequent `*Update()` or `*Finalize()`
-    calls will throw `IllegalArgumentException`. You must still call `*Free()` to release the wrapper.
+    calls throw `IllegalStateException`. You must still call `*Free()` to release the wrapper.
 
 ### DataHasher
 
@@ -643,7 +643,8 @@ Returns an opaque `long` handle to the hasher.
 public static native void dataHasherUpdate(long ptr, byte[] data);
 ```
 
-Throws `IllegalArgumentException` if the hasher has been finalized.
+Throws `IllegalStateException` if the hasher has been finalized and `IllegalArgumentException` for a
+zero handle.
 
 #### dataHasherFinalize
 
@@ -651,7 +652,8 @@ Throws `IllegalArgumentException` if the hasher has been finalized.
 public static native String dataHasherFinalize(long ptr, int bits);
 ```
 
-Throws `IllegalArgumentException` if already finalized or on error.
+Throws `IllegalStateException` if already finalized and `IllegalArgumentException` for a zero handle
+or on error.
 
 #### dataHasherFree
 
@@ -696,7 +698,8 @@ Returns an opaque `long` handle to the hasher.
 public static native void instanceHasherUpdate(long ptr, byte[] data);
 ```
 
-Throws `IllegalArgumentException` if the hasher has been finalized.
+Throws `IllegalStateException` if the hasher has been finalized and `IllegalArgumentException` for a
+zero handle.
 
 #### instanceHasherFinalize
 
@@ -704,7 +707,8 @@ Throws `IllegalArgumentException` if the hasher has been finalized.
 public static native String instanceHasherFinalize(long ptr, int bits);
 ```
 
-Throws `IllegalArgumentException` if already finalized or on error.
+Throws `IllegalStateException` if already finalized and `IllegalArgumentException` for a zero handle
+or on error.
 
 #### instanceHasherFree
 
@@ -723,7 +727,7 @@ All methods that accept user input throw `IllegalArgumentException` on invalid a
 - Empty or null required parameters (e.g., empty `name` in `genMetaCodeV0`)
 - Invalid `bits` values (must be a multiple of 32, range 32–256)
 - Malformed ISCC strings passed to `isccDecode` or `isccDecompose`
-- Streaming hasher operations after finalization
+- A zero handle passed to a streaming hasher's `*Update` or `*Finalize`
 
 ```java
 try {
@@ -733,6 +737,10 @@ try {
     System.err.println("Error: " + e.getMessage());
 }
 ```
+
+Streaming hasher operations after finalization throw `IllegalStateException`. A failed JVM
+allocation inside a native call (e.g., a result larger than the Java heap) surfaces as
+`OutOfMemoryError`.
 
 ## Memory Management
 

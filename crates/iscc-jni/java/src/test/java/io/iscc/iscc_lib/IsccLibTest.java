@@ -558,6 +558,74 @@ class IsccLibTest {
         }
     }
 
+    // ── Hasher null-handle guard ────────────────────────────────────────────
+
+    /** Verify dataHasherUpdate rejects a zero handle instead of dereferencing it. */
+    @Test
+    void testDataHasherUpdateRejectsNullHandle() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.dataHasherUpdate(0L, new byte[] {1, 2, 3}));
+        assertTrue(e.getMessage().contains("handle is null"), e.getMessage());
+    }
+
+    /** Verify dataHasherFinalize rejects a zero handle instead of dereferencing it. */
+    @Test
+    void testDataHasherFinalizeRejectsNullHandle() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.dataHasherFinalize(0L, 64));
+        assertTrue(e.getMessage().contains("handle is null"), e.getMessage());
+    }
+
+    /** Verify instanceHasherUpdate rejects a zero handle instead of dereferencing it. */
+    @Test
+    void testInstanceHasherUpdateRejectsNullHandle() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.instanceHasherUpdate(0L, new byte[] {1, 2, 3}));
+        assertTrue(e.getMessage().contains("handle is null"), e.getMessage());
+    }
+
+    /** Verify instanceHasherFinalize rejects a zero handle instead of dereferencing it. */
+    @Test
+    void testInstanceHasherFinalizeRejectsNullHandle() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.instanceHasherFinalize(0L, 64));
+        assertTrue(e.getMessage().contains("handle is null"), e.getMessage());
+    }
+
+    // ── Allocation failure ───────────────────────────────────────────────────
+
+    /**
+     * Verify a JVM allocation failure inside a native call reaches Java as OutOfMemoryError.
+     *
+     * <p>Runs {@link OomProbe} in a child JVM with {@code -Xmx16m -Xcheck:jni}, so the test JVM
+     * keeps its heap. The child's stderr must carry no JNI-check warning (a {@code ThrowNew} over
+     * a pending exception would print one).
+     */
+    @Test
+    void allocationFailureSurfacesAsOutOfMemoryError() throws Exception {
+        Path javaBin = Path.of(System.getProperty("java.home"), "bin", "java");
+        ProcessBuilder pb = new ProcessBuilder(
+                javaBin.toString(),
+                "-Xmx16m",
+                "-Xcheck:jni",
+                "-Djava.library.path=" + System.getProperty("java.library.path"),
+                "-cp", System.getProperty("java.class.path"),
+                OomProbe.class.getName());
+        Path stderrFile = Files.createTempFile("iscc-oom-probe", ".err");
+        pb.redirectError(stderrFile.toFile());
+        try {
+            Process proc = pb.start();
+            String stdout = new String(proc.getInputStream().readAllBytes()).trim();
+            int exit = proc.waitFor();
+            String stderr = Files.readString(stderrFile);
+            assertEquals(0, exit, "probe exit code; stderr:\n" + stderr);
+            assertEquals("java.lang.OutOfMemoryError", stdout, "probe stderr:\n" + stderr);
+            assertTrue(!stderr.contains("WARNING in native method"), stderr);
+        } finally {
+            Files.deleteIfExists(stderrFile);
+        }
+    }
+
     // ── Constants ────────────────────────────────────────────────────────────
 
     /** Verify the 5 algorithm configuration constants. */

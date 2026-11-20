@@ -367,7 +367,8 @@ public class IsccLib {
      *
      * @param ptr  opaque handle from {@link #dataHasherNew()}
      * @param data byte data to feed into the hasher
-     * @throws IllegalArgumentException if the hasher has been finalized
+     * @throws IllegalArgumentException if {@code ptr} is zero
+     * @throws IllegalStateException if the hasher has been finalized
      */
     public static native void dataHasherUpdate(long ptr, byte[] data);
 
@@ -375,13 +376,14 @@ public class IsccLib {
      * Finalize a streaming DataHasher and return an ISCC string.
      *
      * <p>Consumes the inner hasher state. After this call, subsequent
-     * {@code update} or {@code finalize} calls will throw. The caller must
+     * {@code update} or {@code finalize} calls throw {@link IllegalStateException}. The caller must
      * still call {@link #dataHasherFree(long)} to release the wrapper.
      *
      * @param ptr  opaque handle from {@link #dataHasherNew()}
      * @param bits hash bit length (32, 64, 96, 128, 160, 192, 224, 256)
      * @return ISCC string
-     * @throws IllegalArgumentException if already finalized or on error
+     * @throws IllegalArgumentException if {@code ptr} is zero or on error
+     * @throws IllegalStateException if the hasher has already been finalized
      */
     public static native String dataHasherFinalize(long ptr, int bits);
 
@@ -409,7 +411,8 @@ public class IsccLib {
      *
      * @param ptr  opaque handle from {@link #instanceHasherNew()}
      * @param data byte data to feed into the hasher
-     * @throws IllegalArgumentException if the hasher has been finalized
+     * @throws IllegalArgumentException if {@code ptr} is zero
+     * @throws IllegalStateException if the hasher has been finalized
      */
     public static native void instanceHasherUpdate(long ptr, byte[] data);
 
@@ -417,13 +420,14 @@ public class IsccLib {
      * Finalize a streaming InstanceHasher and return an ISCC string.
      *
      * <p>Consumes the inner hasher state. After this call, subsequent
-     * {@code update} or {@code finalize} calls will throw. The caller must
+     * {@code update} or {@code finalize} calls throw {@link IllegalStateException}. The caller must
      * still call {@link #instanceHasherFree(long)} to release the wrapper.
      *
      * @param ptr  opaque handle from {@link #instanceHasherNew()}
      * @param bits hash bit length (32, 64, 96, 128, 160, 192, 224, 256)
      * @return ISCC string
-     * @throws IllegalArgumentException if already finalized or on error
+     * @throws IllegalArgumentException if {@code ptr} is zero or on error
+     * @throws IllegalStateException if the hasher has already been finalized
      */
     public static native String instanceHasherFinalize(long ptr, int bits);
 

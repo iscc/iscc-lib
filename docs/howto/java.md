@@ -264,9 +264,10 @@ try {
 }
 ```
 
-After calling `*Finalize`, further calls to `*Update` or `*Finalize` throw
-`IllegalArgumentException`. The handle must still be freed with `*Free` after finalization. Calling
-`*Free` with a zero/null handle is a no-op — each handle must be freed exactly once.
+After calling `*Finalize`, further calls to `*Update` or `*Finalize` throw `IllegalStateException`;
+passing a zero handle to them throws `IllegalArgumentException`. The handle must still be freed with
+`*Free` after finalization. Calling `*Free` with a zero/null handle is a no-op — each handle must be
+freed exactly once.
 
 ## Text utilities
 

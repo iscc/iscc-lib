@@ -29,6 +29,7 @@ crates/iscc-jni/
     src/test/java/io/iscc/iscc_lib/
       IsccLibTest.java        # JUnit 6 conformance + unit tests
       DataEdgeTest.java       # every data-edge.json vector (except.java), unknown section fails
+      OomProbe.java           # child-JVM main for the OutOfMemoryError mapping test
   README.md                   # Maven installation and API overview
 ```
 
@@ -37,22 +38,22 @@ live in `src/lib.rs`. Do not split into submodules unless the file exceeds ~1500
 
 ## Rust-to-JNI Type Mapping
 
-| Rust / iscc-lib type  | JNI boundary type          | Java type       | Notes                                                                            |
-| --------------------- | -------------------------- | --------------- | -------------------------------------------------------------------------------- |
-| `String`              | `JString`                  | `String`        | `JString::try_to_string(env)` for input, `env.new_string()` for output           |
-| `Option<String>`      | `JString` (nullable)       | `String` (null) | Check `.is_null()` before `try_to_string()`                                      |
-| `&[u8]` / `Vec<u8>`   | `JByteArray`               | `byte[]`        | Extract via `env.convert_byte_array()`, return via `env.byte_array_from_slice()` |
-| `&[i32]` / `Vec<i32>` | `JIntArray`                | `int[]`         | Extract via `extract_int_array`                                                  |
-| `Vec<Vec<i32>>`       | `JObjectArray<JIntArray>`  | `int[][]`       | Extract via `extract_int_array_2d`                                               |
-| `Vec<String>`         | `JObjectArray<JString>`    | `String[]`      | Extract via `extract_string_array`, build via `build_string_array`               |
-| `Vec<Vec<u8>>`        | `JObjectArray<JByteArray>` | `byte[][]`      | Build with `JObjectArray::<JByteArray>::new` + `set_element`                     |
-| `u32`                 | `jint`                     | `int`           | Cast `jint as u32`; Java has no unsigned int                                     |
-| `u8`                  | `jint`                     | `int`           | Validate range 0-255 before casting                                              |
-| `bool`                | `jboolean`                 | `boolean`       | `jboolean` is Rust `bool` (jni-sys 0.4); pass through directly                   |
-| `usize`               | `jint`                     | `int`           | Validate non-negative before casting                                             |
-| `jlong`               | `jlong`                    | `long`          | Used for opaque pointers (streaming hashers)                                     |
-| `Result<T>`           | throws in Java             | exception       | `throw_and_default` -> `IllegalArgumentException`                                |
-| struct result         | `JObject`                  | custom class    | Construct via `env.new_object()` with a `jni_sig!` signature                     |
+| Rust / iscc-lib type  | JNI boundary type          | Java type       | Notes                                                                              |
+| --------------------- | -------------------------- | --------------- | ---------------------------------------------------------------------------------- |
+| `String`              | `JString`                  | `String`        | `JString::try_to_string(env)` for input, `env.new_string()` for output             |
+| `Option<String>`      | `JString` (nullable)       | `String` (null) | Check `.is_null()` before `try_to_string()`                                        |
+| `&[u8]` / `Vec<u8>`   | `JByteArray`               | `byte[]`        | Extract via `env.convert_byte_array()`, return via `env.byte_array_from_slice()`   |
+| `&[i32]` / `Vec<i32>` | `JIntArray`                | `int[]`         | Extract via `extract_int_array`                                                    |
+| `Vec<Vec<i32>>`       | `JObjectArray<JIntArray>`  | `int[][]`       | Extract via `extract_int_array_2d`                                                 |
+| `Vec<String>`         | `JObjectArray<JString>`    | `String[]`      | Extract via `extract_string_array`, build via `build_string_array`                 |
+| `Vec<Vec<u8>>`        | `JObjectArray<JByteArray>` | `byte[][]`      | Build with `JObjectArray::<JByteArray>::new` + `set_element`                       |
+| `u32`                 | `jint`                     | `int`           | Cast `jint as u32`; Java has no unsigned int                                       |
+| `u8`                  | `jint`                     | `int`           | Validate range 0-255 before casting                                                |
+| `bool`                | `jboolean`                 | `boolean`       | `jboolean` is Rust `bool` (jni-sys 0.4); pass through directly                     |
+| `usize`               | `jint`                     | `int`           | Validate non-negative before casting                                               |
+| `jlong`               | `jlong`                    | `long`          | Used for opaque pointers (streaming hashers)                                       |
+| `Result<T>`           | throws in Java             | exception       | `throw_and_default` -> `IllegalArgumentException` (`OutOfMemoryError` on NoMemory) |
+| struct result         | `JObject`                  | custom class    | Construct via `env.new_object()` with a `jni_sig!` signature                       |
 
 ## Build Commands
 
@@ -110,11 +111,23 @@ cd crates/iscc-jni/java && mvn test
 - Every fallible bridge function wraps its body in `EnvUnowned::with_env(|env| ...)` and maps the
     outcome with `.resolve::<ThrowRuntimeExAndDefault>()`; the policy checks for a pending exception
     first, so it only fires for a genuine panic or unhandled `Err`
-- **`throw_and_default<T: Default>`**: throws `IllegalArgumentException` via `env.throw_new()` and
-    returns `Ok(T::default())` -- the exception stays pending and the JVM raises it in Java
+- **`throw_and_default<T: Default, E: JavaError + ?Sized>`**: takes the error itself (`&e`, or a
+    `&str` message -- never `&e.to_string()`); the `JavaError` trait (impls for
+    `jni::errors::Error`, `iscc_lib::IsccError`, `str`) picks the class. `JniError::NoMemory` throws
+    a fresh `OutOfMemoryError` (jni's `jni_call_with_catch*` macros catch and clear the JVM's
+    original and return `NoMemory`); everything else throws `IllegalArgumentException` with the
+    `Display` text. Returns `Ok(T::default())` -- the exception stays pending and the JVM raises it
+    in Java
 - **`throw_state_error<T: Default>`**: throws `IllegalStateException` for invalid hasher state
     (update/finalize after finalize)
-- Errors from `iscc_lib` are converted to exception messages via `.to_string()`
+- **Pending-exception guard**: both helpers return the default without throwing when
+    `env.exception_check()` is true (a `jni_call_post_check_ex!` call such as `set_region` leaves
+    the exception pending) -- `ThrowNew` over a pending exception breaks the JNI spec
+- **Null handle**: `*Update`/`*Finalize` throw `IllegalArgumentException` for a zero handle before
+    dereferencing it; a stale (freed, non-zero) handle is undetectable without a handle registry
+- **OOM test**: `IsccLibTest.allocationFailureSurfacesAsOutOfMemoryError` runs `OomProbe` (test
+    source) in a child JVM with `-Xmx16m -Xcheck:jni` -- `encodeSeq` over 600,000 units asks for a
+    ~20 MB `byte[]` that cannot fit; never shrink the surefire JVM's heap instead
 - JNI environment errors (string conversion, array access) are caught and propagated as exceptions
 - Rust never panics across the JNI boundary -- `with_env` wraps the body in `catch_unwind`, and all
     fallible paths use `match` with error propagation
