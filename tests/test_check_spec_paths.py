@@ -5,7 +5,8 @@ set and asserts zero errors — this carries the gate into CI (CI runs pytest, n
 prek) and catches deletions the ``files:``-scoped hook never sees. The mutation
 tests write a spec into ``tmp_path`` and inject a known-path set, one bad case per
 call. A real-regression test replays the Go structure tree the specs carried before
-the check existed and asserts exactly its 11 phantom files light up.
+the check existed against a frozen snapshot of the ``packages/go/`` files that tree
+names and that exist, and asserts exactly its 11 phantom files light up.
 """
 
 import importlib.util
@@ -97,6 +98,24 @@ crates/iscc-wasm/
     └── iscc_wasm.js        # generated, untracked
 {FENCE}
 """
+
+# The packages/go/ files the old tree names that exist — a frozen snapshot, so the
+# replay tests do not depend on the live index.
+OLD_GO_KNOWN = _known(
+    *(
+        f"packages/go/{name}"
+        for name in (
+            "go.mod",
+            "go.sum",
+            "codec.go",
+            "codec_test.go",
+            "dct.go",
+            "dct_test.go",
+            "testdata/data.json",
+            "README.md",
+        )
+    )
+)
 
 GOOD_PROSE = "Run `scripts/tool.py:12` on `packages/demo/` per `packages/go/vX.Y.Z`.\n"
 
@@ -222,10 +241,10 @@ def test_floor_zero_backticked_paths(tmp_path):
 
 
 def test_old_go_tree_reports_its_eleven_phantoms(tmp_path):
-    # Real regression: the pre-gate Go tree, resolved against the real tracked
-    # set, reports exactly the 11 files packages/go never had.
+    # Real regression: the pre-gate Go tree, resolved against the frozen
+    # snapshot of the packages/go/ files it names that exist, reports exactly the 11 files packages/go never had.
     spec = _spec_file(tmp_path, OLD_GO_TREE)
-    errors, counts = csp.check_spec(spec, csp.tracked_paths(csp.ROOT))
+    errors, counts = csp.check_spec(spec, OLD_GO_KNOWN)
     assert counts == (1, 20, 0)
     phantoms = [e.split("`")[1].removeprefix("packages/go/") for e in errors]
     assert phantoms == OLD_GO_PHANTOMS
@@ -237,7 +256,43 @@ def test_main_exits_nonzero_on_phantom(tmp_path, monkeypatch, capsys):
     spec_dir.mkdir()
     (spec_dir / "go.md").write_text(OLD_GO_TREE + GOOD_PROSE, encoding="utf-8")
     monkeypatch.setattr(csp, "SPEC_DIR", spec_dir)
+    monkeypatch.setattr(csp, "tracked_paths", lambda root: OLD_GO_KNOWN | KNOWN)
     assert csp.main() == 1
     assert "go.md:5: tree entry `packages/go/iscc.go` is not tracked" in (
         capsys.readouterr().out
     )
+
+
+def test_single_star_stays_in_one_segment(tmp_path):
+    # KNOWN holds packages/demo/testdata/data.json but no JSON directly under
+    # packages/demo/, so `*` (one segment) fires while `**` (any depth) resolves.
+    good = GOOD_PROSE + "All `packages/demo/**/*.json` under `packages/demo/**`.\n"
+    assert _errors(tmp_path, GOOD_TREE + good) == []
+    bad = GOOD_PROSE + "Every `packages/demo/*.json` file.\n"
+    assert _errors(tmp_path, GOOD_TREE + bad) == [
+        "demo.md:17: backticked `packages/demo/*.json` is not tracked"
+    ]
+
+
+def test_not_paths_does_not_exempt_tree_entry(tmp_path):
+    # A NOT_PATHS string exempts a backticked span only: as a tree entry it
+    # claims a file exists, so it must resolve against the tracked set.
+    tree = f"{FENCE}\nscripts/\n└── gen_ffi_boundary_vectors.py\n{FENCE}\n"
+    assert _errors(tmp_path, GOOD_TREE + tree + GOOD_PROSE) == [
+        "demo.md:18: tree entry `scripts/gen_ffi_boundary_vectors.py` is not tracked"
+    ]
+    prose = GOOD_PROSE + "History: `scripts/gen_ffi_boundary_vectors.py`.\n"
+    assert _errors(tmp_path, GOOD_TREE + prose) == []
+
+
+def test_glob_double_star_crosses_segments_single_star_does_not():
+    known = _known("crates/iscc-lib/src/codec.rs", "packages/go/code_meta.go")
+    assert csp.glob_regex("crates/*/src/*.rs").fullmatch("crates/iscc-lib/src/codec.rs")
+    assert not csp.glob_regex("crates/*.rs").fullmatch("crates/iscc-lib/src/codec.rs")
+    assert csp.glob_regex("crates/**.rs").fullmatch("crates/iscc-lib/src/codec.rs")
+    assert csp.resolves("crates/iscc-lib/**", known)
+    assert csp.resolves("packages/go/code_*.go", known)
+    assert not csp.resolves("crates/*/codec.rs", known)
+    assert not csp.resolves("packages/*.go", known)
+    # Regex metacharacters in the pattern are literal, not wildcards.
+    assert not csp.resolves("packages/go/code_meta.g.", known)

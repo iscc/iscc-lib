@@ -20,10 +20,14 @@ Rules:
   An entry with no root line before it in its fence is an error.
 - Backticked paths match `` `(crates|packages|scripts|docs|tests)/…` `` anywhere
   in the file; a `:…` suffix (line number, symbol) and a trailing `/` are dropped.
-- A path containing `*` resolves when `fnmatch` matches some tracked path.
+- A path containing `*` resolves when it matches some tracked path in full: `**`
+  matches any run of characters including `/`, while `*` stays inside one path
+  segment (it never matches `/`).
 - Exemptions live in two dicts below, each entry with its reason — there is no
   in-spec marker. `GENERATED` holds build/release output prefixes (children are
-  exempt too); `NOT_PATHS` holds exact strings that look like paths but are not.
+  exempt too) and applies to tree entries and backticked spans alike; `NOT_PATHS`
+  holds exact strings that look like paths but are not, and exempts backticked
+  spans only — a tree entry always names a file or directory.
 
 Floors: finding zero trees, zero tree entries, or zero backticked paths is an
 error — a parse that silently matches nothing must not read as a pass.
@@ -37,7 +41,6 @@ Usage:
 
 from __future__ import annotations
 
-import fnmatch
 import re
 import shutil
 import subprocess
@@ -96,12 +99,22 @@ def is_generated(path: str) -> bool:
     return any(path == p or path.startswith(p + "/") for p in GENERATED)
 
 
+def glob_regex(pattern: str) -> re.Pattern[str]:
+    """Compile a path glob for `fullmatch`: `**` crosses `/`, `*` does not."""
+    parts = (
+        r"[^/]*".join(re.escape(piece) for piece in chunk.split("*"))
+        for chunk in pattern.split("**")
+    )
+    return re.compile(".*".join(parts))
+
+
 def resolves(path: str, known: set[str]) -> bool:
-    """Return True if `path` is tracked, generated, exempt, or a matching glob."""
-    if path in known or path in NOT_PATHS or is_generated(path):
+    """Return True if `path` is tracked, generated, or a glob matching a tracked path."""
+    if path in known or is_generated(path):
         return True
     if "*" in path:
-        return any(fnmatch.fnmatchcase(k, path) for k in known)
+        regex = glob_regex(path)
+        return any(regex.fullmatch(k) for k in known)
     return False
 
 
@@ -151,7 +164,7 @@ def check_spec(spec: Path, known: set[str]) -> tuple[list[str], tuple[int, int, 
         elif not resolves(path, known):
             errors.append(f"{spec.name}:{lineno}: tree entry `{path}` is not tracked")
     for lineno, path in spans:
-        if not resolves(path, known):
+        if path not in NOT_PATHS and not resolves(path, known):
             errors.append(f"{spec.name}:{lineno}: backticked `{path}` is not tracked")
     return errors, (roots, len(entries), len(spans))
 

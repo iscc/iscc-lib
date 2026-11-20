@@ -105,35 +105,11 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type
     depends on `@context` key. 5 cross-binding constants → MEMORY-archive.md
 
-## Documentation Files
+## Documentation Files / Feature Flags / Spec path gate → MEMORY-archive.md
 
-- Tabbed syntax: `=== "Language"` 4-space indent, blank line before code block. Landing-page tab
-    order (11): Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin; zensical.toml
-    nav order differs (nav starts Rust, Python)
-- Howto guides `docs/howto/{lang}.md`; API refs
-    `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`; per-package READMEs + CLAUDE.md under
-    `packages/{dotnet,cpp,swift,kotlin}/`; `docs/unicode.md` was removed with the freeze rule
-    (2026-07-30)
-- `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md`; run after the
-    `zensical build` step in docs CI
-- Adding a docs page = update `zensical.toml` nav + `ORDERED_PAGES` + `docs/llms.txt` together —
-    enforced by `scripts/check_docs_nav.py` (prek `check-docs-nav` + pytest anchor; disk set is the
-    reference, `includes/` allowlisted; nav parse is comment-aware `strip_toml_comments` — naive
-    `#.*$` breaks on `"C# / .NET"`; prek `files:` misses `git rm`)
-- Spec path gate (224): `scripts/check_spec_paths.py` (prek `check-spec-paths` + pytest anchor)
-    resolves spec tree entries + backticked paths vs `git ls-files`; build/release output →
-    `GENERATED`, non-paths → `NOT_PATHS` dicts. Fix a phantom by editing the spec, never by adding a
-    file. ruff S607 on `["git", …]`: use `shutil.which("git")` instead of a noqa
-
-## Feature Flags
-
-- `crates/iscc-lib/Cargo.toml`: `default = ["meta-code"]`; `text-processing` gates `text_clean`,
-    `text_collapse`, `gen_text_code_v0`, `sliding_window_strs`; `meta-code` (implies text-processing
-    \+ JCS) gates META_TRIM consts, meta helpers, `gen_meta_code_v0`, `json_to_data_url`,
-    `run_meta_tests`
-- `conformance` module always available; `conformance_selftest()` skips disabled types via `#[cfg]`;
-    `serde_json` non-optional. When gating `pub(crate)` fns, gate their tests too (dead-code lint
-    fires in library builds; `tests/test_text_utils.rs` needs per-function gating)
+- Docs page = disk + `zensical.toml` nav + `ORDERED_PAGES` + `docs/llms.txt` (`check_docs_nav.py`)
+- Spec path gate `scripts/check_spec_paths.py`: `*` one segment, `**` crosses `/`; `NOT_PATHS`
+    backticked spans only (228). Fix phantoms in the spec, never by adding a file
 
 ## Ruby Bindings (Magnus) → MEMORY-archive.md (Magnus 0.8 API, never `Vec<T>` params)
 

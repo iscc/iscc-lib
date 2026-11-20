@@ -187,3 +187,37 @@ macros-backend default-handling on every major bump, not just compiler warnings.
     streaming `RefCell<Option<inner>>` one-shot finalize; `_` prefix for methods NOT class names
 - Ruby: never Magnus `Vec<T>` params (segfault, 212) — `RArray` + `array_to_vec`/`frames_to_vec`.
     Gem lock bumps: `bundle update <gem> --conservative --patch` (plain moved rubocop)
+
+## Archived from MEMORY.md (iter 228)
+
+### Documentation Files
+
+- Tabbed syntax: `=== "Language"` 4-space indent, blank line before code block. Landing-page tab
+    order (11): Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin; zensical.toml
+    nav order differs (nav starts Rust, Python)
+- Howto guides `docs/howto/{lang}.md`; API refs
+    `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`; per-package READMEs + CLAUDE.md under
+    `packages/{dotnet,cpp,swift,kotlin}/`; `docs/unicode.md` was removed with the freeze rule
+    (2026-07-30)
+- `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md`; run after the
+    `zensical build` step in docs CI
+- Adding a docs page = update `zensical.toml` nav + `ORDERED_PAGES` + `docs/llms.txt` together —
+    enforced by `scripts/check_docs_nav.py` (prek `check-docs-nav` + pytest anchor; disk set is the
+    reference, `includes/` allowlisted; nav parse is comment-aware `strip_toml_comments` — naive
+    `#.*$` breaks on `"C# / .NET"`; prek `files:` misses `git rm`)
+- Spec path gate (224): `scripts/check_spec_paths.py` (prek `check-spec-paths` + pytest anchor)
+    resolves spec tree entries + backticked paths vs `git ls-files`; build/release output →
+    `GENERATED`, non-paths → `NOT_PATHS` dicts. Fix a phantom by editing the spec, never by adding a
+    file. ruff S607 on `["git", …]`: use `shutil.which("git")` instead of a noqa. Glob (228): own
+    `glob_regex` (`**` crosses `/`, `*` one segment, `fullmatch`); `NOT_PATHS` exempts backticked
+    spans only (checked in `check_spec`), `GENERATED` both forms
+
+### Feature Flags
+
+- `crates/iscc-lib/Cargo.toml`: `default = ["meta-code"]`; `text-processing` gates `text_clean`,
+    `text_collapse`, `gen_text_code_v0`, `sliding_window_strs`; `meta-code` (implies text-processing
+    \+ JCS) gates META_TRIM consts, meta helpers, `gen_meta_code_v0`, `json_to_data_url`,
+    `run_meta_tests`
+- `conformance` module always available; `conformance_selftest()` skips disabled types via `#[cfg]`;
+    `serde_json` non-optional. When gating `pub(crate)` fns, gate their tests too (dead-code lint
+    fires in library builds; `tests/test_text_utils.rs` needs per-function gating)
