@@ -73,8 +73,11 @@ Beyond the pack, read only the files next.md's `## Reference` section names. Do 
     convention: `#[cfg(test)] mod tests` in the same file, or `tests/` directory for integration
     tests).
 
-6. **Verify** — run `mise run check` and fix until clean. This runs all quality gates (formatting,
-    linting, tests) via pre-commit hooks.
+6. **Verify** — run `mise run check` and fix until clean. It runs the pre-commit hooks on all files
+    (formatters, linters, parity checks); tests run in the pre-push stage, so run the tests your
+    step touches yourself. Re-run the full check only after a fix that touched code or config.
+    After editing only Markdown (handoff, memory, docs), check those files with
+    `uv run prek run --files <files>` — the commit hooks re-check staged files anyway.
 
 7. **Write the handoff** — overwrite `.claude/context/handoff.md` with a report for the review
     agent. Follow the format below. Before writing, audit each claim against a tool result from
@@ -160,3 +163,6 @@ technical debt introduced>
     `# noqa`, `# type: ignore`), skip tests (`#[ignore]`, `@pytest.mark.skip`), lower coverage
     thresholds, remove hooks, or exclude files from checks. Fix the root cause instead. If a
     suppression is genuinely necessary (e.g., FFI boundary), add a comment explaining why.
+- **No advisor call after your deliverable is committed.** Consult the advisor while a decision is
+    still open; once your commit has landed nothing it says can change the outcome, and each call
+    re-reads the whole session at full price.

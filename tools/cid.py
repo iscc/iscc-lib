@@ -160,6 +160,14 @@ BASH_OUTPUT_MAX_CHARS = 128_000
 # its cost shows up in the log row's `model_costs`.
 ADVISOR_MODEL = "claude-fable-5-2"
 
+# Roles whose sessions get the advisor. review is left out (human decision,
+# 2026-11-20): Codex already gives it an independent opinion, and its advisor calls
+# were half of its cost. Roles that keep it do not call it after their deliverable is
+# committed (their agent files say so).
+ADVISOR_ROLES = frozenset(
+    {"update-state", "define-next", "advance", META_ROLE, AUDIT_ROLE}
+)
+
 # Prompt size (in tokens) above which a role run is reported as at risk of
 # auto-compaction. The roles run with a 1M-token window and peak around 100-215k;
 # a role that nears compaction gets its injected context pack summarized, which
@@ -1133,14 +1141,15 @@ def agent_flags(cwd, role):
     return flags
 
 
-def session_settings():
-    """Return the settings every role session gets via `--settings`.
+def session_settings(role):
+    """Return the settings a role session gets via `--settings`.
 
     Raises the shell-output limit so context packs stay inline and, when
-    ADVISOR_MODEL is set, enables the advisor for the runner's sessions only.
+    ADVISOR_MODEL is set and the role is in ADVISOR_ROLES, enables the advisor for
+    that runner session only.
     """
     settings = {"bashOutputMaxChars": BASH_OUTPUT_MAX_CHARS}
-    if ADVISOR_MODEL:
+    if ADVISOR_MODEL and role in ADVISOR_ROLES:
         settings["advisorModel"] = ADVISOR_MODEL
         settings["env"] = {"DISABLE_TELEMETRY": ""}
     return settings
@@ -1166,7 +1175,7 @@ def build_agent_cmd(
         "--verbose",
         "--exclude-dynamic-system-prompt-sections",
         "--settings",
-        json.dumps(session_settings()),
+        json.dumps(session_settings(role)),
     ]
     for key, value in (flags or {}).items():
         cmd += [f"--{key}", value]

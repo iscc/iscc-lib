@@ -235,3 +235,6 @@ There is no auto-tunable knob in `tools/cid.py` — `cid.py` is path-blocked. Pr
     avoid.
 - Keep `proposals.md` and `meta-log.jsonl` concise and current. Keep agent memory under 200 lines;
     archive stale entries to `MEMORY-archive.md`.
+- **No advisor call after your deliverable is committed.** Consult the advisor while a decision is
+    still open; once your commit has landed nothing it says can change the outcome, and each call
+    re-reads the whole session at full price.

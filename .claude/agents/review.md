@@ -64,10 +64,13 @@ context limits: run this protocol through to the push step.
     `git diff 'HEAD^{/^cid.define-next.:}..HEAD'`. Read the modified files in full. Compare
     against what next.md asked for.
 
-4. **Run verification** — run `mise run check` (runs all quality gates via pre-commit hooks). Then
-    execute each specific check from next.md's `## Verification` section individually and record
-    pass/fail for each criterion. Every criterion from next.md must appear in the handoff's
-    `**Verification:**` grid with `[x]` or `[ ]`.
+4. **Run verification** — run `mise run check` **once**, on the advance work (pre-commit hooks on
+    all files; the pre-push gates run when you push). Do not re-run it for your own Markdown edits
+    (handoff, issues, learnings, decisions, memory): check those with
+    `uv run prek run --files <files you touched>`, and re-run the full check only if a step-9 fix
+    touched code or config. Then execute each specific check from next.md's `## Verification`
+    section individually and record pass/fail for each criterion. Every criterion from next.md
+    must appear in the handoff's `**Verification:**` grid with `[x]` or `[ ]`.
 
     **Probe budget: at most 3 checks beyond next.md's list.** You are the only role that verifies,
     so verify well — but a criterion that passed does not need a second, cleverer proof. Spend the
