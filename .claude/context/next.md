@@ -1,110 +1,94 @@
 # Next Work Package
 
-## Step: data-edge.json fan-out, group 3 — C and C++ harnesses via one generated header
+## Step: .NET — one private helper pins every jagged-array input; empty inputs reach the core
 
 ## Goal
 
-Last fan-out group of the v0.8.0 criterion "Shared edge-case vectors run everywhere": the C FFI test
-and the C++ wrapper test run every `data-edge.json` vector from a header that a recovered generator
-renders, with a pytest gate that fails when the header is stale.
+Resolve the `normal` issue ".NET string-array pinning is copied three times; the gen copies pass
+NULL for `[]`". One private helper in `IsccLib.cs` pins the inner arrays for **all six**
+jagged-array methods, so an empty or null input fails the same way everywhere and `[]` surfaces the
+core's error, not the FFI's "must not be NULL".
 
 ## Alternatives Considered
 
-- **Chosen:** C + C++ together. The behaviour is fixed by `edge-vectors.md` → Rules (which also
-    allows a generated table), both toolchains run here, and it closes the last surface gap
-- **Rejected:** the `normal` Python `encode_seq` docstring issue. It is a two-line docs fix with no
-    dependency on this work, while C/C++ are what remains of a v0.8.0 criterion
+- **Chosen:** .NET pinning helper — a real behaviour defect on a published surface (wrong error for
+    `[]` on 4 methods, `NullReferenceException` on null input), locally verifiable with
+    `dotnet test`, one source file. The cheaper doc-only issues fix no behaviour.
+- **Rejected:** Dependabot `soupsieve`/`setuptools` refresh. Probed: soupsieve 3.0.2 and 4.x both
+    need `requires-python >=3.11.5`, while `uv.lock` resolves for `>=3.10` (abi3-py310). So
+    `uv lock --upgrade-package soupsieve` cannot reach 4.0.0 without a floor or dependency-graph
+    decision (fork marker, dropping `mdformat-web` on 3.10). That needs Titusz; it is not a scoping
+    call.
+- **Rejected:** CI-red fix for Kotlin. The `kotlin-gradle-plugins-bom:2.4.10` POM now resolves
+    (portal → 200 after redirect), so it was an outage. The review push re-runs CI.
 
 ## Scope
 
-**Fan-out:** `edge-vectors.md` → Rules (every vector runs, `except` is the only deviation, an
-unknown section fails, the rejection is asserted on the raw call only), applied to C and C++. Commit
-the generator + header + pytest gate first, then C, then C++.
-
-- **Create**: `scripts/gen_data_edge_vectors.py` (recover `scripts/gen_ffi_boundary_vectors.py` from
-    `ea69169` with `git show ea69169:<path>` and adapt it; keep its PEP 723 block, `escape_c_string`
-    octal rule and pure-ASCII/LF output), the generated `crates/iscc-ffi/tests/data_edge_vectors.h`,
-    `tests/test_gen_data_edge_vectors.py` (adapt
-    `git show ea69169:tests/test_gen_ffi_boundary_vectors.py`)
-- **Modify**: `crates/iscc-ffi/tests/test_iscc.c`, `packages/cpp/tests/test_iscc.cpp`,
-    `packages/cpp/tests/CMakeLists.txt` (include dir for the header), `crates/iscc-ffi/CLAUDE.md`
-    and `packages/cpp/CLAUDE.md` (name the header and the regenerate command, count-free wording)
-- **Reference**: `.claude/context/specs/edge-vectors.md`, `crates/iscc-lib/tests/data-edge.json`,
-    `tests/test_data_edge.py` (expectation logic, `SURFACE_IDS`), `crates/iscc-ffi/include/iscc.h`,
-    `packages/cpp/include/iscc/iscc.hpp`, `git show ea69169 -- crates/iscc-ffi/tests/test_iscc.c`
+- **Modify**: `packages/dotnet/Iscc.Lib/IsccLib.cs` (the helper + the 6 call sites),
+    `packages/dotnet/CLAUDE.md` ("Array parameter marshalling", "Empty span sentinel" bullets)
+- **Create**: `packages/dotnet/Iscc.Lib.Tests/ArrayInputTests.cs`
+- **Reference**: `packages/dotnet/Iscc.Lib.Tests/SeqTests.cs` (assertion style),
+    `crates/iscc-ffi/src/lib.rs` (`iscc_gen_video_code_v0` L418, `iscc_gen_mixed_code_v0` L466,
+    `iscc_alg_simhash` L1200, `iscc_soft_hash_video_v0` L1362 — the NULL guards)
 
 ## Not In Scope
 
-- Any change to `data-edge.json`, the FFI, `iscc.hpp`, or the core. If a vector fails on a surface
-    for a behavioural reason, add no `except`, leave that surface's harness out and name the vector
-    in the handoff (stop rule from 217)
-- The C++ gen wrappers passing `ptrs.data()` (NULL for an empty vector) where `encode_seq` uses
-    `detail::safe_data`: the input is still rejected. Note it in the handoff, do not fix it here
-- `ci.yml` / `release.yml` edits: the C compile finds a quote-include next to `test_iscc.c`
-- Registering the header in `VENDORED_COPIES` (it is not a JSON copy)
+- No `data-edge.json` vector: these inputs already fail on every surface, and edge harnesses assert
+    the rejection only, never the message (`specs/edge-vectors.md` L24-26). Only the .NET message is
+    wrong today
+- The C++ empty-vector issue (`iscc.hpp`, `low`, untriaged) — another surface; skip it
+- `ReadOnlySpan` single-array sites (`GenDataCodeV0`, `AlgMinhash256`, …) already use the stack
+    sentinel — leave them alone
+- No public signature change; no `NativeMethods.g.cs` or `iscc-ffi` edit
 
 ## Implementation Notes
 
-- **One header for both surfaces**, valid C99 and C++17: positional aggregate initialisers only, no
-    designated initialisers, no zero-length arrays. C++ gets it via
-    `target_include_directories(test_iscc PRIVATE …/crates/iscc-ffi/tests)` on the test target —
-    never on the public `iscc` INTERFACE library (vcpkg/Conan consumers inherit that).
-- **Strings carry an explicit length** (e.g. `struct { const char *ptr; size_t len; }`): two vectors
-    hold an embedded NUL, and C++ must build `std::string(ptr, len)` so `detail::checked_c_str` sees
-    it. The C harness fails a row it runs whose `strlen(ptr) != len` (a missing `c: skip` must go
-    red, not hash the prefix).
-- **The generator resolves `except`**: each row carries one expectation for `c` and one for `cpp`
-    (ok / error / skip), from `outputs`/`error` overridden by `except[<surface>]`. The harnesses
-    never name a vector; they loop over count macros.
-- **The generator fails closed** (`SystemExit`) on a section it has no renderer for, on an
-    unexpected input arity, and on an `except` key outside the surface ids. That is this surface
-    pair's "unknown section fails" rule; pytest pins it on a mutated fixture copy in `tmp_path`.
-- **Per-section shapes**: `iscc_decode` (string → maintype, subtype, version, length index, digest
-    bytes); `encode_seq` (string list → bytes); `gen_text_code_v0` (string, bits → `iscc`);
-    `gen_mixed_code_v0` (string list, bits → `iscc`); `gen_iscc_code_v0` (string list, `wide` =
-    `inputs[1]` if present else false → `iscc`). Both surfaces return the gen result as one string,
-    so they compare `iscc` only. Error rows carry zeroed outputs.
-- **Lists**: an empty list must reach the C FFI as a non-NULL pointer with count 0 (emit a sentinel
-    element), so the core's empty-list check rejects it, not the NULL guard. C++ passes an empty
-    `std::vector<std::string>`.
-- **Rejection**: C — NULL string, `ok == false`, or NULL buffer data from the raw FFI call; C++ —
-    the raw `iscc::` call throws `iscc::IsccError` (any other exception is a failure). Never match
-    message text. Free every returned value.
-- **Harness shape per surface**: one check function per section that takes a row and returns
-    pass/fail without printing, plus a loop printing `PASS: data_edge/<section>/<name>` or `FAIL:`
-    per row through the file's existing helpers. Negative tests feed the check functions synthetic
-    rows, one bad case each: an expected rejection that succeeds (`ISCC:GAAAAAAAAA`), an output
-    mismatch (a wrong expected `iscc`), and for C the length/NUL mismatch.
-- **Total tally**: the generator emits a total-vector-count macro derived from the fixture; each
-    harness counts run plus skipped rows over all sections and fails when that differs from the
-    macro, so a section rendered but never looped goes red on the exit code.
-- **pytest gate**: fresh render equals the tracked header byte for byte; a mutated expected value
-    changes the render; unknown section, bad arity and bad `except` key raise `SystemExit`; the NUL
-    `gen_text_code_v0` row renders as c=skip, cpp=error. Derive counts from the fixture, never a
-    literal. Load the script by path as the `ea69169` test did.
-- Nothing touches `crates/iscc-lib/src` or `tests/*.rs`, so CRAP and iai are unaffected.
+The six sites: `GenVideoCodeV0`, `SoftHashVideoV0` (`int[][]` + lens), `AlgSimhash` (`byte[][]` +
+lens), `GenMixedCodeV0`, `GenIsccCodeV0`, `EncodeSeq` (`string[]` → `ToNativeUtf8` → `byte[][]`, no
+lens). Today each has its own `GCHandle` loop and `finally`; only `EncodeSeq` guards nulls and has
+an empty sentinel.
+
+Contract for every site after the change (design the helper shape yourself, e.g. a disposable
+generic `where T : unmanaged` pin scope, or a static method that fills pointer/len arrays and
+returns handles to free in one `finally`):
+
+- **Null array or null element → `ArgumentNullException`** on all six (decided here, matching
+    `EncodeSeq`; the parameter name in the message as `EncodeSeq` does). Today the gen/video/simhash
+    sites throw `NullReferenceException`
+- **Zero count → non-NULL pointers.** Pass a stack sentinel for the pointer array **and**, where the
+    FFI takes one, the lens array: `iscc_gen_video_code_v0` / `iscc_soft_hash_video_v0` NULL-check
+    `frame_sigs` and `frame_lens` separately. `iscc_alg_simhash` short-circuits on count 0 before
+    its NULL checks, so `AlgSimhash([])` must keep returning 32 bytes
+- `EncodeSeq`'s current special-cased empty branch goes away in favour of the shared path
+- Every handle is freed in `finally`, also when the helper throws halfway through pinning (a null
+    element at index 2 must not leak handles 0-1)
+
+Expected core messages (read from `crates/iscc-lib/src/lib.rs`): `GenMixedCodeV0([])` → "at least 2
+Content-Codes required for mixing"; `GenIsccCodeV0([])` → "at least 2 ISCC unit codes required";
+`GenVideoCodeV0([])` and `SoftHashVideoV0([])` → "frame_sigs must not be empty" (gen_video delegates
+to soft_hash, L759); `EncodeSeq([])` → "at least one ISCC-UNIT" (existing test).
+
+Tests in `ArrayInputTests.cs`, one `[Fact]` per case, no classes of shared state: for each of the 4
+empty-input methods assert `IsccException` whose message contains the core text **and** does not
+contain "must not be NULL"; `ArgumentNullException` for a null array and a null element on each of
+the 6 methods. `AlgSimhash_EmptyInput_Returns32Bytes` (SmokeTests) and SeqTests must stay green.
+
+No Rust source changes, so CRAP/iai/semver are untouched.
 
 ## Verification
 
-- `uv run pytest tests/test_gen_data_edge_vectors.py tests/test_data_edge.py tests/test_vendored_fixtures.py`
-    passes, and `mise run check` exits 0
-- `uv run --script scripts/gen_data_edge_vectors.py` leaves
-    `git status --porcelain crates/iscc-ffi/tests` empty
-- `grep -nE 'test_[0-9]{4}_[a-z0-9_]*(case_fold|spare_bits|ascii_twin|canonical_unit|empty_string|base32_padding|empty_list|embedded_nul)'`
-    over `crates/iscc-ffi/tests/test_iscc.c` and `packages/cpp/tests/test_iscc.cpp` prints nothing
-    (no data-edge vector named in harness code; plain identifiers like `empty_list` are fine)
-- C: `cargo build -p iscc-ffi`, then the `ci.yml` "Compile C test program" and "Run C test program"
-    lines exit 0, and the output has a `PASS: data_edge/<section>/<name>` line for every fixture
-    vector whose `except.c` is not `skip`, plus a PASS line for each negative test
-- C++: after `cargo build -p iscc-ffi`, configure a fresh build dir with
-    `uv run --with cmake cmake -S packages/cpp -B /tmp/cpp-edge` plus the `ci.yml` "Configure CMake"
-    flags (`FFI_LIB_DIR` as an absolute path to `target/debug`), build it, and run
-    `/tmp/cpp-edge/tests/test_iscc` with `LD_LIBRARY_PATH=target/debug`: exit 0, no ASAN report, a
-    `PASS: data_edge/…` line for every fixture vector whose `except.cpp` is not `skip`, and a PASS
-    line for each negative test
+- `cargo build -p iscc-ffi` then
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug` exits 0,
+    with the new `ArrayInputTests` tests in the run
+- `git status --porcelain packages/dotnet/Iscc.Lib/NativeMethods.g.cs crates/iscc-ffi/include/iscc.h`
+    prints nothing after that build
+- Reviewer-read: all six methods route through the one helper; no `GCHandle.Alloc` call remains in
+    their bodies outside it
+- `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` reports no new warnings in
+    `IsccLib.cs`
+- `mise run check` exits 0
 
 ## Done When
 
-C and C++ run every `data-edge.json` vector from a generated header whose staleness pytest catches,
-and every check above passes (a surface held back under the stop rule is the one sanctioned
-exception, reported in the handoff).
+All six jagged-array methods share one pinning helper, empty input reaches the core's error, null
+input throws `ArgumentNullException`, and every verification check passes.

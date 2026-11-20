@@ -18,8 +18,11 @@ badge-markdown description — npm derives it from the README when missing; prob
 a defect class); 215 = data-edge.json seed + Rust/Python harnesses (NEEDS_WORK: CRAP); 216 = harness
 repair; 217 = data-edge fan-out G1 (6 surfaces; container crash after Go+Node → restart re-scoped
 the other 4 with Go/Node criteria carried over); 218 = G2 Swift+Kotlin + Ruby key fix; 219 = G3
-C+C++ generated header, see [data-edge phase](data-edge-phase.md); Ruby Bignum/napi/JNI/ffi-split
-now `low` (human) — skip).
+C+C++ generated header, see [data-edge phase](data-edge-phase.md); 220 = .NET one jagged-array pin
+helper over all 6 sites (issue named 3 — finish-the-pattern widened it); Ruby Bignum/napi/JNI/
+ffi-split now `low` (human) — skip). **Dependabot soupsieve is human-blocked**: 3.0.2/4.x need
+Python >=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a Maven/portal
+probe proves nothing: `curl -sL` to follow it (220: Kotlin red was a portal outage).
 
 ## Scope Calibration Principles
 
