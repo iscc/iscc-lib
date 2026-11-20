@@ -6,6 +6,8 @@
  *
  * Each row carries the resolved expectation for the c and cpp surfaces.
  * Strings carry an explicit byte length (a vector may hold an embedded NUL).
+ * A list item is either text (UTF-8) or a binary digest (alg_simhash); both
+ * are byte strings with an explicit length.
  * Non-printable and non-ASCII bytes are 3-digit octal escapes (never hex: C
  * hex escapes are greedy and unbounded, octal escapes stop after 3 digits).
  * An empty list points at a one-element sentinel array with count 0.
@@ -28,7 +30,7 @@ struct iscc_edge_str {
     size_t len;
 };
 
-/* A list of byte strings: parallel item and length arrays. */
+/* A list of byte strings (text or binary): parallel item and length arrays. */
 struct iscc_edge_list {
     const char *const *items;
     const size_t *lens;
@@ -85,6 +87,15 @@ struct iscc_edge_gen_iscc_code_v0_vector {
     struct iscc_edge_list codes;
     int wide;
     struct iscc_edge_str iscc;
+};
+
+/* alg_simhash: binary digest list -> bytes. */
+struct iscc_edge_alg_simhash_vector {
+    const char *name;
+    int c;
+    int cpp;
+    struct iscc_edge_list digests;
+    struct iscc_edge_str simhash;
 };
 
 #define ISCC_EDGE_ISCC_DECODE_COUNT 5
@@ -159,6 +170,18 @@ static const struct iscc_edge_gen_iscc_code_v0_vector iscc_edge_gen_iscc_code_v0
      {iscc_edge_gen_iscc_code_v0_0_items, iscc_edge_gen_iscc_code_v0_0_lens, 0}, 0, {0, 0}},
 };
 
-#define ISCC_EDGE_TOTAL_COUNT 16
+static const char *const iscc_edge_alg_simhash_0_items[] = {""};
+static const size_t iscc_edge_alg_simhash_0_lens[] = {0};
+static const char *const iscc_edge_alg_simhash_1_items[] = {"\360\017", "<<"};
+static const size_t iscc_edge_alg_simhash_1_lens[] = {2, 2};
+#define ISCC_EDGE_ALG_SIMHASH_COUNT 2
+static const struct iscc_edge_alg_simhash_vector iscc_edge_alg_simhash[ISCC_EDGE_ALG_SIMHASH_COUNT] = {
+    {"test_0001_empty_list", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
+     {iscc_edge_alg_simhash_0_items, iscc_edge_alg_simhash_0_lens, 0}, {0, 0}},
+    {"test_0002_even_count_tie", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     {iscc_edge_alg_simhash_1_items, iscc_edge_alg_simhash_1_lens, 2}, {"\374\?", 2}},
+};
+
+#define ISCC_EDGE_TOTAL_COUNT 18
 
 #endif /* ISCC_DATA_EDGE_VECTORS_H */

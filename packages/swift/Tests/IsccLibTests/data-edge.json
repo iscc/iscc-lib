@@ -161,5 +161,24 @@
       "error": "at least two ISCC-UNITs are required",
       "note": "An empty unit list must be rejected rather than composed into an empty ISCC-CODE."
     }
+  },
+  "alg_simhash": {
+    "test_0001_empty_list": {
+      "inputs": [
+        []
+      ],
+      "error": "hash_digests must not be empty",
+      "note": "An empty digest list must be rejected rather than hashed into 32 zero bytes."
+    },
+    "test_0002_even_count_tie": {
+      "inputs": [
+        [
+          "bytes:f00f",
+          "bytes:3c3c"
+        ]
+      ],
+      "outputs": "bytes:fc3f",
+      "note": "A bit set in exactly half of the digests is a tie, and the reference sets the output bit (count >= n/2)."
+    }
   }
 }

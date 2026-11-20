@@ -67,6 +67,8 @@ HEADER_PREAMBLE = """\
  *
  * Each row carries the resolved expectation for the c and cpp surfaces.
  * Strings carry an explicit byte length (a vector may hold an embedded NUL).
+ * A list item is either text (UTF-8) or a binary digest (alg_simhash); both
+ * are byte strings with an explicit length.
  * Non-printable and non-ASCII bytes are 3-digit octal escapes (never hex: C
  * hex escapes are greedy and unbounded, octal escapes stop after 3 digits).
  * An empty list points at a one-element sentinel array with count 0.
@@ -89,7 +91,7 @@ struct iscc_edge_str {
     size_t len;
 };
 
-/* A list of byte strings: parallel item and length arrays. */
+/* A list of byte strings (text or binary): parallel item and length arrays. */
 struct iscc_edge_list {
     const char *const *items;
     const size_t *lens;
@@ -146,6 +148,15 @@ struct iscc_edge_gen_iscc_code_v0_vector {
     struct iscc_edge_list codes;
     int wide;
     struct iscc_edge_str iscc;
+};
+
+/* alg_simhash: binary digest list -> bytes. */
+struct iscc_edge_alg_simhash_vector {
+    const char *name;
+    int c;
+    int cpp;
+    struct iscc_edge_list digests;
+    struct iscc_edge_str simhash;
 };
 """
 
@@ -214,6 +225,15 @@ def require_str_list(value: object, where: str) -> list[str]:
     return [require_str(item, where) for item in value]
 
 
+def require_bytes_list(value: object, where: str) -> list[bytes]:
+    """Return the decoded items of a list of `bytes:<hex>` values, else fail closed."""
+    if not isinstance(value, list):
+        raise SystemExit(
+            f"{where}: expected a list of bytes:<hex> values, got {value!r}"
+        )
+    return [fixture_bytes(item, where) for item in value]
+
+
 def require_arity(inputs: object, allowed: tuple[int, ...], where: str) -> list:
     """Return inputs if it is a list whose length is one of `allowed`, else fail closed."""
     if not isinstance(inputs, list) or len(inputs) not in allowed:
@@ -247,19 +267,25 @@ def gen_iscc(vector: dict, where: str) -> str:
     return c_str(require_str(outputs["iscc"], where).encode("utf-8"))
 
 
-def list_arrays(ident: str, items: list[str]) -> tuple[list[str], str]:
-    """Return the static item/length array lines of one list and its initialiser.
+def byte_list_arrays(ident: str, items: list[bytes]) -> tuple[list[str], str]:
+    """Return the static item/length array lines of one byte-string list and its initialiser.
 
-    An empty list gets a one-element sentinel so the pointer is never NULL.
+    Every item carries an explicit length. An empty list gets a one-element sentinel
+    so the pointer is never NULL.
     """
-    encoded = [item.encode("utf-8") for item in items] or [b""]
-    strs = ", ".join(f'"{escape_c_bytes(e)}"' for e in encoded)
-    lens = ", ".join(str(len(e)) for e in encoded)
+    padded = items or [b""]
+    strs = ", ".join(f'"{escape_c_bytes(e)}"' for e in padded)
+    lens = ", ".join(str(len(e)) for e in padded)
     lines = [
         f"static const char *const {ident}_items[] = {{{strs}}};",
         f"static const size_t {ident}_lens[] = {{{lens}}};",
     ]
     return lines, f"{{{ident}_items, {ident}_lens, {len(items)}}}"
+
+
+def list_arrays(ident: str, items: list[str]) -> tuple[list[str], str]:
+    """Return the static item/length array lines of one string list (UTF-8) and its initialiser."""
+    return byte_list_arrays(ident, [item.encode("utf-8") for item in items])
 
 
 def row_iscc_decode(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
@@ -310,6 +336,15 @@ def row_gen_iscc_code_v0(vector: dict, where: str, ident: str) -> tuple[list[str
     return lines, f"{codes_init}, {int(wide)}, {gen_iscc(vector, where)}"
 
 
+def row_alg_simhash(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
+    """Return the list-array lines and fields of one `alg_simhash` row."""
+    (digests,) = require_arity(vector["inputs"], (1,), where)
+    lines, digests_init = byte_list_arrays(ident, require_bytes_list(digests, where))
+    if "error" in vector:
+        return lines, f"{digests_init}, {NULL_STR}"
+    return lines, f"{digests_init}, {c_str(fixture_bytes(vector['outputs'], where))}"
+
+
 # Section name -> row renderer; the section order is the header order.
 RENDERERS = {
     "iscc_decode": row_iscc_decode,
@@ -317,6 +352,7 @@ RENDERERS = {
     "gen_text_code_v0": row_gen_text_code_v0,
     "gen_mixed_code_v0": row_gen_mixed_code_v0,
     "gen_iscc_code_v0": row_gen_iscc_code_v0,
+    "alg_simhash": row_alg_simhash,
 }
 
 

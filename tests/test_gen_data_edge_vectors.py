@@ -131,6 +131,43 @@ def test_empty_list_renders_non_null_sentinel_with_count_zero():
     assert init == "{ident_items, ident_lens, 0}"
 
 
+def test_byte_list_renders_binary_items_with_explicit_lengths():
+    """A digest list renders each item as octal-escaped bytes with its own length."""
+    lines, init = gen.byte_list_arrays("ident", [b"\xf0\x0f", b"<<"])
+    assert lines == [
+        'static const char *const ident_items[] = {"\\360\\017", "<<"};',
+        "static const size_t ident_lens[] = {2, 2};",
+    ]
+    assert init == "{ident_items, ident_lens, 2}"
+    assert gen.byte_list_arrays("ident", []) == gen.list_arrays("ident", [])
+
+
+def test_alg_simhash_rows_render_digests_and_empty_sentinel():
+    """The alg_simhash rows carry decoded digests and the non-NULL empty-list sentinel."""
+    fixture = load_fixture()
+    text = HEADER.read_text(encoding="utf-8")
+    for name, vector in fixture["alg_simhash"].items():
+        digests = [bytes.fromhex(d.removeprefix("bytes:")) for d in vector["inputs"][0]]
+        index = list(fixture["alg_simhash"]).index(name)
+        lines, init = gen.byte_list_arrays(f"iscc_edge_alg_simhash_{index}", digests)
+        assert all(line in text for line in lines), name
+        assert f'{{"{name}", ' in text and init in text, name
+    empty, _ = find_vector(fixture, "alg_simhash", [[]])
+    assert f'{{"{empty}", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,' in text
+
+
+def test_non_bytes_digest_fails_closed(tmp_path):
+    """An alg_simhash digest that is not a bytes:<hex> value refuses to render."""
+
+    def mutate(fixture):
+        _, vector = find_vector(fixture, "alg_simhash", [[]])
+        vector["inputs"] = [["f00f"]]
+
+    mutated = write_mutated_fixture(tmp_path, mutate)
+    with pytest.raises(SystemExit, match="bytes:<hex>"):
+        gen.render(mutated)
+
+
 def test_mutated_expected_value_renders_different_header(tmp_path):
     """A changed expected value changes the render, so the staleness gate fires."""
 

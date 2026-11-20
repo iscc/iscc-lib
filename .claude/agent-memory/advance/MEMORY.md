@@ -27,7 +27,12 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     (218): Swift/Kotlin `DataEdge*`. Group 3 (219): C/C++ read generated
     `crates/iscc-ffi/tests/data_edge_vectors.h` (`scripts/gen_data_edge_vectors.py`, rows carry
     resolved c/cpp expectation; gate `tests/test_gen_data_edge_vectors.py`). `mise run check` =
-    pre-commit only — run `prek run --hook-stage pre-push --files …` too
+    pre-commit only — run `prek run --hook-stage pre-push --files …` too. Sections (226): 6 incl.
+    `alg_simhash` — first section with `bytes:<hex>` INPUTS: every harness has a per-section input
+    preparer (Py `PREPARERS`, Node/Ruby 3rd tuple slot) applied OUTSIDE the raw call; generator
+    `byte_list_arrays` (binary items, explicit lens). fixture =
+    `json.dumps(indent=2,   ensure_ascii=False)`. Mutation-check by sed'ing an expected output in
+    the copy a harness reads
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
 - C FFI docs (221): C type names `iscc_`-prefixed, gated by `tests/test_c_ffi_docs.py`
@@ -60,7 +65,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `types_or`; NEVER blanket `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`.
     Detail + prek staged-probe gotcha → deps-refresh.md
 - Commit quirks (217): Ruby `standardrb --fix` hook takes minutes (long timeout); trust
-    `prek run --files` over bare `uv run mdformat`; never edit files while `mise run check` runs
+    `prek run --files` over bare `uv run mdformat`; never edit files while `mise run check` runs.
+    WSL `index.lock` race after prek's stash-restore: retry `git commit` in a sleep loop (226)
 - GOTCHAs: ci.yml `cancel-in-progress: true` per ref — a second develop push cancels the previous
     sha's in-flight CI run; system `python3` lacks PyYAML (use `uv run python`); piping cargo-crap
     or cargo-deny to a pager makes `$?` the pager's exit — redirect to a file instead
