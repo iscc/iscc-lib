@@ -9,6 +9,7 @@
 package io.iscc.iscc_lib;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonArray;
@@ -23,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
@@ -138,22 +140,37 @@ class DataEdgeTest {
     }
 
     /**
+     * Section name to the expected output keys its JNI result does not carry, which are therefore
+     * not compared (an absent section compares every key). The gen functions here return a bare
+     * ISCC string, so text drops {@code characters} and mixed drops {@code parts}.
+     */
+    private static final Map<String, Set<String>> UNCOMPARED = Map.of(
+            "gen_text_code_v0", Set.of("characters"),
+            "gen_mixed_code_v0", Set.of("parts"));
+
+    /**
      * Compare an actual output with the expected one and return a failure, or null.
      *
-     * <p>For an object, only the expected keys the result exposes are compared.
+     * <p>For an object, every expected key outside the section's static uncompared set must be
+     * present in the result and equal; a missing key fails.
      */
-    private static String compare(JsonElement expected, JsonElement actual) {
+    private static String compare(String section, JsonElement expected, JsonElement actual) {
         if (!expected.isJsonObject()) {
             return expected.equals(actual) ? null : "expected " + expected + ", got " + actual;
         }
+        if (!actual.isJsonObject()) {
+            return "expected an object, got " + actual;
+        }
         JsonObject want = expected.getAsJsonObject();
         JsonObject got = actual.getAsJsonObject();
-        List<String> keys = new ArrayList<>(got.keySet());
-        keys.retainAll(want.keySet());
-        if (keys.isEmpty()) {
-            return "no expected field in " + got;
-        }
-        for (String key : keys) {
+        Set<String> uncompared = UNCOMPARED.getOrDefault(section, Set.of());
+        for (String key : want.keySet()) {
+            if (uncompared.contains(key)) {
+                continue;
+            }
+            if (!got.has(key)) {
+                return "missing field " + key + " in " + got;
+            }
             if (!want.get(key).equals(got.get(key))) {
                 return "field " + key + ": expected " + want.get(key) + ", got " + got.get(key);
             }
@@ -168,7 +185,8 @@ class DataEdgeTest {
     }
 
     /** Judge a successful raw call against the vector's expectation. */
-    private static String judgeOk(boolean expectError, Prepared prepared, Object result, JsonObject vector) {
+    private static String judgeOk(
+            String section, boolean expectError, Prepared prepared, Object result, JsonObject vector) {
         JsonElement got = prepared.convert().apply(result);
         if (expectError) {
             return "expected an error, got " + got;
@@ -176,11 +194,11 @@ class DataEdgeTest {
         if (!vector.has("outputs")) {
             return "vector has neither outputs nor error";
         }
-        return compare(vector.get("outputs"), got);
+        return compare(section, vector.get("outputs"), got);
     }
 
     /** Check one vector and return a failure description, or null. */
-    private static String checkVector(Function<JsonArray, Prepared> caller, JsonObject vector) {
+    private static String checkVector(String section, Function<JsonArray, Prepared> caller, JsonObject vector) {
         String exception = exception(vector);
         if ("skip".equals(exception)) {
             return null;
@@ -195,7 +213,7 @@ class DataEdgeTest {
         } catch (Exception e) {
             return "raw call threw " + e.getClass().getName() + ": " + e.getMessage();
         }
-        return judgeOk(expectError, prepared, result, vector);
+        return judgeOk(section, expectError, prepared, result, vector);
     }
 
     /** Run every vector of a parsed document; return one {@code section/vector: reason} per failure. */
@@ -208,7 +226,7 @@ class DataEdgeTest {
                 continue;
             }
             for (Map.Entry<String, JsonElement> entry : section.getValue().getAsJsonObject().entrySet()) {
-                String reason = checkVector(caller, entry.getValue().getAsJsonObject());
+                String reason = checkVector(section.getKey(), caller, entry.getValue().getAsJsonObject());
                 if (reason != null) {
                     failures.add(section.getKey() + "/" + entry.getKey() + ": " + reason);
                 }
@@ -275,5 +293,34 @@ class DataEdgeTest {
         assertEquals(1, failures.size(), failures.toString());
         assertTrue(failures.get(0).startsWith("iscc_decode/test_0001_error: expected an error"),
                 failures.toString());
+    }
+
+    /** The data.json Hello World vector passes: {@code characters} is uncompared, {@code iscc} matches. */
+    @Test
+    void dataEdgeComparesObjectOutput() {
+        List<String> failures = checkDoc(parse("{\"gen_text_code_v0\": {\"test_0001_x\": {\"inputs\": "
+                + "[\"Hello World\", 64], \"outputs\": {\"iscc\": \"ISCC:EAASKDNZNYGUUF5A\", "
+                + "\"characters\": 10}, \"note\": \"n\"}}}"));
+        assertTrue(failures.isEmpty(), failures.toString());
+    }
+
+    /** {@code parts} is uncompared for mixed only, so a text result lacking it fails. */
+    @Test
+    void dataEdgeFailsKeyOutsideUncomparedSet() {
+        List<String> failures = checkDoc(parse("{\"gen_text_code_v0\": {\"test_0001_x\": {\"inputs\": "
+                + "[\"Hello World\", 64], \"outputs\": {\"iscc\": \"ISCC:EAASKDNZNYGUUF5A\", "
+                + "\"parts\": []}, \"note\": \"n\"}}}"));
+        assertEquals(1, failures.size(), failures.toString());
+        assertTrue(failures.get(0).contains("missing field parts"), failures.toString());
+    }
+
+    /** A result without {@code iscc} fails even though its other key matches. */
+    @Test
+    void dataEdgeFailsResultWithoutIscc() {
+        String failure = compare("gen_text_code_v0",
+                JsonParser.parseString("{\"iscc\": \"ISCC:EAASKDNZNYGUUF5A\", \"characters\": 10}"),
+                JsonParser.parseString("{\"characters\": 10}"));
+        assertNotNull(failure);
+        assertTrue(failure.contains("missing field iscc"), failure);
     }
 }
