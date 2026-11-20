@@ -64,6 +64,7 @@ the Rust unit tests live in `src/tests.rs`. Keep every export in `lib.rs`: `buil
     `iscc_gen_audio_code_v0`, `iscc_gen_video_code_v0`, `iscc_gen_mixed_code_v0`,
     `iscc_gen_data_code_v0`, `iscc_gen_instance_code_v0`, `iscc_gen_iscc_code_v0`,
     `iscc_gen_sum_code_v0`
+- ISCC-IDv1 (experimental): `iscc_gen_iscc_id_v1`
 - Text utilities: `iscc_text_clean`, `iscc_text_collapse`, `iscc_text_remove_newlines`,
     `iscc_text_trim`
 - Codec: `iscc_encode_component`, `iscc_decode`, `iscc_decompose`, `iscc_encode_seq`,

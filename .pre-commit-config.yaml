@@ -106,6 +106,17 @@ repos:
         files: ^(\.claude/context/specs/.*\.md|scripts/check_spec_paths\.py)$
         stages: [pre-commit]
         pass_filenames: false
+      # Every registered doc that enumerates the Tier 1 API must match the
+      # public items at the iscc-lib crate root (lib.rs). Deleting a doc does
+      # not trigger this hook — the tests/test_check_tier1_docs.py anchor test
+      # catches that at pre-push and in CI.
+      - id: check-tier1-docs
+        name: Tier 1 doc parity
+        entry: uv run scripts/check_tier1_docs.py
+        language: system
+        files: ^(crates/iscc-lib/src/lib\.rs|.*\.md|scripts/check_tier1_docs\.py)$
+        stages: [pre-commit]
+        pass_filenames: false
       - id: standardrb-fix
         name: Ruby linting (fix)
         entry: bash -c 'export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH" &&

@@ -68,6 +68,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     GHA action majors probed current 2026-07-28; ruff 0.16; prek ruff hooks carry `pyi` in
     `types_or`; NEVER blanket `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`.
     Detail + prek staged-probe gotcha → deps-refresh.md
+- GOTCHA (233): `prek run --all-files` (= `mise run check`) skips UNTRACKED files — `git add -N` new
+    scripts/tests BEFORE the check, else ruff findings surface only at commit
 - Commit quirks (217): Ruby `standardrb --fix` hook takes minutes (long timeout); trust
     `prek run --files` over bare `uv run mdformat`; never edit files while `mise run check` runs.
     WSL `index.lock` race after prek's stash-restore: retry `git commit` in a sleep loop (226)
@@ -115,6 +117,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 ## Documentation Files / Feature Flags / Spec path gate → MEMORY-archive.md
 
 - Docs page = disk + `zensical.toml` nav + `ORDERED_PAGES` + `docs/llms.txt` (`check_docs_nav.py`)
+- Tier 1 doc gate (233) `scripts/check_tier1_docs.py`: FULL/EXACT/EXEMPT registry + discovery (≥30
+    symbols). New API symbol → update every FULL doc + both `tier1:begin` blocks in the same step
 - Spec path gate `scripts/check_spec_paths.py`: `*` one segment, `**` crosses `/`; `NOT_PATHS`
     backticked spans only (228). Fix phantoms in the spec, never by adding a file
 

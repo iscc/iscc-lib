@@ -671,6 +671,8 @@ pass/fail.
 
 The full public API surface bound in all languages:
 
+<!-- tier1:begin -->
+
 | Category    | Functions / Types                                                    |
 | ----------- | -------------------------------------------------------------------- |
 | Code gen    | `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,         |
@@ -688,6 +690,8 @@ The full public API surface bound in all languages:
 |             | `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`                                    |
 | Streaming   | `DataHasher`, `InstanceHasher`                                       |
 | Diagnostics | `conformance_selftest`                                               |
+
+<!-- tier1:end -->
 
 Total: 10 gen functions + 4 text utils + 4 algorithm primitives + 1 soft hash + 2 encoding + 5 codec
 \+ 1 ISCC-IDv1 + 5 constants + 2 streaming types + 1 diagnostic = **35 public symbols** (+ the

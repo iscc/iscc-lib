@@ -459,6 +459,7 @@ import iscc "github.com/iscc/iscc-lib/packages/go"
 
 iscc.MetaTrimName        // 128 — max byte length for name normalization
 iscc.MetaTrimDescription // 4096 — max byte length for description normalization
+iscc.MetaTrimMeta        // 128_000 — max decoded payload size in bytes for the meta element
 iscc.IoReadSize          // 4_194_304 — default read buffer size (4 MB)
 iscc.TextNgramSize       // 13 — n-gram size for text similarity hashing
 ```

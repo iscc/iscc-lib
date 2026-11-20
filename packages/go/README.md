@@ -110,12 +110,13 @@ There is no dedicated decoder — recover the fields with the generic `IsccDecod
 
 ### Constants
 
-| Constant              | Value     | Description                                   |
-| --------------------- | --------- | --------------------------------------------- |
-| `MetaTrimName`        | 128       | Max byte length for name normalization        |
-| `MetaTrimDescription` | 4096      | Max byte length for description normalization |
-| `IoReadSize`          | 4,194,304 | Default read buffer size (4 MB)               |
-| `TextNgramSize`       | 13        | N-gram size for text similarity hashing       |
+| Constant              | Value     | Description                                            |
+| --------------------- | --------- | ------------------------------------------------------ |
+| `MetaTrimName`        | 128       | Max byte length for name normalization                 |
+| `MetaTrimDescription` | 4096      | Max byte length for description normalization          |
+| `MetaTrimMeta`        | 128,000   | Max decoded payload size in bytes for the meta element |
+| `IoReadSize`          | 4,194,304 | Default read buffer size (4 MB)                        |
+| `TextNgramSize`       | 13        | N-gram size for text similarity hashing                |
 
 ### Diagnostics
 

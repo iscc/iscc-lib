@@ -419,6 +419,7 @@ import io.iscc.iscc_lib.IsccLib;
 
 IsccLib.META_TRIM_NAME;        // 128 — max byte length for name normalization
 IsccLib.META_TRIM_DESCRIPTION; // 4096 — max byte length for description normalization
+IsccLib.META_TRIM_META;        // 128_000 — max decoded payload size in bytes for the meta element
 IsccLib.IO_READ_SIZE;          // 4_194_304 — default read buffer size (4 MB)
 IsccLib.TEXT_NGRAM_SIZE;       // 13 — n-gram size for text similarity hashing
 ```

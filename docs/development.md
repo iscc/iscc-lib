@@ -160,6 +160,12 @@ can review and re-stage.
     (`"C# / .NET"`) is kept. Adding a docs page means updating all three lists together. Also
     enforced in CI via `tests/test_check_docs_nav.py`, whose anchor test also catches page deletions
     that the prek hook's `files:` matching cannot see
+- `scripts/check_tier1_docs.py` — Tier 1 doc parity: derives the public symbols at the `iscc-lib`
+    crate root from `crates/iscc-lib/src/lib.rs` and fails when a registered doc that enumerates the
+    Tier 1 API misses one (any binding casing matches), or when a `<!-- tier1:begin -->` block in
+    the Rust spec or the crate's `CLAUDE.md` lists a different set. An unregistered tracked Markdown
+    file that names 30 or more Tier 1 symbols fails too, so a new API listing cannot go unchecked.
+    Also enforced in CI via `tests/test_check_tier1_docs.py`
 
 ### Pre-push (thorough, run before code leaves the machine)
 

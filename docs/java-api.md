@@ -42,12 +42,13 @@ System.out.println(iscc); // e.g. "ISCC:AAA..."
 
 Algorithm constants exposed as `public static final int` fields on `IsccLib`.
 
-| Constant                | Value       | Description                                             |
-| ----------------------- | ----------- | ------------------------------------------------------- |
-| `META_TRIM_NAME`        | `128`       | Maximum UTF-8 byte length for the name parameter        |
-| `META_TRIM_DESCRIPTION` | `4096`      | Maximum UTF-8 byte length for the description parameter |
-| `IO_READ_SIZE`          | `4_194_304` | Default read buffer size for streaming I/O (4 MB)       |
-| `TEXT_NGRAM_SIZE`       | `13`        | N-gram window size for text similarity hashing          |
+| Constant                | Value       | Description                                                |
+| ----------------------- | ----------- | ---------------------------------------------------------- |
+| `META_TRIM_NAME`        | `128`       | Maximum UTF-8 byte length for the name parameter           |
+| `META_TRIM_DESCRIPTION` | `4096`      | Maximum UTF-8 byte length for the description parameter    |
+| `META_TRIM_META`        | `128_000`   | Maximum decoded payload size in bytes for the meta element |
+| `IO_READ_SIZE`          | `4_194_304` | Default read buffer size for streaming I/O (4 MB)          |
+| `TEXT_NGRAM_SIZE`       | `13`        | N-gram window size for text similarity hashing             |
 
 ---
 
@@ -76,6 +77,30 @@ public class IsccDecodeResult {
 | `version`  | `int`    | Version enum value (0–255)        |
 | `length`   | `int`    | Length index from the ISCC header |
 | `digest`   | `byte[]` | Raw digest bytes                  |
+
+---
+
+### SumCodeResult
+
+Result of `IsccLib.genSumCodeV0()`. All fields are `public final`.
+
+```java
+package io.iscc.iscc_lib;
+
+public class SumCodeResult {
+    public final String iscc;
+    public final String datahash;
+    public final long filesize;
+    public final String[] units;
+}
+```
+
+| Field      | Type       | Description                                                            |
+| ---------- | ---------- | ---------------------------------------------------------------------- |
+| `iscc`     | `String`   | Composite ISCC-CODE string                                             |
+| `datahash` | `String`   | Hex-encoded BLAKE3 multihash of the file                               |
+| `filesize` | `long`     | Byte length of the file                                                |
+| `units`    | `String[]` | `[Data-Code, Instance-Code]` ISCC strings, or `null` unless `addUnits` |
 
 ---
 
@@ -286,6 +311,32 @@ String instanceCode = IsccLib.genInstanceCodeV0(data, 64);
 String isccCode = IsccLib.genIsccCodeV0(
     new String[]{dataCode, instanceCode}, false
 );
+```
+
+---
+
+### genSumCodeV0
+
+Generate a composite ISCC-CODE from a file in a single pass, computing Data-Code and Instance-Code
+together.
+
+```java
+public static native SumCodeResult genSumCodeV0(String path, int bits, boolean wide, boolean addUnits);
+```
+
+| Parameter  | Type      | Description                                                     |
+| ---------- | --------- | --------------------------------------------------------------- |
+| `path`     | `String`  | Path of the file to process                                     |
+| `bits`     | `int`     | Bit length of the generated codes (default: 64, multiple of 32) |
+| `wide`     | `boolean` | `true` for 256-bit output (requires `bits >= 128`)              |
+| `addUnits` | `boolean` | `true` to include the Data-Code and Instance-Code in `units`    |
+
+Throws `IllegalArgumentException` on invalid input or a file I/O error.
+
+```java
+SumCodeResult result = IsccLib.genSumCodeV0("example.bin", 64, false, true);
+System.out.println(result.iscc);     // "ISCC:KAA..."
+System.out.println(result.filesize); // size in bytes
 ```
 
 ---

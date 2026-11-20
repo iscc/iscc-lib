@@ -108,6 +108,18 @@ Returns `4096`.
 
 ---
 
+### iscc_meta_trim_meta
+
+Maximum decoded payload size in bytes for the meta element.
+
+```c
+uint32_t iscc_meta_trim_meta(void);
+```
+
+Returns `128000`.
+
+---
+
 ### iscc_io_read_size
 
 Default read buffer size for streaming I/O.

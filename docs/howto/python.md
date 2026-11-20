@@ -475,6 +475,27 @@ assert encode_seq(units) == data
 - `soft_hash_video_v0(frame_sigs, bits=64) -> bytes` — compute a video similarity hash from MPEG-7
     frame signatures
 
+## Algorithm primitives
+
+Low-level algorithm functions are available for advanced use cases:
+
+```python
+from iscc_lib import sliding_window
+
+# Sliding window: overlapping substrings of width Unicode characters
+windows = sliding_window("Hello World", 4)
+# ['Hell', 'ello', 'llo ', 'lo W', 'o Wo', ' Wor', 'Worl', 'orld']
+```
+
+Additional primitives:
+
+- `alg_simhash(hash_digests: list[bytes]) -> bytes` — compute a SimHash digest from equal-length
+    digests
+- `alg_minhash_256(features: list[int]) -> bytes` — compute a 256-bit MinHash digest from 32-bit
+    features
+- `alg_cdc_chunks(data: bytes, utf32: bool, avg_chunk_size: int = 1024) -> list[bytes]` — split data
+    into content-defined chunks
+
 ## Constants
 
 Module-level constants used by the ISCC algorithms. These are available as direct imports and also
@@ -484,6 +505,7 @@ through the `core_opts` namespace for iscc-core API parity:
 from iscc_lib import (
     META_TRIM_NAME,
     META_TRIM_DESCRIPTION,
+    META_TRIM_META,
     IO_READ_SIZE,
     TEXT_NGRAM_SIZE,
     core_opts,
@@ -491,12 +513,14 @@ from iscc_lib import (
 
 META_TRIM_NAME  # 128 — max byte length for name normalization
 META_TRIM_DESCRIPTION  # 4096 — max byte length for description normalization
+META_TRIM_META  # 128_000 — max decoded payload size in bytes for the meta element
 IO_READ_SIZE  # 4_194_304 — default read buffer size (4 MB)
 TEXT_NGRAM_SIZE  # 13 — n-gram size for text similarity hashing
 
 # core_opts namespace (iscc-core compatibility)
 core_opts.meta_trim_name  # 128
 core_opts.meta_trim_description  # 4096
+core_opts.meta_trim_meta  # 128_000
 core_opts.io_read_size  # 4_194_304
 core_opts.text_ngram_size  # 13
 ```

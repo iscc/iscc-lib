@@ -30,6 +30,8 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 
 **Tier 1 -- public API, bound in all languages (35 symbols at crate root):**
 
+<!-- tier1:begin -->
+
 - 10 gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
     `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
@@ -44,6 +46,8 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
     `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
 - 2 streaming types: `DataHasher`, `InstanceHasher`
 - 1 diagnostic: `conformance_selftest`
+
+<!-- tier1:end -->
 
 Note: some Tier 1 symbols are feature-gated. `text_clean`, `text_collapse`, and `gen_text_code_v0`
 require the `text-processing` feature. `gen_meta_code_v0`, `json_to_data_url`, `META_TRIM_NAME`,

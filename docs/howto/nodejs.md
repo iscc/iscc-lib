@@ -384,6 +384,29 @@ console.log(encode_seq(units).equals(data)); // true
 - `soft_hash_video_v0(frameSigs, bits?)` — compute a video similarity hash from MPEG-7 frame
     signatures, returns Buffer
 
+## Algorithm primitives
+
+Low-level algorithm functions are available for advanced use cases:
+
+```javascript
+const {
+    sliding_window
+} = require("@iscc/lib");
+
+// Sliding window: overlapping substrings of width Unicode characters
+const windows = sliding_window("Hello World", 4);
+// ["Hell", "ello", "llo ", "lo W", "o Wo", " Wor", "Worl", "orld"]
+```
+
+Additional primitives:
+
+- `alg_simhash(hashDigests)` — compute a SimHash digest from an array of equal-length Buffers,
+    returns Buffer
+- `alg_minhash_256(features)` — compute a 256-bit MinHash digest from 32-bit integer features,
+    returns Buffer
+- `alg_cdc_chunks(data, utf32, avgChunkSize?)` — split data into content-defined chunks (default
+    average chunk size 1024), returns an array of Buffers
+
 ## Constants
 
 Exported constants used by the ISCC algorithms:
@@ -392,12 +415,14 @@ Exported constants used by the ISCC algorithms:
 const {
     META_TRIM_NAME,
     META_TRIM_DESCRIPTION,
+    META_TRIM_META,
     IO_READ_SIZE,
     TEXT_NGRAM_SIZE,
 } = require("@iscc/lib");
 
 META_TRIM_NAME; // 128 — max byte length for name normalization
 META_TRIM_DESCRIPTION; // 4096 — max byte length for description normalization
+META_TRIM_META; // 128_000 — max decoded payload size in bytes for the meta element
 IO_READ_SIZE; // 4_194_304 — default read buffer size (4 MB)
 TEXT_NGRAM_SIZE; // 13 — n-gram size for text similarity hashing
 ```
