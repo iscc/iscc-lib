@@ -33,6 +33,7 @@ const SECTIONS: &[(&str, Caller)] = &[
     ("gen_text_code_v0", call_text),
     ("gen_mixed_code_v0", call_mixed),
     ("gen_iscc_code_v0", call_iscc_code),
+    ("alg_simhash", call_simhash),
 ];
 
 /// Parse the embedded `data-edge.json`.
@@ -70,6 +71,27 @@ fn str_list_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
     serde_wasm_bindgen::to_value(&items).map_err(|e| format!("input {index}: {e}"))
 }
 
+/// Decode one `bytes:<hex>` list item into bytes.
+fn bytes_item(item: &Value, index: usize) -> Result<Vec<u8>, String> {
+    item.as_str()
+        .and_then(|s| s.strip_prefix("bytes:"))
+        .and_then(|h| hex::decode(h).ok())
+        .ok_or_else(|| format!("input {index} holds a non-`bytes:<hex>` item"))
+}
+
+/// Read the input at `index` as a list of `bytes:<hex>` digests, converted to a JS array.
+fn bytes_list_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
+    let items = inputs
+        .get(index)
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("input {index} is not a list"))?;
+    let digests = items
+        .iter()
+        .map(|v| bytes_item(v, index))
+        .collect::<Result<Vec<_>, _>>()?;
+    serde_wasm_bindgen::to_value(&digests).map_err(|e| format!("input {index}: {e}"))
+}
+
 /// Read the input at `index` as a `u32`.
 fn u32_arg(inputs: &[Value], index: usize) -> Result<u32, String> {
     inputs
@@ -95,7 +117,7 @@ fn iscc_json(iscc: String) -> Value {
     json!({ "iscc": iscc })
 }
 
-/// Encode `encode_seq` bytes as a `bytes:<hex>` fixture value.
+/// Encode `encode_seq` or `alg_simhash` bytes as a `bytes:<hex>` fixture value.
 fn seq_json(data: Vec<u8>) -> Value {
     bytes_value(&data)
 }
@@ -140,6 +162,12 @@ fn call_iscc_code(inputs: &[Value]) -> Result<Outcome, String> {
         iscc_wasm::gen_iscc_code_v0(codes, wide),
         iscc_json,
     ))
+}
+
+/// Run `alg_simhash` on the vector's digest list.
+fn call_simhash(inputs: &[Value]) -> Result<Outcome, String> {
+    let digests = bytes_list_arg(inputs, 0)?;
+    Ok(to_outcome(iscc_wasm::alg_simhash(digests), seq_json))
 }
 
 /// Look up the caller of a function section; `None` for an unknown section.
