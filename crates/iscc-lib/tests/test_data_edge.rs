@@ -30,6 +30,7 @@ const SECTIONS: &[(&str, Caller)] = &[
     ("gen_text_code_v0", call_text),
     ("gen_mixed_code_v0", call_mixed),
     ("gen_iscc_code_v0", call_iscc_code),
+    ("alg_simhash", call_simhash),
 ];
 
 /// Load and parse `tests/data-edge.json` from the crate source tree.
@@ -70,6 +71,23 @@ fn str_list_arg(inputs: &[Value], index: usize) -> Result<Vec<&str>, String> {
         .and_then(Value::as_array)
         .ok_or_else(|| format!("input {index} is not a list"))?;
     items.iter().map(|v| str_item(v, index)).collect()
+}
+
+/// Decode one `bytes:<hex>` list item into bytes.
+fn bytes_item(item: &Value, index: usize) -> Result<Vec<u8>, String> {
+    item.as_str()
+        .and_then(|s| s.strip_prefix("bytes:"))
+        .and_then(|h| hex::decode(h).ok())
+        .ok_or_else(|| format!("input {index} holds a non-`bytes:<hex>` item"))
+}
+
+/// Read the input at `index` as a list of `bytes:<hex>` byte strings.
+fn bytes_list_arg(inputs: &[Value], index: usize) -> Result<Vec<Vec<u8>>, String> {
+    let items = inputs
+        .get(index)
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("input {index} is not a list"))?;
+    items.iter().map(|v| bytes_item(v, index)).collect()
 }
 
 /// Read the input at `index` as a `u32`.
@@ -137,6 +155,13 @@ fn call_iscc_code(inputs: &[Value]) -> Result<Option<Outcome>, String> {
         iscc_lib::gen_iscc_code_v0(&codes, wide),
         encode,
     )))
+}
+
+/// Run `alg_simhash` on the vector's digest list.
+fn call_simhash(inputs: &[Value]) -> Result<Option<Outcome>, String> {
+    let digests = bytes_list_arg(inputs, 0)?;
+    let encode = |data: Vec<u8>| bytes_value(&data);
+    Ok(Some(to_outcome(iscc_lib::alg_simhash(&digests), encode)))
 }
 
 /// Look up the caller of a function section; `None` for an unknown section.
