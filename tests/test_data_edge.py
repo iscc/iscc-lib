@@ -62,6 +62,7 @@ SEED_SET = [
     ("gen_text_code_v0", ["Hello\x00World", 64]),
     ("gen_mixed_code_v0", [[], 64]),
     ("gen_iscc_code_v0", [[]]),
+    ("alg_simhash", [[]]),
 ]
 
 
@@ -77,8 +78,35 @@ def convert_iscc_decode(result):
 
 
 def convert_encode_seq(result):
-    """Encode `encode_seq` bytes as a `bytes:<hex>` fixture value."""
+    """Encode `encode_seq` or `alg_simhash` bytes as a `bytes:<hex>` fixture value."""
     return f"bytes:{result.hex()}"
+
+
+def decode_bytes(value):
+    """Decode a `bytes:<hex>` fixture value into bytes."""
+    prefix, sep, digits = value.partition(":")
+    if prefix != "bytes" or not sep:
+        pytest.fail(f"expected a bytes:<hex> input, got {value!r}")
+    return bytes.fromhex(digits)
+
+
+def prepare_alg_simhash(inputs):
+    """Decode the `alg_simhash` digest list from `bytes:<hex>` strings into bytes."""
+    digests, *rest = inputs
+    return [[decode_bytes(d) for d in digests], *rest]
+
+
+# Section name -> preparer of the raw JSON inputs into call arguments. Sections not
+# listed are called with the raw JSON inputs; `bytes:` strings are decoded only here.
+PREPARERS = {
+    "alg_simhash": prepare_alg_simhash,
+}
+
+
+def prepare_inputs(section, inputs):
+    """Return a vector's call arguments, identical for iscc_lib and iscc_core."""
+    prepare = PREPARERS.get(section)
+    return inputs if prepare is None else prepare(inputs)
 
 
 # Section name -> converter of the raw result into its fixture form. The raw call is
@@ -90,6 +118,7 @@ CONVERTERS = {
     "gen_text_code_v0": dict,
     "gen_mixed_code_v0": dict,
     "gen_iscc_code_v0": dict,
+    "alg_simhash": convert_encode_seq,
 }
 
 
@@ -142,8 +171,9 @@ def outcome(module, section, inputs):
     convert = CONVERTERS.get(section)
     if convert is None:
         pytest.fail(f"unknown section {section}")
+    args = prepare_inputs(section, inputs)
     try:
-        result = getattr(module, section)(*inputs)
+        result = getattr(module, section)(*args)
     except REJECTIONS:  # Error text is never matched.
         return "error", None
     return "output", convert(result)
@@ -194,8 +224,9 @@ def test_iscc_lib_outcome(section, name, vector):
     if exception == "skip":
         return
     if exception == "error" or "error" in vector:
+        args = prepare_inputs(section, vector["inputs"])
         with pytest.raises(ValueError):
-            getattr(iscc_lib, section)(*vector["inputs"])
+            getattr(iscc_lib, section)(*args)
         return
     result = outcome(iscc_lib, section, vector["inputs"])
     assert matches(vector, result), f"expected {vector['outputs']!r}, got {result!r}"
