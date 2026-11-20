@@ -1,4 +1,4 @@
-<!-- assessed-at: 8347c91c85525eeb99996c5c06b2add50fc23b3a -->
+<!-- assessed-at: 42ba4a4c0803c394b87bdb9f7ad5755370d3d95b -->
 
 # Project State
 
@@ -7,9 +7,10 @@
 ## Phase: v0.8.0 — all features landed, CI green; 3 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. CI is fully green on the pushed tip `bf4f395`, which covers all code at HEAD. This
-iteration fixed the Python `encode_seq` docstrings. Still owed for v0.8.0: the 3 open `normal`
-issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
+all 11 bindings. CI is fully green on the pushed tip `2ff2e5f`, which covers all code at HEAD. This
+iteration removed phantom backticked paths from the wasm, go and nodejs specs, which resolved the
+wasm spec-drift issue; review filed a follow-up for phantom structure-tree entries. Still owed for
+v0.8.0: 3 open `normal` issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -39,10 +40,8 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 - 35 Tier 1 symbols with `.pyi` stubs and `__all__`; abi3-py310 wheels for 4 platforms; 12
     `py.detach` sites; 0.7.0 on PyPI; data-edge harness with the iscc-core cross-check is green
-- The `encode_seq` docstrings (wrapper, PyO3 doc, `.pyi`) name the three inputs iscc-lib rejects and
-    iscc_core accepts; `tests/test_encode_seq_docs.py` (4 tests) gates all three
-- Review nit, not filed: "case-fold alias" is broader than what iscc_core really accepts (`ẞ` is
-    rejected by both); the term matches every other surface
+- The `encode_seq` docstrings name the three inputs iscc-lib rejects and iscc_core accepts, gated by
+    `tests/test_encode_seq_docs.py` (4 tests)
 
 ## Node.js Bindings
 
@@ -50,15 +49,17 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and data-edge tests green in CI;
     `@iscc/lib` 0.7.0 on npm (OIDC)
+- `specs/nodejs-bindings.md` no longer names the nonexistent `npm/*/package.json`; its structure
+    tree still names `test/conformance.test.mjs` (tests live in `__tests__/`) — `normal` issue
 - `low` issue: the napi `Buffer` reference leak
 
 ## WASM Bindings
 
-**Status**: partially met
+**Status**: met (v0.8.0 scope)
 
 - 35 Tier 1 symbols; conformance, unit and data-edge tests green in CI; SIMD release build met
-- **`normal` issue:** `specs/wasm-bindings.md` names a `crates/iscc-wasm/package.json` that does not
-    exist
+- `specs/wasm-bindings.md` no longer names a `crates/iscc-wasm/package.json`; its structure tree
+    matches disk (`pkg/` is generated); the version-sync criterion names the real mechanism
 
 ## C FFI
 
@@ -69,8 +70,7 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 - `tests/test_iscc.c` runs every data-edge row except the 2 marked `c: skip`; `c-ffi` job green
 - `docs/c-ffi-api.md` and the ffi README use the `iscc_`-prefixed type names, gated by
     `tests/test_c_ffi_docs.py` (6 tests)
-- `low` issue: `src/lib.rs` is past the crate's split threshold. Bare C names remain in comments in
-    `packages/cpp/CLAUDE.md` and `iscc.hpp` (not filed)
+- `low` issue: `src/lib.rs` is past the crate's split threshold
 
 ## Java Bindings
 
@@ -86,6 +86,8 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape, strict base32
 - `data_edge_test.go` with the vendored copy is green in CI
+- `specs/go-bindings.md` tag form is now `packages/go/vX.Y.Z`; its Package Structure tree still
+    lists 11 files `packages/go` never had — `normal` issue (spec hygiene, no code defect)
 
 ## C# / .NET Bindings
 
@@ -93,8 +95,7 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 - `EncodeSeq` / `DecodeSeq`; embedded NUL rejected via `ToNativeUtf8`; `DataEdgeTests.cs` green in
     CI; 0.7.0 on NuGet
-- A private `PinnedRows` helper in `IsccLib.cs` pins all six jagged-array inputs; `[]` reaches the
-    core, null throws `ArgumentNullException`; `ArrayInputTests.cs` adds 20 tests
+- A private `PinnedRows` helper pins all six jagged-array inputs; `ArrayInputTests.cs` adds 20 tests
 - `docs/howto/dotnet.md` "Error handling" doesn't list `ArgumentNullException` (no issue filed)
 
 ## C++ Bindings
@@ -103,8 +104,7 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; embedded NUL rejected via
     `detail::checked_c_str`; 0.7.0 vcpkg/Conan metadata
-- `tests/test_iscc.cpp` runs all 16 data-edge rows from the generated header with a visited-row
-    tally; the ASAN `cpp` job is green
+- `tests/test_iscc.cpp` runs all 16 data-edge rows from the generated header; ASAN `cpp` job green
 - `low` issue: five `iscc.hpp` list wrappers pass NULL for an empty vector
 
 ## Ruby Bindings
@@ -130,7 +130,9 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; all how-tos cover the seq functions
-- **`normal` issue `[human]`:** hand-written derived facts (Tier 1 lists, counts) drift
+- **`normal` issue `[human]`:** hand-written derived facts (Tier 1 lists, counts, file lists) drift
+- **`normal` issue `[review]`:** binding spec structure trees list files that do not exist (Go, napi
+    confirmed; trees in the other specs not yet probed — the wasm tree matches disk)
 
 ## Benchmarks
 
@@ -145,18 +147,19 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `bf4f395`
-    (https://github.com/iscc/iscc-lib/actions/runs/44674748595): all 21 check-runs `success`. The
-    one unpushed commit touches `.claude/` only, so green CI covers HEAD
+- **Latest CI: PASSING** on `origin/develop` = `2ff2e5f`
+    (https://github.com/iscc/iscc-lib/actions/runs/44682503336): all 21 check-runs `success`. The
+    one unpushed commit touches `.claude/` only, and no code changed since `bf4f395`
 - **Missing (`normal` issue):** Dependabot alerts on `soupsieve` (every fixed release needs Python
-    `>=3.11.5`, so it needs Titusz) and `setuptools` (`uv.lock`; 84.1.0 declares `>=3.10`, so it may
-    be bumpable alone)
+    `>=3.11.5`, so it needs Titusz) and `setuptools` (`uv.lock`; may be bumpable alone)
 
 ## Open Issues
 
-18 open: 0 critical, **3 normal**, 15 low. Normal: Dependabot alerts, wasm-bindings spec drift,
-derived-fact drift. issues.md is at 267 of its 300-line budget.
+18 open: 0 critical, **3 normal**, 15 low. Normal: Dependabot alerts, binding spec structure-tree
+phantoms, derived-fact drift. issues.md is at 269 of its 300-line budget. The larger-step trial
+(`low` `[human]`) is due for evaluation after this iteration.
 
 ## Next Milestone
 
-Clear the open `normal` issues that CID can act on, the remaining v0.8.0 release blockers.
+Clear the open `normal` issues that CID can act on — the spec-hygiene pair (structure-tree phantoms
+and derived-fact drift) — as the remaining v0.8.0 release blockers.

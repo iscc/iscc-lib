@@ -87,20 +87,21 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 8347c91, iter 223 — incremental)
+## Current State (assessed-at: 42ba4a4, iter 224 — incremental)
 
-- **CI GREEN on tip `bf4f395`** (21/21 check-runs, run 44674748595). Unpushed = `.claude/` only.
-- **Python `encode_seq` docstrings DONE (222):** 3 sites + `tests/test_encode_seq_docs.py` (4
-    tests). Python now met (v0.8.0) — do NOT re-flag. "case-fold" wording nit is NOT filed.
-- C FFI docs type names DONE (221), .NET PinnedRows DONE (220) — do NOT re-flag.
-- **18 open: 3 normal, 15 low.** Normal: Dependabot (`soupsieve` needs py>=3.11.5 → human;
-    `setuptools` maybe bumpable alone), wasm spec drift, derived-fact drift. issues.md 267/300.
-- data-edge fan-out COMPLETE on all 12 surfaces (219); ISCC-SEQ on all 11 (211) — do NOT re-flag.
+- **CI GREEN on tip `2ff2e5f`** (21/21 check-runs, run 44682503336). Unpushed = `.claude/` only; no
+    code change since `bf4f395`.
+- **223: spec phantom paths removed** (wasm/go/nodejs specs); wasm `normal` issue RESOLVED → WASM
+    met. Follow-up `normal` filed: Go + napi spec structure trees list nonexistent files (wasm tree
+    matches disk — do NOT re-flag wasm).
+- Python `encode_seq` docs DONE (222), C FFI docs DONE (221), .NET PinnedRows DONE (220).
+- **18 open: 3 normal, 15 low.** Normal: Dependabot (`soupsieve` → human), structure-tree phantoms,
+    derived-fact drift `[human]`. issues.md 269/300. Larger-step trial evaluation due after 224.
+- data-edge fan-out COMPLETE on 12 surfaces (219); ISCC-SEQ on all 11 (211) — do NOT re-flag.
 - **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
-    defects. Larger-step trial evaluated after iter 224.
+    defects.
 - FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
-- **Python heredoc**: plain `uv run python - << 'EOF'` works (VIRTUAL_ENV warning harmless).
-- **macOS Swift proof**: `gh run view --job <check-run-id> --log | grep DataEdgeTests`.
+- **Structure-tree probe**: `grep -nE '^[│├└ ]*(├|└)── ' <spec>` then `ls` the root dir.
 
 ## Durable Facts (carried, not per-iteration)
 
