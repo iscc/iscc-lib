@@ -72,6 +72,12 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Revie
     `cyclomatic`/`coverage`/`crap` should move (+ it re-sorts by CRAP desc); every OTHER lib.rs
     entry must be a pure `line:` shift equal to the net lines the source change added — any
     substantive metric drift elsewhere = probe before approving (coverage-env noise)
+- **A baseline refresh also bakes in every function added since the last regen** (225: +26 from
+    `tests/test_data_edge.rs`, diff +220 lines for a one-branch change). That strengthens the gate
+    (they join `--fail-regression`). Fast check: key `entries` by `(file, function)` in
+    `git show <base>:.crap-baseline.json` vs HEAD and print differing `crap` lists — only the
+    touched fn may change, new ones must be < 30. Coverage + gate ≈ 3 min, tools now in
+    `~/.cargo/bin`
 
 ## Moved from the index (197)
 

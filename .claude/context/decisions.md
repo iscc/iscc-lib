@@ -341,3 +341,16 @@ check about 3 times each. Fable bills to plan limits on this account, not usage 
 sessions start without the claude.ai connectors (`sanitize_env`): they are not wanted unattended,
 and ISCC Expert bills an API key. **Context:** human decision (Titusz, interactive session,
 2026-11-20); supersedes the advisor scope of the 2026-11-17 entry.
+
+## 2026-11-20 — Comment-only edits and regenerated files do not count against the 6-file cap
+
+**Decision:** review passed iteration 225 with 6 files of changed behaviour plus 4 binding sources
+whose only edit is a doc comment (napi, py, `.pyi`, wasm) and 3 tool outputs (`iscc.h`,
+`NativeMethods.g.cs`, `.crap-baseline.json`), without a fan-out or `[audit]` valve. The cap counts
+files whose code changes. **Why:** the cap limits how much behaviour one review has to verify. The
+alternative here was to ship four doc comments that state the removed 32-zero answer, and a
+regenerated file is checked by re-running its generator, not by reading it. next.md must still list
+every such file and say that it is comment-only or regenerated, and review confirms that from the
+diff. **Alternatives:** NEEDS_WORK on the count (nothing for the next step to repair); a fan-out
+declaration (wrong: no surface got new behaviour of its own). **Context:** iteration 225 review, an
+interpretation of the 2026-11-19 sizing decision — Titusz may overrule it.

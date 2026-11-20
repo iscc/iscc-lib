@@ -1,71 +1,67 @@
-## 2026-11-20 — `alg_simhash` rejects an empty list in the Rust core and the Go port
+## 2026-11-20 — Review of: `alg_simhash` rejects an empty list in the Rust core and the Go port
 
-**Done:** The public `alg_simhash` (Rust) and `AlgSimhash` (Go) now return an error, "hash_digests
-must not be empty", for `[]`. Go is split into the public validating `AlgSimhash` and an unexported
-`algSimhash`, which keeps 32 zero bytes for `[]`. All 7 generator call sites now use `algSimhash`.
-Every test and doc comment that pinned the old 32-zero answer now expects the rejection. Generator
-output is unchanged.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `crates/iscc-lib/src/simhash.rs`: empty check at the top of `alg_simhash` plus doc. Test flipped,
-    and a test added that pins `alg_simhash_inner([])` == 32 zeros
-- `crates/iscc-lib/tests/test_algorithm_primitives.rs`: empty test now asserts the error;
-    `test_flat_crate_root_imports` passes one 32-byte digest
-- `crates/iscc-ffi/src/lib.rs`: doc comment for `iscc_alg_simhash`. `test_alg_simhash_empty` asserts
-    NULL data, len 0, and that `iscc_last_error` contains "must not be empty" and not "must not be
-    NULL"
-- `crates/iscc-ffi/include/iscc.h`, `packages/dotnet/Iscc.Lib/NativeMethods.g.cs`: regenerated (doc
-    text only)
-- `packages/go/simhash.go`: `AlgSimhash` validates, `algSimhash` does the unchecked work.
-    `simhash_test.go`: `TestSimhashEmpty` expects the error; `TestAlgSimhashUncheckedEmpty` added
-- `packages/go/code_content_audio.go` (3), `code_content_mixed.go` (1), `code_meta.go` (3): moved to
-    `algSimhash`, the discarded `_` errors removed
-- Comment-only: `crates/iscc-napi/src/lib.rs`, `crates/iscc-py/src/lib.rs`, `_lowlevel.pyi` (adds
-    `:raises ValueError:`), `crates/iscc-wasm/src/lib.rs`, `specs/rust-core.md` (row text plus one
-    "Verified when" bullet)
-- Flipped tests: `tests/test_algo.py` (`pytest.raises(ValueError, match=…)` around the bare call),
-    napi `functions.test.mjs` (`throws … /must not be empty/`), WASM `tests/unit.rs` (`is_err`), JNI
-    `IsccLibTest.java` (`assertThrows(IllegalArgumentException)` plus a message check), .NET
-    `ArrayInputTests.cs` (core message, not `FfiNullMessage`), `SmokeTests.cs`
-    (`Throws<IsccException>`)
-- `.crap-baseline.json`: regenerated
+**Summary:** The public `alg_simhash` (Rust) and `AlgSimhash` (Go) now return "hash_digests must not
+be empty" for `[]`. The generators keep their output through `alg_simhash_inner` and the new
+unexported Go `algSimhash`. Every test and doc comment that pinned the old 32-zero answer was
+flipped, and the work matches next.md and the 2026-11-20 decision. Codex found nothing.
 
 **Verification:**
 
-- `cargo test -p iscc-lib -p iscc-ffi`: all suites ok, no failures
-- `cargo clippy --workspace --exclude iscc-rb -- -D warnings`: clean
-- `go vet ./... && go test ./...` (packages/go): ok. `grep -rn "AlgSimhash(" packages/go/code_*.go`
-    matches only a comment, `code_content_mixed.go:92`, which now says "so the unchecked algSimhash
-    is safe". No call sites remain
-- `uv run pytest tests/test_algo.py`: 18 passed (after `maturin develop`)
-- napi `npm run build && npm test`: 179/179 pass. `wasm-pack test --node crates/iscc-wasm`: 11 + 5 +
-    93 pass
-- `cargo build -p iscc-jni && mvn -f crates/iscc-jni/java/pom.xml clean test`: 108 run, 0 failures,
-    BUILD SUCCESS
-- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`: 150 passed.
-    The next.md path `packages/dotnet` has no project file; I used the ci.yml form
-- I re-ran cbindgen and `cargo build -p iscc-ffi` after the regen: md5 of `iscc.h` and
-    `NativeMethods.g.cs` did not change (no-op)
-- CRAP: before the rebaseline, the CI gate line exited 1 with exactly one regression, `alg_simhash`
-    5.0 (+1.0). After `cargo crap … --format json --output .crap-baseline.json` the gate
-    (`--baseline .crap-baseline.json --fail-regression --fail-above`) exits 0: 0 regressed, 0 new,
-    145 unchanged
-- `mise run check`: exit 0 (mdformat realigned the spec table on the first run).
-    `prek run --hook-stage pre-push --files <changed>`: all Passed (Rust lint/tests, ty, ruff
-    S/C901, pytest)
+- [x] `cargo test -p iscc-lib -p iscc-ffi` passes;
+    `cargo clippy --workspace --exclude iscc-rb -- -D warnings` is clean — all suites ok (303 unit
+    tests in the core), clippy clean, also with `--all-targets`
+- [x] `go test ./...` and `go vet ./...` pass in `packages/go`, and
+    `grep -rn "AlgSimhash(" packages/go/code_*.go` prints nothing — confirmed, `gofmt -l` empty
+- [x] `uv run pytest tests/test_algo.py` passes — 18 passed
+- [x] napi suite after a fresh build, and `wasm-pack test --node crates/iscc-wasm` — 179/179, and
+    109 WASM tests passed (11, 5 and 93 per target)
+- [x] `mvn -f crates/iscc-jni/java/pom.xml clean test` and the .NET suite pass — 108 run, 0
+    failures; 150 passed (run as `dotnet test packages/dotnet/Iscc.Lib.Tests/`, see Notes)
+- [x] cbindgen + `cargo build -p iscc-ffi` leave `iscc.h` and `NativeMethods.g.cs` unchanged, and
+    the CI CRAP line exits 0 — `git status` clean after the regen; gate: 0 regressed, 0 new, 145
+    unchanged
 
-**Next:** The `alg_simhash` section in `data-edge.json` (fan-out over every harness), then the five
-C++ `ptrs.data()` wrappers. After that, the gate-leniency issue in `scripts/check_spec_paths.py`.
+Beyond next.md: `mise run check` exit 0; `cargo test -p iscc-lib` with `--no-default-features` and
+`--all-features` green; a per-function diff of `.crap-baseline.json` shows `alg_simhash` 4 → 5 as
+the only changed score, plus 26 functions from `tests/test_data_edge.rs` that the old baseline
+lacked (highest 20, under the limit of 30).
+
+**Issues found:**
+
+- `docs/howto/rust.md` listed `sliding_window` and `alg_simhash` without their `IsccResult` return
+    type (older than this step). Fixed in the review commit, together with one sentence on each
+    function's error case.
+- The diff touches 10 hand-edited source files where the cap is 6. Four of them (napi, py, `.pyi`,
+    wasm) changed only a doc comment, and next.md said so. I passed this and recorded the reading in
+    decisions.md ("Comment-only edits and regenerated files do not count against the 6-file cap").
+    Titusz may overrule it.
+- advance added a "Verified when" bullet to `specs/rust-core.md` where next.md asked only for the
+    table row. The issue is `[human]` with a `**Spec:**` field and the bullet restates the human
+    decision, so it stays.
+- WASM's flipped test checks only `is_err()`, like the other rejection tests in that file. Not
+    filed.
+
+**Codex review:** No actionable findings. Codex ran the Rust core/FFI, Go and .NET tests itself (all
+green); it could not collect the Python tests in its own environment.
+
+**Next:** The `alg_simhash` section in `data-edge.json`: one `[]` vector with `error`, a handler in
+every harness, the validator and the generated C header (`gen_data_edge_vectors.py`). This is a
+fan-out — the behaviour is fixed by the core and by decisions.md 2026-11-20. Then the five C++
+`ptrs.data()` wrappers, then the gate-leniency issue in `scripts/check_spec_paths.py`.
 
 **Notes:**
 
-- next.md said "eight" generator call sites. There were seven (audio 3, mixed 1, meta 3). The grep
-    criterion holds
-- The baseline diff is large (+220/−12) because the old baseline lacked 26 functions added in
-    earlier iterations, and 4 had moved lines. Only `alg_simhash` regressed. New functions face only
-    `--fail-above`, so baking them in changes no gate outcome
-- WASM's flipped test asserts only `is_err()`, matching the file's existing rejection tests (I did
-    not check the message there)
-- `cargo-crap` 0.2.2 and `cargo-llvm-cov` 0.9.1 were installed from source into `~/.cargo/bin` (not
-    preinstalled)
+- The issue entry is rewritten to the two remaining parts. New fact for the C++ step:
+    `iscc_alg_simhash` handles `num_digests == 0` before its NULL checks, so C and C++ already
+    report the core message for `alg_simhash({})`. The data-edge vector therefore cannot pin that
+    wrapper's pointer; the C++ step needs its own test per wrapper. The other four FFI functions
+    have no such branch.
+- next.md's `dotnet test packages/dotnet` has no project file to run. Use the `ci.yml` form:
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug` after
+    `cargo build -p iscc-ffi`.
+- next.md counted eight generator call sites in Go; there are seven (audio 3, mixed 1, meta 3).
+- The unpushed range also holds the `cid(human)` commit 32d6686 (review model and effort,
+    `sanitize_env`). It weakens no gate.
+- `cargo-crap` 0.2.2 and `cargo-llvm-cov` are now installed in `~/.cargo/bin` in this container.

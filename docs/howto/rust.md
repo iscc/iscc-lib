@@ -397,11 +397,12 @@ assert_eq!(encode_seq(&refs)?, data);
 iscc-lib exposes low-level algorithm functions as part of the public Rust API. These are building
 blocks used internally by `gen_*_v0` functions.
 
-- **`sliding_window(text: &str, width: usize) -> Vec<String>`** — Generate character n-grams from
-    text using a sliding window of the given width.
+- **`sliding_window(seq: &str, width: usize) -> IsccResult<Vec<String>>`** — Generate character
+    n-grams from text using a sliding window of the given width. Returns an error if `width < 2`.
 
-- **`alg_simhash(hash_digests: &[impl AsRef<[u8]>]) -> Vec<u8>`** — Compute a SimHash fingerprint
-    from a collection of byte digests. Used by Meta-Code, Audio-Code, and Mixed-Code generation.
+- **`alg_simhash(hash_digests: &[impl AsRef<[u8]>]) -> IsccResult<Vec<u8>>`** — Compute a SimHash
+    fingerprint from a collection of byte digests. Returns an error for an empty list or digests of
+    unequal length. Used by Meta-Code, Audio-Code, and Mixed-Code generation.
 
 - **`alg_minhash_256(features: &[u32]) -> Vec<u8>`** — Compute a 256-bit MinHash fingerprint from a
     collection of u32 feature hashes. Used by Text-Code and Data-Code generation.

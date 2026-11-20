@@ -42,6 +42,12 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     "Codec probes"
 - **next.md under-scoping a spec's "Verified when"**, display-form suites, `.crap-baseline.json`
     scope cap, Go `FieldsFunc` cost (197–203) → `review-patterns.md` "Moved from the index (204)"
+- **6-file cap counts files whose CODE changes** (225, decisions.md): doc-comment-only binding edits
+    \+ regenerated outputs don't count, IF next.md lists them as such — confirm from the diff
+- **Core behaviour change with flipped binding tests (225, ~25 min)**: Rust feature matrix, Go,
+    pytest, napi build+test, `wasm-pack test`, `mvn clean test`, `dotnet test`, cbindgen no-op, CRAP
+    gate; run the suites from ONE logged script. grep docs for signatures the step makes relevant
+    (`docs/howto/rust.md` had two missing `IsccResult`)
 - **Advance agent idle claims**: verify remaining issue priorities independently — it may claim
     "only low-priority remain" when `normal` issues still exist
 - **Run the full CI feature matrix on any core change** — only `--no-default-features` catches a
