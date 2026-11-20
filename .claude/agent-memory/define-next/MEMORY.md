@@ -22,10 +22,12 @@ C+C++ generated header, see [data-edge phase](data-edge-phase.md); 220 = .NET on
 helper over all 6 sites (issue named 3 — finish-the-pattern widened it); 221 = C FFI docs
 `iscc_`-prefixed type names (c-ffi-api.md + ffi README; issue named only the structs — `Ffi*Hasher`,
 README and the doc's cbindgen cmd lacking `--config` widened it) + pytest deriving names from
-`iscc.h`; next small `normal`s: Python `encode_seq` docstrings, wasm spec line; Ruby
-Bignum/napi/JNI/ ffi-split now `low` (human) — skip). **Dependabot soupsieve is human-blocked**:
-3.0.2/4.x need Python >=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a
-Maven/portal probe proves nothing: `curl -sL` to follow it (220: Kotlin red was a portal outage).
+`iscc.h`; 222 = Python `encode_seq` docstrings — 3 Python copies (wrapper, `.pyi`, PyO3 `///` in
+`iscc-py/src/lib.rs` = `_lowlevel.__doc__`; issue named 2); next: wasm spec line, then derived-facts
+parity check (largest); Ruby Bignum/napi/JNI/ ffi-split now `low` (human) — skip). **Dependabot
+soupsieve is human-blocked**: 3.0.2/4.x need Python >=3.11.5 but `uv.lock` resolves `>=3.10` —
+escalate, don't scope. A 303 from a Maven/portal probe proves nothing: `curl -sL` to follow it (220:
+Kotlin red was a portal outage).
 
 ## Scope Calibration Principles
 
