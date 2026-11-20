@@ -28,6 +28,7 @@ public class DataEdgeTests
         ["gen_text_code_v0"] = CallText,
         ["gen_mixed_code_v0"] = CallMixed,
         ["gen_iscc_code_v0"] = CallIsccCode,
+        ["alg_simhash"] = CallSimhash,
     };
 
     /// <summary>Load and parse testdata/data-edge.json from the test output directory.</summary>
@@ -47,6 +48,20 @@ public class DataEdgeTests
         string[] result = new string[array.GetArrayLength()];
         for (int i = 0; i < result.Length; i++)
             result[i] = array[i].GetString()!;
+        return result;
+    }
+
+    /// <summary>Decode a JSON array of <c>bytes:&lt;hex&gt;</c> values into one byte array per item.</summary>
+    private static byte[][] ToByteArrays(JsonElement array)
+    {
+        byte[][] result = new byte[array.GetArrayLength()][];
+        for (int i = 0; i < result.Length; i++)
+        {
+            string item = array[i].GetString()!;
+            if (!item.StartsWith("bytes:", StringComparison.Ordinal))
+                throw new InvalidOperationException($"expected a bytes:<hex> input, got {item}");
+            result[i] = Convert.FromHexString(item["bytes:".Length..]);
+        }
         return result;
     }
 
@@ -100,6 +115,13 @@ public class DataEdgeTests
         bool wide = inputs.GetArrayLength() > 1 && inputs[1].GetBoolean();
         return new Prepared(
             () => IsccLib.GenIsccCodeV0(codes, wide), r => IsccObject(((IsccCodeResult)r).Iscc));
+    }
+
+    /// <summary>Prepare AlgSimhash on the vector's digest list.</summary>
+    private static Prepared CallSimhash(JsonElement inputs)
+    {
+        byte[][] digests = ToByteArrays(inputs[0]);
+        return new Prepared(() => IsccLib.AlgSimhash(digests), r => BytesValue((byte[])r));
     }
 
     /// <summary>Serialize a JSON node compactly for comparison and messages.</summary>
