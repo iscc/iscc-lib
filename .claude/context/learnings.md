@@ -162,9 +162,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## CID Process
 
-- Never force-push to `develop` during a CID loop (agents commit incrementally)
-- **Never trust state.md/handoff claims about external state** (registry publications, CI status,
-    upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central, `gh api`)
+- Never force-push `develop` in a loop. **Never trust state.md/handoff claims about external state**
+    (registries, CI, upstream tags): verify at the source (`npm view`, `gh api`, …)
 - **Pre-push mdformat blocks on non-conforming context files**: it runs over every file in the push
     range (incl. `next.md`, per-agent `MEMORY*.md`), so one non-conforming file rejects the batch
     although `git commit` passed. Unblock by reformatting + amending
@@ -195,6 +194,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
     "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)
-- **A path-existence check over specs must cover structure trees and `*` globs too** (223): the
-    backticked-path loop missed bare tree names (the Go Package Structure tree is 11/19 fictional).
-    Resolve tree lines against their root dir; expand globs with `compgen -G`
+- **Spec paths are gated** (224): `scripts/check_spec_paths.py` checks tree entries and backticked
+    repo paths against `git ls-files` (never disk); fix the spec, list build output in `GENERATED`.
+    A "mechanism does not exist" claim must check package recipes: Conan's `pkg_config_name` /
+    `cmake_file_name` generate `iscc.pc` and `find_package(iscc)` at install time

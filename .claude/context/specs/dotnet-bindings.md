@@ -147,9 +147,10 @@ dotnet:
 
 `crates/iscc-ffi/build.rs` runs csbindgen on every build of `iscc-ffi` and rewrites
 `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (DLL `iscc_ffi`, class `NativeMethods`, namespace
-`Iscc.Lib`). When the C FFI surface changes, build `iscc-ffi` and commit the regenerated file
-together with `crates/iscc-ffi/include/iscc.h`. The SafeHandle wrappers are private nested classes
-of the hasher types.
+`Iscc.Lib`). The build does not touch the C header: when the C FFI surface changes, also run
+`cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h`
+(the command the `c-ffi` CI job checks freshness with), then commit `NativeMethods.g.cs` and
+`iscc.h` together. The SafeHandle wrappers are private nested classes of the hasher types.
 
 ## DevContainer Setup
 

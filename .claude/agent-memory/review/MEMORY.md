@@ -64,6 +64,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
 - **"files were modified by this hook" often means SOMETHING ELSE WAS WRITING** (97/164): a second
     CID loop (confirm `ps aux` → HUMAN REVIEW REQUESTED, do not push or kill), or my own Edits
     landing while a backgrounded prek run held its snapshot. Never edit while prek runs
+- **Spec paths are gated by `scripts/check_spec_paths.py` (224)** — a "mechanism does not exist"
+    realignment is a hypothesis: grep package recipes (Conan `pkg_config_name`/`cmake_file_name`
+    generate `.pc`/config at install time; 224 advance + next.md both missed it)
 - **Spec-hygiene (phantom paths: check TREES vs `git ls-files`, 223), multi-surface docs fan-out
     (211), issues.md at budget, uncommitted human edits mid-review (212)** → `review-patterns.md`
     "Moved from the index (223)"

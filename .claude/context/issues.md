@@ -183,23 +183,27 @@ Resolved when a negative Bignum element in those three functions raises `RangeEr
 through `i64`, narrow with `i32::try_from`), pinned next to the `RangeError` cases in
 `crates/iscc-rb/test/test_array_args.rb`.
 
-## Binding spec structure trees list files that do not exist `normal` [review]
+## `scripts/check_spec_paths.py` accepts paths the specs do not have `normal` [review]
 
-The Crate/Package Structure trees in the specs are not backticked, so the backticked-path existence
-check of iteration 223 cannot see them. `go-bindings.md` "Package Structure" lists 11 files that
-`packages/go` does not have: `iscc.go`, `text.go`, `algorithms.go`, `wta.go`, `hasher.go` (each with
-a `_test.go`) and `constants.go`. The real layout is `code_*.go`, `cdc.go`, `minhash.go`,
-`simhash.go`, `wtahash.go`, `utils.go` and others. `nodejs-bindings.md` lists
-`test/conformance.test.mjs`, but the tests live in `crates/iscc-napi/__tests__/`. Trees in the other
-specs were not probed. A step that "restores" a listed file gives existing code a second home, the
-same hazard as the removed wasm `package.json` line.
+The spec path gate (iteration 224) is looser than its docstring, in three ways (Codex, iter 224; the
+first two confirmed with `resolves()` on the real index):
 
-Resolved when every file named by a structure tree in `.claude/context/specs/*.md` exists, except
-entries marked as generated, or the trees are cut to wording that cannot go stale (the file-list
-bullet of the `[human]` derived-facts issue allows either). A check is preferred to a hand sweep.
+1. **`*` crosses `/`**: `fnmatch.fnmatchcase` lets `*` match a slash, so `packages/go/*.json`
+    resolves through `testdata/data.json` although `packages/go/` holds no JSON file. A spec can
+    name the wrong directory and stay green.
+2. **`NOT_PATHS` applies to tree entries**: the exemption for the removed
+    `scripts/gen_ffi_boundary_vectors.py` (cited as history in `edge-vectors.md`) also lets a tree
+    entry `gen_ffi_boundary_vectors.py` under a `scripts/` root pass, where the line asserts the
+    file exists.
+3. **The historical Go replay test reads the live index**:
+    `test_old_go_tree_reports_its_eleven_phantoms` and `test_main_exits_nonzero_on_phantom` resolve
+    a frozen tree against `tracked_paths(ROOT)`, so renaming `packages/go/dct.go` (which no current
+    spec lists) fails them with a twelfth error. `test_real_repo_passes` already covers the live
+    index.
 
-**Spec:** `.claude/context/specs/go-bindings.md` → "Package Structure"; `nodejs-bindings.md` →
-"Crate Structure"
+Resolved when `*` stays within one path segment while `**` recurses (the six `**` spans in
+`swift-bindings.md` still resolve), `NOT_PATHS` is honoured only for backticked spans, the two
+replay tests use a fixed known-path set, and one test pins each of the three cases.
 
 ## Evaluate the larger-step trial after iteration 224 `low` [human]
 

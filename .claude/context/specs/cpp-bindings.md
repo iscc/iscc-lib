@@ -188,7 +188,10 @@ target_link_libraries(myapp PRIVATE iscc::iscc)
 
 ### pkg-config
 
-Not provided: the package ships no `.pc` file. A build without CMake adds `packages/cpp/include` and
+No `.pc` file is tracked or bundled in the release tarballs. The Conan recipe sets `pkg_config_name`
+to `iscc` (`packages/cpp/conanfile.py`), so Conan's `PkgConfigDeps` generator writes `iscc.pc` for
+Conan consumers (`pkg-config --cflags --libs iscc`); its `CMakeDeps` generator likewise provides
+`find_package(iscc)` and `iscc::iscc`. Any other build adds `packages/cpp/include` and
 `crates/iscc-ffi/include` to the include path and links the `iscc_ffi` library.
 
 ### vcpkg
