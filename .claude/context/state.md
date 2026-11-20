@@ -1,15 +1,14 @@
-<!-- assessed-at: 864b6fe863758ef0d0cbc7db6312841c27207d77 -->
+<!-- assessed-at: 7bd45fc74a3ad60bf803e65682070be6fbd1cd2e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 8 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 7 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 226 added an `alg_simhash` section (empty list → error, even-count tie)
-that all 12 harnesses run; CI is fully green on the pushed tip `534e6e3`. Eight `normal` issues
-still block v0.8.0; the `alg_simhash` one is narrowed to five C++ wrappers.
+all 11 bindings. Iteration 227 routed every C++ vector input through `detail::safe_data` and closed
+that issue; CI is fully green on the pushed tip `3df8a2e`. Seven `normal` issues still block v0.8.0.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -18,8 +17,6 @@ still block v0.8.0; the `alg_simhash` one is narrowed to five C++ wrappers.
 - `crates/iscc-lib/tests/data-edge.json` has 6 sections: `iscc_decode`, `encode_seq`,
     `gen_text_code_v0`, `gen_mixed_code_v0`, `gen_iscc_code_v0`, `alg_simhash`; harnesses on all 12
     surfaces; the 5 tracked copies are byte-identical and match `VENDORED_COPIES`
-- `alg_simhash` section (2 vectors) runs on all 12 surfaces, including Ruby, Swift, Kotlin, C and
-    C++, which had no `[]` test before; the C header generator emits it
 - **`normal`:** Swift compares strings by canonical equivalence and reads a JSON bool as an Int; the
     Python template conflates `0` and `False`
 
@@ -29,10 +26,8 @@ still block v0.8.0; the `alg_simhash` one is narrowed to five C++ wrappers.
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
     `conformance_selftest` runs the seq vectors; iai, Coverage + CRAP and semver jobs pass in CI
-- `alg_simhash` returns `InvalidInput` for `[]`; `test_data_edge.rs` runs the `alg_simhash` section;
-    `.crap-baseline.json` refreshed
-- Stale spec fact: the `rust-core.md` Tier 1 table still gives `alg_simhash` (and `sliding_window`)
-    a bare `-> Vec<u8>` return type; the code returns `IsccResult`
+- `alg_simhash` returns `InvalidInput` for `[]`; the `rust-core.md` Tier 1 table now shows
+    `IsccResult` for `alg_simhash` and `sliding_window`, matching the code
 - **Missing (human-gated, not v0.8.0):** crate `>= 1.0.0`; MSRV verification
 
 ## Python Bindings
@@ -41,7 +36,6 @@ still block v0.8.0; the `alg_simhash` one is narrowed to five C++ wrappers.
 
 - 35 Tier 1 symbols with `.pyi` stubs and `__all__`; abi3-py310 wheels for 4 platforms; 12
     `py.detach` sites; 0.7.0 on PyPI; data-edge harness with the iscc-core cross-check is green
-- `tests/test_data_edge.py` decodes `bytes:<hex>` inputs via `prepare_inputs` before the raw call
 
 ## Node.js Bindings
 
@@ -91,12 +85,13 @@ still block v0.8.0; the `alg_simhash` one is narrowed to five C++ wrappers.
 
 ## C++ Bindings
 
-**Status**: met (v0.8.0 scope); 1 `normal` issue
+**Status**: met (v0.8.0 scope)
 
-- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; embedded NUL rejected; all data-edge rows
-    (incl. `alg_simhash`) run from the generated header; ASAN `cpp` job green; 0.7.0 vcpkg/Conan
-- **`normal`:** five `iscc.hpp` list wrappers still pass `ptrs.data()` (NULL for an empty vector)
-    instead of `detail::safe_data`; no per-wrapper `{}` tests yet
+- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; embedded NUL rejected; all data-edge rows run
+    from the generated header; ASAN `cpp` job green; 0.7.0 vcpkg/Conan
+- Every vector input goes through `detail::safe_data` (the only `.data()` left in `iscc.hpp` is
+    inside the helper); `{}` tests for the five list wrappers in `test_iscc.cpp`
+- `tests/test_cpp_safe_data.py` fails on any `.data()` outside the helper, so pytest in CI holds it
 
 ## Ruby Bindings
 
@@ -139,17 +134,17 @@ still block v0.8.0; the `alg_simhash` one is narrowed to five C++ wrappers.
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `534e6e3`
-    (https://github.com/iscc/iscc-lib/actions/runs/44723805634): all 21 check-runs `success`
-- Only the iteration log commit `864b6fe` is unpushed; green CI covers all code at HEAD
+- **Latest CI: PASSING** on `origin/develop` = `3df8a2e`
+    (https://github.com/iscc/iscc-lib/actions/runs/44730591657): all 21 check-runs `success`
+- Only the iteration log commit `7bd45fc` is unpushed; green CI covers all code at HEAD
 - GitHub Dependabot alerts track `main` and stay open until the next release (triaged, no issue)
 
 ## Open Issues
 
-13 open: 0 critical, **8 normal**, 5 low. Normal: C++ NULL wrappers, data-edge compare looseness,
-spec path gate leniency, derived-fact drift, iscc-ffi `lib.rs` size, JNI null guard, JNI pending
-exception, Ruby Bignum truncation. issues.md is at 221 of 300 lines.
+12 open: 0 critical, **7 normal**, 5 low. Normal: data-edge compare looseness, spec path gate
+leniency, derived-fact drift, iscc-ffi `lib.rs` size, JNI null guard, JNI pending exception, Ruby
+Bignum truncation. issues.md is at 205 of 300 lines.
 
 ## Next Milestone
 
-Clear the 8 open `normal` issues, which are the only remaining v0.8.0 release blockers.
+Clear the 7 open `normal` issues, which are the only remaining v0.8.0 release blockers.
