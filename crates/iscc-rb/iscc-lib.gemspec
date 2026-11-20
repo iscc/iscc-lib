@@ -36,6 +36,11 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
   spec.extensions = ["extconf.rb"]
 
-  # extconf.rb requires rb_sys/mkmf to build the extension from source
-  spec.add_dependency "rb_sys", "~> 0.9"
+  # Only the source gem needs rb_sys: its extconf.rb requires rb_sys/mkmf to build the
+  # extension on install. The platform gems cross-gem builds in this directory are
+  # precompiled and need no runtime dependency, and a dependency here would put a
+  # version-less rb_sys line first in Gemfile.lock, which breaks the cross-gem pin lookup.
+  # core/ exists only in the staged tree, so the dependency is fixed into the source gem
+  # when `gem build` runs there. __dir__ keeps the answer independent of the cwd.
+  spec.add_dependency "rb_sys", "~> 0.9" if File.directory?(File.join(__dir__, "core"))
 end

@@ -3,16 +3,19 @@
 The pure helpers (manifest rendering, version checks, crate extraction) run on synthetic
 input shaped like ``cargo metadata`` output, so no Rust toolchain is needed. Repository
 anchors pin the wiring around the script: the gemspec globs the script's carried-core
-directory and depends on ``rb_sys``, ``ci.yml`` and ``release.yml`` both build the source
-gem with the script (never a bare ``gem build``), the CI install runs on a Ruby series with
-no precompiled gem, and ``Gemfile.lock`` still pins the cross-gem ``rb_sys`` on a line the
-cross-gem action can grep. The end-to-end build and clean install run in CI, not here:
-``cargo package`` needs the crates.io index. No mocks.
+directory and declares ``rb_sys`` only in a tree that carries it (the staged source gem),
+``ci.yml`` and ``release.yml`` both build the source gem with the script (never a bare
+``gem build``), the CI install runs on a Ruby series with no precompiled gem, and the
+cross-gem action's own ``rb_sys`` lookup on ``Gemfile.lock`` finds the pinned version. The
+end-to-end build and clean install run in CI, not here: ``cargo package`` needs the
+crates.io index. No mocks.
 """
 
 import importlib.util
 import io
 import re
+import shutil
+import subprocess
 import tarfile
 from pathlib import Path
 
@@ -36,6 +39,23 @@ GEM_DIR = _REPO_ROOT / "crates" / "iscc-rb"
 SCRIPT_CALL = "scripts/build_ruby_source_gem.py"
 CROSS_GEM_ACTION = "oxidize-rb/actions/cross-gem"
 BARE_GEM_BUILD = re.compile(r"\bgem\s+build\b")
+SEMVER = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
+RUNTIME_DEPS_RB = (
+    "Gem::Specification.load(ARGV[0]).runtime_dependencies"
+    '.each { |d| puts "#{d.name} #{d.requirement}" }'
+)
+LOCK_WITH_PATH_DEPENDENCY = """PATH
+  remote: .
+  specs:
+    iscc-lib (0.7.0)
+      rb_sys (~> 0.9)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    rb_sys (0.9.123)
+      rake-compiler-dock (= 1.10.0)
+"""
 
 
 def rb_package(dependencies=None):
@@ -93,6 +113,46 @@ def bare_gem_builds(workflow):
         for _, step in workflow_runs(workflow)
         if BARE_GEM_BUILD.search(step["run"])
     ]
+
+
+def cross_gem_rb_sys_version(lock_text):
+    """Return the ``rb_sys`` version the ``cross-gem@v1`` action reads from lock text.
+
+    Copies the action's ``grep rb_sys Gemfile.lock | head -n 1 | grep -oE
+    '[0-9]+\\.[0-9]+\\.[0-9]+'``: the first line containing ``rb_sys`` anywhere, then the
+    first ``X.Y.Z`` in it. None when that line carries no version (the action then falls
+    back to the latest remote ``rb_sys``).
+    """
+    first = next((line for line in lock_text.splitlines() if "rb_sys" in line), None)
+    if first is None:
+        return None
+    match = SEMVER.search(first)
+    return match.group(0) if match else None
+
+
+def runtime_dependencies(gemspec, cwd):
+    """Return ``"name requirement"`` lines of a gemspec's runtime dependencies via ``ruby``."""
+    ruby = shutil.which("ruby")
+    assert ruby is not None, "ruby is required to evaluate the gemspec"
+    result = subprocess.run(
+        [ruby, "-e", RUNTIME_DEPS_RB, str(gemspec)],
+        cwd=cwd,
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    return result.stdout.splitlines()
+
+
+def cross_gem_step():
+    """Return the ``oxidize-rb/actions/cross-gem`` step of ``release.yml``."""
+    release = load_workflow(RELEASE_WORKFLOW)
+    return next(
+        step
+        for job in release["jobs"].values()
+        for step in job.get("steps") or []
+        if str(step.get("uses", "")).startswith(CROSS_GEM_ACTION)
+    )
 
 
 def test_render_manifest_is_standalone():
@@ -223,25 +283,50 @@ def test_core_dir_is_not_an_ignored_directory():
     assert not (GEM_DIR / gem.CORE_DIR).exists()
 
 
-def test_gemspec_carries_core_and_depends_on_rb_sys():
-    """The gemspec globs the script's core directory and declares a loose ``rb_sys`` range."""
+def test_gemspec_carries_core_and_lock():
+    """The gemspec globs the script's core directory and lists the shipped ``Cargo.lock``."""
     gemspec = (GEM_DIR / gem.GEMSPEC).read_text(encoding="utf-8")
     assert f'Dir["{gem.CORE_DIR}/**/*"]' in gemspec
     assert '"Cargo.lock"' in gemspec
-    match = re.search(r'add_dependency "rb_sys", "([^"]+)"', gemspec)
-    assert match is not None
-    assert match.group(1).startswith("~>")
 
 
-def test_gemfile_lock_pins_cross_gem_rb_sys():
-    """``cross-gem`` greps ``^    rb_sys (`` in ``Gemfile.lock``: it must name the Gemfile pin."""
+def test_gemspec_has_no_runtime_dependency_in_repository(tmp_path):
+    """In ``crates/iscc-rb`` (platform gems) the gemspec declares no runtime dependency.
+
+    Loaded from a cwd that has a ``core/`` directory: the check must follow the gemspec's
+    own directory, not the cwd.
+    """
+    (tmp_path / gem.CORE_DIR).mkdir()
+    assert runtime_dependencies(GEM_DIR / gem.GEMSPEC, tmp_path) == []
+
+
+def test_gemspec_depends_on_rb_sys_in_staged_tree(tmp_path):
+    """A tree carrying ``core/`` (the staged source gem) declares exactly ``rb_sys ~> …``."""
+    shutil.copy2(GEM_DIR / gem.GEMSPEC, tmp_path / gem.GEMSPEC)
+    version_rb = tmp_path / "lib" / "iscc_lib" / "version.rb"
+    version_rb.parent.mkdir(parents=True)
+    shutil.copy2(GEM_DIR / "lib" / "iscc_lib" / "version.rb", version_rb)
+    (tmp_path / gem.CORE_DIR).mkdir()
+    deps = runtime_dependencies(tmp_path / gem.GEMSPEC, GEM_DIR)
+    assert len(deps) == 1
+    name, requirement = deps[0].split(" ", 1)
+    assert name == "rb_sys"
+    assert requirement.startswith("~>")
+
+
+def test_cross_gem_lookup_reads_pinned_rb_sys():
+    """The cross-gem lookup on the real ``Gemfile.lock`` equals the Gemfile pin and ``tag:``."""
     gemfile = (GEM_DIR / "Gemfile").read_text(encoding="utf-8")
     pin = re.search(r'^gem "rb_sys", "([^"]+)"', gemfile, re.MULTILINE)
     assert pin is not None
     lock = (GEM_DIR / "Gemfile.lock").read_text(encoding="utf-8")
-    first = re.search(r"^    rb_sys \(([^)]+)\)", lock, re.MULTILINE)
-    assert first is not None
-    assert first.group(1) == pin.group(1)
+    assert cross_gem_rb_sys_version(lock) == pin.group(1)
+    assert str(cross_gem_step()["with"]["tag"]) == pin.group(1)
+
+
+def test_cross_gem_lookup_fires_on_path_dependency():
+    """A version-less ``rb_sys`` line under ``PATH`` specs comes first: the lookup finds none."""
+    assert cross_gem_rb_sys_version(LOCK_WITH_PATH_DEPENDENCY) is None
 
 
 @pytest.mark.parametrize("path", [CI_WORKFLOW, RELEASE_WORKFLOW])
@@ -275,13 +360,7 @@ def test_bare_gem_build_detector_fires():
 
 def test_ci_source_gem_install_uses_ruby_without_precompiled_gem():
     """The CI install runs on a Ruby series outside the cross-gem list, in an empty gem home."""
-    release = load_workflow(RELEASE_WORKFLOW)
-    cross_gem = next(
-        step
-        for job in release["jobs"].values()
-        for step in job.get("steps") or []
-        if str(step.get("uses", "")).startswith(CROSS_GEM_ACTION)
-    )
+    cross_gem = cross_gem_step()
     precompiled = {
         s.strip() for s in str(cross_gem["with"]["ruby-versions"]).split(",")
     }

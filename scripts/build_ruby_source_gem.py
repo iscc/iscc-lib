@@ -54,10 +54,14 @@ DROPPED_CORE_FILES = frozenset({"Cargo.toml.orig"})
 
 
 def run(cmd: list[str], cwd: Path) -> str:
-    """Run a command in ``cwd``, fail on a non-zero exit and return its stdout."""
+    """Run a command in ``cwd``, fail on a non-zero exit and return its stdout.
+
+    Only stdout is captured: stderr passes through to the caller's stderr, so a failing
+    ``cargo package`` or ``gem build`` logs its reason in the job output.
+    """
     # S603: every argv is built in this script from constants (cargo, ruby, gem), no shell
     return subprocess.run(  # noqa: S603
-        cmd, cwd=cwd, check=True, capture_output=True, text=True
+        cmd, cwd=cwd, check=True, stdout=subprocess.PIPE, text=True
     ).stdout
 
 
@@ -178,9 +182,12 @@ def extract_crate(crate_file: Path, dest: Path) -> None:
 
 
 def gemspec_files() -> list[str]:
-    """Return the file list ``iscc-lib.gemspec`` declares, evaluated in ``crates/iscc-rb``."""
+    """Return the file list ``iscc-lib.gemspec`` declares, evaluated in ``crates/iscc-rb``.
+
+    One path per line, so a path containing a space stays whole.
+    """
     script = f'puts Gem::Specification.load("{GEMSPEC}").files'
-    files = run(["ruby", "-e", script], cwd=GEM_DIR).split()
+    files = run(["ruby", "-e", script], cwd=GEM_DIR).splitlines()
     if not files:
         raise SystemExit(f"{GEMSPEC} lists no files")
     return files

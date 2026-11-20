@@ -140,7 +140,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 
 - Ruby source gem (239): ONLY via `scripts/build_ruby_source_gem.py --out DIR` (standalone manifest
     \+ `cargo package` core under `core/` + workspace Cargo.lock); gemspec `rb_sys ~> 0.9`.
-    Clean-home probe: from /tmp, `GEM_HOME=GEM_PATH=/tmp/x gem install` (~40 s)
+    Clean-home probe: from /tmp, `GEM_HOME=GEM_PATH=/tmp/x gem install` (~40 s). `rb_sys` dep is
+    conditional on `__dir__/core` (240): never unconditional — breaks cross-gem's unanchored lock
+    grep
+- ruff RUF100 strips `# noqa: S603` in `tests/` (S rules off there) — no noqa on test subprocess
 - Ruby `i32` elements (229): only via `array_to_i32_vec` (i64 then `i32::try_from`); Magnus
     `RBignum::to_i32` truncates negative Bignums. Rebuild: `bundle exec rake compile:dev`
 

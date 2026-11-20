@@ -70,7 +70,13 @@ The fallback handles source-compiled installations where the `.so` is at the fla
 
 `rb_sys` is pinned exactly (0.9.123) in **both** `Gemfile` (`# held:` comment) and `Gemfile.lock`,
 and must be changed together with the `tag:` input of `oxidize-rb/actions/cross-gem` in
-`release.yml`. This is critical because:
+`release.yml`. The action reads the pin with an unanchored
+`grep rb_sys Gemfile.lock | head -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'`: the **first line that
+contains `rb_sys` anywhere** must carry the pinned version, or the action installs the latest remote
+`rb_sys`. A version-less line such as a gemspec dependency `rb_sys (~> 0.9)` under `PATH` specs
+would come first and break it. `test_cross_gem_lookup_reads_pinned_rb_sys` in
+`tests/test_build_ruby_source_gem.py` runs that lookup on the real lock and compares it with the
+`Gemfile` pin and the `tag:`. The pin is critical because:
 
 1. Each rb_sys version bundles a specific `rake-compiler-dock` version
 2. `rake-compiler-dock` contains a `cross_rubies` hash mapping minor versions to patch versions
@@ -106,10 +112,14 @@ a temp dir: a generated `Cargo.toml` (concrete keys, core as `path = "core"`, em
 the core from `cargo package -p iscc-lib` under `core/`, and the workspace `Cargo.lock`.
 `release.yml` (`publish-rubygems`) publishes that gem; the ci.yml `ruby-source-gem` job installs it
 on Ruby 3.4 into an empty gem home and runs `conformance_selftest`. The gemspec declares
-`rb_sys ~> 0.9` as a runtime dependency (`extconf.rb` needs `rb_sys/mkmf`); keep it a loose range,
-the exact 0.9.123 pin belongs to the `Gemfile` only. The gemspec's `core/**/*` and `Cargo.lock`
-entries match nothing in this directory, so the platform gems `cross-gem` builds here stay as they
-were. Never name the carried core `vendor/` or `tmp/` (gitignored Bundler/rake dirs).
+`rb_sys ~> 0.9` only when a `core/` directory sits next to it (`File.join(__dir__, "core")`), that
+is, only in the staged tree: the source gem needs it because `extconf.rb` requires `rb_sys/mkmf`,
+and `gem build` fixes it into that gem. In this directory the gemspec has no runtime dependency, so
+`Gemfile.lock` has no version-less `rb_sys` line (see "rb_sys Version Pinning") and the platform
+gems `cross-gem` builds here are precompiled with no runtime dependencies. Keep the range loose, the
+exact 0.9.123 pin belongs to the `Gemfile` only. The gemspec's `core/**/*` and `Cargo.lock` entries
+match nothing in this directory either. Never name the carried core `vendor/` or `tmp/` (gitignored
+Bundler/rake dirs).
 
 ## Magnus Patterns
 
