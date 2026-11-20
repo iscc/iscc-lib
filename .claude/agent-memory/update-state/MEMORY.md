@@ -16,6 +16,9 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     `git diff --stat origin/develop..HEAD -- . ':!.claude'`. Empty = green CI covers HEAD.
     **NON-empty = it does NOT** — report the gap (fired 162; fired again 184: a NEEDS_WORK advance
     commit stays in local history unreverted and its code sits at HEAD uncovered by green).
+- **Red tip, code covered?** (220) when the tip is red, find the newest FULLY green run
+    (`gh run list --branch develop`) and diff it to the tip excluding `.claude` — empty = code
+    covered.
 - **ALWAYS `tail -6 iterations.jsonl` + `git status --porcelain`.** jsonl is the ONLY place a
     crashed/`audit` role shows; a non-OK status ≠ no work (corroborate `git log`, fingerprints →
     `MEMORY-archive.md`); out-of-loop `cid(loop):` commits leave NO jsonl entry — diff them. A
@@ -84,19 +87,20 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 09d68d3, iter 219 — incremental)
+## Current State (assessed-at: cdc8925, iter 220 — incremental)
 
-- **data-edge groups 1+2 DONE + reviewed + pushed (CI green on 39cff64):** Go, Node, WASM, Java,
-    .NET, Ruby, Swift, Kotlin. Remaining: C, C++ (group 3, generated table; generator in `ea69169`).
-    `VENDORED_COPIES` data-edge = go + dotnet + kotlin + swift; 5 tracked `data-edge.json`.
-- **macOS Swift proof**: `gh run view --job <check-run-id> --log | grep DataEdgeTests` (check-run id
-    == job id) — shows tests ran by name on `macos-15-arm64`.
-- 16 vectors / 5 sections; 2 `except` entries (c skip x2; dotnet/cpp error on text NUL).
+- **data-edge fan-out COMPLETE on all 12 surfaces (219):** C/C++ via generated
+    `crates/iscc-ffi/tests/data_edge_vectors.h` (`scripts/gen_data_edge_vectors.py`, staleness gate
+    `tests/test_gen_data_edge_vectors.py`). Criterion MET. 16 vectors / 5 sections, 2 `except`.
+- **Tip `0da6e41` RED: Kotlin job only** — Gradle Plugin Portal couldn't resolve
+    `kotlin-gradle-plugins-bom:2.4.10` (looks external; no kotlin change). `4abafb6` run fully green
+    and `4abafb6..0da6e41` = `.claude/` only. Check whether a rerun turned it green next time.
 - **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
-    defects. 20 open: 6 normal, 14 low. issues.md at 300-line budget.
-- **ISCC-SEQ done on all 11 surfaces (211); .NET+C++ NUL rejection done (213)** — do NOT re-flag.
+    defects. 21 open: 6 normal, 15 low. issues.md at 300-line budget.
+- ISCC-SEQ done on all 11 surfaces (211); .NET+C++ NUL rejection done (213) — do NOT re-flag.
 - FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
 - **Python heredoc**: plain `uv run python - << 'EOF'` works (VIRTUAL_ENV warning harmless).
+- **macOS Swift proof**: `gh run view --job <check-run-id> --log | grep DataEdgeTests`.
 
 ## Durable Facts (carried, not per-iteration)
 
