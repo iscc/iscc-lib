@@ -1,15 +1,15 @@
-<!-- assessed-at: 4298fcccdd7c961195081f6e37ec2812b9437a8e -->
+<!-- assessed-at: 3c7e48283664d1113e8f4662ab97acc5a00c3b35 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 3 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 2 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 230 closed both `normal` JNI issues (zero-handle guard, OOM and
-pending-exception mapping). CI is fully green on the pushed tip `eb65235`. Three `normal` issues
-still block v0.8.0, two of them `[human]`-sourced.
+all 11 bindings. Iteration 231 moved the iscc-ffi unit tests out of `lib.rs` into `src/tests.rs` and
+closed the split-threshold issue. CI is fully green on the pushed tip `1bd28cd`. Two `normal` issues
+still block v0.8.0, both `[human]`-sourced.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -53,24 +53,22 @@ still block v0.8.0, two of them `[human]`-sourced.
 
 ## C FFI
 
-**Status**: met (v0.8.0 scope); 1 `normal` issue
+**Status**: met (v0.8.0 scope)
 
 - 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
+- `src/lib.rs` is 1717 lines (below the ~2500-line split threshold); the 99 unit tests live in
+    `src/tests.rs` behind `#[cfg(test)] mod tests;`; `CLAUDE.md` documents the layout
 - `tests/test_iscc.c` runs every data-edge row (incl. `alg_simhash`) except the 2 marked `c: skip`
-- **`normal`:** `src/lib.rs` is 2875 lines, past the crate's own ~2500-line split threshold
 
 ## Java Bindings
 
 **Status**: met (v0.8.0 scope)
 
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 6 sections, green in CI; 0.7.0 on Maven Central
-- The four hasher `*Update`/`*Finalize` exports reject a zero handle (`ptr == 0`) before the deref;
-    a private `JavaError` trait maps a JVM allocation failure to `OutOfMemoryError`, everything else
-    to `IllegalArgumentException`; both throw helpers skip throwing while an exception is pending
-- 64 `@Test` methods (IsccLibTest 59, DataEdgeTest 5); docs and javadoc name `IllegalStateException`
-    for a finalized hasher
-- `low` issue (new): the pending-exception guard has no test (removing it keeps `mvn test` green)
+- Hasher exports reject a zero handle; JVM allocation failure maps to `OutOfMemoryError`; throw
+    helpers skip throwing while an exception is pending; 64 `@Test` methods
+- `low` issue: the pending-exception guard has no test
 
 ## Go Bindings
 
@@ -135,18 +133,17 @@ still block v0.8.0, two of them `[human]`-sourced.
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `eb65235`
-    (https://github.com/iscc/iscc-lib/actions/runs/44749455126): all 21 check-runs `success`
-- Unpushed: 3 commits (two iteration logs, the audit metrics snapshot), all under `.claude/`; green
-    CI covers all code at HEAD
+- **Latest CI: PASSING** on `origin/develop` = `1bd28cd`
+    (https://github.com/iscc/iscc-lib/actions/runs/44758570156): all 21 check-runs `success`
+- Unpushed: 1 commit (the iteration-231 log), under `.claude/` only; green CI covers all code at
+    HEAD
 - GitHub Dependabot alerts track `main` and stay open until the next release (triaged, no issue)
 
 ## Open Issues
 
-10 open: 0 critical, **3 normal**, 7 low. Normal: iscc-ffi `lib.rs` size, derived-fact drift
-`[human]`, data-edge compare looseness `[human]`. The iter-230 audit filed no issues. issues.md is
-at 180 of 300 lines.
+9 open: 0 critical, **2 normal**, 7 low. Normal: derived-fact drift `[human]`, data-edge compare
+looseness `[human]`. issues.md is at 168 of 300 lines.
 
 ## Next Milestone
 
-Clear the 3 open `normal` issues, which are the only remaining v0.8.0 release blockers.
+Clear the 2 open `normal` issues, which are the only remaining v0.8.0 release blockers.
