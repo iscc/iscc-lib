@@ -205,17 +205,12 @@ go:
 
 ## Version Sync
 
-| Target                   | What is synced            |
-| ------------------------ | ------------------------- |
-| `packages/go/version.go` | `const Version = "X.Y.Z"` |
-
-Go module versions are determined by Git tags (`go/vX.Y.Z` sub-module tags). The embedded version
-constant is synced for diagnostic purposes.
+Go module versions are determined by Git tags (`packages/go/vX.Y.Z` sub-module tags). The package
+embeds no package-version string, so there is no sync target.
 
 ## Documentation
 
 - **How-to guide**: `docs/howto/go.md`
-- **API reference**: `docs/go-api.md`
 - **Per-package README**: `packages/go/README.md`
 
 ## Verification Criteria
@@ -230,4 +225,4 @@ constant is synced for diagnostic purposes.
 - No binary artifacts committed to the repository
 - `check-added-large-files` threshold at 256KB
 - `go vet ./...` clean
-- Version synced from root `Cargo.toml` via `mise run version:sync`
+- Module version set by `packages/go/vX.Y.Z` Git tags (no in-repo package-version string)

@@ -154,15 +154,13 @@ nodejs:
 
 ## Version Sync
 
-| Target                                | What is synced            |
-| ------------------------------------- | ------------------------- |
-| `crates/iscc-napi/package.json`       | `"version": "X.Y.Z"`      |
-| `crates/iscc-napi/npm/*/package.json` | Platform package versions |
+| Target                          | What is synced       |
+| ------------------------------- | -------------------- |
+| `crates/iscc-napi/package.json` | `"version": "X.Y.Z"` |
 
 ## Documentation
 
 - **How-to guide**: `docs/howto/nodejs.md`
-- **API reference**: `docs/nodejs-api.md`
 - **Per-crate README**: `crates/iscc-napi/README.md` for npm
 
 ## Verification Criteria

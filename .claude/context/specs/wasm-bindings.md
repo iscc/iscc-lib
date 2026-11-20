@@ -25,7 +25,6 @@ crates/iscc-wasm/
 ├── Cargo.toml              # cdylib, depends on iscc-lib + wasm-bindgen
 ├── src/
 │   └── lib.rs              # wasm-bindgen bridge (all 35 Tier 1 symbols)
-├── package.json            # npm package config (@iscc/wasm)
 ├── README.md               # Per-crate README for npm
 ├── tests/
 │   └── conformance.rs      # wasm-pack test conformance against data.json
@@ -160,9 +159,11 @@ wasm:
 
 ## Version Sync
 
-| Target                          | What is synced       |
-| ------------------------------- | -------------------- |
-| `crates/iscc-wasm/package.json` | `"version": "X.Y.Z"` |
+The crate has no committed `package.json`. wasm-pack generates `pkg/package.json` from
+`crates/iscc-wasm/Cargo.toml` (version, `license`, `description`), and release.yml's "Set npm
+package name and version" step patches `name`, `repository` and `version` (read from the root
+`Cargo.toml`). The Cargo manifests are therefore the single source of the npm version, `license` and
+`description`; see ci-cd.md's "Automatic propagation" section.
 
 ## Documentation
 
@@ -179,5 +180,5 @@ wasm:
 - TypeScript declarations provide accurate type information
 - Package installs cleanly via `npm install @iscc/wasm`
 - Works in browser environments (no Node.js-specific APIs)
-- Version synced from root `Cargo.toml` via `mise run version:sync`
+- npm package version comes from root `Cargo.toml` (wasm-pack output patched by release.yml)
 - Per-crate README renders correctly on npmjs.com
