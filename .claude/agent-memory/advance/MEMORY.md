@@ -36,6 +36,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - Output subset (236): gen `outputs` keys ⊆ `data.json` per-function keys, `iscc` required;
     validator `validate_vector(section, name, vector)` + generator `allowed_output_keys` derive it
     from data.json (gen = `gen_` prefix). Harnesses fix uncompared keys statically per result type
+    (237: .NET/Java/napi/WASM `UNCOMPARED` map keyed by section; `compare(section, …)` walks
+    expected)
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
 - Swift scalars (232): corelibs AND Darwin `NSNumber` casts are loose (`false as? Int`=0,
