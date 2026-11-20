@@ -128,21 +128,35 @@ public class DataEdgeTests
     private static string Text(JsonNode? node) => node?.ToJsonString() ?? "null";
 
     /// <summary>
-    /// Compare an actual output with the expected one and return a failure, or null.
-    /// For an object, only the expected keys the result exposes are compared.
+    /// Section name to the expected output keys its .NET result type does not carry, which
+    /// are therefore not compared (an absent section compares every key). Gen results here
+    /// wrap a bare ISCC string, so text drops <c>characters</c> and mixed drops <c>parts</c>.
     /// </summary>
-    private static string? Compare(JsonNode expected, JsonNode actual)
+    private static readonly Dictionary<string, string[]> Uncompared = new()
+    {
+        ["gen_text_code_v0"] = new[] { "characters" },
+        ["gen_mixed_code_v0"] = new[] { "parts" },
+    };
+
+    /// <summary>
+    /// Compare an actual output with the expected one and return a failure, or null.
+    /// For an object, every expected key outside the section's static uncompared set must be
+    /// present in the result and equal; a missing key fails.
+    /// </summary>
+    private static string? Compare(string section, JsonNode expected, JsonNode actual)
     {
         if (expected is not JsonObject want)
             return Text(expected) == Text(actual) ? null : $"expected {Text(expected)}, got {Text(actual)}";
-        var got = (JsonObject)actual;
-        var keys = got.Select(kv => kv.Key).Where(want.ContainsKey).ToList();
-        if (keys.Count == 0)
-            return $"no expected field in {Text(got)}";
-        foreach (string key in keys)
+        if (actual is not JsonObject got)
+            return $"expected an object, got {Text(actual)}";
+        string[] uncompared = Uncompared.GetValueOrDefault(section, Array.Empty<string>());
+        foreach (var (key, value) in want)
         {
-            if (Text(want[key]) != Text(got[key]))
-                return $"field {key}: expected {Text(want[key])}, got {Text(got[key])}";
+            if (uncompared.Contains(key)) continue;
+            if (!got.ContainsKey(key))
+                return $"missing field {key} in {Text(got)}";
+            if (Text(value) != Text(got[key]))
+                return $"field {key}: expected {Text(value)}, got {Text(got[key])}";
         }
         return null;
     }
@@ -155,18 +169,19 @@ public class DataEdgeTests
     }
 
     /// <summary>Judge a successful raw call against the vector's expectation.</summary>
-    private static string? JudgeOk(bool expectError, Prepared prepared, object result, JsonElement vector)
+    private static string? JudgeOk(
+        string section, bool expectError, Prepared prepared, object result, JsonElement vector)
     {
         JsonNode got = prepared.Convert(result);
         if (expectError)
             return $"expected an error, got {Text(got)}";
         if (!vector.TryGetProperty("outputs", out JsonElement outputs))
             return "vector has neither outputs nor error";
-        return Compare(JsonNode.Parse(outputs.GetRawText())!, got);
+        return Compare(section, JsonNode.Parse(outputs.GetRawText())!, got);
     }
 
     /// <summary>Check one vector and return a failure description, or null.</summary>
-    private static string? CheckVector(Func<JsonElement, Prepared> caller, JsonElement vector)
+    private static string? CheckVector(string section, Func<JsonElement, Prepared> caller, JsonElement vector)
     {
         string? exception = ExceptEntry(vector);
         if (exception == "skip") return null;
@@ -185,7 +200,7 @@ public class DataEdgeTests
         {
             return $"raw call threw {e.GetType().FullName}: {e.Message}";
         }
-        return JudgeOk(expectError, prepared, result, vector);
+        return JudgeOk(section, expectError, prepared, result, vector);
     }
 
     /// <summary>Run every vector of a parsed document; return one <c>section/vector: reason</c> per failure.</summary>
@@ -201,7 +216,7 @@ public class DataEdgeTests
             }
             foreach (JsonProperty vector in section.Value.EnumerateObject())
             {
-                string? reason = CheckVector(caller, vector.Value);
+                string? reason = CheckVector(section.Name, caller, vector.Value);
                 if (reason != null) failures.Add($"{section.Name}/{vector.Name}: {reason}");
             }
         }
@@ -273,5 +288,39 @@ public class DataEdgeTests
             """));
         Assert.Single(failures);
         Assert.StartsWith("iscc_decode/test_0001_error: expected an error", failures[0]);
+    }
+
+    [Fact]
+    public void DataEdgeComparesObjectOutput()
+    {
+        // The data.json Hello World vector: `characters` is uncompared, `iscc` matches.
+        List<string> failures = CheckDoc(Parse("""
+            {"gen_text_code_v0": {"test_0001_x": {"inputs": ["Hello World", 64],
+                "outputs": {"iscc": "ISCC:EAASKDNZNYGUUF5A", "characters": 10}, "note": "n"}}}
+            """));
+        Assert.Empty(failures);
+    }
+
+    [Fact]
+    public void DataEdgeFailsKeyOutsideUncomparedSet()
+    {
+        // `parts` is uncompared for mixed only, so a text result lacking it fails.
+        List<string> failures = CheckDoc(Parse("""
+            {"gen_text_code_v0": {"test_0001_x": {"inputs": ["Hello World", 64],
+                "outputs": {"iscc": "ISCC:EAASKDNZNYGUUF5A", "parts": []}, "note": "n"}}}
+            """));
+        Assert.Single(failures);
+        Assert.Contains("missing field parts", failures[0]);
+    }
+
+    [Fact]
+    public void DataEdgeFailsResultWithoutIscc()
+    {
+        string? failure = Compare(
+            "gen_text_code_v0",
+            JsonNode.Parse("""{"iscc": "ISCC:EAASKDNZNYGUUF5A", "characters": 10}""")!,
+            JsonNode.Parse("""{"characters": 10}""")!);
+        Assert.NotNull(failure);
+        Assert.Contains("missing field iscc", failure);
     }
 }
