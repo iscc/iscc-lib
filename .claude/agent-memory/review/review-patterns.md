@@ -624,3 +624,55 @@ claim about the published artifact, and no gate in this repo installs one. Probe
 - Verdict pattern: the step did what next.md asked and the false sentence predates it →
     PASS_WITH_NOTES, a `normal` issue for the defect, and the old issue is replaced rather than
     kept. Codex did not catch it
+
+## Moved from the index (239)
+
+Detail of index entries that were cut to one or two lines when the index was compacted.
+
+- **Core behaviour change with flipped binding tests (225, ~25 min)**: Rust feature matrix, Go,
+    pytest, napi build+test, `wasm-pack test`, `mvn clean test`, `dotnet test`, cbindgen no-op, CRAP
+    gate; run the suites from ONE logged script. grep docs for signatures the step makes relevant
+    (`docs/howto/rust.md` had two missing `IsccResult`)
+- **`mise run check` mdformat reformats context files** (intermittent): not an advance regression,
+    but pre-push mdformat WILL reject the batch — check `git status --porcelain` right after and
+    STAGE it. Never stage `iterations.jsonl`; keep inline code spans on ONE line. Never format with
+    bare `uv run mdformat` (221: other wrap + list numbering than the hook) — use
+    `uv run prek run mdformat --files <f>`
+- **Push message "GitHub found N vulnerabilities on the default branch" is about `main`** (234: 6
+    alerts, all already fixed in `develop`'s lockfiles) — compare `gh api …/dependabot/alerts`
+    patched versions with `develop` before filing; they close at the `develop` → `main` merge
+- **"files were modified by this hook" often means SOMETHING ELSE WAS WRITING** (97/164): a second
+    CID loop (confirm `ps aux` → HUMAN REVIEW REQUESTED, do not push or kill), or my own Edits
+    landing while a backgrounded prek run held its snapshot. Never edit while prek runs
+- **Spec paths are gated by `scripts/check_spec_paths.py` (224)** — a "mechanism does not exist"
+    realignment is a hypothesis: grep package recipes (Conan `pkg_config_name`/`cmake_file_name`
+    generate `.pc`/config at install time; 224 advance + next.md both missed it)
+- **Mutate each helper the step adds, not only the previous file version** (228): the old script
+    failed all 3 new tests, yet dropping `re.escape` stayed green — the "literal metachar" assert
+    had no `*`, so it never built the regex. ~1 min: `sed` one call out into `/tmp/x/scripts/`
+- **Docs-only**: `mise run check` + clippy + `mise run version:check` (21 `OK:`) +
+    `uv run zensical build` ("No issues found") + rendered-HTML grep for admonition/tab edits. Green
+    gates say NOTHING about truth (143). A new PAGE adds `scripts/check_docs_nav.py`
+    (disk/nav/`ORDERED_PAGES`/`docs/llms.txt`, 23 pages); `zensical build` wipes `site/` →
+    `gen_llms_full.py` after it
+- **Python-only**: `mise run check` + `pytest`; a new `.py` file adds the pre-push `ty`/ruff gates.
+    Python docstrings exist 3× (wrapper, PyO3 `///` → `_lowlevel.X.__doc__`, `.pyi`): rebuild with
+    `maturin develop` before any `__doc__` test (222, ~3 min)
+- **New gate script, gate HARDENING, or spec↔config PARITY gate (142–146/163, ~10 min)**: never
+    accept "exits 0 at HEAD" — write your OWN mutations (cheapest real regression:
+    `git show HEAD~1:<path>`), probe both set-equality blind spots (equal-empty vacuous pass,
+    duplicated row), give a `files:`-scoped hook a staged probe
+- **Pre-flight `uv run prek run --hook-stage pre-push --all-files` before pushing never-CI'd code**
+    (exit 0 ⇒ `git push` will not be rejected; needs `iscc_lib` built). Run it last and
+    sequentially, with `run_in_background` — `--all-files` also runs `standardrb`, ~15 min total on
+    the bind mount (200)
+- **Codex: `--commit HEAD` reviews ONLY the last commit** — advance often ends with a handoff-only
+    commit (195, 217). `git log @{upstream}..HEAD` first; for a multi-commit range use ONE run with
+    `codex exec review --base <sha-before-the-range>` (217: worked with a bare sha, ~5 min, covered
+    six per-surface commits) instead of per-commit runs
+- **Codex: the background run executes real build/test commands in the SAME tree** (164 dotnet, 165
+    \+ 172 Gradle) — a build tool failing once while Codex runs may be losing a race on
+    `bin/`/`obj/`/`build/`. Re-run sequentially; hold any Gradle `clean` until it exits
+- **Codex finds what a green run does not prove**: matching/parsing rules, exception contracts,
+    user-facing factual claims, build-config lines (154), declared-but-ungated facts such as MSRV
+    (172), and a third-party action's real behaviour (239)

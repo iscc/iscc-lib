@@ -603,3 +603,23 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - Check the static sets against `data.json`'s per-function keys and each surface's signature (napi
     `index.d.ts` uses snake_case names; `git grep` for camelCase finds nothing)
 - Codex (`--base <define-next sha>`, ~2 min) ran all four suites itself; no findings
+
+### Ruby gem packaging step (iter 239, ~20 min) — NEEDS_WORK, the blocker came from Codex
+
+- **Any change to the gemspec's dependencies or to `Gemfile.lock`: run the cross-gem lookup
+    itself**, on `HEAD` and `HEAD~1`, in `crates/iscc-rb`:
+    `grep rb_sys Gemfile.lock | head -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'` must print the
+    Gemfile pin. next.md quoted an anchored grep that the action does not use; the crate's own
+    `CLAUDE.md` had the right one and I did not cross-read it. Action source:
+    `gh api 'repos/oxidize-rb/actions/contents/cross-gem/action.yml?ref=v1' --jq .content | base64 -d`
+    (quote the URL, zsh globs the `?`)
+- **Ruby 3.4 locally in 24 s**: from a `/tmp` dir, `MISE_RUBY_COMPILE=false mise x ruby@3.4 -- …`
+    (precompiled, leaves `mise.toml` alone). Clean install of the source gem takes ~45 s per Ruby
+- Lock honoured: the `[[package]]` name+version pairs of `<gem home>/gems/iscc-lib-*/Cargo.lock`
+    after the build are a subset of the workspace lock
+- Criteria run from one logged script (`/tmp/r239/verify.sh` shape: build, unpack + grep, clean
+    install, `rake compile test`, pytest, zensical) in ~1 min
+- **Owed at the PASS review of the repair**: delete the `normal` source-gem issue, file a `low`
+    remainder (published 0.6.0/0.7.0 source gems stay broken, a yank is Titusz's), write the
+    decisions.md entry (carried core + shipped `Cargo.lock` + staging script), refresh the 238
+    learnings bullet

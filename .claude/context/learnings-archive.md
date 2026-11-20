@@ -1098,3 +1098,9 @@ runs on `opus`. Deliberate — do not "unify" them.
     `rust_version` over the non-dev resolve graph (`cargo tree -i <dep> -e no-dev --target all`
     printing nothing proves a major dev-only; omit `--target all` and platform-gated transitives
     hide). Settle by building — **1.85 is installed**: `cargo +1.85.0 check -p <c> --locked`
+
+## Archived from learnings.md (review 239)
+
+- **Go has two versions in `go.mod`** (235): `go` is the consumer floor (human-only), `toolchain` is
+    what CI tests on. setup-go v7 reads `go-version-file` BEFORE it sets `GOTOOLCHAIN=local`, so the
+    `toolchain` line wins; a workflow that exports `GOTOOLCHAIN=local` falls back to the `go` line

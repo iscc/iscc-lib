@@ -101,10 +101,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     (guard shape, artifact wiring, `needs:` graph; prek hook +
     `tests/test_check_release_workflow.py`) plus the CI-only bidirectional `--check-action-inputs`.
     Never hand-retype either into a heredoc
-- **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): the Ruby
-    source gem (platform `ruby`) does not build: no `rb_sys` dependency, and its `Cargo.toml` needs
-    the workspace root + `../iscc-lib`. Probe (seconds): `gem fetch iscc-lib --platform ruby`, then
-    `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`. No workflow installs that gem
+- **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): the 0.7.0
+    Ruby source gem does not build. Probe: `gem fetch iscc-lib --platform ruby`, then
+    `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`
+- **`cross-gem@v1` reads the rb_sys pin UNANCHORED** (239): the FIRST `Gemfile.lock` line containing
+    `rb_sys` must carry `X.Y.Z`, else it installs the latest remote rb_sys against the pinned image.
+    A gemspec `add_dependency "rb_sys"` puts a version-less PATH line first. Model a third-party
+    action's lookup from its `action.yml`, never from a paraphrase
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a
@@ -132,9 +135,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `go run github.com/google/osv-scanner/v2/cmd/osv-scanner@latest scan source -r <repo>` (~1 min;
     Cargo, uv, Gemfile, Maven, .NET, Go — NOT npm, Gradle or Actions pins). Expected: exit 1 with
     exactly the 3 unmaintained crates that `deny.toml` ignores
-- **Go has two versions in `go.mod`** (235): `go` is the consumer floor (human-only), `toolchain` is
-    what CI tests on. setup-go v7 reads `go-version-file` BEFORE it sets `GOTOOLCHAIN=local`, so the
-    `toolchain` line wins; a workflow that exports `GOTOOLCHAIN=local` falls back to the `go` line
 - **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
     dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = tag misses). `.pyi` is tagged
     `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A
