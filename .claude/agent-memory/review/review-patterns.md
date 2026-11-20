@@ -121,6 +121,9 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
 - Git log shows iteration numbering resets when a new CID run starts (iteration 12 → iteration 1) —
     this is normal, each `mise run cid:run` starts a new run
 - Go via mise requires `mise exec --` prefix — `go` is not on PATH in all environments
+- **Never `grep -r` over `packages/`, `docs/` or a crate dir** (230): gitignored build output
+    (`packages/kotlin/build/reports/*.html`) has single minified lines of ~100 kB that land in the
+    context. Use `git grep -n <pat> -- <paths>` — tracked files only
 - The advance commit is at HEAD (not HEAD~1) when the review hasn't committed yet — use
     `git diff HEAD~1..HEAD` for the advance diff (define-next → advance)
 - When HEAD is a previous review commit, the advance is at HEAD~1 and the advance diff is

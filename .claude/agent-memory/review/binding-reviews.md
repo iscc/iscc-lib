@@ -468,6 +468,16 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - **JNI binding step (208, ~8 min)**: `cargo build -p iscc-jni` → `mvn clean test` (count `tests=`
     in surefire XML) → `JAVA_TOOL_OPTIONS=-Xcheck:jni` run. **`-DargLine` never enables
     `-Xcheck:jni`** (pom pins `<argLine>`) — earlier JNI "-Xcheck clean" claims were vacuous
+- **JNI error-path step (230, ~12 min incl. Codex)**: the 208 recipe from ONE logged script, then
+    probe any `exception_check` guard by hand: compile a shadow `io.iscc.iscc_lib.IsccDecodeResult`
+    with a throwing `(IIII[B)V` ctor into `/tmp`, run
+    `java -Xcheck:jni -Djava.library.path=target/debug -cp <shadow>:<java/target/classes> Probe`
+    (the shadow dir FIRST; `Probe` calls `isccDecode`). Control = mutant in
+    `git archive HEAD | tar -x -C /tmp/x` built with `CARGO_TARGET_DIR=/tmp/x-target` (24 s).
+    **HotSpot 17 `-Xcheck:jni` prints NOTHING for `ThrowNew` over a pending exception** — compare
+    the exception class. The child-JVM `OomProbe` test also runs in `release.yml` `test-jni` (lib
+    from classpath resources): simulate by copying `target/classes` + `test-classes` + the `.so`
+    under `META-INF/native/linux-x86_64/` to `/tmp`
 - **Ruby binding step (209, ~6 min)**: compile + no-locale `rake test` + standardrb. Magnus `Vec<T>`
     params segfault fixed 212 (`array_to_vec`); **a padding negative must be validly padded**
     (`GAAAAAAAAA======`) — `EEAY…====` is rejected by the ref too → `binding-reviews.md`

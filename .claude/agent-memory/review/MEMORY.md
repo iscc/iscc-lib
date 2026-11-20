@@ -119,6 +119,10 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
 - **Core text/codec change + generated data (≈12 min)**: Rust-only + full feature matrix +
     coverage/CRAP + `bench:iai:check` + generator no-op + pre-push `ty`/ruff/pytest on any new `.py`
     test (203, ~20 min) → `gate-reviews.md`
+- **JNI error-path step (230, ~12 min)**: 208 recipe + shadow-class probe of the pending-exception
+    guard; `-Xcheck:jni` is silent on `ThrowNew` over a pending exception → `binding-reviews.md`
+- **Search with `git grep`, never `grep -r`** over dirs with build output (230: a 100 kB minified
+    line from `packages/kotlin/build` landed in context) → `review-patterns.md` "Gotchas"
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`
 - **Action pin / release.yml / any GHA bump**: static-verify only via the committed gates
     (`check_release_workflow.py` + `--check-action-inputs`); `always()` = NEEDS_WORK →

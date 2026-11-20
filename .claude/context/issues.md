@@ -84,18 +84,24 @@ Resolved when either the job exists and passes, or `rust-version` is dropped/rai
 
 **Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
 
-## JNI streaming-hasher functions dereference Java-supplied handle without null guard `normal` [human]
+## JNI pending-exception guard has no test `low` [review]
 
-`dataHasherUpdate`/`dataHasherFinalize`/`instanceHasherUpdate`/`instanceHasherFinalize` in
-`crates/iscc-jni/src/lib.rs` dereference the `jlong` handle via `unsafe { &mut *(ptr as *mut …) }`
-with no `ptr != 0` guard (only the `*Free` functions check). A null or stale handle passed from Java
-is UB. Pre-existing (not introduced by the jni 0.22 migration) and mitigated by the Java wrapper
-owning the handle lifecycle, but a one-line `if ptr == 0` → throw guard per function would make the
-boundary robust against misuse of the public JNI surface. Surfaced during the PR #44 review sweep
-(2026-07-30).
+**Triage:** untriaged — a maintainer who drops the `exception_check()` guard from the JNI throw
+helpers gets no failing test; Java callers would then see a constructor or JVM exception replaced by
+`IllegalArgumentException: Java exception was thrown`.
 
-Resolved when each of the four functions throws on a zero handle instead of dereferencing it, pinned
-by a Java test per function.
+`throw_and_default` and `throw_state_error` in `crates/iscc-jni/src/lib.rs` return without throwing
+while an exception is pending (iter 230). The committed tests cover the `OutOfMemoryError` mapping
+and the zero-handle guards, but none reaches the guard: with it removed, `mvn clean test` stays
+green. The iter-230 handoff found no deterministic trigger; one exists. `new_object` leaves a
+constructor's exception pending, so a child JVM whose `-cp` starts with a directory holding a shadow
+`io.iscc.iscc_lib.IsccDecodeResult` with a throwing `(IIII[B)V` constructor makes `isccDecode` reach
+the guard. Measured: at HEAD the caller sees the constructor's exception, without the guard the
+`IllegalArgumentException`. HotSpot 17 `-Xcheck:jni` prints no warning either way, so only the
+exception class shows the difference. The shadow class must not be a Maven test source (it would
+replace the real class for every test); compile it at test time or keep it outside `src/test/java`.
+
+Resolved when a Java test fails with the guard removed from `throw_and_default`.
 
 ## napi `Buffer` parameters leak a reference on non-Buffer object input `low` [review]
 
@@ -121,20 +127,6 @@ unless `build.rs` lists the new files. Moving only `mod tests` to `src/tests.rs`
 Resolved when `lib.rs` is back under the documented threshold (or the threshold is deliberately
 changed in `crates/iscc-ffi/CLAUDE.md`), and `cbindgen` + `cargo build -p iscc-ffi` leave `iscc.h`
 and `NativeMethods.g.cs` byte-identical.
-
-## JNI exports report a pending JVM exception as `IllegalArgumentException` `normal` [review]
-
-`throw_and_default` in `crates/iscc-jni/src/lib.rs` throws `IllegalArgumentException`
-unconditionally, also when a failed JNI call (`new_string`, `byte_array_from_slice`, …) already left
-an exception pending. So a heap-exhaustion `OutOfMemoryError` reaches Java as "invalid input", and
-`ThrowNew` with an exception pending breaks the JNI spec. Codex reproduced it in iter 208 (not
-re-verified): `-Xmx16m`, `encodeSeq` over 500,000 valid units →
-`IllegalArgumentException: JNI call failed`. Crate-wide pattern; the 2026-07-28 decision
-(hand-thrown exceptions) must stay intact. Unverified fix: return the default without throwing when
-`env.exception_check()` is true.
-
-Resolved when a JNI-allocation failure reaches Java as the original `OutOfMemoryError` (test under a
-small `-Xmx`, or argue why untestable) and the existing exception tests still pass.
 
 ## Ruby integer list elements accept a Float and truncate it `low` [review]
 

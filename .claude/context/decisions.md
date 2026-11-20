@@ -354,3 +354,17 @@ every such file and say that it is comment-only or regenerated, and review confi
 diff. **Alternatives:** NEEDS_WORK on the count (nothing for the next step to repair); a fan-out
 declaration (wrong: no surface got new behaviour of its own). **Context:** iteration 225 review, an
 interpretation of the 2026-11-19 sizing decision — Titusz may overrule it.
+
+## 2026-11-20 — JNI errors map by type: a fresh `OutOfMemoryError`, pending exceptions pass through
+
+**Decision:** `throw_and_default` takes the error itself through a private `JavaError` trait:
+`JniCall(NoMemory)` throws a new `OutOfMemoryError`, every other error `IllegalArgumentException`,
+and both throw helpers throw nothing while an exception is pending. A zero hasher handle is an
+`IllegalArgumentException`; `IllegalStateException` stays for the finalized state. **Why:** the
+issue asked for the *original* `OutOfMemoryError` via an `exception_check` guard, but jni 0.22's
+catching calls clear the JVM's exception and return `NoMemory`, so the guard alone changes nothing
+there. Java callers catch the class, so a fresh instance is enough. The guard matters for calls that
+leave the exception pending (`new_object`): without it review measured a constructor exception
+replaced by `IllegalArgumentException`. **Alternatives:** the guard only (insufficient); a class
+argument per call site (90 sites to get right); a handle registry for stale handles (out of scope).
+**Context:** iteration 230 review; the 2026-07-28 hand-thrown-exceptions decision is unchanged.

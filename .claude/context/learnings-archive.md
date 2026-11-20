@@ -1066,3 +1066,9 @@ runs on `opus`. Deliberate — do not "unify" them.
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the prior
     sha's in-flight run (`cancelled`, not `failure`); wait for green on the exact sha. Each develop
     commit triggers TWO runs (push + the open develop→main PR)
+
+## Archived from learnings.md (review 230)
+
+- **A widened decode gate re-exposes latent truncation** (174/175): `decode_header`'s `as u8` before
+    `TryFrom` let a multi-nibble value wrap (`257`→`1`, `262`→`Id`) so a malformed header
+    canonicalized to valid; now `u8::try_from`-gated. Probe `"MDFZAAAAAAAAAAAAAA"` on header gates

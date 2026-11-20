@@ -43,9 +43,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - A dependency shipping DATA TABLES (Unicode, locale, tz) can change output without any `data.json`
     vector catching it (every vector predates Unicode 16) — call out table-version changes in dep
     bumps explicitly
-- **A widened decode gate re-exposes latent truncation** (174/175): `decode_header`'s `as u8` before
-    `TryFrom` let a multi-nibble value wrap (`257`→`1`, `262`→`Id`) so a malformed header
-    canonicalized to valid; now `u8::try_from`-gated. Probe `"MDFZAAAAAAAAAAAAAA"` on header gates
 - **`decode_base32("")` returns `Ok(empty)`, not an error** (191; empty guard in `iscc_clean` 192):
     a cleaning helper that can yield `""` (blank/dash-only/`"iscc:"`) must reject empty before
     decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage
@@ -106,7 +103,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     under `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test` (log shows
     `Picked up JAVA_TOOL_OPTIONS` twice). **`-DargLine=…` is a no-op** (208, `mvn -X`): the pom's
     `<argLine>` beats the user property, so all earlier `-DargLine` "zero warnings" runs were
-    vacuous. CI runs no `-Xcheck:jni`
+    vacuous. CI runs no `-Xcheck:jni`. **jni 0.22 (230)**: `*_with_catch*` calls (`new_string`,
+    `find_class`) CLEAR the JVM exception (OOM → `NoMemory`), `post_check_ex` ones (`new_object`)
+    leave it pending. HotSpot 17 `-Xcheck:jni` is SILENT on `ThrowNew` over a pending exception:
+    assert the class. Trigger: shadow result class with a throwing ctor first on a child `-cp`
 - **Release pipeline** + `version_sync.py`'s 21 targets → `learnings-archive.md`. `@iscc/wasm`
     metadata = wasm-pack 0.13.1 output of its `Cargo.toml` (214); no `description` → badge line
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
