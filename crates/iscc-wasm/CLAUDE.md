@@ -44,7 +44,7 @@ crates/iscc-wasm/
 | `Vec<i32>`           | `Int32Array`           | Direct wasm-bindgen conversion                      |
 | `Vec<u32>`           | `Uint32Array`          | Direct wasm-bindgen conversion                      |
 | `Vec<Vec<i32>>`      | `JsValue`              | Use `serde_wasm_bindgen::from_value` to deserialize |
-| `Vec<Vec<u8>>`       | `JsValue`              | Use `serde_wasm_bindgen::to_value` to serialize     |
+| `Vec<Uint8Array>`    | `Uint8Array[]`         | Return-side byte chunks via `js_sys::Uint8Array`    |
 | `Result<T, JsError>` | throws on Err          | `JsError::new(&e.to_string())`                      |
 
 **Key rules:**

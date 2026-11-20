@@ -460,14 +460,14 @@ pub fn alg_cdc_chunks(
     data: &[u8],
     utf32: bool,
     avg_chunk_size: Option<u32>,
-) -> Result<JsValue, JsError> {
+) -> Result<Vec<js_sys::Uint8Array>, JsError> {
     let avg = avg_chunk_size.unwrap_or(1024);
-    let chunks: Vec<Vec<u8>> = iscc_lib::alg_cdc_chunks(data, utf32, avg)
+    let chunks = iscc_lib::alg_cdc_chunks(data, utf32, avg)
         .map_err(|e| JsError::new(&e.to_string()))?
-        .iter()
-        .map(|c| c.to_vec())
+        .into_iter()
+        .map(js_sys::Uint8Array::from)
         .collect();
-    serde_wasm_bindgen::to_value(&chunks).map_err(|e| JsError::new(&e.to_string()))
+    Ok(chunks)
 }
 
 /// Compute a similarity-preserving hash from video frame signatures.

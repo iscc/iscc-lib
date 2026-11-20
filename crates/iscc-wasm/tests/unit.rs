@@ -3,6 +3,7 @@
 //! Runs in a Node.js WASM runtime via `wasm-pack test --node`.
 //! Complements conformance.rs which covers the 9 gen_*_v0 functions.
 
+use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::*;
 
 // ── gen_sum_code_v0 ─────────────────────────────────────────────────────────
@@ -427,12 +428,27 @@ fn test_alg_minhash_256_deterministic() {
 
 // ── alg_cdc_chunks ─────────────────────────────────────────────────────────
 
+/// Assert every chunk is a runtime `Uint8Array` (JS `instanceof`) and return the byte copies.
+fn cdc_chunk_bytes(chunks: &[js_sys::Uint8Array]) -> Vec<Vec<u8>> {
+    for chunk in chunks {
+        assert!(
+            JsValue::from(chunk.clone()).is_instance_of::<js_sys::Uint8Array>(),
+            "every chunk should be a Uint8Array at runtime"
+        );
+    }
+    chunks.iter().map(|c| c.to_vec()).collect()
+}
+
 #[wasm_bindgen_test]
 fn test_alg_cdc_chunks_concatenation() {
-    let data = b"Hello, this is some test data for CDC chunking purposes.";
-    let result_js = iscc_wasm::alg_cdc_chunks(data, false, None).unwrap();
-    let chunks: Vec<Vec<u8>> = serde_wasm_bindgen::from_value(result_js).unwrap();
-    let concatenated: Vec<u8> = chunks.iter().flatten().copied().collect();
+    let data: Vec<u8> = (0..4096u32).map(|i| (i * 7 % 251) as u8).collect();
+    let chunks = iscc_wasm::alg_cdc_chunks(&data, false, Some(64)).unwrap();
+    assert!(
+        chunks.len() > 1,
+        "4 KiB at avg 64 should yield several chunks"
+    );
+    let bytes = cdc_chunk_bytes(&chunks);
+    let concatenated: Vec<u8> = bytes.concat();
     assert_eq!(
         concatenated, data,
         "chunks should concatenate to original data"
@@ -441,18 +457,20 @@ fn test_alg_cdc_chunks_concatenation() {
 
 #[wasm_bindgen_test]
 fn test_alg_cdc_chunks_empty_input() {
-    let result_js = iscc_wasm::alg_cdc_chunks(&[], false, None).unwrap();
-    let chunks: Vec<Vec<u8>> = serde_wasm_bindgen::from_value(result_js).unwrap();
-    assert_eq!(chunks.len(), 1, "empty input should return one chunk");
-    assert!(chunks[0].is_empty(), "the single chunk should be empty");
+    let chunks = iscc_wasm::alg_cdc_chunks(&[], false, None).unwrap();
+    let bytes = cdc_chunk_bytes(&chunks);
+    assert_eq!(bytes.len(), 1, "empty input should return one chunk");
+    assert_eq!(chunks[0].length(), 0, "the single chunk should be empty");
+    assert!(bytes[0].is_empty(), "the single chunk should be empty");
 }
 
 #[wasm_bindgen_test]
 fn test_alg_cdc_chunks_at_least_one_chunk() {
     let data = vec![0u8; 100];
-    let result_js = iscc_wasm::alg_cdc_chunks(&data, false, Some(1024)).unwrap();
-    let chunks: Vec<Vec<u8>> = serde_wasm_bindgen::from_value(result_js).unwrap();
-    assert!(!chunks.is_empty(), "should return at least one chunk");
+    let chunks = iscc_wasm::alg_cdc_chunks(&data, false, Some(1024)).unwrap();
+    let bytes = cdc_chunk_bytes(&chunks);
+    assert!(!bytes.is_empty(), "should return at least one chunk");
+    assert_eq!(bytes.concat(), data, "chunks should concatenate to input");
 }
 
 // ── soft_hash_video_v0 ─────────────────────────────────────────────────────

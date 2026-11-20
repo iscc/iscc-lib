@@ -786,6 +786,7 @@ dependencies = [
  "blake3",
  "hex",
  "iscc-lib",
+ "js-sys",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

@@ -17,6 +17,7 @@ iscc-lib = { path = "../iscc-lib" }
 # onto iscc-lib's blake3 for the wasm-only build). Do not remove as "unused".
 blake3 = { workspace = true, features = ["wasm32_simd"] }
 wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 serde = { workspace = true }
 

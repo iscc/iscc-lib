@@ -501,9 +501,7 @@ Additional primitives:
 - `alg_minhash_256(features)` — compute a 256-bit MinHash digest from 32-bit integer features,
     returns Uint8Array
 - `alg_cdc_chunks(data, utf32, avgChunkSize?)` — split data into content-defined chunks (default
-    average chunk size 1024), returns an array of chunks, each a plain array of byte values
-    (`number[]`, not a `Uint8Array`; wrap a chunk with `Uint8Array.from(chunk)` where a typed array
-    is needed)
+    average chunk size 1024), returns an array of `Uint8Array` chunks
 
 ## Constants
 

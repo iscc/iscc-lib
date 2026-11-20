@@ -91,6 +91,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     sites; video detach opens after frame-sig extraction. Recipe → MEMORY-archive.md
 - release.yml: static gate `scripts/check_release_workflow.py` (prek hook, opt-in
     `--check-action-inputs`) + shape (9 inputs, 97 `uses:` refs) — keep green → release-gate.md
+- WASM returns (234): byte chunks → `Vec<js_sys::Uint8Array>` (d.ts `Uint8Array[]`), never
+    `serde_wasm_bindgen::to_value` (gives `number[][]`/`any`). Probe d.ts via `wasm-pack build`
 - WASM SIMD (#42): `blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt `--enable-simd` →
     wasm-simd.md
 
