@@ -178,23 +178,23 @@ Resolved when the example matches `IsccLib.java` and `SumCodeResult.java`.
 The .NET, Java, napi and WASM harnesses compare only the intersection of expected and actual keys
 ("only the expected keys the result exposes are compared") and pass as long as one key matches. On
 these surfaces `gen_text_code_v0`, `gen_mixed_code_v0` and `gen_iscc_code_v0` return a bare ISCC
-string, which the harness wraps as `{"iscc": ...}`, so every other expected key (for example
-`characters` in `gen_text_code_v0/test_0001_embedded_nul`) is dropped in harness code without a
-trace. Sites: `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs` (`Compare`),
+string, which the harness wraps as `{"iscc": ...}`, so every other expected key is dropped in
+harness code, and so is any key the vector should not hold at all. Sites:
+`packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs` (`Compare`),
 `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java` (`compare`),
 `crates/iscc-napi/__tests__/data_edge.test.mjs` (`compare`), `crates/iscc-wasm/tests/data_edge.rs`.
 
-This breaks the spec rule that a harness never special-cases a vector in code and that every
-deviation is visible in the file. Practical effect: a vector that adds or relies on an output key
-these surfaces do not return passes silently there instead of failing or being declared. The Ruby
-harness had the same key-intersection compare and was made strict in iteration 218 (`cc53186`).
+The rule is settled (iteration 236, decisions.md 2026-11-20 "data-edge output subset"): the keys a
+surface leaves uncompared are written once per harness from its result type, and nothing is computed
+from the returned value. The Python validator and the C/C++ generator enforce the file side. The
+four harnesses still intersect.
 
-Resolved when each of the four harnesses fails a vector whose expected object holds a key the
-surface's result does not have, unless the file declares that difference (for example a per-surface
-`except` value or a documented output-subset rule added to the spec with a decisions.md entry), and
-a negative test on each surface proves it.
+Resolved when each of the four harnesses compares every expected key except a static per-function
+set taken from its result type, and a negative test on each surface proves two things one at a time:
+an expected key outside that set that the result lacks fails the vector, and a result that lost
+`iscc` fails it.
 
-**Spec:** `.claude/context/specs/edge-vectors.md` → "Rules" → "Every surface runs every vector"
+**Spec:** `.claude/context/specs/edge-vectors.md` → "Rules" → "Output subset"
 
 ## Precompiled Ruby gems stop at Ruby 3.3 `normal` [review]
 

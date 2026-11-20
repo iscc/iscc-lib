@@ -5,8 +5,8 @@ The anchor test asserts that regenerating the tracked header from the canonical
 which runs pytest but never the generator. A mutation test proves the gate fires.
 Fail-closed guards (unknown section, bad input arity, bad ``except`` key, a gen
 output key outside the ``data.json`` set) run on fixture copies in ``tmp_path``; the
-tracked fixture is never mutated. Counts are
-derived from the fixture, never written as literals. No network, no mocks.
+tracked fixture is never mutated. Counts are derived from the fixture, never written as
+literals. No network, no mocks.
 """
 
 import importlib.util

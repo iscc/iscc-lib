@@ -181,10 +181,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `pytest.raises(ValueError)` around a caller that also converts the result (`dict()`, `int()`)
     stays green when the binding RETURNS garbage, because those conversions raise `ValueError` too.
     **And compare EVERY expected output key on a full-result surface** (217: Ruby's
-    `actual.keys & expected.keys` passed a result without `iscc`); only a bare-string result is
-    wrapped to `{iscc}`. `outputs: {}` passes every harness, so the validator rejects it (218).
-    Swift `String ==` is canonical equivalence (`"K" == "\u{212A}"`): compare `unicodeScalars`.
-    Parsed `NSNumber` casts are loose (`false as? Int` = 0): read via `DataEdge.scalar` (232)
+    `actual.keys & expected.keys` passed a result without `iscc`); a reduced result leaves only a
+    STATIC key set uncompared, gen `outputs` keys ⊆ the function's `data.json` keys (236: validator
+    \+ C generator). `outputs: {}` is rejected. Swift `String ==` is canonical equivalence: compare
+    `unicodeScalars`. Parsed `NSNumber` casts are loose: read via `DataEdge.scalar` (232)
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:

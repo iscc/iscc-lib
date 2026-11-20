@@ -22,8 +22,9 @@ empty or missing section, an unexpected input arity or type, an ``except`` key
 outside the surface ids, a ``gen_*`` section without a ``data.json`` counterpart, and a
 ``gen_*`` output key that the function's ``data.json`` vectors do not carry (the output
 subset rule of ``edge-vectors.md``). C and C++ gen results hold only ``iscc``, so every
-other allowed output key is uncompared there and never rendered. The drift gate ``tests/test_gen_data_edge_vectors.py`` asserts
-the tracked header matches a fresh render byte for byte.
+other allowed output key is uncompared there and never rendered. The drift gate
+``tests/test_gen_data_edge_vectors.py`` asserts the tracked header matches a fresh
+render byte for byte.
 
 Usage:
     uv run --script scripts/gen_data_edge_vectors.py

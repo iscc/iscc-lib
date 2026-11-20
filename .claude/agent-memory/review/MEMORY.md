@@ -138,6 +138,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     "Doc-parity gate (233)"
 - **WASM return-shape step (234, ~10 min)**: `#[wasm_bindgen_test]` never crosses the JS glue —
     probe the built `--target nodejs` pkg from Node + read the `.d.ts` → `binding-reviews.md`
+- **data-edge rule / validator / C-generator step (236, ~8 min)**: the two pytest files, regen +
+    `git status` on the header, `gen.render` on a mutated fixture copy via importlib, read the
+    renderers' section literals (mixed/iscc hold only error vectors, so no real-data probe exists)
 - **Search with `git grep`, never `grep -r`** over dirs with build output (230: a 100 kB minified
     line from `packages/kotlin/build` landed in context) → `review-patterns.md` "Gotchas"
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`

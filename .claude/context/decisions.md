@@ -29,19 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-27 — The xunit v3 test project stays in VSTest runner mode
-
-**Decision:** `packages/dotnet/Iscc.Lib.Tests` moves to `xunit.v3` 3.x + `Microsoft.NET.Test.Sdk`
-18.x but keeps the classic VSTest runner (`xunit.runner.visualstudio` 3.x, no
-`TestingPlatformDotnetTestSupport` / `UseMicrosoftTestingPlatformRunner`). The only csproj change
-beyond the package swap is `<OutputType>Exe</OutputType>`, which v3 requires because its test
-projects are stand-alone executables. **Why:** the `dotnet` CI job passes the native library path
-with `dotnet test -e LD_LIBRARY_PATH=…`, and `-e` is a VSTest feature; Microsoft.Testing.Platform
-mode would force a CI-invocation rewrite for no test-coverage gain. VSTest mode also kept the
-migration to zero test-source edits. **Alternatives:** adopt MTP runner mode now — rejected, it
-changes the CI contract and the P/Invoke library-path mechanism in the same step as a framework
-major. **Context:** iteration 164; v2 and v3 both report exactly 104 results.
-
 ## 2026-07-28 — JNI exports return `#[repr(transparent)]` wrappers and keep hand-thrown exceptions
 
 **Decision:** the 33 `extern "system"` functions in `crates/iscc-jni/src/lib.rs` return jni wrapper
@@ -394,3 +381,17 @@ matrix (doubles the job for a floor that differs only in patch level); leaving 1
 about 40 stdlib advisories in the tested toolchain). Floors stay the human's call (`ci-cd.md` →
 "Dependency Freshness" → Policy). **Context:** iteration 235; next.md flagged it "Decision for
 Titusz".
+
+## 2026-11-20 — data-edge output subset: allowed keys come from `data.json`, uncompared keys are fixed per harness
+
+**Decision:** in a `gen_*` section of `data-edge.json`, `outputs` holds `iscc` and only keys that
+the same function's `data.json` vectors carry; any other key fails on every surface. A surface whose
+result type lacks some allowed keys (C, C++, and the bare-string results of .NET, Java, napi and
+WASM) leaves exactly those uncompared, as a set written once per harness from the result type. A
+harness never intersects the expected keys with the returned ones. **Why:** the intersection passed
+any vector as long as one key matched, so a result that lost a key went unseen. Deriving the allowed
+set from `data.json` keeps the file's meaning independent of any one binding and needs no key list
+in the spec. **Alternatives:** a per-surface `except` value carrying reduced outputs, or a top-level
+metadata key (each a 12-surface change, and an `except` per subset surface breaks "a vector costs
+one edit"); structured results on every binding (an API decision for Titusz, not a test-harness
+one). **Context:** iteration 236; spec `edge-vectors.md` → Rules → "Output subset".

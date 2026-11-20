@@ -1,71 +1,64 @@
-## 2026-11-20 — data-edge output-subset rule — spec, validator and C/C++ generator
+## 2026-11-20 — Review of: data-edge output-subset rule — spec, validator and C/C++ generator
 
-**Done:** I wrote the output-subset rule into `edge-vectors.md`: a new "Output subset" rule, an
-amended "Every surface runs every vector" bullet, and a Verified When line. The Python validator and
-the C/C++ header generator now enforce it, and both read each `gen_*` function's allowed output keys
-from `data.json`. Neither keeps a hand-written table. The regenerated header is byte-identical.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.claude/context/specs/edge-vectors.md`: the rule and the Verified When line. The rule refers to
-    `data.json` and lists no gen result keys. The only `characters` in the file is the existing JSON
-    example on line 60.
-- `scripts/gen_data_edge_vectors.py`: adds `DATA_JSON_PATH`, `gen_output_keys()` (cached; the union
-    of output keys over each `data.json` gen section) and `allowed_output_keys(section)`. That
-    function raises `SystemExit` when a section has no `data.json` counterpart, and the lookup runs
-    before the error-vector early return. `gen_iscc(vector, where, section)` also raises
-    `SystemExit` on any output key outside the allowed set. The three row renderers pass their
-    section name explicitly. The module docstring lists the new fail-closed cases. `HEADER_PREAMBLE`
-    is untouched.
-- `tests/test_data_edge.py`: `validate_vector(section, name, vector)` gains a section argument.
-    `GEN_OUTPUT_KEYS` is derived from `data.json`. The new helper `validate_gen_outputs` reports a
-    missing counterpart (on error vectors too), outputs that are not an object, a missing `iscc`,
-    and unknown keys. Added 8 tests:
-    - positive: `characters` passes for `gen_text_code_v0`; an error vector passes; the derived table
-        is not empty
-    - negative: unknown `foo`, `parts` on text, missing `iscc`, non-object, no counterpart
-    - Each negative test changes one thing in a copy of the real `test_0001_embedded_nul` vector and
-        asserts that the problems list has exactly one entry.
-    - The existing `GOOD` cases now pass the section `iscc_decode`.
-- `tests/test_gen_data_edge_vectors.py`: 4 tests:
-    - an unknown `foo` key fails closed (`SystemExit` matching `foo`)
-    - a vector holding only `iscc` + `characters` renders identically
-    - the allowed keys equal the `data.json` gen sections
-    - `gen_foo_v0` fails closed even on an error vector
+**Summary:** The output-subset rule is in `edge-vectors.md`, and the Python validator and the C/C++
+header generator both enforce it, each reading the allowed keys per `gen_*` function from
+`data.json`. The diff stays inside next.md's four files, the generated header is byte-identical, and
+every new failure arm has its own exact-match negative test. The four lenient harnesses (.NET, Java,
+napi, WASM) are untouched, as scoped, so the issue stays open in a smaller form.
 
 **Verification:**
 
-- `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py -q`: 116 passed
-- Mutation check: I replaced the unknown-key computation with `unknown = []` in both the generator
-    and the validator. Exactly 3 tests went red: `test_validate_gen_outputs_rejects_unknown_key`,
-    `..._rejects_key_of_other_function` and `test_unknown_gen_output_key_fails_closed`. After I
-    restored both files, all 116 passed.
-- `uv run --script scripts/gen_data_edge_vectors.py`, then
-    `git status --porcelain crates/iscc-ffi/tests/data_edge_vectors.h`, printed nothing
-- `uv run scripts/check_spec_paths.py`: OK, exit 0
-- `mise run check`: exit 0
-- `prek run --hook-stage pre-push --files <3 py files>`: exit 0. The first run caught a `ty` error
-    on `sorted(set(outputs) - allowed)` (object elements). Fixed with `str(key)`, the same pattern
-    as the existing `unknown` check.
-- I confirmed that the C++ `TextCodeResult`, `MixedCodeResult` and `IsccCodeResult` hold only
-    `std::string iscc` (`iscc.hpp:177-214`), so C and C++ leave every non-`iscc` key uncompared.
+- [x] `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py` exits 0: 116
+    passed, including missing `iscc`, unknown key, non-object and the generator unknown-key fail
+- [x] An unknown output key on `gen_text_code_v0/test_0001_embedded_nul` in a temp copy is rejected
+    by both: the tests cover it, and my own run of `gen.render` on a mutated fixture copy gave
+    `SystemExit: … output keys ['foo'] not carried by data.json` (same for `parts` on text)
+- [x] `uv run --script scripts/gen_data_edge_vectors.py`, then `git status --porcelain` on
+    `crates/iscc-ffi/tests/data_edge_vectors.h`, prints nothing
+- [x] `edge-vectors.md` states the rule and a matching Verified When line; the only gen result key
+    in the file is the existing JSON example (line 60); `uv run scripts/check_spec_paths.py` exits 0
+- [x] `mise run check` exits 0
 
-**Next:** The .NET, Java, napi and WASM `Compare`/`compare` fan-out, with a negative test per
-surface. Each harness gets a static set of uncompared keys per gen section, taken from its result
-type, replacing the runtime intersection. The new Verified When line ("every harness fixes its
-uncompared output keys statically…") stays unmet until that fan-out lands.
+Beyond next.md: the derived key map matches next.md's claim (text: `iscc`, `characters`; mixed:
+`iscc`, `parts`; iscc: `iscc`), and the three row renderers pass their own section name. No unpushed
+commit weakens a gate.
+
+**Issues found:**
+
+- Fixed here (docstring only): a 128-character line in the generator's module docstring and a ragged
+    wrap in the test module docstring. The two test files and the pre-push gates on the three Python
+    files are green after the edit, and the header is still unchanged
+- Nit, not filed: the eight-line `data.json` key derivation exists twice (validator and generator).
+    They are independent checks of one rule, so I left them
+- Nit, not filed: `test_gen_iscc_and_characters_only_still_renders` rewrites a vector that already
+    holds exactly those two keys. It proves only that the `characters` value is not rendered
+- `gen_mixed_code_v0` and `gen_iscc_code_v0` hold only error vectors in `data-edge.json`, so the
+    unknown-key rule runs on real data for `gen_text_code_v0` alone. The code path is shared
+
+**Codex review:** No actionable findings. Codex ran the Python suite (681 passed), the lint checks
+and the header regeneration (byte-identical).
+
+**Next:** The .NET, Java, napi and WASM harness fan-out that the open `normal` issue describes. The
+behaviour is fixed by the spec's "Output subset" rule and the decisions.md entry of 2026-11-20, so
+it qualifies as a `**Fan-out:**` step with one commit per surface. Each harness gets a static set of
+uncompared keys per gen function, taken from its result type, in place of the runtime intersection.
+Each surface needs two negative tests, one fault per call: an expected key outside the static set
+that the result lacks, and a result without `iscc`. The other two `normal` docs issues (Java how-to
+`genSumCodeV0`, Ruby precompiled-gem wording) make a cheap docs step afterwards.
 
 **Notes:**
 
-- Proposed decisions.md entry for review to record:
-    - **data-edge output subset:** allowed keys come from `data.json`, and the keys left uncompared
-        are fixed per harness from the result type (2026-11-20)
-    - In a `gen_*` section, `outputs` must hold `iscc` and may hold only keys that the function's
-        `data.json` vectors carry. Any other key fails on every surface. A harness never intersects
-        the expected keys with the returned ones.
-    - Rejected: a per-surface `except` value carrying reduced outputs, and a top-level metadata key.
-        Either would be a 12-surface change, because the generator accepts only `error`/`skip` and
-        every harness fails on an unknown section, and it would break "a vector costs one edit".
-- "Gen section" means the `gen_` name prefix, not membership in the derived map, so a gen section
-    missing from `data.json` fails closed instead of passing unchecked.
-- No core or binding code changed, so CRAP, iai and semver are unaffected.
+- Recorded the decision ("data-edge output subset", 2026-11-20). decisions.md went over budget, so
+    the oldest entry (xunit v3 VSTest mode) rotated into the archive
+- The issue entry is rewritten to the remaining problem and now points at the "Output subset" rule
+- The spec's new Verified When line is half met: the validator and generator part holds, the "every
+    harness fixes its uncompared keys statically" part waits for the fan-out
+- For the fan-out, read each surface's result type before writing its static set. Do not copy the
+    set from another surface: a surface that returns a structured result for a function must compare
+    every key there
+- Observed while reading the other harnesses, not filed: Go's `edgeCompare` reads a missing key as
+    `nil`, so it would pass a missing key only if the expected value were JSON `null`. No
+    `data.json` output is `null`. Rust, Swift, Kotlin, Ruby and Python fail on a missing key
+- No core or binding code changed: CRAP, iai and semver are unaffected
