@@ -121,6 +121,16 @@ static std::vector<uint8_t> edge_bytes(const iscc_edge_str& s) {
     return std::vector<uint8_t>(bytes.begin(), bytes.end());
 }
 
+/// Build one byte vector per item of an edge-vector digest list (an empty list stays empty).
+static std::vector<std::vector<uint8_t>> edge_byte_lists(const iscc_edge_list& list) {
+    std::vector<std::vector<uint8_t>> out;
+    for (size_t i = 0; i < list.count; ++i) {
+        const char* item = list.items[i];
+        out.emplace_back(item, item + list.lens[i]);
+    }
+    return out;
+}
+
 /// Check one iscc_decode edge row against its cpp expectation (rejection = IsccError).
 static bool check_edge_iscc_decode(const iscc_edge_iscc_decode_vector& v) {
     const std::string input = edge_string(v.input);
@@ -148,6 +158,20 @@ static bool check_edge_encode_seq(const iscc_edge_encode_seq_vector& v) {
         return false;
     }
     return v.cpp == ISCC_EDGE_OK && seq == edge_bytes(v.seq);
+}
+
+/// Check one alg_simhash edge row against its cpp expectation (rejection = IsccError).
+static bool check_edge_alg_simhash(const iscc_edge_alg_simhash_vector& v) {
+    const std::vector<std::vector<uint8_t>> digests = edge_byte_lists(v.digests);
+    std::vector<uint8_t> simhash;
+    try {
+        simhash = iscc::alg_simhash(digests);
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && simhash == edge_bytes(v.simhash);
 }
 
 /// Check one gen_text_code_v0 edge row against its cpp expectation.
@@ -675,6 +699,8 @@ int main() {
                                  check_edge_gen_mixed_code_v0);
         seen += run_edge_section("gen_iscc_code_v0", iscc_edge_gen_iscc_code_v0,
                                  ISCC_EDGE_GEN_ISCC_CODE_V0_COUNT, check_edge_gen_iscc_code_v0);
+        seen += run_edge_section("alg_simhash", iscc_edge_alg_simhash,
+                                 ISCC_EDGE_ALG_SIMHASH_COUNT, check_edge_alg_simhash);
         assert_eq(seen, ISCC_EDGE_TOTAL_COUNT, "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
     }
 
@@ -690,6 +716,15 @@ int main() {
                     "data_edge negative: expected rejection that succeeds fails");
         assert_true(!check_edge_gen_text_code_v0(mismatch),
                     "data_edge negative: output mismatch fails");
+    }
+    {
+        // The AND of the tie digests, so a strict-majority threshold would match.
+        static const char* const digests[] = {"\360\017", "<<"};
+        static const size_t lens[] = {2, 2};
+        const iscc_edge_alg_simhash_vector tie_as_and = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {digests, lens, 2}, {"0\014", 2}};
+        assert_true(!check_edge_alg_simhash(tie_as_and),
+                    "data_edge negative: alg_simhash output mismatch fails");
     }
 
     // Summary
