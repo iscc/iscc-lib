@@ -148,6 +148,11 @@ via `beautifulsoup4` ← `mdformat-web` ← `mdformat-mkdocs[recommended]` (dev 
 artifact pins them. Check that `beautifulsoup4` accepts `soupsieve` 4.x before bumping; refresh only
 these packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
 
+**Needs Titusz for `soupsieve`:** every fixed release (3.0.2 up to 4.1.2) declares
+`requires-python >=3.11.5`, while `pyproject.toml` resolves the lock for `>=3.10`, so the bump needs
+a call on a split dev marker, dropping `mdformat-web` on 3.10, or a higher dev floor. `setuptools`
+84.1.0 needs `>=3.10` and can move alone.
+
 Resolved when `uv.lock` pins `soupsieve` >= 4.0.0 and `setuptools` >= 84.1.0, `mise run check`
 (mdformat) is green, and `gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of
 #2-#6.
@@ -176,18 +181,6 @@ unless `build.rs` lists the new files. Moving only `mod tests` to `src/tests.rs`
 Resolved when `lib.rs` is back under the documented threshold (or the threshold is deliberately
 changed in `crates/iscc-ffi/CLAUDE.md`), and `cbindgen` + `cargo build -p iscc-ffi` leave `iscc.h`
 and `NativeMethods.g.cs` byte-identical.
-
-## .NET string-array pinning is copied three times; the gen copies pass NULL for `[]` `normal` [review]
-
-`GenMixedCodeV0`, `GenIsccCodeV0` and `EncodeSeq` (`packages/dotnet/Iscc.Lib/IsccLib.cs`) each carry
-the same ~35-line unsafe pin loop: UTF-8 conversion, `GCHandle.Alloc(…, Pinned)`,
-`fixed (byte** …)`, and a free in `finally`. Only `EncodeSeq` guards a null array or element and has
-an empty-array sentinel. The two gen copies run `fixed` over an empty `byte*[]`, which yields NULL,
-so `[]` surfaces the FFI's "must not be NULL" message instead of the core's error. next.md deferred
-both in iter 206 to keep the seq step to one file.
-
-Resolved when one private helper does the pinning for all three methods, and an empty or null input
-to the two gen methods fails the same way as `EncodeSeq` (tests assert the core's message for `[]`).
 
 ## JNI exports report a pending JVM exception as `IllegalArgumentException` `low` [review]
 

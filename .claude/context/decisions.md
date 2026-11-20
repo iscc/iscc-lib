@@ -292,3 +292,15 @@ ISCC-SEQ bindings took 8 iterations because the valve required mechanically iden
 **Trial:** Titusz evaluates after iteration 224 (issues.md). Revert the commit that introduced this
 entry if more than 2 of iterations 215-224 end NEEDS_WORK or a fan-out push turns CI red.
 **Context:** human decision (Titusz, interactive session, 2026-11-19).
+
+## 2026-11-20 — .NET jagged-array inputs: null check first, padded pin arrays
+
+**Decision:** the six .NET jagged-array methods pin through one private `PinnedRows` helper. A null
+array or element throws `ArgumentNullException` (parameter name and `name[i]`) before any UTF-8
+conversion or pinning, so a null element wins over an embedded NUL anywhere in the input. That is a
+small change for `EncodeSeq`, which checked element by element. An empty input pins pointer and
+length arrays of `max(Count, 1)` slots and passes the real count, so `[]` reaches the core's error.
+**Why:** one validation order and one code path for all six, no `count == 0` branch at a call site.
+**Alternatives:** a stack sentinel per call site (next.md's suggestion; six extra branches);
+interleaving the null and NUL checks per element (keeps the old `EncodeSeq` order, splits the
+helper); `IsccException` for null (not the .NET idiom). **Context:** iteration 220 review.

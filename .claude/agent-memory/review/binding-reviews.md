@@ -414,6 +414,10 @@ Full text of entries compacted out of `MEMORY.md`.
     over the C FFI**: .NET + C++ truncated `"Hello\0World"` to `"Hello"` wrapper-wide (206/207);
     FIXED 213 — both reject before marshalling (`ToNativeUtf8`, `detail::checked_c_str`). The 8 .NET
     negatives are non-vacuous by construction: only the new check emits "embedded NUL"
+- **.NET wrapper-only (220, ~5 min)**: the seq recipe above, but a "no warnings" criterion needs
+    `dotnet build --no-incremental` — an incremental build that compiles nothing prints
+    `0 Warning(s)` vacuously. Diff any "matches the old precedence" claim against the REMOVED loop
+    (220: old `EncodeSeq` checked null then NUL per element; the helper scans nulls first)
 - **C++ seq (207, ~8 min)**: `cargo build -p iscc-ffi` →
     `uv run --with cmake cmake -B build-seq …   -DSANITIZE_ADDRESS=ON` → build → run `test_iscc` (65
     at 207). The CMake target sets NO `-Wall`, so "no warnings" needs

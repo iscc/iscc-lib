@@ -100,6 +100,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     intersection). **Swift/Kotlin (218, ~10 min)**: Swift recipe from `packages/swift/CLAUDE.md` +
     `grep 'DataEdgeTests.*passed'`; Kotlin `cleanTest test` + `<testsuite>` attrs of the XML. Swift
     `String ==` is canonical equivalence — a harness-strictness note, filed `low`
+- **.NET wrapper-only (220, ~5 min)**: `cargo build -p iscc-ffi`, `dotnet test` with
+    `--logger 'console;verbosity=normal'` (grep the class), `dotnet build --no-incremental` for a
+    0-warnings criterion → `binding-reviews.md`
 - **Generated C/C++ table (219, ~1 min/probe)**: render a mutated fixture with the generator module
     into `/tmp/x/`, copy the harness there (a quote-include resolves next to the source) and compile
     with gcc/g++ against `target/debug` — a real-regression probe without touching the tree

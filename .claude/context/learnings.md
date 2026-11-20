@@ -18,15 +18,15 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **`encode_seq` upper-cases before cleaning, so `b` + base32(`cc01` + unit) can read as a DIFFERENT
     valid bare unit** (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20 bytes) — iscc-core 1.5.0 returns the
     same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
-- **Binding input-marshalling traps**: WASM `serde_wasm_bindgen` `Vec<T>` accepts ANY iterable while
-    napi `Vec<String>` throws `ArrayExpected`, so never document "throws on non-array" for WASM
-    (204). **The FFI's `CStr` truncates at an embedded NUL**, so both C-FFI wrappers reject it first
-    (213, decisions.md 2026-11-19): a new .NET string input MUST go through `ToNativeUtf8`, a new
-    C++ one through `detail::checked_c_str` — a bare `.c_str()` silently hashes the prefix. Probe
-    `x + "\0junk"` on every string input. JNI, Ruby + UniFFI keep the NUL, the core rejects
-    (208-210). **Never take `Vec<T>` from Ruby** — Magnus `to_vec` holds a slice, so a shrinking
-    `to_str`/`to_int` segfaulted all 7 sites (212): use `array_to_vec`. Magnus raises `TypeError`
-    for wrong types; `RBignum::to_i32` truncates negative Bignums (filed 212)
+- **Binding input-marshalling traps**: WASM `serde_wasm_bindgen` `Vec<T>` accepts ANY iterable (napi
+    `Vec<String>` throws `ArrayExpected`): never document "throws on non-array" for WASM (204).
+    **The FFI's `CStr` truncates at an embedded NUL**, so both C-FFI wrappers reject it first (213):
+    .NET strings go through `ToNativeUtf8`, C++ through `detail::checked_c_str`; probe
+    `x + "\0junk"` on every string input. JNI, Ruby + UniFFI keep the NUL, the core rejects. **An
+    EMPTY container marshals to NULL** (`fixed` over `[]`, `.data()` on `{}`), so the FFI's "must
+    not be NULL" hides the core's error: .NET jagged inputs pin only via `PinnedRows` (220). **Never
+    take `Vec<T>` from Ruby**: Magnus `to_vec` holds a slice, so a shrinking `to_str` segfaulted
+    (212); use `array_to_vec`. `RBignum::to_i32` truncates negative Bignums (filed)
 - **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
     `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
     modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an
