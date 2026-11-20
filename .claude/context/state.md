@@ -1,16 +1,16 @@
-<!-- assessed-at: c2811c5 -->
+<!-- assessed-at: 8f7e36b -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 2 normal issues owed
+## Phase: v0.8.0 — all features landed; Ruby source-gem fix in NEEDS_WORK; 2 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 238 fixed the Java how-to `genSumCodeV0` example and stated the Ruby
-precompiled-gem range, closing two `normal` issues. Review then found the published Ruby source gem
-cannot be built, so the docs' "builds from source" fallback is false — a fresh `normal` issue. With
-the derived-fact drift issue, 2 `normal` issues still block v0.8.0.
+all 11 bindings. Iteration 239 made the Ruby source gem buildable (staging script plus a CI install
+check), but review returned NEEDS_WORK: the new unconditional `rb_sys` gemspec dependency breaks the
+`cross-gem` action's rb_sys version lookup for the platform gems. That commit is local, unpushed and
+unreverted. 2 `normal` issues still block v0.8.0.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -99,16 +99,22 @@ the derived-fact drift issue, 2 `normal` issues still block v0.8.0.
 
 ## Ruby Bindings
 
-**Status**: partially met — 1 `normal` issue
+**Status**: partially met — 1 `normal` issue, fix in progress (NEEDS_WORK)
 
 - `encode_seq` / `decode_seq` in `test_conformance.rb`; `test_data_edge.rb` runs all 6 sections
-    strictly, green in CI; 0.7.0 on RubyGems
-- `docs/howto/ruby.md` and `crates/iscc-rb/README.md` state precompiled gems for "Ruby 3.1 to 3.3";
-    `tests/test_ruby_gem_docs.py` (9 tests) derives that range from the `release.yml` cross-gem list
-- **`normal`:** the source gem cannot be built — the gemspec declares no `rb_sys` dependency and the
-    shipped `Cargo.toml` inherits from the workspace and path-depends on `../iscc-lib`. On Ruby
-    3.4/4.0 (or an unbuilt platform) `gem install iscc-lib` fails, contradicting both Ruby docs'
-    "compiles the extension from source"; no workflow installs the source gem
+    strictly; 0.7.0 on RubyGems; `tests/test_ruby_gem_docs.py` ties the "Ruby 3.1 to 3.3" doc range
+    to the `release.yml` cross-gem list
+- Local commit `d299106` adds `scripts/build_ruby_source_gem.py` (stages a standalone manifest, the
+    core crate and the workspace `Cargo.lock`), `tests/test_build_ruby_source_gem.py`, a
+    `ruby-source-gem` CI job (Ruby 3.4 clean-gem-home install + selftest), and switches
+    `publish-rubygems` to the script; Ruby docs now list the source-build prerequisites
+- **Blocker (review 239):** `iscc-lib.gemspec` declares `rb_sys ~> 0.9` unconditionally, so the
+    first `rb_sys` line of `Gemfile.lock` is now `rb_sys (~> 0.9)`; the `cross-gem` lookup pipeline
+    extracts no version (exit 1) and would fall back to the latest remote rb_sys against the pinned
+    0.9.123 image. Platform gems would also gain a runtime `rb_sys` dependency.
+    `test_gemfile_lock_pins_cross_gem_rb_sys` uses an anchored regex and stays green regardless
+- Also owed: the script's `run()` captures stderr, so a failing `cargo package`/`gem build` logs no
+    reason; `crates/iscc-rb/CLAUDE.md` Publishing must match the final dependency shape
 - Ruby 3.1 floor is EOL (`low`, human-only); `low` issue: integer list elements accept a Float
 
 ## Swift and Kotlin Bindings
@@ -143,14 +149,17 @@ the derived-fact drift issue, 2 `normal` issues still block v0.8.0.
 
 **Status**: met (v0.8.0 scope); EOL floors and the v1.0.0 semver gate are human-gated
 
-- `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
+- `ci.yml` has 21 jobs at HEAD (the unpushed `ruby-source-gem` job added; `specs/ci-cd.md` job table
+    updated to match); `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- `publish-rubygems` builds the source gem with a bare `gem build` and never installs it (see Ruby)
+- `publish-rubygems` at HEAD builds the source gem via the staging script; the platform-gem build is
+    broken at HEAD by the rb_sys lookup issue (see Ruby) — `release.yml` never runs in CI
 - Security criterion met except the exempt EOL floors (Python 3.10, .NET 8, Ruby 3.1 — `low`, for
     Titusz); only Rust has a standing advisory gate (`cargo deny`)
-- **Latest CI: PASSING** on `origin/develop` = `732e2e0` (`github-actions` suite `success`, 21/21
-    check-runs `success`): https://github.com/iscc/iscc-lib/actions/runs/44825837243
-- Unpushed: only the `cid(log)` commit (`.claude/` only) — green CI covers HEAD's code
+- **Latest CI: PASSING** on `origin/develop` = `732e2e0` (`github-actions` suite `success`):
+    https://github.com/iscc/iscc-lib/actions/runs/44825837243
+- **Unpushed code at HEAD is NOT covered by green CI:** `d299106` (ci.yml, release.yml, gemspec,
+    Gemfile.lock, script, tests, Ruby docs); the `ruby-source-gem` job has never run in CI
 
 ## Open Issues
 
@@ -159,6 +168,6 @@ cannot be built. issues.md is at 227 of 300 lines.
 
 ## Next Milestone
 
-Clear the 2 open `normal` issues — the remaining v0.8.0 release blockers: make the Ruby install
-story true (a buildable, CI-checked source gem, or no source gem and docs that say so), and the
-remaining derived-fact drift.
+Clear the 2 open `normal` issues — the remaining v0.8.0 release blockers: finish the Ruby source gem
+so it builds and installs without breaking the precompiled platform-gem release path (then get it
+green in CI), and the remaining derived-fact drift.

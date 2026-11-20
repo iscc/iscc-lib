@@ -54,9 +54,9 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 - `crates/` — **8 crates** (lib, py, napi, wasm, ffi, jni, rb, uniffi); iscc-uniffi has 21 tests,
     `publish=false`. `packages/` layout → `MEMORY-archive.md`; `packages/go` is the ONLY binding not
     inheriting the core's Unicode behaviour.
-- `ci.yml` — **20 YAML job entries** (194; `unicode-sweep` removed): `python-test` = 3.10/3.14
-    matrix, `python` (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job.
-    `release.yml` = 8 registry toggles (Swift XCFramework is a `prepare-release` step, NOT a
+- `ci.yml` — **21 YAML job entries** at HEAD 240 (`ruby-source-gem` added, unpushed): `python-test`
+    = 3.10/3.14 matrix, `python` (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a
+    job. `release.yml` = 8 registry toggles (Swift XCFramework is a `prepare-release` step, NOT a
     toggle). `specs/ci-cd.md` job table EXHAUSTIVE since 163 (rows==keys, gated); prose counts
     unpinned (HAND edit).
 - **Unicode freeze REMOVED 2026-07-30** (decisions.md): no pin, no sweep gate, no boundary fixture —
@@ -87,19 +87,18 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: c2811c5, iter 239 — incremental)
+## Current State (assessed-at: 8f7e36b, iter 240 — incremental)
 
-- **CI GREEN on tip `732e2e0`** (21/21, run 44825837243). Unpushed = only `cid(log)`. **Local
-    `origin/develop` ref can be stale** — `git ls-remote origin develop` first; check-runs API
-    returns 422 for an unpushed SHA. codecov/cursor suites sit `queued` forever.
-- **238 closed Java how-to + Ruby gem-range issues**; review filed `normal` "Ruby source gem cannot
-    be built" (no `rb_sys` gem dep; shipped `Cargo.toml` inherits workspace + `../iscc-lib`). Parity
-    test `tests/test_ruby_gem_docs.py` ties doc range to `release.yml` `ruby-versions`.
-- **11 open: 2 normal** (`[human]` drift; Ruby source gem), 9 low (incl. EOL floors, KAA prefix).
-    issues.md 227/300.
+- **CI GREEN on `origin/develop` = `732e2e0`**, but HEAD carries unpushed NEEDS_WORK commit
+    `d299106` (Ruby source gem: script, `ruby-source-gem` job → ci.yml **21 jobs**, release.yml).
+    Check-suites API: `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (judge
+    github-actions).
+- **239 blocker**: unconditional gemspec `rb_sys` dep → first `rb_sys` line of `Gemfile.lock` is
+    `rb_sys (~> 0.9)`; cross-gem lookup = `grep rb_sys Gemfile.lock | head -n 1 | grep -oE` (NOT
+    anchored) → exit 1. Probe this pipeline directly each iteration until fixed.
+- **11 open: 2 normal** (`[human]` drift; Ruby source gem), 9 low. issues.md 227/300.
 - data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
-- **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`;
-    compare `vulnerable_version_range` to develop's lockfiles — all patched there (236).
+- **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`.
 
 ## Durable Facts (carried, not per-iteration)
 
