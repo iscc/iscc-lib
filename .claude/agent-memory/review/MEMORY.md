@@ -103,7 +103,8 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     deps changed — see `gate-reviews.md` Audit)
 - **Bumps** (generated artifact, MSRV `cargo +1.85.0 check -p <c> --locked`, lockfile, wrapper,
     framework major) → `dep-refresh-reviews.md`
-- **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table recipes (215-221)**
+- **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table recipes (215-221)**,
+    **new data-edge SECTION = 12-surface script + `uvx cmake` + 4-surface mutation (226, ~12 min)**
     → `binding-reviews.md` "Moved from the index (223)"
 - **Waiting on a background run**:
     `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15;   done'` in the foreground works

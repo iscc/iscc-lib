@@ -110,8 +110,9 @@ def prepare_inputs(section, inputs):
 
 
 # Section name -> converter of the raw result into its fixture form. The raw call is
-# always `getattr(module, section)(*inputs)`, for iscc_lib and iscc_core alike, and is
-# kept apart from the conversion so a conversion error never counts as a rejection.
+# always `getattr(module, section)(*prepare_inputs(section, inputs))`, for iscc_lib and
+# iscc_core alike, and is kept apart from the conversion so a conversion error never
+# counts as a rejection.
 CONVERTERS = {
     "iscc_decode": convert_iscc_decode,
     "encode_seq": convert_encode_seq,

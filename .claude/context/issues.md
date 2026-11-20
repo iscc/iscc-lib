@@ -204,25 +204,18 @@ vice versa.
 
 **Spec:** `.claude/context/specs/edge-vectors.md` → "Rules"
 
-## `alg_simhash([])` has no shared vector; C++ list wrappers pass NULL for an empty vector `normal` [human]
+## C++ list wrappers pass NULL for an empty vector `normal` [human]
 
-Titusz decided 2026-11-20 (decisions.md): `alg_simhash` rejects an empty list. The Rust core and the
-Go port do so since iteration 225 ("hash_digests must not be empty"), and every binding passes the
-error through. Two parts remain:
+Five wrappers in `packages/cpp/include/iscc/iscc.hpp` (`gen_mixed_code_v0`, `gen_iscc_code_v0`,
+`gen_video_code_v0`, `alg_simhash`, `soft_hash_video_v0`) pass `ptrs.data()` (three of them also
+`lens.data()`), which is NULL for an empty vector, where `encode_seq` uses `detail::safe_data`. For
+four of them `{}` fails with the FFI's "must not be NULL" message instead of the core's own check
+(iter 219). `iscc_alg_simhash` is the exception: its `num_digests == 0` branch runs before the NULL
+checks, so `alg_simhash({})` already reports the core message, and the shared `alg_simhash` `[]`
+vector in `data-edge.json` (on all 12 surfaces since iteration 226) cannot pin that wrapper's
+pointer.
 
-1. **No shared vector pins it.** `data-edge.json` has no `alg_simhash` section, so Ruby, Swift,
-    Kotlin, C and C++ have no test on `[]` at all. A section needs a handler in every harness
-    (fan-out), plus the validator and the generated C header.
-2. **C++ wrappers pass NULL.** Five wrappers in `packages/cpp/include/iscc/iscc.hpp`
-    (`gen_mixed_code_v0`, `gen_iscc_code_v0`, `gen_video_code_v0`, `alg_simhash`,
-    `soft_hash_video_v0`) pass `ptrs.data()`, NULL when empty, where `encode_seq` uses
-    `detail::safe_data`. For four of them `{}` fails with the FFI's "must not be NULL" message
-    instead of the core's own check (iter 219). `iscc_alg_simhash` is the exception: its
-    `num_digests == 0` branch runs before the NULL checks, so `alg_simhash({})` already reports the
-    core message and the vector in part 1 cannot pin that wrapper's pointer.
-
-Resolved when an `alg_simhash` `[]` vector with `error` in `data-edge.json` passes on all 12
-surfaces, and the five C++ wrappers pass a non-NULL pointer, each pinned by a test on `{}` that
-checks the message is not the NULL one.
+Resolved when the five C++ wrappers pass non-NULL pointers for an empty vector, each pinned by a
+test on `{}` that checks the message is not the NULL one.
 
 **Spec:** `.claude/context/specs/rust-core.md` → Tier 1 table (`alg_simhash`)

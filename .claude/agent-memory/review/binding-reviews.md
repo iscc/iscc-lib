@@ -504,3 +504,18 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - **Generated C/C++ table (219, ~1 min/probe)**: render a mutated fixture with the generator module
     into `/tmp/x/`, copy the harness there (a quote-include resolves next to the source) and compile
     with gcc/g++ against `target/debug` — a real-regression probe without touching the tree
+- **New `data-edge.json` SECTION, 12-surface fan-out (226, ~12 min wall, all green first try)**: one
+    sequential bash script with a `step <name> <cmd…>` helper writing one log per step plus
+    `exit <rc> <name>` to a summary file, run with `run_in_background`. Order: Rust test,
+    `maturin develop --release`, pytest (3 files, `--no-cov`), `cargo build -p iscc-ffi`, C (gcc as
+    in `ci.yml`), generator no-op, Go, napi `build:debug` + test,
+    `wasm-pack test --node … --features conformance`, `cargo build -p iscc-jni` + `mvn clean test`,
+    `dotnet test`, Ruby `rake compile:dev` + `rake test TESTOPTS=-v`, Swift, CRAP lines, clippy.
+    **`cmake` is not on `$PATH`: use `uvx cmake`** with `-B /tmp/...` (the script's bare `cmake`
+    exited 127). **Hold Kotlin until Codex is done**: an untracked
+    `packages/kotlin/.kotlin/sessions/*.salive` in `git status` is Codex's live Gradle daemon (it
+    disappears by itself). Advance skips mutation runs on slow surfaces:
+    `sed -i 's/<expected>/<wrong>/'` on the canonical file + the .NET and Kotlin copies, run Java
+    (`mvn test -Dtest=DataEdgeTest`), .NET (`--filter DataEdgeTests`), Kotlin
+    (`--tests '*DataEdgeTest*'`), WASM (`--test data_edge`), then `git checkout --` the three files
+    (~1 min, each named the vector). Codex with `--base <define-next sha>` took ~3 min, no findings

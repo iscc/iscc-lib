@@ -74,9 +74,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     regeneration-no-op gate — a **third-party** generator you can't fix (uniffi bindgen, 172) always
     trips it, so verify no-op modulo `sed 's/[[:space:]]*$//'`, never `git status`
 - **C/C++ read `data-edge.json` from a generated header** (219): `gen_data_edge_vectors.py` renders
-    `crates/iscc-ffi/tests/data_edge_vectors.h`; a vector = JSON edit + regen, a section = renderer
-    \+ a check fn per harness. Checks over generated source must tokenize escapes and split on lines
-    (payload `\x` and `};` land verbatim), and a row tally counts visited rows, never the loop bound
+    `crates/iscc-ffi/tests/data_edge_vectors.h`; a vector = JSON edit + regen. **A new section is
+    one unsplittable 12-surface fan-out** (226): each harness and the generator fail closed on it.
+    Checks over generated source tokenize escapes, split on lines, and tally visited rows
 - **Perf-gate tooling installs on demand, NOT in the devcontainer**: `mise run bench:iai:check` dies
     until `apt-get install valgrind` + `cargo binstall iai-callgrind-runner@0.16.1` (pin-matched)
 - **A docs page lives in FOUR places** — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
