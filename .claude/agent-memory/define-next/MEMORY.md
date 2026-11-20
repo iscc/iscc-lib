@@ -23,11 +23,14 @@ helper over all 6 sites (issue named 3 — finish-the-pattern widened it); 221 =
 `iscc_`-prefixed type names (c-ffi-api.md + ffi README; issue named only the structs — `Ffi*Hasher`,
 README and the doc's cbindgen cmd lacking `--config` widened it) + pytest deriving names from
 `iscc.h`; 222 = Python `encode_seq` docstrings — 3 Python copies (wrapper, `.pyi`, PyO3 `///` in
-`iscc-py/src/lib.rs` = `_lowlevel.__doc__`; issue named 2); next: wasm spec line, then derived-facts
-parity check (largest); Ruby Bignum/napi/JNI/ ffi-split now `low` (human) — skip). **Dependabot
-soupsieve is human-blocked**: 3.0.2/4.x need Python >=3.11.5 but `uv.lock` resolves `>=3.10` —
-escalate, don't scope. A 303 from a Maven/portal probe proves nothing: `curl -sL` to follow it (220:
-Kotlin red was a portal outage).
+`iscc-py/src/lib.rs` = `_lowlevel.__doc__`; issue named 2); 223 = phantom repo paths in specs (wasm
+issue named 1 file; a backticked-path existence loop over `specs/*.md` found go `version.go`,
+`go-api.md`, `nodejs-api.md` too — the loop is a reusable probe); next: derived-facts parity check
+(probe which pages enumerate Tier 1 first; counts sweep waits for it); setuptools bump resolves to
+84.2.1 via `uv lock --upgrade-package setuptools` (dry-run 223); Ruby Bignum/napi/JNI/ ffi-split now
+`low` (human) — skip). **Dependabot soupsieve is human-blocked**: 3.0.2/4.x need Python >=3.11.5 but
+`uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a Maven/portal probe proves nothing:
+`curl -sL` to follow it (220: Kotlin red was a portal outage).
 
 ## Scope Calibration Principles
 
