@@ -143,6 +143,23 @@ static int check_edge_encode_seq(const struct iscc_edge_encode_seq_vector *v) {
     return passed;
 }
 
+/* Check one alg_simhash edge row against its c expectation (rejection = NULL data).
+ * Digests are binary with explicit lengths, so no C-string fit check applies. */
+static int check_edge_alg_simhash(const struct iscc_edge_alg_simhash_vector *v) {
+    struct iscc_IsccByteBuffer buf;
+    int passed;
+    buf = iscc_alg_simhash((const uint8_t *const *)v->digests.items, v->digests.lens,
+                           v->digests.count);
+    if (v->c == ISCC_EDGE_ERROR) {
+        passed = buf.data == NULL;
+    } else {
+        passed = v->c == ISCC_EDGE_OK && buf.data != NULL &&
+                 edge_bytes_eq(buf.data, buf.len, v->simhash);
+    }
+    iscc_free_byte_buffer(buf);
+    return passed;
+}
+
 /* Check one gen_text_code_v0 edge row against its c expectation. */
 static int check_edge_gen_text_code_v0(const struct iscc_edge_gen_text_code_v0_vector *v) {
     char *actual;
@@ -650,6 +667,8 @@ int main(void) {
         RUN_EDGE_SECTION("gen_iscc_code_v0", iscc_edge_gen_iscc_code_v0,
                          ISCC_EDGE_GEN_ISCC_CODE_V0_COUNT, check_edge_gen_iscc_code_v0,
                          edge_seen);
+        RUN_EDGE_SECTION("alg_simhash", iscc_edge_alg_simhash, ISCC_EDGE_ALG_SIMHASH_COUNT,
+                         check_edge_alg_simhash, edge_seen);
         ASSERT_EQ(edge_seen, ISCC_EDGE_TOTAL_COUNT,
                   "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
     }
@@ -671,6 +690,15 @@ int main(void) {
                   "data_edge negative: output mismatch fails");
         ASSERT_EQ(check_edge_gen_text_code_v0(&truncated), 0,
                   "data_edge negative: string with embedded NUL fails");
+    }
+    {
+        /* The AND of the tie digests, so a strict-majority threshold would match. */
+        static const char *const digests[] = {"\360\017", "<<"};
+        static const size_t lens[] = {2, 2};
+        const struct iscc_edge_alg_simhash_vector tie_as_and = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {digests, lens, 2}, {"0\014", 2}};
+        ASSERT_EQ(check_edge_alg_simhash(&tie_as_and), 0,
+                  "data_edge negative: alg_simhash output mismatch fails");
     }
 
     /* Summary */
