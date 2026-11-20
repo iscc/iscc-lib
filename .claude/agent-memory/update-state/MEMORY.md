@@ -87,22 +87,20 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: d04472f, iter 233 — incremental)
+## Current State (assessed-at: d5760ca, iter 234 — incremental)
 
-- **CI GREEN on tip `e289ad8`** (21/21, run 44766855703, macOS Swift job success). Unpushed = 1
-    `.claude`-only log commit. **Local `origin/develop` ref can be stale vs the remote** —
-    `git ls-remote origin develop` first; check-runs API returns 422 for an unpushed SHA.
-    codecov/cursor suites sit `queued` forever — judge the `github-actions` suite.
-- **232: data-edge compare-looseness issue CLOSED** (Swift `DataEdge.scalar` + unicodeScalars,
-    Python `same`). Swift 30 tests (19 conf + 11 data-edge). 231 ffi split, 230 JNI, 229 Ruby i32 —
-    all CLOSED. Don't re-flag.
-- data-edge.json sections (6): iscc_decode, encode_seq, gen_text/mixed/iscc_code_v0, alg_simhash.
-    Vendored-copy check: `md5sum $(git ls-files -- '*data-edge.json')`.
-- **8 open: 1 normal (`[human]` derived-fact drift — last v0.8.0 blocker), 7 low.** issues.md
-    152/300. Unfiled: partial-key compare on .NET/Java/napi/WASM.
-- decisions 2026-11-20: comment-only/regenerated files don't count against the 6-file cap.
-- **Review runs on Fable 5.2, no advisor**; `model_costs` in jsonl.
-- FFI 51 externs. Kotlin Conformance 19; uniffi 28 `#[test]`. C++ suite 107 tests.
+- **CI GREEN on tip `8361fbf`** (21/21, run 44778797244). Unpushed = 1 `.claude`-only log commit.
+    **Local `origin/develop` ref can be stale** — `git ls-remote origin develop` first; check-runs
+    API returns 422 for an unpushed SHA. codecov/cursor suites sit `queued` forever — judge the
+    `github-actions` suite.
+- **233: Tier 1 doc gate** `scripts/check_tier1_docs.py` (prek `check-tier1-docs`, 15 pytest tests,
+    registry FULL/EXACT/EXEMPT, discovery threshold 30 symbols). `tier1:begin/end` blocks in
+    `rust-core.md` + `crates/iscc-lib/CLAUDE.md`. `[human]` drift issue narrowed, still open.
+- **10 open: 3 normal** (`[human]` drift remainder; Java how-to `genSumCodeV0` 3-arg example
+    `docs/howto/java.md:204`; WASM `alg_cdc_chunks` plain arrays `iscc-wasm/src/lib.rs:455`), 7 low.
+    issues.md 189/300. Unfiled: partial-key compare on .NET/Java/napi/WASM.
+- data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
+- **Review runs on Fable 5.2**; `model_costs` in jsonl. FFI 51 externs; Swift 30 tests.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` — alerts track
     `main`, so a develop-only lockfile fix leaves them open until release.
 
