@@ -24,7 +24,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `iscc_decode` output = `[mt, st, vs, li, "bytes:<hex>"]`. Group 1 harnesses DONE (217): Go
     `data_edge_test.go`, Node `__tests__/data_edge.test.mjs`, WASM `tests/data_edge.rs`, JNI
     `DataEdgeTest.java`, .NET `DataEdgeTests.cs` (vendored), Ruby `test/test_data_edge.rb`. Group 2
-    (218): Swift/Kotlin `DataEdge*`. Pending: C/C++ (group 3, table gen in `ea69169`)
+    (218): Swift/Kotlin `DataEdge*`. Group 3 (219): C/C++ read generated
+    `crates/iscc-ffi/tests/data_edge_vectors.h` (`scripts/gen_data_edge_vectors.py`, rows carry
+    resolved c/cpp expectation; gate `tests/test_gen_data_edge_vectors.py`). `mise run check` =
+    pre-commit only — run `prek run --hook-stage pre-push --files …` too
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
