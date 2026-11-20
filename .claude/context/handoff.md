@@ -1,49 +1,54 @@
-## 2026-11-20 — Review of: Move the iscc-ffi unit tests out of `lib.rs` into `src/tests.rs`
+## 2026-11-20 — Strict data-edge compares in the Swift and Python harnesses
 
-**Verdict:** PASS
+**Done:** The Swift harness now reads every Boolean or integer scalar through one classifier,
+`DataEdge.scalar`. It re-serialises the value inside an array with `JSONSerialization` and branches
+on the JSON text (`true`/`false` or digits). Strings compare by `unicodeScalars`, and a Boolean
+never equals a number, in either direction. The `bits` and `wide` input reads go through the same
+classifier (`intArg`/`boolArg`). In Python, `matches` uses a recursive `same` helper in which a
+`bool` never equals a non-`bool`; dict fields still require every expected key to be present.
 
-**Summary:** The `#[cfg(test)] mod tests` block of `crates/iscc-ffi/src/lib.rs` now lives in
-`crates/iscc-ffi/src/tests.rs`; `lib.rs` is 1717 lines and keeps every export, type and helper. The
-move is verbatim: the first 1715 lines of `lib.rs` are byte-identical to the previous version, and
-the de-indented old test body differs from `tests.rs` in two places only, both a line rustfmt joined
-because it now fits in 100 columns. `crates/iscc-ffi/CLAUDE.md` describes the new layout and says
-why exports must stay in `lib.rs`.
+**Files changed:**
+
+- `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift`: adds the `Scalar` enum, `scalar`,
+    `intArg`, `boolArg` and `describe`; `bits` and `prepareIsccCode` read through them;
+    `compareValue` compares by Unicode scalars and by `scalar`; adds a `parsedDoc` helper that
+    builds synthetic docs from JSON text. Adds 5 tests: look-alike string (U+212A), `false` for `0`
+    in `iscc_decode`, `bits: true`, `wide: 1` (the advisor's suggestion, so the `wide` read is
+    covered), and a positive `compareValue` Bool test, which also checks that parsed `1` ≠ Swift
+    `true`
+- `tests/test_data_edge.py`: adds `same`; `matches` uses it, with `k in value` in place of `.get`.
+    Adds 3 parametrized negatives (`false_for_zero`, `one_for_true`, `zero_for_false`) and one
+    positive nested-list test
 
 **Verification:**
 
-- [x] `grep -n 'mod tests' crates/iscc-ffi/src/lib.rs` prints one line, `mod tests;`, with
-    `#[cfg(test)]` above it; `wc -l` below 2500 — lines 1716/1717, file is 1717 lines
-- [x] `grep -c '#\[test\]'` is `0` in `lib.rs`; the `cargo test -p iscc-ffi --lib` passed count
-    equals the count in `tests.rs`, 0 failed — 99 passed, 99 `#[test]`, and the set of test function
-    names is identical to the previous file's
-- [x] cbindgen plus `cargo build -p iscc-ffi` leave `iscc.h` and `NativeMethods.g.cs` unchanged —
-    cbindgen written to a temp file is byte-identical to the tracked header; after
-    `cargo clean -p iscc-ffi` the build rewrote `NativeMethods.g.cs` and `git status` stayed clean
-- [x] `grep -rn 'no_mangle\|extern "C"' crates/iscc-ffi/src/tests.rs` prints nothing
-- [x] `cargo clippy -p iscc-ffi --all-targets -- -D warnings` and `cargo fmt -p iscc-ffi --check`
-    are clean — workspace clippy is clean too
-- [x] `mise run check` exits 0
+- Probe on corelibs (Swift 6.1.2, Linux): a parsed `false` gives a conditional cast to `Int` of
+    `Optional(0)`; a parsed `0` gives a cast to `Bool` of `Optional(false)`. Re-serialisation gives
+    `[false]` vs `[0]` for parsed values and for native Swift values alike. An invalid object (a
+    struct) fails `isValidJSONObject` and returns nil, with no crash
+- Tests-first: the 5 new Swift tests ran against the **old** harness and all 5 failed (8 assertion
+    failures; for example `bits: true` read as 1 and `wide: 1` read as `true` and produced an ISCC).
+    After the change: `swift test` (Linux recipe) ran 30 tests with 0 failures (19 conformance and
+    11 data-edge)
+- `grep -n 'as? Int\b\|as? Bool\|(actual as? String) ==' …/DataEdgeTests.swift` prints nothing (exit
+    1\)
+- `uv run pytest tests/test_data_edge.py`: 88 passed. With `matches` reverted by hand to bare `==` /
+    `.get`, all 3 new negatives failed and the positive passed; the file was restored and gives 88
+    passed again
+- `mise run check` exits 0; `prek run --hook-stage pre-push --files <both files>` exits 0
+- **Not verified:** Darwin Foundation. The mechanism relies only on documented `JSONSerialization`
+    writing (CFBoolean → `true`/`false`) and on the `isValidJSONObject` guard, but the macOS proof
+    comes from CI's `swift` job (`macos-15`) after the push
 
-**Issues found:**
-
-- (none). Resolved and deleted: "`crates/iscc-ffi/src/lib.rs` is past the crate's own split
-    threshold"
-
-**Codex review:** No findings. It confirmed all 99 tests moved without behaviour change and that the
-regenerated C and C# bindings are unchanged.
-
-**Next:** The `[human]`-sourced `normal` issue "`data-edge.json` harnesses accept a value that only
-resembles the expected one": make the Swift compare match strings by Unicode scalars and reject
-Boolean-backed numbers, and make the Python harness tell `0` from `False`. It needs a Swift
-toolchain run and touches two test harnesses. After that, the derived-facts parity check (the other
-open `normal` issue).
+**Next:** The derived-facts parity check, the other open `normal` issue.
 
 **Notes:**
 
-- No quality-gate change in the unpushed range: no suppression, skipped test or loosened hook. No
-    public API, core Rust or benchmarked path changed, so semver, CRAP and iai were not run
-- cbindgen does not rewrite an unchanged output file, so a file timestamp says nothing about whether
-    it ran. Compare against a temp-file run instead. `cargo build -p iscc-ffi` reruns `build.rs`
-    only when cargo sees the package as changed; `cargo clean -p iscc-ffi` first forces it
-- No learnings or decisions entry this round: `learnings.md` is at its 200-line budget and nothing
-    here outranks an existing entry
+- `packages/swift/CLAUDE.md` line "typed casts, no `Any` equality" (Edge-case vectors section) is
+    now slightly stale. The compare now goes through `scalar` and Unicode scalars. It is out of
+    scope here and needs a one-line doc touch-up later
+- `arg<T>` is now used only for `String` and `[String]`. Those casts are strict: an `NSNumber` never
+    casts to `String`
+- An integral JSON float (`64.0`) may re-serialise as `64` and read as an integer on some
+    Foundations. No vector uses floats; Python would reject it differently. Edge case, not addressed
+- No core, binding or bench code changed, so CRAP, iai and semver were not run

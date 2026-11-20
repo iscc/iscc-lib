@@ -180,6 +180,29 @@ def outcome(module, section, inputs):
     return "output", convert(result)
 
 
+def same(expected, actual):
+    """Return True if two fixture values are equal; a bool never equals a non-bool.
+
+    Plain `==` lets `0 == False` and `1 == True`, so lists and dicts are compared
+    element by element. Subclasses still match (an `int` subclass equals an `int`).
+    """
+    if isinstance(expected, bool) != isinstance(actual, bool):
+        return False
+    if isinstance(expected, list):
+        return (
+            isinstance(actual, list)
+            and len(actual) == len(expected)
+            and all(same(e, a) for e, a in zip(expected, actual))
+        )
+    if isinstance(expected, dict):
+        return (
+            isinstance(actual, dict)
+            and actual.keys() == expected.keys()
+            and all(same(v, actual[k]) for k, v in expected.items())
+        )
+    return expected == actual
+
+
 def matches(vector, result):
     """Return True if an outcome equals the vector's stated outcome."""
     kind, value = result
@@ -189,8 +212,8 @@ def matches(vector, result):
         return False
     expected = vector["outputs"]
     if isinstance(expected, dict):
-        return all(value.get(k) == v for k, v in expected.items())
-    return value == expected
+        return all(k in value and same(v, value[k]) for k, v in expected.items())
+    return same(expected, value)
 
 
 def all_vectors():
@@ -315,3 +338,23 @@ def test_validate_vector_rejects_malformed(name, vector, problem):
     """Each malformed vector shape is reported."""
     problems = validate_vector(name, vector)
     assert any(problem in p for p in problems), problems
+
+
+@pytest.mark.parametrize(
+    ("expected", "actual"),
+    [
+        pytest.param([3, 0, 0, 0, "x"], [3, False, 0, 0, "x"], id="false_for_zero"),
+        pytest.param(True, 1, id="one_for_true"),
+        pytest.param({"characters": False}, {"characters": 0}, id="zero_for_false"),
+    ],
+)
+def test_matches_rejects_bool_number_lookalike(expected, actual):
+    """A Boolean never matches a number, in either direction, at any depth."""
+    assert not matches({"outputs": expected}, ("output", actual))
+
+
+def test_matches_accepts_equal_nested_list():
+    """A nested list with equal values of the same kinds matches."""
+    expected = {"parts": ["a", "b"], "flag": True, "n": [1, [2, 3]]}
+    actual = {"parts": ["a", "b"], "flag": True, "n": [1, [2, 3]], "extra": 0}
+    assert matches({"outputs": expected}, ("output", actual))

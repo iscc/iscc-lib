@@ -37,9 +37,57 @@ enum DataEdge {
         return value
     }
 
+    /// The JSON kind and value of a Boolean or integer scalar.
+    enum Scalar: Equatable {
+        case bool(Bool)
+        case int(Int)
+    }
+
+    /// Classify a Boolean or integer value by its JSON text, or nil for anything else.
+    ///
+    /// `JSONSerialization` loads both JSON kinds as `NSNumber`, and a conditional cast to `Int`
+    /// accepts `false` while a cast to `Bool` accepts `0`/`1` (probed on corelibs; Darwin is the
+    /// same). Re-serialising the value, wrapped in an array, writes `true`/`false` only for a
+    /// Boolean, parsed or native Swift alike. The validity guard comes first because Darwin raises
+    /// an uncatchable exception on an invalid object. Every scalar read in this harness goes
+    /// through here.
+    static func scalar(_ value: Any) -> Scalar? {
+        guard JSONSerialization.isValidJSONObject([value]),
+              let data = try? JSONSerialization.data(withJSONObject: [value]),
+              let text = String(data: data, encoding: .utf8),
+              text.hasPrefix("["), text.hasSuffix("]") else { return nil }
+        let body = String(text.dropFirst().dropLast())
+        switch body {
+        case "true": return .bool(true)
+        case "false": return .bool(false)
+        default:
+            let digits = body.hasPrefix("-") ? String(body.dropFirst()) : body
+            guard !digits.isEmpty, digits.allSatisfy({ ("0"..."9").contains($0) }) else { return nil }
+            return Int(body).map(Scalar.int)
+        }
+    }
+
+    /// Read the input at `index` as a JSON integer, or throw a harness error.
+    static func intArg(_ inputs: [Any], _ index: Int) throws -> Int {
+        guard index < inputs.count else { throw EdgeHarnessError(description: "input \(index) is missing") }
+        guard case .int(let value) = scalar(inputs[index]) else {
+            throw EdgeHarnessError(description: "input \(index) is not a JSON integer")
+        }
+        return value
+    }
+
+    /// Read the input at `index` as a JSON Boolean, or throw a harness error.
+    static func boolArg(_ inputs: [Any], _ index: Int) throws -> Bool {
+        guard index < inputs.count else { throw EdgeHarnessError(description: "input \(index) is missing") }
+        guard case .bool(let value) = scalar(inputs[index]) else {
+            throw EdgeHarnessError(description: "input \(index) is not a JSON Boolean")
+        }
+        return value
+    }
+
     /// Read the input at `index` as a `UInt32` bit length.
     static func bits(_ inputs: [Any], _ index: Int) throws -> UInt32 {
-        let value = try arg(inputs, index, as: Int.self)
+        let value = try intArg(inputs, index)
         guard let bits = UInt32(exactly: value) else {
             throw EdgeHarnessError(description: "input \(index) is not a UInt32")
         }
@@ -135,7 +183,7 @@ enum DataEdge {
     /// Prepare `genIsccCodeV0` (the optional second input is `wide`).
     static func prepareIsccCode(_ inputs: [Any]) throws -> () throws -> Any {
         let codes = try arg(inputs, 0, as: [String].self)
-        let wide = inputs.count > 1 ? try arg(inputs, 1, as: Bool.self) : false
+        let wide = inputs.count > 1 ? try boolArg(inputs, 1) : false
         return { try genIsccCodeV0(codes: codes, wide: wide) }
     }
 
@@ -167,10 +215,18 @@ enum DataEdge {
         return doc
     }
 
-    /// Compare an expected fixture value with an actual one through typed casts; nil means equal.
+    /// Compare an expected fixture value with an actual one; nil means equal.
+    ///
+    /// Strings compare by Unicode scalars (`String ==` is canonical equivalence, so `K` would
+    /// equal U+212A KELVIN SIGN). Booleans and integers compare by `scalar`, so a Boolean never
+    /// equals a number, in either direction.
     static func compareValue(_ expected: Any, _ actual: Any) -> String? {
         if let want = expected as? String {
-            return (actual as? String) == want ? nil : "expected \(want), got \(actual)"
+            guard let got = actual as? String,
+                  Array(got.unicodeScalars) == Array(want.unicodeScalars) else {
+                return "expected \(want), got \(actual)"
+            }
+            return nil
         }
         if let want = expected as? [Any] {
             guard let got = actual as? [Any], got.count == want.count else {
@@ -178,10 +234,18 @@ enum DataEdge {
             }
             return zip(want, got).lazy.compactMap { compareValue($0, $1) }.first
         }
-        if let want = expected as? Int {
-            return (actual as? Int) == want ? nil : "expected \(want), got \(actual)"
+        if let want = scalar(expected) {
+            return scalar(actual) == want ? nil : "expected \(describe(want)), got \(actual)"
         }
         return "unsupported expected value \(expected)"
+    }
+
+    /// Render a scalar as its JSON text.
+    static func describe(_ value: Scalar) -> String {
+        switch value {
+        case .bool(let flag): return String(flag)
+        case .int(let number): return String(number)
+        }
     }
 
     /// Compare a vector's `outputs` with the converted result; every expected key must be present.
@@ -248,6 +312,12 @@ enum DataEdge {
         }
         return failures
     }
+}
+
+/// Parse a synthetic document from JSON text, so scalars are the values a real load produces.
+func parsedDoc(_ text: String) -> [String: Any] {
+    let object = try? JSONSerialization.jsonObject(with: Data(text.utf8))
+    return object as? [String: Any] ?? ["parse failure": text]
 }
 
 final class DataEdgeTests: XCTestCase {
@@ -337,5 +407,66 @@ final class DataEdgeTests: XCTestCase {
         XCTAssertTrue(
             failures.first?.hasPrefix("iscc_decode/test_0001_error: expected an error") ?? false, "\(failures)"
         )
+    }
+
+    func testDataEdgeFailsLookAlikeString() {
+        // U+212A KELVIN SIGN in place of `K` is canonically equivalent but not the same scalars.
+        let doc = parsedDoc(#"""
+            {"gen_text_code_v0": {"test_0001_x": {
+                "inputs": ["Hello\u0000World", 64],
+                "outputs": {"iscc": "ISCC:EAAS\u212aDNZNYGUUF5A"}, "note": "n"}}}
+            """#)
+        let failures = DataEdge.checkDoc(doc)
+
+        XCTAssertEqual(failures.count, 1, "\(failures)")
+        XCTAssertTrue(failures.first?.contains("field iscc: expected ISCC:EAAS") ?? false, "\(failures)")
+    }
+
+    func testDataEdgeFailsBooleanForNumber() {
+        let doc = parsedDoc(#"""
+            {"iscc_decode": {"test_0001_x": {
+                "inputs": ["ISCC:GAAAAAAAAA"], "outputs": [3, false, 0, 0, "bytes:00000000"], "note": "n"}}}
+            """#)
+        let failures = DataEdge.checkDoc(doc)
+
+        XCTAssertEqual(failures.count, 1, "\(failures)")
+        XCTAssertTrue(failures.first?.contains("iscc_decode/test_0001_x: expected false, got 0") ?? false, "\(failures)")
+    }
+
+    func testDataEdgeFailsBooleanBitsInput() {
+        let doc = parsedDoc(#"""
+            {"gen_text_code_v0": {"test_0001_x": {
+                "inputs": ["Hello\u0000World", true],
+                "outputs": {"iscc": "ISCC:EAASKDNZNYGUUF5A"}, "note": "n"}}}
+            """#)
+        let failures = DataEdge.checkDoc(doc)
+
+        XCTAssertEqual(failures.count, 1, "\(failures)")
+        XCTAssertTrue(failures.first?.hasPrefix("gen_text_code_v0/test_0001_x: harness:") ?? false, "\(failures)")
+    }
+
+    func testDataEdgeFailsNumberWideInput() {
+        // `wide` is a Boolean input; the JSON number 1 must not read as `true`.
+        let doc = parsedDoc(#"""
+            {"gen_iscc_code_v0": {"test_0001_x": {
+                "inputs": [["GABVVC5DMJJGYKZ4ZBYVNYABFFYXG",
+                            "IADWIK7A7JTUAQ2D6QARX7OBEIK3OOUAM42LOBLCZ4ZOGDLRHMDL6TQ"], 1],
+                "error": "e", "note": "n"}}}
+            """#)
+        let failures = DataEdge.checkDoc(doc)
+
+        XCTAssertEqual(failures.count, 1, "\(failures)")
+        XCTAssertTrue(failures.first?.hasPrefix("gen_iscc_code_v0/test_0001_x: harness:") ?? false, "\(failures)")
+    }
+
+    func testCompareValueBooleanIsExact() {
+        let parsed = parsedDoc(#"{"t": true, "one": 1}"#)
+        let jsonTrue = parsed["t"] ?? "missing"
+        let jsonOne = parsed["one"] ?? "missing"
+
+        XCTAssertNil(DataEdge.compareValue(jsonTrue, true))
+        XCTAssertNotNil(DataEdge.compareValue(jsonTrue, 1))
+        XCTAssertNotNil(DataEdge.compareValue(jsonOne, true))
+        XCTAssertNil(DataEdge.compareValue(jsonOne, 1))
     }
 }

@@ -35,6 +35,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     the copy a harness reads
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
+- Swift scalars (232): corelibs AND Darwin `NSNumber` casts are loose (`false as? Int`=0,
+    `0 as? Bool` =false). Data-edge harness classifies via `DataEdge.scalar` (re-serialise `[v]`
+    after `isValidJSONObject`); synthetic Swift docs → `parsedDoc(#"json"#)`, never literals
 - C FFI docs (221): C type names `iscc_`-prefixed, gated by `tests/test_c_ffi_docs.py`
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
