@@ -1,0 +1,243 @@
+"""Tests for the spec path-existence gate in ``scripts/check_spec_paths.py``.
+
+The anchor test runs the check against the real specs and the real ``git ls-files``
+set and asserts zero errors — this carries the gate into CI (CI runs pytest, never
+prek) and catches deletions the ``files:``-scoped hook never sees. The mutation
+tests write a spec into ``tmp_path`` and inject a known-path set, one bad case per
+call. A real-regression test replays the Go structure tree the specs carried before
+the check existed and asserts exactly its 11 phantom files light up.
+"""
+
+import importlib.util
+from pathlib import Path
+
+# Load scripts/check_spec_paths.py by path — it is a repo gate script, not a package.
+_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "check_spec_paths.py"
+_spec = importlib.util.spec_from_file_location("check_spec_paths", _SCRIPT_PATH)
+assert _spec is not None
+_loader = _spec.loader
+assert _loader is not None
+csp = importlib.util.module_from_spec(_spec)
+_loader.exec_module(csp)
+
+FENCE = "```"
+
+# The Go "Package Structure" tree as committed before this gate (go-bindings.md).
+OLD_GO_TREE = """```
+packages/go/
+├── go.mod                  # Module: github.com/iscc/iscc-lib/packages/go
+├── go.sum
+├── iscc.go                 # Main API (gen_*_v0 functions)
+├── iscc_test.go            # Conformance tests against data.json
+├── codec.go                # Header encode/decode, base32, component encoding
+├── codec_test.go
+├── text.go                 # Unicode normalization, cleaning, trimming, collapsing
+├── text_test.go
+├── algorithms.go           # CDC, MinHash, SimHash, sliding window
+├── algorithms_test.go
+├── dct.go                  # Nayuki fast recursive DCT
+├── dct_test.go
+├── wta.go                  # WTA-Hash (video fingerprinting)
+├── wta_test.go
+├── hasher.go               # DataHasher, InstanceHasher streaming types
+├── hasher_test.go
+├── constants.go            # Algorithm constants (META_TRIM_*, IO_READ_SIZE, etc.)
+├── testdata/
+│   └── data.json           # Vendored conformance vectors
+└── README.md               # Per-package README
+```
+"""
+
+OLD_GO_PHANTOMS = [
+    "iscc.go",
+    "iscc_test.go",
+    "text.go",
+    "text_test.go",
+    "algorithms.go",
+    "algorithms_test.go",
+    "wta.go",
+    "wta_test.go",
+    "hasher.go",
+    "hasher_test.go",
+    "constants.go",
+]
+
+
+def _known(*paths):
+    """Return the known-path set for `paths`: each path plus all its ancestors."""
+    known = set()
+    for path in paths:
+        parts = path.split("/")
+        known.update("/".join(parts[:i]) for i in range(1, len(parts) + 1))
+    return known
+
+
+KNOWN = _known(
+    "packages/demo/go.mod",
+    "packages/demo/gradle/wrapper/gradle-wrapper.properties",
+    "packages/demo/testdata/data.json",
+    "packages/demo/code_meta.go",
+    "scripts/tool.py",
+)
+
+# A consistent tree: nesting, a multi-segment name, a glob entry, a GENERATED child.
+GOOD_TREE = f"""{FENCE}
+packages/demo/
+├── go.mod                  # module file
+├── code_*.go               # glob entry
+├── gradle/wrapper/         # multi-segment name
+├── testdata/
+│   └── data.json
+└── back/
+{FENCE}
+
+{FENCE}
+crates/iscc-wasm/
+└── pkg/
+    └── iscc_wasm.js        # generated, untracked
+{FENCE}
+"""
+
+GOOD_PROSE = "Run `scripts/tool.py:12` on `packages/demo/` per `packages/go/vX.Y.Z`.\n"
+
+
+def _spec_file(tmp_path, text):
+    """Write `text` as a spec markdown file in tmp_path and return its path."""
+    spec = tmp_path / "demo.md"
+    spec.write_text(text, encoding="utf-8")
+    return spec
+
+
+def _errors(tmp_path, text, known=None):
+    """Run the checks on a single spec holding `text`; return the error list."""
+    known = (KNOWN | _known("packages/demo/back/x")) if known is None else known
+    return csp.run_checks([_spec_file(tmp_path, text)], known)
+
+
+def test_real_repo_passes():
+    # The gate passes on the repository as committed, with non-trivial counts,
+    # and main() (the prek hook entry point) exits 0.
+    known = csp.tracked_paths(csp.ROOT)
+    specs = sorted(csp.SPEC_DIR.glob("*.md"))
+    totals = [sum(csp.check_spec(s, known)[1][i] for s in specs) for i in range(3)]
+    assert all(total > 0 for total in totals)
+    assert csp.run_checks(specs, known) == []
+    assert csp.main() == 0
+
+
+def test_tracked_paths_include_ancestors_not_build_output():
+    # Directories count as known through their tracked children; untracked build
+    # output never does, even where it exists on a local disk.
+    known = csp.tracked_paths(csp.ROOT)
+    assert {"crates", "crates/iscc-lib", "crates/iscc-lib/Cargo.toml"} <= known
+    assert "crates/iscc-napi/index.js" not in known
+
+
+def test_fixture_spec_passes(tmp_path):
+    # Nested entries, a multi-segment name, a glob, a GENERATED child, a `:line`
+    # suffix, a trailing slash and a NOT_PATHS string all resolve.
+    assert _errors(tmp_path, GOOD_TREE + GOOD_PROSE) == []
+
+
+def test_tree_entries_resolve_against_root_and_depth():
+    # The stack resolves each entry to root + its ancestors at shallower depths.
+    roots, entries = csp.tree_entries(GOOD_TREE)
+    assert roots == 2
+    assert [path for _, path in entries] == [
+        "packages/demo/go.mod",
+        "packages/demo/code_*.go",
+        "packages/demo/gradle/wrapper",
+        "packages/demo/testdata",
+        "packages/demo/testdata/data.json",
+        "packages/demo/back",
+        "crates/iscc-wasm/pkg",
+        "crates/iscc-wasm/pkg/iscc_wasm.js",
+    ]
+
+
+def test_phantom_tree_entry_fires(tmp_path):
+    tree = GOOD_TREE.replace("├── go.mod ", "├── ghost.go ")
+    assert _errors(tmp_path, tree + GOOD_PROSE) == [
+        "demo.md:3: tree entry `packages/demo/ghost.go` is not tracked"
+    ]
+
+
+def test_phantom_nested_tree_entry_fires(tmp_path):
+    tree = GOOD_TREE.replace("└── data.json", "└── ghost.json")
+    assert _errors(tmp_path, tree + GOOD_PROSE) == [
+        "demo.md:7: tree entry `packages/demo/testdata/ghost.json` is not tracked"
+    ]
+
+
+def test_phantom_backticked_path_fires(tmp_path):
+    prose = GOOD_PROSE + "See `crates/ghost/lib.rs`.\n"
+    assert _errors(tmp_path, GOOD_TREE + prose) == [
+        "demo.md:17: backticked `crates/ghost/lib.rs` is not tracked"
+    ]
+
+
+def test_non_matching_glob_fires(tmp_path):
+    prose = GOOD_PROSE + "Every `packages/demo/*.rs` file.\n"
+    assert _errors(tmp_path, GOOD_TREE + prose) == [
+        "demo.md:17: backticked `packages/demo/*.rs` is not tracked"
+    ]
+
+
+def test_entry_without_root_fires(tmp_path):
+    # The root resets at each fence, so an entry in a later fence with no root
+    # line of its own is an error rather than a child of the previous root.
+    orphan = f"{FENCE}\n├── go.mod\n{FENCE}\n"
+    assert _errors(tmp_path, GOOD_TREE + orphan + GOOD_PROSE) == [
+        "demo.md:17: tree entry with no root line"
+    ]
+
+
+def test_generated_prefix_needs_exact_segment(tmp_path):
+    # `pkg` exempts `pkg/…` but not a sibling that merely shares the prefix.
+    tree = GOOD_TREE.replace("└── pkg/", "└── pkgx/")
+    assert _errors(tmp_path, tree + GOOD_PROSE) == [
+        "demo.md:13: tree entry `crates/iscc-wasm/pkgx` is not tracked",
+        "demo.md:14: tree entry `crates/iscc-wasm/pkgx/iscc_wasm.js` is not tracked",
+    ]
+
+
+def test_floor_zero_roots(tmp_path):
+    # Entries but no root line anywhere: the orphan error plus the root floor.
+    assert _errors(tmp_path, f"{FENCE}\n├── go.mod\n{FENCE}\n" + GOOD_PROSE) == [
+        "demo.md:2: tree entry with no root line",
+        "floor: zero tree root lines found — parse failure or moved specs?",
+    ]
+
+
+def test_floor_zero_entries(tmp_path):
+    assert _errors(tmp_path, f"{FENCE}\npackages/demo/\n{FENCE}\n" + GOOD_PROSE) == [
+        "floor: zero tree entries found — parse failure or moved specs?"
+    ]
+
+
+def test_floor_zero_backticked_paths(tmp_path):
+    assert _errors(tmp_path, GOOD_TREE) == [
+        "floor: zero backticked paths found — parse failure or moved specs?"
+    ]
+
+
+def test_old_go_tree_reports_its_eleven_phantoms(tmp_path):
+    # Real regression: the pre-gate Go tree, resolved against the real tracked
+    # set, reports exactly the 11 files packages/go never had.
+    spec = _spec_file(tmp_path, OLD_GO_TREE)
+    errors, counts = csp.check_spec(spec, csp.tracked_paths(csp.ROOT))
+    assert counts == (1, 20, 0)
+    phantoms = [e.split("`")[1].removeprefix("packages/go/") for e in errors]
+    assert phantoms == OLD_GO_PHANTOMS
+
+
+def test_main_exits_nonzero_on_phantom(tmp_path, monkeypatch, capsys):
+    # main() (the prek hook entry point) returns 1 and prints the phantom.
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    (spec_dir / "go.md").write_text(OLD_GO_TREE + GOOD_PROSE, encoding="utf-8")
+    monkeypatch.setattr(csp, "SPEC_DIR", spec_dir)
+    assert csp.main() == 1
+    assert "go.md:5: tree entry `packages/go/iscc.go` is not tracked" in (
+        capsys.readouterr().out
+    )

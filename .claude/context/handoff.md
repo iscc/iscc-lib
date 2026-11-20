@@ -1,53 +1,71 @@
-## 2026-11-20 — Review of: Binding specs stop naming repository paths that do not exist
+## 2026-11-20 — A spec path check covers structure trees and backticked paths; phantom tree entries go
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Added `scripts/check_spec_paths.py`. It resolves every fenced structure-tree entry and
+every backticked `(crates|packages|scripts|docs|tests)/…` path in `.claude/context/specs/*.md`
+against `git ls-files` plus ancestor directories. It has the `GENERATED`/`NOT_PATHS` exemption
+dicts, a no-root error and three zero-count floors. Removed all 29 phantoms the first run reported
+(cpp 6, dotnet 6, go 11, nodejs 2, ruby 4) and realigned the prose blocks that named the same paths.
+Wired a prek hook next to `check-ci-job-table`.
 
-**Summary:** advance removed all five prescribed phantom paths from the wasm, go and nodejs specs.
-It also removed a sixth (the napi `npm/*/package.json` row), which the check's regex could not see.
-Every new sentence matches its source: release.yml lines 428-439, `crates/iscc-wasm/Cargo.toml`,
-ci-cd.md "Automatic propagation", target.md's `packages/go/vX.Y.Z` tag form. The `normal` wasm issue
-is resolved and deleted. The non-backticked structure trees in the same specs still name files that
-do not exist. next.md did not cover them, so they are filed as a new `normal` issue.
+**Files changed:**
+
+- `scripts/check_spec_paths.py` (new): the gate. Same pattern as `check_ci_job_table.py`
+    (`run_checks` → error list, `main`). git is resolved with `shutil.which`, so the only
+    suppression is `# noqa: S603`, with a reason comment (S607 is avoided, not suppressed)
+- `tests/test_check_spec_paths.py` (new, 15 tests): real-repo anchor; ancestors in, untracked
+    `index.js` out; fixture pass (nesting, multi-segment name, glob, GENERATED child, `:12` suffix,
+    trailing `/`, NOT_PATHS); depth resolution; phantom top-level entry; phantom nested entry;
+    phantom backtick; non-matching glob; orphan entry in a later fence; `pkgx` does not ride the
+    `pkg` prefix; each floor on its own (zero roots pins orphan + floor); the old Go tree reports
+    exactly its 11 phantoms; `main()` returns 1. Every assert compares an exact error list
+- `.pre-commit-config.yaml`: hook `check-spec-paths`, `entry: uv run scripts/check_spec_paths.py`,
+    `files: ^(\.claude/context/specs/.*\.md|scripts/check_spec_paths\.py)$`
+- `go-bindings.md`: tree cut to its load-bearing entries (`go.mod`, `go.sum`, a `code_*.go` glob,
+    `codec.go`, `testdata/data.json`, `README.md`), plus one sentence on the one-file-per-algorithm
+    layout
+- `cpp-bindings.md`: tree matches the tracked files (`iscc.hpp` only, `tests/test_iscc.cpp`, no
+    cmake.in, pkg-config or vendored data.json). The `### pkg-config` section now says no `.pc` file
+    ships and gives the plain include/link recipe. The CI Integration snippet now mirrors ci.yml's
+    `cpp` job (`packages/cpp`, `-DFFI_LIB_DIR`, `./build/tests/test_iscc`)
+- `dotnet-bindings.md`: `NativeMethods.g.cs` sits directly in `Iscc.Lib/`. Removed `Native/`,
+    `SafeHandles.cs`, `Iscc.Lib/README.md`, `Directory.Build.props` and `generate-bindings.sh`. The
+    "Binding Regeneration" CLI block is now prose: `crates/iscc-ffi/build.rs` runs csbindgen
+    (namespace `Iscc.Lib`, verified in build.rs:4-9); commit the result with `iscc.h`; the
+    SafeHandles are private nested classes (`IsccDataHasher.cs:66`, `IsccInstanceHasher.cs:66`)
+- `ruby-bindings.md`: crate-root `extconf.rb`, `lib/iscc_lib.rb`. The gemspec snippet now has
+    `spec.extensions = ["extconf.rb"]`, matching `iscc-lib.gemspec:33`
+- `nodejs-bindings.md`: `test/` → `__tests__/`; comment "Mocha" → "node:test" (`package.json` test
+    script is `node --test __tests__/*.test.mjs`)
+- `kotlin-bindings.md`: `gradlew / gradlew.bat` split into two lines (both tracked)
 
 **Verification:**
 
-- [x] No `^├── package\.json` in wasm-bindings.md; `grep -c 'package.json'` = 2 (the `pkg/` child
-    survives)
-- [x] The four-path grep over `.claude/context/specs/` prints nothing
-- [x] `grep -n 'go/vX' go-bindings.md | grep -v 'packages/go/vX'` prints nothing
-- [x] Existence loop prints exactly `packages/go/vX.Y.Z` and `scripts/gen_ffi_boundary_vectors.py`
-- [x] `mise run check` exits 0
-- [x] Probes: no `crates/iscc-napi/npm/` dir, and `TARGETS` has one napi entry, so the napi row
-    removal holds. release.yml:115 tags `packages/go/v…`. Every backticked `*` glob in the specs
-    matches files
+- `uv run scripts/check_spec_paths.py` →
+    `OK: every tree entry and backticked path in 15 specs resolves.` (exit 0). Totals: 126 tree
+    entries, which equals `grep -c '├──\|└──'` across the specs, so no connector line is silently
+    skipped. 10 tree root lines, 145 backticked paths
+- `uv run pytest tests/test_check_spec_paths.py` → 15 passed
+- Throwaway copy (`git ls-files -co --exclude-standard | tar …`, `git init && git add -A`): base
+    exit 0; `├── ghost.go` added to the Go tree → exit 1 (`go-bindings.md:34 … ghost.go`);
+    `git rm packages/cpp/tests/test_iscc.cpp` → exit 1 (`cpp-bindings.md:35`)
+- `mise run check` → exit 0 (log shows `Spec path existence … Passed`)
+- `uv run prek run --hook-stage pre-push --files <both py files>` → exit 0 (ruff S, C901, ty,
+    pytest, clippy, cargo test). The first run failed on S607; fixed with `shutil.which`
 
-**Issues found:**
+**Next:** the `[human]` derived-facts issue still has two parts: the Tier 1 parity check (probe
+which pages enumerate Tier 1 first) and the file lists in per-crate `CLAUDE.md` files. The second
+part could reuse `tracked_paths`/`tree_entries` from this script with a wider glob.
 
-- **Filed `normal` \[review\]: "Binding spec structure trees list files that do not exist".** The Go
-    Package Structure tree names 11 files `packages/go` never had (`iscc.go`, `text.go`,
-    `algorithms.go`, `wta.go`, `hasher.go`, their tests, `constants.go`). The napi tree names
-    `test/conformance.test.mjs`, but the tests live in `__tests__/`. This is the same defect as the
-    removed wasm tree line, and it is a leftover next.md missed. Trees in the other specs were not
-    probed
-- **Step-9 fix:** cut advance's "(no in-repo package-version string)" from the go Verification
-    Criteria bullet. It turned a description into a prohibition that no spec states
-- **Acceptance-criteria edits confirmed:** the wasm and go "Version synced … via
-    `mise run version:sync`" bullets now name the real mechanism, matching ci-cd.md. Recorded in
-    decisions.md 2026-11-20 ("A spec criterion naming a mechanism that does not exist is realigned,
-    not escalated")
+**Notes:**
 
-**Codex review:** no actionable findings. It confirmed the WASM metadata path, the
-`packages/go/vX.Y.Z` tag form, the single napi manifest, and that the removed API pages do not
-exist.
-
-**Next:** two `normal` spec-hygiene items are now open, and one check can serve both. That check
-fails when a spec names a repository path that does not exist: backticked paths, `*` globs
-(`compgen -G`), and structure-tree lines resolved against their root dir, with generated entries
-(`pkg/`, napi `index.js`/`index.d.ts`) allowlisted. It would resolve the new tree issue and cover
-the file-list bullet of the `[human]` derived-facts issue. Scope it by first probing the trees in
-every spec. Cutting a tree down to its few load-bearing entries is a valid fix where a check would
-pin incidental layout. The Tier 1 parity half of the derived-facts issue still needs its own scoping
-pass. The other open `normal` item is the Dependabot entry, which needs Titusz for `soupsieve`.
-
-**Notes:** the larger-step trial (issues.md, evaluate after iteration 224) has one iteration left.
-This one ends PASS_WITH_NOTES.
+- **Unmet criterion, not drift (flag for review):** cpp-bindings.md Verification Criteria says
+    "CMake `find_package(iscc)` works". `packages/cpp/CMakeLists.txt` has no `install`/`export` and
+    no config template, so only `add_subdirectory` works. The `### CMake` snippet and the criterion
+    are untouched, because next.md authorised realigning only the pkg-config section
+- nodejs-bindings.md:168 criterion "135 mocha tests" is a count plus a stale runner name. Left
+    alone, because tree-comment counts are out of scope per next.md
+- Realigned prose beyond the trees, per next.md: cpp pkg-config, dotnet csbindgen block, ruby
+    gemspec line. The cpp CI snippet was extra: it named `test_conformance`, which the tree fix had
+    just renamed, so leaving it would have contradicted the tree in the same file
+- The check counts a bare `gradlew / gradlew.bat` line by its first token, so prose split like that
+    passes. Only the first token of an entry is checked

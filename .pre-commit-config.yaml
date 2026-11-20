@@ -95,6 +95,17 @@ repos:
         files: ^(\.github/workflows/ci\.yml|\.claude/context/specs/ci-cd\.md)$
         stages: [pre-commit]
         pass_filenames: false
+      # Every structure-tree entry and backticked repository path in the specs
+      # must name a tracked path. Deleting or renaming a named file elsewhere
+      # does not trigger this hook — the tests/test_check_spec_paths.py anchor
+      # test catches that at pre-push and in CI.
+      - id: check-spec-paths
+        name: Spec path existence
+        entry: uv run scripts/check_spec_paths.py
+        language: system
+        files: ^(\.claude/context/specs/.*\.md|scripts/check_spec_paths\.py)$
+        stages: [pre-commit]
+        pass_filenames: false
       - id: standardrb-fix
         name: Ruby linting (fix)
         entry: bash -c 'export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH" &&

@@ -28,13 +28,11 @@ crates/iscc-rb/
 ├── Cargo.toml              # cdylib, depends on iscc-lib + magnus
 ├── src/
 │   └── lib.rs              # Magnus bridge (~400-500 lines)
-├── ext/
-│   └── iscc_lib/
-│       └── extconf.rb      # rb_sys extension config
+├── extconf.rb              # rb_sys extension config
 ├── lib/
+│   ├── iscc_lib.rb         # Pure Ruby wrapper with result classes
 │   └── iscc_lib/
-│       ├── version.rb      # VERSION constant (synced from Cargo.toml)
-│       └── iscc_lib.rb     # Pure Ruby wrapper with result classes
+│       └── version.rb      # VERSION constant (synced from Cargo.toml)
 ├── iscc-lib.gemspec        # Gem specification
 ├── Gemfile                 # Development dependencies
 ├── Rakefile                # rb_sys build tasks
@@ -183,7 +181,7 @@ Gem::Specification.new do |spec|
   spec.metadata["source_code_uri"] = "https://github.com/iscc/iscc-lib"
   spec.metadata["documentation_uri"] = "https://lib.iscc.codes"
 
-  spec.extensions = ["ext/iscc_lib/extconf.rb"]
+  spec.extensions = ["extconf.rb"]
 end
 ```
 

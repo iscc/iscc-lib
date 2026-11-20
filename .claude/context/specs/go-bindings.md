@@ -30,25 +30,15 @@ is a native Go implementation — not an FFI wrapper, CGO bridge, or WASM embed.
 packages/go/
 ├── go.mod                  # Module: github.com/iscc/iscc-lib/packages/go
 ├── go.sum
-├── iscc.go                 # Main API (gen_*_v0 functions)
-├── iscc_test.go            # Conformance tests against data.json
+├── code_*.go               # One file per code type (gen_*_v0 functions)
 ├── codec.go                # Header encode/decode, base32, component encoding
-├── codec_test.go
-├── text.go                 # Unicode normalization, cleaning, trimming, collapsing
-├── text_test.go
-├── algorithms.go           # CDC, MinHash, SimHash, sliding window
-├── algorithms_test.go
-├── dct.go                  # Nayuki fast recursive DCT
-├── dct_test.go
-├── wta.go                  # WTA-Hash (video fingerprinting)
-├── wta_test.go
-├── hasher.go               # DataHasher, InstanceHasher streaming types
-├── hasher_test.go
-├── constants.go            # Algorithm constants (META_TRIM_*, IO_READ_SIZE, etc.)
 ├── testdata/
 │   └── data.json           # Vendored conformance vectors
 └── README.md               # Per-package README
 ```
+
+Algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash, xxh32) and utilities live in one `.go` file each,
+next to a `_test.go` file. The tree lists the load-bearing entries, not every file.
 
 ## Public API Surface
 

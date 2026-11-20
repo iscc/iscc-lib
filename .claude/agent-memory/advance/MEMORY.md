@@ -114,8 +114,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     enforced by `scripts/check_docs_nav.py` (prek `check-docs-nav` + pytest anchor; disk set is the
     reference, `includes/` allowlisted; nav parse is comment-aware `strip_toml_comments` — naive
     `#.*$` breaks on `"C# / .NET"`; prek `files:` misses `git rm`)
-- Spec phantom-path probe (223): loop over backticked `(crates|packages|scripts|docs|tests)/…` paths
-    in `specs/*.md`, `[ -e ]` each; regex skips `*` globs, so grep globs by hand
+- Spec path gate (224): `scripts/check_spec_paths.py` (prek `check-spec-paths` + pytest anchor)
+    resolves spec tree entries + backticked paths vs `git ls-files`; build/release output →
+    `GENERATED`, non-paths → `NOT_PATHS` dicts. Fix a phantom by editing the spec, never by adding a
+    file. ruff S607 on `["git", …]`: use `shutil.which("git")` instead of a noqa
 
 ## Feature Flags
 

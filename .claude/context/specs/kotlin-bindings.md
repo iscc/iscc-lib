@@ -44,7 +44,8 @@ packages/kotlin/
 ├── build.gradle.kts                    # Kotlin/JVM project config
 ├── settings.gradle.kts
 ├── gradle.properties                   # Version property (synced by version_sync.py)
-├── gradlew / gradlew.bat              # Gradle wrapper scripts
+├── gradlew                            # Gradle wrapper script (POSIX)
+├── gradlew.bat                        # Gradle wrapper script (Windows)
 ├── gradle/wrapper/                    # Gradle wrapper JAR + properties
 ├── src/
 │   ├── main/kotlin/uniffi/iscc_uniffi/

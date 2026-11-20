@@ -26,19 +26,14 @@ management, `std::string` / `std::vector<uint8_t>` types, and CMake integration.
 packages/cpp/
 ├── include/
 │   └── iscc/
-│       ├── iscc.hpp                # Main C++ header (RAII, std types, exceptions)
-│       └── iscc.h                  # Symlink/copy of crates/iscc-ffi/include/iscc.h
-├── CMakeLists.txt                  # CMake config for find_package(iscc)
-├── iscc-config.cmake.in            # CMake config template
+│       └── iscc.hpp                # Main C++ header (RAII, std types, exceptions)
+├── CMakeLists.txt                  # INTERFACE target iscc::iscc (adds crates/iscc-ffi/include)
 ├── vcpkg.json                      # vcpkg port manifest
 ├── portfile.cmake                  # vcpkg portfile
 ├── conanfile.py                    # Conan recipe
 ├── tests/
-│   ├── test_conformance.cpp        # C++ conformance tests against data.json
-│   ├── CMakeLists.txt              # Test build
-│   └── data.json                   # Vendored conformance vectors
-├── pkg-config/
-│   └── iscc.pc.in                  # pkg-config template
+│   ├── test_iscc.cpp               # C++ conformance + data-edge tests
+│   └── CMakeLists.txt              # Test build (links iscc_ffi)
 └── README.md                       # Per-package README
 ```
 
@@ -193,9 +188,8 @@ target_link_libraries(myapp PRIVATE iscc::iscc)
 
 ### pkg-config
 
-```bash
-pkg-config --cflags --libs iscc
-```
+Not provided: the package ships no `.pc` file. A build without CMake adds `packages/cpp/include` and
+`crates/iscc-ffi/include` to the include path and links the `iscc_ffi` library.
 
 ### vcpkg
 
@@ -227,10 +221,10 @@ cpp:
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo build -p iscc-ffi
     - run: |
-        cd packages/cpp/tests
-        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DSANITIZE_ADDRESS=ON
+        cd packages/cpp
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=../../target/debug -DSANITIZE_ADDRESS=ON
         cmake --build build
-        ./build/test_conformance
+        LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc
 ```
 
 ## Verification Criteria

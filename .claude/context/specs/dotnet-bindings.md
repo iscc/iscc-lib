@@ -33,24 +33,19 @@ packages/dotnet/
 │   ├── IsccDataHasher.cs          # Streaming hasher (IDisposable)
 │   ├── IsccInstanceHasher.cs      # Streaming hasher (IDisposable)
 │   ├── IsccException.cs           # Exception type
-│   ├── Native/
-│   │   ├── NativeMethods.g.cs     # csbindgen-generated P/Invoke
-│   │   └── SafeHandles.cs         # SafeHandle subclasses for RAII
-│   ├── runtimes/                  # NuGet RID-specific native libraries
-│   │   ├── linux-x64/native/libiscc_ffi.so
-│   │   ├── linux-arm64/native/libiscc_ffi.so
-│   │   ├── osx-arm64/native/libiscc_ffi.dylib
-│   │   ├── osx-x64/native/libiscc_ffi.dylib
-│   │   └── win-x64/native/iscc_ffi.dll
-│   └── README.md                  # Per-package README for NuGet
+│   ├── NativeMethods.g.cs         # csbindgen-generated P/Invoke
+│   └── runtimes/                  # NuGet RID-specific native libraries (release.yml)
+│       ├── linux-x64/native/libiscc_ffi.so
+│       ├── linux-arm64/native/libiscc_ffi.so
+│       ├── osx-arm64/native/libiscc_ffi.dylib
+│       ├── osx-x64/native/libiscc_ffi.dylib
+│       └── win-x64/native/iscc_ffi.dll
 ├── Iscc.Lib.Tests/
 │   ├── Iscc.Lib.Tests.csproj      # xUnit test project
 │   ├── ConformanceTests.cs        # Tests against data.json
 │   └── testdata/
 │       └── data.json              # Vendored conformance vectors
-├── Directory.Build.props          # Shared build properties
-├── generate-bindings.sh           # csbindgen regeneration script
-└── README.md                      # Package overview
+└── README.md                      # Package overview (NuGet README)
 ```
 
 ## Idiomatic C# API
@@ -150,16 +145,11 @@ dotnet:
 
 ## Binding Regeneration
 
-When the C FFI surface changes:
-
-```bash
-csbindgen \
-    --input ../../crates/iscc-ffi/src/lib.rs \
-    --output Iscc.Lib/Native/NativeMethods.g.cs \
-    --csharp-dll-name iscc_ffi \
-    --csharp-class-name NativeMethods \
-    --csharp-namespace Iscc.Lib.Native
-```
+`crates/iscc-ffi/build.rs` runs csbindgen on every build of `iscc-ffi` and rewrites
+`packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (DLL `iscc_ffi`, class `NativeMethods`, namespace
+`Iscc.Lib`). When the C FFI surface changes, build `iscc-ffi` and commit the regenerated file
+together with `crates/iscc-ffi/include/iscc.h`. The SafeHandle wrappers are private nested classes
+of the hasher types.
 
 ## DevContainer Setup
 

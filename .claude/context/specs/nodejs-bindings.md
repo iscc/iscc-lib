@@ -33,8 +33,8 @@ crates/iscc-napi/
 ├── index.d.ts              # Auto-generated TypeScript declarations
 ├── index.js                # napi-rs loader (auto-generated)
 ├── README.md               # Per-crate README for npm
-└── test/
-    └── conformance.test.mjs  # Mocha conformance tests against data.json
+└── __tests__/
+    └── conformance.test.mjs  # node:test conformance tests against data.json
 ```
 
 ## Rust Bridge Layer
