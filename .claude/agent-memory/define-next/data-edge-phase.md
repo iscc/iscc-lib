@@ -57,3 +57,8 @@ commit `ea69169`).
     `test_iscc.cpp` comments already say `data.json … test_0001_…` → a "no vector named" grep must
     use data-edge slugs, not `test_0NNN`. After 219: published-artifact-absence (Go/Swift reading is
     `low`, human).
+- 226 = first NEW section after the seed (`alg_simhash`). A new section is one unsplittable fan-out
+    (every harness + generator renderer + 4 vendored copies). Add one positive vector beside an
+    error-only one, or no harness ever exercises its input decoding. Python `outcome()` passes raw
+    JSON inputs, so `bytes:` inputs need a per-section preparer. `/tmp/swifttc` disappears between
+    container restarts; recipe in `packages/swift/CLAUDE.md`.

@@ -31,14 +31,17 @@ napi/wasm build output made a disk probe falsely green; `GENERATED`/`NOT_PATHS` 
 marker; phantom tree lines often have prose twins — grep basenames outside the tree); 225 =
 `alg_simhash([])` rejects in core + Go (behaviour files: simhash.rs + 4 Go; pass-through bindings
 need only their zero-pinning tests flipped + comment-only docs — NOT a fan-out; CRAP baseline regen
-for the new branch). Next in chain: `alg_simhash` data-edge section (fan-out, `bytes:<hex>` inputs,
-new section = handler on all 12) + 5 C++ `safe_data` wrappers. Trap: the issue says C/C++ fail
-`alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits `num_digests == 0` to
-the core — re-probe before restating. Still open: gate leniency, Tier 1 parity check; setuptools
-bump resolves to 84.2.1 via `uv lock --upgrade-package setuptools` (dry-run 223); Ruby
-Bignum/napi/JNI/ ffi-split now `low` (human) — skip). **Dependabot soupsieve is human-blocked**:
-3.0.2/4.x need Python >=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a
-Maven/portal probe proves nothing: `curl -sL` to follow it (220: Kotlin red was a portal outage).
+for the new branch). 226 = `alg_simhash` data-edge section, all 12 surfaces in ONE step (a new
+section is unsplittable: unhandled-section failure + generator fail-closed + vendored copies); 2
+vectors (`[]` error + `[f00f,3c3c]`→`fc3f` tie, so handlers decode inputs). Next: 5 C++ `safe_data`
+wrappers. Unfiled: ref truncates mismatched digest lengths, Rust/Go reject — needs a human decision.
+Trap: the issue says C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash`
+short-circuits `num_digests == 0` to the core — re-probe before restating. Still open: gate
+leniency, Tier 1 parity check; setuptools bump resolves to 84.2.1 via
+`uv lock --upgrade-package setuptools` (dry-run 223); Ruby Bignum/napi/JNI/ ffi-split now `low`
+(human) — skip). **Dependabot soupsieve is human-blocked**: 3.0.2/4.x need Python >=3.11.5 but
+`uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a Maven/portal probe proves nothing:
+`curl -sL` to follow it (220: Kotlin red was a portal outage).
 
 ## Scope Calibration Principles
 
