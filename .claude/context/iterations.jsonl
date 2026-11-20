@@ -1772,3 +1772,8 @@
 {"ts":"2026-11-20T17:35:43.342098+00:00","iteration":234,"role":"advance","status":"OK","turns":17,"cost_usd":0.77653,"duration_s":602.3,"peak_context":61430,"model":"claude-opus-5-5","effort":"high"}
 {"ts":"2026-11-20T17:50:35.475160+00:00","iteration":234,"role":"review","status":"OK","turns":39,"cost_usd":2.705194,"duration_s":892.0,"peak_context":94786,"model":"claude-fable-5-2","effort":"high"}
 {"ts":"2026-11-20T17:50:35.540417+00:00","type":"iteration_summary","iteration":234,"verdict":"PASS","turns_total":80,"cost_total":5.011861,"duration_total":1854.1,"peak_context":94786,"over_budget":{}}
+{"ts":"2026-11-20T19:35:58.740234+00:00","iteration":235,"role":"update-state","status":"OK","turns":8,"cost_usd":0.635517,"duration_s":149.5,"peak_context":53843,"model":"claude-opus-5-5","effort":"high"}
+{"ts":"2026-11-20T19:51:00.345887+00:00","iteration":235,"role":"define-next","status":"OK","turns":37,"cost_usd":3.08513,"duration_s":901.5,"peak_context":112104,"model":"claude-opus-5-5","effort":"high","model_costs":{"claude-opus-5-5":2.046482,"claude-fable-5-2":1.038648}}
+{"ts":"2026-11-20T19:56:01.068846+00:00","iteration":235,"role":"advance","status":"OK","turns":18,"cost_usd":0.759797,"duration_s":300.7,"peak_context":57673,"model":"claude-opus-5-5","effort":"high"}
+{"ts":"2026-11-20T20:04:31.398741+00:00","iteration":235,"role":"review","status":"OK","turns":42,"cost_usd":3.690387,"duration_s":510.3,"peak_context":116163,"model":"claude-fable-5-2","effort":"high"}
+{"ts":"2026-11-20T20:04:31.457031+00:00","type":"iteration_summary","iteration":235,"verdict":"PASS","turns_total":105,"cost_total":8.170831,"duration_total":1862.0,"peak_context":116163,"over_budget":{}}
