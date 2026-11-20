@@ -37,24 +37,14 @@ public:
 
 namespace detail {
 
-/// Return a non-null pointer for empty byte vectors.
-/// Some C FFI functions require non-null data pointers even for zero length.
-inline const uint8_t* safe_data(const std::vector<uint8_t>& v) {
-    static const uint8_t sentinel = 0;
-    return v.empty() ? &sentinel : v.data();
-}
-
-/// Return a non-null pointer for empty int32 vectors.
-/// Some C FFI functions require non-null data pointers even for zero length.
-inline const int32_t* safe_data(const std::vector<int32_t>& v) {
-    static const int32_t sentinel = 0;
-    return v.empty() ? &sentinel : v.data();
-}
-
-/// Return a non-null pointer for empty C string pointer vectors.
-/// Some C FFI functions reject a NULL array pointer before checking the count.
-inline const char* const* safe_data(const std::vector<const char*>& v) {
-    static const char* const sentinel = nullptr;
+/// Return a non-null data pointer for any input vector, using a static read-only
+/// sentinel address when `v` is empty. `std::vector::data()` may return NULL for an
+/// empty vector, and several C FFI functions reject a NULL pointer before checking the
+/// count, which would hide the core's own error. The FFI never dereferences the
+/// sentinel because the count passed alongside it is 0.
+template <typename T>
+inline const T* safe_data(const std::vector<T>& v) {
+    static const T sentinel{};
     return v.empty() ? &sentinel : v.data();
 }
 
@@ -327,7 +317,7 @@ inline std::string encode_component(uint8_t mtype, uint8_t stype, uint8_t versio
                                     uint32_t bit_length,
                                     const std::vector<uint8_t>& digest) {
     detail::UniqueString s(iscc_encode_component(mtype, stype, version, bit_length,
-                                                  digest.data(), digest.size()));
+                                                  detail::safe_data(digest), digest.size()));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
@@ -418,7 +408,7 @@ inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>&
         ptrs.push_back(detail::safe_data(d));
         lens.push_back(d.size());
     }
-    detail::UniqueByteBuffer buf(iscc_alg_simhash(ptrs.data(), lens.data(), digests.size()));
+    detail::UniqueByteBuffer buf(iscc_alg_simhash(detail::safe_data(ptrs), detail::safe_data(lens), digests.size()));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("alg_simhash failed");
@@ -428,7 +418,7 @@ inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>&
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 inline std::vector<uint8_t> alg_minhash_256(const std::vector<uint32_t>& features) {
-    detail::UniqueByteBuffer buf(iscc_alg_minhash_256(features.data(), features.size()));
+    detail::UniqueByteBuffer buf(iscc_alg_minhash_256(detail::safe_data(features), features.size()));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("alg_minhash_256 failed");
@@ -473,7 +463,7 @@ inline std::vector<uint8_t> soft_hash_video_v0(
         lens.push_back(f.size());
     }
     detail::UniqueByteBuffer buf(
-        iscc_soft_hash_video_v0(ptrs.data(), lens.data(), frame_sigs.size(), bits));
+        iscc_soft_hash_video_v0(detail::safe_data(ptrs), detail::safe_data(lens), frame_sigs.size(), bits));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("soft_hash_video_v0 failed");
@@ -543,7 +533,7 @@ inline VideoCodeResult gen_video_code_v0(
         lens.push_back(f.size());
     }
     detail::UniqueString s(
-        iscc_gen_video_code_v0(ptrs.data(), lens.data(), frame_sigs.size(), bits));
+        iscc_gen_video_code_v0(detail::safe_data(ptrs), detail::safe_data(lens), frame_sigs.size(), bits));
     detail::check_ptr(s.ptr);
     return VideoCodeResult{s.to_string()};
 }
@@ -556,7 +546,7 @@ inline MixedCodeResult gen_mixed_code_v0(const std::vector<std::string>& codes,
     for (const auto& c : codes) {
         ptrs.push_back(detail::checked_c_str(c));
     }
-    detail::UniqueString s(iscc_gen_mixed_code_v0(ptrs.data(), codes.size(), bits));
+    detail::UniqueString s(iscc_gen_mixed_code_v0(detail::safe_data(ptrs), codes.size(), bits));
     detail::check_ptr(s.ptr);
     return MixedCodeResult{s.to_string()};
 }
@@ -602,7 +592,7 @@ inline IsccCodeResult gen_iscc_code_v0(const std::vector<std::string>& codes,
     for (const auto& c : codes) {
         ptrs.push_back(detail::checked_c_str(c));
     }
-    detail::UniqueString s(iscc_gen_iscc_code_v0(ptrs.data(), codes.size(), wide));
+    detail::UniqueString s(iscc_gen_iscc_code_v0(detail::safe_data(ptrs), codes.size(), wide));
     detail::check_ptr(s.ptr);
     return IsccCodeResult{s.to_string()};
 }
@@ -694,7 +684,7 @@ public:
 
     /// Push data into the hasher from a vector.
     void update(const std::vector<uint8_t>& data) {
-        update(data.data(), data.size());
+        update(detail::safe_data(data), data.size());
     }
 
     /// Finalize and return the Data-Code result.
@@ -744,7 +734,7 @@ public:
 
     /// Push data into the hasher from a vector.
     void update(const std::vector<uint8_t>& data) {
-        update(data.data(), data.size());
+        update(detail::safe_data(data), data.size());
     }
 
     /// Finalize and return the Instance-Code result.

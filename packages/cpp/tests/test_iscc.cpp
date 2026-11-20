@@ -614,6 +614,44 @@ int main() {
     assert_throws_with([] { iscc::encode_seq({}); }, "at least one ISCC-UNIT",
                        "encode_seq(empty) throws 'at least one ISCC-UNIT'");
 
+    // 42a. Empty list inputs surface the core error (not the FFI's "must not be NULL")
+    assert_throws_with([] { iscc::gen_mixed_code_v0({}); }, "at least 2 Content-Codes",
+                       "gen_mixed_code_v0(empty) throws 'at least 2 Content-Codes'");
+    assert_throws_with([] { iscc::gen_iscc_code_v0({}); }, "at least 2 ISCC unit codes",
+                       "gen_iscc_code_v0(empty) throws 'at least 2 ISCC unit codes'");
+    assert_throws_with([] { iscc::gen_video_code_v0({}); }, "frame_sigs must not be empty",
+                       "gen_video_code_v0(empty) throws 'frame_sigs must not be empty'");
+    assert_throws_with([] { iscc::soft_hash_video_v0({}, 64); },
+                       "frame_sigs must not be empty",
+                       "soft_hash_video_v0(empty) throws 'frame_sigs must not be empty'");
+    assert_throws_with([] { iscc::alg_simhash({}); }, "must not be empty",
+                       "alg_simhash(empty) throws 'must not be empty'");
+
+    // 42b. Empty vector inputs on the non-list wrappers never reach the NULL path
+    assert_eq(iscc::alg_minhash_256({}).size(), 32, "alg_minhash_256(empty) returns 32 bytes");
+    try {
+        iscc::encode_component(0, 0, 0, 64, {});
+        pass("encode_component(empty digest) does not report NULL");
+    } catch (const iscc::IsccError& e) {
+        const std::string msg = e.what();
+        if (msg.find("NULL") == std::string::npos) {
+            pass("encode_component(empty digest) does not report NULL");
+        } else {
+            fail("encode_component(empty digest) does not report NULL", msg.c_str());
+        }
+    }
+    {
+        iscc::DataHasher dh;
+        dh.update(std::vector<uint8_t>{});
+        assert_str_eq(dh.finalize().iscc, iscc::gen_data_code_v0(std::vector<uint8_t>{}).iscc,
+                      "DataHasher.update(empty vector) == gen_data_code_v0(empty)");
+        iscc::InstanceHasher ih;
+        ih.update(std::vector<uint8_t>{});
+        assert_str_eq(ih.finalize().iscc,
+                      iscc::gen_instance_code_v0(std::vector<uint8_t>{}).iscc,
+                      "InstanceHasher.update(empty vector) == gen_instance_code_v0(empty)");
+    }
+
     // 43. encode_seq — embedded NUL in a unit is rejected (not truncated)
     {
         std::string bad = seq_four_units[1];

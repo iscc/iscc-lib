@@ -36,8 +36,6 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
 - C FFI docs (221): C type names `iscc_`-prefixed, gated by `tests/test_c_ffi_docs.py`
-- Python `encode_seq` docs (222): 3 copies (wrapper, pyo3 `///`, `.pyi`) gated by
-    `tests/test_encode_seq_docs.py`; ruff allows `ſ`/`ß` literals in docstrings
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
@@ -146,6 +144,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     gitignored `build-uv/`). Detail → MEMORY-archive.md
 - Embedded NUL (213): .NET `ToNativeUtf8` / C++ `detail::checked_c_str` throw; route every new
     string input through them (bare `.c_str()` / `GetBytes` truncates at NUL)
+- C++ empty vectors (227): every vector input → `detail::safe_data` (one template, read-only
+    sentinel); never `.data()` (`{}` → FFI "must not be NULL" hides the core error)
 - .NET jagged arrays (220): `PinnedRows` in `IsccLib.cs` (`fixed` on `T[0]` is NULL → pad). Filter
     tests: `--filter FullyQualifiedName~X`
 - npm metadata (214): `@iscc/wasm` package.json comes from `crates/iscc-wasm/Cargo.toml` via
