@@ -168,114 +168,50 @@ public static partial class IsccLib
     }
 
     /// <summary>Generate a Video-Code from frame signature data.</summary>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="frameSigs"/> or a frame signature is null.</exception>
     public static VideoCodeResult GenVideoCodeV0(int[][] frameSigs, uint bits = 64)
     {
-        int numFrames = frameSigs.Length;
-        GCHandle[] handles = new GCHandle[numFrames];
-        try
+        using PinnedRows rows = PinnedRows.Pin(frameSigs, nameof(frameSigs));
+        unsafe
         {
-            unsafe
+            fixed (nint* pPtrs = rows.Pointers)
+            fixed (nuint* pLens = rows.Lengths)
             {
-                int*[] ptrs = new int*[numFrames];
-                nuint[] lens = new nuint[numFrames];
-                for (int i = 0; i < numFrames; i++)
-                {
-                    handles[i] = GCHandle.Alloc(frameSigs[i], GCHandleType.Pinned);
-                    ptrs[i] = (int*)handles[i].AddrOfPinnedObject();
-                    lens[i] = (nuint)frameSigs[i].Length;
-                }
-
-                fixed (int** pPtrs = ptrs)
-                fixed (nuint* pLens = lens)
-                {
-                    byte* result = NativeMethods.iscc_gen_video_code_v0(
-                        pPtrs, pLens, (nuint)numFrames, bits);
-                    return new VideoCodeResult(ConsumeNativeString(result));
-                }
-            }
-        }
-        finally
-        {
-            for (int i = 0; i < numFrames; i++)
-            {
-                if (handles[i].IsAllocated)
-                    handles[i].Free();
+                byte* result = NativeMethods.iscc_gen_video_code_v0(
+                    (int**)pPtrs, pLens, (nuint)rows.Count, bits);
+                return new VideoCodeResult(ConsumeNativeString(result));
             }
         }
     }
 
     /// <summary>Generate a Mixed-Code from multiple Content-Code strings.</summary>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="codes"/> or an element is null.</exception>
     public static MixedCodeResult GenMixedCodeV0(string[] codes, uint bits = 64)
     {
-        int count = codes.Length;
-        byte[][] nativeStrings = new byte[count][];
-        GCHandle[] handles = new GCHandle[count];
-        for (int i = 0; i < count; i++)
-            nativeStrings[i] = ToNativeUtf8(codes[i])!;
-
-        try
+        using PinnedRows rows = PinnedRows.PinStrings(codes, nameof(codes));
+        unsafe
         {
-            unsafe
+            fixed (nint* pPtrs = rows.Pointers)
             {
-                byte*[] ptrs = new byte*[count];
-                for (int i = 0; i < count; i++)
-                {
-                    handles[i] = GCHandle.Alloc(nativeStrings[i], GCHandleType.Pinned);
-                    ptrs[i] = (byte*)handles[i].AddrOfPinnedObject();
-                }
-
-                fixed (byte** pPtrs = ptrs)
-                {
-                    byte* result = NativeMethods.iscc_gen_mixed_code_v0(
-                        pPtrs, (nuint)count, bits);
-                    return new MixedCodeResult(ConsumeNativeString(result));
-                }
-            }
-        }
-        finally
-        {
-            for (int i = 0; i < count; i++)
-            {
-                if (handles[i].IsAllocated)
-                    handles[i].Free();
+                byte* result = NativeMethods.iscc_gen_mixed_code_v0(
+                    (byte**)pPtrs, (nuint)rows.Count, bits);
+                return new MixedCodeResult(ConsumeNativeString(result));
             }
         }
     }
 
     /// <summary>Generate a composite ISCC-CODE from multiple unit code strings.</summary>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="codes"/> or an element is null.</exception>
     public static IsccCodeResult GenIsccCodeV0(string[] codes, bool wide = false)
     {
-        int count = codes.Length;
-        byte[][] nativeStrings = new byte[count][];
-        GCHandle[] handles = new GCHandle[count];
-        for (int i = 0; i < count; i++)
-            nativeStrings[i] = ToNativeUtf8(codes[i])!;
-
-        try
+        using PinnedRows rows = PinnedRows.PinStrings(codes, nameof(codes));
+        unsafe
         {
-            unsafe
+            fixed (nint* pPtrs = rows.Pointers)
             {
-                byte*[] ptrs = new byte*[count];
-                for (int i = 0; i < count; i++)
-                {
-                    handles[i] = GCHandle.Alloc(nativeStrings[i], GCHandleType.Pinned);
-                    ptrs[i] = (byte*)handles[i].AddrOfPinnedObject();
-                }
-
-                fixed (byte** pPtrs = ptrs)
-                {
-                    byte* result = NativeMethods.iscc_gen_iscc_code_v0(
-                        pPtrs, (nuint)count, wide);
-                    return new IsccCodeResult(ConsumeNativeString(result));
-                }
-            }
-        }
-        finally
-        {
-            for (int i = 0; i < count; i++)
-            {
-                if (handles[i].IsAllocated)
-                    handles[i].Free();
+                byte* result = NativeMethods.iscc_gen_iscc_code_v0(
+                    (byte**)pPtrs, (nuint)rows.Count, wide);
+                return new IsccCodeResult(ConsumeNativeString(result));
             }
         }
     }
@@ -487,50 +423,13 @@ public static partial class IsccLib
     /// <exception cref="IsccException">Thrown when the list is empty, a unit contains an embedded NUL character, or a unit is invalid.</exception>
     public static byte[] EncodeSeq(string[] units)
     {
-        ArgumentNullException.ThrowIfNull(units);
-        int count = units.Length;
-        byte[][] nativeStrings = new byte[count][];
-        GCHandle[] handles = new GCHandle[count];
-        for (int i = 0; i < count; i++)
+        using PinnedRows rows = PinnedRows.PinStrings(units, nameof(units));
+        unsafe
         {
-            if (units[i] is null)
-                throw new ArgumentNullException(nameof(units), $"units[{i}] must not be null");
-            nativeStrings[i] = ToNativeUtf8(units[i])!;
-        }
-
-        try
-        {
-            unsafe
+            fixed (nint* pPtrs = rows.Pointers)
             {
-                // Empty arrays produce null pointers via fixed — use a stack sentinel instead,
-                // so the core's "at least one ISCC-UNIT" error surfaces.
-                if (count == 0)
-                {
-                    byte* sentinel = null;
-                    IsccByteBuffer empty = NativeMethods.iscc_encode_seq(&sentinel, 0);
-                    return ConsumeByteBuffer(empty);
-                }
-
-                byte*[] ptrs = new byte*[count];
-                for (int i = 0; i < count; i++)
-                {
-                    handles[i] = GCHandle.Alloc(nativeStrings[i], GCHandleType.Pinned);
-                    ptrs[i] = (byte*)handles[i].AddrOfPinnedObject();
-                }
-
-                fixed (byte** pPtrs = ptrs)
-                {
-                    IsccByteBuffer buf = NativeMethods.iscc_encode_seq(pPtrs, (nuint)count);
-                    return ConsumeByteBuffer(buf);
-                }
-            }
-        }
-        finally
-        {
-            for (int i = 0; i < count; i++)
-            {
-                if (handles[i].IsAllocated)
-                    handles[i].Free();
+                IsccByteBuffer buf = NativeMethods.iscc_encode_seq((byte**)pPtrs, (nuint)rows.Count);
+                return ConsumeByteBuffer(buf);
             }
         }
     }
@@ -556,38 +455,18 @@ public static partial class IsccLib
     // ── Algorithm Primitives ────────────────────────────────────────────────
 
     /// <summary>Compute a SimHash digest from a set of byte-array digests.</summary>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="digests"/> or a digest is null.</exception>
     public static byte[] AlgSimhash(byte[][] digests)
     {
-        int count = digests.Length;
-        GCHandle[] handles = new GCHandle[count];
-        try
+        using PinnedRows rows = PinnedRows.Pin(digests, nameof(digests));
+        unsafe
         {
-            unsafe
+            fixed (nint* pPtrs = rows.Pointers)
+            fixed (nuint* pLens = rows.Lengths)
             {
-                byte*[] ptrs = new byte*[count];
-                nuint[] lens = new nuint[count];
-                for (int i = 0; i < count; i++)
-                {
-                    handles[i] = GCHandle.Alloc(digests[i], GCHandleType.Pinned);
-                    ptrs[i] = (byte*)handles[i].AddrOfPinnedObject();
-                    lens[i] = (nuint)digests[i].Length;
-                }
-
-                fixed (byte** pPtrs = ptrs)
-                fixed (nuint* pLens = lens)
-                {
-                    IsccByteBuffer buf = NativeMethods.iscc_alg_simhash(
-                        pPtrs, pLens, (nuint)count);
-                    return ConsumeByteBuffer(buf);
-                }
-            }
-        }
-        finally
-        {
-            for (int i = 0; i < count; i++)
-            {
-                if (handles[i].IsAllocated)
-                    handles[i].Free();
+                IsccByteBuffer buf = NativeMethods.iscc_alg_simhash(
+                    (byte**)pPtrs, pLens, (nuint)rows.Count);
+                return ConsumeByteBuffer(buf);
             }
         }
     }
@@ -639,38 +518,18 @@ public static partial class IsccLib
     }
 
     /// <summary>Compute a similarity-preserving hash from video frame signatures.</summary>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="frameSigs"/> or a frame signature is null.</exception>
     public static byte[] SoftHashVideoV0(int[][] frameSigs, uint bits = 64)
     {
-        int numFrames = frameSigs.Length;
-        GCHandle[] handles = new GCHandle[numFrames];
-        try
+        using PinnedRows rows = PinnedRows.Pin(frameSigs, nameof(frameSigs));
+        unsafe
         {
-            unsafe
+            fixed (nint* pPtrs = rows.Pointers)
+            fixed (nuint* pLens = rows.Lengths)
             {
-                int*[] ptrs = new int*[numFrames];
-                nuint[] lens = new nuint[numFrames];
-                for (int i = 0; i < numFrames; i++)
-                {
-                    handles[i] = GCHandle.Alloc(frameSigs[i], GCHandleType.Pinned);
-                    ptrs[i] = (int*)handles[i].AddrOfPinnedObject();
-                    lens[i] = (nuint)frameSigs[i].Length;
-                }
-
-                fixed (int** pPtrs = ptrs)
-                fixed (nuint* pLens = lens)
-                {
-                    IsccByteBuffer buf = NativeMethods.iscc_soft_hash_video_v0(
-                        pPtrs, pLens, (nuint)numFrames, bits);
-                    return ConsumeByteBuffer(buf);
-                }
-            }
-        }
-        finally
-        {
-            for (int i = 0; i < numFrames; i++)
-            {
-                if (handles[i].IsAllocated)
-                    handles[i].Free();
+                IsccByteBuffer buf = NativeMethods.iscc_soft_hash_video_v0(
+                    (int**)pPtrs, pLens, (nuint)rows.Count, bits);
+                return ConsumeByteBuffer(buf);
             }
         }
     }
@@ -778,6 +637,87 @@ public static partial class IsccLib
         finally
         {
             NativeMethods.iscc_free_string_array(arr);
+        }
+    }
+
+    /// <summary>
+    /// Pins the inner arrays of a jagged input and lays them out as native pointer and length
+    /// arrays, so every jagged-array method marshals, validates and frees the same way.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Pointers"/> and <see cref="Lengths"/> hold at least one slot, so <c>fixed</c>
+    /// never yields a NULL pointer for an empty input and the core's own error surfaces instead of
+    /// the FFI's "must not be NULL". The real element count is <see cref="Count"/>.
+    /// </remarks>
+    private sealed class PinnedRows : IDisposable
+    {
+        private readonly GCHandle[] _handles;
+
+        /// <summary>Number of rows in the input (the count passed to the native call).</summary>
+        public int Count { get; }
+
+        /// <summary>Addresses of the pinned rows; length is <c>max(Count, 1)</c>.</summary>
+        public nint[] Pointers { get; }
+
+        /// <summary>Element counts of the pinned rows; length is <c>max(Count, 1)</c>.</summary>
+        public nuint[] Lengths { get; }
+
+        /// <summary>Allocate empty slots for <paramref name="count"/> rows.</summary>
+        private PinnedRows(int count)
+        {
+            Count = count;
+            _handles = new GCHandle[count];
+            Pointers = new nint[Math.Max(count, 1)];
+            Lengths = new nuint[Math.Max(count, 1)];
+        }
+
+        /// <summary>Pin every row of <paramref name="rows"/>.</summary>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="rows"/> or a row is null.</exception>
+        public static PinnedRows Pin<T>(T[]?[] rows, string paramName) where T : unmanaged
+        {
+            ArgumentNullException.ThrowIfNull(rows, paramName);
+            for (int i = 0; i < rows.Length; i++)
+            {
+                if (rows[i] is null)
+                    throw new ArgumentNullException(paramName, $"{paramName}[{i}] must not be null");
+            }
+
+            var pinned = new PinnedRows(rows.Length);
+            try
+            {
+                for (int i = 0; i < rows.Length; i++)
+                {
+                    T[] row = rows[i]!;
+                    pinned._handles[i] = GCHandle.Alloc(row, GCHandleType.Pinned);
+                    pinned.Pointers[i] = pinned._handles[i].AddrOfPinnedObject();
+                    pinned.Lengths[i] = (nuint)row.Length;
+                }
+            }
+            catch
+            {
+                pinned.Dispose();
+                throw;
+            }
+            return pinned;
+        }
+
+        /// <summary>Convert each string to NUL-terminated UTF-8 and pin the results.</summary>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="values"/> or an element is null.</exception>
+        /// <exception cref="IsccException">Thrown when an element contains an embedded NUL character.</exception>
+        public static PinnedRows PinStrings(string[] values, string paramName)
+        {
+            ArgumentNullException.ThrowIfNull(values, paramName);
+            return Pin(Array.ConvertAll(values, ToNativeUtf8), paramName);
+        }
+
+        /// <summary>Free every handle that was pinned.</summary>
+        public void Dispose()
+        {
+            foreach (GCHandle handle in _handles)
+            {
+                if (handle.IsAllocated)
+                    handle.Free();
+            }
         }
     }
 

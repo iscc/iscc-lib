@@ -37,6 +37,7 @@ packages/dotnet/
     ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions + encode_seq/decode_seq
     SeqTests.cs                          # EncodeSeq / DecodeSeq error surfacing and accepted input forms
     NulInputTests.cs                     # Embedded-NUL rejection across string-input methods
+    ArrayInputTests.cs                   # Empty / null inputs across the six jagged-array methods
     DataEdgeTests.cs                     # every data-edge.json vector (except.dotnet), unknown section fails
     testdata/data.json                   # Vendored ISCC conformance test vectors
     testdata/data-edge.json              # Vendored shared edge-case vectors
@@ -162,16 +163,24 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 
 ### Array parameter marshalling
 
-- **Jagged arrays** (e.g., `int[][] frameSigs`, `string[] codes`, `byte[][] digests`): each inner
-    array is pinned via `GCHandle.Alloc(..., GCHandleType.Pinned)`, pointers collected into a
-    `T*[]`, then that pointer array is pinned with `fixed`. Handles are freed in a `finally` block.
-- **Parallel length arrays** (e.g., `frame_lens`, `digest_lens`): a `nuint[]` is populated alongside
-    the pointer array and passed with a second `fixed`.
+- **Jagged arrays** (`int[][] frameSigs`, `byte[][] digests`, `string[] codes`/`units`): all six
+    methods go through the private `PinnedRows` helper in `IsccLib.cs` (`Pin` for jagged arrays,
+    `PinStrings` converts via `ToNativeUtf8` first) inside a `using`. It throws
+    `ArgumentNullException` (parameter name + `name[i]` in the message) for a null array or element
+    before pinning anything, pins each row with `GCHandle.Alloc(..., Pinned)`, frees already pinned
+    handles if pinning fails, and frees all handles on `Dispose`. Call sites `fixed` its `Pointers`
+    (`nint[]`, cast to `int**`/`byte**`) and pass `Count` as the length. Never add a `GCHandle` loop
+    at a call site
+- **Parallel length arrays** (`frame_lens`, `digest_lens`): `PinnedRows.Lengths` (`nuint[]`), passed
+    with a second `fixed`
 
 ### Empty span sentinel
 
 - `ReadOnlySpan<byte>.Empty` produces a null pointer under `fixed`, which the native library would
     reject. Instead, a stack-allocated `byte sentinel = 0` is used with length 0.
+- Jagged-array inputs need the same for an empty array: `PinnedRows` sizes `Pointers` and `Lengths`
+    to `max(Count, 1)`, so `fixed` never yields NULL and `[]` surfaces the core's error (e.g. "at
+    least 2 ISCC unit codes required"), not the FFI's "must not be NULL"
 
 ## Common Pitfalls
 
@@ -183,8 +192,8 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
     using csbindgen when the FFI surface changes.
 - **Empty spans produce null pointers:** `fixed (byte* p = ReadOnlySpan<byte>.Empty)` yields `null`.
     Use a stack sentinel (see pattern above) for functions that reject null data pointers.
-- **GCHandle leaks:** when pinning arrays for jagged-array marshalling, always free handles in a
-    `finally` block. A missing `Free()` pins objects permanently.
+- **GCHandle leaks:** a missing `Free()` pins objects permanently. Pin jagged arrays only through
+    `PinnedRows` in a `using`, which frees every handle, also when pinning fails halfway.
 - **Bool marshalling:** C `bool` is 1 byte, but .NET `bool` defaults to 4 bytes.
     `[MarshalAs(UnmanagedType.U1)]` is required on both parameters and return values.
 - **Version drift:** the `<Version>` in `Iscc.Lib.csproj` must stay in sync with the workspace

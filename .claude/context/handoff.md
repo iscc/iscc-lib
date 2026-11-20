@@ -1,65 +1,59 @@
-## 2026-11-20 — Review of: data-edge.json fan-out, group 3 — C and C++ harnesses via one generated header
+## 2026-11-20 — .NET — one private helper pins every jagged-array input; empty inputs reach the core
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** A private nested `PinnedRows : IDisposable` in `IsccLib.cs` now pins inner arrays for all
+six jagged-array methods (`GenVideoCodeV0`, `SoftHashVideoV0`, `AlgSimhash`, `GenMixedCodeV0`,
+`GenIsccCodeV0`, `EncodeSeq`). A null array or element throws `ArgumentNullException` with the
+parameter name (message `name[i] must not be null`). `[]` now passes non-NULL pointer and length
+arrays, so the core's error surfaces. `EncodeSeq`'s special-cased empty branch is gone.
 
-**Summary:** The generator recovered from `ea69169` renders `data-edge.json` into a C99/C++17 header
-(`crates/iscc-ffi/tests/data_edge_vectors.h`), and pytest fails when that header is stale. The C and
-C++ tests now run every vector through one check function per section, with a total-row tally and
-negative tests. It is clean, in scope (an honest fan-out, one commit per surface), and every next.md
-check passes. The review commit carries three small test-robustness fixes from the Codex findings
-(see below).
+**Files changed:**
+
+- `packages/dotnet/Iscc.Lib/IsccLib.cs`: added `PinnedRows`, with a `Pin<T>(T[]?[], paramName)`
+    method for jagged arrays and a `PinStrings(string[], paramName)` method that converts with
+    `ToNativeUtf8` first. The 6 method bodies now read
+    `using PinnedRows rows = …; fixed (nint* p = rows.Pointers) [fixed (nuint* l = rows.Lengths)]`.
+    Five methods gained `<exception cref="ArgumentNullException">` XML docs; `EncodeSeq` already had
+    it
+- `packages/dotnet/Iscc.Lib.Tests/ArrayInputTests.cs` (new): 19 `[Fact]`s:
+    - 5 empty-input tests (the 4 methods next.md names + `EncodeSeq`). Each checks the core text is in
+        the message and "must not be NULL" is not
+    - `AlgSimhash([])` returns 32 zero bytes
+    - 6 null-array tests asserting `ParamName`
+    - 6 null-element tests with the null at index 2, after two valid rows, asserting `ParamName` and
+        `name[2]`
+    - 1 test that the method still works after a failed null-element call
+- `packages/dotnet/CLAUDE.md`: rewrote the "Array parameter marshalling" bullets, added a
+    jagged-array bullet under "Empty span sentinel", added `ArrayInputTests.cs` to File Layout, and
+    the "GCHandle leaks" pitfall now points at the helper
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_gen_data_edge_vectors.py tests/test_data_edge.py tests/test_vendored_fixtures.py`:
-    100 passed (before and after my edits). `mise run check` exit 0
-- [x] `uv run --script scripts/gen_data_edge_vectors.py` leaves
-    `git status --porcelain crates/iscc-ffi/tests` empty
-- [x] The no-vector-name `grep -nE …` over both harnesses prints nothing (exit 1)
-- [x] C: `cargo build -p iscc-ffi` + the `ci.yml` gcc line, exit 0, 96 passed. 14
-    `PASS: data_edge/…` lines (all fixture vectors except the two `c: skip` rows, which print
-    `SKIP:`), tally PASS, 3 negative PASS lines
-- [x] C++: fresh `/tmp/cpp-edge`, `ci.yml` flags, absolute `FFI_LIB_DIR`, ASAN on: exit 0, 0
-    sanitizer lines, all 16 `PASS: data_edge/…` lines, tally PASS, 2 negative PASS lines (re-run
-    after my fix: 95 passed)
-- [x] Probes: (1) the negative's expected `ISCC:EAAWSPUDF7GJWQVD` is the code of `"Hello"`, so the C
-    NUL negative fails only on the length check, as claimed; (2) a header rendered with `except.c`
-    dropped from the `encode_seq` NUL row turns C red (the list path, which advance had not probed);
-    (3) the C++ CMake tree is already repo-relative (`../../crates/iscc-ffi/include`), and
-    vcpkg/release copy only headers, so the PRIVATE test include cannot break a consumer
-- [x] Gate scan of all unpushed commits: no suppressions, skips or hook/threshold changes. No Rust
-    source changed, so CRAP/iai/semver are untouched
+- `cargo build -p iscc-ffi` → ok. Afterwards,
+    `git status --porcelain packages/dotnet/Iscc.Lib/NativeMethods.g.cs crates/iscc-ffi/include/iscc.h`
+    printed nothing
+- `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj`: `0 Warning(s)`, `0 Error(s)`
+- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug`: 149 passed,
+    0 failed. With `--filter FullyQualifiedName~ArrayInputTests`: 19 passed. SmokeTests
+    `AlgSimhash_EmptyInput_Returns32Bytes` and SeqTests are in the 149
+- Power probe: I copied both projects to `/tmp`, restored HEAD's `IsccLib.cs` there and ran the
+    filtered suite: **15 failed, 4 passed**. The 4 that pass on the old code are the 3 `EncodeSeq`
+    tests (it was already correct) and `AlgSimhash_Empty`. All gen/video/simhash empty and null
+    tests are red on the old code
+- `grep -n "GCHandle.Alloc" IsccLib.cs` → one hit, inside `PinnedRows.Pin`
+- `mise run check` exit 0. `uv run prek run --hook-stage pre-push --files <3 files>` exit 0
 
-**Issues found:**
+**Next:** The C++ `iscc.hpp` empty-vector issue (`low`, untriaged) is the same defect on the other
+C-FFI wrapper, five sites. The cheapest remaining `normal` items are still the Python `encode_seq`
+docstrings and the `wasm-bindings.md` package.json spec-fact issue.
 
-- Filed `low` (Triage: untriaged): "C++ list wrappers pass NULL for an empty vector". Five
-    `iscc.hpp` sites have the pattern (next.md named two); the two gen ones still reject `{}`, the
-    other three (`gen_video_code_v0`, `alg_simhash`, `soft_hash_video_v0`) are unprobed
-- Nit, not filed: the C `RUN_EDGE_SECTION` name buffer is 160 bytes, so a very long vector name is
-    truncated in the PASS/FAIL line only (counting is unaffected)
-- Nit, not filed: the generator keeps its own `SURFACE_IDS` copy next to `tests/test_data_edge.py`.
-    Drift fails closed (an unknown `except` key → `SystemExit` → the staleness test goes red)
-- Issue sweep: the Dependabot entry no longer mentions the `json` gem (`Gemfile.lock` pins 2.21.2).
-    Three entries were compressed to get `issues.md` under budget
+**Notes:**
 
-**Codex review:** (one run over `c0e123d..HEAD`, all four commits). Three findings were valid and I
-fixed them in this commit:
-
-1. C++ `run_edge_section` returned `count`, not the number of rows visited. It now counts the rows
-    it visits, like the C macro. A loop shortened by one row now fails the tally ("got 11, expected
-    16")
-2. The pytest `"\\x" not in text` check went red on a valid vector holding a literal `\x` (rendered
-    `\\x`). It now scans escape tokens, and an inline assert covers both cases
-3. The pytest row-boundary split on `"};"` broke on a `};` payload. It now splits on `"\n};\n"`
-
-Both pytest fixes were proven on a mutated fixture. The 4th Codex finding is the 160-byte name nit
-above.
-
-**Next:** The v0.8.0 "Shared edge-case vectors run everywhere" criterion should be met on all 12
-surfaces once CI's `c-ffi` and `cpp` jobs are green on the pushed sha (update-state: verify on the
-exact sha). Cheapest `normal` follow-ups: the Python `encode_seq` docstring issue (two docstrings),
-then the `wasm-bindings.md` package.json spec-fact issue, or the .NET pinning-helper issue.
-
-**Notes:** Only the ubuntu gcc/g++ in CI compile the header (both `c-ffi` and `cpp` jobs are
-`ubuntu-latest`), so MSVC/clang never see it. The empty-list rows pass on C++ through the FFI NULL
-guard, not the core's count check; see the filed issue.
+- **Deviation from the next.md wording, same contract:** I did not use a stack sentinel for zero
+    count. `PinnedRows` sizes `Pointers`/`Lengths` to `max(Count, 1)`, so `fixed` never yields NULL;
+    the real count goes to the FFI as `rows.Count`. This keeps one path with no `count == 0` branch
+    at any call site.
+- Handle safety: null checks run over every row *before* any handle is allocated. The pin loop also
+    has `catch { Dispose(); throw; }`, so an `Alloc` failure part-way frees the handles already
+    taken. Ordering for strings: an embedded NUL in an element before a null element throws
+    `IsccException` first (conversion runs element by element via `Array.ConvertAll`).
+- No public signature change, no Rust change: CRAP/iai/semver are untouched.

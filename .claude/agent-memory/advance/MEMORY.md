@@ -138,6 +138,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     gitignored `build-uv/`). Detail → MEMORY-archive.md
 - Embedded NUL (213): .NET `ToNativeUtf8` / C++ `detail::checked_c_str` throw; route every new
     string input through them (bare `.c_str()` / `GetBytes` truncates at NUL)
+- .NET jagged arrays (220): private `PinnedRows` in `IsccLib.cs` (`Pin`/`PinStrings`, `using`);
+    `fixed` over `new T[0]` is NULL → pad to `max(n,1)`. xunit filter:
+    `--filter   "FullyQualifiedName~X"` (`-- --filter-class` silently runs all)
 - npm metadata (214): `@iscc/wasm` package.json comes from `crates/iscc-wasm/Cargo.toml` via
     wasm-pack (0.13.1 resolves `license.workspace`); `@iscc/lib` package.json is committed as-is.
     taplo aligns trailing comments to the longest line in a block — put comments on their own line
