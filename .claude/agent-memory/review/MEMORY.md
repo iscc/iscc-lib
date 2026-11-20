@@ -100,6 +100,11 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     intersection). **Swift/Kotlin (218, ~10 min)**: Swift recipe from `packages/swift/CLAUDE.md` +
     `grep 'DataEdgeTests.*passed'`; Kotlin `cleanTest test` + `<testsuite>` attrs of the XML. Swift
     `String ==` is canonical equivalence — a harness-strictness note, filed `low`
+- **Generated C/C++ table (219, ~1 min/probe)**: render a mutated fixture with the generator module
+    into `/tmp/x/`, copy the harness there (a quote-include resolves next to the source) and compile
+    with gcc/g++ against `target/debug` — a real-regression probe without touching the tree
+- **issues.md at its 300-line budget**: free room by cutting history sentences, line numbers and
+    counts from `[review]` entries; never reword `[human]` entries
 - **Waiting on a background run**:
     `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15;   done'` in the foreground works
     (bare `sleep` is blocked); never edit while prek runs

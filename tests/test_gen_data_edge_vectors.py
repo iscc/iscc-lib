@@ -10,6 +10,7 @@ derived from the fixture, never written as literals. No network, no mocks.
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,11 @@ def write_mutated_fixture(tmp_path, mutate):
     return path
 
 
+def c_escape_chars(text):
+    """Return the character after each backslash escape, scanning left to right."""
+    return re.findall(r"\\(.)", text, flags=re.DOTALL)
+
+
 def find_vector(fixture, section, inputs):
     """Return the name and vector of ``section`` whose inputs equal ``inputs``."""
     for name, vector in fixture[section].items():
@@ -61,7 +67,8 @@ def test_tracked_header_is_ascii_lf_only_no_hex_escapes():
     raw = HEADER.read_bytes()
     text = raw.decode("utf-8")
     assert text.isascii()
-    assert "\\x" not in text
+    assert "x" not in c_escape_chars(text)
+    assert c_escape_chars("a\\x61 \\\\x61") == ["x", "\\"]
     assert b"\r" not in raw
     assert text.endswith("\n") and not text.endswith("\n\n")
 
@@ -82,7 +89,7 @@ def test_every_vector_name_is_rendered_once():
     text = HEADER.read_text(encoding="utf-8")
     for section, vectors in load_fixture().items():
         body = text.split(f"iscc_edge_{section}[{gen.count_macro(section)}] = {{")[1]
-        body = body.split("};")[0]
+        body = body.split("\n};\n")[0]
         for name in vectors:
             assert body.count(f'{{"{name}", ') == 1, f"{section}/{name}"
 

@@ -1,71 +1,64 @@
-## 2026-11-20 — data-edge.json fan-out, group 3 — C and C++ harnesses via one generated header
+## 2026-11-20 — Review of: data-edge.json fan-out, group 3 — C and C++ harnesses via one generated header
 
-**Done:** Recovered and adapted the `ea69169` generator as `scripts/gen_data_edge_vectors.py`. It
-renders `data-edge.json` into `crates/iscc-ffi/tests/data_edge_vectors.h` (C99 + C++17, positional
-initialisers, explicit-length strings, a resolved `c`/`cpp` expectation per row, per-section and
-total count macros). A pytest gate fails on a stale header. The C test and the C++ test now run
-every vector through one check function per section plus a loop, a total-row tally and negative
-tests. Three commits, one per surface: `09fde2e` generator, `021e917` C, `9c19587` C++.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `scripts/gen_data_edge_vectors.py` (new): PEP 723, octal escape rule, ASCII/LF output; fails
-    closed on an unknown/empty/missing section, bad arity or type, and a bad `except` key or value
-- `crates/iscc-ffi/tests/data_edge_vectors.h` (new, generated)
-- `tests/test_gen_data_edge_vectors.py` (new, 13 tests): fresh render == tracked bytes; ASCII/LF/no
-    `\x`; count macros derived from the fixture; each name rendered once; a mutated expectation
-    changes the render; unknown section / bad arity / bad `except` key / empty section raise
-    `SystemExit`; the NUL text row renders c=skip, cpp=error; the empty-list sentinel
-- `crates/iscc-ffi/tests/test_iscc.c`: `check_edge_*` per section, `RUN_EDGE_SECTION` loop (uses
-    `ASSERT_EQ`, prints `SKIP:` for skip rows), tally vs `ISCC_EDGE_TOTAL_COUNT`, 3 negatives
-    (accepted rejection, `iscc` mismatch, embedded NUL: `strlen != len`, whose expected `iscc` is
-    the hash of `"Hello"`, so only the length check catches it)
-- `packages/cpp/tests/test_iscc.cpp`: `check_edge_*` (only `iscc::IsccError` counts as a rejection;
-    any other exception fails), `run_edge_section` template, tally, 2 negatives
-- `packages/cpp/tests/CMakeLists.txt`: PRIVATE `target_include_directories` on `test_iscc` only
-- `crates/iscc-ffi/CLAUDE.md`, `packages/cpp/CLAUDE.md`: name the header, the loop and the
-    regenerate command, with no vector counts
+**Summary:** The generator recovered from `ea69169` renders `data-edge.json` into a C99/C++17 header
+(`crates/iscc-ffi/tests/data_edge_vectors.h`), and pytest fails when that header is stale. The C and
+C++ tests now run every vector through one check function per section, with a total-row tally and
+negative tests. It is clean, in scope (an honest fan-out, one commit per surface), and every next.md
+check passes. The review commit carries three small test-robustness fixes from the Codex findings
+(see below).
 
 **Verification:**
 
-- `uv run pytest tests/test_gen_data_edge_vectors.py tests/test_data_edge.py tests/test_vendored_fixtures.py`:
-    100 passed. `mise run check` exit 0 (pre-commit hooks only). I also ran
-    `prek run --hook-stage pre-push --files <both .py>`: clippy, cargo test, ty, Ruff S/C901 and
-    pytest all Passed
-- Regenerating with `uv run --script scripts/gen_data_edge_vectors.py` leaves
+- [x] `uv run pytest tests/test_gen_data_edge_vectors.py tests/test_data_edge.py tests/test_vendored_fixtures.py`:
+    100 passed (before and after my edits). `mise run check` exit 0
+- [x] `uv run --script scripts/gen_data_edge_vectors.py` leaves
     `git status --porcelain crates/iscc-ffi/tests` empty
-- The no-vector-name `grep -nE …` over both harnesses prints nothing (exit 1)
-- C (ci.yml gcc line after `cargo build -p iscc-ffi`): exit 0, 96 passed. A script derived from the
-    fixture found all 14 non-skip `PASS: data_edge/…` lines and 3 negative PASS lines. 2 SKIP lines
-    are the two `c: skip` rows
-- C++ (`/tmp/cpp-edge`, ci.yml flags, absolute `FFI_LIB_DIR`, ASAN on): exit 0, 95 passed, 0
-    `AddressSanitizer` lines, all 16 `PASS: data_edge/…` lines and 2 negative PASS lines
-- Probes with a real regression, using a header rendered from a mutated fixture copy:
-    - C: dropping `except.c` from the NUL text row → that row FAILs. A wrong `encode_seq` output →
-        FAIL. Deleting the `gen_iscc_code_v0` loop → tally FAIL "got 15, expected 16", exit 1
-    - C++: dropping `except.cpp` → FAIL. A wrong decode maintype → FAIL, exit 1
-- `gcc -std=c99 -Wall -Wextra -pedantic` and `g++ -std=c++17 -Wall -Wextra -pedantic` syntax checks
-    print no warnings
-- Caveat: only Linux gcc/g++ ran here, so the macOS/Windows compilers have not seen the header
+- [x] The no-vector-name `grep -nE …` over both harnesses prints nothing (exit 1)
+- [x] C: `cargo build -p iscc-ffi` + the `ci.yml` gcc line, exit 0, 96 passed. 14
+    `PASS: data_edge/…` lines (all fixture vectors except the two `c: skip` rows, which print
+    `SKIP:`), tally PASS, 3 negative PASS lines
+- [x] C++: fresh `/tmp/cpp-edge`, `ci.yml` flags, absolute `FFI_LIB_DIR`, ASAN on: exit 0, 0
+    sanitizer lines, all 16 `PASS: data_edge/…` lines, tally PASS, 2 negative PASS lines (re-run
+    after my fix: 95 passed)
+- [x] Probes: (1) the negative's expected `ISCC:EAAWSPUDF7GJWQVD` is the code of `"Hello"`, so the C
+    NUL negative fails only on the length check, as claimed; (2) a header rendered with `except.c`
+    dropped from the `encode_seq` NUL row turns C red (the list path, which advance had not probed);
+    (3) the C++ CMake tree is already repo-relative (`../../crates/iscc-ffi/include`), and
+    vcpkg/release copy only headers, so the PRIVATE test include cannot break a consumer
+- [x] Gate scan of all unpushed commits: no suppressions, skips or hook/threshold changes. No Rust
+    source changed, so CRAP/iai/semver are untouched
 
-**Next:** v0.8.0 "Shared edge-case vectors run everywhere" should now be met on all 12 surfaces.
-update-state should confirm the CI `c-ffi` and `cpp` jobs are green on the pushed sha. Cheap
-`normal` follow-up: the Python `encode_seq` docstring issue.
+**Issues found:**
 
-**Notes:**
+- Filed `low` (Triage: untriaged): "C++ list wrappers pass NULL for an empty vector". The same
+    pattern sits at five `iscc.hpp` sites (next.md named two); the input is still rejected
+- Nit, not filed: the C `RUN_EDGE_SECTION` name buffer is 160 bytes, so a very long vector name is
+    truncated in the PASS/FAIL line only (counting is unaffected)
+- Nit, not filed: the generator keeps its own `SURFACE_IDS` copy next to `tests/test_data_edge.py`.
+    Drift fails closed (an unknown `except` key → `SystemExit` → the staleness test goes red)
+- Issue sweep: the Dependabot entry no longer mentions the `json` gem (`Gemfile.lock` pins 2.21.2).
+    Three entries were compressed to get `issues.md` under budget
 
-- Required by next.md: the C++ `gen_mixed_code_v0`/`gen_iscc_code_v0` wrappers pass `ptrs.data()`
-    (NULL for an empty vector), while `encode_seq` uses `detail::safe_data`. The empty-list rows
-    pass anyway, because the FFI NULL guard rejects the input before the core's count check. Not
-    fixed (out of scope)
-- Deviations from next.md:
-    - `escape_c_bytes` also escapes `?` as `\?` so no trigraph can form. `\?` is valid in both C99 and
-        C++17, and a test pins it
-    - The generator also fails closed on an empty/missing section (no zero-length arrays) and on input
-        type mismatches
-    - It keeps its own `SURFACE_IDS` copy, a second list next to `tests/test_data_edge.py`. Drift
-        fails closed, but both lists need maintaining
-- `iscc-ffi` is `publish = false`, so the header never ships (`cargo package --list` would include
-    `tests/`, but the crate is never published)
-- `mise run check` runs only the pre-commit stage. The pre-push gates need
-    `prek run --hook-stage pre-push`
+**Codex review:** (one run over `c0e123d..HEAD`, all four commits). Three findings were valid and I
+fixed them in this commit:
+
+1. C++ `run_edge_section` returned `count`, not the number of rows visited. It now counts the rows
+    it visits, like the C macro. A loop shortened by one row now fails the tally ("got 11, expected
+    16")
+2. The pytest `"\\x" not in text` check went red on a valid vector holding a literal `\x` (rendered
+    `\\x`). It now scans escape tokens, and an inline assert covers both cases
+3. The pytest row-boundary split on `"};"` broke on a `};` payload. It now splits on `"\n};\n"`
+
+Both pytest fixes were proven on a mutated fixture. The 4th Codex finding is the 160-byte name nit
+above.
+
+**Next:** The v0.8.0 "Shared edge-case vectors run everywhere" criterion should be met on all 12
+surfaces once CI's `c-ffi` and `cpp` jobs are green on the pushed sha (update-state: verify on the
+exact sha). Cheapest `normal` follow-ups: the Python `encode_seq` docstring issue (two docstrings),
+then the `wasm-bindings.md` package.json spec-fact issue, or the .NET pinning-helper issue.
+
+**Notes:** Only the ubuntu gcc/g++ in CI compile the header (both `c-ffi` and `cpp` jobs are
+`ubuntu-latest`), so MSVC/clang never see it. The empty-list rows pass on C++ through the FFI NULL
+guard, not the core's count check; see the filed issue.

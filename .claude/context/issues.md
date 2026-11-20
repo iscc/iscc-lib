@@ -23,24 +23,19 @@ and user-facing behaviour in `docs/`.
 The page documents every FFI struct under an unprefixed name (`IsccDecodeResult`, `IsccByteBuffer`,
 `IsccByteBufferArray`, …), but cbindgen prefixes exported types in `crates/iscc-ffi/include/iscc.h`
 — the real declarations are `iscc_IsccDecodeResult`, `iscc_IsccByteBuffer`, etc. (typedef at
-`iscc.h:79/104`; no unprefixed alias exists). So every C snippet on the page — including the
-`iscc_gen_iscc_id_v1` decode example added in iter 190 (`IsccDecodeResult d = iscc_decode(...)`,
-`docs/c-ffi-api.md:398`) — fails to compile verbatim against the header produced by the documented
-generation command. This is a pre-existing, page-wide convention, not a regression from the IDv1
-sweep, which is why the sweep step (docs-only, example follows page style) was accepted.
+`iscc.h`; no unprefixed alias exists). So every C snippet on the page, including the
+`iscc_gen_iscc_id_v1` decode example, fails to compile verbatim against the header produced by the
+documented generation command. Pre-existing and page-wide.
 
-Resolved when the page's type names match the generated header (either rename all snippets to the
-`iscc_`-prefixed forms, or emit an unprefixed alias in the cbindgen config and document that) and a
-representative example compiles against `crates/iscc-ffi/include/iscc.h`.
+Resolved when the page's type names match the generated header (`iscc_`-prefixed snippets, or a
+documented unprefixed cbindgen alias) and a representative example compiles against `iscc.h`.
 
 ## iscc-core mints 88-bit ISCC-IDv0 codes it cannot decode `low` [review]
 
-`iscc_core.encode_length` accepts an 88-bit `ID` body, but the `LN` enum
-(`reference/iscc-core/iscc_core/constants.py:166-178`) has no 88, so on `iscc_core` 1.3.0
-`gen_iscc_id_v0(code, 1, wallet, uc=20000)` → `ISCC:MEBUAGCA47NDLBDXUCOAC`, and `iscc_decode` on it
-raises `ValueError: 88 is not a valid LN`. iscc-lib decodes it (`codec.rs` `decode_length`,
-`length * 8 + 64`). **No local change**: ISCC-IDv0 is out of scope, and matching the reference would
-replicate a defect. Recorded so a conformance sweep does not "fix" our decoder.
+`iscc_core.encode_length` accepts an 88-bit `ID` body, but the `LN` enum (`constants.py`) has no 88:
+on `iscc_core` 1.3.0, `iscc_decode` of `gen_iscc_id_v0(code, 1, wallet, uc=20000)` (`ISCC:ME…`)
+raises `ValueError: 88 is not a valid LN`. iscc-lib decodes it. **No local change**: ISCC-IDv0 is
+out of scope, and matching would replicate a defect, so a conformance sweep must not "fix" it.
 
 Resolved when filed upstream and the outcome noted.
 
@@ -66,16 +61,14 @@ Close this issue when upstream has decided and a follow-up decision for iscc-lib
 
 Three items, each waiting on a trigger — CID must not act on them unprompted:
 
-1. **A zero-resolved run still exits 0** (`action-inputs: resolved <R> of <T> action refs` is
-    visible, not fatal). Flipping it reverses decisions.md 2026-07-26 and makes third-party
-    availability a merge blocker, so it **needs Titusz**. **Trigger:** a `release-workflow` CI log
-    with a non-zero skip count.
-2. **Job-level `uses:` (reusable workflows) is unscanned**, and its `…/.github/workflows/x.yml@ref`
-    form needs a different URL shape than `action_yml_urls`. **Trigger:** a reusable workflow is
-    added to any workflow file.
-3. **The YAML 1.1 boolean fix is one-sided**: an action input literally named `on`/`off`/`yes`/`no`
-    parses as a bool on the metadata side, so a quoted `"on"` would be reported undeclared. None of
-    the 18 refs has one. **Trigger:** the false positive is observed.
+1. **A zero-resolved run still exits 0** (`action-inputs: resolved <R> of <T>` is visible, not
+    fatal). Flipping it reverses decisions.md 2026-07-26, so it **needs Titusz**. **Trigger:** a
+    `release-workflow` CI log with a non-zero skip count.
+2. **Job-level `uses:` (reusable workflows) is unscanned**; `…/.github/workflows/x.yml@ref` needs a
+    different URL shape than `action_yml_urls`. **Trigger:** a reusable workflow is added.
+3. **The YAML 1.1 boolean fix is one-sided**: an action input named `on`/`off`/`yes`/`no` parses as
+    a bool on the metadata side, so a quoted `"on"` would be reported undeclared. **Trigger:** the
+    false positive is observed.
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 
@@ -145,19 +138,18 @@ spare bits as inputs iscc-lib rejects and iscc_core accepts.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations" ("Base32 input is strict")
 
-## Dependabot alerts: `soupsieve`, `setuptools` (`uv.lock`) and `json` (`Gemfile.lock`) `normal` [review]
+## Dependabot alerts: `soupsieve`, `setuptools` (`uv.lock`) `normal` [review]
 
-GitHub reports 5 open alerts on `uv.lock` (2026-11-18): `soupsieve` 2.9.1 has #6 high (ReDoS, fixed
+GitHub reports open alerts on `uv.lock` (2026-11-18): `soupsieve` 2.9.1 has #6 high (ReDoS, fixed
 3.0.2), #4 high (polynomial-time descendant combinator, fixed **4.0.0**), #5 and #3 medium;
 `setuptools` 83.0.0 has #2 low (fixed 84.1.0). Both are dev-environment only: `soupsieve` arrives
 via `beautifulsoup4` ← `mdformat-web` ← `mdformat-mkdocs[recommended]` (dev group), so no published
-artifact pins them. Also open: #1 low, the `json` gem in `crates/iscc-rb/Gemfile.lock` (fixed
-2.21.2). Check that `beautifulsoup4` accepts `soupsieve` 4.x before bumping; refresh only these
-packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
+artifact pins them. Check that `beautifulsoup4` accepts `soupsieve` 4.x before bumping; refresh only
+these packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
 
 Resolved when `uv.lock` pins `soupsieve` >= 4.0.0 and `setuptools` >= 84.1.0, `mise run check`
-(mdformat) is green, `Gemfile.lock` pins `json` >= 2.21.2, and
-`gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of #1-#6.
+(mdformat) is green, and `gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of
+#2-#6.
 
 ## napi `Buffer` parameters leak a reference on non-Buffer object input `low` [review]
 
@@ -298,3 +290,10 @@ is dropped. (b) leaves the Swift case open.
 Resolved when Titusz picks a reading and the spec says how a source-distributed surface meets it.
 
 **Spec:** `.claude/context/specs/edge-vectors.md` → "The File", "Verified When"
+
+## C++ list wrappers pass NULL for an empty vector `low` [review]
+
+**Triage:** untriaged. An empty vector still throws `iscc::IsccError`, only with the FFI's NULL
+message. `gen_mixed_code_v0`, `gen_iscc_code_v0`, `gen_video_code_v0`, `alg_simhash` and
+`soft_hash_video_v0` (`packages/cpp/include/iscc/iscc.hpp`) pass `ptrs.data()`, NULL when empty,
+where `encode_seq` uses `detail::safe_data`. Resolved when they pass a non-NULL pointer too.

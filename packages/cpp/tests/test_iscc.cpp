@@ -193,11 +193,13 @@ static bool check_edge_gen_iscc_code_v0(const iscc_edge_gen_iscc_code_v0_vector&
 }
 
 /// Run every row of one data-edge section: skip rows marked cpp skip, check the rest,
-/// print PASS/FAIL per row, and return the number of rows seen (run or skipped).
+/// print PASS/FAIL per row, and return the number of rows visited (run or skipped).
 template <typename Row, typename Check>
 static size_t run_edge_section(const char* section, const Row* rows, size_t count,
                                Check check) {
+    size_t seen = 0;
     for (size_t i = 0; i < count; ++i) {
+        ++seen;
         const std::string name = std::string("data_edge/") + section + "/" + rows[i].name;
         if (rows[i].cpp == ISCC_EDGE_SKIP) {
             std::printf("SKIP: %s\n", name.c_str());
@@ -205,7 +207,7 @@ static size_t run_edge_section(const char* section, const Row* rows, size_t coun
         }
         assert_true(check(rows[i]), name.c_str());
     }
-    return count;
+    return seen;
 }
 
 int main() {

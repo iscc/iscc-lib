@@ -8,8 +8,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 - Hub-and-spoke: `iscc-lib` (pure Rust core) → binding crates (py, napi, wasm, ffi, jni, rb,
     uniffi), each depending only on the core. Tier 1 = 35 symbols `pub use`d at crate root (IDv1
-    177, `encode_seq`/`decode_seq` 195; docs/count sweep to 35 done, iter 211); Tier 2 is
-    `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
+    177, `encode_seq`/`decode_seq` 195); Tier 2 is `pub(crate)`, never crosses FFI. `packages/go` is
+    NOT a binding — a pure-Go reimplementation
 - **ISCC-SEQ core (195)**: bound on all 11 surfaces (210) and documented everywhere (211);
     `read_unit`/`SEQ_MAINTYPES` Tier 2 on private raw-`u32` header helpers — never the typed
     `decode_header` path (Go `uint8` truncates SubType 4679 → 71, 202). **The spec round trip is
@@ -71,6 +71,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     ASCII + LF + one trailing newline, else prek hygiene hooks rewrite it and break the
     regeneration-no-op gate — a **third-party** generator you can't fix (uniffi bindgen, 172) always
     trips it, so verify no-op modulo `sed 's/[[:space:]]*$//'`, never `git status`
+- **C/C++ read `data-edge.json` from a generated header** (219): `gen_data_edge_vectors.py` renders
+    `crates/iscc-ffi/tests/data_edge_vectors.h`; a vector = JSON edit + regen, a section = renderer
+    \+ a check fn per harness. Checks over generated source must tokenize escapes and split on lines
+    (payload `\x` and `};` land verbatim), and a row tally counts visited rows, never the loop bound
 - **Perf-gate tooling installs on demand, NOT in the devcontainer**: `mise run bench:iai:check` dies
     until `apt-get install valgrind` + `cargo binstall iai-callgrind-runner@0.16.1` (pin-matched)
 - **A docs page lives in FOUR places** — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
@@ -190,9 +194,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `actual.keys & expected.keys` passed a result without `iscc`); only a bare-string result is
     wrapped to `{iscc}`. `outputs: {}` passes every harness, so the validator rejects it (218).
     Swift `String ==` is canonical equivalence (`"K" == "\u{212A}"`): compare `unicodeScalars`
-- **A source-distributed surface ships its test data** (217): the Go module zip carries all of
-    `packages/go/` incl. `testdata/`, and SwiftPM clones the whole repo, so a "not in any published
-    artifact" rule needs a reading for them (filed); the Rust crate uses `exclude` in `Cargo.toml`
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
