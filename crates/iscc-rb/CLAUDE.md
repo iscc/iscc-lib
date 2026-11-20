@@ -99,6 +99,18 @@ RubyGems publishing uses **OIDC trusted publishing** (no API keys). Configured v
 `rubygems/configure-rubygems-credentials@main` with `id-token: write` permission. The trusted
 publisher is registered on rubygems.org for `iscc/iscc-lib` + `release.yml`.
 
+**Source gem** (platform `ruby`): never `gem build iscc-lib.gemspec` in this directory — that gem
+inherits workspace keys and depends on `../iscc-lib`, so it cannot build after install. Build it
+with `uv run --script scripts/build_ruby_source_gem.py --out DIR`, which stages a standalone tree in
+a temp dir: a generated `Cargo.toml` (concrete keys, core as `path = "core"`, empty `[workspace]`),
+the core from `cargo package -p iscc-lib` under `core/`, and the workspace `Cargo.lock`.
+`release.yml` (`publish-rubygems`) publishes that gem; the ci.yml `ruby-source-gem` job installs it
+on Ruby 3.4 into an empty gem home and runs `conformance_selftest`. The gemspec declares
+`rb_sys ~> 0.9` as a runtime dependency (`extconf.rb` needs `rb_sys/mkmf`); keep it a loose range,
+the exact 0.9.123 pin belongs to the `Gemfile` only. The gemspec's `core/**/*` and `Cargo.lock`
+entries match nothing in this directory, so the platform gems `cross-gem` builds here stay as they
+were. Never name the carried core `vendor/` or `tmp/` (gitignored Bundler/rake dirs).
+
 ## Magnus Patterns
 
 - `#[magnus::wrap(class = "IsccLib::ClassName")]` for streaming classes

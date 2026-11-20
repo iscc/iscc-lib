@@ -224,6 +224,35 @@ jobs:
       - name: Run tests
         run: bundle exec rake test
         working-directory: crates/iscc-rb
+  ruby-source-gem:
+    name: Ruby source gem (build, clean install)
+    runs-on: ubuntu-latest
+    # Ruby 3.4 has no precompiled gem (release.yml cross-gem builds 3.1 to 3.3), so
+    # this install takes the source-gem path the Ruby docs promise. It runs from a
+    # directory outside the checkout into an empty gem home, and needs network
+    # access for the rb_sys gem and crates.io.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install libclang-dev
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+      # exact tag: setup-uv publishes no floating major tag past v7 (v8/v9 are
+      # exact release tags only), so @v9 does not resolve
+      - uses: astral-sh/setup-uv@v9.0.0
+      - name: Build source gem
+        run: uv run --script scripts/build_ruby_source_gem.py --out "$RUNNER_TEMP/source-gem"
+      - name: Install source gem into a clean gem home
+        working-directory: ${{ runner.temp }}
+        env:
+          LANG: C.UTF-8
+          GEM_HOME: ${{ runner.temp }}/gem-home
+          GEM_PATH: ${{ runner.temp }}/gem-home
+        run: |
+          gem install "$RUNNER_TEMP"/source-gem/iscc-lib-*.gem --no-document
+          ruby -e 'require "iscc_lib"; exit(IsccLib.conformance_selftest ? 0 : 1)'
   cpp:
     name: C++ (cmake, ASAN, test)
     runs-on: ubuntu-latest

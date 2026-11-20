@@ -29,8 +29,10 @@ gem "iscc-lib"
 ```
 
 Precompiled platform gems are built for Ruby 3.1 to 3.3 on common platforms. On a newer Ruby, or on
-a platform with no precompiled gem, `gem install iscc-lib` compiles the extension from source, which
-requires a Rust toolchain and `libclang-dev`.
+a platform with no precompiled gem, `gem install iscc-lib` installs the source gem and compiles the
+extension. That build needs a Rust toolchain (`rustup`), `libclang-dev`, Ruby development headers,
+and network access: it installs the `rb_sys` gem and downloads the Rust crates from crates.io. CI
+installs the source gem on Ruby 3.4.
 
 ## Quick Start
 

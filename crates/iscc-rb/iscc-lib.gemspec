@@ -20,15 +20,22 @@ Gem::Specification.new do |spec|
   spec.metadata["documentation_uri"] = "https://lib.iscc.codes"
   spec.metadata["rubygems_mfa_required"] = "true"
 
+  # Cargo.lock and core/ exist only in the standalone tree that
+  # scripts/build_ruby_source_gem.py stages for the source gem; in this directory
+  # (where cross-gem builds the platform gems) both globs match nothing.
   spec.files = Dir[
     "lib/**/*.rb",
     "src/**/*.rs",
     "extconf.rb",
     "Cargo.toml",
+    "Cargo.lock",
     "README.md",
     "LICENSE"
-  ]
+  ] + Dir["core/**/*"].select { |path| File.file?(path) }
 
   spec.require_paths = ["lib"]
   spec.extensions = ["extconf.rb"]
+
+  # extconf.rb requires rb_sys/mkmf to build the extension from source
+  spec.add_dependency "rb_sys", "~> 0.9"
 end

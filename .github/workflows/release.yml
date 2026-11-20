@@ -919,10 +919,17 @@ jobs:
           pattern: gem-*
           path: gems
           merge-multiple: true
+      # The source gem carries a standalone manifest and the core crate, staged by
+      # the same script the ci.yml `ruby-source-gem` job builds and installs with
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.check.outputs.skip != 'true'
+      # exact tag: setup-uv publishes no floating major tag past v7 (v8/v9 are
+      # exact release tags only), so @v9 does not resolve
+      - uses: astral-sh/setup-uv@v9.0.0
+        if: steps.check.outputs.skip != 'true'
       - name: Build source gem
         if: steps.check.outputs.skip != 'true'
-        run: gem build iscc-lib.gemspec
-        working-directory: crates/iscc-rb
+        run: uv run --script scripts/build_ruby_source_gem.py --out source-gem
       - name: Publish gems
         if: steps.check.outputs.skip != 'true'
         run: |-
@@ -932,7 +939,7 @@ jobs:
             gem push "$gem"
           done
           # Publish source gem (fallback for platforms without precompiled gems)
-          for gem in crates/iscc-rb/*.gem; do
+          for gem in source-gem/*.gem; do
             echo "Publishing $gem"
             gem push "$gem"
           done

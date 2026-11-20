@@ -64,10 +64,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - JNI errors (230): `throw_and_default(env, &e)` — `JavaError` trait picks class (NoMemory → OOM);
     never `&e.to_string()`, `String` has no impl (`.as_str()`). jni `*_with_catch*` macros CLEAR the
     JVM OOM. OOM test = child JVM (`OomProbe`, `-Xmx16m`); never null-test unfixed (SEGV)
-- CI `.github/workflows/ci.yml`: 20 jobs (version-check, rust, python-test, python, nodejs, wasm,
-    c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver, coverage, audit,
-    release-workflow). `bench`=`cargo bench --no-run`; `swift` macos-15 (macos-14 retired
-    2026-11-02, iter 196); `kotlin` ubuntu JDK17
+- CI `.github/workflows/ci.yml`: 21 jobs (version-check, rust, python-test, python, nodejs, wasm,
+    c-ffi, dotnet, java, go, ruby, ruby-source-gem, cpp, swift, kotlin, bench, perf, semver,
+    coverage, audit, release-workflow). `bench`=`cargo bench --no-run`; `swift` macos-15 (macos-14
+    retired 2026-11-02, iter 196); `kotlin` ubuntu JDK17
 - Enforcing gates: `coverage` (CRAP baseline `.crap-baseline.json`), `audit` (cargo-deny), `perf`
     (iai vs `.iai-baseline.json`); `semver` informational until v1.0.0. CRAP gate is CI-ONLY —
     refresh `mise run crap:baseline` in the SAME step as any branch-adding change → ci-gates.md
@@ -138,6 +138,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 
 ## Ruby Bindings (Magnus) → MEMORY-archive.md (Magnus 0.8 API, never `Vec<T>` params)
 
+- Ruby source gem (239): ONLY via `scripts/build_ruby_source_gem.py --out DIR` (standalone manifest
+    \+ `cargo package` core under `core/` + workspace Cargo.lock); gemspec `rb_sys ~> 0.9`.
+    Clean-home probe: from /tmp, `GEM_HOME=GEM_PATH=/tmp/x gem install` (~40 s)
 - Ruby `i32` elements (229): only via `array_to_i32_vec` (i64 then `i32::try_from`); Magnus
     `RBignum::to_i32` truncates negative Bignums. Rebuild: `bundle exec rake compile:dev`
 

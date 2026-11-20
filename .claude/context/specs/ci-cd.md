@@ -15,28 +15,29 @@ Continuous integration, quality gates, developer tooling, and selective package 
 Runs on every push to `main` or `develop` and every PR targeting `main`. All jobs must pass before
 merge.
 
-| Job                | What it checks                                                                                                                   |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `version-check`    | `python scripts/version_sync.py --check` for manifest version consistency                                                        |
-| `rust`             | `cargo fmt --check`; clippy (`-D warnings`) and tests for the workspace (excluding `iscc-rb`) plus the `iscc-lib` feature matrix |
-| `python-test`      | `maturin develop`, `ruff check`, `ruff format --check`, `pytest` on each matrix Python                                           |
-| `python`           | Asserts `needs.python-test.result == "success"` (aggregator, see note below)                                                     |
-| `nodejs`           | `npm install`, `napi build --platform`, `npm test` in `crates/iscc-napi`                                                         |
-| `wasm`             | `wasm-pack test --node crates/iscc-wasm --features conformance` with `+simd128`                                                  |
-| `c-ffi`            | cbindgen header freshness (`git diff --exit-code`), gcc compile + run of the C test program                                      |
-| `dotnet`           | `cargo build -p iscc-ffi`, then `dotnet build` + `dotnet test` for `packages/dotnet`                                             |
-| `java`             | `cargo build -p iscc-jni`, then `mvn test -f crates/iscc-jni/java/pom.xml`                                                       |
-| `go`               | `CGO_ENABLED=0 go test` + `go vet` in `packages/go` (pure Go, no Rust toolchain)                                                 |
-| `ruby`             | `standardrb`, `cargo clippy -p iscc-rb`, `rake compile`, `rake test`                                                             |
-| `cpp`              | CMake Debug + ASAN build of `packages/cpp` against `iscc-ffi`, runs the C++ test binary                                          |
-| `swift`            | On macOS: root `Package.swift` dump, `cargo build -p iscc-uniffi`, `swift build` + `swift test`                                  |
-| `kotlin`           | `cargo build -p iscc-uniffi`, then `./gradlew test` in `packages/kotlin`                                                         |
-| `bench`            | `cargo bench --no-run` compile-only benchmark verification                                                                       |
-| `perf`             | `iai-callgrind` benches, non-zero-instruction assert, `iai_regression.py --check` vs `.iai-baseline.json`                        |
-| `semver`           | `cargo-semver-checks` for `iscc-lib` (informational via `continue-on-error` pre-1.0)                                             |
-| `coverage`         | `cargo llvm-cov` LCOV + `cargo crap` annotations/SARIF + `--fail-regression --fail-above` gate (see below)                       |
-| `audit`            | `cargo deny check` per root `deny.toml` (advisories, bans, licenses, sources)                                                    |
-| `release-workflow` | `check_release_workflow.py --check-action-inputs`: `release.yml` `with:` keys vs published `action.yml`s                         |
+| Job                | What it checks                                                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `version-check`    | `python scripts/version_sync.py --check` for manifest version consistency                                                          |
+| `rust`             | `cargo fmt --check`; clippy (`-D warnings`) and tests for the workspace (excluding `iscc-rb`) plus the `iscc-lib` feature matrix   |
+| `python-test`      | `maturin develop`, `ruff check`, `ruff format --check`, `pytest` on each matrix Python                                             |
+| `python`           | Asserts `needs.python-test.result == "success"` (aggregator, see note below)                                                       |
+| `nodejs`           | `npm install`, `napi build --platform`, `npm test` in `crates/iscc-napi`                                                           |
+| `wasm`             | `wasm-pack test --node crates/iscc-wasm --features conformance` with `+simd128`                                                    |
+| `c-ffi`            | cbindgen header freshness (`git diff --exit-code`), gcc compile + run of the C test program                                        |
+| `dotnet`           | `cargo build -p iscc-ffi`, then `dotnet build` + `dotnet test` for `packages/dotnet`                                               |
+| `java`             | `cargo build -p iscc-jni`, then `mvn test -f crates/iscc-jni/java/pom.xml`                                                         |
+| `go`               | `CGO_ENABLED=0 go test` + `go vet` in `packages/go` (pure Go, no Rust toolchain)                                                   |
+| `ruby`             | `standardrb`, `cargo clippy -p iscc-rb`, `rake compile`, `rake test`                                                               |
+| `ruby-source-gem`  | `scripts/build_ruby_source_gem.py` builds the source gem; Ruby 3.4 installs it into an empty gem home, runs `conformance_selftest` |
+| `cpp`              | CMake Debug + ASAN build of `packages/cpp` against `iscc-ffi`, runs the C++ test binary                                            |
+| `swift`            | On macOS: root `Package.swift` dump, `cargo build -p iscc-uniffi`, `swift build` + `swift test`                                    |
+| `kotlin`           | `cargo build -p iscc-uniffi`, then `./gradlew test` in `packages/kotlin`                                                           |
+| `bench`            | `cargo bench --no-run` compile-only benchmark verification                                                                         |
+| `perf`             | `iai-callgrind` benches, non-zero-instruction assert, `iai_regression.py --check` vs `.iai-baseline.json`                          |
+| `semver`           | `cargo-semver-checks` for `iscc-lib` (informational via `continue-on-error` pre-1.0)                                               |
+| `coverage`         | `cargo llvm-cov` LCOV + `cargo crap` annotations/SARIF + `--fail-regression --fail-above` gate (see below)                         |
+| `audit`            | `cargo deny check` per root `deny.toml` (advisories, bans, licenses, sources)                                                      |
+| `release-workflow` | `check_release_workflow.py --check-action-inputs`: `release.yml` `with:` keys vs published `action.yml`s                           |
 
 `python-test` is a `['3.10', '3.14']` matrix and `python` is its `if: always()` aggregator (one
 stable required-check name), so the 21 job keys surface as 22 check names on a push. The first
