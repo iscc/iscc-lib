@@ -1,15 +1,15 @@
-<!-- assessed-at: 5fad193e87d47e1466816c566ca6b80e6d450342 -->
+<!-- assessed-at: 8347c91c85525eeb99996c5c06b2add50fc23b3a -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 4 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 3 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. CI is fully green on the pushed tip `5b9636a`, which covers all code at HEAD. This
-iteration fixed the C FFI docs type names. Still owed for v0.8.0: the 4 open `normal` issues (the
-`soupsieve` half of the Dependabot entry waits on Titusz).
+all 11 bindings. CI is fully green on the pushed tip `bf4f395`, which covers all code at HEAD. This
+iteration fixed the Python `encode_seq` docstrings. Still owed for v0.8.0: the 3 open `normal`
+issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -35,12 +35,14 @@ iteration fixed the C FFI docs type names. Still owed for v0.8.0: the 4 open `no
 
 ## Python Bindings
 
-**Status**: partially met
+**Status**: met (v0.8.0 scope)
 
 - 35 Tier 1 symbols with `.pyi` stubs and `__all__`; abi3-py310 wheels for 4 platforms; 12
     `py.detach` sites; 0.7.0 on PyPI; data-edge harness with the iscc-core cross-check is green
-- **Missing (`normal` issue):** the `encode_seq` docstrings don't name the non-ASCII case-fold
-    divergence from iscc-core
+- The `encode_seq` docstrings (wrapper, PyO3 doc, `.pyi`) name the three inputs iscc-lib rejects and
+    iscc_core accepts; `tests/test_encode_seq_docs.py` (4 tests) gates all three
+- Review nit, not filed: "case-fold alias" is broader than what iscc_core really accepts (`ẞ` is
+    rejected by both); the term matches every other surface
 
 ## Node.js Bindings
 
@@ -65,9 +67,8 @@ iteration fixed the C FFI docs type names. Still owed for v0.8.0: the 4 open `no
 - 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
 - `tests/test_iscc.c` runs every data-edge row except the 2 marked `c: skip`; `c-ffi` job green
-- `docs/c-ffi-api.md` and `crates/iscc-ffi/README.md` use the `iscc_`-prefixed type names from
-    `iscc.h` (6 types); `tests/test_c_ffi_docs.py` (6 tests) derives the names from the header and
-    also covers `docs/howto/c-cpp.md`
+- `docs/c-ffi-api.md` and the ffi README use the `iscc_`-prefixed type names, gated by
+    `tests/test_c_ffi_docs.py` (6 tests)
 - `low` issue: `src/lib.rs` is past the crate's split threshold. Bare C names remain in comments in
     `packages/cpp/CLAUDE.md` and `iscc.hpp` (not filed)
 
@@ -144,16 +145,17 @@ iteration fixed the C FFI docs type names. Still owed for v0.8.0: the 4 open `no
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `5b9636a`
-    (https://github.com/iscc/iscc-lib/actions/runs/44668920166): all 21 check-runs `success`. The
+- **Latest CI: PASSING** on `origin/develop` = `bf4f395`
+    (https://github.com/iscc/iscc-lib/actions/runs/44674748595): all 21 check-runs `success`. The
     one unpushed commit touches `.claude/` only, so green CI covers HEAD
 - **Missing (`normal` issue):** Dependabot alerts on `soupsieve` (every fixed release needs Python
-    `>=3.11.5`, so it needs Titusz) and `setuptools` (`uv.lock`)
+    `>=3.11.5`, so it needs Titusz) and `setuptools` (`uv.lock`; 84.1.0 declares `>=3.10`, so it may
+    be bumpable alone)
 
 ## Open Issues
 
-19 open: 0 critical, **4 normal**, 15 low. Normal: Python `encode_seq` docstrings, Dependabot
-alerts, wasm-bindings spec drift, derived-fact drift. issues.md is at 283 of its 300-line budget.
+18 open: 0 critical, **3 normal**, 15 low. Normal: Dependabot alerts, wasm-bindings spec drift,
+derived-fact drift. issues.md is at 267 of its 300-line budget.
 
 ## Next Milestone
 

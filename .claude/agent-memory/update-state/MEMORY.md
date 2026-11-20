@@ -87,14 +87,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 5fad193, iter 222 — incremental)
+## Current State (assessed-at: 8347c91, iter 223 — incremental)
 
-- **CI GREEN on tip `5b9636a`** (21/21 check-runs). Unpushed = `.claude/` only.
-- **C FFI docs type names DONE (221):** `docs/c-ffi-api.md` + ffi README use `iscc_`-prefixed names;
-    `tests/test_c_ffi_docs.py` (6 tests) gates it. C FFI now met (v0.8.0) — do NOT re-flag.
-- **.NET jagged-array pinning DONE (220)** — do NOT re-flag.
-- **19 open: 4 normal, 15 low.** Normal: Python `encode_seq` docstrings, Dependabot (`soupsieve` fix
-    needs py>=3.11.5 → human), wasm spec drift, derived-fact drift. issues.md 283/300 lines.
+- **CI GREEN on tip `bf4f395`** (21/21 check-runs, run 44674748595). Unpushed = `.claude/` only.
+- **Python `encode_seq` docstrings DONE (222):** 3 sites + `tests/test_encode_seq_docs.py` (4
+    tests). Python now met (v0.8.0) — do NOT re-flag. "case-fold" wording nit is NOT filed.
+- C FFI docs type names DONE (221), .NET PinnedRows DONE (220) — do NOT re-flag.
+- **18 open: 3 normal, 15 low.** Normal: Dependabot (`soupsieve` needs py>=3.11.5 → human;
+    `setuptools` maybe bumpable alone), wasm spec drift, derived-fact drift. issues.md 267/300.
 - data-edge fan-out COMPLETE on all 12 surfaces (219); ISCC-SEQ on all 11 (211) — do NOT re-flag.
 - **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
     defects. Larger-step trial evaluated after iter 224.
