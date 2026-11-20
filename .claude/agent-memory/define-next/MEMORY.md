@@ -47,9 +47,14 @@ say finalized hasher throws IAE (code: ISE). Read the dep source before trusting
 exports stay put; gate = regen `iscc.h` + `NativeMethods.g.cs` → `git status` empty). 232 =
 Swift+Python data-edge compare strictness (2 test files; other 9 harnesses probed strict; Swift
 negatives must parse JSON TEXT — Swift literals are native Bool, not NSNumber; Darwin `as? Int`
-takes `false`, `as? Bool` takes 0/1, macOS proof only in CI). Next: derived-facts parity check.
-Unfiled: ref truncates mismatched digest lengths, Rust/Go reject — needs a human decision. Trap: the
-issue says C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits
+takes `false`, `as? Bool` takes 0/1, macOS proof only in CI). 233 = Tier 1 doc-parity gate
+(`check_tier1_docs.py`): source parsed from lib.rs column-0 `pub fn`/`pub const`/named `pub use`;
+FULL (one-way, casing-normalised) + EXACT (marker blocks in rust-core.md + iscc-lib CLAUDE.md) +
+EXEMPT registry, fail-closed discovery at ≥30 distinct symbols; it landed red: java-api lacked
+`genSumCodeV0`+`META_TRIM_META` despite saying "All 35" — doc fixes rode along. Next: part 2 sweep
+(counts/file lists in specs + crate CLAUDE.md, `docs/architecture.md` stale Tier 1 sigs). Unfiled:
+ref truncates mismatched digest lengths, Rust/Go reject — needs a human decision. Trap: the issue
+says C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits
 `num_digests == 0` to the core — re-probe before restating. Still open: gate leniency, Tier 1 parity
 check; setuptools bump resolves to 84.2.1 via `uv lock --upgrade-package setuptools` (dry-run 223);
 napi Buffer leak is `low` — skip; Ruby/JNI/ffi-split are `normal`). **Dependabot soupsieve is

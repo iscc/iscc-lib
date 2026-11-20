@@ -91,3 +91,13 @@ URLs; 23 real pages = 24 tracked `docs/**/*.md` minus the `includes/` snippet pa
 contains no `Auto-discovered` line" is the boolean wiring check. `uv run zensical build` (exit 0,
 "No issues found", ~8s) verifies any docs-only step; run it *before* `gen_llms_full.py` (the build
 wipes `site/`).
+
+## Doc-parity gates (233)
+
+- **Derive the truth from source, never a typed list** — a hardcoded list in the checker is one more
+    hand copy. Case-normalised token matching proves only presence (one-way); exact equality is
+    feasible only on lists in one casing, bounded by `<!-- …:begin/end -->` markers.
+- **"Any doc" needs fail-closed discovery**: a registry alone silently skips new docs, so files over
+    a distinct-symbol threshold must be registered as FULL/EXACT/EXEMPT. Before scoping, run a
+    read-only probe of per-file hit counts — it pinpoints the drift the gate will land red on, and
+    those doc fixes belong in the same step.
