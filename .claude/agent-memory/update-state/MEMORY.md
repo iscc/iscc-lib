@@ -87,19 +87,20 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 0bf8f8c, iter 236 — incremental)
+## Current State (assessed-at: 5814693, iter 237 — incremental)
 
-- **CI GREEN on tip `edd20de`** (21/21, run 44807966740). Unpushed = only `cid(log)`. **Local
+- **CI GREEN on tip `829a181`** (21/21, run 44814726134). Unpushed = only `cid(log)`. **Local
     `origin/develop` ref can be stale** — `git ls-remote origin develop` first; check-runs API
     returns 422 for an unpushed SHA. codecov/cursor suites sit `queued` forever.
-- **Security pass DONE 235** (rustix 1.1.6, x/text v0.41.0, Go `toolchain go1.26.11` — confirm in
-    the `go` job log via `gh run view <id> --log | grep "go version"`, napi Node 22) → CI/CD met.
+- **236 landed the data-edge "Output subset" rule** (`edge-vectors.md` Rules + Verified When;
+    validator + C/C++ generator enforce it). Remaining: static-set fan-out to .NET/Java/napi/WASM
+    harnesses (still intersect keys) — the `normal` `[human]` issue stays open until then.
 - **12 open: 4 normal** (`[human]` drift; Java how-to `genSumCodeV0`; `[human]` data-edge
     partial-key compare; Ruby precompiled gems stop at 3.3), 8 low (incl. EOL floors Py3.10/.NET
     8/Ruby 3.1 — human-only). issues.md 236/300.
 - data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
-- **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main` (6
-    open at 236); compare `vulnerable_version_range` to develop's lockfiles — all patched there.
+- **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`;
+    compare `vulnerable_version_range` to develop's lockfiles — all patched there (236).
 
 ## Durable Facts (carried, not per-iteration)
 

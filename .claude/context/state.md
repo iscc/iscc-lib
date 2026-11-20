@@ -1,4 +1,4 @@
-<!-- assessed-at: 0bf8f8c77005aeba753131c3e81d90ee408a5e1b -->
+<!-- assessed-at: 58146936529d1f1547c3e6a8f5c8e761ca60ea75 -->
 
 # Project State
 
@@ -7,21 +7,24 @@
 ## Phase: v0.8.0 — all features landed, CI green; 4 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 235 did the pre-release security pass (rustix 1.1.6, Go x/text v0.41.0,
-Go CI on toolchain go1.26.11, napi CI on Node 22) and closed that issue; CI is green on the
-refreshed set. Review filed a `normal` Ruby precompiled-gem gap, so 4 `normal` issues still block
-v0.8.0.
+all 11 bindings. Iteration 236 put the data-edge "Output subset" rule into `edge-vectors.md` and
+enforced it in the Python validator and the C/C++ header generator; the four lenient harnesses
+(.NET, Java, napi, WASM) still intersect keys. 4 `normal` issues still block v0.8.0.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
-**Status**: partially met — 1 `normal` `[human]` issue
+**Status**: partially met — 1 `normal` `[human]` issue (now narrowed to the harness fan-out)
 
 - `crates/iscc-lib/tests/data-edge.json` has 6 sections: `iscc_decode`, `encode_seq`,
     `gen_text_code_v0`, `gen_mixed_code_v0`, `gen_iscc_code_v0`, `alg_simhash`; harnesses on all 12
     surfaces; the 5 tracked copies are byte-identical and match `VENDORED_COPIES`
-- **`normal`:** the .NET, Java, napi and WASM harnesses compare only the keys their result exposes,
-    so expected keys like `characters` are dropped in harness code, against the spec rule that every
-    deviation is declared in the file. Waits on an output-subset rule in `edge-vectors.md`
+- Met: `tests/test_data_edge.py` and `scripts/gen_data_edge_vectors.py` derive each `gen_*`
+    function's allowed output keys from `data.json` and reject a non-object `outputs`, a missing
+    `iscc` or an unknown key, with negative tests; the generated C header is unchanged
+- **`normal`:** `DataEdgeTests.cs`, `DataEdgeTest.java`, `data_edge.test.mjs` and the WASM
+    `data_edge.rs` still compare the runtime intersection of expected and returned keys, against the
+    spec's "Output subset" rule and its new Verified When line (static uncompared set per harness,
+    plus two negative tests per surface)
 
 ## Rust Core Crate
 
@@ -29,7 +32,7 @@ v0.8.0.
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
     `conformance_selftest` runs the seq vectors; iai, Coverage + CRAP and semver jobs pass in CI
-- `Cargo.lock` now locks `rustix` 1.1.6 (advisory fix); no core source changed this iteration
+- No core source changed since iteration 235
 - **Missing (human-gated, not v0.8.0):** crate `>= 1.0.0`; MSRV verification
 
 ## Python Bindings
@@ -45,7 +48,7 @@ v0.8.0.
 **Status**: met (v0.8.0 scope); data-edge harness covered by the partial-compare issue
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and data-edge tests green in CI;
-    `@iscc/lib` 0.7.0 on npm (OIDC); `ci.yml` napi job now on Node `22`
+    `@iscc/lib` 0.7.0 on npm (OIDC); `ci.yml` napi job on Node `22`
 - `low` issue: the napi `Buffer` reference leak
 
 ## WASM Bindings
@@ -62,7 +65,8 @@ v0.8.0.
 
 - 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
-- `tests/test_iscc.c` runs every data-edge row except the 2 marked `c: skip`
+- `tests/test_iscc.c` runs every data-edge row except the 2 marked `c: skip`; the generator now
+    rejects unknown output keys
 
 ## Java Bindings
 
@@ -80,8 +84,9 @@ v0.8.0.
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape, strict base32;
     `data_edge_test.go` runs all sections, green in CI
-- `go.mod`: `go 1.26.1` floor, `toolchain go1.26.11`, `golang.org/x/text v0.41.0`; the CI `go` job
-    log confirms go1.26.11
+- `go.mod`: `go 1.26.1` floor, `toolchain go1.26.11`, `golang.org/x/text v0.41.0`
+- Review noted (not filed): `edgeCompare` reads a missing key as `nil`; harmless while no
+    `data.json` output is `null`
 
 ## C# / .NET Bindings
 
@@ -122,8 +127,7 @@ v0.8.0.
 **Status**: partially met — 1 `normal` `[human]` issue
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
-    section; root README plus 12 per-crate/package READMEs; `docs/development.md` tool table now
-    matches the Dockerfile (Python 3.13, Node 22, Go 1.26.11)
+    section; root README plus 12 per-crate/package READMEs
 - Tier 1 doc gate `scripts/check_tier1_docs.py` (prek hook + pytest) checks registered docs name
     every symbol derived from `lib.rs`
 - **Remaining in the `[human]` drift issue:** the gate fails open on `lib.rs` forms it does not
@@ -144,24 +148,22 @@ v0.8.0.
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- Security criterion: advisory-flagged pins bumped and no CI test runtime is EOL except the exempt
-    floors (Python 3.10, .NET 8, Ruby 3.1 — `low` issue for Titusz). `ci-cd.md` freshness table has
-    a Runtimes row and the floors-are-human-only rule. Only Rust has a standing advisory gate
-    (`cargo deny`); adding osv-scanner/govulncheck is an unfiled policy call
-- Dependabot shows 6 open alerts (`soupsieve` x4, `setuptools`, `json`); it tracks `main` — on
-    `develop`, `uv.lock` has no `soupsieve`, `setuptools` 84.2.1 and Ruby `json` 2.21.2, all patched
-- **Latest CI: PASSING** on `origin/develop` = `edd20de` (`github-actions` suite `success`, 21/21
-    check-runs `success`): https://github.com/iscc/iscc-lib/actions/runs/44807966740
+- Security criterion met: advisory-flagged pins bumped, no CI test runtime EOL except the exempt
+    floors (Python 3.10, .NET 8, Ruby 3.1 — `low` issue for Titusz). Only Rust has a standing
+    advisory gate (`cargo deny`)
+- Dependabot alerts track `main`; the flagged packages are patched on `develop`
+- **Latest CI: PASSING** on `origin/develop` = `829a181` (`github-actions` suite `success`, 21/21
+    check-runs `success`): https://github.com/iscc/iscc-lib/actions/runs/44814726134
 - Unpushed: only the `cid(log)` commit (`.claude/` only) — green CI covers HEAD's code
 
 ## Open Issues
 
 12 open: 0 critical, **4 normal**, 8 low. Normal: derived-fact drift `[human]`, Java how-to
-`genSumCodeV0` example, data-edge partial-key compare `[human]`, precompiled Ruby gems stop at 3.3.
-issues.md is at 236 of 300 lines.
+`genSumCodeV0` example, data-edge partial-key compare `[human]` (harness fan-out left), precompiled
+Ruby gems stop at 3.3. issues.md is at 236 of 300 lines.
 
 ## Next Milestone
 
-Clear the 4 open `normal` issues — the remaining v0.8.0 release blockers: strict data-edge compares
-on .NET/Java/napi/WASM (and the spec rule they wait on), the broken Java how-to example, precompiled
-Ruby gem coverage, and the remaining derived-fact drift.
+Clear the 4 open `normal` issues — the remaining v0.8.0 release blockers: static-set data-edge
+compares on .NET/Java/napi/WASM, the broken Java how-to example, precompiled Ruby gem coverage, and
+the remaining derived-fact drift.
