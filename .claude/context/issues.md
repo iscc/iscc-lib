@@ -195,3 +195,36 @@ surface's result does not have, unless the file declares that difference (for ex
 a negative test on each surface proves it.
 
 **Spec:** `.claude/context/specs/edge-vectors.md` → "Rules" → "Every surface runs every vector"
+
+## Dependencies and language runtimes are not checked for security releases before v0.8.0 `normal` [human]
+
+Many upstream security releases have shipped recently, and nothing guarantees v0.8.0 picks them up.
+`target.md` → "Third-party dependencies are fresh" fails only on a *major-version* lag, so a pin one
+patch behind a security fix passes it; the "are secure" criterion is not verified yet. `cargo deny`
+gates RustSec in CI, but no other ecosystem has an advisory gate, and Dependabot alerts cover only
+`main` (the open `soupsieve`, `setuptools` and `json` alerts are already fixed on `develop`).
+
+Scope is the manifest table in `ci-cd.md` → "Dependency Freshness", plus two surfaces it misses:
+
+- **Language runtimes in CI** (`node-version`, `python-version`, `java-version`, `dotnet-version`,
+    `ruby-version`, Go and Swift toolchains in `.github/workflows/`) and in
+    `.devcontainer/Dockerfile` (`node:22-bookworm`, `GO_VERSION`). `ci.yml` still builds napi on
+    Node 20, which reached end of life in April 2026
+- **The table's "`mise.toml` tool pins" row is stale**: `mise.toml` has no `[tools]` section
+
+Supported-version *floors* (abi3-py310, Java 17, .NET 8, Ruby 3.1, Rust MSRV 1.85) are compatibility
+promises, not freshness items. Do not raise one; escalate it to the human if a runtime below it is
+end-of-life or a dependency fix requires a higher floor.
+
+Resolved when, on `develop`:
+
+- every dependency whose pinned version has a published security advisory is bumped to a fixed
+    release (or held back with a documented reason next to the pin), shown by each ecosystem's
+    advisory check (`cargo deny`, `uv`/`pip-audit`, `npm audit`, `bundle audit`, `govulncheck`,
+    `dotnet list package --vulnerable`, the Maven/Gradle equivalent) reporting nothing unhandled
+- every CI and devcontainer runtime version that only runs tests (not a floor) is on a supported
+    release, and floors are listed with their end-of-life dates for the human
+- all CI gates are green on the refreshed set
+
+**Spec:** `target.md` → "Third-party dependencies are secure"; `ci-cd.md` → "Dependency Freshness"
+(missing runtime surface, stale `mise.toml` row)

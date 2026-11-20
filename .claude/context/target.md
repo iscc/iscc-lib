@@ -471,6 +471,10 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
     pin, or pre-commit hook lags its latest stable release by a major version without a documented
     hold-back reason, and all gates pass on the refreshed set (see `ci-cd.md` → "Dependency
     Freshness")
+- Third-party dependencies are secure: no pinned or locked version in any ecosystem has a published
+    security advisory with a fixed release available, unless it is held back with a documented
+    reason next to the pin; every language runtime CI or the devcontainer tests on is a supported
+    release, except a supported-version floor, which only the human raises
 - All packages share coordinated version from root `Cargo.toml`
 - `mise run version:sync` propagates version to all 12 sync targets
 - `mise run version:check` validates consistency (run in CI)
