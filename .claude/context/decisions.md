@@ -29,21 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-28 — JNI exports return `#[repr(transparent)]` wrappers and keep hand-thrown exceptions
-
-**Decision:** the 33 `extern "system"` functions in `crates/iscc-jni/src/lib.rs` return jni wrapper
-types (`JString`, `JObject`, `JByteArray`, `JObjectArray`) instead of the raw `jstring`/`jobject`
-aliases, and `throw_and_default`/`throw_state_error` keep calling `env.throw_new` themselves,
-returning `Ok(T::default())` into `.resolve::<ThrowRuntimeExAndDefault>()`. **Why:** jni 0.22's
-`EnvOutcome::resolve` requires `T: Default`, which raw pointer aliases do not implement; the
-wrappers are `#[repr(transparent)]`, so the ABI Java sees is unchanged. The policy's `on_error`
-calls `Env::exception_check` first (jni-0.22.4 `src/errors/policy.rs:188`) and returns the default
-without throwing when an exception is already pending, so the `IllegalArgumentException` /
-`IllegalStateException` contract asserted by six Java tests survives untouched and the policy only
-fires on a genuine panic or unhandled `Err`. **Alternatives:** a custom `ErrorPolicy` per exception
-class — rejected, it would move the exception choice away from the call site that knows which one
-applies, for no behavioural gain. **Context:** iteration 168, jni 0.21 → 0.22 migration.
-
 ## 2026-07-28 — uniffi 0.32 accepted with a raised source-build floor on unpublished `iscc-uniffi`
 
 **Decision:** the workspace pins `uniffi = "0.32"` even though its default graph
@@ -395,3 +380,17 @@ in the spec. **Alternatives:** a per-surface `except` value carrying reduced out
 metadata key (each a 12-surface change, and an `except` per subset surface breaks "a vector costs
 one edit"); structured results on every binding (an API decision for Titusz, not a test-harness
 one). **Context:** iteration 236; spec `edge-vectors.md` → Rules → "Output subset".
+
+## 2026-11-20 — The Ruby source gem is staged standalone: carried core, workspace `Cargo.lock`, conditional `rb_sys`
+
+**Decision:** the `ruby`-platform gem is built only by `scripts/build_ruby_source_gem.py`. It stages
+a tree outside the repository: a generated `Cargo.toml` (concrete keys, empty `[workspace]`), the
+core from `cargo package -p iscc-lib` under `core/`, and the workspace `Cargo.lock`. The gemspec
+declares `rb_sys ~> 0.9` only when `core/` sits next to it. **Why:** the gem must build with nothing
+but its own files, and the lock makes an install resolve the crate versions CI tested. An
+unconditional `rb_sys` dependency adds a version-less line to `Gemfile.lock` ahead of the pin that
+`cross-gem@v1` greps, and gives the precompiled gems a runtime dependency. **Alternatives:**
+depending on the published `iscc-lib` crate (the gem could only be released after crates.io, and a
+checkout could not test it); publishing no source gem (Ruby 3.4+ and unlisted platforms would need a
+checkout); an unconditional dependency plus a rewritten lock-link step in `release.yml` (nothing
+tests that workflow before a release). **Context:** iterations 239-240.

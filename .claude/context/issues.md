@@ -162,34 +162,42 @@ Resolved when all hold:
     and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
     functions") or brought under a check
 
-## The Ruby source gem cannot be built `normal` [review]
+## The Ruby source gem is built without the workspace release profile `normal` [review]
 
-`gem install iscc-lib` fails wherever no precompiled gem applies: today Ruby 3.4 and 4.0 on every
-platform (the platform gems declare `< 3.4.dev`), and any platform outside the five that are built.
-`docs/howto/ruby.md` and `crates/iscc-rb/README.md` say that this case "compiles the extension from
-source". Measured in iteration 238 with the published 0.7.0 source gem in a clean `GEM_HOME` (Ruby
-3.1.2, Rust toolchain present):
-
-- without `rb_sys` installed, `extconf.rb` stops at `cannot load such file -- rb_sys/mkmf`. The
-    gemspec declares no dependency on `rb_sys`
-- with `rb_sys` 0.9.123 installed, `cargo` stops at `failed to find a workspace root`. The gem ships
-    `crates/iscc-rb/Cargo.toml` unchanged: it inherits `version`, `edition`, `rust-version` and
-    `magnus` from the workspace and depends on the core by `path = "../iscc-lib"`. Neither the
-    workspace root nor the core is in the gem
-
-`release.yml` → `publish-rubygems` builds the gem with a bare `gem build iscc-lib.gemspec` and no
-workflow installs it, so nothing has ever exercised this path. HEAD has the same gemspec and
-manifest as 0.7.0.
-
-Widening the cross-gem `ruby-versions` list (tied to the rb_sys pin and the image tag, `ci-cd.md` →
-"Known pinning constraints") would reduce who hits this. It would not repair the source gem.
+`scripts/build_ruby_source_gem.py` → `render_manifest` writes a standalone `Cargo.toml` with no
+`[profile.release]` table. A `gem install` from source therefore compiles with cargo's default
+release profile, not the one in the root `Cargo.toml` (`lto = true`, `codegen-units = 1`,
+`strip = true`, `panic = "abort"`; root `CLAUDE.md` → "Design Constraints"). The precompiled
+platform gems are built inside the workspace and do get that profile, so the two kinds of gem differ
+in size, link-time optimization and panic behaviour. Measured in iteration 240 on Ruby 3.4.13: the
+source-built `iscc_rb.so` is 1,521,056 bytes and not stripped, the checkout build 1,061,576 bytes
+and stripped. The gem installs and passes `conformance_selftest`; no output differs. Introduced with
+the staging script in iteration 239, found by Codex.
 
 Resolved when either holds:
 
-- a check that CI runs builds the source gem, installs it into a clean gem home outside the
-    workspace and loads `iscc_lib`, and the Ruby docs list everything that install needed
-- no source gem is published, and both Ruby docs say that a Ruby series or platform without a
-    precompiled gem has to build from a checkout of the repository
+- the staged manifest carries the `[profile.release]` of the workspace, derived from the root
+    `Cargo.toml` and not retyped, and a test in `tests/test_build_ruby_source_gem.py` fails when a
+    key of it is missing
+- a decisions.md entry records why a source install uses a different profile (for example, install
+    time under LTO), and `crates/iscc-rb/CLAUDE.md` → Publishing states the difference
+
+## Published Ruby source gems up to 0.7.0 do not build `low` [review]
+
+**Triage:** untriaged — a user who runs `gem install iscc-lib` on Ruby 3.4 or newer, or on a
+platform without a precompiled gem, gets a build failure until a release ships the repaired source
+gem.
+
+The source gem on rubygems.org was built with a bare `gem build` up to 0.7.0: it declares no
+`rb_sys` dependency and ships a workspace-inheriting `Cargo.toml` without the core (measured for
+0.7.0 in iteration 238). The repository now builds a standalone source gem
+(`scripts/build_ruby_source_gem.py`, install-checked by the `ruby-source-gem` CI job), but published
+versions cannot be changed. Yanking the broken `ruby`-platform gems is a registry action for Titusz;
+a yank would turn the build failure into a "no matching gem" error. CID must not act on this.
+
+Resolved when a release with the repaired source gem is on rubygems.org and it installs from the
+registry into a clean gem home on a Ruby series without a precompiled gem
+(`GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install iscc-lib`, then `IsccLib.conformance_selftest`).
 
 ## How-to examples show the Sum-Code prefix as `KAA` `low` [review]
 

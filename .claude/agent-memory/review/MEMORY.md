@@ -112,9 +112,12 @@ Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`)
     from a `git archive` copy → `binding-reviews.md`
 - **Docs install/packaging-claim step (238, ~12 min)**: install the PUBLISHED artifact in a clean
     prefix → `review-patterns.md` "Install-claim probe (238)"
-- **Ruby gem packaging step (239, NEEDS_WORK)**: a gemspec `rb_sys` dependency unpinned cross-gem
-    (unanchored first-match grep; next.md misquoted it, Codex caught it). Run the action's real
-    pipeline; Ruby 3.4 via mise in 24 s; work owed at the PASS review → `binding-reviews.md`
+- **Ruby gem packaging step (239 NEEDS_WORK, 240 PASS, ~25 min)**: run the action's real unanchored
+    lookup; criteria from one logged script with the mise Ruby 3.4 `bin/` on PATH. Codex caught BOTH
+    misses (lookup, dropped `[profile.release]`): for any generated manifest, diff what the root
+    `Cargo.toml` has that the copy lacks → `binding-reviews.md`
+- **A test that shells out adds a tool to the `python-test` CI job** (240: `ruby`): check the runner
+    image readme (`gh api repos/actions/runner-images/contents/images/ubuntu/Ubuntu2404-Readme.md`)
 - **Search with `git grep`, never `grep -r`** over dirs with build output (230) →
     `review-patterns.md` "Gotchas"
 - **Action pin / release.yml / any GHA bump**: static-verify only via the committed gates

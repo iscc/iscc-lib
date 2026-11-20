@@ -102,8 +102,8 @@ break `RbSys::ExtensionTask`.
 ## Publishing
 
 RubyGems publishing uses **OIDC trusted publishing** (no API keys). Configured via
-`rubygems/configure-rubygems-credentials@main` with `id-token: write` permission. The trusted
-publisher is registered on rubygems.org for `iscc/iscc-lib` + `release.yml`.
+`rubygems/configure-rubygems-credentials` (pinned in `release.yml`) with `id-token: write`
+permission. The trusted publisher is registered on rubygems.org for `iscc/iscc-lib` + `release.yml`.
 
 **Source gem** (platform `ruby`): never `gem build iscc-lib.gemspec` in this directory — that gem
 inherits workspace keys and depends on `../iscc-lib`, so it cannot build after install. Build it

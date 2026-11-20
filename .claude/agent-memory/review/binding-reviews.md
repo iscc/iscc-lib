@@ -619,7 +619,12 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     after the build are a subset of the workspace lock
 - Criteria run from one logged script (`/tmp/r239/verify.sh` shape: build, unpack + grep, clean
     install, `rake compile test`, pytest, zensical) in ~1 min
-- **Owed at the PASS review of the repair**: delete the `normal` source-gem issue, file a `low`
-    remainder (published 0.6.0/0.7.0 source gems stay broken, a yank is Titusz's), write the
-    decisions.md entry (carried core + shipped `Cargo.lock` + staging script), refresh the 238
-    learnings bullet
+- **Repair review (iter 240, PASS_WITH_NOTES)**: Ruby 3.4 without `mise x`: put
+    `/home/dev/.local/share/mise/installs/ruby/3.4.13/bin` first on PATH for the build script, the
+    install and the selftest. Lock mutation from a `git archive` copy, run with
+    `/home/dev/.venvs/iscc-lib/bin/python -m pytest … --no-cov`. CI mode of Bundler:
+    `BUNDLE_FROZEN=true bundle install` must leave `Gemfile.lock` alone
+- **A generated standalone `Cargo.toml` is its own workspace** (240, Codex): `[profile.release]`,
+    `[patch]` and lints of the root do not reach it. `file <so>` shows "not stripped". I reviewed
+    the 239 manifest for what it must NOT contain and never for what it lost
+- Codex over a multi-commit unpushed batch: `codex exec review --base <upstream sha>` (~12 min)
