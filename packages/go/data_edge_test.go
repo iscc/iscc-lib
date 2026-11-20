@@ -45,6 +45,7 @@ var edgeSections = map[string]edgeCaller{
 	"gen_text_code_v0":  edgeCallText,
 	"gen_mixed_code_v0": edgeCallMixed,
 	"gen_iscc_code_v0":  edgeCallIsccCode,
+	"alg_simhash":       edgeCallSimhash,
 }
 
 // loadEdgeDoc reads and parses the vendored data-edge.json.
@@ -81,6 +82,24 @@ func edgeArg(inputs []json.RawMessage, index int, dst any) error {
 // edgeBytes encodes bytes as a `bytes:<hex>` fixture value.
 func edgeBytes(data []byte) string {
 	return "bytes:" + hex.EncodeToString(data)
+}
+
+// edgeBytesArg reads the input at index as a list of `bytes:<hex>` values.
+func edgeBytesArg(inputs []json.RawMessage, index int) ([][]byte, error) {
+	var items []string
+	if err := edgeArg(inputs, index, &items); err != nil {
+		return nil, err
+	}
+	digests := make([][]byte, 0, len(items))
+	for _, item := range items {
+		digits, ok := strings.CutPrefix(item, "bytes:")
+		data, err := hex.DecodeString(digits)
+		if !ok || err != nil {
+			return nil, fmt.Errorf("input %d holds a non-bytes:<hex> item %q", index, item)
+		}
+		digests = append(digests, data)
+	}
+	return digests, nil
 }
 
 // edgeCallDecode prepares IsccDecode on the vector's string input.
@@ -158,6 +177,17 @@ func edgeCallIsccCode(inputs []json.RawMessage) (edgeCall, error) {
 	}
 	call := func() (any, error) { return GenIsccCodeV0(codes, wide) }
 	convert := func(r any) any { return map[string]any{"iscc": r.(*IsccCodeResult).Iscc} }
+	return edgeCall{call, convert}, nil
+}
+
+// edgeCallSimhash prepares AlgSimhash on the vector's digest list.
+func edgeCallSimhash(inputs []json.RawMessage) (edgeCall, error) {
+	digests, err := edgeBytesArg(inputs, 0)
+	if err != nil {
+		return edgeCall{}, err
+	}
+	call := func() (any, error) { return AlgSimhash(digests) }
+	convert := func(r any) any { return edgeBytes(r.([]byte)) }
 	return edgeCall{call, convert}, nil
 }
 
