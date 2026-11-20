@@ -1,94 +1,93 @@
 # Next Work Package
 
-## Step: .NET — one private helper pins every jagged-array input; empty inputs reach the core
+## Step: C FFI docs use the `iscc_`-prefixed type names of the generated `iscc.h`
 
 ## Goal
 
-Resolve the `normal` issue ".NET string-array pinning is copied three times; the gen copies pass
-NULL for `[]`". One private helper in `IsccLib.cs` pins the inner arrays for **all six**
-jagged-array methods, so an empty or null input fails the same way everywhere and `[]` surfaces the
-core's error, not the FFI's "must not be NULL".
+Resolve the `normal` issue "`docs/c-ffi-api.md` type names don't match the generated `iscc.h`":
+every C type name in the C-facing docs matches the header that cbindgen emits, so the snippets
+compile verbatim. A pytest derives the type list from `iscc.h` so the names cannot drift again.
 
 ## Alternatives Considered
 
-- **Chosen:** .NET pinning helper — a real behaviour defect on a published surface (wrong error for
-    `[]` on 4 methods, `NullReferenceException` on null input), locally verifiable with
-    `dotnet test`, one source file. The cheaper doc-only issues fix no behaviour.
-- **Rejected:** Dependabot `soupsieve`/`setuptools` refresh. Probed: soupsieve 3.0.2 and 4.x both
-    need `requires-python >=3.11.5`, while `uv.lock` resolves for `>=3.10` (abi3-py310). So
-    `uv lock --upgrade-package soupsieve` cannot reach 4.0.0 without a floor or dependency-graph
-    decision (fork marker, dropping `mdformat-web` on 3.10). That needs Titusz; it is not a scoping
-    call.
-- **Rejected:** CI-red fix for Kotlin. The `kotlin-gradle-plugins-bom:2.4.10` POM now resolves
-    (portal → 200 after redirect), so it was an outage. The review push re-runs CI.
+- **Chosen:** C FFI doc type names. It is a user-facing defect (copied snippets do not compile), it
+    can be checked by a compiler, and it is the largest of the small `normal` items
+- **Rejected:** the Python `encode_seq` docstrings (two docstrings). Equally ready but smaller in
+    user impact, so it goes next. The `wasm-bindings.md` spec line is internal-only. The
+    derived-facts parity check is the largest item and deserves its own step. Dependabot `soupsieve`
+    is waiting on Titusz
 
 ## Scope
 
-- **Modify**: `packages/dotnet/Iscc.Lib/IsccLib.cs` (the helper + the 6 call sites),
-    `packages/dotnet/CLAUDE.md` ("Array parameter marshalling", "Empty span sentinel" bullets)
-- **Create**: `packages/dotnet/Iscc.Lib.Tests/ArrayInputTests.cs`
-- **Reference**: `packages/dotnet/Iscc.Lib.Tests/SeqTests.cs` (assertion style),
-    `crates/iscc-ffi/src/lib.rs` (`iscc_gen_video_code_v0` L418, `iscc_gen_mixed_code_v0` L466,
-    `iscc_alg_simhash` L1200, `iscc_soft_hash_video_v0` L1362 — the NULL guards)
+- **Create**: `tests/test_c_ffi_docs.py`
+- **Modify**: `docs/c-ffi-api.md`, `crates/iscc-ffi/README.md`
+- **Reference**: `crates/iscc-ffi/include/iscc.h` (typedefs at L14-121),
+    `crates/iscc-ffi/cbindgen.toml` (`[export] prefix = "iscc_"`), `.github/workflows/ci.yml` L138
+    (the canonical cbindgen command)
 
 ## Not In Scope
 
-- No `data-edge.json` vector: these inputs already fail on every surface, and edge harnesses assert
-    the rejection only, never the message (`specs/edge-vectors.md` L24-26). Only the .NET message is
-    wrong today
-- The C++ empty-vector issue (`iscc.hpp`, `low`, untriaged) — another surface; skip it
-- `ReadOnlySpan` single-array sites (`GenDataCodeV0`, `AlgMinhash256`, …) already use the stack
-    sentinel — leave them alone
-- No public signature change; no `NativeMethods.g.cs` or `iscc-ffi` edit
+- Editing `cbindgen.toml`, adding unprefixed `typedef` aliases, or regenerating `iscc.h` /
+    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs`. The resolution is prefixed names in the docs
+- `crates/iscc-ffi/CLAUDE.md`: it uses the Rust names on purpose and maps them to the C names
+- `docs/java-api.md` and the other language pages: `IsccDecodeResult` is a real Java class there
+- Rewriting `size_t` parameter types in the function signatures on the page. This step changes type
+    *names* and the four struct blocks only
+- Tier 1 symbol parity, a prek hook, or any other part of the derived-facts issue
+- The C++ `iscc.hpp` empty-vector entry (`low`, untriaged)
 
 ## Implementation Notes
 
-The six sites: `GenVideoCodeV0`, `SoftHashVideoV0` (`int[][]` + lens), `AlgSimhash` (`byte[][]` +
-lens), `GenMixedCodeV0`, `GenIsccCodeV0`, `EncodeSeq` (`string[]` → `ToNativeUtf8` → `byte[][]`, no
-lens). Today each has its own `GCHandle` loop and `finally`; only `EncodeSeq` guards nulls and has
-an empty sentinel.
+The six exported types are `iscc_IsccByteBuffer`, `iscc_IsccByteBufferArray`,
+`iscc_IsccDecodeResult`, `iscc_IsccSumCodeResult`, `iscc_FfiDataHasher` and `iscc_FfiInstanceHasher`
+(all have a `typedef`, so the bare `iscc_X` form works without `struct`).
 
-Contract for every site after the change (design the helper shape yourself, e.g. a disposable
-generic `where T : unmanaged` pin scope, or a static method that fills pointer/len arrays and
-returns handles to free in one `finally`):
+`docs/c-ffi-api.md`:
 
-- **Null array or null element → `ArgumentNullException`** on all six (decided here, matching
-    `EncodeSeq`; the parameter name in the message as `EncodeSeq` does). Today the gen/video/simhash
-    sites throw `NullReferenceException`
-- **Zero count → non-NULL pointers.** Pass a stack sentinel for the pointer array **and**, where the
-    FFI takes one, the lens array: `iscc_gen_video_code_v0` / `iscc_soft_hash_video_v0` NULL-check
-    `frame_sigs` and `frame_lens` separately. `iscc_alg_simhash` short-circuits on count 0 before
-    its NULL checks, so `AlgSimhash([])` must keep returning 32 bytes
-- `EncodeSeq`'s current special-cased empty branch goes away in favour of the shared path
-- Every handle is freed in `finally`, also when the helper throws halfway through pinning (a null
-    element at index 2 must not leak handles 0-1)
+- Generation command (L24): replace it with the CI line verbatim:
+    `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h`.
+    Without `--config` the documented command does not produce the committed header
+- Add one sentence under "Types" saying that cbindgen prefixes every exported type with `iscc_`
+- The four struct blocks (`## Types` L41-75 and `#### IsccSumCodeResult` L343-353) must be the
+    header's declarations: tagged `typedef struct iscc_X { … } iscc_X;` with the header's field
+    types (`uintptr_t len`/`count`, not `size_t`). Copy them from `iscc.h`; keep the one-line field
+    comments. Headings become the prefixed names
+- Every other occurrence (prose, signatures L328-802, the IDv1 decode example ~L398, the
+    `encode_seq` example ~L698, the streaming hasher signatures L730-765, the free-function table
+    L793-802) uses the prefixed name
+- Run `mise run format` before committing. mdformat reflows the free-function table once the cells
+    get wider
 
-Expected core messages (read from `crates/iscc-lib/src/lib.rs`): `GenMixedCodeV0([])` → "at least 2
-Content-Codes required for mixing"; `GenIsccCodeV0([])` → "at least 2 ISCC unit codes required";
-`GenVideoCodeV0([])` and `SoftHashVideoV0([])` → "frame_sigs must not be empty" (gen_video delegates
-to soft_hash, L759); `EncodeSeq([])` → "at least one ISCC-UNIT" (existing test).
+`crates/iscc-ffi/README.md` L79, L105, L106: same rename. The "Streaming" bullet names the Rust
+concepts `DataHasher`/`InstanceHasher` in prose and can stay as it is.
 
-Tests in `ArrayInputTests.cs`, one `[Fact]` per case, no classes of shared state: for each of the 4
-empty-input methods assert `IsccException` whose message contains the core text **and** does not
-contain "must not be NULL"; `ArgumentNullException` for a null array and a null element on each of
-the 6 methods. `AlgSimhash_EmptyInput_Returns32Bytes` (SmokeTests) and SeqTests must stay green.
+`tests/test_c_ffi_docs.py` (pure Python, no compiler, so it runs on every OS):
 
-No Rust source changes, so CRAP/iai/semver are untouched.
+- Derive the type set from `iscc.h` with a regex over `typedef struct iscc_(\w+)`, and strip the
+    prefix to get the bare names
+- Anchor the parse: assert that the derived set contains `IsccByteBuffer` and `FfiDataHasher`, so a
+    broken regex cannot pass on an empty set
+- For each of the two doc files, assert that no bare name occurs at an identifier boundary
+    (`(?<![A-Za-z0-9_])Name(?![A-Za-z0-9_])`), so `iscc_IsccByteBuffer` does not match. Report the
+    file, line and name on failure
+- Add a negative test: a short string with a bare `IsccByteBuffer` is flagged by the same helper
+- Module docstring plus a short docstring per function (project convention)
 
 ## Verification
 
-- `cargo build -p iscc-ffi` then
-    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug` exits 0,
-    with the new `ArrayInputTests` tests in the run
-- `git status --porcelain packages/dotnet/Iscc.Lib/NativeMethods.g.cs crates/iscc-ffi/include/iscc.h`
-    prints nothing after that build
-- Reviewer-read: all six methods route through the one helper; no `GCHandle.Alloc` call remains in
-    their bodies outside it
-- `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` prints no warning line that
-    names `IsccLib.cs`
+- `uv run pytest tests/test_c_ffi_docs.py` exits 0, and the negative test is among the tests that
+    pass
+- Compile check: put the IDv1 decode snippet (~L395-404) and the `encode_seq` snippet (~L697-711)
+    verbatim inside `int main(void) { … return 0; }` after `#include <stdio.h>` and
+    `#include "iscc.h"`, in a scratch file outside the repo. Then
+    `gcc -std=c11 -fsyntax-only -I crates/iscc-ffi/include <file>.c` exits 0
+- `docs/c-ffi-api.md` contains the string `--config crates/iscc-ffi/cbindgen.toml`
+- `git status --porcelain crates/iscc-ffi/include/iscc.h packages/dotnet/Iscc.Lib/NativeMethods.g.cs`
+    prints nothing
+- `uv run zensical build` exits 0
 - `mise run check` exits 0
 
 ## Done When
 
-All six jagged-array methods share one pinning helper, empty input reaches the core's error, null
-input throws `ArgumentNullException`, and every verification check passes.
+The advance agent is done when all six verification criteria pass, with the type names changed in
+both doc files and the parity test committed.
