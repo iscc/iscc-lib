@@ -559,3 +559,18 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     check the `NativeMethods.g.cs` mtime and `git status`
 - Count `#[cfg`/`#[allow`/`#[ignore` in old vs new files to see that no attribute appeared in the
     move. Codex (`--commit HEAD`, ~4 min) had no findings
+
+### Test-harness-only step (iter 232, ~8 min) — Swift + Python data-edge compares
+
+- Both mutations run from throwaway copies, the tree stays untouched. **Python**: copy the test to
+    `/tmp/m/tests/`, `ln -s /workspace/iscc-lib/crates /tmp/m/crates` (the fixture path is
+    `Path(__file__).parent.parent / "crates"`), patch with `str.replace` + a `count == 1` assert,
+    run `uv run pytest /tmp/m/tests/<f> -p no:cacheprovider --rootdir /tmp/m`
+- **Swift**: `git archive HEAD packages/swift | tar -x -C /tmp/x`, splice the old harness
+    (`git show HEAD~1:<f>` up to `final class DataEdgeTests`) onto the new test class, then
+    `swift test --scratch-path /tmp/swiftbuild-x` with an ABSOLUTE
+    `-Xlinker -L/workspace/iscc-lib/target/debug` (the relative `../../target` no longer resolves).
+    ~1 min. The toolchain survives in `/tmp/swifttc` across iterations — check before downloading
+- **Darwin cannot be probed locally**: after the push, watch the `swift` job of the CI run
+    (`gh run watch`/`gh run view --json jobs`) before trusting an issue's "on macOS" criterion
+- Codex (`--commit HEAD`, ~3 min) ran both suites itself and had no findings

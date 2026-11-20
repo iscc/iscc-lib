@@ -123,6 +123,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     guard; `-Xcheck:jni` is silent on `ThrowNew` over a pending exception → `binding-reviews.md`
 - **Verbatim code-move step (231, ~5 min)**: prefix `diff`, de-indented body `diff`, test-name set
     `diff`; cbindgen to a temp file + `cmp` (mtime proves nothing) → `binding-reviews.md`
+- **Test-harness-only step (232, ~8 min)**: mutate from throwaway copies (Python: `/tmp` copy +
+    `crates` symlink; Swift: `git archive` + old harness spliced onto the new tests, absolute `-L`);
+    macOS proof = the `swift` CI job after the push → `binding-reviews.md`
 - **Search with `git grep`, never `grep -r`** over dirs with build output (230: a 100 kB minified
     line from `packages/kotlin/build` landed in context) → `review-patterns.md` "Gotchas"
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`

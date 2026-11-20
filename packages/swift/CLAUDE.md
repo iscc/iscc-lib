@@ -67,8 +67,10 @@ swift test \
 - Runs every `data-edge.json` vector through a section -> caller table; `except["swift"]` is the
     only deviation, an unknown section fails, and a rejection must throw `IsccUniError` from the raw
     call alone
-- Every expected output key must be present in the converted record and equal (typed casts, no `Any`
-    equality); tests: the vector run plus one-bad-case negatives
+- Every expected output key must be present in the converted record and equal: strings by Unicode
+    scalars, Booleans and integers by JSON kind through `DataEdge.scalar` (an `NSNumber` cast
+    accepts either kind); tests: the vector run plus one-bad-case negatives, with scalar cases built
+    from JSON text
 
 ## Binding Generation
 

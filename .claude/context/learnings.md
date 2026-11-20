@@ -174,9 +174,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `~/.cargo/registry/src/*/<crate>-<ver>/`; assert the *gate* (exit code); copy gate lines from
     `ci.yml`
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
-    (142: a prescribed rule that could not resolve `wheels-*`; 143: two false Unicode safety claims
-    shipped verbatim into published docs). advance implements the *intent* and documents any
-    deviation; review re-derives every quantitative or "never/always" claim from its source
+    (142: an unworkable rule; 143: two false claims shipped into published docs). advance implements
+    the *intent* and documents any deviation; review re-derives every "never/always" claim
 - **One bad case per call when testing failure arms** (195): a negative test that feeds a mismatch,
     an error and a parse failure to ONE runner call stays green even if the mismatch arm breaks —
     any other bad case still fails the call. **Go `AllocsPerRun(…, func(){ _ = f() })` reads 0 even
@@ -189,7 +188,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     **And compare EVERY expected output key on a full-result surface** (217: Ruby's
     `actual.keys & expected.keys` passed a result without `iscc`); only a bare-string result is
     wrapped to `{iscc}`. `outputs: {}` passes every harness, so the validator rejects it (218).
-    Swift `String ==` is canonical equivalence (`"K" == "\u{212A}"`): compare `unicodeScalars`
+    Swift `String ==` is canonical equivalence (`"K" == "\u{212A}"`): compare `unicodeScalars`.
+    Parsed `NSNumber` casts are loose (`false as? Int` = 0): read via `DataEdge.scalar` (232)
 - **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:

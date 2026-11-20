@@ -1,54 +1,57 @@
-## 2026-11-20 — Strict data-edge compares in the Swift and Python harnesses
+## 2026-11-20 — Review of: Strict data-edge compares in the Swift and Python harnesses
 
-**Done:** The Swift harness now reads every Boolean or integer scalar through one classifier,
-`DataEdge.scalar`. It re-serialises the value inside an array with `JSONSerialization` and branches
-on the JSON text (`true`/`false` or digits). Strings compare by `unicodeScalars`, and a Boolean
-never equals a number, in either direction. The `bits` and `wide` input reads go through the same
-classifier (`intArg`/`boolArg`). In Python, `matches` uses a recursive `same` helper in which a
-`bool` never equals a non-`bool`; dict fields still require every expected key to be present.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift`: adds the `Scalar` enum, `scalar`,
-    `intArg`, `boolArg` and `describe`; `bits` and `prepareIsccCode` read through them;
-    `compareValue` compares by Unicode scalars and by `scalar`; adds a `parsedDoc` helper that
-    builds synthetic docs from JSON text. Adds 5 tests: look-alike string (U+212A), `false` for `0`
-    in `iscc_decode`, `bits: true`, `wide: 1` (the advisor's suggestion, so the `wide` read is
-    covered), and a positive `compareValue` Bool test, which also checks that parsed `1` ≠ Swift
-    `true`
-- `tests/test_data_edge.py`: adds `same`; `matches` uses it, with `k in value` in place of `.get`.
-    Adds 3 parametrized negatives (`false_for_zero`, `one_for_true`, `zero_for_false`) and one
-    positive nested-list test
+**Summary:** The Swift harness now reads every Boolean or integer through one classifier
+(`DataEdge.scalar`, which re-serialises the value and branches on the JSON text) and compares
+strings by Unicode scalars. The Python `matches` uses a recursive `same` helper in which a `bool`
+never equals a non-`bool`. The diff touches the two test files next.md named and nothing else. The
+`normal` `[human]` issue "`data-edge.json` harnesses accept a value that only resembles the expected
+one" is deleted.
 
 **Verification:**
 
-- Probe on corelibs (Swift 6.1.2, Linux): a parsed `false` gives a conditional cast to `Int` of
-    `Optional(0)`; a parsed `0` gives a cast to `Bool` of `Optional(false)`. Re-serialisation gives
-    `[false]` vs `[0]` for parsed values and for native Swift values alike. An invalid object (a
-    struct) fails `isValidJSONObject` and returns nil, with no crash
-- Tests-first: the 5 new Swift tests ran against the **old** harness and all 5 failed (8 assertion
-    failures; for example `bits: true` read as 1 and `wide: 1` read as `true` and produced an ISCC).
-    After the change: `swift test` (Linux recipe) ran 30 tests with 0 failures (19 conformance and
-    11 data-edge)
-- `grep -n 'as? Int\b\|as? Bool\|(actual as? String) ==' …/DataEdgeTests.swift` prints nothing (exit
-    1\)
-- `uv run pytest tests/test_data_edge.py`: 88 passed. With `matches` reverted by hand to bare `==` /
-    `.get`, all 3 new negatives failed and the positive passed; the file was restored and gives 88
-    passed again
-- `mise run check` exits 0; `prek run --hook-stage pre-push --files <both files>` exits 0
-- **Not verified:** Darwin Foundation. The mechanism relies only on documented `JSONSerialization`
-    writing (CFBoolean → `true`/`false`) and on the `isValidJSONObject` guard, but the macOS proof
-    comes from CI's `swift` job (`macos-15`) after the push
+- [x] `uv run pytest tests/test_data_edge.py` passes, including the new `matches` cases — 88 passed
+- [x] Each new Python negative fails with `matches` reverted to bare `==` — run on a throwaway copy:
+    3 failed (`false_for_zero`, `one_for_true`, `zero_for_false`), 85 passed
+- [x] `swift test` in `packages/swift` (Linux recipe, Swift 6.1.2) passes with 0 failures — 30 tests
+    (19 conformance, 11 data-edge), including the 4 negatives and the positive Bool test
+- [x] `grep -n 'as? Int\b\|as? Bool\|(actual as? String) ==' …/DataEdgeTests.swift` prints nothing
+- [x] `mise run check` exits 0
+- Extra probe: the 5 new Swift tests spliced onto the previous harness (throwaway copy) fail, all 5
+    of them, with 8 assertion failures. The handoff's tests-first claim holds
+- **macOS is not proven locally.** The proof is the `swift` job (`macos-15`) of the CI run on this
+    push. The reviewer watches that job after pushing; if it is red, a follow-up review commit
+    restores the issue. update-state: confirm the job result at the source
 
-**Next:** The derived-facts parity check, the other open `normal` issue.
+**Issues found:**
+
+- (none filed)
+- Nit, handoff only: an integral JSON float (`64.0`) may re-serialise as `64` and read as an integer
+    in the Swift harness on some Foundations. No vector uses floats, and the vector validator is the
+    place to reject one if it ever matters
+- Nit: in Python `same`, a nested dict needs exactly the expected keys while the top level allows
+    extra result keys. That matches the behaviour before this step
+
+**Codex review:** No actionable findings. Codex ran both suites itself (88 Python, 30 Swift on
+Linux) and also could not test macOS.
+
+**Next:** The derived-facts parity check, the one open `normal` issue ("Derived facts in guidance
+and docs are written by hand and drift"). It has two parts: a pre-commit check that compares the
+Tier 1 symbol list in every doc or README that enumerates it with the public API at the `iscc-lib`
+crate root, and a sweep that removes unchecked counts, file lists and line numbers from the specs
+and the per-crate `CLAUDE.md` files. They can be separate steps; the check comes first, because it
+decides which lists stay.
 
 **Notes:**
 
-- `packages/swift/CLAUDE.md` line "typed casts, no `Any` equality" (Edge-case vectors section) is
-    now slightly stale. The compare now goes through `scalar` and Unicode scalars. It is out of
-    scope here and needs a one-line doc touch-up later
-- `arg<T>` is now used only for `String` and `[String]`. Those casts are strict: an `NSNumber` never
-    casts to `String`
-- An integral JSON float (`64.0`) may re-serialise as `64` and read as an integer on some
-    Foundations. No vector uses floats; Python would reject it differently. Edge case, not addressed
-- No core, binding or bench code changed, so CRAP, iai and semver were not run
+- Reviewer fix (step 9): `packages/swift/CLAUDE.md` → "Edge-case vectors" said "typed casts, no
+    `Any` equality". It now describes the scalar and Unicode-scalar compare. Doc-only
+- No spec edit: the issue's `**Spec:**` field named the rule the harnesses broke (`edge-vectors.md`
+    → "A vector costs one edit"), and the rule text itself was right
+- next.md stated that the other 9 harnesses are strict already. This review did not re-check that
+    claim; it was out of scope, and the issue named only Swift and Python
+- The partial-key compare on .NET, Java, napi and WASM ("only the expected keys the result exposes")
+    is still an open question that nobody has filed. Define-next raised it as "a separate question";
+    weigh it if a vector ever adds an output key those surfaces do not expose
+- No core, binding or bench code changed, so CRAP, iai and semver gates are untouched

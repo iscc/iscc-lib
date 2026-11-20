@@ -150,19 +150,3 @@ Resolved when both hold:
 - counts, file lists and line numbers that no check covers are gone from `.claude/context/specs/`
     and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
     functions") or brought under a check
-
-## `data-edge.json` harnesses accept a value that only resembles the expected one `normal` [human]
-
-Swift: `compareValue` in `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift` compares with
-`String ==`, which uses canonical equivalence (`"K" == "\u{212A}"` is `true`, checked on 6.1.2), and
-reads expected numbers with `as? Int`, which also accepts a JSON `false`/`true` from
-`JSONSerialization`. Python: the harness template conflates `0` and `False`. No current vector has a
-non-ASCII or Boolean expected output, so nothing slips through today; the first one added would get
-a weaker check on these surfaces with no harness edit to warn anyone (`edge-vectors.md` → "A vector
-costs one edit"). Found by Codex in iter 218. Promoted by Titusz 2026-11-20.
-
-Resolved when the Swift compare matches strings by Unicode scalars and rejects Boolean-backed
-numbers (on Linux and macOS), and the Python harness rejects a `bool` where a number is expected and
-vice versa.
-
-**Spec:** `.claude/context/specs/edge-vectors.md` → "Rules"
