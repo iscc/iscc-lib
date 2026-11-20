@@ -1,104 +1,79 @@
 # Next Work Package
 
-## Step: Tier 1 doc-parity check derived from the `iscc-lib` crate root
+## Step: WASM `alg_cdc_chunks` returns `Uint8Array` chunks
 
 ## Goal
 
-Part 1 of the `normal` `[human]` issue "Derived facts in guidance and docs are written by hand and
-drift": a pre-commit + pytest gate that fails when a doc enumerating the Tier 1 API disagrees with
-the public API at the `iscc-lib` crate root. It lands green, so the drift it finds today is fixed in
-the same step.
+Fix the `normal` issue "WASM `alg_cdc_chunks` returns plain arrays, its doc comment says
+`Uint8Array`": `@iscc/wasm`'s `alg_cdc_chunks` must return an array of `Uint8Array` chunks, as its
+doc comment and published JSDoc promise and as every other `@iscc/wasm` byte output already does.
 
 ## Alternatives Considered
 
-- **Chosen:** the parity check. The issue and handoff order it first, because it decides which lists
-    stay. Today's drift shows it is needed: `docs/java-api.md` says "All 35 Tier 1 symbols" but
-    documents neither `genSumCodeV0` nor `META_TRIM_META`, though both exist in `IsccLib.java`
-- **Rejected:** the counts/file-lists/line-numbers sweep of specs and per-crate `CLAUDE.md` (part
-    2). It comes after the check, which settles which enumerations are kept under a gate
+- **Chosen:** WASM `alg_cdc_chunks` return type — a user-facing binding defect (a caller following
+    the JSDoc gets a `TypeError` on `.subarray()`), small, fully verifiable with `wasm-pack test`.
+    The last four iterations were tooling, tests and refactors; this one fixes a published API
+- **Rejected:** closing the Tier 1 doc gate's holes (fail-closed `lib.rs` parser + registering the
+    four sub-threshold docs, handoff "Next" item 1) — internal guidance tooling with no user impact,
+    and `docs/rust-api.md` alone may need its own step; it follows next, with the Java how-to fix
 
 ## Scope
 
-- **Create**: `scripts/check_tier1_docs.py`, `tests/test_check_tier1_docs.py`
-- **Modify**: `.pre-commit-config.yaml` (new hook); docs (do not count against the cap):
-    `docs/java-api.md`, `docs/howto/java.md`, `docs/howto/go.md`, `packages/go/README.md`,
-    `docs/c-ffi-api.md`, `docs/howto/python.md`, `docs/howto/nodejs.md`, `docs/howto/wasm.md`,
-    `.claude/context/specs/rust-core.md` + `crates/iscc-lib/CLAUDE.md` (markers only),
-    `docs/development.md` (gate list), plus any other registered file the script flags
-- **Reference**: `scripts/check_spec_paths.py` + `tests/test_check_spec_paths.py` (script/test
-    shape, `importlib` loading), `crates/iscc-lib/src/lib.rs` lines 18–47 + top-level `pub fn`s,
-    `docs/howto/kotlin.md` → "Algorithm primitives" (section to mirror)
+- **Modify**: `crates/iscc-wasm/src/lib.rs` (`alg_cdc_chunks` only), `crates/iscc-wasm/Cargo.toml`
+    and root `Cargo.toml` (add `js-sys` if used — `Cargo.lock` already carries js-sys 0.3.103
+    transitively), `docs/howto/wasm.md` → "Additional primitives" (the `alg_cdc_chunks` bullet)
+- **Tests**: `crates/iscc-wasm/tests/unit.rs` (the three `test_alg_cdc_chunks_*` tests)
+- **Reference**: issues.md entry; `crates/iscc-wasm/CLAUDE.md` (type mapping table);
+    `crates/iscc-napi/src/lib.rs` → `alg_cdc_chunks` (returns `Buffer[]`, the sibling shape)
 
 ## Not In Scope
 
-- Part 2 of the issue (removing unchecked counts, file lists and line numbers). This includes count
-    phrases such as "All 35 Tier 1 symbols": leave them as they are, the sweep decides their wording
-- The per-crate READMEs: target.md asks only for "the 9 `gen_*_v0` functions and key utilities", so
-    they are partial by design and stay below the discovery threshold
-- `.claude/context/target.md`: human-owned and it enumerates by category count. Register it as
-    exempt and never edit it
-- `docs/architecture.md` → "Tier 1": it lists only the 10 gen functions, with stale
-    `IsccResult<String>` signatures, so the threshold does not catch it. Leave it for the sweep
-- Any binding code change. Every symbol found missing is a doc gap, not an API gap (verified below)
+- The napi `Buffer` reference leak (`low`) and any other `@iscc/lib` change
+- Other WASM exports: the probe found `alg_cdc_chunks` is the only `serde_wasm_bindgen::to_value`
+    return in `crates/iscc-wasm/src/lib.rs`; every other byte output is already `Vec<u8>` →
+    `Uint8Array`. Do not migrate input-side `JsValue` parameters (`alg_simhash`, `gen_video_code_v0`
+    …) — they are inputs, not this defect
+- A `data-edge.json` vector: the defect is a JS return *type*, not a JSON-expressible value
+    divergence (`edge-vectors.md` → Rules), so none is owed
+- The Tier 1 doc gate holes and the Java how-to example (next steps)
 
 ## Implementation Notes
 
-**Source of truth, parsed from `lib.rs` and never typed out:** column-0 `pub fn NAME`,
-`pub const NAME` and named `pub use path::{a, b}` / `pub use path::name` items. Exclude the
-`types::*` glob, `pub mod`, `pub enum IsccError` and the result structs. Today this gives 15 + 5 +
-15\. Assert a floor on the derived set (e.g. it contains `gen_meta_code_v0` and `DataHasher`) so a
-parse collapse to an empty set cannot pass.
-
-**Matching a symbol in a doc:** lowercase each identifier token and drop `_`, so that
-`genSumCodeV0`, `GenSumCodeV0`, `gen_sum_code_v0` and `META_TRIM_META`/`MetaTrimMeta` all match.
-Also accept a leading `iscc` C prefix (`iscc_meta_trim_meta`). Streaming types additionally match a
-token that starts or ends with the type name (`NewDataHasher`, `iscc_data_hasher_new`). Never use
-plain substring matching: `isccdecode` occurs inside `IsccDecodeResult`.
-
-**A registry in the script, with fail-closed discovery:**
-
-- `FULL`: files that must name every Tier 1 symbol (one-way check, any casing)
-- `EXACT`: `rust-core.md` → "Complete Tier 1 API Summary" table and the `crates/iscc-lib/CLAUDE.md`
-    Tier 1 list. Wrap each in `<!-- tier1:begin -->` / `<!-- tier1:end -->` comment lines. The set
-    of backticked identifiers between the markers must EQUAL the derived set: extras fail too
-- `EXEMPT`: path → reason (`target.md`, and any other file you justify)
-- Discovery: every tracked `*.md` (via `git ls-files`, as `check_spec_paths.py` does; skip `notes/`,
-    `.claude/agent-memory/` and the context logs) that names ≥ 30 distinct Tier 1 symbols must be in
-    one of the three sets. Otherwise the gate fails and names the file
-- Errors name the file and the missing or extra symbols. Exit 1 on any finding
-
-**Measured gaps at HEAD** (from a read-only probe at threshold 30; re-measure with the real script):
-
-- `META_TRIM_META` is missing from `docs/java-api.md`, `docs/howto/java.md`, `docs/howto/go.md`,
-    `packages/go/README.md`, `docs/c-ffi-api.md` (`iscc_meta_trim_meta`, `lib.rs:58` of iscc-ffi)
-    and from the python/nodejs/wasm how-tos. It is exposed on every surface
-- `genSumCodeV0` is missing from `docs/java-api.md` (`IsccLib.java:161`)
-- `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks` and `alg_simhash` are missing from
-    `docs/howto/{python,nodejs,wasm}.md`. Py `__all__`, napi and WASM export all four in snake_case.
-    Add an "Algorithm primitives" section modelled on kotlin.md
-- `crates/iscc-ffi/CLAUDE.md` (~32 hits) and `packages/go/CLAUDE.md` (~30 hits, no constants) cross
-    the threshold: complete them as `FULL`, or `EXEMPT` them with a reason
-
-**Hook** (copy the `check-spec-paths` shape): `uv run scripts/check_tier1_docs.py`,
-`pass_filenames: false`,
-`files: ^(crates/iscc-lib/src/lib\.rs|.*\.md|scripts/check_tier1_docs\.py)$`. The script must run on
-Python 3.10 (no `tomllib`). Test cases: an anchor test on the real tree, plus fire tests with one
-bad case per call on `tmp_path` copies: a `pub fn` added to a copied `lib.rs`, a symbol deleted from
-a FULL doc, an extra backticked name inside an EXACT block, and an unregistered doc over the
-threshold.
+- Preferred shape: return `Result<Vec<js_sys::Uint8Array>, JsError>`, building each chunk with
+    `js_sys::Uint8Array::from(chunk)` (copies into JS memory). wasm-bindgen 0.2.126 supports
+    `Vec<T>` returns for JsValue-repr types (`src/convert/slices.rs:546`,
+    `impl<T: ErasableGeneric<Repr = JsValue> + WasmDescribe> VectorIntoWasmAbi for T`), so the
+    generated `.d.ts` becomes `Uint8Array[]` instead of `any` — check it in the built `pkg/`. Add
+    `js-sys = "0.3"` to `[workspace.dependencies]` and `js-sys = { workspace = true }` to the crate
+    (keep entries sorted the way the files already are). If another wasm-bindgen-native route is
+    simpler (no new dep), it is acceptable as long as the d.ts and runtime type are `Uint8Array`
+- Keep the empty-input contract: one chunk, and that chunk is an empty `Uint8Array`
+- Update the Rust doc comment only if wording changes; it already says `Uint8Array`
+- Tests: rewrite the three tests for the new return type, and assert the RUNTIME element type with a
+    real `instanceof` check, not the static type — e.g. `JsValue::from(chunk.clone())`
+    `.is_instance_of::<js_sys::Uint8Array>()` (JsCast's `is_instance_of` performs a JS
+    `instanceof`). Also assert concatenated bytes equal the input (via `.to_vec()`) and the
+    empty-input case. If js-sys is only a regular dep, tests can use it directly
+- Docs: the `docs/howto/wasm.md` bullet currently says chunks are plain `number[]` with a
+    `Uint8Array.from(chunk)` workaround — replace it with "returns an array of `Uint8Array` chunks"
+    and drop the workaround. Grep `docs/`, `crates/iscc-wasm/README.md` and
+    `crates/iscc-wasm/CLAUDE.md` for any other claim about the chunk element type
+- Local WASM probe: `wasm-pack test --node crates/iscc-wasm --features conformance` (the CI line);
+    `cargo test -p iscc-wasm` runs zero wasm tests (learnings). Binding-only change: no CRAP, iai or
+    semver gate is affected
 
 ## Verification
 
-- `uv run scripts/check_tier1_docs.py` exits 0 on the working tree
-- `uv run pytest tests/test_check_tier1_docs.py` passes, including the 4 fire tests (each asserts
-    exit/finding on exactly one injected defect)
-- `grep -c 'tier1:begin' .claude/context/specs/rust-core.md crates/iscc-lib/CLAUDE.md` prints a
-    non-zero count for both files
-- `.pre-commit-config.yaml` has a hook whose `entry` runs `scripts/check_tier1_docs.py` and whose
-    `files:` pattern matches `crates/iscc-lib/src/lib.rs`
-- `uv run zensical build` exits 0, and `mise run check` exits 0
+- `wasm-pack test --node crates/iscc-wasm --features conformance` passes, including a test that
+    asserts every chunk `is_instance_of::<Uint8Array>()` and the empty-input single empty chunk
+- `cargo clippy -p iscc-wasm --all-targets -- -D warnings` (the CI host form) and
+    `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings` are both clean
+- `grep -n "to_value" crates/iscc-wasm/src/lib.rs` prints nothing (no serde-serialized return left)
+- `docs/howto/wasm.md` contains no `number[]` / `Uint8Array.from(chunk)` text for `alg_cdc_chunks`,
+    and `uv run zensical build` exits 0
+- `mise run check` exits 0
 
 ## Done When
 
-The advance agent is done when the gate passes on the tree, its fire tests prove it catches each
-defect class, and all verification commands above exit 0.
+All verification criteria pass and `@iscc/wasm`'s `alg_cdc_chunks` hands JS callers `Uint8Array`
+chunks, pinned by a runtime `instanceof` test.

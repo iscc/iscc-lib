@@ -51,16 +51,18 @@ takes `false`, `as? Bool` takes 0/1, macOS proof only in CI). 233 = Tier 1 doc-p
 (`check_tier1_docs.py`): source parsed from lib.rs column-0 `pub fn`/`pub const`/named `pub use`;
 FULL (one-way, casing-normalised) + EXACT (marker blocks in rust-core.md + iscc-lib CLAUDE.md) +
 EXEMPT registry, fail-closed discovery at ≥30 distinct symbols; it landed red: java-api lacked
-`genSumCodeV0`+`META_TRIM_META` despite saying "All 35" — doc fixes rode along. Next: part 2 sweep
-(counts/file lists in specs + crate CLAUDE.md, `docs/architecture.md` stale Tier 1 sigs). Unfiled:
-ref truncates mismatched digest lengths, Rust/Go reject — needs a human decision. Trap: the issue
-says C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits
-`num_digests == 0` to the core — re-probe before restating. Still open: gate leniency, Tier 1 parity
-check; setuptools bump resolves to 84.2.1 via `uv lock --upgrade-package setuptools` (dry-run 223);
-napi Buffer leak is `low` — skip; Ruby/JNI/ffi-split are `normal`). **Dependabot soupsieve is
-human-blocked**: 3.0.2/4.x need Python >=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't
-scope. A 303 from a Maven/portal probe proves nothing: `curl -sL` to follow it (220: Kotlin red was
-a portal outage).
+`genSumCodeV0`+`META_TRIM_META` despite saying "All 35" — doc fixes rode along. 234 = WASM
+`alg_cdc_chunks` → `Vec<js_sys::Uint8Array>` (wasm-bindgen 0.2.126 `Vec<T>` for JsValue-repr T,
+slices.rs:546; the only `to_value` return in iscc-wasm); picked over the gate-hole step because
+230–233 were all tooling. Next: gate holes (fail-closed parser + register 4 sub-threshold docs,
+`rust-api.md` maybe alone) + Java how-to fix, then part 2 sweep. Unfiled: ref truncates mismatched
+digest lengths, Rust/Go reject — needs a human decision. Trap: the issue says C/C++ fail
+`alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits `num_digests == 0` to
+the core — re-probe before restating. Still open: gate leniency, Tier 1 parity check; setuptools
+bump resolves to 84.2.1 via `uv lock --upgrade-package setuptools` (dry-run 223); napi Buffer leak
+is `low` — skip; Ruby/JNI/ffi-split are `normal`). **Dependabot soupsieve is human-blocked**:
+3.0.2/4.x need Python >=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a
+Maven/portal probe proves nothing: `curl -sL` to follow it (220: Kotlin red was a portal outage).
 
 ## Scope Calibration Principles
 
