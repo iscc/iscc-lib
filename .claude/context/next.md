@@ -84,8 +84,8 @@ No core or binding code changes: CRAP, iai and semver are unaffected.
     new negative tests (missing `iscc`, unknown key, non-object; generator unknown-key fail)
 - With an unknown output key added to `gen_text_code_v0/test_0001_embedded_nul` in a temp copy of
     the fixture, both the validator and the generator reject it (covered by the tests above)
-- `uv run --script scripts/gen_data_edge_vectors.py` followed by
-    `git status --porcelain   crates/iscc-ffi/tests/data_edge_vectors.h` prints nothing
+- `uv run --script scripts/gen_data_edge_vectors.py` followed by `git status --porcelain` on
+    `crates/iscc-ffi/tests/data_edge_vectors.h` prints nothing
 - `edge-vectors.md` states the output-subset rule and has a matching Verified When line, and
     contains no literal list of the gen result keys; `uv run scripts/check_spec_paths.py` exits 0
 - `mise run check` exits 0
