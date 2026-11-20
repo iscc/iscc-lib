@@ -75,5 +75,11 @@ NULL error, but `iscc_alg_simhash` short-circuits `num_digests == 0` to the core
 restating. Still open: gate leniency, Tier 1 parity check; setuptools bump resolves to 84.2.1 via
 `uv lock --upgrade-package setuptools` (dry-run 223); napi Buffer leak is `low` — skip;
 Ruby/JNI/ffi-split are `normal`). **Dependabot soupsieve is human-blocked**: 3.0.2/4.x need Python
-\>=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a Maven/portal probe
-proves nothing: `curl -sL` to follow it (220: Kotlin red was a portal outage).
+\>=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't scope. 237 = 4-harness data-edge strict
+compare fan-out (.NET/Java/napi/WASM, test-only): all four return bare ISCC strings for
+text/mixed/iscc → static uncompared sets text→`characters`, mixed→`parts`, iscc→none; negatives must
+be ones the OLD intersect passed (`{}` actual was already rejected → use actual `{characters}`;
+key-outside-set = `parts` on text with correct iscc, defeats a global set); .NET's only object
+vector has `except.dotnet` → needed a synthetic positive. Next: Java how-to + Ruby gem docs line,
+then drift-issue gate holes. A 303 from a Maven/portal probe proves nothing: `curl -sL` to follow it
+(220: Kotlin red was a portal outage).
