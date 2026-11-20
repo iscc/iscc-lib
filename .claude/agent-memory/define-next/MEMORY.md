@@ -3,7 +3,7 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-20 (iter 239):** v0.7.0 shipped 2026-10-17; active milestone **v0.8.0** (ISCC-SEQ +
+**Status 2026-11-20 (iter 240):** v0.7.0 shipped 2026-10-17; active milestone **v0.8.0** (ISCC-SEQ +
 data-edge landed on all surfaces). Remaining blockers are `normal` issues only. Per-iteration
 ledger, traps, probe kit and next-step plan → [v0.8.0 iteration ledger](v080-iteration-ledger.md);
 slice history → [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md).
@@ -32,6 +32,9 @@ scope.
 - **Any upstream-API claim in Implementation Notes must be read out of
     `~/.cargo/registry/src/*/<crate>-<ver>/`, seeing which item an attribute belongs to** (168: a
     misattributed `#[deprecated]` cost iter 169; manifests carry `rust-version`).
+- **A third-party action's behaviour in Implementation Notes must be read from its `action.yml` at
+    the pinned ref** (239: I paraphrased cross-gem's rb_sys grep as anchored; it is not, and the
+    step bounced).
 - **A fix touching surfaces no test exercises → scope fix + missing tests as ONE step** (169; tests
     are outside the file budget). **Run an expensive probe while scoping when it can invert the
     plan** (155/157; 161 Swift fetch killed a 10-iter-old veto).

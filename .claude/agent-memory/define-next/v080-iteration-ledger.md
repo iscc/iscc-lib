@@ -91,7 +91,12 @@ holes (fail-closed lib.rs parser + register rust.md/c-cpp.md/rust-api.md/archite
 `ruby-bindings.md` L164/L323 mandate a source gem, so dropping it amends a spec criterion → Titusz).
 Facts: crates.io core can't work (HEAD uses `encode_seq`, absent in 0.7.0) → carry the core in the
 gem via a staging script (`cargo package -p iscc-lib` normalizes its manifest; `conformance.rs`
-needs `tests/data.json`); cross-gem greps `^    rb_sys \(` (4 spaces) so a gemspec rb_sys dep
-(6-space PATH line) is safe; rb_sys 0.9.130 needs Ruby >=2.7; `--local` install fails once rb_sys is
-a dep; never name the carried dir `vendor/`/`tmp/` (gitignored, swept into platform gems). Next:
-drift gate holes, then part 3 count sweep.
+needs `tests/data.json`); WRONG (239 review): cross-gem greps the FIRST line containing `rb_sys`,
+unanchored, so an unconditional gemspec rb_sys dep (version-less PATH line) broke the lookup; rb_sys
+0.9.130 needs Ruby >=2.7; `--local` install fails once rb_sys is a dep; never name the carried dir
+`vendor/`/`tmp/` (gitignored, swept into platform gems). Next: drift gate holes, then part 3 count
+sweep. 240 = repair of 239 on top of unpushed `d299106`: rb_sys gemspec dep conditional on
+`File.directory?(File.join(__dir__, "core"))` (staged tree only) → lock back to `d299106~1`,
+platform gems keep zero runtime deps; test models the action's REAL pipeline + fire test; `run()`
+stdout-only. Lesson: model a third-party action from its `action.yml`, never from my own paraphrase.
+Next: drift gate holes, then part 3 count sweep.
