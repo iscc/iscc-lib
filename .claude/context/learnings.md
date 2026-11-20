@@ -58,9 +58,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     codec fixed (198), Go codec (200: Go `unicode.IsSpace` + U+001C–U+001F IS the `strip()` set, 29
     code points, probed both ways), text utils (203); (3) ASCII-only upper-casing (201) rejects
     `ı`/`ſ`/`ß`/`ﬁ`: ref `iscc_decode` rejects too, but ref `encode_seq` Unicode-`upper()`s first
-    and ACCEPTS them — **the reference's reject set differs per entry point; probe each before
-    calling a fix "reference-matching"**. A bare `b…` string reads as plain base32 in BOTH, so not a
-    defect
+    and ACCEPTS them — only those whose `upper()` is ASCII (`ẞ` U+1E9E fails in both, 222) — **the
+    reference's reject set differs per entry point; probe each before calling a fix
+    "reference-matching"**. A bare `b…` string reads as plain base32 in BOTH: not a defect
 
 ## Tooling
 

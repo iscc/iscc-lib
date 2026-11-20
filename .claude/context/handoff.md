@@ -1,40 +1,51 @@
-## 2026-11-20 — Python `encode_seq` docstrings name the non-ASCII case-fold divergence from iscc-core
+## 2026-11-20 — Review of: Python `encode_seq` docstrings name the non-ASCII case-fold divergence from iscc-core
 
-**Done:** All three Python-visible `encode_seq` docstrings now say that strict base32 decoding
-rejects `=` padding, non-zero spare bits and non-ASCII case-fold aliases (`ſ`, `ß`), and that
-`iscc_core` accepts them. The wording follows napi. A pytest checks all three copies.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-py/python/iscc_lib/__init__.py`: the wrapper docstring names three items. "accepts
-    both" became "accepts them"
-- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: the stub docstring names three items (reST double
-    backticks) and adds "(`iscc_core` accepts them)"
-- `crates/iscc-py/src/lib.rs`: the `///` doc on `#[pyfunction] fn encode_seq` (this becomes
-    `_lowlevel.encode_seq.__doc__`) names three items plus the `iscc_core` note
-- `tests/test_encode_seq_docs.py` (new): 4 tests. Each of wrapper, extension and `.pyi` (read with
-    `ast.get_docstring`) must contain `padding`, `spare bits`, `case-fold` and `iscc_core` after
-    whitespace normalization. A fourth test checks that the helper flags the old two-item sentence
+**Summary:** All three Python-visible `encode_seq` docstrings now name the three inputs iscc-lib
+rejects and iscc_core accepts: the `__init__.py` wrapper, the PyO3 `///` doc that becomes
+`_lowlevel.encode_seq.__doc__`, and the `.pyi` stub. They follow the napi wording, and a new pytest
+gates all three. The change is small and limited to the scope (3 non-test files plus 1 test), and no
+gate was weakened. The `normal` [human] issue is resolved and deleted. The spec (`rust-core.md`
+"Base32 input is strict") already stated the behaviour, so it needed no edit.
 
 **Verification:**
 
-- `uv run maturin develop -m crates/iscc-py/Cargo.toml`: exit 0 ("Installed iscc-lib-0.7.0")
-- `uv run pytest tests/test_encode_seq_docs.py tests/test_data_edge.py -q`: 81 passed
-- `uv run python -c "import iscc_lib; d = iscc_lib.encode_seq.__doc__; assert 'case-fold' in d and 'spare bits' in d"`:
-    printed ok
-- `cargo clippy -p iscc-py -- -D warnings`: clean
-- `mise run check`: exit 0, and the tree is clean apart from the staged changes and the runner's
-    `iterations.jsonl`
-- `uv run prek run --hook-stage pre-push --files <3 py files>`: exit 0 (ruff S/C901, ty, pytest)
+- [x] `uv run maturin develop -m crates/iscc-py/Cargo.toml` exits 0, then
+    `uv run pytest tests/test_encode_seq_docs.py` exits 0 with ≥3 assertions: 4 passed (wrapper,
+    extension, `.pyi` read via `ast.get_docstring`, plus a self-check of the helper against the old
+    two-item sentence)
+- [x] `python -c "… assert 'case-fold' in d and 'spare bits' in d"`: printed `ok`
+- [x] `uv run pytest tests/test_data_edge.py`: 77 passed
+- [x] `cargo clippy -p iscc-py -- -D warnings`: clean
+- [x] `mise run check`: exit 0, and the tree stayed clean (only the runner's `iterations.jsonl`
+    changed)
+- [x] Probe: iscc-core 1.5.0 (`--python 3.13`) gives `ſ` and `ß` → `300161ae0d37a521bcba` (the ASCII
+    twin), so the claim "iscc_core accepts them" is true for the named examples
 
-**Next:** the `wasm-bindings.md` spec drift (`normal`, a file-list fact), then the derived-facts
-parity check (`normal` [human]).
+**Issues found:**
+
+- Wording nit, not filed: "case-fold alias" is the project's term (spec, decision, napi, wasm, Go,
+    JNI), but the reference accepts only characters whose `str.upper()` is ASCII base32. The capital
+    sharp s `ẞ` (U+1E9E) case-folds to `ss`, yet iscc_core rejects it too ("should contain only
+    ASCII characters"). Callers get no wrong result, since both libraries reject it. The `docs/`
+    pages already use the more precise "upper-casing is ASCII-only". Recorded in learnings.
+
+**Codex review:** One P2 finding: "case-fold" overstates which aliases the reference accepts, so the
+docstrings should say "characters that upper-case to ASCII". The finding is correct (I reproduced
+it), but the term is the spec's and every other surface's vocabulary. Changing only Python would
+make the surfaces disagree, so I treat it as the wording nit above rather than a defect.
+
+**Next:** the `wasm-bindings.md` spec drift (`normal` [review]): drop the
+`crates/iscc-wasm/package.json` tree line, and drop the Version Sync row or point it at the real
+path (`Cargo.toml` → wasm-pack → release.yml). This is a file-list fact, so the spec edit needs no
+escalation. After that comes the derived-facts parity check (`normal` [human]). Dependabot:
+`soupsieve` waits on Titusz, but `setuptools` 84.1.0 declares `>=3.10` and could be bumped alone
+(`uv lock --upgrade-package setuptools`, untested).
 
 **Notes:**
 
-- Ruff raised no `RUF001`/`RUF002` on `ſ`/`ß`, so the literal characters stay in the docstrings and
-    no code points had to be spelled out in words
-- Only docstrings changed, so there is no CRAP or iai effect
-- `mise run check` ran before the test file was tracked, so the file was not checked then. At commit
-    time ruff format reformatted it (it wrapped the long `_PYI` line). The commit hooks then passed
-    on the reformatted file, and the 4 tests still pass
+- The remaining `normal` issues are: wasm spec drift, derived-facts parity, and Dependabot (partly
+    human-gated). Everything else is `low`.
+- The larger-step trial (decisions.md 2026-11-19) is evaluated after iteration 224. This iteration
+    is one more PASS in that window.

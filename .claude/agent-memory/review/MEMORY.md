@@ -80,7 +80,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     **Green gates say NOTHING about truth** (143) → `review-patterns.md`. A new PAGE adds
     `scripts/check_docs_nav.py` (disk/nav/`ORDERED_PAGES`/`docs/llms.txt`, 23 pages);
     `zensical build` wipes `site/` → `gen_llms_full.py` after it
-- **Python-only**: `mise run check` + `pytest`; a new `.py` file adds the pre-push `ty`/ruff gates
+- **Python-only**: `mise run check` + `pytest`; a new `.py` file adds the pre-push `ty`/ruff gates.
+    Python docstrings exist 3× (wrapper, PyO3 `///` → `_lowlevel.X.__doc__`, `.pyi`): rebuild with
+    `maturin develop` before any `__doc__` test (222, ~3 min)
 - **New gate script, gate HARDENING, or spec↔config PARITY gate (142–146/163, ~10 min)**: never
     accept "exits 0 at HEAD" — write your OWN mutations (cheapest real regression:
     `git show HEAD~1:<path>`), probe both set-equality blind spots (equal-empty vacuous pass,

@@ -111,22 +111,6 @@ owning the handle lifecycle, but a one-line `if ptr == 0` → throw guard per fu
 boundary robust against misuse of the public JNI surface. Surfaced during the PR #44 review sweep
 (2026-07-30).
 
-## Python `encode_seq` docstrings omit the case-fold divergence from iscc-core `normal` [human]
-
-Since iteration 201, `encode_seq` upper-cases ASCII only, so a non-ASCII case-fold alias such as
-`gaawdlqng6ſsdpf2` (likewise `ı`, `ß`, `ﬁ`) fails, while iscc-core 1.5.0 `encode_seq` accepts it
-through Unicode `str.upper()` (`codec.py:503`). Titusz confirmed this divergence (decisions.md
-2026-11-18, "Codec input is upper-cased ASCII-only"; `rust-core.md` "Base32 input is strict"), and
-the `encode_seq` case-fold vectors in `crates/iscc-lib/tests/data-edge.json` pin it. The Python
-docstrings still name only padding and spare bits as differences from iscc_core: `_lowlevel.pyi:56`
-says "Base32 decoding is strict: `=` padding and non-zero spare bits are rejected", and the
-`iscc_lib/__init__.py` wrapper says nothing about it.
-
-Resolved when both `encode_seq` docstrings name non-ASCII case-fold aliases next to padding and
-spare bits as inputs iscc-lib rejects and iscc_core accepts.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "Codec Operations" ("Base32 input is strict")
-
 ## Dependabot alerts: `soupsieve`, `setuptools` (`uv.lock`) `normal` [review]
 
 GitHub reports open alerts on `uv.lock` (2026-11-18): `soupsieve` 2.9.1 has #6 high (ReDoS, fixed
