@@ -589,3 +589,17 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - A runtime-shape change on a published binding export gets a decisions.md entry and a release-notes
     line in the handoff Notes; the repo has no CHANGELOG
 - Codex (`--commit HEAD`, ~3 min) built and probed from JS itself; no findings
+
+### Harness-compare fan-out step (iter 237, ~6 min) — .NET, Java, napi, WASM data-edge `compare`
+
+- All four suites + both clippy forms from ONE logged script run in under a minute on a warm tree
+    (`dotnet test` 8 s, `mvn -q clean test` 18 s, napi build + test 8 s, `wasm-pack test` 16 s)
+- **`mvn -q` ends its output without a newline**, so a `=== rc=…` marker echoed after it lands on
+    the same line and `grep "^==="` misses it. Read the surefire `.txt` reports for the counts
+- **.NET mutant in ~20 s without touching the tree**: `git archive HEAD packages/dotnet | tar -x`
+    into `/tmp`, patch the copy, run `dotnet test` on the copy's test project with
+    `-e LD_LIBRARY_PATH=` set to the absolute `target/debug`. Restoring the old intersect `Compare`
+    failed exactly the two new negatives
+- Check the static sets against `data.json`'s per-function keys and each surface's signature (napi
+    `index.d.ts` uses snake_case names; `git grep` for camelCase finds nothing)
+- Codex (`--base <define-next sha>`, ~2 min) ran all four suites itself; no findings

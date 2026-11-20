@@ -173,29 +173,6 @@ errors. Pre-existing; found by the advance agent in iteration 233. `docs/java-ap
 
 Resolved when the example matches `IsccLib.java` and `SumCodeResult.java`.
 
-## Four `data-edge.json` harnesses ignore expected output keys their result lacks `normal` [human]
-
-The .NET, Java, napi and WASM harnesses compare only the intersection of expected and actual keys
-("only the expected keys the result exposes are compared") and pass as long as one key matches. On
-these surfaces `gen_text_code_v0`, `gen_mixed_code_v0` and `gen_iscc_code_v0` return a bare ISCC
-string, which the harness wraps as `{"iscc": ...}`, so every other expected key is dropped in
-harness code, and so is any key the vector should not hold at all. Sites:
-`packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs` (`Compare`),
-`crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java` (`compare`),
-`crates/iscc-napi/__tests__/data_edge.test.mjs` (`compare`), `crates/iscc-wasm/tests/data_edge.rs`.
-
-The rule is settled (iteration 236, decisions.md 2026-11-20 "data-edge output subset"): the keys a
-surface leaves uncompared are written once per harness from its result type, and nothing is computed
-from the returned value. The Python validator and the C/C++ generator enforce the file side. The
-four harnesses still intersect.
-
-Resolved when each of the four harnesses compares every expected key except a static per-function
-set taken from its result type, and a negative test on each surface proves two things one at a time:
-an expected key outside that set that the result lacks fails the vector, and a result that lost
-`iscc` fails it.
-
-**Spec:** `.claude/context/specs/edge-vectors.md` → "Rules" → "Output subset"
-
 ## Precompiled Ruby gems stop at Ruby 3.3 `normal` [review]
 
 `release.yml` → the cross-gem step builds with `ruby-versions: 3.1, 3.2, 3.3`, so every published

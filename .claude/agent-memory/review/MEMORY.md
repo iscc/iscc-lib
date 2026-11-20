@@ -141,6 +141,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
 - **data-edge rule / validator / C-generator step (236, ~8 min)**: the two pytest files, regen +
     `git status` on the header, `gen.render` on a mutated fixture copy via importlib, read the
     renderers' section literals (mixed/iscc hold only error vectors, so no real-data probe exists)
+- **Harness-compare fan-out step (237, ~6 min)**: four suites from one logged script (\<1 min warm),
+    .NET mutant from a `git archive` copy; `mvn -q` swallows the newline before an rc marker →
+    `binding-reviews.md`
 - **Search with `git grep`, never `grep -r`** over dirs with build output (230: a 100 kB minified
     line from `packages/kotlin/build` landed in context) → `review-patterns.md` "Gotchas"
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`
