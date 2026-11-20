@@ -1,16 +1,15 @@
-<!-- assessed-at: cdc89254e7661725193d24958aab077aafee9280 -->
+<!-- assessed-at: 9eb61ff48a185947321a8ba9d6144d4755021d80 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — data-edge fan-out complete; CI tip red (Kotlin dependency fetch), 6 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 5 normal issues owed
 
-ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` now runs on the Rust core
-and all 11 bindings (C and C++ landed this iteration via a generated header). All code is covered by
-a fully green CI run (`4abafb6`), but the pushed tip `0da6e41` is red: the Kotlin job could not
-download the Kotlin Gradle plugin. Still owed for v0.8.0: a green tip and the 6 open `normal`
-issues.
+ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
+all 11 bindings. CI is fully green on the pushed tip `021c335`, which covers all code at HEAD. This
+iteration fixed the .NET jagged-array pinning issue. Still owed for v0.8.0: the 5 open `normal`
+issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -18,9 +17,9 @@ issues.
 
 - `crates/iscc-lib/tests/data-edge.json` has 16 vectors in 5 sections, with 2 `except` entries (C
     skips 2 vectors; .NET and C++ expect an error on the embedded-NUL text vector)
-- Harnesses on all 12 surfaces. C and C++ include `crates/iscc-ffi/tests/data_edge_vectors.h`, which
-    `scripts/gen_data_edge_vectors.py` renders. `tests/test_gen_data_edge_vectors.py` fails when the
-    header is stale. C skips only the rows the table marks `c: skip`
+- Harnesses on all 12 surfaces. C and C++ include the generated
+    `crates/iscc-ffi/tests/data_edge_vectors.h`; `tests/test_gen_data_edge_vectors.py` fails when
+    the header is stale
 - `VENDORED_COPIES` registers 4 data-edge copies (Go, .NET, Kotlin, Swift); 5 files are tracked
 - `low` issues: the Swift compare is looser than byte equality; Go/Swift ship the file against the
     spec's "absent from every published artifact" (Titusz decides)
@@ -65,8 +64,7 @@ issues.
 
 - 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
-- `tests/test_iscc.c` runs every data-edge row except the 2 marked `c: skip`, plus a total-row
-    tally; the `c-ffi` job is green
+- `tests/test_iscc.c` runs every data-edge row except the 2 marked `c: skip`; `c-ffi` job green
 - **`normal` issue:** `docs/c-ffi-api.md` type names differ from `iscc.h`. The `src/lib.rs` split is
     `low`
 
@@ -87,12 +85,14 @@ issues.
 
 ## C# / .NET Bindings
 
-**Status**: partially met
+**Status**: met (v0.8.0 scope)
 
 - `EncodeSeq` / `DecodeSeq`; embedded NUL rejected via `ToNativeUtf8`; `DataEdgeTests.cs` green in
     CI; 0.7.0 on NuGet
-- **`normal` issue:** the string-array pin loop is copied three times, and the gen copies pass NULL
-    for `[]`
+- A private `PinnedRows` helper in `IsccLib.cs` pins all six jagged-array inputs (the file's only
+    `GCHandle.Alloc`); `[]` reaches the core, null throws `ArgumentNullException`;
+    `ArrayInputTests.cs` adds 20 tests. The `C# / .NET` CI job is green on the tip
+- `docs/howto/dotnet.md` "Error handling" doesn't list `ArgumentNullException` (no issue filed)
 
 ## C++ Bindings
 
@@ -100,8 +100,8 @@ issues.
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; embedded NUL rejected via
     `detail::checked_c_str`; 0.7.0 vcpkg/Conan metadata
-- `tests/test_iscc.cpp` runs all 16 data-edge rows from the generated header (private test include)
-    with a visited-row tally; the ASAN `cpp` job is green
+- `tests/test_iscc.cpp` runs all 16 data-edge rows from the generated header with a visited-row
+    tally; the ASAN `cpp` job is green
 - `low` issue: five `iscc.hpp` list wrappers pass NULL for an empty vector
 
 ## Ruby Bindings
@@ -114,12 +114,12 @@ issues.
 
 ## Swift and Kotlin Bindings
 
-**Status**: met (v0.8.0 scope) — Kotlin job red on the tip for an external reason, see CI
+**Status**: met (v0.8.0 scope)
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both conformance suites run all 8 seq
     vectors; both shipped 0.7.0
-- Swift `DataEdgeTests` and Kotlin `DataEdgeTest` (6 tests each) were green on `4abafb6`, each with
-    a registered vendored copy
+- Swift `DataEdgeTests` and Kotlin `DataEdgeTest` (6 tests each) green; the Kotlin plugin-fetch
+    failure seen on `0da6e41` did not recur on the tip
 - `low` issue: the Swift compare uses canonical string equivalence and reads a JSON bool as an Int
 
 ## Documentation
@@ -143,22 +143,18 @@ issues.
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: FAILING** on `origin/develop` = `0da6e41` (run 44647425663): 20 of 21 check-runs
-    passed. **Kotlin (gradle build, test)** failed while configuring the build: the Gradle Plugin
-    Portal could not provide `kotlin-gradle-plugins-bom:2.4.10`. It looks external: nothing under
-    `packages/kotlin`, `crates/iscc-uniffi` or `.github` changed since the green `39cff64`
-- The run on `4abafb6` (44646030279) was fully green, and `4abafb6..0da6e41` changes only
-    `.claude/`, so green CI covers all code. The only unpushed commit (`cdc8925`) touches `.claude/`
-    only
-- **Missing (`normal` issue):** Dependabot alerts on `soupsieve` and `setuptools` (`uv.lock`)
+- **Latest CI: PASSING** on `origin/develop` = `021c335`
+    (https://github.com/iscc/iscc-lib/actions/runs/44658983478): all 21 check-runs `success`,
+    including Kotlin. The 3 unpushed commits touch `.claude/` only, so green CI covers HEAD
+- **Missing (`normal` issue):** Dependabot alerts on `soupsieve` (every fixed release needs Python
+    `>=3.11.5`, so it needs Titusz) and `setuptools` (`uv.lock`)
 
 ## Open Issues
 
-21 open: 0 critical, **6 normal**, 15 low. Normal: c-ffi-api type names, Python `encode_seq`
-docstrings, Dependabot alerts, .NET pin-loop duplication, wasm-bindings spec drift, derived-fact
-drift. issues.md sits at its 300-line budget.
+20 open: 0 critical, **5 normal**, 15 low. Normal: c-ffi-api type names, Python `encode_seq`
+docstrings, Dependabot alerts, wasm-bindings spec drift, derived-fact drift. issues.md is at 295 of
+its 300-line budget.
 
 ## Next Milestone
 
-A green CI run on the `develop` tip (the Kotlin job is the only red one), then the 6 open `normal`
-issues, which are the last v0.8.0 release blockers.
+Clear the open `normal` issues that CID can act on, the remaining v0.8.0 release blockers.

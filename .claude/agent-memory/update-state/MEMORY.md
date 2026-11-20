@@ -87,17 +87,17 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: cdc8925, iter 220 — incremental)
+## Current State (assessed-at: 9eb61ff, iter 221 — incremental)
 
-- **data-edge fan-out COMPLETE on all 12 surfaces (219):** C/C++ via generated
-    `crates/iscc-ffi/tests/data_edge_vectors.h` (`scripts/gen_data_edge_vectors.py`, staleness gate
-    `tests/test_gen_data_edge_vectors.py`). Criterion MET. 16 vectors / 5 sections, 2 `except`.
-- **Tip `0da6e41` RED: Kotlin job only** — Gradle Plugin Portal couldn't resolve
-    `kotlin-gradle-plugins-bom:2.4.10` (looks external; no kotlin change). `4abafb6` run fully green
-    and `4abafb6..0da6e41` = `.claude/` only. Check whether a rerun turned it green next time.
+- **CI GREEN on tip `021c335`** (21/21 check-runs incl. Kotlin — the 220 plugin-portal red was
+    transient). Unpushed = `.claude/` only.
+- **.NET jagged-array pinning DONE (220):** private `PinnedRows` in `IsccLib.cs`, 20
+    `ArrayInputTests`. .NET now met (v0.8.0 scope) — do NOT re-flag.
+- **20 open: 5 normal, 15 low.** Normal: c-ffi-api type names, Python `encode_seq` docstrings,
+    Dependabot (`soupsieve` fix needs py>=3.11.5 → human), wasm spec drift, derived-fact drift.
+- data-edge fan-out COMPLETE on all 12 surfaces (219); ISCC-SEQ on all 11 (211) — do NOT re-flag.
 - **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
-    defects. 21 open: 6 normal, 15 low. issues.md at 300-line budget.
-- ISCC-SEQ done on all 11 surfaces (211); .NET+C++ NUL rejection done (213) — do NOT re-flag.
+    defects. issues.md 295/300 lines.
 - FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
 - **Python heredoc**: plain `uv run python - << 'EOF'` works (VIRTUAL_ENV warning harmless).
 - **macOS Swift proof**: `gh run view --job <check-run-id> --log | grep DataEdgeTests`.
