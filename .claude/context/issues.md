@@ -149,28 +149,6 @@ Resolved when a negative Bignum element in those three functions raises `RangeEr
 through `i64`, narrow with `i32::try_from`), pinned next to the `RangeError` cases in
 `crates/iscc-rb/test/test_array_args.rb`.
 
-## `scripts/check_spec_paths.py` accepts paths the specs do not have `normal` [review]
-
-The spec path gate (iteration 224) is looser than its docstring, in three ways (Codex, iter 224; the
-first two confirmed with `resolves()` on the real index):
-
-1. **`*` crosses `/`**: `fnmatch.fnmatchcase` lets `*` match a slash, so `packages/go/*.json`
-    resolves through `testdata/data.json` although `packages/go/` holds no JSON file. A spec can
-    name the wrong directory and stay green.
-2. **`NOT_PATHS` applies to tree entries**: the exemption for the removed
-    `scripts/gen_ffi_boundary_vectors.py` (cited as history in `edge-vectors.md`) also lets a tree
-    entry `gen_ffi_boundary_vectors.py` under a `scripts/` root pass, where the line asserts the
-    file exists.
-3. **The historical Go replay test reads the live index**:
-    `test_old_go_tree_reports_its_eleven_phantoms` and `test_main_exits_nonzero_on_phantom` resolve
-    a frozen tree against `tracked_paths(ROOT)`, so renaming `packages/go/dct.go` (which no current
-    spec lists) fails them with a twelfth error. `test_real_repo_passes` already covers the live
-    index.
-
-Resolved when `*` stays within one path segment while `**` recurses (the six `**` spans in
-`swift-bindings.md` still resolve), `NOT_PATHS` is honoured only for backticked spans, the two
-replay tests use a fixed known-path set, and one test pins each of the three cases.
-
 ## Derived facts in guidance and docs are written by hand and drift `normal` [human]
 
 Counts, file lists and symbol lists are repeated across `docs/`, the READMEs, `CLAUDE.md` files and

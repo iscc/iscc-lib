@@ -194,7 +194,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
     "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)
-- **Spec paths are gated** (224): `scripts/check_spec_paths.py` checks tree entries and backticked
-    repo paths against `git ls-files` (never disk); fix the spec, list build output in `GENERATED`.
-    A "mechanism does not exist" claim must check package recipes: Conan's `pkg_config_name` /
-    `cmake_file_name` generate `iscc.pc` and `find_package(iscc)` at install time
+- **Spec paths are gated** (224/228): `scripts/check_spec_paths.py` checks tree entries + backticked
+    paths against `git ls-files` (never disk); `*` stays in one segment, `**` crosses `/`. Fix the
+    spec, or list build output in `GENERATED`. Conan generates `iscc.pc` / `find_package(iscc)` at
+    install time. **A negative assertion must reach the branch it names** (228: no `*`, no regex)

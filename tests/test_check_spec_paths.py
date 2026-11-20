@@ -241,8 +241,9 @@ def test_floor_zero_backticked_paths(tmp_path):
 
 
 def test_old_go_tree_reports_its_eleven_phantoms(tmp_path):
-    # Real regression: the pre-gate Go tree, resolved against the frozen
-    # snapshot of the packages/go/ files it names that exist, reports exactly the 11 files packages/go never had.
+    # Real regression: the pre-gate Go tree, resolved against the frozen snapshot
+    # of the packages/go/ files it names that exist, reports exactly the 11 files
+    # packages/go never had.
     spec = _spec_file(tmp_path, OLD_GO_TREE)
     errors, counts = csp.check_spec(spec, OLD_GO_KNOWN)
     assert counts == (1, 20, 0)
@@ -294,5 +295,5 @@ def test_glob_double_star_crosses_segments_single_star_does_not():
     assert csp.resolves("packages/go/code_*.go", known)
     assert not csp.resolves("crates/*/codec.rs", known)
     assert not csp.resolves("packages/*.go", known)
-    # Regex metacharacters in the pattern are literal, not wildcards.
-    assert not csp.resolves("packages/go/code_meta.g.", known)
+    # Regex metacharacters in a glob are literal: `.` must not match the `o` of `.go`.
+    assert not csp.resolves("packages/go/code_*.g.", known)

@@ -73,6 +73,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
 - **Spec paths are gated by `scripts/check_spec_paths.py` (224)** — a "mechanism does not exist"
     realignment is a hypothesis: grep package recipes (Conan `pkg_config_name`/`cmake_file_name`
     generate `.pc`/config at install time; 224 advance + next.md both missed it)
+- **Mutate each helper the step adds, not only the previous file version** (228): the old script
+    failed all 3 new tests, yet dropping `re.escape` stayed green — the "literal metachar" assert
+    had no `*`, so it never built the regex. ~1 min: `sed` one call out into `/tmp/x/scripts/`
 - **Spec-hygiene (phantom paths: check TREES vs `git ls-files`, 223), multi-surface docs fan-out
     (211), issues.md at budget, uncommitted human edits mid-review (212)** → `review-patterns.md`
     "Moved from the index (223)"
