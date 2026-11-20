@@ -41,7 +41,9 @@ Read anything else on demand, once.
     not re-run `tools/metrics.py --time-gates` — the data is already there.
 
 2. **Sweep with a workflow** — orchestrate the audit via the Workflow tool: one read-only finder
-    agent per dimension in parallel, a dedup pass, then adversarial verification. Dimensions:
+    agent per dimension in parallel, a dedup pass, then adversarial verification. The workflow runs
+    in the background: once it is launched, end your turn; its completion notification starts your
+    next turn with the result. Do not poll or sleep. Dimensions:
 
     - **duplication** — near-identical logic across the core and the 8 hand-mirrored binding crates;
         repeated helpers that should live in one place

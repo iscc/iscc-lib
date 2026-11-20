@@ -207,6 +207,32 @@ def test_sanitize_env_removes_api_keys_and_claudeai_connectors(monkeypatch):
     assert env["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"
 
 
+def test_sanitize_env_lifts_background_wait_ceiling_for_audit_only(monkeypatch):
+    monkeypatch.delenv("CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", raising=False)
+    # The audit's background workflow outlives the CLI's 10-minute -p wait.
+    assert (
+        cid.sanitize_env(cid.AUDIT_ROLE)["CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"] == "0"
+    )
+    for role in ("update-state", "define-next", "advance", "review", None):
+        assert "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS" not in cid.sanitize_env(role)
+
+
+def test_process_output_echoes_non_json_lines(tmp_path, capsys):
+    fake = tmp_path / "stream.jsonl"
+    fake.write_text(
+        "Background tasks still running; stopping them.\n"
+        '{"type": "result", "num_turns": 3, "total_cost_usd": 1.5}\n',
+        encoding="utf-8",
+    )
+    with fake.open() as fh:
+        out = cid._process_output(fh, "audit")
+    assert out["turns"] == 3
+    assert (
+        "[audit] Background tasks still running; stopping them."
+        in capsys.readouterr().out
+    )
+
+
 def test_session_settings_enable_the_advisor_for_runner_sessions(monkeypatch):
     monkeypatch.setattr(cid, "ADVISOR_MODEL", "claude-fable-5-2")
     settings = cid.session_settings("define-next")

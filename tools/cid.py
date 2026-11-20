@@ -109,6 +109,14 @@ ROLE_ENTRY_KEYS = frozenset(
 # advance and review get the most headroom: a fan-out step implements and then
 # verifies one behaviour on many surfaces in a single session, and define-next
 # sizes such a step for about 90 minutes of advance work.
+# Under -p the CLI waits at most 10 minutes after the last turn for background tasks,
+# then kills them. The audit launches its finder/verify Workflow in the background and
+# ends its turn until the completion notification wakes it; a whole-repo sweep runs
+# longer than 10 minutes, so every audit's workflow was killed before it reported
+# (iterations 220 and 230: aborted exactly 600 s after the turn ended, nothing filed).
+# These roles wait without a ceiling; ROLE_TIMEOUT_S stays the runaway guard.
+UNBOUNDED_BG_WAIT_ROLES = {AUDIT_ROLE}
+
 ROLE_TIMEOUT_S = {
     "update-state": 1200,
     "define-next": 1200,
@@ -192,12 +200,13 @@ def find_claude():
     return shutil.which("claude")
 
 
-def sanitize_env():
+def sanitize_env(role=None):
     """Create the role-session environment: no API keys, no claude.ai connectors.
 
     Removing the keys ensures subscription login is used instead of API billing.
     The claude.ai connectors (Gmail, Slack, Drive, ISCC Expert, ...) would otherwise
     load into every unattended session; project MCP servers such as deepwiki stay.
+    Roles in UNBOUNDED_BG_WAIT_ROLES may outlive the CLI's print-mode background wait.
     """
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)
@@ -205,6 +214,8 @@ def sanitize_env():
     env["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
     # Prevent nested session detection when invoking claude from within claude
     env.pop("CLAUDECODE", None)
+    if role in UNBOUNDED_BG_WAIT_ROLES:
+        env["CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"] = "0"
     return env
 
 
@@ -258,6 +269,9 @@ def _process_output(stdout, role):
         try:
             data = json.loads(line)
         except json.JSONDecodeError:
+            # stderr is merged into stdout: CLI warnings (such as background tasks
+            # being stopped) arrive as plain text and must stay visible.
+            print(f"  [{role}] {line[:500]}")
             continue
 
         msg_type = data.get("type")
@@ -1309,7 +1323,7 @@ def run_agent(
             stderr=subprocess.STDOUT,
             text=True,
             cwd=cwd,
-            env=sanitize_env(),
+            env=sanitize_env(role),
             bufsize=1,
             creationflags=flags,
         )
