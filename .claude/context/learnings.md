@@ -30,7 +30,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
     `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
     modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an
-    export moves BOTH (205)
+    export moves BOTH (205). **C docs name types `iscc_X`** (cbindgen `[export] prefix`), guarded by
+    `tests/test_c_ffi_docs.py`; `cbindgen --crate iscc-ffi` loads the crate's `cbindgen.toml`
+    itself, so `--config` changes nothing (221)
 
 ## Reference Implementation
 
@@ -80,8 +82,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **A docs page lives in FOUR places** — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
     `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`
     (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
-- **Devcontainer** (2026-10-17): Ruby fixtures read explicit UTF-8 since 209, so the suite passes
-    with no locale; push via `git -c credential.helper='!gh auth git-credential' push`
+- **Devcontainer push**: `git -c credential.helper='!gh auth git-credential' push`
 
 ## ISCC Algorithm Knowledge
 
@@ -117,7 +118,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `rust_version` over the non-dev resolve graph (`cargo tree -i <dep> -e no-dev --target all`
     printing nothing proves a major dev-only; omit `--target all` and platform-gated transitives
     hide). Settle by building — **1.85 is installed**: `cargo +1.85.0 check -p <c> --locked`
-- `semver` (informational pre-1.0) + `coverage` (enforcing) CI jobs: `mise run semver`/`coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a

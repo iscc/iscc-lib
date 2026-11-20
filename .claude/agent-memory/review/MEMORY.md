@@ -53,7 +53,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     / a spec** is protocol-fixed (135/144/172) → `review-patterns.md` "Artifact-editing traps"
 - **`mise run check` mdformat reformats context files** (intermittent): not an advance regression,
     but pre-push mdformat WILL reject the batch — check `git status --porcelain` right after and
-    STAGE it. Never stage `iterations.jsonl`; keep inline code spans on ONE line
+    STAGE it. Never stage `iterations.jsonl`; keep inline code spans on ONE line. **Never format
+    with bare `uv run mdformat`** (221: other wrap + list numbering than the hook) — use
+    `uv run prek run mdformat --files <f>`
 - **No-op / human-handoff iteration** (111/173): verdict PASS; `low`-only + human spec work or an
     upstream-gated `normal` → HUMAN REVIEW REQUESTED, never `**IDLE**` → `review-patterns.md`
 - **Unicode freeze rule REMOVED 2026-07-30** — reintroducing any freeze mechanism = NEEDS_WORK
@@ -103,6 +105,10 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
 - **.NET wrapper-only (220, ~5 min)**: `cargo build -p iscc-ffi`, `dotnet test` with
     `--logger 'console;verbosity=normal'` (grep the class), `dotnet build --no-incremental` for a
     0-warnings criterion → `binding-reviews.md`
+- **C FFI docs (221, ~5 min)**: extract every fenced `c` block, compile prototype blocks at file
+    scope after `#include "iscc.h"` (catches signature conflicts, not just names), paste example
+    blocks into `main()`. `cbindgen --crate iscc-ffi` auto-loads the crate's `cbindgen.toml` —
+    re-derive any "without X the output differs" claim by running it to `/tmp`
 - **Generated C/C++ table (219, ~1 min/probe)**: render a mutated fixture with the generator module
     into `/tmp/x/`, copy the harness there (a quote-include resolves next to the source) and compile
     with gcc/g++ against `target/debug` — a real-regression probe without touching the tree

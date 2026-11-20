@@ -18,18 +18,6 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
-## `docs/c-ffi-api.md` type names don't match the generated `iscc.h` `normal` [review]
-
-The page documents every FFI struct under an unprefixed name (`IsccDecodeResult`, `IsccByteBuffer`,
-`IsccByteBufferArray`, …), but cbindgen prefixes exported types in `crates/iscc-ffi/include/iscc.h`
-— the real declarations are `iscc_IsccDecodeResult`, `iscc_IsccByteBuffer`, etc. (typedef at
-`iscc.h`; no unprefixed alias exists). So every C snippet on the page, including the
-`iscc_gen_iscc_id_v1` decode example, fails to compile verbatim against the header produced by the
-documented generation command. Pre-existing and page-wide.
-
-Resolved when the page's type names match the generated header (`iscc_`-prefixed snippets, or a
-documented unprefixed cbindgen alias) and a representative example compiles against `iscc.h`.
-
 ## iscc-core mints 88-bit ISCC-IDv0 codes it cannot decode `low` [review]
 
 `iscc_core.encode_length` accepts an 88-bit `ID` body, but the `LN` enum (`constants.py`) has no 88:

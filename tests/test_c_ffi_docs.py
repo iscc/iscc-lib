@@ -15,6 +15,7 @@ _HEADER = _ROOT / "crates" / "iscc-ffi" / "include" / "iscc.h"
 _DOC_FILES = [
     _ROOT / "docs" / "c-ffi-api.md",
     _ROOT / "crates" / "iscc-ffi" / "README.md",
+    _ROOT / "docs" / "howto" / "c-cpp.md",
 ]
 _TYPEDEF_RE = re.compile(r"typedef struct iscc_(\w+)")
 
@@ -61,6 +62,15 @@ def test_c_ffi_api_doc_uses_prefixed_names():
 def test_ffi_readme_uses_prefixed_names():
     """``crates/iscc-ffi/README.md`` names no exported type without its ``iscc_`` prefix."""
     path = _DOC_FILES[1]
+    hits = find_bare_names(path.read_text(encoding="utf-8"), _names())
+    assert hits == [], [
+        f"{path.relative_to(_ROOT)}:{line}: {name}" for line, name in hits
+    ]
+
+
+def test_c_cpp_howto_uses_prefixed_names():
+    """``docs/howto/c-cpp.md`` names no exported type without its ``iscc_`` prefix."""
+    path = _DOC_FILES[2]
     hits = find_bare_names(path.read_text(encoding="utf-8"), _names())
     assert hits == [], [
         f"{path.relative_to(_ROOT)}:{line}: {name}" for line, name in hits

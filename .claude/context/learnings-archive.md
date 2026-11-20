@@ -1056,3 +1056,7 @@ runs on `opus`. Deliberate — do not "unify" them.
     `cargo-platform 0.3.3` (1.91) broke `iscc-uniffi` on inherited 1.85 while `-p iscc-lib` stayed
     fine; a per-crate `rust-version` override (173) makes cargo say `requires rustc 1.91`, not a
     resolution error
+
+## Archived from learnings.md (review 221)
+
+- `semver` (informational pre-1.0) + `coverage` (enforcing) CI jobs: `mise run semver`/`coverage`
