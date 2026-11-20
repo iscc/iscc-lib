@@ -17,7 +17,8 @@ Wired a prek hook next to `check-ci-job-table`.
     trailing `/`, NOT_PATHS); depth resolution; phantom top-level entry; phantom nested entry;
     phantom backtick; non-matching glob; orphan entry in a later fence; `pkgx` does not ride the
     `pkg` prefix; each floor on its own (zero roots pins orphan + floor); the old Go tree reports
-    exactly its 11 phantoms; `main()` returns 1. Every assert compares an exact error list
+    exactly its 11 phantoms; `main()` returns 1. Every `run_checks` failure-arm assert compares an
+    exact error list (the `main()` test checks stdout by substring)
 - `.pre-commit-config.yaml`: hook `check-spec-paths`, `entry: uv run scripts/check_spec_paths.py`,
     `files: ^(\.claude/context/specs/.*\.md|scripts/check_spec_paths\.py)$`
 - `go-bindings.md`: tree cut to its load-bearing entries (`go.mod`, `go.sum`, a `code_*.go` glob,
@@ -47,7 +48,9 @@ Wired a prek hook next to `check-ci-job-table`.
 - `uv run pytest tests/test_check_spec_paths.py` → 15 passed
 - Throwaway copy (`git ls-files -co --exclude-standard | tar …`, `git init && git add -A`): base
     exit 0; `├── ghost.go` added to the Go tree → exit 1 (`go-bindings.md:34 … ghost.go`);
-    `git rm packages/cpp/tests/test_iscc.cpp` → exit 1 (`cpp-bindings.md:35`)
+    `git rm packages/cpp/tests/test_iscc.cpp` → exit 1 (`cpp-bindings.md:35`). These probes ran
+    before the `shutil.which` change. Parsing is unchanged, and the anchor test plus `main()` were
+    green after it
 - `mise run check` → exit 0 (log shows `Spec path existence … Passed`)
 - `uv run prek run --hook-stage pre-push --files <both py files>` → exit 0 (ruff S, C901, ty,
     pytest, clippy, cargo test). The first run failed on S607; fixed with `shutil.which`
@@ -61,7 +64,9 @@ part could reuse `tracked_paths`/`tree_entries` from this script with a wider gl
 - **Unmet criterion, not drift (flag for review):** cpp-bindings.md Verification Criteria says
     "CMake `find_package(iscc)` works". `packages/cpp/CMakeLists.txt` has no `install`/`export` and
     no config template, so only `add_subdirectory` works. The `### CMake` snippet and the criterion
-    are untouched, because next.md authorised realigning only the pkg-config section
+    are untouched, because next.md authorised realigning only the pkg-config section. The cpp tree
+    comment on `CMakeLists.txt` did change, from "CMake config for find_package(iscc)" to the
+    INTERFACE target wording that matches the file
 - nodejs-bindings.md:168 criterion "135 mocha tests" is a count plus a stale runner name. Left
     alone, because tree-comment counts are out of scope per next.md
 - Realigned prose beyond the trees, per next.md: cpp pkg-config, dotnet csbindgen block, ruby
