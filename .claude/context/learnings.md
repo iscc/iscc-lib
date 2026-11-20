@@ -27,7 +27,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     not be NULL" hides the core's error: .NET jagged inputs pin only via `PinnedRows` (220), C++
     vectors only via `detail::safe_data` (227, `tests/test_cpp_safe_data.py`). **Never take `Vec<T>`
     from Ruby**: Magnus `to_vec` holds a slice, so a shrinking `to_str` segfaulted (212); use
-    `array_to_vec`. `RBignum::to_i32` truncates negative Bignums (filed)
+    `array_to_vec`. `RBignum::to_i32` truncates negative Bignums: `i32` only via `array_to_i32_vec`
 - **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
     `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
     modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an

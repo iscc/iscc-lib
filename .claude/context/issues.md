@@ -136,18 +136,23 @@ re-verified): `-Xmx16m`, `encodeSeq` over 500,000 valid units →
 Resolved when a JNI-allocation failure reaches Java as the original `OutOfMemoryError` (test under a
 small `-Xmx`, or argue why untestable) and the existing exception tests still pass.
 
-## Ruby `i32` list elements silently truncate negative Bignums `normal` [review]
+## Ruby integer list elements accept a Float and truncate it `low` [review]
 
-`IsccLib.gen_audio_code_v0([-(2**63)])` returns the code of `[0]`, where other out-of-range elements
-raise `RangeError`. Magnus 0.8.2 `RBignum::to_i32` (`r_bignum.rs:194`) checks only the upper bound
-before `as i32`, so Bignums from -2**63 to -(2**62)-1 truncate. It reaches every `i32` element
-conversion in `crates/iscc-rb/src/lib.rs` (`gen_audio_code_v0`, `gen_video_code_v0`,
-`soft_hash_video_v0`), contradicting `docs/ruby-api.md` Error Handling. Pre-existing; Codex, iter
-212\. `u32` elements were not probed.
+**Triage:** untriaged — a Ruby caller who passes Float elements where integers are expected gets the
+code of the truncated values instead of an error.
 
-Resolved when a negative Bignum element in those three functions raises `RangeError` (e.g. convert
-through `i64`, narrow with `i32::try_from`), pinned next to the `RangeError` cases in
-`crates/iscc-rb/test/test_array_args.rb`.
+Magnus' integer conversions start with `Integer::try_convert`, which applies Ruby's implicit
+`to_int`. So `IsccLib.gen_audio_code_v0([1.9])` returns the code of `[1]`, and `alg_minhash_256`
+does the same, where Python raises `TypeError`. It follows Ruby's own convention
+(`[10, 20, 30][1.9]` is `20`), so it may be acceptable as host idiom; `NaN` raises
+`FloatDomainError`. Pre-existing, measured in iter 229. The doc comment on `array_to_i32_vec` in
+`crates/iscc-rb/src/lib.rs` says "`TypeError` for a non-Integer", which does not hold for a Float. A
+wrong-typed element stays in per-binding tests (`edge-vectors.md` → Rules), so no `data-edge.json`
+vector is owed.
+
+Resolved when either a Float element raises `TypeError` in every integer-list parameter, pinned in
+`crates/iscc-rb/test/test_array_args.rb`, or `docs/ruby-api.md` → Error Handling states the implicit
+conversion and the doc comment matches it.
 
 ## Derived facts in guidance and docs are written by hand and drift `normal` [human]
 

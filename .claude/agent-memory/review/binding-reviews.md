@@ -94,7 +94,14 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     before" claim by compiling `git show <define-next sha>:crates/iscc-rb/src/lib.rs` over the file,
     `ruby -Ilib -Itest test/x.rb -n /name/` → exit 134, then `git checkout HEAD --` + recompile.
     `.iscc` of `gen_mixed_code_v0` is INVARIANT under truncation to 2 units — mutation tests must
-    compare the full result Hash. Magnus `RBignum::to_i32` truncates negative Bignums (filed)
+    compare the full result Hash. Magnus `RBignum::to_i32` truncates negative Bignums (fixed 229:
+    `array_to_i32_vec`)
+- **Ruby integer-conversion fix (229, ~10 min)**: one logged script (check, `rake compile:dev`,
+    `rake test`, clippy `-p iscc-rb`, fmt, standardrb), then ONE boundary-sweep `.rb` over every
+    integer param (±2^31, ±2^62, ±2^63, ±2^64) printing the exception class per cell. Read the
+    Magnus source for "probed, correct" claims (`r_bignum.rs`, `value.rs` Fixnum). Magnus integer
+    params take a Float via implicit `to_int` (filed `low` 229). `bits` is a keyword arg in the Ruby
+    wrapper: a positional probe returns `ArgumentError` for every value and proves nothing
 - **ACCEPTED in 212, do not re-file:** an `RArray` param converts `bits` BEFORE `array_to_vec` takes
     its copy, so a `bits.to_int` that empties the array makes audio/mixed hash the emptied array
     (Codex). Memory-safe, the video functions always did this, the input is absurd
