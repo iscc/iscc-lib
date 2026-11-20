@@ -217,6 +217,22 @@ def test_sanitize_env_lifts_background_wait_ceiling_for_audit_only(monkeypatch):
         assert "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS" not in cid.sanitize_env(role)
 
 
+def test_process_output_sums_turns_across_result_segments(tmp_path):
+    # Shape of the iteration 230 review: two background-push notifications after
+    # the final turn, each closing a segment with its own result message.
+    rows = (
+        {"type": "result", "num_turns": 61, "total_cost_usd": 4.1},
+        {"type": "result", "num_turns": 8, "total_cost_usd": 5.0},
+        {"type": "result", "num_turns": 2, "total_cost_usd": 5.27},
+    )
+    fake = tmp_path / "stream.jsonl"
+    fake.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    with fake.open() as fh:
+        out = cid._process_output(fh, "review")
+    assert out["turns"] == 71
+    assert out["cost"] == 5.27  # running total: the last result, not a sum
+
+
 def test_process_output_echoes_non_json_lines(tmp_path, capsys):
     fake = tmp_path / "stream.jsonl"
     fake.write_text(

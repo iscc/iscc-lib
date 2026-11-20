@@ -294,7 +294,10 @@ def _process_output(stdout, role):
             raw_turns = data.get("num_turns")
             denials = data.get("permission_denials")
             out["cost"] = raw_cost if isinstance(raw_cost, (int, float)) else 0.0
-            out["turns"] = raw_turns if isinstance(raw_turns, int) else 0
+            # A background-task notification after the final turn starts another
+            # segment with its own result: total_cost_usd is a running session total,
+            # num_turns counts only that segment, so turns are summed.
+            out["turns"] += raw_turns if isinstance(raw_turns, int) else 0
             out["is_error"] = bool(data.get("is_error", False))
             out["subtype"] = str(data.get("subtype") or "")
             out["denials"] = len(denials) if isinstance(denials, list) else 0
