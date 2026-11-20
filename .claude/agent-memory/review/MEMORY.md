@@ -106,6 +106,10 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
 - **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table recipes (215-221)**,
     **new data-edge SECTION = 12-surface script + `uvx cmake` + 4-surface mutation (226, ~12 min)**
     → `binding-reviews.md` "Moved from the index (223)"
+- **C++ wrapper-only step (227, ~4 min)**: ASAN build in an own `build-*/` dir + previous-header
+    mutation + strict `g++ -Werror -fsyntax-only` → `binding-reviews.md` "Per-surface step commands"
+- **A `[human]` issue with a `**Spec:**` field**: on closing it, the reviewer corrects the spec rows
+    it names (227: `rust-core.md` return types) — stage the spec file
 - **Waiting on a background run**:
     `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15;   done'` in the foreground works
     (bare `sleep` is blocked); never edit while prek runs

@@ -203,19 +203,3 @@ numbers (on Linux and macOS), and the Python harness rejects a `bool` where a nu
 vice versa.
 
 **Spec:** `.claude/context/specs/edge-vectors.md` → "Rules"
-
-## C++ list wrappers pass NULL for an empty vector `normal` [human]
-
-Five wrappers in `packages/cpp/include/iscc/iscc.hpp` (`gen_mixed_code_v0`, `gen_iscc_code_v0`,
-`gen_video_code_v0`, `alg_simhash`, `soft_hash_video_v0`) pass `ptrs.data()` (three of them also
-`lens.data()`), which is NULL for an empty vector, where `encode_seq` uses `detail::safe_data`. For
-four of them `{}` fails with the FFI's "must not be NULL" message instead of the core's own check
-(iter 219). `iscc_alg_simhash` is the exception: its `num_digests == 0` branch runs before the NULL
-checks, so `alg_simhash({})` already reports the core message, and the shared `alg_simhash` `[]`
-vector in `data-edge.json` (on all 12 surfaces since iteration 226) cannot pin that wrapper's
-pointer.
-
-Resolved when the five C++ wrappers pass non-NULL pointers for an empty vector, each pinned by a
-test on `{}` that checks the message is not the NULL one.
-
-**Spec:** `.claude/context/specs/rust-core.md` → Tier 1 table (`alg_simhash`)

@@ -84,10 +84,10 @@ blocks used by `iscc-sdk` for granular content processing (text chunking, text f
 
 | Function          | Signature (Rust)                                         | Behavior                                                                    |
 | ----------------- | -------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `sliding_window`  | `fn(text: &str, width: usize) -> Vec<String>`            | Generate overlapping character n-grams of given width                       |
+| `sliding_window`  | `fn(seq: &str, width: usize) -> IsccResult<Vec<String>>` | Generate overlapping character n-grams of given width                       |
 | `alg_minhash_256` | `fn(features: &[u32]) -> Vec<u8>`                        | 64-dimensional MinHash compressed to 256-bit (32-byte) digest               |
 | `alg_cdc_chunks`  | `fn(data: &[u8], utf32: bool, avg_chunk_size: u32) -> …` | Content-defined chunking with gear rolling hash                             |
-| `alg_simhash`     | `fn(hash_digests: &[Vec<u8>]) -> Vec<u8>`                | Similarity-preserving hash from equal-length digests; rejects an empty list |
+| `alg_simhash`     | `fn(hash_digests: &[Vec<u8>]) -> IsccResult<Vec<u8>>`    | Similarity-preserving hash from equal-length digests; rejects an empty list |
 
 Note: The bound `alg_cdc_chunks` returns owned data (`Vec<Vec<u8>>`) suitable for FFI. The internal
 implementation may use borrowed slices for performance.

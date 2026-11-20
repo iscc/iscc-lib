@@ -468,6 +468,14 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     so add a strict `g++ -Werror -fsyntax-only` pass; every `c_str()` must sit in `checked_c_str` or
     the guarded `encode_seq` (213). **A `dotnet test` "apphost not found" while Codex runs is the
     shared-`obj/` race** — re-run once Codex is idle → `binding-reviews.md`
+- **C++ wrapper pointer-form step (227, ~4 min incl. Codex)**: one logged script —
+    `cargo build -p iscc-ffi`, `uvx cmake -B build-review …` (own gitignored `build-*/` dir, Codex
+    builds in-tree too), run, then the mutation `git show HEAD~1:<header> > <header>` + rebuild +
+    run + `git checkout -- <header>` (227: exactly the 4 defect wrappers failed). The
+    `data_edge/…empty_list` rows stay green under that mutation (they assert rejection, not the
+    message). A wrapper whose behaviour is identical with either form can only be pinned by a SOURCE
+    check — added `tests/test_cpp_safe_data.py` (new `.py` ⇒ run `uv run ty check` + ruff
+    `S`/`C901`)
 - **UniFFI Swift+Kotlin step (210, ~10 min)**: `gradlew -p packages/kotlin clean test --offline`
     (JUnit XML) + `swift test --package-path packages/swift` with `/tmp/swifttc` on PATH, a fresh
     `--scratch-path` and ABSOLUTE `-L`/rpath + bindgen regen into a temp dir → `binding-reviews.md`

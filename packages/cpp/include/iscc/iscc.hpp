@@ -408,7 +408,8 @@ inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>&
         ptrs.push_back(detail::safe_data(d));
         lens.push_back(d.size());
     }
-    detail::UniqueByteBuffer buf(iscc_alg_simhash(detail::safe_data(ptrs), detail::safe_data(lens), digests.size()));
+    detail::UniqueByteBuffer buf(iscc_alg_simhash(
+        detail::safe_data(ptrs), detail::safe_data(lens), digests.size()));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("alg_simhash failed");
@@ -418,7 +419,8 @@ inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>&
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 inline std::vector<uint8_t> alg_minhash_256(const std::vector<uint32_t>& features) {
-    detail::UniqueByteBuffer buf(iscc_alg_minhash_256(detail::safe_data(features), features.size()));
+    detail::UniqueByteBuffer buf(
+        iscc_alg_minhash_256(detail::safe_data(features), features.size()));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("alg_minhash_256 failed");
@@ -462,8 +464,8 @@ inline std::vector<uint8_t> soft_hash_video_v0(
         ptrs.push_back(detail::safe_data(f));
         lens.push_back(f.size());
     }
-    detail::UniqueByteBuffer buf(
-        iscc_soft_hash_video_v0(detail::safe_data(ptrs), detail::safe_data(lens), frame_sigs.size(), bits));
+    detail::UniqueByteBuffer buf(iscc_soft_hash_video_v0(
+        detail::safe_data(ptrs), detail::safe_data(lens), frame_sigs.size(), bits));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("soft_hash_video_v0 failed");
@@ -532,8 +534,8 @@ inline VideoCodeResult gen_video_code_v0(
         ptrs.push_back(detail::safe_data(f));
         lens.push_back(f.size());
     }
-    detail::UniqueString s(
-        iscc_gen_video_code_v0(detail::safe_data(ptrs), detail::safe_data(lens), frame_sigs.size(), bits));
+    detail::UniqueString s(iscc_gen_video_code_v0(
+        detail::safe_data(ptrs), detail::safe_data(lens), frame_sigs.size(), bits));
     detail::check_ptr(s.ptr);
     return VideoCodeResult{s.to_string()};
 }

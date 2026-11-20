@@ -163,7 +163,8 @@ cleanup even if an exception is thrown during field copying.
     and several C FFI functions reject a NULL pointer before checking the count, which hides the
     core's own error. Always pass an input vector as `detail::safe_data()` (a single template that
     returns a static read-only sentinel address for empty vectors), never as `.data()`. This
-    includes the pointer and length arrays built inside list wrappers.
+    includes the pointer and length arrays built inside list wrappers. `tests/test_cpp_safe_data.py`
+    (pytest, repo root) fails on any other `.data()` in `iscc.hpp`.
 - **`LD_LIBRARY_PATH` required at runtime**: the shared library is not statically linked into tests.
     On Linux, set `LD_LIBRARY_PATH` to the directory containing `libiscc_ffi.so`. On macOS, use
     `DYLD_LIBRARY_PATH`. On Windows, the DLL must be on `PATH` or in the working directory.
