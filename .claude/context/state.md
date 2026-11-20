@@ -1,25 +1,27 @@
-<!-- assessed-at: 3c7e48283664d1113e8f4662ab97acc5a00c3b35 -->
+<!-- assessed-at: d04472fdeec2190db7288be7d3e03b1e87167f2a -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 2 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 1 normal issue owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 231 moved the iscc-ffi unit tests out of `lib.rs` into `src/tests.rs` and
-closed the split-threshold issue. CI is fully green on the pushed tip `1bd28cd`. Two `normal` issues
-still block v0.8.0, both `[human]`-sourced.
+all 11 bindings. Iteration 232 made the Swift and Python data-edge compares strict and closed that
+`normal` issue. CI is fully green on the pushed tip `e289ad8`, including the macOS Swift job. One
+`normal` `[human]` issue (derived-fact drift) is the last v0.8.0 blocker.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
-**Status**: partially met (seed set met; 1 `normal` issue owed)
+**Status**: met (v0.8.0 scope)
 
 - `crates/iscc-lib/tests/data-edge.json` has 6 sections: `iscc_decode`, `encode_seq`,
     `gen_text_code_v0`, `gen_mixed_code_v0`, `gen_iscc_code_v0`, `alg_simhash`; harnesses on all 12
     surfaces; the 5 tracked copies are byte-identical and match `VENDORED_COPIES`
-- **`normal` `[human]`:** Swift compares strings by canonical equivalence and reads a JSON bool as
-    an Int; the Python template conflates `0` and `False`
+- Swift reads every Bool/integer through one `DataEdge.scalar` classifier and compares strings by
+    Unicode scalars; Python `same` never equates a `bool` with a non-`bool`
+- Unfiled open question: .NET, Java, napi and WASM compare only the expected keys their result
+    exposes
 
 ## Rust Core Crate
 
@@ -57,8 +59,7 @@ still block v0.8.0, both `[human]`-sourced.
 
 - 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
-- `src/lib.rs` is 1717 lines (below the ~2500-line split threshold); the 99 unit tests live in
-    `src/tests.rs` behind `#[cfg(test)] mod tests;`; `CLAUDE.md` documents the layout
+- `src/lib.rs` is 1717 lines; the 99 unit tests live in `src/tests.rs`
 - `tests/test_iscc.c` runs every data-edge row (incl. `alg_simhash`) except the 2 marked `c: skip`
 
 ## Java Bindings
@@ -66,8 +67,8 @@ still block v0.8.0, both `[human]`-sourced.
 **Status**: met (v0.8.0 scope)
 
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 6 sections, green in CI; 0.7.0 on Maven Central
-- Hasher exports reject a zero handle; JVM allocation failure maps to `OutOfMemoryError`; throw
-    helpers skip throwing while an exception is pending; 64 `@Test` methods
+- Hasher exports reject a zero handle; JVM allocation failure maps to `OutOfMemoryError`; 64 `@Test`
+    methods
 - `low` issue: the pending-exception guard has no test
 
 ## Go Bindings
@@ -106,9 +107,8 @@ still block v0.8.0, both `[human]`-sourced.
 **Status**: met (v0.8.0 scope)
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both conformance suites run all 8 seq
-    vectors; Swift `DataEdgeTests` and Kotlin `DataEdgeTest` run all 6 sections, green in CI; both
-    shipped 0.7.0
-- The Swift data-edge compare is loose (counted under data-edge above)
+    vectors; Swift has 30 tests (19 conformance, 11 data-edge incl. 5 strict-compare cases); Kotlin
+    `DataEdgeTest` runs all 6 sections; both green in CI and shipped 0.7.0
 
 ## Documentation
 
@@ -116,7 +116,7 @@ still block v0.8.0, both `[human]`-sourced.
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; all how-tos cover the seq functions
-- `scripts/check_spec_paths.py` gates spec paths with its own `glob_regex`
+- `scripts/check_spec_paths.py` gates spec paths
 - **`normal` `[human]`:** no Tier 1 list parity check; hand-written counts and file lists remain in
     specs and per-crate `CLAUDE.md` files (e.g. `specs/java-bindings.md` still says 65 tests)
 
@@ -133,17 +133,19 @@ still block v0.8.0, both `[human]`-sourced.
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `1bd28cd`
-    (https://github.com/iscc/iscc-lib/actions/runs/44758570156): all 21 check-runs `success`
-- Unpushed: 1 commit (the iteration-231 log), under `.claude/` only; green CI covers all code at
+- **Latest CI: PASSING** on `origin/develop` = `e289ad8`
+    (https://github.com/iscc/iscc-lib/actions/runs/44766855703): all 21 check-runs `success`,
+    including `Swift (swift build, swift test)` on macOS
+- Unpushed: 1 commit (the iteration-232 log), under `.claude/` only; green CI covers all code at
     HEAD
 - GitHub Dependabot alerts track `main` and stay open until the next release (triaged, no issue)
 
 ## Open Issues
 
-9 open: 0 critical, **2 normal**, 7 low. Normal: derived-fact drift `[human]`, data-edge compare
-looseness `[human]`. issues.md is at 168 of 300 lines.
+8 open: 0 critical, **1 normal**, 7 low. Normal: derived-fact drift `[human]`. issues.md is at 152
+of 300 lines.
 
 ## Next Milestone
 
-Clear the 2 open `normal` issues, which are the only remaining v0.8.0 release blockers.
+Clear the last open `normal` issue (derived facts written by hand drift from the code), the only
+remaining v0.8.0 release blocker.

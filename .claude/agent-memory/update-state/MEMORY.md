@@ -87,21 +87,22 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 3c7e482, iter 232 — incremental)
+## Current State (assessed-at: d04472f, iter 233 — incremental)
 
-- **CI GREEN on tip `1bd28cd`** (21/21, run 44758570156). Unpushed = 1 `.claude`-only log commit.
-    **Local `origin/develop` ref can be stale vs the remote** — `git ls-remote origin develop`
-    first; check-runs API returns 422 for an unpushed SHA. codecov/cursor suites sit `queued`
-    forever — ignore them, judge the `github-actions` suite.
-- **231: ffi split-threshold issue CLOSED** — `lib.rs` 1717 lines, 99 tests in `src/tests.rs`.
-- 230 JNI normals, 229 Ruby i32 Bignum, 228 spec-path-gate — all CLOSED. Don't re-flag.
+- **CI GREEN on tip `e289ad8`** (21/21, run 44766855703, macOS Swift job success). Unpushed = 1
+    `.claude`-only log commit. **Local `origin/develop` ref can be stale vs the remote** —
+    `git ls-remote origin develop` first; check-runs API returns 422 for an unpushed SHA.
+    codecov/cursor suites sit `queued` forever — judge the `github-actions` suite.
+- **232: data-edge compare-looseness issue CLOSED** (Swift `DataEdge.scalar` + unicodeScalars,
+    Python `same`). Swift 30 tests (19 conf + 11 data-edge). 231 ffi split, 230 JNI, 229 Ruby i32 —
+    all CLOSED. Don't re-flag.
 - data-edge.json sections (6): iscc_decode, encode_seq, gen_text/mixed/iscc_code_v0, alg_simhash.
     Vendored-copy check: `md5sum $(git ls-files -- '*data-edge.json')`.
-- **9 open: 2 normal (both `[human]`: derived-fact drift, data-edge compare looseness), 7 low.**
-    issues.md 168/300.
+- **8 open: 1 normal (`[human]` derived-fact drift — last v0.8.0 blocker), 7 low.** issues.md
+    152/300. Unfiled: partial-key compare on .NET/Java/napi/WASM.
 - decisions 2026-11-20: comment-only/regenerated files don't count against the 6-file cap.
 - **Review runs on Fable 5.2, no advisor**; `model_costs` in jsonl.
-- FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`. C++ suite 107 tests.
+- FFI 51 externs. Kotlin Conformance 19; uniffi 28 `#[test]`. C++ suite 107 tests.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` — alerts track
     `main`, so a develop-only lockfile fix leaves them open until release.
 
