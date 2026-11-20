@@ -118,8 +118,8 @@ def encode_seq(units: Iterable[str]) -> bytes:
     `io.iscc.v0` values must.
 
     Unit strings may omit the `ISCC:` prefix and may be lowercase or contain hyphens. Base32
-    decoding is strict: `=` padding and non-zero spare bits are rejected (`iscc_core` accepts
-    both).
+    decoding is strict: `=` padding, non-zero spare bits and non-ASCII case-fold aliases (`ſ`,
+    `ß`) are rejected (`iscc_core` accepts them).
 
     :param units: ISCC-UNIT strings of MainType META, SEMANTIC, CONTENT, DATA or INSTANCE with
         32 to 256 bits

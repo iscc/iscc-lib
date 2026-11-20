@@ -516,8 +516,9 @@ fn iscc_decode(py: Python<'_>, iscc: &str) -> PyResult<Py<PyAny>> {
 /// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
 ///
 /// Returns `bytes` (the concatenated header and body bytes of each unit, in
-/// order). Base32 decoding is strict: `=` padding and non-zero spare bits are
-/// rejected.
+/// order). Base32 decoding is strict: `=` padding, non-zero spare bits and
+/// non-ASCII case-fold aliases (`ſ`, `ß`) are rejected (`iscc_core` accepts
+/// them).
 #[pyfunction]
 #[pyo3(signature = (units))]
 fn encode_seq(py: Python<'_>, units: Vec<String>) -> PyResult<Py<PyAny>> {

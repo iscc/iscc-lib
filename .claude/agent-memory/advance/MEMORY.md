@@ -31,6 +31,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
 - C FFI docs (221): C type names `iscc_`-prefixed, gated by `tests/test_c_ffi_docs.py`
+- Python `encode_seq` docs (222): 3 copies (wrapper, pyo3 `///`, `.pyi`) gated by
+    `tests/test_encode_seq_docs.py`; ruff allows `ſ`/`ß` literals in docstrings
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`

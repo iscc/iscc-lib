@@ -1,62 +1,40 @@
-## 2026-11-20 — Review of: C FFI docs use the `iscc_`-prefixed type names of the generated `iscc.h`
+## 2026-11-20 — Python `encode_seq` docstrings name the non-ASCII case-fold divergence from iscc-core
 
-**Verdict:** PASS
+**Done:** All three Python-visible `encode_seq` docstrings now say that strict base32 decoding
+rejects `=` padding, non-zero spare bits and non-ASCII case-fold aliases (`ſ`, `ß`), and that
+`iscc_core` accepts them. The wording follows napi. A pytest checks all three copies.
 
-**Summary:** Every exported C type name in `docs/c-ffi-api.md` and `crates/iscc-ffi/README.md` is
-now the `iscc_`-prefixed name from `iscc.h`. The four struct blocks match the header field for
-field, and a pytest derives the type set from the header so the names cannot drift again. The diff
-is small, in scope and clean. The `normal` issue is resolved and deleted.
+**Files changed:**
+
+- `crates/iscc-py/python/iscc_lib/__init__.py`: the wrapper docstring names three items. "accepts
+    both" became "accepts them"
+- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: the stub docstring names three items (reST double
+    backticks) and adds "(`iscc_core` accepts them)"
+- `crates/iscc-py/src/lib.rs`: the `///` doc on `#[pyfunction] fn encode_seq` (this becomes
+    `_lowlevel.encode_seq.__doc__`) names three items plus the `iscc_core` note
+- `tests/test_encode_seq_docs.py` (new): 4 tests. Each of wrapper, extension and `.pyi` (read with
+    `ast.get_docstring`) must contain `padding`, `spare bits`, `case-fold` and `iscc_core` after
+    whitespace normalization. A fourth test checks that the helper flags the old two-item sentence
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_c_ffi_docs.py` exits 0. 5 passed at the advance commit, including
-    `test_bare_name_is_flagged`; 6 after the review added `docs/howto/c-cpp.md`
-- [x] Compile check: the IDv1 snippet (L398-408) and the `encode_seq` snippet (L700-712), each
-    pasted verbatim into `main()` after `<stdio.h>` + `"iscc.h"`, pass
-    `gcc -std=c11 -fsyntax-only -I crates/iscc-ffi/include` (both exit 0)
-- [x] `docs/c-ffi-api.md` contains `--config crates/iscc-ffi/cbindgen.toml` (1 match)
-- [x] `git status --porcelain` on `iscc.h` and `NativeMethods.g.cs` prints nothing
-- [x] `uv run zensical build` exits 0 ("No issues found")
-- [x] `mise run check` exits 0 and leaves the tree clean. Pre-push `ty check` and ruff `S`/`C901` on
-    the new test are green too
+- `uv run maturin develop -m crates/iscc-py/Cargo.toml`: exit 0 ("Installed iscc-lib-0.7.0")
+- `uv run pytest tests/test_encode_seq_docs.py tests/test_data_edge.py -q`: 81 passed
+- `uv run python -c "import iscc_lib; d = iscc_lib.encode_seq.__doc__; assert 'case-fold' in d and 'spare bits' in d"`:
+    printed ok
+- `cargo clippy -p iscc-py -- -D warnings`: clean
+- `mise run check`: exit 0, and the tree is clean apart from the staged changes and the runner's
+    `iterations.jsonl`
+- `uv run prek run --hook-stage pre-push --files <3 py files>`: exit 0 (ruff S/C901, ty, pytest)
 
-Probes beyond next.md (3):
-
-- All 38 prototype blocks on the page compile at file scope after `#include "iscc.h"`, with no
-    conflicting-type errors. A script compared the four struct blocks with the header: field types
-    and names are identical
-- The test helper run on the pre-step docs finds 39 bare names in `c-ffi-api.md` and 3 in the
-    README, so the test would have caught the defect
-- Sibling sweep: `docs/howto/c-cpp.md` and `packages/cpp/README.md` have no bare names. Inbound
-    links to the renamed headings: none
-
-**Issues found:**
-
-- next.md's premise "without `--config` the documented command does not produce the committed
-    header" is false. cbindgen 0.29.4 with `--crate iscc-ffi` loads `crates/iscc-ffi/cbindgen.toml`
-    by itself, and the config-less run writes a byte-identical header. So the command change only
-    makes the page match CI, and the `docs/howto/c-cpp.md` L37 command (no `--config`) is correct
-- Nit, not filed: bare C names remain in comments and prose in `packages/cpp/CLAUDE.md` (L61, L174)
-    and `packages/cpp/include/iscc/iscc.hpp` (L126, L147). No compiled code is affected
-- Nit, not filed: the page mixes `size_t` (function parameters, out of scope per next.md) with
-    `uintptr_t` (struct fields, `iscc_encode_seq`). Both are the same type on every supported target
-- Accepted deviation: the advance agent added a second sentence under "Types" saying the `struct`
-    keyword is optional. All six types in `iscc.h` have a `typedef`, so it is true
-
-**Review fix (step 9):** `tests/test_c_ffi_docs.py` now also checks `docs/howto/c-cpp.md`, the third
-C-facing page. It is clean today, and before this nothing checked it.
-
-**Codex review:** ran with `--base 219cc49` over both advance commits; no actionable findings ("type
-names and struct layouts match the checked-in `iscc.h`").
-
-**Next:** fix the Python `encode_seq` docstrings (`normal` \[human\]: `_lowlevel.pyi:56` and the
-`iscc_lib/__init__.py` wrapper must name non-ASCII case-fold aliases next to padding and spare
-bits). After that come the `wasm-bindings.md` spec line (`normal`, a file-list fact, no escalation),
-then the derived-facts parity check (`normal` [human], the largest item). The Dependabot `soupsieve`
-bump still waits on Titusz.
+**Next:** the `wasm-bindings.md` spec drift (`normal`, a file-list fact), then the derived-facts
+parity check (`normal` [human]).
 
 **Notes:**
 
-- The larger-step trial (`low` [human]) is evaluated after iteration 224, so iterations 222-224
-    still count toward it
-- `learnings.md` is exactly at its 200-line budget: one entry moved to `learnings-archive.md`
+- Ruff raised no `RUF001`/`RUF002` on `ſ`/`ß`, so the literal characters stay in the docstrings and
+    no code points had to be spelled out in words
+- Only docstrings changed, so there is no CRAP or iai effect
+- `mise run check` ran before the test file was tracked, so the file was not checked then. At commit
+    time ruff format reformatted it (it wrapped the long `_PYI` line). The commit hooks then passed
+    on the reformatted file, and the 4 tests still pass

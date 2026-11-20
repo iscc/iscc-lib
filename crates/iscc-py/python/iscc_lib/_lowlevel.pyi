@@ -53,8 +53,9 @@ def iscc_decode(iscc: str) -> tuple[int, int, int, int, bytes]:
 def encode_seq(units: list[str]) -> bytes:
     """Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
 
-    Base32 decoding is strict: ``=`` padding and non-zero spare bits are
-    rejected.
+    Base32 decoding is strict: ``=`` padding, non-zero spare bits and
+    non-ASCII case-fold aliases (``ſ``, ``ß``) are rejected (``iscc_core``
+    accepts them).
 
     :param units: ISCC-UNIT strings (prefix optional, case-insensitive,
         hyphens allowed).
