@@ -33,8 +33,24 @@ module DataEdge
     result.to_h
   end
 
-  # Section name -> [raw call, converter]. The raw call is kept apart from the
-  # conversion so a conversion error never counts as a rejection.
+  # Decode a `bytes:<hex>` fixture value into a binary string; raise on any other value.
+  def self.decode_bytes(value)
+    digits = value.delete_prefix("bytes:")
+    unless value.start_with?("bytes:") && digits.match?(/\A(?:[0-9a-f]{2})*\z/)
+      raise ArgumentError, "expected a bytes:<hex> input, got #{value.inspect}"
+    end
+
+    [digits].pack("H*")
+  end
+
+  # Decode the `alg_simhash` digest list from `bytes:<hex>` strings into binary strings.
+  def self.prepare_simhash(inputs)
+    [inputs[0].map { |d| decode_bytes(d) }, *inputs.drop(1)]
+  end
+
+  # Section name -> [raw call, converter, optional input preparer]. Preparing and
+  # converting stay outside the raw call so neither error ever counts as a rejection;
+  # `bytes:` inputs are decoded only by a section's preparer.
   SECTIONS = {
     "iscc_decode" => [->(inputs) { IsccLib.iscc_decode(inputs[0]) }, method(:convert_decode)],
     "encode_seq" => [->(inputs) { IsccLib.encode_seq(inputs[0]) }, method(:bytes_value)],
@@ -47,6 +63,9 @@ module DataEdge
     "gen_iscc_code_v0" => [
       ->(inputs) { IsccLib.gen_iscc_code_v0(inputs[0], wide: inputs.fetch(1, false)) },
       method(:convert_hash)
+    ],
+    "alg_simhash" => [
+      ->(inputs) { IsccLib.alg_simhash(inputs[0]) }, method(:bytes_value), method(:prepare_simhash)
     ]
   }.freeze
 
@@ -86,12 +105,13 @@ module DataEdge
   end
 
   # Check one vector and return a failure description, or nil.
-  def self.check_vector((call, convert), vector)
+  def self.check_vector((call, convert, prepare), vector)
     exception = vector.fetch("except", {})[SURFACE]
     return nil if exception == "skip"
 
     expect_error = exception == "error" || vector.key?("error")
-    status, value = raw_call(call, vector["inputs"])
+    inputs = prepare ? prepare.call(vector["inputs"]) : vector["inputs"]
+    status, value = raw_call(call, inputs)
     if status == :error
       return expect_error ? nil : "expected an output, got error: #{value.message}"
     end
