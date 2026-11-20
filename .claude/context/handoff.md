@@ -1,46 +1,49 @@
-## 2026-11-20 — Move the iscc-ffi unit tests out of `lib.rs` into `src/tests.rs`
+## 2026-11-20 — Review of: Move the iscc-ffi unit tests out of `lib.rs` into `src/tests.rs`
 
-**Done:** Moved the body of `#[cfg(test)] mod tests { … }` (old lines 1718–2874) verbatim into
-`crates/iscc-ffi/src/tests.rs`, one indent level removed and a `//!` docstring added. `lib.rs` now
-ends with `#[cfg(test)]` / `mod tests;` and keeps every export, type and helper. CLAUDE.md updated.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-ffi/src/lib.rs`: inline test module replaced by `#[cfg(test)] mod tests;` (2875 →
-    1717 lines)
-- `crates/iscc-ffi/src/tests.rs`: created (1157 lines), the test module body
-- `crates/iscc-ffi/CLAUDE.md`: layout tree lists `tests.rs`; "Single-file crate" paragraph reworded
-    (exports/types/helpers in `lib.rs`, tests in `src/tests.rs`, plus why exports must stay in
-    `lib.rs`: `build.rs` passes only `src/lib.rs` to csbindgen); "Rust tests" heading points at
-    `src/tests.rs`
+**Summary:** The `#[cfg(test)] mod tests` block of `crates/iscc-ffi/src/lib.rs` now lives in
+`crates/iscc-ffi/src/tests.rs`; `lib.rs` is 1717 lines and keeps every export, type and helper. The
+move is verbatim: the first 1715 lines of `lib.rs` are byte-identical to the previous version, and
+the de-indented old test body differs from `tests.rs` in two places only, both a line rustfmt joined
+because it now fits in 100 columns. `crates/iscc-ffi/CLAUDE.md` describes the new layout and says
+why exports must stay in `lib.rs`.
 
 **Verification:**
 
-- `grep -n 'mod tests' -B1 lib.rs` → `1716-#[cfg(test)]` / `1717:mod tests;`; `wc -l` = 1717, under
-    2500
-- `grep -c '#\[test\]'`: lib.rs 0, tests.rs 99; `cargo test -p iscc-ffi --lib` → 99 passed, 0 failed
-- Verbatim check: `git show HEAD:…/lib.rs | sed -n 1718,2874p | sed 's/^    //'` diffed against
-    `tests.rs` (minus the 2 docstring lines) — only 2 hunks, both rustfmt joining a line that fits
-    in 100 cols after de-indenting (`iscc_gen_meta_code_v0(...)` call,
-    `ffi_encode_seq(...).is_none()`)
-- Pre-move grep: no multi-line string literals in the block (only a single-line `r#"…"#`), so
-    de-indenting changed no string content
-- Ran the cbindgen command from next.md, then `cargo build -p iscc-ffi`; both files got fresh mtimes
-    (iscc.h 14:40:06, NativeMethods.g.cs 14:41:55) and
-    `git status --porcelain crates/iscc-ffi/include/iscc.h packages/dotnet/Iscc.Lib/NativeMethods.g.cs`
-    printed nothing
-- `grep -rn 'no_mangle\|extern "C"' crates/iscc-ffi/src/tests.rs` → nothing
-- `cargo clippy -p iscc-ffi --all-targets -- -D warnings` clean; `cargo fmt -p iscc-ffi --check`
-    clean
-- `mise run check` → exit 0
+- [x] `grep -n 'mod tests' crates/iscc-ffi/src/lib.rs` prints one line, `mod tests;`, with
+    `#[cfg(test)]` above it; `wc -l` below 2500 — lines 1716/1717, file is 1717 lines
+- [x] `grep -c '#\[test\]'` is `0` in `lib.rs`; the `cargo test -p iscc-ffi --lib` passed count
+    equals the count in `tests.rs`, 0 failed — 99 passed, 99 `#[test]`, and the set of test function
+    names is identical to the previous file's
+- [x] cbindgen plus `cargo build -p iscc-ffi` leave `iscc.h` and `NativeMethods.g.cs` unchanged —
+    cbindgen written to a temp file is byte-identical to the tracked header; after
+    `cargo clean -p iscc-ffi` the build rewrote `NativeMethods.g.cs` and `git status` stayed clean
+- [x] `grep -rn 'no_mangle\|extern "C"' crates/iscc-ffi/src/tests.rs` prints nothing
+- [x] `cargo clippy -p iscc-ffi --all-targets -- -D warnings` and `cargo fmt -p iscc-ffi --check`
+    are clean — workspace clippy is clean too
+- [x] `mise run check` exits 0
 
-**Next:** the `[human]`-sourced `normal` issue "`data-edge.json` harnesses accept a value that only
-resembles the expected one" (Swift scalar compare + Boolean rejection, Python `0`/`False`), then the
-derived-facts parity check.
+**Issues found:**
+
+- (none). Resolved and deleted: "`crates/iscc-ffi/src/lib.rs` is past the crate's own split
+    threshold"
+
+**Codex review:** No findings. It confirmed all 99 tests moved without behaviour change and that the
+regenerated C and C# bindings are unchanged.
+
+**Next:** The `[human]`-sourced `normal` issue "`data-edge.json` harnesses accept a value that only
+resembles the expected one": make the Swift compare match strings by Unicode scalars and reject
+Boolean-backed numbers, and make the Python harness tell `0` from `False`. It needs a Swift
+toolchain run and touches two test harnesses. After that, the derived-facts parity check (the other
+open `normal` issue).
 
 **Notes:**
 
-- No core Rust, public API or benchmarked path changed, so CRAP, iai and semver were not run. The
-    pre-push stage (workspace clippy/test/pytest) was not run separately beyond the iscc-ffi clippy
-    and test above
-- The issue "`crates/iscc-ffi/src/lib.rs` is past the crate's own split threshold" can be resolved
+- No quality-gate change in the unpushed range: no suppression, skipped test or loosened hook. No
+    public API, core Rust or benchmarked path changed, so semver, CRAP and iai were not run
+- cbindgen does not rewrite an unchanged output file, so a file timestamp says nothing about whether
+    it ran. Compare against a temp-file run instead. `cargo build -p iscc-ffi` reruns `build.rs`
+    only when cargo sees the package as changed; `cargo clean -p iscc-ffi` first forces it
+- No learnings or decisions entry this round: `learnings.md` is at its 200-line budget and nothing
+    here outranks an existing entry

@@ -116,18 +116,6 @@ Every `Buffer` parameter in `crates/iscc-napi/src/lib.rs` has this shape. Pre-ex
 Resolved when repeated `ArrayBuffer` calls to a `Buffer`-taking export show no reference or heap
 growth, and every existing Buffer/Uint8Array input still works.
 
-## `crates/iscc-ffi/src/lib.rs` is past the crate's own split threshold `normal` [review]
-
-`crates/iscc-ffi/CLAUDE.md` says "do not split into submodules unless the file exceeds ~2500 lines";
-`lib.rs` is now 2870 (1715 of exported code, ~1155 of `mod tests` from line 1716). Constraint on any
-split: `build.rs` feeds csbindgen only `input_extern_file("src/lib.rs")`, so moving `extern "C"`
-functions into submodules silently drops them from `packages/dotnet/Iscc.Lib/NativeMethods.g.cs`
-unless `build.rs` lists the new files. Moving only `mod tests` to `src/tests.rs` avoids that.
-
-Resolved when `lib.rs` is back under the documented threshold (or the threshold is deliberately
-changed in `crates/iscc-ffi/CLAUDE.md`), and `cbindgen` + `cargo build -p iscc-ffi` leave `iscc.h`
-and `NativeMethods.g.cs` byte-identical.
-
 ## Ruby integer list elements accept a Float and truncate it `low` [review]
 
 **Triage:** untriaged — a Ruby caller who passes Float elements where integers are expected gets the

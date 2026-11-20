@@ -544,3 +544,18 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     (`mvn test -Dtest=DataEdgeTest`), .NET (`--filter DataEdgeTests`), Kotlin
     (`--tests '*DataEdgeTest*'`), WASM (`--test data_edge`), then `git checkout --` the three files
     (~1 min, each named the vector). Codex with `--base <define-next sha>` took ~3 min, no findings
+
+### Verbatim code-move step (iter 231, ~5 min) — iscc-ffi `mod tests` → `src/tests.rs`
+
+- Three diffs against `git show HEAD~1:<file>` prove a move without reading 1100 lines: the kept
+    prefix (`sed -n '1,Np'` old vs new), the moved body de-indented (`sed 's/^    //'`) vs the new
+    file minus its docstring, and the sorted `#[test]` function-name sets. Expect only rustfmt joins
+    of lines that now fit in 100 columns
+- **cbindgen skips the write when the output is unchanged** — the header's mtime says nothing about
+    whether it ran (advance cited mtimes as evidence). Run it with `--output /tmp/x/iscc.h` and
+    `cmp` against the tracked header
+- **`cargo build -p iscc-ffi` reruns `build.rs` (csbindgen) only when cargo sees the package dirty**
+    — "Finished in 0.2s" regenerated nothing. `cargo clean -p iscc-ffi` first (~2 s rebuild), then
+    check the `NativeMethods.g.cs` mtime and `git status`
+- Count `#[cfg`/`#[allow`/`#[ignore` in old vs new files to see that no attribute appeared in the
+    move. Codex (`--commit HEAD`, ~4 min) had no findings

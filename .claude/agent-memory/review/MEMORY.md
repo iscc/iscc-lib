@@ -121,6 +121,8 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     test (203, ~20 min) → `gate-reviews.md`
 - **JNI error-path step (230, ~12 min)**: 208 recipe + shadow-class probe of the pending-exception
     guard; `-Xcheck:jni` is silent on `ThrowNew` over a pending exception → `binding-reviews.md`
+- **Verbatim code-move step (231, ~5 min)**: prefix `diff`, de-indented body `diff`, test-name set
+    `diff`; cbindgen to a temp file + `cmp` (mtime proves nothing) → `binding-reviews.md`
 - **Search with `git grep`, never `grep -r`** over dirs with build output (230: a 100 kB minified
     line from `packages/kotlin/build` landed in context) → `review-patterns.md` "Gotchas"
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`
