@@ -41,7 +41,8 @@ class DataEdgeTest {
             "encode_seq", DataEdgeTest::callSeq,
             "gen_text_code_v0", DataEdgeTest::callText,
             "gen_mixed_code_v0", DataEdgeTest::callMixed,
-            "gen_iscc_code_v0", DataEdgeTest::callIsccCode);
+            "gen_iscc_code_v0", DataEdgeTest::callIsccCode,
+            "alg_simhash", DataEdgeTest::callSimhash);
 
     /** Load and parse the canonical data-edge.json. */
     private static JsonObject loadDoc() throws Exception {
@@ -60,6 +61,20 @@ class DataEdgeTest {
         String[] out = new String[items.size()];
         for (int i = 0; i < out.length; i++) {
             out[i] = items.get(i).getAsString();
+        }
+        return out;
+    }
+
+    /** Decode a JSON array input of {@code bytes:<hex>} values into a byte array per item. */
+    private static byte[][] byteArrays(JsonElement input) {
+        JsonArray items = input.getAsJsonArray();
+        byte[][] out = new byte[items.size()][];
+        for (int i = 0; i < out.length; i++) {
+            String item = items.get(i).getAsString();
+            if (!item.startsWith("bytes:")) {
+                throw new IllegalStateException("expected a bytes:<hex> input, got " + item);
+            }
+            out[i] = HexFormat.of().parseHex(item.substring("bytes:".length()));
         }
         return out;
     }
@@ -114,6 +129,12 @@ class DataEdgeTest {
         String[] codes = strings(inputs.get(0));
         boolean wide = inputs.size() > 1 && inputs.get(1).getAsBoolean();
         return new Prepared(() -> IsccLib.genIsccCodeV0(codes, wide), DataEdgeTest::isccObject);
+    }
+
+    /** Prepare {@code algSimhash} on the vector's digest list. */
+    private static Prepared callSimhash(JsonArray inputs) {
+        byte[][] digests = byteArrays(inputs.get(0));
+        return new Prepared(() -> IsccLib.algSimhash(digests), r -> bytesValue((byte[]) r));
     }
 
     /**
