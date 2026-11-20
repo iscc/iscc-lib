@@ -84,8 +84,8 @@ No Rust source changes, so CRAP/iai/semver are untouched.
     prints nothing after that build
 - Reviewer-read: all six methods route through the one helper; no `GCHandle.Alloc` call remains in
     their bodies outside it
-- `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` reports no new warnings in
-    `IsccLib.cs`
+- `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` prints no warning line that
+    names `IsccLib.cs`
 - `mise run check` exits 0
 
 ## Done When
