@@ -1,118 +1,102 @@
 # Next Work Package
 
-## Step: `alg_simhash` section in `data-edge.json`, run on all 12 surfaces
+## Step: C++ wrappers pass non-NULL pointers for every vector input
 
 ## Goal
 
-Covers part 1 of the issue "`alg_simhash([])` has no shared vector; C++ list wrappers pass NULL for
-an empty vector": add an `alg_simhash` section (empty list → error, plus one even-count tie vector)
-and a handler in every harness. Ruby, Swift, Kotlin, C and C++ get their first test on `[]`.
+Close the issue "C++ list wrappers pass NULL for an empty vector": every `std::vector` input in
+`iscc.hpp` reaches the FFI through `detail::safe_data`, so `{}` reports the core's own error instead
+of the FFI's "must not be NULL". This leaves one pointer form on the C++ surface.
 
 ## Alternatives Considered
 
-- **Chosen:** the shared `alg_simhash` section. The behaviour is settled (decisions.md 2026-11-20,
-    core and Go since iteration 225), and five surfaces have no test on it at all.
-- **Rejected:** the five C++ `ptrs.data()` → `detail::safe_data` wrappers (part 2). It is a smaller
-    change, but it is a behaviour change on one surface, and this vector cannot pin its
-    `alg_simhash` wrapper anyway (the FFI handles `num_digests == 0` before its NULL checks,
-    `lib.rs:1207`). It comes next, as its own step.
+- **Chosen:** C++ `safe_data` everywhere. It is the handoff's Next, it touches one header plus its
+    test file, and it closes a v0.8.0-blocking `normal` issue.
+- **Rejected:** `scripts/check_spec_paths.py` leniency (3 sub-fixes plus replay-test rework). It is
+    a larger change to a gate script, and the handoff puts it second.
 
 ## Scope
 
-**Fan-out:** the `alg_simhash` data-edge section (the behaviour is fixed by the core and
-decisions.md 2026-11-20), applied to Rust, Python, Node.js, WASM, Java, Go, .NET, Ruby, Swift,
-Kotlin, C and C++. **This cannot be split by surface group.** Once the section is in the JSON, every
-harness without a handler fails, the generator fails closed on the unknown section, and the four
-vendored copies have to stay identical. Only the final tree is judged, so commit per surface in any
-order, but keep the fixture, its copies and the generator in the last commit.
-
-- **Modify (fixture):** `crates/iscc-lib/tests/data-edge.json` + the 4 vendored copies
-    (`packages/{go/testdata,dotnet/Iscc.Lib.Tests/testdata,kotlin/src/test/resources}/data-edge.json`,
-    `packages/swift/Tests/IsccLibTests/data-edge.json`)
-- **Modify (harnesses):** `crates/iscc-lib/tests/test_data_edge.rs`, `tests/test_data_edge.py`,
-    `crates/iscc-napi/__tests__/data_edge.test.mjs`, `crates/iscc-wasm/tests/data_edge.rs`,
-    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java`,
-    `packages/go/data_edge_test.go`, `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs`,
-    `crates/iscc-rb/test/test_data_edge.rb`,
-    `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift`,
-    `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/DataEdgeTest.kt`,
-    `crates/iscc-ffi/tests/test_iscc.c`, `packages/cpp/tests/test_iscc.cpp`
-- **Modify (generator):** `scripts/gen_data_edge_vectors.py`, the regenerated
-    `crates/iscc-ffi/tests/data_edge_vectors.h`, and `tests/test_gen_data_edge_vectors.py` if a
-    pinned section list needs the new name
-- **Reference:** `.claude/context/specs/edge-vectors.md`,
-    `reference/iscc-core/iscc_core/simhash.py`, `packages/swift/CLAUDE.md` (Linux Swift recipe),
-    `.github/workflows/ci.yml` (CRAP lines)
+- **Modify**: `packages/cpp/include/iscc/iscc.hpp`; `packages/cpp/CLAUDE.md` (the Type Mapping rows
+    that say "`.data()` + `.size()`, or `detail::safe_data()`", and the "Empty vector data pointers"
+    pitfall: change both to "always `detail::safe_data()`")
+- **Tests**: `packages/cpp/tests/test_iscc.cpp`
+- **Reference**: `crates/iscc-ffi/src/lib.rs` (`iscc_gen_video_code_v0` :418,
+    `iscc_gen_mixed_code_v0` :466, `iscc_gen_iscc_code_v0` :571, `iscc_alg_simhash` :1201,
+    `iscc_soft_hash_video_v0` :1363); `.github/workflows/ci.yml` job `cpp`
 
 ## Not In Scope
 
-- The five C++ `iscc.hpp` wrappers that pass `ptrs.data()` (part 2 of the issue, the next step)
-- The Swift `String ==` / `as? Int` looseness and the Python `0`/`False` conflation (their own
-    issue)
-- A mismatched-length vector. The reference silently truncates `[b"\x00", b"\x00\x00"]` while Rust
-    and Go reject it. That divergence has no decisions.md entry, so it needs one from the human
-    first. Mention it in the handoff and do not add it
-- Any core, Go or binding behaviour fix, and any `except` entry. If a surface disagrees with a
-    vector, stop and report it; do not patch around it inside the fan-out
-- The stale `alg_simhash` / `sliding_window` return type in the `rust-core.md` Tier 1 table
+- Reordering the NULL and count checks in `crates/iscc-ffi`. That changes FFI behaviour and moves
+    `iscc.h`, `NativeMethods.g.cs` and the C tests. The wrapper is the fix.
+- The raw-pointer overloads (`encode_base64(const uint8_t*, size_t)`, `gen_data_code_v0(ptr, len)`,
+    `DataHasher::update(const uint8_t*, size_t)`, …). The caller owns that pointer.
+- The `rust-core.md` Tier 1 rows for `alg_simhash` and `sliding_window`. The reviewer who closes the
+    issue corrects them.
+- Any `data-edge.json` edit. No row depends on the NULL path.
 
 ## Implementation Notes
 
-- **Vectors** (exactly two, inputs = one positional list of `bytes:<hex>` digests):
-    - `test_0001_empty_list`: inputs `[[]]`, `error` "hash_digests must not be empty". Reference:
-        `IndexError` (already in `REJECTIONS`), so there is no `diverges` and no `except`
-    - `test_0002_even_count_tie`: inputs `[["bytes:f00f", "bytes:3c3c"]]`, outputs `"bytes:fc3f"`.
-        With two digests, a bit set in exactly one of them is a tie, and the reference sets it
-        (`>= n/2`). OR is `fc3f`, AND is `300c`, so a `>` threshold shows up. Probed against iscc-core
-        1.5.0: `fc3f`. The note names the tie rule
-- **Output form:** a bare `bytes:<hex>` string, like `encode_seq`. Reuse each harness's existing
-    bytes-to-fixture helper. The new piece on every surface is decoding `bytes:<hex>` **inputs**
-    into that language's byte-list type
-- **Python:** `outcome()` calls `getattr(module, section)(*inputs)` with raw JSON. Add a per-section
-    input preparer that decodes `bytes:<hex>` for `alg_simhash`, applied identically to `iscc_lib`
-    and `iscc_core`. Never decode `bytes:` strings in other sections. Keep the conversion outside
-    the `try`. Add a `SEED_SET` row for the empty list
-- **Generator:** `list_arrays` takes strings. Give it a bytes path: a digest list renders through
-    `fixture_bytes`, with an explicit length per item, and keeps the non-NULL one-element sentinel
-    for `[]`. Add a struct
-    `iscc_edge_alg_simhash_vector { name, c, cpp, iscc_edge_list digests,   iscc_edge_str simhash }`
-    and a renderer, and update the preamble comment. In C, call
-    `iscc_alg_simhash((const uint8_t *const *)v->digests.items, v->digests.lens, v->digests.count)`;
-    C++ builds a `std::vector<std::vector<uint8_t>>`. Regenerate with
-    `uv run --script scripts/gen_data_edge_vectors.py`
-- **Rust `test_data_edge.rs` CRAP:** CI scores a test helper at 0% coverage, so keep every new
-    function at cyclomatic complexity ≤ 5, using the existing `const` section table plus small
-    functions. Run CI's two CRAP lines. If a score moves, regenerate `.crap-baseline.json` with
-    `mise run coverage && mise run crap:baseline` in this step
-- **Toolchains:** rebuild the gitignored native artifacts before running napi, Ruby and JNI. Swift
-    is gone from `/tmp/swifttc`: reinstall it per `packages/swift/CLAUDE.md` (Debian 12 tarball,
-    about 5 min). Kotlin: run via `./gradlew` and force the tests to run, then assert the new test
-    names in the JUnit XML under `build/test-results`, never the exit code alone
-- `.NET`: `cargo build -p iscc-ffi` first, then
-    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`
+There are nine vector-backed `.data()` call sites that pass through to the FFI (line numbers as of
+today):
+
+| Line     | Wrapper                                 | Argument(s)                     | Defect today?                |
+| -------- | --------------------------------------- | ------------------------------- | ---------------------------- |
+| 421      | `alg_simhash`                           | `ptrs`, `lens`                  | no (FFI short-circuits on 0) |
+| 476      | `soft_hash_video_v0`                    | `ptrs`, `lens`                  | yes                          |
+| 546      | `gen_video_code_v0`                     | `ptrs`, `lens`                  | yes                          |
+| 559      | `gen_mixed_code_v0`                     | `ptrs` (`vector<const char*>`)  | yes                          |
+| 605      | `gen_iscc_code_v0`                      | `ptrs` (`vector<const char*>`)  | yes                          |
+| 330      | `encode_component`                      | `digest` (`vector<uint8_t>`)    | no (FFI checks length first) |
+| 431      | `alg_minhash_256`                       | `features` (`vector<uint32_t>`) | no (FFI checks length first) |
+| 697, 747 | `DataHasher` / `InstanceHasher::update` | `data` (`vector<uint8_t>`)      | no (FFI checks length first) |
+
+Route all nine through `detail::safe_data`. The five that are not defects today still change: under
+the finish-the-pattern rule (decisions.md 2026-11-19), two pointer forms on one surface are the
+defect.
+
+The three existing overloads cover only `uint8_t`, `int32_t` and `const char*`. The new sites also
+need `const uint8_t*`, `const int32_t*`, `size_t` and `uint32_t` elements. Use **one** helper form,
+not seven copy-pasted overloads. A single
+`template <typename T> const T* safe_data(const std::vector<T>& v)` with a
+`static const T sentinel{}` replaces all three and keeps every call site unchanged; advance may pick
+another form if it fits better. Keep the doc comment, and keep the sentinel read-only, because the
+FFI never dereferences it when the count is 0.
+
+Core messages for `{}` (the FFI NULL messages are `"<param> must not be NULL"`):
+
+- `gen_mixed_code_v0({})` → contains `"at least 2 Content-Codes"`
+- `gen_iscc_code_v0({})` → contains `"at least 2 ISCC unit codes"`
+- `gen_video_code_v0({})` and `soft_hash_video_v0({}, 64)` → contain
+    `"frame_sigs must not be empty"`. Use this full needle: `"must not be"` alone also matches the
+    NULL message.
+- `alg_simhash({})` → contains `"must not be empty"`. It is green before the fix too. Add it for
+    completeness; the source-grep criterion below pins its pointer.
+
+Add one `assert_throws_with` test per wrapper (helper at test_iscc.cpp:88), next to the existing
+`encode_seq({})` test (#42). Also add positive `{}` round trips for the non-defect siblings:
+`alg_minhash_256({})` returns 32 bytes, `encode_component(..., {})` throws the core's own error or
+returns a value (assert that it does not mention NULL), and
+`DataHasher().update(std::vector<uint8_t>{})` followed by `finalize` equals `gen_data_code_v0({})`.
+
+This step is binding-only: neither the CRAP gate nor the iai gate trips. Locally, cmake comes from
+`uv run --with cmake cmake …` (or `uvx cmake`).
 
 ## Verification
 
-- `cargo test -p iscc-lib --test test_data_edge` and
-    `uv run pytest tests/test_data_edge.py   tests/test_gen_data_edge_vectors.py tests/test_vendored_fixtures.py`
-    pass; CI's `cargo llvm-cov   -p iscc-lib --lcov --output-path lcov.info` + its
-    `cargo crap … --fail-regression --fail-above` line (copied from `ci.yml`) exit 0
-- Node (`npm test` in `crates/iscc-napi` after a fresh build),
-    `wasm-pack test --node   crates/iscc-wasm`, `mvn -f crates/iscc-jni/java/pom.xml clean test`,
-    `go test ./...` in `packages/go`, the .NET command above, and `bundle exec rake test` in
-    `crates/iscc-rb` all pass
-- Swift `swift test` (Linux recipe) and Kotlin `./gradlew test` pass, and Kotlin's JUnit XML shows
-    the data-edge test ran with 0 failures
-- The C test (`cargo build -p iscc-ffi` + compile/run `crates/iscc-ffi/tests/test_iscc.c` as in
-    `ci.yml`) and the C++ test (CMake/ctest as in `ci.yml`) pass, each reporting rows from the
-    `alg_simhash` section
-- `uv run --script scripts/gen_data_edge_vectors.py` followed by
-    `git status --porcelain crates/iscc-ffi/tests/data_edge_vectors.h` prints nothing, and
-    `python3 -c "import json;assert len(json.load(open('crates/iscc-lib/tests/data-edge.json'))['alg_simhash'])==2"`
+- `cargo build -p iscc-ffi`, then in `packages/cpp` the CI `cpp` job's commands
+    (`cmake -B build -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=../../target/debug -DSANITIZE_ADDRESS=ON`,
+    `cmake --build build`, `LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc`) exit 0
+    with 0 failed
+- The test output shows a passing `{}` test for each of `gen_mixed_code_v0`, `gen_iscc_code_v0`,
+    `gen_video_code_v0`, `soft_hash_video_v0` and `alg_simhash`, each checking the core message
+    listed above
+- `grep -n '\.data()' packages/cpp/include/iscc/iscc.hpp | grep -v 'v\.data()'` prints nothing: the
+    only `.data()` left is inside the `safe_data` helper (keep its parameter named `v`)
+- `uv run prek run --files packages/cpp/include/iscc/iscc.hpp packages/cpp/tests/test_iscc.cpp packages/cpp/CLAUDE.md`
     exits 0
-- `mise run check` exits 0
+- `packages/cpp/CLAUDE.md` no longer describes `.data()` as an accepted way to pass an input vector
 
 ## Done When
 
-The `alg_simhash` section holds the two vectors and all 12 surfaces run them green, with the
-generated header unchanged by a fresh regeneration.
+All five verification criteria pass on the working tree.

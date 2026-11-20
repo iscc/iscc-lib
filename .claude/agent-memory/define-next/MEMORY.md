@@ -33,11 +33,13 @@ marker; phantom tree lines often have prose twins — grep basenames outside the
 need only their zero-pinning tests flipped + comment-only docs — NOT a fan-out; CRAP baseline regen
 for the new branch). 226 = `alg_simhash` data-edge section, all 12 surfaces in ONE step (a new
 section is unsplittable: unhandled-section failure + generator fail-closed + vendored copies); 2
-vectors (`[]` error + `[f00f,3c3c]`→`fc3f` tie, so handlers decode inputs). Next: 5 C++ `safe_data`
-wrappers. Unfiled: ref truncates mismatched digest lengths, Rust/Go reject — needs a human decision.
-Trap: the issue says C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash`
-short-circuits `num_digests == 0` to the core — re-probe before restating. Still open: gate
-leniency, Tier 1 parity check; setuptools bump resolves to 84.2.1 via
+vectors (`[]` error + `[f00f,3c3c]`→`fc3f` tie, so handlers decode inputs). 227 = C++ `safe_data` on
+ALL 9 vector `.data()` sites (issue named 5; FFI len-0 short-circuits made 4 non-defects, widened
+anyway) via one template helper; source grep pins sites a `{}` test can't. Next:
+`check_spec_paths.py` leniency. Unfiled: ref truncates mismatched digest lengths, Rust/Go reject —
+needs a human decision. Trap: the issue says C/C++ fail `alg_simhash([])` with the NULL error, but
+`iscc_alg_simhash` short-circuits `num_digests == 0` to the core — re-probe before restating. Still
+open: gate leniency, Tier 1 parity check; setuptools bump resolves to 84.2.1 via
 `uv lock --upgrade-package setuptools` (dry-run 223); Ruby Bignum/napi/JNI/ ffi-split now `low`
 (human) — skip). **Dependabot soupsieve is human-blocked**: 3.0.2/4.x need Python >=3.11.5 but
 `uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a Maven/portal probe proves nothing:
