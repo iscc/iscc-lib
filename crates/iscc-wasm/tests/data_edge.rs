@@ -178,25 +178,40 @@ fn find_caller(section: &str) -> Option<Caller> {
         .map(|(_, caller)| *caller)
 }
 
+/// Expected output keys each section's WASM result does not carry, which are
+/// therefore not compared (an absent section compares every key). The gen
+/// functions here return a bare ISCC string, so text drops `characters` and
+/// mixed drops `parts`.
+const UNCOMPARED: &[(&str, &[&str])] = &[
+    ("gen_text_code_v0", &["characters"]),
+    ("gen_mixed_code_v0", &["parts"]),
+];
+
+/// Look up the static uncompared output keys of a section (empty if none).
+fn uncompared(section: &str) -> &'static [&'static str] {
+    UNCOMPARED
+        .iter()
+        .find(|(name, _)| *name == section)
+        .map_or(&[], |(_, keys)| keys)
+}
+
 /// Compare an actual output with the expected one.
 ///
-/// For an object, only the expected keys the result exposes are compared (a
-/// bare ISCC string result exposes only `iscc`); any other value must be equal
-/// as a whole. Returns a failure description on mismatch.
-fn compare(expected: &Value, actual: &Value) -> Option<String> {
+/// For an object, every expected key outside the section's static uncompared
+/// set must be present in the result and equal; a missing key fails. Any other
+/// value must be equal as a whole. Returns a failure description on mismatch.
+fn compare(section: &str, expected: &Value, actual: &Value) -> Option<String> {
     let Some(fields) = expected.as_object() else {
         return (expected != actual).then(|| format!("expected {expected}, got {actual}"));
     };
-    let exposed: Vec<_> = fields
+    let skip = uncompared(section);
+    fields
         .iter()
-        .filter_map(|(key, want)| actual.get(key).map(|got| (key, want, got)))
-        .collect();
-    if exposed.is_empty() {
-        return Some(format!("no expected field in {actual}"));
-    }
-    exposed.iter().find_map(|(key, want, got)| {
-        (want != got).then(|| format!("field {key}: expected {want}, got {got}"))
-    })
+        .filter(|(key, _)| !skip.contains(&key.as_str()))
+        .find_map(|(key, want)| match actual.get(key) {
+            None => Some(format!("missing field {key} in {actual}")),
+            Some(got) => (want != got).then(|| format!("field {key}: expected {want}, got {got}")),
+        })
 }
 
 /// Return this surface's `except` entry of a vector, if any.
@@ -222,30 +237,30 @@ fn run_vector(caller: Caller, vector: &Value) -> Result<Outcome, String> {
 }
 
 /// Compare a successful output with the vector's `outputs`.
-fn judge_output(vector: &Value, got: &Value) -> Option<String> {
+fn judge_output(section: &str, vector: &Value, got: &Value) -> Option<String> {
     match vector.get("outputs") {
-        Some(want) => compare(want, got),
+        Some(want) => compare(section, want, got),
         None => Some("vector has neither outputs nor error".into()),
     }
 }
 
 /// Judge a binding outcome against the vector's expectation.
-fn judge(expect_error: bool, outcome: Outcome, vector: &Value) -> Option<String> {
+fn judge(section: &str, expect_error: bool, outcome: Outcome, vector: &Value) -> Option<String> {
     match (expect_error, outcome) {
         (true, Ok(got)) => Some(format!("expected an error, got {got}")),
         (true, Err(_)) => None,
-        (false, Ok(got)) => judge_output(vector, &got),
+        (false, Ok(got)) => judge_output(section, vector, &got),
         (false, Err(e)) => Some(format!("expected an output, got error: {e}")),
     }
 }
 
 /// Check one vector and return a failure description, if any.
-fn check_vector(caller: Caller, vector: &Value) -> Option<String> {
+fn check_vector(section: &str, caller: Caller, vector: &Value) -> Option<String> {
     if exception(vector) == Some("skip") {
         return None;
     }
     match run_vector(caller, vector) {
-        Ok(outcome) => judge(expects_error(vector), outcome, vector),
+        Ok(outcome) => judge(section, expects_error(vector), outcome, vector),
         Err(e) => Some(e),
     }
 }
@@ -261,7 +276,8 @@ fn check_section(section: &str, vectors: &Value) -> Vec<String> {
     vectors
         .iter()
         .filter_map(|(name, vector)| {
-            check_vector(caller, vector).map(|reason| format!("{section}/{name}: {reason}"))
+            check_vector(section, caller, vector)
+                .map(|reason| format!("{section}/{name}: {reason}"))
         })
         .collect()
 }
@@ -357,4 +373,38 @@ fn test_data_edge_honours_except() {
         failures[0].starts_with("iscc_decode/test_0001_error: expected an error"),
         "{failures:?}"
     );
+}
+
+#[wasm_bindgen_test]
+fn test_data_edge_compares_object_output() {
+    // The data.json Hello World vector: `characters` is uncompared, `iscc` matches.
+    let doc = json!({"gen_text_code_v0": {"test_0001_x": {
+        "inputs": ["Hello World", 64],
+        "outputs": {"iscc": "ISCC:EAASKDNZNYGUUF5A", "characters": 10}, "note": "n"
+    }}});
+    let failures = check_doc(&doc);
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+#[wasm_bindgen_test]
+fn test_data_edge_fails_key_outside_uncompared_set() {
+    // `parts` is uncompared for mixed only, so a text result lacking it fails.
+    let doc = json!({"gen_text_code_v0": {"test_0001_x": {
+        "inputs": ["Hello World", 64],
+        "outputs": {"iscc": "ISCC:EAASKDNZNYGUUF5A", "parts": []}, "note": "n"
+    }}});
+    let failures = check_doc(&doc);
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert!(failures[0].contains("missing field parts"), "{failures:?}");
+}
+
+#[wasm_bindgen_test]
+fn test_data_edge_fails_result_without_iscc() {
+    let failure = compare(
+        "gen_text_code_v0",
+        &json!({"iscc": "ISCC:EAASKDNZNYGUUF5A", "characters": 10}),
+        &json!({"characters": 10}),
+    );
+    let failure = failure.expect("a result without iscc must fail");
+    assert!(failure.contains("missing field iscc"), "{failure}");
 }
