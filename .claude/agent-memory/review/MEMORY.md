@@ -144,6 +144,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
 - **Harness-compare fan-out step (237, ~6 min)**: four suites from one logged script (\<1 min warm),
     .NET mutant from a `git archive` copy; `mvn -q` swallows the newline before an rc marker →
     `binding-reviews.md`
+- **Docs install/packaging-claim step (238, ~12 min)**: install the PUBLISHED artifact in a clean
+    prefix; the Ruby source gem had never built, next.md called the claim "measured" →
+    `review-patterns.md` "Install-claim probe (238)"
 - **Search with `git grep`, never `grep -r`** over dirs with build output (230: a 100 kB minified
     line from `packages/kotlin/build` landed in context) → `review-patterns.md` "Gotchas"
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`

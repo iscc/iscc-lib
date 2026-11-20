@@ -607,3 +607,20 @@ Full text of entries compacted out of `MEMORY.md`.
     `LC_ALL=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0` (233: `write_text` of `lib.rs` raised there)
 - **Rewriting a part-done `[human]` issue**: keep its untouched "Resolved when" bullets verbatim and
     replace the done bullet by the measured remainder; never mark the bullet done on a threshold
+
+## Install-claim probe (238)
+
+A docs step that says how a package installs ("falls back to a source build", "needs X and Y") is a
+claim about the published artifact, and no gate in this repo installs one. Probe it before passing:
+
+- Ruby: `curl -s https://rubygems.org/api/v1/versions/iscc-lib.json` lists every platform gem with
+    its `ruby_version` range. `gem fetch iscc-lib --version <v> --platform ruby` into an empty
+    `/tmp` dir, then `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local --no-document`. It
+    fails within seconds when the source gem is broken (238: missing `rb_sys` dependency, then
+    `failed to find a workspace root`). Re-run with `gem install rb_sys` in the same `GEM_HOME` to
+    see the second failure
+- The same shape applies to any sdist-like fallback (Python sdist, npm source install): check what
+    the package ships (`tar -t`) against what its manifest references outside the package
+- Verdict pattern: the step did what next.md asked and the false sentence predates it →
+    PASS_WITH_NOTES, a `normal` issue for the defect, and the old issue is replaced rather than
+    kept. Codex did not catch it

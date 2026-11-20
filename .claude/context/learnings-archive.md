@@ -1091,3 +1091,10 @@ runs on `opus`. Deliberate — do not "unify" them.
 - **`decode_base32("")` returns `Ok(empty)`, not an error** (191; empty guard in `iscc_clean` 192):
     a cleaning helper that can yield `""` (blank/dash-only/`"iscc:"`) must reject empty before
     decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage
+
+## Archived from learnings.md (review 238)
+
+- **A rustc floor travels the dependency graph — measure it** (171-173): it is the max
+    `rust_version` over the non-dev resolve graph (`cargo tree -i <dep> -e no-dev --target all`
+    printing nothing proves a major dev-only; omit `--target all` and platform-gated transitives
+    hide). Settle by building — **1.85 is installed**: `cargo +1.85.0 check -p <c> --locked`

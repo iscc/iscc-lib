@@ -162,34 +162,48 @@ Resolved when all hold:
     and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
     functions") or brought under a check
 
-## Java how-to `genSumCodeV0` example does not compile `normal` [review]
+## The Ruby source gem cannot be built `normal` [review]
 
-`docs/howto/java.md` → the "single pass" example calls `genSumCodeV0` with three arguments
-(`"example.bin", 64, false`) and reads `result.iscc()`, `result.datahash()` and `result.filesize()`.
-The method takes four (`String path, int bits, boolean wide, boolean addUnits`) and `SumCodeResult`
-has `public final` fields, not accessor methods, so a reader who copies the example gets compile
-errors. Pre-existing; found by the advance agent in iteration 233. `docs/java-api.md` →
-`genSumCodeV0` shows the correct form.
+`gem install iscc-lib` fails wherever no precompiled gem applies: today Ruby 3.4 and 4.0 on every
+platform (the platform gems declare `< 3.4.dev`), and any platform outside the five that are built.
+`docs/howto/ruby.md` and `crates/iscc-rb/README.md` say that this case "compiles the extension from
+source". Measured in iteration 238 with the published 0.7.0 source gem in a clean `GEM_HOME` (Ruby
+3.1.2, Rust toolchain present):
 
-Resolved when the example matches `IsccLib.java` and `SumCodeResult.java`.
+- without `rb_sys` installed, `extconf.rb` stops at `cannot load such file -- rb_sys/mkmf`. The
+    gemspec declares no dependency on `rb_sys`
+- with `rb_sys` 0.9.123 installed, `cargo` stops at `failed to find a workspace root`. The gem ships
+    `crates/iscc-rb/Cargo.toml` unchanged: it inherits `version`, `edition`, `rust-version` and
+    `magnus` from the workspace and depends on the core by `path = "../iscc-lib"`. Neither the
+    workspace root nor the core is in the gem
 
-## Precompiled Ruby gems stop at Ruby 3.3 `normal` [review]
+`release.yml` → `publish-rubygems` builds the gem with a bare `gem build iscc-lib.gemspec` and no
+workflow installs it, so nothing has ever exercised this path. HEAD has the same gemspec and
+manifest as 0.7.0.
 
-`release.yml` → the cross-gem step builds with `ruby-versions: 3.1, 3.2, 3.3`, so every published
-platform gem declares `required_ruby_version >= 3.1, < 3.4.dev` (rubygems.org, 0.6.0 and 0.7.0). On
-Ruby 3.4 and 4.0 `gem install iscc-lib` therefore falls back to the source gem, which needs a Rust
-toolchain and `libclang-dev`, and fails without them. `docs/howto/ruby.md` and
-`crates/iscc-rb/README.md` promise precompiled gems "for common platforms" and name only a missing
-*platform* as the reason for a source build. Of the three series, 3.1 and 3.2 are past end of life.
+Widening the cross-gem `ruby-versions` list (tied to the rb_sys pin and the image tag, `ci-cd.md` →
+"Known pinning constraints") would reduce who hits this. It would not repair the source gem.
 
-The list is tied to the rb_sys pin. The comments in `release.yml` say the `0.9.123` cross-gem image
-carries rbconfigs for 3.1, 3.2 and 3.3 and that the `0.9.124` image breaks `RbSys::ExtensionTask`
-(`ci-cd.md` → "Known pinning constraints"). `release.yml` never runs in CI, so a change there has
-static evidence only. Whether the source build works on Ruby 3.4 / 4.0 is unmeasured.
+Resolved when either holds:
 
-Resolved when either the cross-gem list covers Ruby 3.4 (and 4.0 if rb_sys supports it) with
-`rb_sys` in `Gemfile.lock` and the image tag moved together, or the Ruby how-to and README state
-which Ruby versions get a precompiled gem and that newer ones build from source.
+- a check that CI runs builds the source gem, installs it into a clean gem home outside the
+    workspace and loads `iscc_lib`, and the Ruby docs list everything that install needed
+- no source gem is published, and both Ruby docs say that a Ruby series or platform without a
+    precompiled gem has to build from a checkout of the repository
+
+## How-to examples show the Sum-Code prefix as `KAA` `low` [review]
+
+**Triage:** untriaged — a reader who compares their own output with the comment in a how-to sees
+`ISCC:KUA…` where the docs say `"ISCC:KAA..."`.
+
+`gen_sum_code_v0` composes a Data-Code and an Instance-Code, so without `wide` its result has
+SubType SUM and starts with `ISCC:KUA` (measured in iteration 238:
+`ISCC:KUABGAWXH2VYUQWIVYLQGD2NZH6TM` for the Java how-to's example file). The Sum-Code examples in
+the how-tos under `docs/howto/` and in `docs/java-api.md` carry the comment `"ISCC:KAA..."`, and the
+`iscc` field comment in `SumCodeResult.java` says `"ISCC:KAC..."`. Pre-existing and cosmetic. The
+`gen_iscc_code_v0` examples next to them use the same comment and were not checked.
+
+Resolved when each Sum-Code example comment shows a prefix the call can return.
 
 ## Three supported-version floors are past end of life `low` [review]
 

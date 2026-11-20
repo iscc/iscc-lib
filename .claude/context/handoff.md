@@ -1,57 +1,75 @@
-## 2026-11-20 — Fix the Java how-to `genSumCodeV0` example and state the precompiled Ruby gem range
+## 2026-11-20 — Review of: Fix the Java how-to `genSumCodeV0` example and state the precompiled Ruby gem range
 
-**Done:** The Java how-to "single pass" Sum-Code example now calls the 4-argument
-`genSumCodeV0(path, bits, wide, addUnits)` and reads the `public final` fields. Below it is a
-one-line parameter list. Both Ruby docs say precompiled platform gems are built for
-`Ruby 3.1 to 3.3`. They also say that a newer Ruby, or a platform with no precompiled gem, compiles
-from source, which needs Rust and `libclang-dev`. A parity test derives that phrase from
-`release.yml`'s cross-gem step.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `docs/howto/java.md`: fixed the Sum-Code block (4 args, `result.iscc` / `.datahash` / `.filesize`)
-    and added a parameters line naming `addUnits` → `result.units`
-- `docs/howto/ruby.md`: the intro sentence names Ruby 3.1 to 3.3. The "Build from source" note gives
-    the range, the from-source fallback for a newer Ruby or an unsupported platform, and Rust +
-    `libclang-dev` + headers. The checkout-build snippet is now introduced as an alternative
-- `crates/iscc-rb/README.md`: the install paragraph says the same as the how-to
-- `tests/test_ruby_gem_docs.py` (new): `cross_gem_ruby_series` (yaml, `str()`-normalised, raises
-    `ValueError` if there is no cross-gem step or the list is empty), `ruby_range_phrase` (sorts by
-    version tuple) and `doc_names_range` (whitespace-collapsed match). There are 9 tests: the real
-    workflow, both real docs, version sort (3.10 > 3.9), a single float value, a wrapped phrase
-    matching, a fire case where `Ruby 3.1 to 3.4` does not match, and fire cases for a missing step
-    and for empty `ruby-versions`
+**Summary:** The step did what next.md asked and every criterion passes. The Java example compiles
+against the real classes, both Ruby docs state `Ruby 3.1 to 3.3`, and a parity test derives that
+phrase from `release.yml`. The note is a defect the step exposed: the sentence next.md prescribed
+for the Ruby docs ("on a newer Ruby `gem install iscc-lib` compiles the extension from source") is
+false, because the published source gem cannot be built at all. It is filed as a `normal` issue.
 
 **Verification:**
 
-- `mvn -q -f crates/iscc-jni/java/pom.xml compile` exited 0. The block, copied verbatim into
-    `/tmp/javaex/Example.java` (checked with `diff` against lines 199–207 of the how-to →
-    identical), compiled with `javac -cp crates/iscc-jni/java/target/classes` and exited 0. After
-    `cargo build -p iscc-jni` it also ran and printed `ISCC:KUABGAWXH2VYUQWIVYLQGD2NZH6TM`, a
-    `1e20…` datahash and `11000`
-- `grep -nE "result\.(iscc|datahash|filesize|units)\(\)" docs/howto/java.md` printed nothing (exit
-    1). The only `genSumCodeV0(` call in the how-to (line 204) passes 4 arguments
-- `uv run pytest tests/test_ruby_gem_docs.py`: 9 passed
-- Real-doc fire probe: with the parsed workflow's `ruby-versions` (raw `'3.1, 3.2, 3.3'`) changed in
-    memory to `3.1, 3.2, 3.3, 3.4`, the phrase becomes `Ruby 3.1 to 3.4` and both real docs fail to
-    match (`[False, False]`)
-- `uv run zensical build` exited 0
-- `mise run check` exited 0. The first run reformatted the files (mdformat reflow, ruff format of
-    the test) and the second run was clean
-- `prek run --hook-stage pre-push --files <the 4 files>` exited 0: clippy, cargo test, ty, ruff
-    S/C901 and pytest all passed
+- [x] The fixed Java block, wrapped in a class, compiles — the block was extracted from
+    `docs/howto/java.md` by script, `mvn -q … compile` exited 0, `javac -cp …/target/classes` exited
+    0
+- [x] `grep -nE "result\.(iscc|datahash|filesize|units)\(\)" docs/howto/java.md` prints nothing, and
+    the only `genSumCodeV0(` call in the how-to (line 204) passes 4 arguments
+- [x] `uv run pytest tests/test_ruby_gem_docs.py` — 9 passed. Fire cases checked on a throwaway copy
+    of the tree: with `ruby-versions: 3.1, 3.2, 3.3, 3.4` both doc tests fail, and with the previous
+    versions of the two docs both doc tests fail
+- [x] Both Ruby docs say a newer Ruby builds from source and needs Rust and `libclang-dev`, and
+    neither claims Ruby 3.4 / 4.0 support — true as a statement about the text. The text itself is
+    wrong, see below
+- [x] `uv run zensical build` exits 0 ("No issues found"). The rendered note in `howto/ruby` keeps
+    its code block inside the admonition
+- [x] `mise run check` exits 0. `ty` and ruff `S`/`C901` are clean on the new test file
 
-**Next:** The three parts of "Derived facts in guidance and docs": the fail-closed `lib.rs` parser,
-registering the 4 sub-threshold docs, and the hand-written counts such as `crates/iscc-rb/CLAUDE.md`
-"5 platforms".
+**Issues found:**
+
+- **The Ruby source gem cannot be built** (`normal`, filed). Measured with the published 0.7.0
+    source gem in a clean `GEM_HOME`: without `rb_sys` installed, `extconf.rb` fails with
+    `cannot load such file -- rb_sys/mkmf`; with `rb_sys` installed, `cargo` fails with
+    `failed to find a workspace root`. The gem ships a `Cargo.toml` that inherits from the workspace
+    and depends on `../iscc-lib`. No workflow installs the source gem. The claim was already in the
+    docs before this step ("the gem builds from source"), so the step did not make them worse
+- **Sum-Code example comments show `"ISCC:KAA..."`** (`low`, untriaged, filed). The call returns
+    `ISCC:KUA…`. Pre-existing, in most how-tos
+- Nits in `tests/test_ruby_gem_docs.py`, not filed: the match is a substring (`Ruby 3.1 to 3.3` also
+    matches `Ruby 3.1 to 3.30`), only the first cross-gem step is read, the min–max phrase assumes a
+    gapless list, and `ruby.md` names the range twice while one hit satisfies the test
+
+**Issues closed:** "Java how-to `genSumCodeV0` example does not compile" (fixed and compiled).
+"Precompiled Ruby gems stop at Ruby 3.3" (its wording branch is met; the source-gem issue replaces
+it, because the source build that the wording relies on does not work).
+
+**Codex review:** No actionable findings. It ran the 9 tests and compiled and ran the Java example.
+It did not check the Ruby install claim.
+
+**Next:** "The Ruby source gem cannot be built". It is user-facing, it makes the sentences this step
+wrote untrue, and it reproduces locally in seconds:
+
+```bash
+(cd crates/iscc-rb && gem build iscc-lib.gemspec)
+GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install crates/iscc-rb/iscc-lib-*.gem --local --no-document
+```
+
+The issue names two ways to resolve it. Which one to take is open: define-next should either pick
+the cheaper one it can prove locally, or ask Titusz if both look expensive. Hypotheses, not
+measured: a buildable source gem needs `rb_sys` as a gem dependency and a manifest that stands alone
+(the core from crates.io or vendored into the gem). The `rb_sys` `0.9.123` pin in the `Gemfile`
+exists for the cross-gem image and must not leak into what users install. After that, the remaining
+`normal` work is the three parts of "Derived facts in guidance and docs".
 
 **Notes:**
 
-- **For Titusz:** this step took the Ruby issue's wording branch. `release.yml` still builds gems
-    for 3.1, 3.2 and 3.3 only, so users on Ruby 3.4 or 4.0 compile from source. Nothing has measured
-    that source build on 3.4 / 4.0, and the docs make no claim that it works there
-- The docs and tests changed, but no binding or core source did, so the CRAP, iai and semver gates
-    are unaffected
-- The `ruby.md` "Build from source" note previously read as if the clone-and-compile snippet were
-    the automatic fallback. I said instead that `gem install` compiles the extension itself, and
-    introduced the snippet as "to build from a checkout of the repository instead"
+- **For Titusz:** this step took the wording branch of the Ruby issue, so `release.yml` still builds
+    gems for Ruby 3.1, 3.2 and 3.3 only. The review then found that the fallback does not exist: on
+    Ruby 3.4 and 4.0 `gem install iscc-lib` fails for 0.6.0 and 0.7.0, with or without a Rust
+    toolchain. Only a checkout build works there. Whether to ship a fix release before v0.8.0 is
+    your call; the loop will not cut one
+- The docs on `develop` now state the false sentence more explicitly than before. They are not
+    published until the `develop` → `main` merge, so the source-gem issue has to close before the
+    v0.8.0 release, or the two Ruby docs have to be reworded
+- No binding or core source changed, so the CRAP, iai and semver gates were not run
+- `learnings.md` sits at its 200-line budget: one entry was rotated into the archive to make room

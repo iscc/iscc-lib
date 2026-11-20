@@ -101,10 +101,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     (guard shape, artifact wiring, `needs:` graph; prek hook +
     `tests/test_check_release_workflow.py`) plus the CI-only bidirectional `--check-action-inputs`.
     Never hand-retype either into a heredoc
-- **A rustc floor travels the dependency graph — measure it** (171-173): it is the max
-    `rust_version` over the non-dev resolve graph (`cargo tree -i <dep> -e no-dev --target all`
-    printing nothing proves a major dev-only; omit `--target all` and platform-gated transitives
-    hide). Settle by building — **1.85 is installed**: `cargo +1.85.0 check -p <c> --locked`
+- **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): the Ruby
+    source gem (platform `ruby`) does not build: no `rb_sys` dependency, and its `Cargo.toml` needs
+    the workspace root + `../iscc-lib`. Probe (seconds): `gem fetch iscc-lib --platform ruby`, then
+    `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`. No workflow installs that gem
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a
