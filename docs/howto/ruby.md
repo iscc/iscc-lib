@@ -6,8 +6,9 @@ description: Guide to using iscc-lib from Ruby — code generation, streaming, c
 # Ruby
 
 A guide to using iscc-lib from Ruby. The Ruby gem provides a native Rust extension via
-[Magnus](https://github.com/matsadler/magnus), with precompiled gems for common platforms. All
-functions are module-level calls on `IsccLib` — install the gem and `require "iscc_lib"`.
+[Magnus](https://github.com/matsadler/magnus), with precompiled gems for common platforms on Ruby
+3.1 to 3.3. All functions are module-level calls on `IsccLib` — install the gem and
+`require "iscc_lib"`.
 
 ---
 
@@ -27,8 +28,10 @@ Then run `bundle install`.
 
 !!! note "Build from source"
 
-    If no precompiled gem is available for your platform, the gem builds from source automatically. This
-    requires a Rust toolchain (`rustup`), `libclang-dev`, and Ruby development headers:
+    Precompiled platform gems are built for Ruby 3.1 to 3.3. On a newer Ruby, or on a platform with no
+    precompiled gem, `gem install iscc-lib` compiles the extension from source. This requires a Rust
+    toolchain (`rustup`), `libclang-dev`, and Ruby development headers. To build from a checkout of the
+    repository instead:
 
     ```bash
     # Clone the repository

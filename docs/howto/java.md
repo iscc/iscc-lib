@@ -201,11 +201,14 @@ java.nio.file.Files.write(
     "Hello World".repeat(1000).getBytes()
 );
 
-SumCodeResult result = IsccLib.genSumCodeV0("example.bin", 64, false);
-System.out.println(result.iscc());      // "ISCC:KAA..."
-System.out.println(result.datahash());  // Multihash of the data
-System.out.println(result.filesize());  // Size in bytes
+SumCodeResult result = IsccLib.genSumCodeV0("example.bin", 64, false, false);
+System.out.println(result.iscc);      // "ISCC:KAA..."
+System.out.println(result.datahash);  // Multihash of the data
+System.out.println(result.filesize);  // Size in bytes
 ```
+
+Parameters: `String path`, `int bits`, `boolean wide`, `boolean addUnits` (`true` to include the
+Data-Code and Instance-Code in `result.units`).
 
 ## Streaming
 

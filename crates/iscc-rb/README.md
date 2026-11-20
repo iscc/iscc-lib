@@ -28,8 +28,9 @@ Or add to your `Gemfile`:
 gem "iscc-lib"
 ```
 
-Precompiled gems are available for common platforms. If no precompiled gem matches your platform,
-the gem builds from source (requires a Rust toolchain and `libclang-dev`).
+Precompiled platform gems are built for Ruby 3.1 to 3.3 on common platforms. On a newer Ruby, or on
+a platform with no precompiled gem, `gem install iscc-lib` compiles the extension from source, which
+requires a Rust toolchain and `libclang-dev`.
 
 ## Quick Start
 
