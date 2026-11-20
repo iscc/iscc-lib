@@ -1,15 +1,15 @@
-<!-- assessed-at: 2589f1b21a8b735fa6771b4d1e2a6caef007f2e8 -->
+<!-- assessed-at: 4298fcccdd7c961195081f6e37ec2812b9437a8e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 5 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 3 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 229 made Ruby `i32` list elements raise `RangeError` for out-of-range
-Bignums and closed that issue; CI is fully green on the pushed tip `e4156c8`. Five `normal` issues
-still block v0.8.0.
+all 11 bindings. Iteration 230 closed both `normal` JNI issues (zero-handle guard, OOM and
+pending-exception mapping). CI is fully green on the pushed tip `eb65235`. Three `normal` issues
+still block v0.8.0, two of them `[human]`-sourced.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -18,8 +18,8 @@ still block v0.8.0.
 - `crates/iscc-lib/tests/data-edge.json` has 6 sections: `iscc_decode`, `encode_seq`,
     `gen_text_code_v0`, `gen_mixed_code_v0`, `gen_iscc_code_v0`, `alg_simhash`; harnesses on all 12
     surfaces; the 5 tracked copies are byte-identical and match `VENDORED_COPIES`
-- **`normal`:** Swift compares strings by canonical equivalence and reads a JSON bool as an Int; the
-    Python template conflates `0` and `False`
+- **`normal` `[human]`:** Swift compares strings by canonical equivalence and reads a JSON bool as
+    an Int; the Python template conflates `0` and `False`
 
 ## Rust Core Crate
 
@@ -58,15 +58,19 @@ still block v0.8.0.
 - 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
 - `tests/test_iscc.c` runs every data-edge row (incl. `alg_simhash`) except the 2 marked `c: skip`
-- **`normal`:** `src/lib.rs` is past the crate's own ~2500-line split threshold
+- **`normal`:** `src/lib.rs` is 2875 lines, past the crate's own ~2500-line split threshold
 
 ## Java Bindings
 
-**Status**: met (v0.8.0 scope); 2 `normal` issues
+**Status**: met (v0.8.0 scope)
 
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 6 sections, green in CI; 0.7.0 on Maven Central
-- **`normal`:** the four streaming-hasher functions dereference a zero handle without a guard;
-    `throw_and_default` throws `IllegalArgumentException` over a pending JVM exception
+- The four hasher `*Update`/`*Finalize` exports reject a zero handle (`ptr == 0`) before the deref;
+    a private `JavaError` trait maps a JVM allocation failure to `OutOfMemoryError`, everything else
+    to `IllegalArgumentException`; both throw helpers skip throwing while an exception is pending
+- 64 `@Test` methods (IsccLibTest 59, DataEdgeTest 5); docs and javadoc name `IllegalStateException`
+    for a finalized hasher
+- `low` issue (new): the pending-exception guard has no test (removing it keeps `mvn test` green)
 
 ## Go Bindings
 
@@ -96,11 +100,8 @@ still block v0.8.0.
 **Status**: met (v0.8.0 scope)
 
 - `encode_seq` / `decode_seq` in `test_conformance.rb`; `test_data_edge.rb` runs all 6 sections,
-    green in CI; 0.7.0 on RubyGems
-- `array_to_i32_vec` in `src/lib.rs` narrows through `i64` with `i32::try_from`; both `i32` sites
-    (`frames_to_vec`, `gen_audio_code_v0`) use it; 5 tests in `test_array_args.rb`; issue closed
-- `low` issue (new): integer list elements accept a Float and truncate it (Ruby `to_int` convention;
-    Titusz decides)
+    green in CI; 0.7.0 on RubyGems; `i32` list elements raise `RangeError` out of range
+- `low` issue: integer list elements accept a Float and truncate it (Titusz decides)
 
 ## Swift and Kotlin Bindings
 
@@ -117,9 +118,9 @@ still block v0.8.0.
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; all how-tos cover the seq functions
-- `scripts/check_spec_paths.py` gates spec paths with its own `glob_regex` (18 tests)
+- `scripts/check_spec_paths.py` gates spec paths with its own `glob_regex`
 - **`normal` `[human]`:** no Tier 1 list parity check; hand-written counts and file lists remain in
-    specs and per-crate `CLAUDE.md` files
+    specs and per-crate `CLAUDE.md` files (e.g. `specs/java-bindings.md` still says 65 tests)
 
 ## Benchmarks
 
@@ -134,16 +135,18 @@ still block v0.8.0.
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `e4156c8`
-    (https://github.com/iscc/iscc-lib/actions/runs/44741475490): all 21 check-runs `success`
-- Only the iteration log commit `2589f1b` is unpushed; green CI covers all code at HEAD
+- **Latest CI: PASSING** on `origin/develop` = `eb65235`
+    (https://github.com/iscc/iscc-lib/actions/runs/44749455126): all 21 check-runs `success`
+- Unpushed: 3 commits (two iteration logs, the audit metrics snapshot), all under `.claude/`; green
+    CI covers all code at HEAD
 - GitHub Dependabot alerts track `main` and stay open until the next release (triaged, no issue)
 
 ## Open Issues
 
-10 open: 0 critical, **5 normal**, 5 low. Normal: data-edge compare looseness, derived-fact drift,
-iscc-ffi `lib.rs` size, JNI null guard, JNI pending exception. issues.md is at 188 of 300 lines.
+10 open: 0 critical, **3 normal**, 7 low. Normal: iscc-ffi `lib.rs` size, derived-fact drift
+`[human]`, data-edge compare looseness `[human]`. The iter-230 audit filed no issues. issues.md is
+at 180 of 300 lines.
 
 ## Next Milestone
 
-Clear the 5 open `normal` issues, which are the only remaining v0.8.0 release blockers.
+Clear the 3 open `normal` issues, which are the only remaining v0.8.0 release blockers.

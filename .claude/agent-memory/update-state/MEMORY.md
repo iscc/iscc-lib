@@ -87,15 +87,18 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 2589f1b, iter 230 — incremental)
+## Current State (assessed-at: 4298fcc, iter 231 — incremental)
 
-- **CI GREEN on tip `e4156c8`** (21/21, run 44741475490). Unpushed = `2589f1b` log only.
-- **229: Ruby i32 Bignum issue CLOSED** (`array_to_i32_vec` in `crates/iscc-rb/src/lib.rs`); new
-    `low` filed: Ruby int list elements accept Float. Don't re-flag.
-- **228: spec-path-gate CLOSED; 227: C++ NULL-wrapper CLOSED** (`detail::safe_data`).
+- **CI GREEN on tip `eb65235`** (21/21, run 44749455126). Unpushed = 3 `.claude`-only commits.
+    **Local `origin/develop` ref can be stale vs the remote** — `git ls-remote origin develop`
+    first; check-runs API returns 422 for an unpushed SHA.
+- **230: both JNI `normal` issues CLOSED** (`ptr == 0` guards, `JavaError` trait, `exception_check`
+    in both throw helpers); new `low`: guard has no test. Java 64 `@Test` (59+5). Don't re-flag.
+- 229 Ruby i32 Bignum, 228 spec-path-gate, 227 C++ safe_data — all CLOSED.
 - data-edge.json sections (6): iscc_decode, encode_seq, gen_text/mixed/iscc_code_v0, alg_simhash.
     Vendored-copy check: `md5sum $(git ls-files -- '*data-edge.json')`.
-- **10 open: 5 normal, 5 low.** issues.md 188/300. Next per handoff: the two JNI issues.
+- **10 open: 3 normal (ffi lib.rs 2875 lines; 2 `[human]`), 7 low.** issues.md 180/300. Iter-230
+    audit filed NO issues (metrics snapshot only).
 - decisions 2026-11-20: comment-only/regenerated files don't count against the 6-file cap.
 - **Review runs on Fable 5.2, no advisor**; `model_costs` in jsonl.
 - FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`. C++ suite 107 tests.
