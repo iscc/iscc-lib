@@ -18,6 +18,7 @@ import {
     gen_text_code_v0,
     gen_mixed_code_v0,
     gen_iscc_code_v0,
+    alg_simhash,
 } from '../index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -31,6 +32,23 @@ function bytesValue(data) {
     return `bytes:${Buffer.from(data).toString('hex')}`;
 }
 
+/** Decode a `bytes:<hex>` fixture value into a Buffer; throw on any other value. */
+function decodeBytes(value) {
+    const match = /^bytes:([0-9a-f]*)$/.exec(value);
+    if (!match) throw new TypeError(`expected a bytes:<hex> input, got ${JSON.stringify(value)}`);
+    return Buffer.from(match[1], 'hex');
+}
+
+/** Decode the `alg_simhash` digest list from `bytes:<hex>` strings into Buffers. */
+function prepareSimhash([digests, ...rest]) {
+    return [digests.map(decodeBytes), ...rest];
+}
+
+/** Return a vector's raw JSON inputs unchanged. */
+function identity(inputs) {
+    return inputs;
+}
+
 /** Convert an `iscc_decode` result to `[mt, st, vs, length, "bytes:<hex>"]`. */
 function convertDecode(r) {
     return [r.maintype, r.subtype, r.version, r.length, bytesValue(r.digest)];
@@ -42,15 +60,18 @@ function convertIscc(iscc) {
 }
 
 /**
- * Section name -> [function, converter]. The raw call is always `fn(...inputs)`,
- * kept apart from the conversion so a conversion error never counts as a rejection.
+ * Section name -> [function, converter, input preparer]. The raw call is always
+ * `fn(...prepare(inputs))`; preparing and converting stay outside the raw call so
+ * neither error ever counts as a rejection. `bytes:` inputs are decoded only by a
+ * section's preparer.
  */
 const SECTIONS = {
-    iscc_decode: [iscc_decode, convertDecode],
-    encode_seq: [encode_seq, bytesValue],
-    gen_text_code_v0: [gen_text_code_v0, convertIscc],
-    gen_mixed_code_v0: [gen_mixed_code_v0, convertIscc],
-    gen_iscc_code_v0: [gen_iscc_code_v0, convertIscc],
+    iscc_decode: [iscc_decode, convertDecode, identity],
+    encode_seq: [encode_seq, bytesValue, identity],
+    gen_text_code_v0: [gen_text_code_v0, convertIscc, identity],
+    gen_mixed_code_v0: [gen_mixed_code_v0, convertIscc, identity],
+    gen_iscc_code_v0: [gen_iscc_code_v0, convertIscc, identity],
+    alg_simhash: [alg_simhash, bytesValue, prepareSimhash],
 };
 
 /** Load and parse data-edge.json. */
@@ -88,11 +109,11 @@ function rawCall(fn, inputs) {
 }
 
 /** Check one vector against the surface's effective expectation; return a failure or null. */
-function checkVector([fn, convert], vector) {
+function checkVector([fn, convert, prepare], vector) {
     const exception = vector.except?.[SURFACE];
     if (exception === 'skip') return null;
     const expectError = exception === 'error' || 'error' in vector;
-    const { result, error } = rawCall(fn, vector.inputs);
+    const { result, error } = rawCall(fn, prepare(vector.inputs));
     if (expectError) {
         return error ? null : `expected an error, got ${JSON.stringify(convert(result))}`;
     }
