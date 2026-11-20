@@ -37,12 +37,14 @@ vectors (`[]` error + `[f00f,3c3c]`→`fc3f` tie, so handlers decode inputs). 22
 ALL 9 vector `.data()` sites (issue named 5; FFI len-0 short-circuits made 4 non-defects, widened
 anyway) via one template helper; source grep pins sites a `{}` test can't. 228 = spec gate leniency
 (2 files: `*`→`[^/]*`, `**`→`.*`; `NOT_PATHS` backtick-only; replay tests on a `_known()` set +
-monkeypatched `tracked_paths`). Next: Ruby Bignum, then the 2 JNI issues (one crate). Unfiled: ref
-truncates mismatched digest lengths, Rust/Go reject — needs a human decision. Trap: the issue says
-C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits
+monkeypatched `tracked_paths`). 229 = Ruby `i32` Bignum (Magnus 0.8.2: only `RBignum::to_i32` lacks
+the lower check; u32/usize fine; out-of-i32 is a native-range limit → per-binding tests, NOT
+data-edge). Next: the 2 JNI issues (one crate), then ffi split, derived facts, harness compares.
+Unfiled: ref truncates mismatched digest lengths, Rust/Go reject — needs a human decision. Trap: the
+issue says C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits
 `num_digests == 0` to the core — re-probe before restating. Still open: gate leniency, Tier 1 parity
 check; setuptools bump resolves to 84.2.1 via `uv lock --upgrade-package setuptools` (dry-run 223);
-Ruby Bignum/napi/JNI/ ffi-split now `low` (human) — skip). **Dependabot soupsieve is
+napi Buffer leak is `low` — skip; Ruby/JNI/ffi-split are `normal`). **Dependabot soupsieve is
 human-blocked**: 3.0.2/4.x need Python >=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't
 scope. A 303 from a Maven/portal probe proves nothing: `curl -sL` to follow it (220: Kotlin red was
 a portal outage).
