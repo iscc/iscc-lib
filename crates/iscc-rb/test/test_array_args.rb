@@ -160,6 +160,39 @@ class TestArrayArgs < Minitest::Test
     assert_raises(RangeError) { IsccLib.gen_audio_code_v0([2**40]) }
   end
 
+  # Negative Bignums that fit `long` but not `i32` (Magnus truncated these).
+  NEGATIVE_BIGNUMS = [-(2**63), -(2**62) - 1].freeze
+
+  def test_negative_bignum_audio_element_raises_range_error
+    NEGATIVE_BIGNUMS.each do |value|
+      assert_raises(RangeError) { IsccLib.gen_audio_code_v0([value]) }
+    end
+  end
+
+  def test_negative_bignum_video_frame_element_raises_range_error
+    NEGATIVE_BIGNUMS.each do |value|
+      assert_raises(RangeError) { IsccLib.gen_video_code_v0([[value]]) }
+    end
+  end
+
+  def test_negative_bignum_soft_hash_video_frame_element_raises_range_error
+    NEGATIVE_BIGNUMS.each do |value|
+      assert_raises(RangeError) { IsccLib.soft_hash_video_v0([[value]], 64) }
+    end
+  end
+
+  def test_fixnum_just_outside_i32_raises_range_error
+    [2**31, -(2**31) - 1].each do |value|
+      assert_raises(RangeError) { IsccLib.gen_audio_code_v0([value]) }
+    end
+  end
+
+  def test_i32_boundaries_are_accepted
+    result = IsccLib.gen_audio_code_v0([-(2**31), 2**31 - 1])
+    assert_kind_of Hash, result
+    assert result.key?("iscc")
+  end
+
   def test_negative_minhash_feature_raises_range_error
     assert_raises(RangeError) { IsccLib.alg_minhash_256([-1]) }
   end

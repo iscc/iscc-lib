@@ -113,6 +113,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 
 ## Ruby Bindings (Magnus) → MEMORY-archive.md (Magnus 0.8 API, never `Vec<T>` params)
 
+- Ruby `i32` elements (229): only via `array_to_i32_vec` (i64 then `i32::try_from`); Magnus
+    `RBignum::to_i32` truncates negative Bignums. Rebuild: `bundle exec rake compile:dev`
+
 ## Other Bindings — pointers
 
 - .NET `packages/dotnet/` (P/Invoke over `iscc_ffi`, `dotnet-version: 8.0`); C++ `packages/cpp/`

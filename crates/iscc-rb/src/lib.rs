@@ -38,19 +38,46 @@ fn to_magnus_err(e: iscc_lib::IsccError) -> Error {
 /// `Vec<T>` conversion walks a borrowed slice and segfaults in that case.
 /// The `TryConvertOwned` bound keeps Ruby handles (which the GC cannot see
 /// inside a Rust `Vec`) out of the result. Element errors are Magnus' own:
-/// `TypeError` for a wrong type, `RangeError` for most out-of-range integers.
+/// `TypeError` for a wrong type, `RangeError` for an integer outside `T`.
+/// Never use it with `T = i32`: Magnus' `i32` conversion truncates negative
+/// Bignums on 64-bit Ruby, so `i32` elements go through [`array_to_i32_vec`].
 fn array_to_vec<T: TryConvertOwned>(ary: RArray) -> Result<Vec<T>, Error> {
     ary.into_iter().map(TryConvert::try_convert).collect()
+}
+
+/// Convert a Ruby Array of integers into a `Vec<i32>`.
+///
+/// Converts each element to `i64` through [`array_to_vec`] (Magnus raises
+/// `TypeError` for a non-Integer and `RangeError` outside `i64`), then narrows
+/// it with `i32::try_from`, raising `RangeError` for anything outside `i32`.
+/// Magnus' own `RBignum::to_i32` checks only the upper bound, so a negative
+/// Bignum between `-(2**63)` and `-(2**62) - 1` would be silently truncated.
+fn array_to_i32_vec(ary: RArray) -> Result<Vec<i32>, Error> {
+    array_to_vec::<i64>(ary)?
+        .into_iter()
+        .map(narrow_to_i32)
+        .collect()
+}
+
+/// Narrow an `i64` to `i32`, raising `RangeError` when it does not fit.
+fn narrow_to_i32(value: i64) -> Result<i32, Error> {
+    i32::try_from(value).map_err(|_| {
+        let ruby = Ruby::get().expect("called from Ruby");
+        Error::new(
+            ruby.exception_range_error(),
+            format!("integer {value} out of range for `i32`"),
+        )
+    })
 }
 
 /// Convert a Ruby Array of Arrays of integers into frame signatures.
 ///
 /// Each frame is coerced with `RArray::try_convert` (raises `TypeError` for a
-/// non-Array) and converted through [`array_to_vec`].
+/// non-Array) and converted through [`array_to_i32_vec`].
 fn frames_to_vec(frame_sigs: RArray) -> Result<Vec<Vec<i32>>, Error> {
     frame_sigs
         .into_iter()
-        .map(|frame| array_to_vec(RArray::try_convert(frame)?))
+        .map(|frame| array_to_i32_vec(RArray::try_convert(frame)?))
         .collect()
 }
 
@@ -112,7 +139,7 @@ fn gen_image_code_v0(pixels: RString, bits: u32) -> Result<RHash, Error> {
 /// Accepts a Ruby Array of integers (i32 Chromaprint fingerprints).
 /// Returns a Ruby Hash with key: `iscc`.
 fn gen_audio_code_v0(cv: RArray, bits: u32) -> Result<RHash, Error> {
-    let cv: Vec<i32> = array_to_vec(cv)?;
+    let cv = array_to_i32_vec(cv)?;
     let r = iscc_lib::gen_audio_code_v0(&cv, bits).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
     let hash = ruby.hash_new();
