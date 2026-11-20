@@ -44,8 +44,10 @@ was a no-op — jni 0.22.4 `JString::new` catches+CLEARS OOM into `JniCall(NoMem
 failed"), so map by error TYPE (trait over jni/IsccError/&str) at all 90 sites; also found JNI docs
 say finalized hasher throws IAE (code: ISE). Read the dep source before trusting any issue's fix.
 231 = iscc-ffi `mod tests` → `src/tests.rs` (verbatim move; csbindgen reads only `src/lib.rs`, so
-exports stay put; gate = regen `iscc.h` + `NativeMethods.g.cs` → `git status` empty). Next:
-data-edge compare strictness (Swift+Python, `[human]` normal), then derived-facts parity check.
+exports stay put; gate = regen `iscc.h` + `NativeMethods.g.cs` → `git status` empty). 232 =
+Swift+Python data-edge compare strictness (2 test files; other 9 harnesses probed strict; Swift
+negatives must parse JSON TEXT — Swift literals are native Bool, not NSNumber; Darwin `as? Int`
+takes `false`, `as? Bool` takes 0/1, macOS proof only in CI). Next: derived-facts parity check.
 Unfiled: ref truncates mismatched digest lengths, Rust/Go reject — needs a human decision. Trap: the
 issue says C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits
 `num_digests == 0` to the core — re-probe before restating. Still open: gate leniency, Tier 1 parity
