@@ -43,6 +43,15 @@ object DataEdge {
         return List(items.size()) { str(items, it) }
     }
 
+    /** Decode a `bytes:<hex>` fixture value into bytes. */
+    fun decodeBytes(value: String): ByteArray {
+        require(value.startsWith("bytes:")) { "expected a bytes:<hex> input, got $value" }
+        return HexFormat.of().parseHex(value.removePrefix("bytes:"))
+    }
+
+    /** Read the input at [index] as a list of `bytes:<hex>` values decoded into bytes. */
+    fun bytesList(inputs: JsonArray, index: Int): List<ByteArray> = strList(inputs, index).map(::decodeBytes)
+
     /** Read the input at [index] as a `UInt` bit length. */
     fun bits(inputs: JsonArray, index: Int): UInt {
         val value = inputs.get(index)
@@ -81,8 +90,14 @@ object DataEdge {
         return { encodeSeq(units) }
     }
 
-    /** Convert `encodeSeq` bytes to a `bytes:<hex>` value. */
+    /** Convert `encodeSeq` or `algSimhash` bytes to a `bytes:<hex>` value. */
     fun convertSeq(result: Any): Any = bytesValue(result as ByteArray)
+
+    /** Prepare `algSimhash` on the vector's digest list. */
+    fun prepareSimhash(inputs: JsonArray): () -> Any {
+        val digests = bytesList(inputs, 0)
+        return { algSimhash(digests) }
+    }
 
     /** Prepare `genTextCodeV0` on the vector's text and bits. */
     fun prepareText(inputs: JsonArray): () -> Any {
@@ -127,6 +142,7 @@ object DataEdge {
         "gen_text_code_v0" to EdgeCaller(::prepareText, ::convertText),
         "gen_mixed_code_v0" to EdgeCaller(::prepareMixed, ::convertMixed),
         "gen_iscc_code_v0" to EdgeCaller(::prepareIsccCode, ::convertIsccCode),
+        "alg_simhash" to EdgeCaller(::prepareSimhash, ::convertSeq),
     )
 
     /** Load and parse the vendored data-edge.json from the test resources. */
