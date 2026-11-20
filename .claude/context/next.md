@@ -1,79 +1,100 @@
 # Next Work Package
 
-## Step: WASM `alg_cdc_chunks` returns `Uint8Array` chunks
+## Step: Pre-release security pass — bump advisory-flagged pins and EOL test runtimes
 
 ## Goal
 
-Fix the `normal` issue "WASM `alg_cdc_chunks` returns plain arrays, its doc comment says
-`Uint8Array`": `@iscc/wasm`'s `alg_cdc_chunks` must return an array of `Uint8Array` chunks, as its
-doc comment and published JSDoc promise and as every other `@iscc/wasm` byte output already does.
+Pick up "Dependencies and language runtimes are not checked for security releases before v0.8.0"
+(`normal`, `[human]`). Bump the two locked dependencies that have a fixed advisory release, move the
+test-only runtimes off end-of-life or patch-stale versions, and make the `ci-cd.md` freshness table
+name the runtime surface. Decision for Titusz: Go CI tests on the latest 1.26 patch through a
+`toolchain` line in `go.mod`, no longer on 1.26.1 itself. The `go 1.26.1` directive (the floor that
+consumers see) stays as it is.
 
 ## Alternatives Considered
 
-- **Chosen:** WASM `alg_cdc_chunks` return type — a user-facing binding defect (a caller following
-    the JSDoc gets a `TypeError` on `.subarray()`), small, fully verifiable with `wasm-pack test`.
-    The last four iterations were tooling, tests and refactors; this one fixes a published API
-- **Rejected:** closing the Tier 1 doc gate's holes (fail-closed `lib.rs` parser + registering the
-    four sub-threshold docs, handoff "Next" item 1) — internal guidance tooling with no user impact,
-    and `docs/rust-api.md` alone may need its own step; it follows next, with the Java how-to fix
+- **Chosen:** the security pass. It is the newest release blocker, the probes below found real
+    fixed-advisory pins, and every change is small and locally checkable
+- **Rejected:** strict compares in the 4 data-edge harnesses. On .NET even `TextCodeResult` carries
+    only `Iscc`, and napi/WASM/Java return a bare string, so a strict compare fails
+    `gen_text_code_v0/test_0001_embedded_nul` (it expects `characters`) on all four. That needs an
+    output-subset rule in `edge-vectors.md` plus a decisions.md entry before any harness changes. It
+    is a design step and comes later. The Java how-to fix and the doc-gate holes wait too
 
 ## Scope
 
-- **Modify**: `crates/iscc-wasm/src/lib.rs` (`alg_cdc_chunks` only), `crates/iscc-wasm/Cargo.toml`
-    and root `Cargo.toml` (add `js-sys` if used — `Cargo.lock` already carries js-sys 0.3.103
-    transitively), `docs/howto/wasm.md` → "Additional primitives" (the `alg_cdc_chunks` bullet)
-- **Tests**: `crates/iscc-wasm/tests/unit.rs` (the three `test_alg_cdc_chunks_*` tests)
-- **Reference**: issues.md entry; `crates/iscc-wasm/CLAUDE.md` (type mapping table);
-    `crates/iscc-napi/src/lib.rs` → `alg_cdc_chunks` (returns `Buffer[]`, the sibling shape)
+- **Modify**: `packages/go/go.mod`, `.github/workflows/ci.yml`, `.devcontainer/Dockerfile`,
+    `.claude/context/specs/ci-cd.md` (doc)
+- **Regenerated (not counted)**: `Cargo.lock`, `packages/go/go.sum`
+- **Reference**: issues.md entry above; `ci-cd.md` → "Dependency Freshness"
 
 ## Not In Scope
 
-- The napi `Buffer` reference leak (`low`) and any other `@iscc/lib` change
-- Other WASM exports: the probe found `alg_cdc_chunks` is the only `serde_wasm_bindgen::to_value`
-    return in `crates/iscc-wasm/src/lib.rs`; every other byte output is already `Vec<u8>` →
-    `Uint8Array`. Do not migrate input-side `JsValue` parameters (`alg_simhash`, `gen_video_code_v0`
-    …) — they are inputs, not this defect
-- A `data-edge.json` vector: the defect is a JS return *type*, not a JSON-expressible value
-    divergence (`edge-vectors.md` → Rules), so none is owed
-- The Tier 1 doc gate holes and the Java how-to example (next steps)
+- Raising any floor: `go 1.26.1` directive, abi3-py310, Java 17, .NET 8 (`dotnet-version: '8.0'`,
+    devcontainer `--channel 8.0`), Ruby 3.1 (CI `ruby-version: '3.1'`, devcontainer apt `ruby`),
+    MSRV 1.85, the `ruby-versions: 3.1, 3.2, 3.3` cross-gem list in `release.yml`. List them for the
+    human (see notes) and change none
+- Adding an advisory CI gate (osv-scanner, govulncheck, npm audit job): that is new policy and needs
+    Titusz's sign-off
+- `deny.toml` ignores for the 3 unmaintained crates (basic-toml, bincode, proc-macro-error2). They
+    have no fixed release and are already justified
+- Bumping x/text past v0.41.0, or any other dependency without an advisory (freshness is not this
+    step)
+- Writing EOL dates into `ci-cd.md`. Hand-written dates in a spec are the drift that the
+    derived-facts issue is about, so they go in the handoff only
 
 ## Implementation Notes
 
-- Preferred shape: return `Result<Vec<js_sys::Uint8Array>, JsError>`, building each chunk with
-    `js_sys::Uint8Array::from(chunk)` (copies into JS memory). wasm-bindgen 0.2.126 supports
-    `Vec<T>` returns for JsValue-repr types (`src/convert/slices.rs:546`,
-    `impl<T: ErasableGeneric<Repr = JsValue> + WasmDescribe> VectorIntoWasmAbi for T`), so the
-    generated `.d.ts` becomes `Uint8Array[]` instead of `any` — check it in the built `pkg/`. Add
-    `js-sys = "0.3"` to `[workspace.dependencies]` and `js-sys = { workspace = true }` to the crate
-    (keep entries sorted the way the files already are). If another wasm-bindgen-native route is
-    simpler (no new dep), it is acceptable as long as the d.ts and runtime type are `Uint8Array`
-- Keep the empty-input contract: one chunk, and that chunk is an empty `Uint8Array`
-- Update the Rust doc comment only if wording changes; it already says `Uint8Array`
-- Tests: rewrite the three tests for the new return type, and assert the RUNTIME element type with a
-    real `instanceof` check, not the static type — e.g. `JsValue::from(chunk.clone())`
-    `.is_instance_of::<js_sys::Uint8Array>()` (JsCast's `is_instance_of` performs a JS
-    `instanceof`). Also assert concatenated bytes equal the input (via `.to_vec()`) and the
-    empty-input case. If js-sys is only a regular dep, tests can use it directly
-- Docs: the `docs/howto/wasm.md` bullet currently says chunks are plain `number[]` with a
-    `Uint8Array.from(chunk)` workaround — replace it with "returns an array of `Uint8Array` chunks"
-    and drop the workaround. Grep `docs/`, `crates/iscc-wasm/README.md` and
-    `crates/iscc-wasm/CLAUDE.md` for any other claim about the chunk element type
-- Local WASM probe: `wasm-pack test --node crates/iscc-wasm --features conformance` (the CI line);
-    `cargo test -p iscc-wasm` runs zero wasm tests (learnings). Binding-only change: no CRAP, iai or
-    semver gate is affected
+Probed while scoping (2026-11-20). Do not redo the clean ones:
+
+- **Rust:** `cargo update -p rustix` moves only rustix 1.1.4 → 1.1.6 (RUSTSEC-2026-0486, xattr
+    soundness; reached via tempfile ← uniffi_pipeline and dev deps). CI `cargo deny` did not flag
+    it, so osv is the source here
+- **Go:** `golang.org/x/text` v0.40.0 → **v0.41.0** (GO-2026-6629, a panic in `secure/precis`, which
+    we don't call). A full diff of v0.40.0 against v0.41.0 changes only `secure/precis/*.go` and its
+    go.mod (`go 1.25.0`). The Unicode tables are unchanged (`tables15.0.0.go` + `tables17.0.0.go` in
+    both), so the text/Unicode output cannot move. Use
+    `go get golang.org/x/text@v0.41.0 && go mod tidy`
+- **Go toolchain:** govulncheck finds about 40 stdlib advisories in go1.26.1, all fixed by
+    **go1.26.11** (latest 1.26 patch; go1.27.4 is also current). setup-go v7's README says: "If the
+    `toolchain` directive is present, its version is used; otherwise … falls back to the `go`
+    directive". So add `toolchain go1.26.11` to `go.mod` and keep `go-version-file` in `ci.yml`.
+    Consumers ignore a dependency's `toolchain` line. Set `ARG GO_VERSION=1.26.11` in the
+    Dockerfile. Local `GOTOOLCHAIN=auto` downloads go1.26.11 on the first `go` command
+- **Node:** the `ci.yml` napi job uses `node-version: '20'` (EOL 2026-04-30); make it `'22'`, the
+    oldest supported LTS (EOL 2027-04-30), the same as the `release.yml` smoke jobs
+- **Clean, nothing to change:** npm (`package-lock.json` is gitignored and CI runs `npm install`; a
+    fresh resolve of `@napi-rs/cli ^3` pulls js-yaml 5.5.0 and `npm audit` reports 0 — the local
+    stale lock's js-yaml 4.x finding is not a pin), Python (`pip-audit`: none), .NET (both projects:
+    `dotnet list … package --vulnerable --include-transitive` reports none), Ruby `Gemfile.lock`,
+    Maven `pom.xml` deps and plugins, Kotlin (jna 5.19.1, junit 6.1.2, gson 2.14.0, kotlin 2.4.10),
+    GitHub Actions pins (the osv hits on download-artifact/pypi-publish affect versions below our
+    `@v8` / `release/v1`)
+- **`ci-cd.md` table:** delete the stale "`mise.toml` tool pins" phrase (`mise.toml` has only
+    `[tasks]`). Add a "Runtimes" row naming the setup-action `*-version` inputs in
+    `.github/workflows/`, the `go.mod` `toolchain` line, and the `.devcontainer/Dockerfile` base
+    image and `GO_VERSION`. Add one sentence: supported-version floors are compatibility promises
+    that only the human raises
+- **Handoff, for the human (EOL dates from endoflife.date, 2026-11-20):** floors that are already
+    past EOL: Python 3.10 (2026-10-01), .NET 8 (2026-11-10), Ruby 3.1 (2025-03-26). Cross-gem build
+    ABI Ruby 3.2 (2026-03-31). Java 17 and MSRV 1.85 are not EOL. Also worth filing: the precompiled
+    gem ABIs stop at 3.3, so Ruby 3.4 / 4.0 users may get no precompiled gem (check the gemspec's
+    fallback before filing)
+- No core code changes, so CRAP, iai and semver are unaffected
 
 ## Verification
 
-- `wasm-pack test --node crates/iscc-wasm --features conformance` passes, including a test that
-    asserts every chunk `is_instance_of::<Uint8Array>()` and the empty-input single empty chunk
-- `cargo clippy -p iscc-wasm --all-targets -- -D warnings` (the CI host form) and
-    `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings` are both clean
-- `grep -n "to_value" crates/iscc-wasm/src/lib.rs` prints nothing (no serde-serialized return left)
-- `docs/howto/wasm.md` contains no `number[]` / `Uint8Array.from(chunk)` text for `alg_cdc_chunks`,
-    and `uv run zensical build` exits 0
+- `Cargo.lock` locks `rustix` at `1.1.6` and no `1.1.4` entry remains; `cargo deny check` exits 0
+- `packages/go/go.mod` reads `go 1.26.1`, `toolchain go1.26.11` and `golang.org/x/text v0.41.0`. In
+    `packages/go`, `CGO_ENABLED=0 go test ./...` and `go vet ./...` pass, and
+    `go run golang.org/x/vuln/cmd/govulncheck@latest -show verbose ./...` prints no `Found in:` line
+- `.github/workflows/ci.yml` has no `node-version: '20'` and the napi job has `node-version: '22'`
+- `.devcontainer/Dockerfile` has `ARG GO_VERSION=1.26.11`, and
+    `curl -fsIL https://go.dev/dl/go1.26.11.linux-amd64.tar.gz` exits 0
+- `ci-cd.md` no longer contains `` `mise.toml` tool pins `` and names `.devcontainer/Dockerfile` in
+    the freshness table; `uv run scripts/check_spec_paths.py` exits 0
 - `mise run check` exits 0
 
 ## Done When
 
-All verification criteria pass and `@iscc/wasm`'s `alg_cdc_chunks` hands JS callers `Uint8Array`
-chunks, pinned by a runtime `instanceof` test.
+All six verification criteria pass, and the handoff lists the EOL floors for the human.
