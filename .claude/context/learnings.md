@@ -15,9 +15,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `decode_header` path (Go `uint8` truncates SubType 4679 → 71, 202). **The spec round trip is
     BYTES — `encode_seq(decode_seq(x)) == x` over the `decode_seq` vectors** (205: next.md
     prescribed string decode-of-encode; py/napi/WASM/FFI assert bytes)
-- **`encode_seq` upper-cases before cleaning, so `b` + base32(`cc01` + unit) can read as a DIFFERENT
-    valid bare unit** (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20 bytes) — iscc-core 1.5.0 returns the
-    same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
 - **Binding input-marshalling traps**: WASM `serde_wasm_bindgen` `Vec<T>` accepts ANY iterable (napi
     `Vec<String>` throws `ArrayExpected`): never document "throws on non-array" for WASM (204).
     **The FFI's `CStr` truncates at an embedded NUL**, so both C-FFI wrappers reject it first (213):
@@ -46,8 +43,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **`decode_base32("")` returns `Ok(empty)`, not an error** (191; empty guard in `iscc_clean` 192):
     a cleaning helper that can yield `""` (blank/dash-only/`"iscc:"`) must reject empty before
     decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage
-- **iscc-core 1.5.0 `data.json`** (2026-10-17): `encode_seq`/`decode_seq` sections have non-object
-    outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)
 - **String-input divergences from iscc-core** hit any differential on *string* inputs (`encode_seq`,
     `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
     \+ Go pinned (199); a padding negative must be validly padded (`ISCC:GAAAAAAAAA======`:
@@ -198,3 +193,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     paths against `git ls-files` (never disk); `*` stays in one segment, `**` crosses `/`. Fix the
     spec, or list build output in `GENERATED`. Conan generates `iscc.pc` / `find_package(iscc)` at
     install time. **A negative assertion must reach the branch it names** (228: no `*`, no regex)
+- **Tier 1 doc parity is gated** (233): `scripts/check_tier1_docs.py` derives the symbols from
+    `lib.rs`, so a new symbol fails every registered doc until it is named there. It checks NAMES
+    only: a signature or return type still needs a run (the WASM `alg_cdc_chunks` doc comment says
+    `Uint8Array`, but `serde_wasm_bindgen::to_value` of `Vec<Vec<u8>>` gives `number[][]`, and a
+    `from_value` read-back accepts both). A web-target `pkg/` runs in Node via `initSync({module})`

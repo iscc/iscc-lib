@@ -7,10 +7,10 @@ surface went undocumented on some. This gate derives the symbol set from `lib.rs
 and compares every registered doc against it.
 
 Source of truth (parsed, never typed out): column-0 `pub fn NAME`, `pub const NAME`
-(and `pub const fn NAME`)
-and named `pub use path::{a, b}` / `pub use path::name` items. Globs (`types::*`),
-`pub mod`, `pub enum` and `pub type` are not Tier 1 symbols. A floor rejects a parse
-that collapses: the derived set must contain `FLOOR_SYMBOLS`.
+(and `pub const fn NAME`) and named `pub use path::{a, b}` / `pub use path::name`
+items. Globs (`types::*`), `pub mod`, `pub enum` and `pub type` are not Tier 1
+symbols. A floor rejects a parse that collapses: the derived set must contain
+`FLOOR_SYMBOLS`.
 
 Matching a symbol in a doc: identifier tokens are compared after lowercasing and
 dropping `_`, so `gen_sum_code_v0`, `genSumCodeV0` and `GenSumCodeV0` all match, as

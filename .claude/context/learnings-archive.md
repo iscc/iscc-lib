@@ -1072,3 +1072,11 @@ runs on `opus`. Deliberate — do not "unify" them.
 - **A widened decode gate re-exposes latent truncation** (174/175): `decode_header`'s `as u8` before
     `TryFrom` let a multi-nibble value wrap (`257`→`1`, `262`→`Id`) so a malformed header
     canonicalized to valid; now `u8::try_from`-gated. Probe `"MDFZAAAAAAAAAAAAAA"` on header gates
+
+## Archived from learnings.md (review 233)
+
+- **`encode_seq` upper-cases before cleaning, so `b` + base32(`cc01` + unit) can read as a DIFFERENT
+    valid bare unit** (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20 bytes) — iscc-core 1.5.0 returns the
+    same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
+- **iscc-core 1.5.0 `data.json`** (2026-10-17): `encode_seq`/`decode_seq` sections have non-object
+    outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)

@@ -589,3 +589,21 @@ Full text of entries compacted out of `MEMORY.md`.
 - **Multi-surface docs fan-out (211, ~15 min)**: next.md greps skip `.claude/context/` (grep
     learnings for the old count); compile C/C++ snippets with g++ against `target/debug` in seconds
     → `review-patterns.md`
+
+## Doc-parity gate (233 — `scripts/check_tier1_docs.py`)
+
+- **A name-matching gate proves nothing about the sentence around the name.** 233's new WASM how-to
+    line copied "array of `Uint8Array`" from the binding's own doc comment; the build returns
+    `number[][]`. A source doc comment is a claim, not evidence: run every return type a docs step
+    adds. Codex found this one; my source cross-check had accepted the comment
+- **The local WASM `pkg/` is a web build but runs in Node**: `await import(pkg + "iscc_wasm.js")`,
+    then `m.initSync({ module: readFileSync(pkg + "iscc_wasm_bg.wasm") })` from a `/tmp/*.mjs`. So
+    "WASM docs come from source only, the pkg is a web build" (advance, 233) is not a limit
+- **Threshold discovery is blind exactly where drift is worst**: print the per-file symbol count for
+    every tracked `*.md` and read the 12–29 band (233: `docs/howto/rust.md` 26, `docs/rust-api.md`
+    17 sit under 30). **Parser probes**: `pub use a::b as c;`, nested groups, `pub struct`,
+    `pub static`, `pub unsafe fn` all passed silently
+- **Python fixture writes need `encoding="utf-8"`**: re-run a new test file once under
+    `LC_ALL=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0` (233: `write_text` of `lib.rs` raised there)
+- **Rewriting a part-done `[human]` issue**: keep its untouched "Resolved when" bullets verbatim and
+    replace the done bullet by the measured remainder; never mark the bullet done on a threshold

@@ -126,6 +126,10 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
 - **Test-harness-only step (232, ~8 min)**: mutate from throwaway copies (Python: `/tmp` copy +
     `crates` symlink; Swift: `git archive` + old harness spliced onto the new tests, absolute `-L`);
     macOS proof = the `swift` CI job after the push → `binding-reviews.md`
+- **Doc-parity gate / doc-listing step (233, ~25 min)**: restore the previous docs in a
+    `git archive` throwaway repo (gate must name each gapped doc), feed the parser crate-root forms
+    it does not list (fail-open?), and RUN every return type the docs add → `review-patterns.md`
+    "Doc-parity gate (233)"
 - **Search with `git grep`, never `grep -r`** over dirs with build output (230: a 100 kB minified
     line from `packages/kotlin/build` landed in context) → `review-patterns.md` "Gotchas"
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`

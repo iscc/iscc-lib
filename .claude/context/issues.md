@@ -137,16 +137,53 @@ conversion and the doc comment matches it.
 ## Derived facts in guidance and docs are written by hand and drift `normal` [human]
 
 Counts, file lists and symbol lists are repeated across `docs/`, the READMEs, `CLAUDE.md` files and
-the specs with nothing checking them. Adding `encode_seq` / `decode_seq` (Tier 1 33 → 35) took a
-hand sweep of 35 files in iteration 211, and `wasm-bindings.md` listed a file that does not exist.
-The two facts that have a parity hook in `.pre-commit-config.yaml` (docs page list, CI job table) do
-not drift. Rule: `.claude/context/README.md` → "Hygiene rules" → "Derived facts are checked or not
-written".
+the specs with nothing checking them. Rule: `.claude/context/README.md` → "Hygiene rules" → "Derived
+facts are checked or not written". The Tier 1 symbol list is gated since iteration 233
+(`scripts/check_tier1_docs.py`: registered docs must name every symbol derived from `lib.rs`). Three
+parts of the problem are left:
 
-Resolved when both hold:
+- **Docs below the discovery threshold are unchecked.** `docs/howto/rust.md`, `docs/howto/c-cpp.md`,
+    `docs/rust-api.md` and `docs/architecture.md` → "Tier 1" enumerate the API, are incomplete, and
+    are too incomplete for the gate to notice. `docs/rust-api.md` also still says all gen functions
+    return `IsccResult<String>`
+- **The gate fails open on crate-root items it does not parse.** With `pub use codec::x as y;`, a
+    nested `pub use a::{b::{c}};`, `pub struct`, `pub static`, `pub unsafe fn` or `pub async fn`
+    added at column 0 of `lib.rs`, the gate still prints `OK` (measured in iteration 233)
+- **Unchecked counts, file lists and line numbers** remain in `.claude/context/specs/` and the
+    per-crate `CLAUDE.md` files
 
-- a pre-commit parity check fails when the Tier 1 symbol list in any doc or README that enumerates
-    it differs from the public API at the `iscc-lib` crate root
+Resolved when all hold:
+
+- every per-language how-to and API reference under `docs/` is in the gate's registry: `FULL` once
+    complete, or `EXEMPT` with a reason
+- every column-0 `pub` item in `lib.rs` is either derived as a symbol or matched by an explicit
+    exclusion, and an unrecognised form fails the gate (pinned by a fire test)
 - counts, file lists and line numbers that no check covers are gone from `.claude/context/specs/`
     and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
     functions") or brought under a check
+
+## Java how-to `genSumCodeV0` example does not compile `normal` [review]
+
+`docs/howto/java.md` → the "single pass" example calls `genSumCodeV0` with three arguments
+(`"example.bin", 64, false`) and reads `result.iscc()`, `result.datahash()` and `result.filesize()`.
+The method takes four (`String path, int bits, boolean wide, boolean addUnits`) and `SumCodeResult`
+has `public final` fields, not accessor methods, so a reader who copies the example gets compile
+errors. Pre-existing; found by the advance agent in iteration 233. `docs/java-api.md` →
+`genSumCodeV0` shows the correct form.
+
+Resolved when the example matches `IsccLib.java` and `SumCodeResult.java`.
+
+## WASM `alg_cdc_chunks` returns plain arrays, its doc comment says `Uint8Array` `normal` [review]
+
+`crates/iscc-wasm/src/lib.rs` → `alg_cdc_chunks` serializes `Vec<Vec<u8>>` with
+`serde_wasm_bindgen::to_value`, which yields nested plain arrays: for the input
+`new Uint8Array([1, 2, 3])` it returns `[[1, 2, 3]]`, and `chunks[0] instanceof Uint8Array` is
+`false` (measured in iteration 233). The doc comment, and so the JSDoc in the published
+`iscc_wasm.d.ts`, promises "a JS array of `Uint8Array` chunks"; `@iscc/lib` returns `Buffer[]`, and
+`alg_simhash` and `alg_minhash_256` of `@iscc/wasm` return a `Uint8Array`. A caller who follows the
+JSDoc and calls `.subarray()` on a chunk gets a `TypeError`. The wasm tests read the result back
+through `from_value::<Vec<Vec<u8>>>`, which accepts both shapes. `docs/howto/wasm.md` states the
+current behaviour.
+
+Resolved when the chunks are `Uint8Array`s, a wasm test asserts the element type, and
+`docs/howto/wasm.md` → "Algorithm primitives" says so.

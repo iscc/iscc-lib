@@ -228,7 +228,8 @@ def test_floor_rejects_collapsed_parse(tmp_path):
     # A lib.rs whose items no longer parse must not read as a pass.
     root = _copy_tree(tmp_path)
     lib = root / ct.LIB_RS
-    lib.write_text(lib.read_text(encoding="utf-8").replace("\npub ", "\npub(crate) "))
+    collapsed = lib.read_text(encoding="utf-8").replace("\npub ", "\npub(crate) ")
+    lib.write_text(collapsed, encoding="utf-8")
     errors = ct.run_checks(root, TRACKED)
     assert len(errors) == 1
     assert errors[0].startswith(f"floor: {ct.LIB_RS} parse lost ")

@@ -368,3 +368,17 @@ leave the exception pending (`new_object`): without it review measured a constru
 replaced by `IllegalArgumentException`. **Alternatives:** the guard only (insufficient); a class
 argument per call site (90 sites to get right); a handle registry for stale handles (out of scope).
 **Context:** iteration 230 review; the 2026-07-28 hand-thrown-exceptions decision is unchanged.
+
+## 2026-11-20 — The Tier 1 doc gate matches names against a registry, with a discovery threshold
+
+**Decision:** `scripts/check_tier1_docs.py` keeps an explicit registry. A `FULL` doc must name every
+symbol derived from `lib.rs`, in any binding casing. An `EXACT` marker block must equal the set. An
+`EXEMPT` path carries a reason. Any other tracked Markdown file that names 30 or more symbols must
+be registered. Per-crate READMEs are partial by design (target.md asks for the gen functions and key
+utilities), so they stay unregistered below that threshold. **Why:** a casing-free name match is the
+one check that works across all surface idioms, and a registry turns "is this list meant to be
+complete?" into a recorded choice. **Alternatives:** marker blocks in every doc (rewrites prose that
+already carries the names); a lower threshold (forces entries for READMEs meant to be short); a
+per-binding export parser (one more gate per surface, and not what the issue asked). **Limits:** it
+checks names, not signatures, and a doc that drifted below the threshold is invisible to discovery:
+register such docs by hand. **Context:** iteration 233 review.
