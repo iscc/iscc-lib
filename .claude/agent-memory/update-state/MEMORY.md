@@ -87,17 +87,17 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: d351a8c, iter 226 — incremental)
+## Current State (assessed-at: 864b6fe, iter 227 — incremental)
 
-- **CI GREEN on tip `499be37`** (21/21, run 44712777921). Unpushed = `d351a8c` log only.
-- **225: `alg_simhash([])` now ERRORS** in core (`simhash.rs`, generators use `alg_simhash_inner`)
-    and Go (`AlgSimhash` public errors, generators use unexported `algSimhash`) — do NOT re-flag.
-    Remaining in that issue: `alg_simhash` section in `data-edge.json` (fan-out, 12 harnesses +
-    validator + C header gen) and 5 C++ `ptrs.data()` wrappers.
+- **CI GREEN on tip `534e6e3`** (21/21, run 44723805634). Unpushed = `864b6fe` log only.
+- **226: `alg_simhash` section in `data-edge.json`** (2 vectors) on all 12 surfaces — do NOT
+    re-flag. That issue is now just "C++ list wrappers pass NULL" (5 `ptrs.data()` in `iscc.hpp`;
+    `grep -c` to check).
 - Stale spec fact: `rust-core.md` Tier 1 table shows `alg_simhash`/`sliding_window` as bare
-    `-> Vec<u8>` (code returns `IsccResult`) — review may fix mechanically.
-- data-edge.json sections (5): iscc_decode, encode_seq, gen_text/mixed/iscc_code_v0.
-- **13 open: 8 normal, 5 low.** issues.md 228/300. ffi `lib.rs` 2875 lines.
+    `-> Vec<u8>` (code returns `IsccResult`) — reviewer closing the C++ issue fixes it.
+- data-edge.json sections (6): iscc_decode, encode_seq, gen_text/mixed/iscc_code_v0, alg_simhash.
+    Vendored-copy check: `md5sum $(git ls-files -- '*data-edge.json')`.
+- **13 open: 8 normal, 5 low.** issues.md 221/300.
 - decisions 2026-11-20: comment-only/regenerated files don't count against the 6-file cap.
 - **Review runs on Fable 5.2, no advisor**; `model_costs` in jsonl.
 - FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
