@@ -21,6 +21,7 @@ crates/iscc-ffi/
     iscc.h           # Generated C header (checked in, regenerate after API changes)
   src/
     lib.rs           # All extern "C" functions, #[repr(C)] types, memory management
+    tests.rs         # Rust unit tests (#[cfg(test)] mod tests)
   tests/
     test_iscc.c      # C test program that links against the shared library
     data_edge_vectors.h  # Generated data-edge.json table (C99 + C++17), shared with packages/cpp
@@ -29,8 +30,10 @@ crates/iscc-ffi/
     CMakeLists.txt   # CMake build for the example
 ```
 
-Single-file crate. All FFI symbols, helper functions, `#[repr(C)]` types, and memory management live
-in `src/lib.rs`. Do not split into submodules unless the file exceeds ~2500 lines.
+All FFI symbols, helper functions, `#[repr(C)]` types, and memory management live in `src/lib.rs`;
+the Rust unit tests live in `src/tests.rs`. Keep every export in `lib.rs`: `build.rs` passes only
+`src/lib.rs` to csbindgen, so an export moved to another file silently drops out of
+`NativeMethods.g.cs`. Do not split into submodules unless the file exceeds ~2500 lines.
 
 ## cbindgen Configuration
 
@@ -137,7 +140,7 @@ LD_LIBRARY_PATH=target/debug /tmp/test_iscc
 
 ## Test Patterns
 
-### Rust tests (`#[cfg(test)]` in `lib.rs`)
+### Rust tests (`src/tests.rs`)
 
 - Test every exported function with valid inputs and verify expected ISCC strings
 - Test NULL pointer handling for every function that takes pointers

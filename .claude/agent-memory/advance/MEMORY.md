@@ -102,7 +102,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     codec-clean.md
 - ISCC-IDv1 #43 COMPLETE (iter 190, no dedicated decoder; Tier-1 = 35 since 211) → go-idv1.md
 - ISCC-SEQ #45: core (195) + all 11 surfaces bound (197-210, UniFFI last); docs swept 33→35 (211) →
-    iscc-seq.md. iscc-ffi lib.rs ~2860 lines (split hint 2500)
+    iscc-seq.md. iscc-ffi tests in `src/tests.rs` (231); exports MUST stay in lib.rs (csbindgen
+    reads only it)
 - `alg_simhash` rejects `[]` (225, core + Go); generators keep 32 zeros via Rust `alg_simhash_inner`
     / Go unexported `algSimhash` — never call the public form from a generator
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type
