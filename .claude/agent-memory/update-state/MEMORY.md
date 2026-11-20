@@ -87,22 +87,19 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 70bd975, iter 235 — incremental)
+## Current State (assessed-at: 0bf8f8c, iter 236 — incremental)
 
-- **CI GREEN on tip `7af33e9`** (21/21). Unpushed = 5 commits incl. `tools/cid.py` +
-    `tests/test_cid.py` (human loop infra, uncovered). **Local `origin/develop` ref can be stale** —
-    `git ls-remote origin develop` first; check-runs API returns 422 for an unpushed SHA.
-    codecov/cursor suites sit `queued` forever — judge the `github-actions` suite.
-- **target.md gained "dependencies are secure" (CI/CD) at 70bd975** → CI/CD partially met. Only
-    `cargo deny` audits; napi CI on Node 20 (EOL); Ruby 3.1 floor EOL (human-only); `mise.toml` has
-    no `[tools]`.
-- **11 open: 4 normal** (`[human]` drift remainder; Java how-to `genSumCodeV0`; `[human]` data-edge
-    partial-key compare on .NET/Java/napi/WASM; `[human]` dep/runtime security pass), 7 low.
-    issues.md 230/300. WASM `alg_cdc_chunks` closed 234.
+- **CI GREEN on tip `edd20de`** (21/21, run 44807966740). Unpushed = only `cid(log)`. **Local
+    `origin/develop` ref can be stale** — `git ls-remote origin develop` first; check-runs API
+    returns 422 for an unpushed SHA. codecov/cursor suites sit `queued` forever.
+- **Security pass DONE 235** (rustix 1.1.6, x/text v0.41.0, Go `toolchain go1.26.11` — confirm in
+    the `go` job log via `gh run view <id> --log | grep "go version"`, napi Node 22) → CI/CD met.
+- **12 open: 4 normal** (`[human]` drift; Java how-to `genSumCodeV0`; `[human]` data-edge
+    partial-key compare; Ruby precompiled gems stop at 3.3), 8 low (incl. EOL floors Py3.10/.NET
+    8/Ruby 3.1 — human-only). issues.md 236/300.
 - data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
-- **Review runs on Fable 5.2**; `model_costs` in jsonl. FFI 51 externs; Swift 30 tests.
-- **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` — alerts track
-    `main` (6 open at 235), so a develop-only lockfile fix leaves them open until release.
+- **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main` (6
+    open at 236); compare `vulnerable_version_range` to develop's lockfiles — all patched there.
 
 ## Durable Facts (carried, not per-iteration)
 
