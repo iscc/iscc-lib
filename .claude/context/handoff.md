@@ -14,7 +14,7 @@ arrays, so the core's error surfaces. `EncodeSeq`'s special-cased empty branch i
     `using PinnedRows rows = …; fixed (nint* p = rows.Pointers) [fixed (nuint* l = rows.Lengths)]`.
     Five methods gained `<exception cref="ArgumentNullException">` XML docs; `EncodeSeq` already had
     it
-- `packages/dotnet/Iscc.Lib.Tests/ArrayInputTests.cs` (new): 19 `[Fact]`s:
+- `packages/dotnet/Iscc.Lib.Tests/ArrayInputTests.cs` (new): 20 `[Fact]`s:
     - 5 empty-input tests (the 4 methods next.md names + `EncodeSeq`). Each checks the core text is in
         the message and "must not be NULL" is not
     - `AlgSimhash([])` returns 32 zero bytes
@@ -22,6 +22,7 @@ arrays, so the core's error surfaces. `EncodeSeq`'s special-cased empty branch i
     - 6 null-element tests with the null at index 2, after two valid rows, asserting `ParamName` and
         `name[2]`
     - 1 test that the method still works after a failed null-element call
+    - 1 precedence test: a null element beats an earlier embedded NUL
 - `packages/dotnet/CLAUDE.md`: rewrote the "Array parameter marshalling" bullets, added a
     jagged-array bullet under "Empty span sentinel", added `ArrayInputTests.cs` to File Layout, and
     the "GCHandle leaks" pitfall now points at the helper
@@ -32,13 +33,13 @@ arrays, so the core's error surfaces. `EncodeSeq`'s special-cased empty branch i
     `git status --porcelain packages/dotnet/Iscc.Lib/NativeMethods.g.cs crates/iscc-ffi/include/iscc.h`
     printed nothing
 - `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj`: `0 Warning(s)`, `0 Error(s)`
-- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug`: 149 passed,
-    0 failed. With `--filter FullyQualifiedName~ArrayInputTests`: 19 passed. SmokeTests
-    `AlgSimhash_EmptyInput_Returns32Bytes` and SeqTests are in the 149
+- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug`: 150 passed,
+    0 failed. With `--filter FullyQualifiedName~ArrayInputTests`: 20 passed. SmokeTests
+    `AlgSimhash_EmptyInput_Returns32Bytes` and SeqTests are in the 150
 - Power probe: I copied both projects to `/tmp`, restored HEAD's `IsccLib.cs` there and ran the
-    filtered suite: **15 failed, 4 passed**. The 4 that pass on the old code are the 3 `EncodeSeq`
-    tests (it was already correct) and `AlgSimhash_Empty`. All gen/video/simhash empty and null
-    tests are red on the old code
+    filtered suite (19 tests, before I added the precedence test): **15 failed, 4 passed**. The 4
+    that pass on the old code are the 3 `EncodeSeq` tests (it was already correct) and
+    `AlgSimhash_Empty`. All gen/video/simhash empty and null tests are red on the old code
 - `grep -n "GCHandle.Alloc" IsccLib.cs` → one hit, inside `PinnedRows.Pin`
 - `mise run check` exit 0. `uv run prek run --hook-stage pre-push --files <3 files>` exit 0
 
@@ -54,6 +55,8 @@ docstrings and the `wasm-bindings.md` package.json spec-fact issue.
     at any call site.
 - Handle safety: null checks run over every row *before* any handle is allocated. The pin loop also
     has `catch { Dispose(); throw; }`, so an `Alloc` failure part-way frees the handles already
-    taken. Ordering for strings: an embedded NUL in an element before a null element throws
-    `IsccException` first (conversion runs element by element via `Array.ConvertAll`).
+    taken. `Dispose` frees by index, so a second call is a no-op. Null checks also run before the
+    `ToNativeUtf8` conversion, so for string inputs a null element always beats an embedded NUL in
+    any other element. This matches the old `EncodeSeq` precedence and is pinned by
+    `GenMixedCodeV0_NullAfterEmbeddedNul_ThrowsArgumentNull`.
 - No public signature change, no Rust change: CRAP/iai/semver are untouched.

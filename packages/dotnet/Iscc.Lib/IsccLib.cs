@@ -675,13 +675,7 @@ public static partial class IsccLib
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="rows"/> or a row is null.</exception>
         public static PinnedRows Pin<T>(T[]?[] rows, string paramName) where T : unmanaged
         {
-            ArgumentNullException.ThrowIfNull(rows, paramName);
-            for (int i = 0; i < rows.Length; i++)
-            {
-                if (rows[i] is null)
-                    throw new ArgumentNullException(paramName, $"{paramName}[{i}] must not be null");
-            }
-
+            ThrowIfAnyNull(rows, paramName);
             var pinned = new PinnedRows(rows.Length);
             try
             {
@@ -706,17 +700,29 @@ public static partial class IsccLib
         /// <exception cref="IsccException">Thrown when an element contains an embedded NUL character.</exception>
         public static PinnedRows PinStrings(string[] values, string paramName)
         {
-            ArgumentNullException.ThrowIfNull(values, paramName);
+            ThrowIfAnyNull(values, paramName);
             return Pin(Array.ConvertAll(values, ToNativeUtf8), paramName);
         }
 
-        /// <summary>Free every handle that was pinned.</summary>
+        /// <summary>Throw when <paramref name="items"/> or any of its elements is null.</summary>
+        /// <exception cref="ArgumentNullException">Names <paramref name="paramName"/> and the index of the null element.</exception>
+        private static void ThrowIfAnyNull<T>(T?[] items, string paramName) where T : class
+        {
+            ArgumentNullException.ThrowIfNull(items, paramName);
+            for (int i = 0; i < items.Length; i++)
+            {
+                if (items[i] is null)
+                    throw new ArgumentNullException(paramName, $"{paramName}[{i}] must not be null");
+            }
+        }
+
+        /// <summary>Free every handle that is still pinned; safe to call more than once.</summary>
         public void Dispose()
         {
-            foreach (GCHandle handle in _handles)
+            for (int i = 0; i < _handles.Length; i++)
             {
-                if (handle.IsAllocated)
-                    handle.Free();
+                if (_handles[i].IsAllocated)
+                    _handles[i].Free();
             }
         }
     }

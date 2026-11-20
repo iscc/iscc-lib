@@ -165,6 +165,14 @@ public class ArrayInputTests
         Assert.Contains("units[2]", ex.Message);
     }
 
+    [Fact]
+    public void GenMixedCodeV0_NullAfterEmbeddedNul_ThrowsArgumentNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => IsccLib.GenMixedCodeV0([Unit + "\0junk", null!]));
+        Assert.Contains("codes[1]", ex.Message);
+    }
+
     // ── Pinned inputs still work after a failed call ────────────────────────
 
     [Fact]
