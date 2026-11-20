@@ -183,21 +183,23 @@ Resolved when a negative Bignum element in those three functions raises `RangeEr
 through `i64`, narrow with `i32::try_from`), pinned next to the `RangeError` cases in
 `crates/iscc-rb/test/test_array_args.rb`.
 
-## `wasm-bindings.md` names a committed `crates/iscc-wasm/package.json` that does not exist `normal` [review]
+## Binding spec structure trees list files that do not exist `normal` [review]
 
-`.claude/context/specs/wasm-bindings.md` lists `package.json # npm package config (@iscc/wasm)` in
-the crate tree (L28) and a Version Sync row for `crates/iscc-wasm/package.json` (L165). No such file
-exists, and `scripts/version_sync.py` has no WASM target. The real mechanism (`ci-cd.md:355`):
-wasm-pack writes `pkg/package.json` from `crates/iscc-wasm/Cargo.toml` (version, `license`,
-`description`), and release.yml's "Set npm package name and version" step patches `name`,
-`repository` and `version`. Iter 214 made `Cargo.toml` the single source of npm metadata; a future
-step that "restores" the spec's file would create a second, unsynced source. File-list fact — no
-design change.
+The Crate/Package Structure trees in the specs are not backticked, so the backticked-path existence
+check of iteration 223 cannot see them. `go-bindings.md` "Package Structure" lists 11 files that
+`packages/go` does not have: `iscc.go`, `text.go`, `algorithms.go`, `wta.go`, `hasher.go` (each with
+a `_test.go`) and `constants.go`. The real layout is `code_*.go`, `cdc.go`, `minhash.go`,
+`simhash.go`, `wtahash.go`, `utils.go` and others. `nodejs-bindings.md` lists
+`test/conformance.test.mjs`, but the tests live in `crates/iscc-napi/__tests__/`. Trees in the other
+specs were not probed. A step that "restores" a listed file gives existing code a second home, the
+same hazard as the removed wasm `package.json` line.
 
-Resolved when `wasm-bindings.md` drops the tree line and drops or realigns the Version Sync row to
-the `Cargo.toml` → wasm-pack → release.yml path.
+Resolved when every file named by a structure tree in `.claude/context/specs/*.md` exists, except
+entries marked as generated, or the trees are cut to wording that cannot go stale (the file-list
+bullet of the `[human]` derived-facts issue allows either). A check is preferred to a hand sweep.
 
-**Spec:** `.claude/context/specs/wasm-bindings.md` → "Crate Structure", "Version Sync"
+**Spec:** `.claude/context/specs/go-bindings.md` → "Package Structure"; `nodejs-bindings.md` →
+"Crate Structure"
 
 ## Evaluate the larger-step trial after iteration 224 `low` [human]
 

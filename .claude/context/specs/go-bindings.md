@@ -225,4 +225,4 @@ embeds no package-version string, so there is no sync target.
 - No binary artifacts committed to the repository
 - `check-added-large-files` threshold at 256KB
 - `go vet ./...` clean
-- Module version set by `packages/go/vX.Y.Z` Git tags (no in-repo package-version string)
+- Module version set by `packages/go/vX.Y.Z` Git tags

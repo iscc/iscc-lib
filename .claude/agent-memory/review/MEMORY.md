@@ -64,10 +64,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
 - **"files were modified by this hook" often means SOMETHING ELSE WAS WRITING** (97/164): a second
     CID loop (confirm `ps aux` → HUMAN REVIEW REQUESTED, do not push or kill), or my own Edits
     landing while a backgrounded prek run held its snapshot. Never edit while prek runs
-- **Uncommitted HUMAN edits can appear mid-review** (212: Titusz's interactive `claude` on pts/0, no
-    `--agent`, wrote decisions.md + issues.md). Not a 2nd loop: Edit targeted hunks only (never
-    Write from the inlined copy), then commit his hunks verbatim + say so — leaving them unstaged
-    puts them through prek's stash for the whole pre-push run while his session is live
+- **Spec-hygiene (phantom paths: check TREES vs `git ls-files`, 223), multi-surface docs fan-out
+    (211), issues.md at budget, uncommitted human edits mid-review (212)** → `review-patterns.md`
+    "Moved from the index (223)"
 
 ## Review Shortcuts (detail in the topic files named above)
 
@@ -95,28 +94,8 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     deps changed — see `gate-reviews.md` Audit)
 - **Bumps** (generated artifact, MSRV `cargo +1.85.0 check -p <c> --locked`, lockfile, wrapper,
     framework major) → `dep-refresh-reviews.md`
-- **`data-edge.json` / any `crates/iscc-lib/tests/*.rs` helper (215/216)**: CI CRAP lines (~4 min,
-    bg; test files score 0% coverage → cc > 5 = red CI) + feature matrix (zsh: no quoted multi-flag
-    `for` loop). **Binding harness fan-out (217, ~12 min)**: next.md's per-surface commands, each
-    grepped for the data-edge tests BY NAME (surefire XML,
-    `dotnet --logger console;verbosity=normal`, `rake test TESTOPTS=-v`); check raw-call-only
-    rejection AND that full-result surfaces fail on a missing expected key (Ruby used a key
-    intersection). **Swift/Kotlin (218, ~10 min)**: Swift recipe from `packages/swift/CLAUDE.md` +
-    `grep 'DataEdgeTests.*passed'`; Kotlin `cleanTest test` + `<testsuite>` attrs of the XML. Swift
-    `String ==` is canonical equivalence — a harness-strictness note, filed `low`
-- **.NET wrapper-only (220, ~5 min)**: `cargo build -p iscc-ffi`, `dotnet test` with
-    `--logger 'console;verbosity=normal'` (grep the class), `dotnet build --no-incremental` for a
-    0-warnings criterion → `binding-reviews.md`
-- **C FFI docs (221, ~5 min)**: extract every fenced `c` block, compile prototype blocks at file
-    scope after `#include "iscc.h"` (catches signature conflicts, not just names), paste example
-    blocks into `main()`. `cbindgen --crate iscc-ffi` auto-loads the crate's `cbindgen.toml` —
-    re-derive any "without X the output differs" claim by running it to `/tmp`
-- **Generated C/C++ table (219, ~1 min/probe)**: render a mutated fixture with the generator module
-    into `/tmp/x/`, copy the harness there (a quote-include resolves next to the source) and compile
-    with gcc/g++ against `target/debug` — a real-regression probe without touching the tree
-- **issues.md at its 300-line budget**: free room by cutting history sentences, line numbers and
-    counts from `[review]` entries; never reword `[human]` entries, never trim an `**Upstream:**`
-    entry's repro, and never claim behaviour for a site found only by grep
+- **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table recipes (215-221)**
+    → `binding-reviews.md` "Moved from the index (223)"
 - **Waiting on a background run**:
     `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15;   done'` in the foreground works
     (bare `sleep` is blocked); never edit while prek runs
@@ -135,9 +114,6 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
 - **Per-binding commands + standing traps** (seq 202 … UniFFI 210, npm 214, boundary slices 150–161,
     "not locally verifiable" claims — all FALSE so far) → `binding-reviews.md` "Per-surface step
     commands"
-- **Multi-surface docs fan-out (211, ~15 min)**: next.md greps skip `.claude/context/` (grep
-    learnings for the old count); compile C/C++ snippets with g++ against `target/debug` in seconds
-    → `review-patterns.md`
 - **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in
     `gate-reviews.md`); stage `decisions-archive.md` too (195)
 

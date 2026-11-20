@@ -482,3 +482,25 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     `node` assert on the FRESH `pkg/package.json` (on-disk `pkg/` goes stale) +
     `cargo deny check licenses`; release.yml's remote `init.sh` pinned wasm-pack 0.13.1 on
     2026-11-19
+
+## Moved from the index (223)
+
+- **`data-edge.json` / any `crates/iscc-lib/tests/*.rs` helper (215/216)**: CI CRAP lines (~4 min,
+    bg; test files score 0% coverage → cc > 5 = red CI) + feature matrix (zsh: no quoted multi-flag
+    `for` loop). **Binding harness fan-out (217, ~12 min)**: next.md's per-surface commands, each
+    grepped for the data-edge tests BY NAME (surefire XML,
+    `dotnet --logger console;verbosity=normal`, `rake test TESTOPTS=-v`); check raw-call-only
+    rejection AND that full-result surfaces fail on a missing expected key (Ruby used a key
+    intersection). **Swift/Kotlin (218, ~10 min)**: Swift recipe from `packages/swift/CLAUDE.md` +
+    `grep 'DataEdgeTests.*passed'`; Kotlin `cleanTest test` + `<testsuite>` attrs of the XML. Swift
+    `String ==` is canonical equivalence — a harness-strictness note, filed `low`
+- **.NET wrapper-only (220, ~5 min)**: `cargo build -p iscc-ffi`, `dotnet test` with
+    `--logger 'console;verbosity=normal'` (grep the class), `dotnet build --no-incremental` for a
+    0-warnings criterion → `binding-reviews.md`
+- **C FFI docs (221, ~5 min)**: extract every fenced `c` block, compile prototype blocks at file
+    scope after `#include "iscc.h"` (catches signature conflicts, not just names), paste example
+    blocks into `main()`. `cbindgen --crate iscc-ffi` auto-loads the crate's `cbindgen.toml` —
+    re-derive any "without X the output differs" claim by running it to `/tmp`
+- **Generated C/C++ table (219, ~1 min/probe)**: render a mutated fixture with the generator module
+    into `/tmp/x/`, copy the harness there (a quote-include resolves next to the source) and compile
+    with gcc/g++ against `target/debug` — a real-regression probe without touching the tree

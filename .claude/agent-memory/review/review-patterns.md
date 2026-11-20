@@ -568,3 +568,21 @@ Full text of entries compacted out of `MEMORY.md`.
     U+001C–U+001F: codec (198/200) + text utils (203) fixed in Rust AND Go. A one-way sweep proves
     only ⊇ — demand the reverse (live `Z*`/`Cc`/`Cf` − strip set, 0.6s); `binascii.Error` ⊂
     `ValueError`
+
+## Moved from the index (223)
+
+- **Spec-hygiene / phantom-path step (223, ~10 min)**: next.md's backticked-path loop misses
+    structure TREES — check each tree in the modified specs against `git ls-files <root>` (Go tree
+    was 11/19 fictional) and globs with `compgen -G`. A criterion edit that only names the real
+    mechanism another spec documents = approve + decisions.md; cut any clause that turns a
+    description into a prohibition
+- **issues.md at its 300-line budget**: free room by cutting history sentences, line numbers and
+    counts from `[review]` entries; never reword `[human]` entries, never trim an `**Upstream:**`
+    entry's repro, and never claim behaviour for a site found only by grep
+- **Uncommitted HUMAN edits can appear mid-review** (212: Titusz's interactive `claude` on pts/0, no
+    `--agent`, wrote decisions.md + issues.md). Not a 2nd loop: Edit targeted hunks only (never
+    Write from the inlined copy), then commit his hunks verbatim + say so — leaving them unstaged
+    puts them through prek's stash for the whole pre-push run while his session is live
+- **Multi-surface docs fan-out (211, ~15 min)**: next.md greps skip `.claude/context/` (grep
+    learnings for the old count); compile C/C++ snippets with g++ against `target/debug` in seconds
+    → `review-patterns.md`

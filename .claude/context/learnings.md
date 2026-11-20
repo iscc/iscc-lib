@@ -159,9 +159,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `mvn clean test` proves the new framework compiles. A **bench-harness** major:
     `cargo bench --no-run` only links — `cargo bench -p iscc-lib --bench benchmarks -- --test` runs
     each body once (171)
-- **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the prior
-    sha's in-flight run (`cancelled`, not `failure`); wait for green on the exact sha. Each develop
-    commit triggers TWO runs (push + the open develop→main PR)
 
 ## CID Process
 
@@ -198,3 +195,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
     "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)
+- **A path-existence check over specs must cover structure trees and `*` globs too** (223): the
+    backticked-path loop missed bare tree names (the Go Package Structure tree is 11/19 fictional).
+    Resolve tree lines against their root dir; expand globs with `compgen -G`

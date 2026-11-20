@@ -1060,3 +1060,9 @@ runs on `opus`. Deliberate — do not "unify" them.
 ## Archived from learnings.md (review 221)
 
 - `semver` (informational pre-1.0) + `coverage` (enforcing) CI jobs: `mise run semver`/`coverage`
+
+## Archived from learnings.md (review 223)
+
+- **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the prior
+    sha's in-flight run (`cancelled`, not `failure`); wait for green on the exact sha. Each develop
+    commit triggers TWO runs (push + the open develop→main PR)
