@@ -64,6 +64,9 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     `uv run prek run mdformat --files <f>`
 - **No-op / human-handoff iteration** (111/173): verdict PASS; `low`-only + human spec work or an
     upstream-gated `normal` → HUMAN REVIEW REQUESTED, never `**IDLE**` → `review-patterns.md`
+- **Push message "GitHub found N vulnerabilities on the default branch" is about `main`** (234: 6
+    alerts, all already fixed in `develop`'s lockfiles) — compare `gh api …/dependabot/alerts`
+    patched versions with `develop` before filing; they close at the `develop` → `main` merge
 - **Unicode freeze rule REMOVED 2026-07-30** — reintroducing any freeze mechanism = NEEDS_WORK
 - **`git push` failing "index.lock: File exists" while prek stashes is a WSL2 race, NOT a hook
     rejection** (207): no check ran — confirm no 2nd loop in `ps aux`, then retry once
