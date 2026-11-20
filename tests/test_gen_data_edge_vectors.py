@@ -3,8 +3,9 @@
 The anchor test asserts that regenerating the tracked header from the canonical
 ``data-edge.json`` is a byte-exact no-op; this carries the staleness gate into CI,
 which runs pytest but never the generator. A mutation test proves the gate fires.
-Fail-closed guards (unknown section, bad input arity, bad ``except`` key) run on
-fixture copies in ``tmp_path``; the tracked fixture is never mutated. Counts are
+Fail-closed guards (unknown section, bad input arity, bad ``except`` key, a gen
+output key outside the ``data.json`` set) run on fixture copies in ``tmp_path``; the
+tracked fixture is never mutated. Counts are
 derived from the fixture, never written as literals. No network, no mocks.
 """
 
@@ -225,3 +226,43 @@ def test_empty_section_fails_closed(tmp_path):
     mutated = write_mutated_fixture(tmp_path, mutate)
     with pytest.raises(SystemExit, match="gen_iscc_code_v0"):
         gen.render(mutated)
+
+
+def test_unknown_gen_output_key_fails_closed(tmp_path):
+    """A gen_text_code_v0 output key that data.json does not carry refuses to render."""
+
+    def mutate(fixture):
+        _, vector = find_vector(fixture, "gen_text_code_v0", [NUL_TEXT, 64])
+        vector["outputs"]["foo"] = 1
+
+    mutated = write_mutated_fixture(tmp_path, mutate)
+    with pytest.raises(SystemExit, match="foo"):
+        gen.render(mutated)
+
+
+def test_gen_iscc_and_characters_only_still_renders(tmp_path):
+    """A gen_text_code_v0 vector holding exactly iscc and characters renders."""
+
+    def mutate(fixture):
+        _, vector = find_vector(fixture, "gen_text_code_v0", [NUL_TEXT, 64])
+        vector["outputs"] = {"iscc": vector["outputs"]["iscc"], "characters": 10}
+
+    mutated = write_mutated_fixture(tmp_path, mutate)
+    assert gen.render(mutated) == gen.render(FIXTURE)
+
+
+def test_gen_output_keys_derive_from_data_json():
+    """The allowed gen output keys are read from data.json, each holding iscc."""
+    data = json.loads(gen.DATA_JSON_PATH.read_text(encoding="utf-8"))
+    sections = {s for s in data if s.startswith("gen_")}
+    assert set(gen.gen_output_keys()) == sections
+    assert all("iscc" in keys for keys in gen.gen_output_keys().values())
+    assert "characters" in gen.allowed_output_keys("gen_text_code_v0")
+
+
+def test_gen_section_without_data_json_counterpart_fails_closed():
+    """A gen section absent from data.json refuses to render, even on an error vector."""
+    with pytest.raises(SystemExit, match="gen_foo_v0"):
+        gen.gen_iscc(
+            {"inputs": [], "error": "e"}, "gen_foo_v0/test_0001_x", "gen_foo_v0"
+        )

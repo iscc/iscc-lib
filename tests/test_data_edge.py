@@ -16,9 +16,9 @@ import pytest
 
 import iscc_lib
 
-DATA_EDGE_JSON = (
-    Path(__file__).parent.parent / "crates" / "iscc-lib" / "tests" / "data-edge.json"
-)
+TESTS_DIR = Path(__file__).parent.parent / "crates" / "iscc-lib" / "tests"
+DATA_EDGE_JSON = TESTS_DIR / "data-edge.json"
+DATA_JSON = TESTS_DIR / "data.json"
 
 SURFACE = "python"
 SURFACE_IDS = {
@@ -69,6 +69,23 @@ SEED_SET = [
 def load_doc():
     """Load and parse data-edge.json."""
     return json.loads(DATA_EDGE_JSON.read_text(encoding="utf-8"))
+
+
+def load_gen_output_keys():
+    """Return each `data.json` gen function's output keys (the union over its vectors)."""
+    data = json.loads(DATA_JSON.read_text(encoding="utf-8"))
+    return {
+        section: frozenset(
+            key for vector in vectors.values() for key in vector["outputs"]
+        )
+        for section, vectors in data.items()
+        if section.startswith("gen_")
+    }
+
+
+# Output subset rule (edge-vectors.md): a gen section's `outputs` may hold only the
+# keys its function's `data.json` vectors carry, and must hold `iscc`.
+GEN_OUTPUT_KEYS = load_gen_output_keys()
 
 
 def convert_iscc_decode(result):
@@ -123,7 +140,7 @@ CONVERTERS = {
 }
 
 
-def validate_vector(name, vector):
+def validate_vector(section, name, vector):
     """Return the schema problems of one vector; an empty list means it is well-formed."""
     if not isinstance(vector, dict):
         return ["vector is not an object"]
@@ -151,6 +168,29 @@ def validate_vector(name, vector):
     ):
         problems.append("diverges must name a decisions.md entry")
     problems.extend(validate_except(vector.get("except", {})))
+    if section.startswith("gen_"):
+        problems.extend(validate_gen_outputs(section, vector))
+    return problems
+
+
+def validate_gen_outputs(section, vector):
+    """Return the output-subset problems of one `gen_*` vector.
+
+    The section needs a `data.json` counterpart (checked even on error vectors), and
+    `outputs` must be an object holding `iscc` and only keys that counterpart carries.
+    """
+    allowed = GEN_OUTPUT_KEYS.get(section)
+    if allowed is None:
+        return [f"gen section {section!r} has no data.json counterpart"]
+    if "outputs" not in vector:
+        return []
+    outputs = vector["outputs"]
+    if not isinstance(outputs, dict):
+        return ["gen outputs is not an object"]
+    problems = [] if "iscc" in outputs else ["gen outputs lacks iscc"]
+    unknown = sorted(str(key) for key in set(outputs) - allowed)
+    if unknown:
+        problems.append(f"gen output keys {unknown} not carried by data.json")
     return problems
 
 
@@ -238,7 +278,7 @@ def test_file_is_not_vacuous():
 @pytest.mark.parametrize(("section", "name", "vector"), VECTORS)
 def test_vector_schema(section, name, vector):
     """Every vector is well-formed."""
-    assert validate_vector(name, vector) == []
+    assert validate_vector(section, name, vector) == []
 
 
 @pytest.mark.parametrize(("section", "name", "vector"), VECTORS)
@@ -283,7 +323,7 @@ GOOD = {"inputs": ["ISCC:GAAAAAAAAA"], "outputs": "x", "note": "n"}
 
 def test_validate_vector_accepts_good_vector():
     """A minimal well-formed vector has no problems."""
-    assert validate_vector("test_0001_good", GOOD) == []
+    assert validate_vector("iscc_decode", "test_0001_good", GOOD) == []
 
 
 @pytest.mark.parametrize(
@@ -336,8 +376,73 @@ def test_validate_vector_accepts_good_vector():
 )
 def test_validate_vector_rejects_malformed(name, vector, problem):
     """Each malformed vector shape is reported."""
-    problems = validate_vector(name, vector)
+    problems = validate_vector("iscc_decode", name, vector)
     assert any(problem in p for p in problems), problems
+
+
+def nul_text_vector():
+    """Return a copy of the real `gen_text_code_v0/test_0001_embedded_nul` vector."""
+    return json.loads(
+        json.dumps(load_doc()["gen_text_code_v0"]["test_0001_embedded_nul"])
+    )
+
+
+def test_gen_output_keys_hold_iscc_for_every_gen_section():
+    """Every data.json gen function carries `iscc`, so the derived table is not vacuous."""
+    assert GEN_OUTPUT_KEYS
+    assert all("iscc" in keys for keys in GEN_OUTPUT_KEYS.values())
+
+
+def test_validate_gen_outputs_accepts_characters_for_text_code():
+    """`characters` is an allowed gen_text_code_v0 output key."""
+    vector = nul_text_vector()
+    assert set(vector["outputs"]) == {"iscc", "characters"}
+    assert validate_vector("gen_text_code_v0", "test_0001_embedded_nul", vector) == []
+
+
+def test_validate_gen_outputs_accepts_error_vector():
+    """A gen error vector carries no outputs, so the subset rule has nothing to check."""
+    vector = {"inputs": [[], 64], "error": "e", "note": "n"}
+    assert validate_vector("gen_mixed_code_v0", "test_0001_x", vector) == []
+
+
+def test_validate_gen_outputs_rejects_unknown_key():
+    """An output key the function's data.json vectors do not carry is the only problem."""
+    vector = nul_text_vector()
+    vector["outputs"]["foo"] = 1
+    problems = validate_vector("gen_text_code_v0", "test_0001_embedded_nul", vector)
+    assert len(problems) == 1 and "foo" in problems[0], problems
+
+
+def test_validate_gen_outputs_rejects_key_of_other_function():
+    """A key allowed for one gen function is unknown for another (`parts` on text)."""
+    vector = nul_text_vector()
+    vector["outputs"]["parts"] = []
+    problems = validate_vector("gen_text_code_v0", "test_0001_embedded_nul", vector)
+    assert len(problems) == 1 and "parts" in problems[0], problems
+
+
+def test_validate_gen_outputs_rejects_missing_iscc():
+    """Gen outputs without `iscc` are reported, and nothing else is."""
+    vector = nul_text_vector()
+    del vector["outputs"]["iscc"]
+    problems = validate_vector("gen_text_code_v0", "test_0001_embedded_nul", vector)
+    assert problems == ["gen outputs lacks iscc"], problems
+
+
+def test_validate_gen_outputs_rejects_non_object():
+    """Gen outputs that are not an object give exactly one problem."""
+    vector = nul_text_vector()
+    vector["outputs"] = vector["outputs"]["iscc"]
+    problems = validate_vector("gen_text_code_v0", "test_0001_embedded_nul", vector)
+    assert problems == ["gen outputs is not an object"], problems
+
+
+def test_validate_gen_outputs_rejects_section_without_counterpart():
+    """A gen section absent from data.json fails closed, even on an error vector."""
+    vector = {"inputs": [[], 64], "error": "e", "note": "n"}
+    problems = validate_vector("gen_foo_v0", "test_0001_x", vector)
+    assert problems == ["gen section 'gen_foo_v0' has no data.json counterpart"]
 
 
 @pytest.mark.parametrize(

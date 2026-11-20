@@ -74,8 +74,17 @@ Surface ids: `rust`, `python`, `nodejs`, `wasm`, `c`, `cpp`, `java`, `go`, `ruby
 
 - **Every surface runs every vector.** The Rust core and all 11 bindings run the whole file from
     their conformance harness. A harness fails on a function section it does not handle. It never
-    skips or special-cases a vector in code: `except` in the file is the only way to deviate, so
-    every deviation is visible in one place
+    skips or special-cases a vector in code: `except` in the file is the only per-vector deviation,
+    so every deviation is visible in one place. A harness compares every expected output key, except
+    the keys its result type lacks under "Output subset" below
+- **Output subset.** In a `gen_*` section, `outputs` is an object that holds `iscc` and may hold
+    only keys that the same function's vectors in `data.json` carry. The allowed keys are read from
+    `data.json`, never kept as a hand-written list; a vector with any other key fails on every
+    surface, and so does a `gen_*` section without a `data.json` counterpart. `iscc` is always
+    compared. A surface whose result type for that function lacks some of the allowed keys leaves
+    exactly those keys uncompared. That set is fixed once per harness from the result type and is
+    never computed from the returned value: a key the result type has is always compared, so a
+    returned result that lacks it fails the vector
 - **A vector costs one edit.** Adding a vector to a section the harnesses already handle needs no
     change to any harness. C and C++ test programs may read a generated table instead of parsing
     JSON, provided a check fails when the table is stale. A generator of this kind existed for the
@@ -123,6 +132,10 @@ The first version of the file holds at least the cases already found:
 - The Rust core and all 11 bindings run every vector, honour `except`, and fail on a function
     section their harness does not handle
 - No harness skips or special-cases a vector in code
+- The validator in `tests/test_data_edge.py` and `scripts/gen_data_edge_vectors.py` read each
+    `gen_*` function's allowed output keys from `data.json` and reject a vector whose `outputs` is
+    not an object, lacks `iscc`, or holds a key outside that set; every harness fixes its uncompared
+    output keys statically from its result type and never intersects with the returned keys
 - The Python suite checks every vector against iscc-core 1.5.0 as described under "Rules", and
     `tests/test_seq.py` keeps no separate hand-written divergence list
 - The file is absent from every packaged artifact, and no library code embeds or loads it

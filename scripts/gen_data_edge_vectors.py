@@ -18,8 +18,11 @@ greedy and unbounded (``\\xF0`` swallows any hex digit that follows), while octa
 escapes stop after 3 digits, so the header stays pure ASCII and parses unambiguously.
 
 The generator fails closed (``SystemExit``) on a section it has no renderer for, an
-empty or missing section, an unexpected input arity or type, and an ``except`` key
-outside the surface ids. The drift gate ``tests/test_gen_data_edge_vectors.py`` asserts
+empty or missing section, an unexpected input arity or type, an ``except`` key
+outside the surface ids, a ``gen_*`` section without a ``data.json`` counterpart, and a
+``gen_*`` output key that the function's ``data.json`` vectors do not carry (the output
+subset rule of ``edge-vectors.md``). C and C++ gen results hold only ``iscc``, so every
+other allowed output key is uncompared there and never rendered. The drift gate ``tests/test_gen_data_edge_vectors.py`` asserts
 the tracked header matches a fresh render byte for byte.
 
 Usage:
@@ -28,12 +31,15 @@ Usage:
 
 from __future__ import annotations
 
+import functools
 import json
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE_PATH = REPO_ROOT / "crates/iscc-lib/tests/data-edge.json"
 OUTPUT_PATH = REPO_ROOT / "crates/iscc-ffi/tests/data_edge_vectors.h"
+# The iscc-core reference vectors: the source of each gen function's allowed output keys.
+DATA_JSON_PATH = REPO_ROOT / "crates/iscc-lib/tests/data.json"
 
 # Surfaces this header resolves expectations for, in row order.
 SURFACES = ("c", "cpp")
@@ -257,13 +263,42 @@ def expectations(vector: dict, where: str) -> str:
     return ", ".join(EXPECT_MACROS[exceptions.get(s, base)] for s in SURFACES)
 
 
-def gen_iscc(vector: dict, where: str) -> str:
-    """Return the expected `iscc` string initialiser of a gen vector (zeroed on error)."""
+@functools.cache
+def gen_output_keys() -> dict[str, frozenset[str]]:
+    """Return each `data.json` gen function's output keys (the union over its vectors)."""
+    data = json.loads(DATA_JSON_PATH.read_text(encoding="utf-8"))
+    return {
+        section: frozenset(
+            key for vector in vectors.values() for key in vector["outputs"]
+        )
+        for section, vectors in data.items()
+        if section.startswith("gen_")
+    }
+
+
+def allowed_output_keys(section: str) -> frozenset[str]:
+    """Return the output keys a gen section may hold, failing closed without a counterpart."""
+    allowed = gen_output_keys().get(section)
+    if allowed is None:
+        raise SystemExit(f"{section}: gen section has no data.json counterpart")
+    return allowed
+
+
+def gen_iscc(vector: dict, where: str, section: str) -> str:
+    """Return the expected `iscc` string initialiser of a gen vector (zeroed on error).
+
+    The outputs may hold only keys the function's `data.json` vectors carry; C and C++
+    results expose only `iscc`, so every other allowed key is left uncompared.
+    """
+    allowed = allowed_output_keys(section)
     if "error" in vector:
         return NULL_STR
     outputs = vector["outputs"]
     if not isinstance(outputs, dict) or "iscc" not in outputs:
         raise SystemExit(f"{where}: gen outputs must be an object with an iscc key")
+    unknown = sorted(str(key) for key in set(outputs) - allowed)
+    if unknown:
+        raise SystemExit(f"{where}: output keys {unknown} not carried by data.json")
     return c_str(require_str(outputs["iscc"], where).encode("utf-8"))
 
 
@@ -314,7 +349,8 @@ def row_gen_text_code_v0(vector: dict, where: str, ident: str) -> tuple[list[str
     """Return the list-array lines and fields of one `gen_text_code_v0` row."""
     text, bits = require_arity(vector["inputs"], (2,), where)
     text_init = c_str(require_str(text, where).encode("utf-8"))
-    return [], f"{text_init}, {require_int(bits, where)}, {gen_iscc(vector, where)}"
+    iscc = gen_iscc(vector, where, "gen_text_code_v0")
+    return [], f"{text_init}, {require_int(bits, where)}, {iscc}"
 
 
 def row_gen_mixed_code_v0(
@@ -323,7 +359,8 @@ def row_gen_mixed_code_v0(
     """Return the list-array lines and fields of one `gen_mixed_code_v0` row."""
     codes, bits = require_arity(vector["inputs"], (2,), where)
     lines, codes_init = list_arrays(ident, require_str_list(codes, where))
-    return lines, f"{codes_init}, {require_int(bits, where)}, {gen_iscc(vector, where)}"
+    iscc = gen_iscc(vector, where, "gen_mixed_code_v0")
+    return lines, f"{codes_init}, {require_int(bits, where)}, {iscc}"
 
 
 def row_gen_iscc_code_v0(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
@@ -333,7 +370,8 @@ def row_gen_iscc_code_v0(vector: dict, where: str, ident: str) -> tuple[list[str
     wide = inputs[1] if len(inputs) == 2 else False
     if not isinstance(wide, bool):
         raise SystemExit(f"{where}: wide must be a boolean, got {wide!r}")
-    return lines, f"{codes_init}, {int(wide)}, {gen_iscc(vector, where)}"
+    iscc = gen_iscc(vector, where, "gen_iscc_code_v0")
+    return lines, f"{codes_init}, {int(wide)}, {iscc}"
 
 
 def row_alg_simhash(vector: dict, where: str, ident: str) -> tuple[list[str], str]:

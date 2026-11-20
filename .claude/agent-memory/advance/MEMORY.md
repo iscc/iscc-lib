@@ -33,6 +33,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `byte_list_arrays` (binary items, explicit lens). fixture =
     `json.dumps(indent=2,   ensure_ascii=False)`. Mutation-check by sed'ing an expected output in
     the copy a harness reads
+- Output subset (236): gen `outputs` keys ⊆ `data.json` per-function keys, `iscc` required;
+    validator `validate_vector(section, name, vector)` + generator `allowed_output_keys` derive it
+    from data.json (gen = `gen_` prefix). Harnesses fix uncompared keys statically per result type
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
 - Swift scalars (232): corelibs AND Darwin `NSNumber` casts are loose (`false as? Int`=0,
