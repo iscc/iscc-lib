@@ -33,9 +33,10 @@ documented unprefixed cbindgen alias) and a representative example compiles agai
 ## iscc-core mints 88-bit ISCC-IDv0 codes it cannot decode `low` [review]
 
 `iscc_core.encode_length` accepts an 88-bit `ID` body, but the `LN` enum (`constants.py`) has no 88:
-on `iscc_core` 1.3.0, `iscc_decode` of `gen_iscc_id_v0(code, 1, wallet, uc=20000)` (`ISCC:ME…`)
-raises `ValueError: 88 is not a valid LN`. iscc-lib decodes it. **No local change**: ISCC-IDv0 is
-out of scope, and matching would replicate a defect, so a conformance sweep must not "fix" it.
+on `iscc_core` 1.3.0 `gen_iscc_id_v0(code, 1, wallet, uc=20000)` → `ISCC:MEBUAGCA47NDLBDXUCOAC`, and
+`iscc_decode` on it raises `ValueError: 88 is not a valid LN`. iscc-lib decodes it. **No local
+change**: ISCC-IDv0 is out of scope, and matching would replicate a defect, so a conformance sweep
+must not "fix" it.
 
 Resolved when filed upstream and the outcome noted.
 
@@ -293,7 +294,7 @@ Resolved when Titusz picks a reading and the spec says how a source-distributed 
 
 ## C++ list wrappers pass NULL for an empty vector `low` [review]
 
-**Triage:** untriaged. An empty vector still throws `iscc::IsccError`, only with the FFI's NULL
-message. `gen_mixed_code_v0`, `gen_iscc_code_v0`, `gen_video_code_v0`, `alg_simhash` and
-`soft_hash_video_v0` (`packages/cpp/include/iscc/iscc.hpp`) pass `ptrs.data()`, NULL when empty,
-where `encode_seq` uses `detail::safe_data`. Resolved when they pass a non-NULL pointer too.
+**Triage:** untriaged. `gen_mixed_code_v0`/`gen_iscc_code_v0` still throw `iscc::IsccError` on `{}`,
+with the FFI's NULL message (iter 219); `gen_video_code_v0`, `alg_simhash`, `soft_hash_video_v0` are
+unprobed. All five in `iscc.hpp` pass `ptrs.data()`, NULL when empty, where `encode_seq` uses
+`detail::safe_data`. Resolved when they pass a non-NULL pointer and a test on `{}` pins each.

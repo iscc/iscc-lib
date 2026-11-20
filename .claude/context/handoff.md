@@ -32,8 +32,9 @@ check passes. The review commit carries three small test-robustness fixes from t
 
 **Issues found:**
 
-- Filed `low` (Triage: untriaged): "C++ list wrappers pass NULL for an empty vector". The same
-    pattern sits at five `iscc.hpp` sites (next.md named two); the input is still rejected
+- Filed `low` (Triage: untriaged): "C++ list wrappers pass NULL for an empty vector". Five
+    `iscc.hpp` sites have the pattern (next.md named two); the two gen ones still reject `{}`, the
+    other three (`gen_video_code_v0`, `alg_simhash`, `soft_hash_video_v0`) are unprobed
 - Nit, not filed: the C `RUN_EDGE_SECTION` name buffer is 160 bytes, so a very long vector name is
     truncated in the PASS/FAIL line only (counting is unaffected)
 - Nit, not filed: the generator keeps its own `SURFACE_IDS` copy next to `tests/test_data_edge.py`.
