@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && gem install bundler
 
 # Install Go (for Go bindings — version matches packages/go/go.mod)
-ARG GO_VERSION=1.26.1
+ARG GO_VERSION=1.26.11
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
     | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:$PATH"

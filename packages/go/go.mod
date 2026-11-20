@@ -2,9 +2,11 @@ module github.com/iscc/iscc-lib/packages/go
 
 go 1.26.1
 
+toolchain go1.26.11
+
 require (
 	github.com/zeebo/blake3 v0.2.4
-	golang.org/x/text v0.40.0
+	golang.org/x/text v0.41.0
 )
 
 require (

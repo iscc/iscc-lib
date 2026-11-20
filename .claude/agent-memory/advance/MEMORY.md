@@ -63,7 +63,11 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - Enforcing gates: `coverage` (CRAP baseline `.crap-baseline.json`), `audit` (cargo-deny), `perf`
     (iai vs `.iai-baseline.json`); `semver` informational until v1.0.0. CRAP gate is CI-ONLY —
     refresh `mise run crap:baseline` in the SAME step as any branch-adding change → ci-gates.md
-- Audit: advisory w/ patched release → `cargo update -p <crate>`, never `deny.toml` `ignore`
+- Audit: advisory w/ patched release → `cargo update -p <crate>`, never `deny.toml` `ignore`.
+    cargo-deny not installed: prebuilt 0.19.9 musl tarball from GitHub releases → /tmp (235)
+- Go toolchain (235): `go.mod` has `go 1.26.1` (consumer floor, human-only) + `toolchain go1.26.11`
+    (setup-go `go-version-file` uses it); devcontainer `GO_VERSION` mirrors the toolchain line.
+    `govulncheck@latest` via `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
 - Dependency refresh (iters 124-172; ALL authorized majors done through uniffi 0.32): manifests +
     GHA action majors probed current 2026-07-28; ruff 0.16; prek ruff hooks carry `pyi` in
     `types_or`; NEVER blanket `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`.

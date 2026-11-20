@@ -426,20 +426,23 @@ so releases never ship stale or vulnerable pins.
 
 **Manifest surface:**
 
-| Ecosystem | Manifests                                                                                                                                           |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rust      | root `Cargo.toml` (`workspace.dependencies`) + `Cargo.lock`                                                                                         |
-| Python    | `pyproject.toml` + `uv.lock` (dev environment; runtime ships as abi3 wheel)                                                                         |
-| npm       | `crates/iscc-napi/package.json`                                                                                                                     |
-| Ruby      | `crates/iscc-rb/Gemfile` + `iscc-lib.gemspec` (+ `Gemfile.lock`)                                                                                    |
-| Java      | `crates/iscc-jni/java/pom.xml`                                                                                                                      |
-| Kotlin    | `packages/kotlin/build.gradle.kts`                                                                                                                  |
-| .NET      | `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` + test project                                                                                           |
-| Go        | `packages/go/go.mod`                                                                                                                                |
-| Tooling   | `mise.toml` tool pins, `.pre-commit-config.yaml` hook pins, GitHub Actions versions and pinned CI tools (e.g. `cargo-crap`) in `.github/workflows/` |
+| Ecosystem | Manifests                                                                                                                                                         |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rust      | root `Cargo.toml` (`workspace.dependencies`) + `Cargo.lock`                                                                                                       |
+| Python    | `pyproject.toml` + `uv.lock` (dev environment; runtime ships as abi3 wheel)                                                                                       |
+| npm       | `crates/iscc-napi/package.json`                                                                                                                                   |
+| Ruby      | `crates/iscc-rb/Gemfile` + `iscc-lib.gemspec` (+ `Gemfile.lock`)                                                                                                  |
+| Java      | `crates/iscc-jni/java/pom.xml`                                                                                                                                    |
+| Kotlin    | `packages/kotlin/build.gradle.kts`                                                                                                                                |
+| .NET      | `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` + test project                                                                                                         |
+| Go        | `packages/go/go.mod`                                                                                                                                              |
+| Tooling   | `.pre-commit-config.yaml` hook pins, GitHub Actions versions and pinned CI tools (e.g. `cargo-crap`) in `.github/workflows/`                                      |
+| Runtimes  | setup-action `*-version` inputs in `.github/workflows/`, the `toolchain` line in `packages/go/go.mod`, the `.devcontainer/Dockerfile` base image and `GO_VERSION` |
 
 **Policy:** patch/minor bumps by default; each major bump is evaluated individually (changelog and
 API impact). A dependency deliberately held back gets a documented reason next to its pin.
+Supported-version floors (the Go `go` directive, abi3-py310, Java, .NET, Ruby, MSRV) are
+compatibility promises that only the human raises.
 
 **Known pinning constraints:**
 
