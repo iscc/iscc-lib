@@ -1,96 +1,105 @@
 # Next Work Package
 
-## Step: Static uncompared-key sets in the .NET, Java, napi and WASM data-edge harnesses
+## Step: Fix the Java how-to `genSumCodeV0` example and state the precompiled Ruby gem range
 
 ## Goal
 
-Close the `normal` `[human]` issue "Four `data-edge.json` harnesses ignore expected output keys
-their result lacks": each of the four harnesses compares every expected output key except a static
-per-function set taken from its result type, in place of the runtime key intersection.
+Closes two `normal` v0.8.0 blockers in one docs step: "Java how-to `genSumCodeV0` example does not
+compile" and "Precompiled Ruby gems stop at Ruby 3.3". For Ruby this takes the **wording branch**:
+the docs say which Ruby series get a precompiled gem. It does not widen the `release.yml` matrix, so
+Ruby 3.4 / 4.0 users still build from source; the review should state this in the handoff for
+Titusz.
 
 ## Alternatives Considered
 
-- **Chosen:** the four-harness fan-out. The behaviour is settled (`edge-vectors.md` → "Output
-    subset", decisions.md 2026-11-20 "data-edge output subset"), the file side already enforces it
-    (iteration 236), and it fully resolves a release-blocking issue
-- **Rejected:** the docs step (Java how-to `genSumCodeV0` example + Ruby precompiled-gem wording).
-    Cheap and also release-blocking, but it finishes no in-flight feature; it comes next
+- **Chosen:** Java example + Ruby gem range wording. Both are user-facing defects in published docs,
+    small, and locally verifiable. The handoff points here.
+- **Rejected:** the drift issue's gate holes (fail-closed `lib.rs` parser, register the 4
+    sub-threshold docs). The work is larger, it is tooling, and it blocks nothing a reader sees. It
+    is next.
+- **Rejected:** widening the cross-gem `ruby-versions` list. The change would need the rb_sys pin
+    and the Docker image tag to move together, and `release.yml` never runs in CI, so the only
+    evidence would be static.
 
 ## Scope
 
-**Fan-out:** "compare every expected key except a static per-function uncompared set; a missing key
-fails", applied to 4 surfaces: .NET, Java, napi, WASM. One commit per surface. Test-only changes.
-
-- **Modify** (tests only):
-    - `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs` (`Compare`)
-    - `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java` (`compare`)
-    - `crates/iscc-napi/__tests__/data_edge.test.mjs` (`compare`)
-    - `crates/iscc-wasm/tests/data_edge.rs` (`compare`)
-- **Reference**: `.claude/context/specs/edge-vectors.md` ("Rules" → "Output subset", Verified When),
-    `crates/iscc-lib/tests/data.json`, each surface's gen signatures
-    (`packages/dotnet/Iscc.Lib/Results.cs`,
-    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`,
-    `crates/iscc-napi/index.d.ts`, `crates/iscc-wasm/src/lib.rs`), and the already-strict Ruby
-    harness `crates/iscc-rb/test/test_data_edge.rb` for the pattern
+- **Create**: `tests/test_ruby_gem_docs.py` (a parity test, outside the file budget)
+- **Modify**: `docs/howto/java.md`, `docs/howto/ruby.md`, `crates/iscc-rb/README.md`
+- **Reference**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (line 161),
+    `.../SumCodeResult.java` (`public final` fields `iscc`, `datahash`, `filesize`, `units`),
+    `docs/java-api.md` (around line 337, the correct form), `.github/workflows/release.yml` (the
+    cross-gem step, `ruby-versions: 3.1, 3.2, 3.3`, around line 850), `tests/test_check_docs_nav.py`
+    (style for a repo-reading pytest)
 
 ## Not In Scope
 
-- Binding source, `data-edge.json` (no new vector, no edited `except`), the Python validator, the
-    C/C++ generator and the vendored copies
-- Go's `edgeCompare` reading a missing key as `nil`: another surface, harmless while no `data.json`
-    output is `null`; leave it
-- Making the bindings return structured results (`characters`, `parts`): an API change, not a test
-- The other `normal` issues (Java how-to, Ruby gems, derived-fact drift)
+- Any edit to `release.yml`, `Gemfile.lock`, the rb_sys pin or the gemspec `required_ruby_version`.
+    That is the matrix branch of the Ruby issue
+- `crates/iscc-rb/CLAUDE.md`'s "5 platforms" count, and other hand-written counts. They belong to
+    part 3 of the drift issue
+- Other Java how-to sections, `docs/java-api.md`, Kotlin and Swift how-tos. A grep found the
+    accessor-call error only at `docs/howto/java.md` lines 205–207
+- Deleting either issue from issues.md. The review does that
 
 ## Implementation Notes
 
-- Measured: on all four surfaces `gen_text_code_v0`, `gen_mixed_code_v0` and `gen_iscc_code_v0`
-    return a bare ISCC string (.NET wraps it in a one-field record holding `Iscc`). So the static
-    uncompared sets are: `gen_text_code_v0` → `characters`, `gen_mixed_code_v0` → `parts`,
-    `gen_iscc_code_v0` → none. Re-check each surface's signature before writing its set; do not copy
-    the set across surfaces blindly.
-- Write the set once per harness as a constant map keyed by section name (absent section = empty
-    set) and pass the section name into `compare`. For an object: for every expected key not in that
-    section's set, the actual must have the key and an equal value; a missing key fails with a
-    message naming it. Drop the "no expected field" branch. Never read the returned keys to decide
-    what to compare. Non-object outputs keep whole-value equality.
-- Replace the "only the expected keys the result exposes are compared" doc comment at each site
-    (these four are the only ones in the tree) with wording that states the static rule.
-- Negative tests per surface, one fault per call (learnings: "One bad case per call"):
-    1. **Key outside the set:** a doc run with one `gen_text_code_v0` vector, inputs
-        `["Hello World", 64]`, outputs `{"iscc": "ISCC:EAASKDNZNYGUUF5A", "parts": []}` → exactly one
-        failure naming `parts`. The `iscc` is correct (from `data.json`), so `parts` is the only
-        fault, and `parts` is uncompared for mixed, so a single global set would not pass this. On
-        .NET this vector carries no `except`, so it reaches the compare.
-    2. **Result lost `iscc`:** call `compare` directly (the bindings cannot return a result without
-        it) with section `gen_text_code_v0`, expected `{iscc, characters}` and actual
-        `{"characters": 10}` → a failure naming `iscc`. Do not use `{}` as the actual: the old
-        intersect code already rejected that, so it proves nothing.
-- **.NET positive:** the only object-valued vector in the real file carries `except.dotnet`, so .NET
-    never runs an object compare on real data. Add a synthetic positive: a doc run with the
-    `data.json` `Hello World` vector (`{"iscc": "ISCC:EAASKDNZNYGUUF5A", "characters": 10}`) passes
-    with zero failures. Adding the same positive on the other three surfaces is fine.
-- Keep `.NET` failures returned as strings like the existing tests; xunit `[Fact]`, JUnit `@Test`,
-    `node:test` `test(...)`, `#[wasm_bindgen_test]`, matching each file's existing style.
-- Build prerequisites: .NET needs `cargo build -p iscc-ffi` first; napi needs a rebuild
-    (`npm run build` in `crates/iscc-napi`) before `npm test` (stale `.node` artifacts); WASM tests
-    run only under `wasm-pack test --node`, never `cargo test`.
-- Gates: test-only binding work, so the CRAP, iai and semver gates are unaffected.
+**Java** (`docs/howto/java.md`, the "single pass" block, around line 204): call
+`IsccLib.genSumCodeV0("example.bin", 64, false, false)`, which takes 4 arguments: path, bits, wide,
+addUnits. Read the fields directly: `result.iscc`, `result.datahash`, `result.filesize`. You may add
+a second call with `addUnits = true` that prints `result.units`, as `docs/java-api.md` does, but it
+is optional.
+
+To prove the example compiles:
+
+1. Run `mvn -f crates/iscc-jni/java/pom.xml compile`.
+2. Wrap the block verbatim in a `main` method of a class in a scratch dir under `/tmp`, with
+    `import io.iscc.iscc_lib.*;` and `throws Exception`.
+3. Compile it with `javac -cp crates/iscc-jni/java/target/classes`.
+
+Running it is optional, because it needs the native library.
+
+**Ruby wording.** State only measured facts:
+
+- precompiled platform gems are built for the Ruby series in the cross-gem list (3.1 to 3.3)
+- on a newer Ruby, or on a platform with no precompiled gem, `gem install iscc-lib` compiles the
+    extension from source, which needs a Rust toolchain and `libclang-dev`
+
+Do **not** write that the gem "works on" or "supports" Ruby 3.4 / 4.0: nothing has measured the
+source build there. Use the literal form `Ruby 3.1 to 3.3` in both files, so the test can match it.
+Put it in `docs/howto/ruby.md`: in the intro sentence at line 9 and/or the "Build from source" note
+at line 30. Put it in `crates/iscc-rb/README.md` at lines 31–32.
+
+**Parity test** (`tests/test_ruby_gem_docs.py`; functions only, no test classes). It turns the range
+into a checked derived fact:
+
+- Load `release.yml` with `yaml.safe_load` (pyyaml is a dev dep). Find the step whose `uses` starts
+    with `oxidize-rb/actions/cross-gem` and read `with["ruby-versions"]`. It may be a string or a
+    float, so normalise it with `str()`, then split on commas. Fail if fewer than 1 series parses,
+    or if no such step is found.
+- Derive `Ruby {min} to {max}` from the series, sorted as version tuples. Check
+    whitespace-normalised text (mdformat reflows at 100 columns, so collapse `\s+` to one space) and
+    assert both docs contain the phrase.
+- Keep the derivation and matching in small helpers. Add a fire case: a doc text that names a
+    different range (e.g. `Ruby 3.1 to 3.4`) must fail the matching helper, and a helper call on a
+    workflow dict with no cross-gem step must raise.
+
+This is a docs + tests step: no binding or core source changes, so the CRAP, iai and semver gates
+are unaffected.
 
 ## Verification
 
-- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug` exits 0
-    (after `cargo build -p iscc-ffi`), including the two negatives and the synthetic positive
-- `mvn clean test -f crates/iscc-jni/java/pom.xml` exits 0, including the two negatives
-- `npm test` in `crates/iscc-napi` (after a rebuild) exits 0, including the two negatives
-- `wasm-pack test --node crates/iscc-wasm --features conformance` exits 0, including the two
-    negatives
-- `grep -rn "result exposes" packages/dotnet crates/iscc-jni/java/src crates/iscc-napi/__tests__ crates/iscc-wasm/tests`
-    prints nothing, and none of the four `compare` functions reads the actual object's key set to
-    choose which keys to compare (reviewer reads the four functions)
+- The fixed Java block, wrapped in a class, compiles:
+    `javac -cp crates/iscc-jni/java/target/classes` exits 0 after
+    `mvn -f crates/iscc-jni/java/pom.xml compile`
+- `grep -nE "result\.(iscc|datahash|filesize|units)\(\)" docs/howto/java.md` prints nothing, and the
+    howto's `genSumCodeV0(` calls each pass 4 arguments
+- `uv run pytest tests/test_ruby_gem_docs.py` passes, including the fire cases
+- `docs/howto/ruby.md` and `crates/iscc-rb/README.md` both say a newer Ruby builds from source and
+    needs Rust and `libclang-dev`. Neither claims Ruby 3.4 / 4.0 support
+- `uv run zensical build` exits 0
 - `mise run check` exits 0
 
 ## Done When
 
-All four harnesses compare every expected key except their static per-function set, each carries the
-two negative tests, and every verification command above exits 0.
+The advance agent is done when the Java example compiles against the real classes, both Ruby docs
+state the range that `release.yml` builds and a test pins it, and every check above passes.

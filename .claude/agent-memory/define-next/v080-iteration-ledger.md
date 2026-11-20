@@ -82,4 +82,9 @@ be ones the OLD intersect passed (`{}` actual was already rejected → use actua
 key-outside-set = `parts` on text with correct iscc, defeats a global set); .NET's only object
 vector has `except.dotnet` → needed a synthetic positive. Next: Java how-to + Ruby gem docs line,
 then drift-issue gate holes. A 303 from a Maven/portal probe proves nothing: `curl -sL` to follow it
-(220: Kotlin red was a portal outage).
+(220: Kotlin red was a portal outage). 238 = Java how-to `genSumCodeV0` fix + Ruby gem range wording
+(docs-only, 3 files + a pytest that derives `Ruby {min} to {max}` from release.yml cross-gem
+`ruby-versions` — a version range in docs is a derived fact, so it ships with a parity test).
+Wording branch only; never claim 3.4/4.0 support (source build unmeasured). Next: drift-issue gate
+holes (fail-closed lib.rs parser + register rust.md/c-cpp.md/rust-api.md/architecture.md), then part
+3 count sweep.
