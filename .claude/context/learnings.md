@@ -195,6 +195,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     install time. **A negative assertion must reach the branch it names** (228: no `*`, no regex)
 - **Tier 1 doc parity is gated** (233): `scripts/check_tier1_docs.py` derives the symbols from
     `lib.rs`, so a new symbol fails every registered doc until it is named there. It checks NAMES
-    only: a signature or return type still needs a run (the WASM `alg_cdc_chunks` doc comment says
-    `Uint8Array`, but `serde_wasm_bindgen::to_value` of `Vec<Vec<u8>>` gives `number[][]`, and a
-    `from_value` read-back accepts both). A web-target `pkg/` runs in Node via `initSync({module})`
+    only: a return type still needs a run. **`#[wasm_bindgen_test]` calls the Rust fn, never the JS
+    export glue** (234): prove a JS return shape from Node (`require()`) and the `.d.ts`, built by
+    `wasm-pack build --target nodejs crates/iscc-wasm --out-dir /tmp/x`

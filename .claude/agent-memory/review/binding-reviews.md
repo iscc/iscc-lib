@@ -574,3 +574,18 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - **Darwin cannot be probed locally**: after the push, watch the `swift` job of the CI run
     (`gh run watch`/`gh run view --json jobs`) before trusting an issue's "on macOS" criterion
 - Codex (`--commit HEAD`, ~3 min) ran both suites itself and had no findings
+
+### WASM return-shape step (iter 234, ~10 min) — `alg_cdc_chunks` → `Uint8Array[]`
+
+- next.md's five checks from ONE logged script (`mise run check`, the `wasm-pack test` CI line, both
+    clippy forms, the greps, `uv run zensical build`): ~3 min after a warm build
+- **`#[wasm_bindgen_test]` calls the Rust fn directly**, so an `is_instance_of` assert on a
+    statically typed `js_sys::Uint8Array` is a tautology. The JS-side proof is
+    `wasm-pack build --target nodejs crates/iscc-wasm --out-dir /tmp/x/pkg` + a `.cjs` script that
+    `require()`s it (`instanceof`, `Array.isArray`, own buffers, empty input, error path) + grep the
+    `.d.ts`. An out-dir under `/tmp` leaves the tree clean
+- Grep the crate's `CLAUDE.md` for guidance that would re-create the defect (234: "use
+    `serde_wasm_bindgen` for all Rust-to-JS conversions" survived the advance edit; fixed in step 9)
+- A runtime-shape change on a published binding export gets a decisions.md entry and a release-notes
+    line in the handoff Notes; the repo has no CHANGELOG
+- Codex (`--commit HEAD`, ~3 min) built and probed from JS itself; no findings

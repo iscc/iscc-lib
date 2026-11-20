@@ -130,6 +130,8 @@ majors), `gha-workflow-reviews.md` (release.yml, action bumps), `codex-integrati
     `git archive` throwaway repo (gate must name each gapped doc), feed the parser crate-root forms
     it does not list (fail-open?), and RUN every return type the docs add → `review-patterns.md`
     "Doc-parity gate (233)"
+- **WASM return-shape step (234, ~10 min)**: `#[wasm_bindgen_test]` never crosses the JS glue —
+    probe the built `--target nodejs` pkg from Node + read the `.d.ts` → `binding-reviews.md`
 - **Search with `git grep`, never `grep -r`** over dirs with build output (230: a 100 kB minified
     line from `packages/kotlin/build` landed in context) → `review-patterns.md` "Gotchas"
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`

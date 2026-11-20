@@ -172,18 +172,3 @@ errors. Pre-existing; found by the advance agent in iteration 233. `docs/java-ap
 `genSumCodeV0` shows the correct form.
 
 Resolved when the example matches `IsccLib.java` and `SumCodeResult.java`.
-
-## WASM `alg_cdc_chunks` returns plain arrays, its doc comment says `Uint8Array` `normal` [review]
-
-`crates/iscc-wasm/src/lib.rs` → `alg_cdc_chunks` serializes `Vec<Vec<u8>>` with
-`serde_wasm_bindgen::to_value`, which yields nested plain arrays: for the input
-`new Uint8Array([1, 2, 3])` it returns `[[1, 2, 3]]`, and `chunks[0] instanceof Uint8Array` is
-`false` (measured in iteration 233). The doc comment, and so the JSDoc in the published
-`iscc_wasm.d.ts`, promises "a JS array of `Uint8Array` chunks"; `@iscc/lib` returns `Buffer[]`, and
-`alg_simhash` and `alg_minhash_256` of `@iscc/wasm` return a `Uint8Array`. A caller who follows the
-JSDoc and calls `.subarray()` on a chunk gets a `TypeError`. The wasm tests read the result back
-through `from_value::<Vec<Vec<u8>>>`, which accepts both shapes. `docs/howto/wasm.md` states the
-current behaviour.
-
-Resolved when the chunks are `Uint8Array`s, a wasm test asserts the element type, and
-`docs/howto/wasm.md` → "Algorithm primitives" says so.

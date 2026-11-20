@@ -382,3 +382,16 @@ already carries the names); a lower threshold (forces entries for READMEs meant 
 per-binding export parser (one more gate per surface, and not what the issue asked). **Limits:** it
 checks names, not signatures, and a doc that drifted below the threshold is invisible to discovery:
 register such docs by hand. **Context:** iteration 233 review.
+
+## 2026-11-20 — `@iscc/wasm` `alg_cdc_chunks` changes its runtime shape without a transition
+
+**Decision:** the export returns `Vec<js_sys::Uint8Array>` (`Uint8Array[]`, each chunk a copy in JS
+memory) where it returned nested plain arrays. The change ships in the next 0.x release as a bug
+fix, with no deprecation period and no second export. **Why:** the doc comment and the published
+JSDoc always promised `Uint8Array` chunks, `@iscc/lib` returns `Buffer[]`, and every other byte
+output of the package is a `Uint8Array`, so the old shape was the defect. `Uint8Array.from(chunk)`,
+the documented workaround, still works on the new shape. Callers that relied on plain-array
+behaviour (`Array.isArray(chunk)`, `JSON.stringify`, a widening `chunk.map`) see a difference; the
+bindings carry no 1.0 stability commitment. **Alternatives:** a `js_sys::Array` return (the `.d.ts`
+says `any[]`); keeping `to_value` and correcting the docs instead (keeps the one byte output that is
+not a typed array). `js-sys` was already in the dependency graph. **Context:** iteration 234 review.

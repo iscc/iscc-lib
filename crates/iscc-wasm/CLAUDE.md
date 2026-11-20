@@ -172,8 +172,10 @@ crate-root Tier 1 re-export) and its `finalize(bits?, wide?, add_units?)` return
 
 ## Common Pitfalls
 
-- **Do not use `serde_json` at runtime.** Use `serde_wasm_bindgen` for all JS-to-Rust and Rust-to-JS
-    conversions. `serde_json` is a dev-dependency only (for parsing test vectors).
+- **Do not use `serde_json` at runtime.** Use `serde_wasm_bindgen::from_value` for nested JS inputs.
+    `serde_json` is a dev-dependency only (for parsing test vectors).
+- **Do not return bytes through `serde_wasm_bindgen::to_value`.** It turns `Vec<u8>` into a plain
+    `number[]`. Return `Vec<u8>` (one `Uint8Array`) or `Vec<js_sys::Uint8Array>` (`Uint8Array[]`).
 - **Do not add logic in this crate.** All computation belongs in `iscc-lib`. This crate is a
     translation layer.
 - **Do not expose Rust structs directly.** Return primitive types (`String`, `Vec<u8>`,
