@@ -1,15 +1,15 @@
-<!-- assessed-at: 9eb61ff48a185947321a8ba9d6144d4755021d80 -->
+<!-- assessed-at: 5fad193e87d47e1466816c566ca6b80e6d450342 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 5 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 4 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. CI is fully green on the pushed tip `021c335`, which covers all code at HEAD. This
-iteration fixed the .NET jagged-array pinning issue. Still owed for v0.8.0: the 5 open `normal`
-issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
+all 11 bindings. CI is fully green on the pushed tip `5b9636a`, which covers all code at HEAD. This
+iteration fixed the C FFI docs type names. Still owed for v0.8.0: the 4 open `normal` issues (the
+`soupsieve` half of the Dependabot entry waits on Titusz).
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -60,13 +60,16 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 ## C FFI
 
-**Status**: partially met
+**Status**: met (v0.8.0 scope)
 
 - 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
 - `tests/test_iscc.c` runs every data-edge row except the 2 marked `c: skip`; `c-ffi` job green
-- **`normal` issue:** `docs/c-ffi-api.md` type names differ from `iscc.h`. The `src/lib.rs` split is
-    `low`
+- `docs/c-ffi-api.md` and `crates/iscc-ffi/README.md` use the `iscc_`-prefixed type names from
+    `iscc.h` (6 types); `tests/test_c_ffi_docs.py` (6 tests) derives the names from the header and
+    also covers `docs/howto/c-cpp.md`
+- `low` issue: `src/lib.rs` is past the crate's split threshold. Bare C names remain in comments in
+    `packages/cpp/CLAUDE.md` and `iscc.hpp` (not filed)
 
 ## Java Bindings
 
@@ -89,9 +92,8 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 - `EncodeSeq` / `DecodeSeq`; embedded NUL rejected via `ToNativeUtf8`; `DataEdgeTests.cs` green in
     CI; 0.7.0 on NuGet
-- A private `PinnedRows` helper in `IsccLib.cs` pins all six jagged-array inputs (the file's only
-    `GCHandle.Alloc`); `[]` reaches the core, null throws `ArgumentNullException`;
-    `ArrayInputTests.cs` adds 20 tests. The `C# / .NET` CI job is green on the tip
+- A private `PinnedRows` helper in `IsccLib.cs` pins all six jagged-array inputs; `[]` reaches the
+    core, null throws `ArgumentNullException`; `ArrayInputTests.cs` adds 20 tests
 - `docs/howto/dotnet.md` "Error handling" doesn't list `ArgumentNullException` (no issue filed)
 
 ## C++ Bindings
@@ -118,8 +120,7 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both conformance suites run all 8 seq
     vectors; both shipped 0.7.0
-- Swift `DataEdgeTests` and Kotlin `DataEdgeTest` (6 tests each) green; the Kotlin plugin-fetch
-    failure seen on `0da6e41` did not recur on the tip
+- Swift `DataEdgeTests` and Kotlin `DataEdgeTest` (6 tests each) green in CI
 - `low` issue: the Swift compare uses canonical string equivalence and reads a JSON bool as an Int
 
 ## Documentation
@@ -143,17 +144,16 @@ issues (the `soupsieve` half of the Dependabot entry waits on Titusz).
 
 - `ci.yml` has 20 jobs; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- **Latest CI: PASSING** on `origin/develop` = `021c335`
-    (https://github.com/iscc/iscc-lib/actions/runs/44658983478): all 21 check-runs `success`,
-    including Kotlin. The 3 unpushed commits touch `.claude/` only, so green CI covers HEAD
+- **Latest CI: PASSING** on `origin/develop` = `5b9636a`
+    (https://github.com/iscc/iscc-lib/actions/runs/44668920166): all 21 check-runs `success`. The
+    one unpushed commit touches `.claude/` only, so green CI covers HEAD
 - **Missing (`normal` issue):** Dependabot alerts on `soupsieve` (every fixed release needs Python
     `>=3.11.5`, so it needs Titusz) and `setuptools` (`uv.lock`)
 
 ## Open Issues
 
-20 open: 0 critical, **5 normal**, 15 low. Normal: c-ffi-api type names, Python `encode_seq`
-docstrings, Dependabot alerts, wasm-bindings spec drift, derived-fact drift. issues.md is at 295 of
-its 300-line budget.
+19 open: 0 critical, **4 normal**, 15 low. Normal: Python `encode_seq` docstrings, Dependabot
+alerts, wasm-bindings spec drift, derived-fact drift. issues.md is at 283 of its 300-line budget.
 
 ## Next Milestone
 

@@ -87,17 +87,17 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 9eb61ff, iter 221 — incremental)
+## Current State (assessed-at: 5fad193, iter 222 — incremental)
 
-- **CI GREEN on tip `021c335`** (21/21 check-runs incl. Kotlin — the 220 plugin-portal red was
-    transient). Unpushed = `.claude/` only.
-- **.NET jagged-array pinning DONE (220):** private `PinnedRows` in `IsccLib.cs`, 20
-    `ArrayInputTests`. .NET now met (v0.8.0 scope) — do NOT re-flag.
-- **20 open: 5 normal, 15 low.** Normal: c-ffi-api type names, Python `encode_seq` docstrings,
-    Dependabot (`soupsieve` fix needs py>=3.11.5 → human), wasm spec drift, derived-fact drift.
+- **CI GREEN on tip `5b9636a`** (21/21 check-runs). Unpushed = `.claude/` only.
+- **C FFI docs type names DONE (221):** `docs/c-ffi-api.md` + ffi README use `iscc_`-prefixed names;
+    `tests/test_c_ffi_docs.py` (6 tests) gates it. C FFI now met (v0.8.0) — do NOT re-flag.
+- **.NET jagged-array pinning DONE (220)** — do NOT re-flag.
+- **19 open: 4 normal, 15 low.** Normal: Python `encode_seq` docstrings, Dependabot (`soupsieve` fix
+    needs py>=3.11.5 → human), wasm spec drift, derived-fact drift. issues.md 283/300 lines.
 - data-edge fan-out COMPLETE on all 12 surfaces (219); ISCC-SEQ on all 11 (211) — do NOT re-flag.
 - **Review priority rule (human):** `normal` only for step-caused/ordinary-use/outside-signal
-    defects. issues.md 295/300 lines.
+    defects. Larger-step trial evaluated after iter 224.
 - FFI 51 externs. Swift/Kotlin Conformance 19 each; uniffi 28 `#[test]`.
 - **Python heredoc**: plain `uv run python - << 'EOF'` works (VIRTUAL_ENV warning harmless).
 - **macOS Swift proof**: `gh run view --job <check-run-id> --log | grep DataEdgeTests`.
