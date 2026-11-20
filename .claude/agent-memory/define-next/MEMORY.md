@@ -39,15 +39,18 @@ anyway) via one template helper; source grep pins sites a `{}` test can't. 228 =
 (2 files: `*`→`[^/]*`, `**`→`.*`; `NOT_PATHS` backtick-only; replay tests on a `_known()` set +
 monkeypatched `tracked_paths`). 229 = Ruby `i32` Bignum (Magnus 0.8.2: only `RBignum::to_i32` lacks
 the lower check; u32/usize fine; out-of-i32 is a native-range limit → per-binding tests, NOT
-data-edge). Next: the 2 JNI issues (one crate), then ffi split, derived facts, harness compares.
-Unfiled: ref truncates mismatched digest lengths, Rust/Go reject — needs a human decision. Trap: the
-issue says C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits
-`num_digests == 0` to the core — re-probe before restating. Still open: gate leniency, Tier 1 parity
-check; setuptools bump resolves to 84.2.1 via `uv lock --upgrade-package setuptools` (dry-run 223);
-napi Buffer leak is `low` — skip; Ruby/JNI/ffi-split are `normal`). **Dependabot soupsieve is
-human-blocked**: 3.0.2/4.x need Python >=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't
-scope. A 303 from a Maven/portal probe proves nothing: `curl -sL` to follow it (220: Kotlin red was
-a portal outage).
+data-edge). 230 = both JNI issues (null guard + error mapping): the issue's `exception_check` fix
+was a no-op — jni 0.22.4 `JString::new` catches+CLEARS OOM into `JniCall(NoMemory)` ("JNI call
+failed"), so map by error TYPE (trait over jni/IsccError/&str) at all 90 sites; also found JNI docs
+say finalized hasher throws IAE (code: ISE). Read the dep source before trusting any issue's fix.
+Next: ffi split, derived facts, harness compares. Unfiled: ref truncates mismatched digest lengths,
+Rust/Go reject — needs a human decision. Trap: the issue says C/C++ fail `alg_simhash([])` with the
+NULL error, but `iscc_alg_simhash` short-circuits `num_digests == 0` to the core — re-probe before
+restating. Still open: gate leniency, Tier 1 parity check; setuptools bump resolves to 84.2.1 via
+`uv lock --upgrade-package setuptools` (dry-run 223); napi Buffer leak is `low` — skip;
+Ruby/JNI/ffi-split are `normal`). **Dependabot soupsieve is human-blocked**: 3.0.2/4.x need Python
+\>=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a Maven/portal probe
+proves nothing: `curl -sL` to follow it (220: Kotlin red was a portal outage).
 
 ## Scope Calibration Principles
 

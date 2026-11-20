@@ -1,89 +1,101 @@
 # Next Work Package
 
-## Step: Ruby `i32` list elements raise `RangeError` for negative Bignums
+## Step: JNI hasher null-handle guard and OOM/pending-exception mapping
 
 ## Goal
 
-Fix the `normal` issue "Ruby `i32` list elements silently truncate negative Bignums": every `i32`
-element conversion in `crates/iscc-rb/src/lib.rs` must raise `RangeError` for any value outside
-`i32`, so `IsccLib.gen_audio_code_v0([-(2**63)])` stops returning the code of `[0]`.
+Close the two `normal` JNI issues in `crates/iscc-jni/src/lib.rs` as one step: "JNI streaming-hasher
+functions dereference Java-supplied handle without null guard" and "JNI exports report a pending JVM
+exception as `IllegalArgumentException`". Both live in the crate's throw helpers and four hasher
+functions, so one verdict suffices.
 
 ## Alternatives Considered
 
-- **Chosen:** Ruby `i32` narrowing. It is the handoff's pick, a one-file fix with a measured root
-    cause, and it brings the binding in line with what `docs/ruby-api.md` → Error Handling already
-    promises.
-- **Rejected:** the two JNI issues (null-handle guard, pending exception). They share
-    `crates/iscc-jni/src/lib.rs` and make a good next step, but they are a different crate with a
-    different outcome. Bundling them would add two unrelated verdicts to one review.
+- **Chosen:** both JNI issues together — same file, same helpers, independent tests; the handoff
+    recommends it and the diff is one code file plus javadoc and docs.
+- **Rejected:** `iscc-ffi` `lib.rs` split (move `mod tests` out) — also `normal`, but it changes no
+    behaviour; the JNI pair fixes UB and a JNI-spec violation, so it goes first.
 
 ## Scope
 
-- **Create**: none
-- **Modify**: `crates/iscc-rb/src/lib.rs`; `crates/iscc-rb/test/test_array_args.rb` (tests)
-- **Reference**: `~/.cargo/registry/src/*/magnus-0.8.2/src/r_bignum.rs` (`to_i32` at line 194,
-    `to_i64` at line 243), `~/.cargo/registry/src/*/magnus-0.8.2/src/value.rs` (`Fixnum::to_i32` at
-    line 2575), `crates/iscc-rb/CLAUDE.md` → Local Development
+- **Modify**: `crates/iscc-jni/src/lib.rs`;
+    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (javadoc only);
+    `docs/java-api.md`; `docs/howto/java.md`; `crates/iscc-jni/CLAUDE.md` (Error Handling + mapping
+    table row)
+- **Tests**: `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`, plus one small
+    test-source `main` class for the child JVM if needed
+- **Reference**: jni 0.22.4 in `~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jni-0.22.4/`
+    — `src/objects/jstring.rs` ~158 (`JString::new` catch arm), `src/env.rs` ~1139
+    (`exception_check`), `src/macros.rs` ~89 (`jni_call_post_check_ex`)
 
 ## Not In Scope
 
-- `u32` / `usize` conversions (`alg_minhash_256` elements, `bits`, `nbytes`, `width`,
-    `avg_chunk_size`, `bit_length`). I probed Magnus 0.8.2: `Fixnum` and `RBignum` `to_u32` /
-    `to_usize` both reject negatives and check the upper bound, so they are correct. Leave them
-    alone.
-- `checked()` / `gen_iscc_id_v1`. It narrows through its own helper and raises `RuntimeError` by
-    design (see the docs).
-- A `data-edge.json` vector. An out-of-`i32` element is a native-type range limit: the Go, C, C++,
-    .NET, Java, Swift and Kotlin harnesses would reject the value in their own JSON-to-`int32`
-    conversion before it reached the binding. `edge-vectors.md` → Rules keeps inputs like that in
-    per-binding tests.
-- Upgrading Magnus or patching it upstream.
-- Any edit to `docs/ruby-api.md`. Its Error Handling text already describes the fixed behaviour.
+- Detecting a *stale* (freed, non-zero) handle — needs a handle registry; only zero is guarded
+- Changing the `*Free` functions (zero is already a no-op) or the 2026-07-28 decision (hand-thrown
+    exceptions, `#[repr(transparent)]` returns stay)
+- Adding `-Xcheck:jni` to CI or changing the pom's `<argLine>`; the `iscc-ffi` split; Ruby Float
+    truncation (`low`)
 
 ## Implementation Notes
 
-- **Root cause (measured):** Magnus 0.8.2 `RBignum::to_i32` calls `rb_num2long` and checks only
-    `res > i32::MAX` before `as i32`. On 64-bit, Fixnums cover ±2^62. So Bignums from `-(2**63)` to
-    `-(2**62)-1` pass `rb_num2long` and get truncated. Values below `-(2**63)` already raise inside
-    `rb_num2long`, and `Fixnum::to_i32` checks both bounds.
-- **Fix shape:** add one helper that converts an `RArray` into `Vec<i32>` by going through
-    `array_to_vec::<i64>` (Magnus' `i64` conversion raises `RangeError` for anything outside `i64`,
-    and also for non-Integers, which keeps the current `TypeError` behaviour). Then narrow each
-    value with `i32::try_from`, mapping a failure to `Error::new(ruby.exception_range_error(), …)`.
-    Get `ruby` from `Ruby::get()`, as the file does elsewhere. Keep `array_to_vec`'s hidden-copy
-    walk; never use Magnus' `Vec<T>` conversion (learnings: it segfaults on a shrinking array).
-- **Finish the pattern:** there are two `i32` conversion sites, `gen_audio_code_v0` (line 115) and
-    `frames_to_vec` (line 53, which serves `gen_video_code_v0` and `soft_hash_video_v0`). Route both
-    through the helper, so that `Vec<i32>` is never produced by `array_to_vec::<i32>` directly. Then
-    update `array_to_vec`'s doc comment, which today says "`RangeError` for most out-of-range
-    integers".
-- **Tests:** add them next to `test_out_of_range_integer_element_raises_range_error`. Assert each
-    rejection on the raw call alone, one bad value per call (learnings). Cover:
-    - `RangeError` for `-(2**63)` and `-(2**62) - 1` in `gen_audio_code_v0` (as a list element) and in
-        `gen_video_code_v0` and `soft_hash_video_v0` (as a frame element, e.g. `[[-(2**63)]]`; the
-        conversion runs before the core sees the frame length)
-    - `RangeError` for `2**31` and `-(2**31) - 1` in audio (Fixnum bounds, so they stay pinned)
-    - Boundaries accepted: `gen_audio_code_v0([-(2**31), 2**31 - 1])` returns a Hash with an `iscc`
-        key
-- **Build before testing:** the `.so` is gitignored and goes stale silently. Run from
-    `crates/iscc-rb`: `bundle exec rake compile:dev`, then the tests, with `LANG=C.UTF-8` exported
-    (Ruby conformance tests crash without it).
-- **Gates:** this changes no core Rust, so CRAP and iai are untouched. `iscc-rb` is excluded from
-    workspace clippy in CI, so run clippy on the crate explicitly.
+**The issue's suggested fix is insufficient — measured in the jni 0.22.4 source.** `JString::new`
+(behind `env.new_string`) uses `jni_call_with_catch_and_null_check!`: it *catches and clears* the
+JVM's `OutOfMemoryError` and returns `Error::JniCall(JniError::NoMemory)`, whose `Display` is "JNI
+call failed" — exactly Codex's message. So at `throw_and_default` nothing is pending and an
+`exception_check()` guard alone changes nothing. Other calls (`jni_call_post_check_ex!`, e.g.
+`set_region`) return `Error::JavaException` and leave the exception pending — there the guard is
+what prevents `ThrowNew` over a pending exception.
+
+**Error mapping, by type.** 90 call sites pass `&e.to_string()` to `throw_and_default`; some `e` are
+`jni::errors::Error`, some `iscc_lib::IsccError`. Make the mapping type-driven so no site can be
+misclassified: e.g. a small trait (or `impl From`) for `jni::errors::Error`, `IsccError` and `&str`,
+and have `throw_and_default` take it; every site then passes `e` (or `&e`), not a string. Mapping:
+
+- any input: if `env.exception_check()` → return `Ok(T::default())` without throwing
+- `jni::errors::Error::JniCall(JniError::NoMemory)` → throw `java/lang/OutOfMemoryError` (a fresh
+    one — jni already discarded the original; the class is what Java callers catch)
+- every other error / message → `IllegalArgumentException` with the `Display` text, as today
+
+Add the same `exception_check` guard to `throw_state_error`. Update both doc comments, the module
+`//!` "Error handling" paragraph and `crates/iscc-jni/CLAUDE.md`.
+
+**Null guard.** In `dataHasherUpdate`, `dataHasherFinalize`, `instanceHasherUpdate`,
+`instanceHasherFinalize`, first statement inside `with_env`: `if ptr == 0` → `throw_and_default`
+with "DataHasher handle is null" / "InstanceHasher handle is null" (`IllegalArgumentException`;
+`IllegalStateException` stays reserved for the finalized state). Reword the `// SAFETY:` comments.
+
+**Doc drift, same step.** `docs/java-api.md` (~611, 646, 654, 699, 707), `docs/howto/java.md` (~267)
+and the hasher `@throws` javadoc in `IsccLib.java` say a finalized hasher throws
+`IllegalArgumentException`; code, tests and `specs/java-bindings.md` (line ~208) say
+`IllegalStateException`. Fix the docs; document the zero-handle `IllegalArgumentException`; add one
+line to `java-api.md` → Error Handling that allocation failure surfaces as `OutOfMemoryError`.
+
+**Tests.** One `@Test` per hasher function: `assertThrows(IllegalArgumentException.class, …)` with
+handle `0L`. OOM: never starve the surefire JVM — spawn a child JVM via `ProcessBuilder` (java from
+`ProcessHandle.current().info().command()`, `-cp` from `java.class.path`, the same
+`-Djava.library.path`, `-Xmx16m`, `-Xcheck:jni`) running a test-source `main` that triggers an
+allocation failure inside a JNI call and prints the caught exception's class name. Codex's trigger:
+`encodeSeq` over 500,000 valid units (one shared `String` instance); `decodeSeq` of a large sequence
+(many `new_string`) is the fallback. Assert stdout `java.lang.OutOfMemoryError` and no
+`WARNING in native method` on stderr. Confirm the test fails on the unfixed helper and say so in the
+commit. If no trigger is deterministic, drop that test and argue why in the commit and CLAUDE.md
+(the issue allows it).
+
+Binding-only change: CRAP and iai are not affected.
 
 ## Verification
 
-- `cd crates/iscc-rb && bundle exec rake compile:dev && LANG=C.UTF-8 bundle exec rake test` exits 0,
-    including the new negative-Bignum and boundary tests in `test_array_args.rb`
-- `ruby -Icrates/iscc-rb/lib -riscc_lib -e 'begin; IsccLib.gen_audio_code_v0([-(2**63)]); exit 1; rescue RangeError; exit 0; end'`
-    exits 0 (run after the compile above)
-- `grep -n 'array_to_vec::<i32>\|-> Result<Vec<i32>, Error>' crates/iscc-rb/src/lib.rs` shows only
-    the new helper's signature, and `gen_audio_code_v0` and `frames_to_vec` both call that helper
-- `cargo clippy -p iscc-rb -- -D warnings` and `cargo fmt -p iscc-rb --check` are clean
-- `cd crates/iscc-rb && bundle exec standardrb test/test_array_args.rb` exits 0
+- `cargo build -p iscc-jni` then `mvn -f crates/iscc-jni/java/pom.xml clean test` exits 0, with the
+    four null-handle tests and the child-JVM OOM test (or its documented rationale)
+- With `JAVA_TOOL_OPTIONS=-Xcheck:jni` set, the same `mvn … clean test` exits 0 and its log has no
+    `WARNING in native method` line (and shows `Picked up JAVA_TOOL_OPTIONS`)
+- `grep -n 'e.to_string())' crates/iscc-jni/src/lib.rs` prints nothing; `grep -n 'ptr == 0'` on the
+    same file shows the four guards; `exception_check` appears in both throw helpers
+- `grep -l IllegalStateException` over `docs/java-api.md`, `docs/howto/java.md` and `IsccLib.java`
+    lists all three, and no sentence there says a finalized hasher throws `IllegalArgumentException`
+- `cargo clippy -p iscc-jni -- -D warnings` and `cargo fmt -p iscc-jni --check` clean
 - `mise run check` exits 0
 
 ## Done When
 
-The advance agent is done when every `i32` element conversion in the Ruby binding raises
-`RangeError` for out-of-range Bignums and all verification criteria pass.
+All six verification criteria pass on the working tree.
