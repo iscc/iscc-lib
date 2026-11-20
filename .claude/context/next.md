@@ -1,101 +1,80 @@
 # Next Work Package
 
-## Step: JNI hasher null-handle guard and OOM/pending-exception mapping
+## Step: Move the iscc-ffi unit tests out of `lib.rs` into `src/tests.rs`
 
 ## Goal
 
-Close the two `normal` JNI issues in `crates/iscc-jni/src/lib.rs` as one step: "JNI streaming-hasher
-functions dereference Java-supplied handle without null guard" and "JNI exports report a pending JVM
-exception as `IllegalArgumentException`". Both live in the crate's throw helpers and four hasher
-functions, so one verdict suffices.
+Close the `normal` issue "`crates/iscc-ffi/src/lib.rs` is past the crate's own split threshold" by
+moving the `#[cfg(test)] mod tests` block (lines 1716–2875) to its own file. `lib.rs` drops to about
+1715 lines and every `extern "C"` function stays in `lib.rs`, so csbindgen and cbindgen keep seeing
+the same input.
 
 ## Alternatives Considered
 
-- **Chosen:** both JNI issues together — same file, same helpers, independent tests; the handoff
-    recommends it and the diff is one code file plus javadoc and docs.
-- **Rejected:** `iscc-ffi` `lib.rs` split (move `mod tests` out) — also `normal`, but it changes no
-    behaviour; the JNI pair fixes UB and a JNI-spec violation, so it goes first.
+- **Chosen:** FFI test-module move. It is the handoff's "Next", it is the only open `normal` issue
+    that is not `[human]`-sourced, and it is a mechanical change with byte-identical generated files
+    as an objective check.
+- **Rejected:** stricter `data-edge.json` compares (Swift scalar compare plus Boolean rejection,
+    Python `0`/`False`). It is `normal` and worth doing next, but it needs a Swift toolchain run and
+    touches two harnesses. The FFI move is smaller and fully settled. The derived-facts parity check
+    is the larger third candidate.
 
 ## Scope
 
-- **Modify**: `crates/iscc-jni/src/lib.rs`;
-    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (javadoc only);
-    `docs/java-api.md`; `docs/howto/java.md`; `crates/iscc-jni/CLAUDE.md` (Error Handling + mapping
-    table row)
-- **Tests**: `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`, plus one small
-    test-source `main` class for the child JVM if needed
-- **Reference**: jni 0.22.4 in `~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jni-0.22.4/`
-    — `src/objects/jstring.rs` ~158 (`JString::new` catch arm), `src/env.rs` ~1139
-    (`exception_check`), `src/macros.rs` ~89 (`jni_call_post_check_ex`)
+- **Create**: `crates/iscc-ffi/src/tests.rs`
+- **Modify**: `crates/iscc-ffi/src/lib.rs` (replace the inline block with
+    `#[cfg(test)] mod tests;`), `crates/iscc-ffi/CLAUDE.md` (docs: layout tree, "Single-file crate"
+    paragraph, the "Rust tests (`#[cfg(test)]` in `lib.rs`)" heading)
+- **Reference**: `crates/iscc-ffi/build.rs` (csbindgen reads only `src/lib.rs`),
+    `crates/iscc-ffi/cbindgen.toml`, `.github/workflows/ci.yml` job "C FFI" (the cbindgen command
+    line)
 
 ## Not In Scope
 
-- Detecting a *stale* (freed, non-zero) handle — needs a handle registry; only zero is guarded
-- Changing the `*Free` functions (zero is already a no-op) or the 2026-07-28 decision (hand-thrown
-    exceptions, `#[repr(transparent)]` returns stay)
-- Adding `-Xcheck:jni` to CI or changing the pom's `<argLine>`; the `iscc-ffi` split; Ruby Float
-    truncation (`low`)
+- Moving any `extern "C"` function, `#[repr(C)]` type or helper out of `lib.rs`. That would need
+    `build.rs` to list the new files, or csbindgen silently drops them from `NativeMethods.g.cs`
+- Changing the ~2500-line threshold in `CLAUDE.md`, or splitting `tests.rs` further
+- Editing, renaming, adding or deleting any test. This is a verbatim move, apart from removing one
+    indent level and adding a module docstring
+- The other open `normal` issues (data-edge compare looseness, derived-facts parity check)
 
 ## Implementation Notes
 
-**The issue's suggested fix is insufficient — measured in the jni 0.22.4 source.** `JString::new`
-(behind `env.new_string`) uses `jni_call_with_catch_and_null_check!`: it *catches and clears* the
-JVM's `OutOfMemoryError` and returns `Error::JniCall(JniError::NoMemory)`, whose `Display` is "JNI
-call failed" — exactly Codex's message. So at `throw_and_default` nothing is pending and an
-`exception_check()` guard alone changes nothing. Other calls (`jni_call_post_check_ex!`, e.g.
-`set_region`) return `Error::JavaException` and leave the exception pending — there the guard is
-what prevents `ThrowNew` over a pending exception.
-
-**Error mapping, by type.** 90 call sites pass `&e.to_string()` to `throw_and_default`; some `e` are
-`jni::errors::Error`, some `iscc_lib::IsccError`. Make the mapping type-driven so no site can be
-misclassified: e.g. a small trait (or `impl From`) for `jni::errors::Error`, `IsccError` and `&str`,
-and have `throw_and_default` take it; every site then passes `e` (or `&e`), not a string. Mapping:
-
-- any input: if `env.exception_check()` → return `Ok(T::default())` without throwing
-- `jni::errors::Error::JniCall(JniError::NoMemory)` → throw `java/lang/OutOfMemoryError` (a fresh
-    one — jni already discarded the original; the class is what Java callers catch)
-- every other error / message → `IllegalArgumentException` with the `Display` text, as today
-
-Add the same `exception_check` guard to `throw_state_error`. Update both doc comments, the module
-`//!` "Error handling" paragraph and `crates/iscc-jni/CLAUDE.md`.
-
-**Null guard.** In `dataHasherUpdate`, `dataHasherFinalize`, `instanceHasherUpdate`,
-`instanceHasherFinalize`, first statement inside `with_env`: `if ptr == 0` → `throw_and_default`
-with "DataHasher handle is null" / "InstanceHasher handle is null" (`IllegalArgumentException`;
-`IllegalStateException` stays reserved for the finalized state). Reword the `// SAFETY:` comments.
-
-**Doc drift, same step.** `docs/java-api.md` (~611, 646, 654, 699, 707), `docs/howto/java.md` (~267)
-and the hasher `@throws` javadoc in `IsccLib.java` say a finalized hasher throws
-`IllegalArgumentException`; code, tests and `specs/java-bindings.md` (line ~208) say
-`IllegalStateException`. Fix the docs; document the zero-handle `IllegalArgumentException`; add one
-line to `java-api.md` → Error Handling that allocation failure surfaces as `OutOfMemoryError`.
-
-**Tests.** One `@Test` per hasher function: `assertThrows(IllegalArgumentException.class, …)` with
-handle `0L`. OOM: never starve the surefire JVM — spawn a child JVM via `ProcessBuilder` (java from
-`ProcessHandle.current().info().command()`, `-cp` from `java.class.path`, the same
-`-Djava.library.path`, `-Xmx16m`, `-Xcheck:jni`) running a test-source `main` that triggers an
-allocation failure inside a JNI call and prints the caught exception's class name. Codex's trigger:
-`encodeSeq` over 500,000 valid units (one shared `String` instance); `decodeSeq` of a large sequence
-(many `new_string`) is the fallback. Assert stdout `java.lang.OutOfMemoryError` and no
-`WARNING in native method` on stderr. Confirm the test fails on the unfixed helper and say so in the
-commit. If no trigger is deterministic, drop that test and argue why in the commit and CLAUDE.md
-(the issue allows it).
-
-Binding-only change: CRAP and iai are not affected.
+- `tests.rs` holds the body of the current `mod tests { … }`, with the 4-space indent removed, and
+    starts with a `//!` docstring (e.g. "Unit tests for the iscc-ffi C exports."). `use super::*;`
+    and `use std::ffi::CString;` keep working in a file module. Private helpers in `lib.rs` are
+    still reachable through `super::`.
+- In `lib.rs`, keep `#[cfg(test)]` on the `mod tests;` line so non-test builds never compile the
+    file. Run `cargo fmt -p iscc-ffi` afterwards. Watch for rustfmt reflowing lines that become
+    shorter after de-indenting; that is expected.
+- The test file has no `#[no_mangle]` or `extern "C"` items (confirm with grep). If it has any, stop
+    and report, because cbindgen and csbindgen would treat them differently after the move.
+- Regenerate both generated files the way CI and `build.rs` do:
+    `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h`,
+    then `cargo build -p iscc-ffi` (this rewrites `NativeMethods.g.cs`). Both must come out
+    unchanged.
+- `CLAUDE.md`: list `tests.rs` in the layout tree. Reword "Single-file crate" so it says that all
+    exports, types and helpers live in `lib.rs` and the unit tests in `src/tests.rs`. Point the
+    "Rust tests" heading at `src/tests.rs`. Do not write line counts.
+- Gates: iscc-ffi is not part of the CRAP/coverage or iai gates (those cover `iscc-lib` only), and
+    no public API changes, so semver is unaffected.
 
 ## Verification
 
-- `cargo build -p iscc-jni` then `mvn -f crates/iscc-jni/java/pom.xml clean test` exits 0, with the
-    four null-handle tests and the child-JVM OOM test (or its documented rationale)
-- With `JAVA_TOOL_OPTIONS=-Xcheck:jni` set, the same `mvn … clean test` exits 0 and its log has no
-    `WARNING in native method` line (and shows `Picked up JAVA_TOOL_OPTIONS`)
-- `grep -n 'e.to_string())' crates/iscc-jni/src/lib.rs` prints nothing; `grep -n 'ptr == 0'` on the
-    same file shows the four guards; `exception_check` appears in both throw helpers
-- `grep -l IllegalStateException` over `docs/java-api.md`, `docs/howto/java.md` and `IsccLib.java`
-    lists all three, and no sentence there says a finalized hasher throws `IllegalArgumentException`
-- `cargo clippy -p iscc-jni -- -D warnings` and `cargo fmt -p iscc-jni --check` clean
+- `grep -n 'mod tests' crates/iscc-ffi/src/lib.rs` prints exactly one line, `mod tests;`, and the
+    line above it is `#[cfg(test)]`. `wc -l < crates/iscc-ffi/src/lib.rs` prints a number below 2500
+- `grep -c '#\[test\]' crates/iscc-ffi/src/lib.rs` prints `0`, and the passed count from
+    `cargo test -p iscc-ffi --lib` equals `grep -c '#\[test\]' crates/iscc-ffi/src/tests.rs`, with 0
+    failed
+- After the cbindgen command above plus `cargo build -p iscc-ffi`,
+    `git status --porcelain crates/iscc-ffi/include/iscc.h packages/dotnet/Iscc.Lib/NativeMethods.g.cs`
+    prints nothing
+- `grep -rn 'no_mangle\|extern "C"' crates/iscc-ffi/src/tests.rs` prints nothing
+- `cargo clippy -p iscc-ffi --all-targets -- -D warnings` and `cargo fmt -p iscc-ffi --check` are
+    clean
 - `mise run check` exits 0
 
 ## Done When
 
-All six verification criteria pass on the working tree.
+All six verification criteria pass, with `lib.rs` below the threshold and both generated files
+unchanged.

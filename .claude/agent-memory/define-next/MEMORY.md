@@ -43,14 +43,17 @@ data-edge). 230 = both JNI issues (null guard + error mapping): the issue's `exc
 was a no-op — jni 0.22.4 `JString::new` catches+CLEARS OOM into `JniCall(NoMemory)` ("JNI call
 failed"), so map by error TYPE (trait over jni/IsccError/&str) at all 90 sites; also found JNI docs
 say finalized hasher throws IAE (code: ISE). Read the dep source before trusting any issue's fix.
-Next: ffi split, derived facts, harness compares. Unfiled: ref truncates mismatched digest lengths,
-Rust/Go reject — needs a human decision. Trap: the issue says C/C++ fail `alg_simhash([])` with the
-NULL error, but `iscc_alg_simhash` short-circuits `num_digests == 0` to the core — re-probe before
-restating. Still open: gate leniency, Tier 1 parity check; setuptools bump resolves to 84.2.1 via
-`uv lock --upgrade-package setuptools` (dry-run 223); napi Buffer leak is `low` — skip;
-Ruby/JNI/ffi-split are `normal`). **Dependabot soupsieve is human-blocked**: 3.0.2/4.x need Python
-\>=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't scope. A 303 from a Maven/portal probe
-proves nothing: `curl -sL` to follow it (220: Kotlin red was a portal outage).
+231 = iscc-ffi `mod tests` → `src/tests.rs` (verbatim move; csbindgen reads only `src/lib.rs`, so
+exports stay put; gate = regen `iscc.h` + `NativeMethods.g.cs` → `git status` empty). Next:
+data-edge compare strictness (Swift+Python, `[human]` normal), then derived-facts parity check.
+Unfiled: ref truncates mismatched digest lengths, Rust/Go reject — needs a human decision. Trap: the
+issue says C/C++ fail `alg_simhash([])` with the NULL error, but `iscc_alg_simhash` short-circuits
+`num_digests == 0` to the core — re-probe before restating. Still open: gate leniency, Tier 1 parity
+check; setuptools bump resolves to 84.2.1 via `uv lock --upgrade-package setuptools` (dry-run 223);
+napi Buffer leak is `low` — skip; Ruby/JNI/ffi-split are `normal`). **Dependabot soupsieve is
+human-blocked**: 3.0.2/4.x need Python >=3.11.5 but `uv.lock` resolves `>=3.10` — escalate, don't
+scope. A 303 from a Maven/portal probe proves nothing: `curl -sL` to follow it (220: Kotlin red was
+a portal outage).
 
 ## Scope Calibration Principles
 
