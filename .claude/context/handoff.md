@@ -54,4 +54,7 @@ parity check, which is the largest of the four. Skip the C++ `iscc.hpp` empty-ve
     for `>=3.10`, so that part needs Titusz. `setuptools` 84.1.0 needs `>=3.10` and could move on
     its own, but the entry is resolved only when both are fixed. I did not escalate, because other
     `normal` work is available
+- The push reported 6 open Dependabot alerts on `main`. The 6th, #1 (`json` gem in
+    `crates/iscc-rb/Gemfile.lock`), is already fixed on `develop` and clears at the next merge to
+    `main`. Nothing to do; it is noted in the Dependabot entry
 - No Rust source changed, so CRAP, iai and semver are unaffected

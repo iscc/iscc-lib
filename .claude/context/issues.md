@@ -151,7 +151,9 @@ these packages (`uv lock --upgrade-package <pkg>`), not the whole lock.
 **Needs Titusz for `soupsieve`:** every fixed release (3.0.2 up to 4.1.2) declares
 `requires-python >=3.11.5`, while `pyproject.toml` resolves the lock for `>=3.10`, so the bump needs
 a call on a split dev marker, dropping `mdformat-web` on 3.10, or a higher dev floor. `setuptools`
-84.1.0 needs `>=3.10` and can move alone.
+84.1.0 declares `>=3.10`, so it could move alone (untested). Alert #1 (`json` gem,
+`crates/iscc-rb/Gemfile.lock`) is already fixed on `develop` (2.21.2) and clears at the next merge
+to `main`.
 
 Resolved when `uv.lock` pins `soupsieve` >= 4.0.0 and `setuptools` >= 84.1.0, `mise run check`
 (mdformat) is green, and `gh api 'repos/iscc/iscc-lib/dependabot/alerts?state=open'` lists none of
