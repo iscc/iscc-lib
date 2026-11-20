@@ -161,9 +161,10 @@ BASH_OUTPUT_MAX_CHARS = 128_000
 ADVISOR_MODEL = "claude-fable-5-2"
 
 # Roles whose sessions get the advisor. review is left out (human decision,
-# 2026-11-20): Codex already gives it an independent opinion, and its advisor calls
-# were half of its cost. Roles that keep it do not call it after their deliverable is
-# committed (their agent files say so).
+# 2026-11-20): it runs on claude-fable-5-2 itself (its agent file) and Codex gives it
+# an independent opinion. Roles that keep it do not call it after their deliverable is
+# committed (their agent files say so). The advisor is set only here: a project or
+# user `advisorModel` setting would reach every role session, review included.
 ADVISOR_ROLES = frozenset(
     {"update-state", "define-next", "advance", META_ROLE, AUDIT_ROLE}
 )
@@ -192,13 +193,16 @@ def find_claude():
 
 
 def sanitize_env():
-    """Create environment with API keys removed.
+    """Create the role-session environment: no API keys, no claude.ai connectors.
 
-    Ensures subscription login is used instead of API billing.
+    Removing the keys ensures subscription login is used instead of API billing.
+    The claude.ai connectors (Gmail, Slack, Drive, ISCC Expert, ...) would otherwise
+    load into every unattended session; project MCP servers such as deepwiki stay.
     """
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)
     env.pop("ANTHROPIC_AUTH_TOKEN", None)
+    env["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
     # Prevent nested session detection when invoking claude from within claude
     env.pop("CLAUDECODE", None)
     return env

@@ -160,18 +160,18 @@ leaves effort to whoever runs the loop. **Context:** interactive CID setup revie
 
 ## 2026-11-17 — Opus 5.5 effort re-baselined; Fable 5.2 as advisor
 
-**Decision:** `review` stays at `xhigh`; every other role (`update-state`, `define-next`, `advance`,
-`audit`, `meta-improve`) runs at `high`. All roles stay on `claude-opus-5-5` and get
-`claude-fable-5-2` as server-side advisor (review excepted since 2026-11-20). **Why:** human
-decision. Anthropic's Opus 5.5 guidance: `medium` already beats Opus 5 at `high` on coding, Opus 5.5
-thinks more per level, `xhigh` only where a gain is measured — the quality gate keeps it. The
-advisor gives Fable-level judgment at decision points without paying Fable rates for every token. It
-needs fetched feature flags, so the runner blanks `DISABLE_TELEMETRY` for its own sessions; CID runs
-therefore send telemetry while interactive sessions stay opted out. **Alternatives:** Fable 5.2 as
-the model for define-next/review — not chosen; all-Opus without advisor — not chosen. Watch
-`model_costs` in iterations.jsonl: advisor calls re-read the transcript uncached and count toward
-`ROLE_BUDGET_USD`. **Context:** interactive CID setup review, 2026-11-17; supersedes the effort
-levels in the 2026-10-17 entry.
+**Decision:** `review` stays at `xhigh` (Fable 5.2 at `high` since 2026-11-20); every other role
+(`update-state`, `define-next`, `advance`, `audit`, `meta-improve`) runs at `high`. All roles stay
+on `claude-opus-5-5` and get `claude-fable-5-2` as server-side advisor (review: Fable 5.2 model, no
+advisor, since 2026-11-20). **Why:** human decision. Anthropic's Opus 5.5 guidance: `medium` already
+beats Opus 5 at `high` on coding, Opus 5.5 thinks more per level, `xhigh` only where a gain is
+measured — the quality gate keeps it. The advisor gives Fable-level judgment at decision points
+without paying Fable rates for every token. It needs fetched feature flags, so the runner blanks
+`DISABLE_TELEMETRY` for its own sessions; CID runs therefore send telemetry while interactive
+sessions stay opted out. **Alternatives:** Fable 5.2 as the model for define-next/review — not
+chosen; all-Opus without advisor — not chosen. Watch `model_costs` in iterations.jsonl: advisor
+calls re-read the transcript uncached and count toward `ROLE_BUDGET_USD`. **Context:** interactive
+CID setup review, 2026-11-17; supersedes the effort levels in the 2026-10-17 entry.
 
 ## 2026-11-18 — Base32 decoding stays strict: no padding, zero spare bits
 
@@ -328,13 +328,16 @@ it too (`IndexError`). Nothing in the library called the public function with an
 arbitrary constant official. **Context:** human decision (Titusz, interactive session, 2026-11-20);
 issues.md carries the rollout.
 
-## 2026-11-20 — The advisor is off for review and never consulted after the deliverable is committed
+## 2026-11-20 — Review runs on Fable 5.2 without the advisor; no advisor call after a commit
 
-**Decision:** `review` runs without the Fable advisor (`ADVISOR_ROLES` in `tools/cid.py`); every
-other role keeps it but does not call it once its deliverable is committed. Review runs
-`mise run check` once on the advance work and checks its own Markdown edits with
+**Decision:** `review` runs on `claude-fable-5-2` at effort `high` (frontmatter) and without the
+advisor (`ADVISOR_ROLES` in `tools/cid.py`, the only place the advisor is set); every other role
+stays on Opus 5.5 with the Fable advisor but does not call it once its deliverable is committed.
+Review runs `mise run check` once on the advance work and checks its own Markdown edits with
 `uv run prek run --files`. **Why:** human decision. Over iterations 196-224 the advisor was $59 of
 $120 review spend (about $1.10 per call, transcript re-read uncached), 14 of 57 review calls came
 after commit and push, and Codex already gives review an independent opinion. Reviews ran the full
-check about 3 times each. **Context:** human decision (Titusz, interactive session, 2026-11-20);
-supersedes the advisor scope of the 2026-11-17 entry.
+check about 3 times each. Fable bills to plan limits on this account, not usage credits. Role
+sessions start without the claude.ai connectors (`sanitize_env`): they are not wanted unattended,
+and ISCC Expert bills an API key. **Context:** human decision (Titusz, interactive session,
+2026-11-20); supersedes the advisor scope of the 2026-11-17 entry.

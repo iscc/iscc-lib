@@ -196,6 +196,17 @@ def test_build_agent_cmd_raises_the_shell_output_limit():
     assert cid.BASH_OUTPUT_MAX_CHARS > 30_000
 
 
+def test_sanitize_env_removes_api_keys_and_claudeai_connectors(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "tok-test")
+    env = cid.sanitize_env()
+    assert "ANTHROPIC_API_KEY" not in env
+    assert "ANTHROPIC_AUTH_TOKEN" not in env
+    # claude.ai connectors (Gmail, Slack, ISCC Expert, ...) must not load into
+    # unattended role sessions; project MCP servers are unaffected.
+    assert env["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"
+
+
 def test_session_settings_enable_the_advisor_for_runner_sessions(monkeypatch):
     monkeypatch.setattr(cid, "ADVISOR_MODEL", "claude-fable-5-2")
     settings = cid.session_settings("define-next")
