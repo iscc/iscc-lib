@@ -87,17 +87,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 5814693, iter 237 — incremental)
+## Current State (assessed-at: e583e06, iter 238 — incremental)
 
-- **CI GREEN on tip `829a181`** (21/21, run 44814726134). Unpushed = only `cid(log)`. **Local
+- **CI GREEN on tip `752024f`** (21/21, run 44820365462). Unpushed = only `cid(log)`. **Local
     `origin/develop` ref can be stale** — `git ls-remote origin develop` first; check-runs API
     returns 422 for an unpushed SHA. codecov/cursor suites sit `queued` forever.
-- **236 landed the data-edge "Output subset" rule** (`edge-vectors.md` Rules + Verified When;
-    validator + C/C++ generator enforce it). Remaining: static-set fan-out to .NET/Java/napi/WASM
-    harnesses (still intersect keys) — the `normal` `[human]` issue stays open until then.
-- **12 open: 4 normal** (`[human]` drift; Java how-to `genSumCodeV0`; `[human]` data-edge
-    partial-key compare; Ruby precompiled gems stop at 3.3), 8 low (incl. EOL floors Py3.10/.NET
-    8/Ruby 3.1 — human-only). issues.md 236/300.
+- **237 closed the data-edge partial-compare issue**: all 12 harnesses use static uncompared sets
+    (grep `UNCOMPARED`/`Uncompared` in the 4 formerly lenient ones). Data-edge section = MET.
+- **11 open: 3 normal** (`[human]` drift; Java how-to `genSumCodeV0`; Ruby precompiled gems stop at
+    3.3), 8 low (incl. EOL floors Py3.10/.NET 8/Ruby 3.1 — human-only). issues.md 213/300.
 - data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`;
     compare `vulnerable_version_range` to develop's lockfiles — all patched there (236).

@@ -1,30 +1,31 @@
-<!-- assessed-at: 58146936529d1f1547c3e6a8f5c8e761ca60ea75 -->
+<!-- assessed-at: e583e06 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed, CI green; 4 normal issues owed
+## Phase: v0.8.0 — all features landed, CI green; 3 normal issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 236 put the data-edge "Output subset" rule into `edge-vectors.md` and
-enforced it in the Python validator and the C/C++ header generator; the four lenient harnesses
-(.NET, Java, napi, WASM) still intersect keys. 4 `normal` issues still block v0.8.0.
+all 11 bindings. Iteration 237 finished the data-edge "Output subset" fan-out: the .NET, Java, napi
+and WASM harnesses now compare every expected key outside a static per-section set, and that
+`normal` issue is closed. 3 `normal` issues (Java how-to, Ruby precompiled gems, derived-fact drift)
+still block v0.8.0.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
-**Status**: partially met — 1 `normal` `[human]` issue (now narrowed to the harness fan-out)
+**Status**: met
 
 - `crates/iscc-lib/tests/data-edge.json` has 6 sections: `iscc_decode`, `encode_seq`,
     `gen_text_code_v0`, `gen_mixed_code_v0`, `gen_iscc_code_v0`, `alg_simhash`; harnesses on all 12
     surfaces; the 5 tracked copies are byte-identical and match `VENDORED_COPIES`
-- Met: `tests/test_data_edge.py` and `scripts/gen_data_edge_vectors.py` derive each `gen_*`
-    function's allowed output keys from `data.json` and reject a non-object `outputs`, a missing
-    `iscc` or an unknown key, with negative tests; the generated C header is unchanged
-- **`normal`:** `DataEdgeTests.cs`, `DataEdgeTest.java`, `data_edge.test.mjs` and the WASM
-    `data_edge.rs` still compare the runtime intersection of expected and returned keys, against the
-    spec's "Output subset" rule and its new Verified When line (static uncompared set per harness,
-    plus two negative tests per surface)
+- Python validator and C/C++ generator enforce the "Output subset" rule (allowed keys derived from
+    `data.json`, unknown keys rejected, negative tests)
+- `DataEdgeTests.cs`, `DataEdgeTest.java`, `data_edge.test.mjs` and WASM `data_edge.rs` each hold a
+    static uncompared set (`gen_text_code_v0` → `characters`, `gen_mixed_code_v0` → `parts`), fail
+    on a missing key, and carry the two negative tests plus a synthetic positive
+- Not filed: the `parts` entry is untested on any surface (mixed has only an error vector); the WASM
+    `compare` has no explicit non-object branch
 
 ## Rust Core Crate
 
@@ -45,17 +46,18 @@ enforced it in the Python validator and the C/C++ header generator; the four len
 
 ## Node.js Bindings
 
-**Status**: met (v0.8.0 scope); data-edge harness covered by the partial-compare issue
+**Status**: met (v0.8.0 scope)
 
-- 35 Tier 1 symbols with TypeScript declarations; conformance, seq and data-edge tests green in CI;
-    `@iscc/lib` 0.7.0 on npm (OIDC); `ci.yml` napi job on Node `22`
+- 35 Tier 1 symbols with TypeScript declarations; conformance, seq and strict data-edge tests green
+    in CI; `@iscc/lib` 0.7.0 on npm (OIDC); `ci.yml` napi job on Node `22`
 - `low` issue: the napi `Buffer` reference leak
 
 ## WASM Bindings
 
-**Status**: met (v0.8.0 scope); data-edge harness covered by the partial-compare issue
+**Status**: met (v0.8.0 scope)
 
-- 35 Tier 1 symbols; conformance, unit and data-edge tests green in CI; SIMD release build met
+- 35 Tier 1 symbols; conformance, unit and strict data-edge tests green in CI; SIMD release build
+    met
 - `alg_cdc_chunks` returns `Uint8Array[]` since 234 — a changed published export shape, worth a
     v0.8.0 release-notes line
 
@@ -65,15 +67,15 @@ enforced it in the Python validator and the C/C++ header generator; the four len
 
 - 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
-- `tests/test_iscc.c` runs every data-edge row except the 2 marked `c: skip`; the generator now
-    rejects unknown output keys
+- `tests/test_iscc.c` runs every data-edge row except the 2 marked `c: skip`; the generator rejects
+    unknown output keys
 
 ## Java Bindings
 
 **Status**: met (v0.8.0 scope); 1 `normal` doc issue
 
-- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 6 sections (partial-key compare, see above),
-    green in CI; 0.7.0 on Maven Central
+- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 6 sections with the strict compare, green in
+    CI; 0.7.0 on Maven Central
 - **`normal`:** `docs/howto/java.md` `genSumCodeV0` example passes 3 args (method takes 4) and calls
     accessors on `public final` fields; it does not compile
 - `low` issue: the pending-exception guard has no test
@@ -85,15 +87,13 @@ enforced it in the Python validator and the C/C++ header generator; the four len
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape, strict base32;
     `data_edge_test.go` runs all sections, green in CI
 - `go.mod`: `go 1.26.1` floor, `toolchain go1.26.11`, `golang.org/x/text v0.41.0`
-- Review noted (not filed): `edgeCompare` reads a missing key as `nil`; harmless while no
-    `data.json` output is `null`
 
 ## C# / .NET Bindings
 
-**Status**: met (v0.8.0 scope); data-edge harness covered by the partial-compare issue
+**Status**: met (v0.8.0 scope)
 
 - `EncodeSeq` / `DecodeSeq`; `PinnedRows` pins all jagged-array inputs; `DataEdgeTests.cs` runs all
-    6 sections, green in CI; 0.7.0 on NuGet
+    6 sections with the strict compare, green in CI; 0.7.0 on NuGet
 - .NET 8 floor past end of life (2026-11-10) — `low` issue, human-only
 
 ## C++ Bindings
@@ -124,7 +124,7 @@ enforced it in the Python validator and the C/C++ header generator; the four len
 
 ## Documentation
 
-**Status**: partially met — 1 `normal` `[human]` issue
+**Status**: partially met — 1 `normal` `[human]` issue (+ the Java how-to above)
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs
@@ -151,19 +151,17 @@ enforced it in the Python validator and the C/C++ header generator; the four len
 - Security criterion met: advisory-flagged pins bumped, no CI test runtime EOL except the exempt
     floors (Python 3.10, .NET 8, Ruby 3.1 — `low` issue for Titusz). Only Rust has a standing
     advisory gate (`cargo deny`)
-- Dependabot alerts track `main`; the flagged packages are patched on `develop`
-- **Latest CI: PASSING** on `origin/develop` = `829a181` (`github-actions` suite `success`, 21/21
-    check-runs `success`): https://github.com/iscc/iscc-lib/actions/runs/44814726134
+- **Latest CI: PASSING** on `origin/develop` = `752024f` (`github-actions` suite `success`, 21/21
+    check-runs `success`): https://github.com/iscc/iscc-lib/actions/runs/44820365462
 - Unpushed: only the `cid(log)` commit (`.claude/` only) — green CI covers HEAD's code
 
 ## Open Issues
 
-12 open: 0 critical, **4 normal**, 8 low. Normal: derived-fact drift `[human]`, Java how-to
-`genSumCodeV0` example, data-edge partial-key compare `[human]` (harness fan-out left), precompiled
-Ruby gems stop at 3.3. issues.md is at 236 of 300 lines.
+11 open: 0 critical, **3 normal**, 8 low. Normal: derived-fact drift `[human]`, Java how-to
+`genSumCodeV0` example, precompiled Ruby gems stop at 3.3. issues.md is at 213 of 300 lines.
 
 ## Next Milestone
 
-Clear the 4 open `normal` issues — the remaining v0.8.0 release blockers: static-set data-edge
-compares on .NET/Java/napi/WASM, the broken Java how-to example, precompiled Ruby gem coverage, and
-the remaining derived-fact drift.
+Clear the 3 open `normal` issues — the remaining v0.8.0 release blockers: the broken Java how-to
+example, precompiled Ruby gem coverage (docs or release matrix), and the remaining derived-fact
+drift.
