@@ -236,25 +236,6 @@ Pre-existing. The other numbers probed match (`1.0`, `1e21`, `1e-7`, `9007199254
 Resolved when Go returns the core's result for the three inputs and each is a `data-edge.json`
 vector.
 
-## Four data-edge harnesses and a generator test reject valid `gen_meta_code_v0` vectors `normal` [review]
-
-Introduced in iteration 252, reported by Codex and confirmed by reading the code. Both break the "A
-vector costs one edit" rule of `edge-vectors.md`; today's fixture is green.
-
-- The uncompared sets for `gen_meta_code_v0` in the napi, WASM, JNI and .NET harnesses (`UNCOMPARED`
-    / `Uncompared`) hold `name`, `meta` and `metahash` but not `description`. These surfaces return
-    a bare ISCC string and `data.json` allows `description`, so the "Output subset" rule wants it
-    uncompared. A vector whose `outputs` carry `description` fails there with "missing field
-    description".
-- `test_meta_row_renders_object_as_json_text` in `tests/test_gen_data_edge_vectors.py` asserts that
-    every `meta` input is an object. The generator (`meta_text`) and every harness also take a
-    string, so a data-URL `meta` vector fails this test after a correct regeneration.
-
-Resolved when the four sets hold `description`, the test checks a string `meta` as passed through
-and still requires at least one object row, and a throwaway vector of each kind (a non-empty
-description with `outputs.description`; a data-URL `meta`) passes on all 12 surfaces without a
-harness edit. The throwaway vectors are not committed.
-
 ## C FFI treats `(NULL, 0)` two opposite ways and never checks inner pointers `normal` [audit]
 
 `crates/iscc-ffi/src/lib.rs` rejects NULL with len 0 in image/audio/data/instance/`encode_base64`

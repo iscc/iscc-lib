@@ -658,3 +658,24 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - Both findings were step-introduced but fail closed on a future vector, so: PASS_WITH_NOTES, one
     `normal` issue, no step-9 fix (changing what a harness compares is behaviour, not a nit)
 - Codex (`--base <define-next sha>`, ~6 min) reproduced both by adding vectors itself
+
+### Data-edge harness repair with a throwaway-vector proof (iter 253, ~12 min) — PASS, Codex clean
+
+- Two logged scripts. `verify.sh`: next.md's committed-fixture checks (~1 min warm: pytest,
+    generator no-op, `npx napi build --platform` + `npm test`,
+    `wasm-pack test --node … --test data_edge`, `mvn clean test`,
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=…`, clippy). `probe.sh`: my OWN
+    vectors through all 12 surfaces in ~2 min, with `trap revert EXIT` running `git checkout --` on
+    the 5 fixture copies + the header, then a generator rerun and `git status`. Start it only after
+    Codex has exited (Codex adds its own temporary vectors to the same tree)
+- Vectors come from a `/tmp` script under
+    `uv run --no-project --with iscc-core==1.5.0 --python 3.13`, outputs cut to the `data.json`
+    keys. **Give each a non-empty `note`**: without it `test_vector_schema` fails 1 row per vector
+    (253: 3 failures that were mine, not the step's)
+- Row-level evidence only where a harness prints rows: C and C++ totals rise by one per vector (104
+    → 107, 112 → 115); `grep -c <name>` on their logs. The other suites are one aggregate test
+- With a `meta` input, iscc-core ignores `description` for the hash: a description + data-URL vector
+    has the `iscc` and `metahash` of the one without. Add a third combination anyway, it is the one
+    the step's own proof left out
+- `dotnet test packages/dotnet` (no project at that level) = MSB1003; next.md wrote it as a
+    criterion
