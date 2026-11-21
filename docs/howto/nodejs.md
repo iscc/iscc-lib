@@ -36,8 +36,9 @@ All function names use `snake_case` to match the Python and Rust APIs.
 
 ## Code generation
 
-All 10 `gen_*_v0` functions return the ISCC code as a string (prefixed with `ISCC:`). Optional
-parameters use `null` or `undefined` for defaults.
+The nine `gen_*_v0` functions other than `gen_sum_code_v0` return the ISCC code as a string
+(prefixed with `ISCC:`); `gen_sum_code_v0` returns a `NapiSumCodeResult` object (see
+[Sum-Code](#sum-code)). Optional parameters use `null` or `undefined` for defaults.
 
 ### Meta-Code
 

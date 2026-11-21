@@ -120,7 +120,8 @@ Returns `true` if all tests pass, `false` otherwise.
 
 ## Code Generation
 
-All 10 `gen*V0` methods return an ISCC string (prefixed with `ISCC:`) on success. All throw
+`genSumCodeV0` returns a [`SumCodeResult`](#sumcoderesult); the nine other `gen*V0` methods and
+`genIsccIdV1` return an ISCC string (prefixed with `ISCC:`) on success. All throw
 `IllegalArgumentException` on invalid input.
 
 ### genMetaCodeV0

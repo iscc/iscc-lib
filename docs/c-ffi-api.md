@@ -150,8 +150,10 @@ Returns `13`.
 
 ## Code Generation
 
-All 10 `iscc_gen_*_v0` functions return a heap-allocated ISCC string (prefixed with `ISCC:`) on
-success, or `NULL` on error. Free the result with `iscc_free_string()`.
+The nine `iscc_gen_*_v0` functions other than `iscc_gen_sum_code_v0`, and `iscc_gen_iscc_id_v1`,
+return a heap-allocated ISCC string (prefixed with `ISCC:`) on success, or `NULL` on error. Free the
+result with `iscc_free_string()`. `iscc_gen_sum_code_v0` returns an `iscc_IsccSumCodeResult` struct
+instead; free it with `iscc_free_sum_code_result()`.
 
 ### iscc_gen_meta_code_v0
 

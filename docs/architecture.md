@@ -42,11 +42,13 @@ same inputs, verified by shared conformance test vectors.
 ## Workspace Layout
 
 The repository follows kreuzberg's `crates/` directory pattern with centralized dependency
-management via `workspace.dependencies` in the root `Cargo.toml`.
+management via `workspace.dependencies` in the root `Cargo.toml`. The tree below is an excerpt: it
+shows every crate and package directory, not every file.
 
 ```
 iscc-lib/
 ├── Cargo.toml                  # Virtual workspace root
+├── Package.swift               # Swift package manifest (SPM entry point)
 ├── pyproject.toml              # Python project (uv)
 ├── zensical.toml               # Documentation config
 ├── mise.toml                   # Tool versions + tasks
@@ -57,62 +59,59 @@ iscc-lib/
 │   └── python/                 # Comparative Python benchmarks
 ├── crates/
 │   ├── iscc-lib/               # Core Rust library
-│   │   ├── Cargo.toml
 │   │   ├── src/                # Algorithm implementations
-│   │   └── tests/              # Conformance test vectors
-│   ├── iscc-py/                # Python bindings
-│   │   ├── Cargo.toml
-│   │   ├── pyproject.toml      # maturin build config
+│   │   └── tests/              # Rust tests + data.json / data-edge.json vectors
+│   ├── iscc-py/                # Python bindings (PyO3, maturin)
 │   │   ├── src/lib.rs          # PyO3 wrappers
 │   │   └── python/iscc_lib/    # Python package + type stubs
-│   ├── iscc-napi/              # Node.js bindings
-│   │   ├── Cargo.toml
-│   │   ├── package.json        # npm package config
+│   ├── iscc-napi/              # Node.js bindings (napi-rs)
 │   │   ├── src/lib.rs          # napi-rs wrappers
 │   │   └── __tests__/          # Node.js conformance tests
-│   ├── iscc-wasm/              # WebAssembly bindings
-│   │   ├── Cargo.toml
-│   │   ├── package.json        # npm package config
+│   ├── iscc-wasm/              # WebAssembly bindings (wasm-bindgen)
 │   │   ├── src/lib.rs          # wasm-bindgen exports
 │   │   └── tests/              # WASM integration tests
 │   ├── iscc-ffi/               # C FFI bindings
-│   │   ├── Cargo.toml
 │   │   ├── src/lib.rs          # extern "C" functions
+│   │   ├── include/iscc.h      # Generated C header (cbindgen)
 │   │   └── tests/              # C test program
-│   └── iscc-jni/               # Java JNI bindings
-│       ├── Cargo.toml
-│       ├── src/lib.rs          # JNI extern "system" functions
-│       └── java/               # Java package + Maven build
-│           ├── pom.xml
-│           └── src/             # IsccLib.java + tests
+│   ├── iscc-jni/               # Java JNI bindings
+│   │   ├── src/lib.rs          # JNI extern "system" functions
+│   │   └── java/               # Java package + Maven build + tests
+│   ├── iscc-rb/                # Ruby bindings (Magnus, rb-sys)
+│   │   ├── src/lib.rs          # Magnus wrappers
+│   │   ├── lib/iscc_lib.rb     # Ruby wrapper module
+│   │   └── test/               # Minitest suites
+│   └── iscc-uniffi/            # UniFFI interface shared by Swift and Kotlin
+│       └── src/lib.rs          # UniFFI proc-macro exports
 ├── packages/
-│   └── go/                     # Go module (pure Go, no cgo)
-│       ├── go.mod
-│       ├── codec.go            # ISCC codec, constants, types
-│       ├── code_meta.go        # GenMetaCodeV0
-│       ├── code_content_*.go   # GenText/Image/Audio/Video/MixedCodeV0
-│       ├── code_data.go        # GenDataCodeV0 + DataHasher
-│       ├── code_instance.go    # GenInstanceCodeV0 + InstanceHasher
-│       ├── code_iscc.go        # GenIsccCodeV0
-│       ├── conformance.go      # ConformanceSelftest
-│       └── *_test.go           # Conformance tests
+│   ├── cpp/                    # C++17 header-only wrapper over the C FFI + tests
+│   ├── dotnet/                 # C# package over the C FFI (Iscc.Lib + Iscc.Lib.Tests)
+│   ├── go/                     # Go module (pure Go, no cgo): one file per algorithm + tests
+│   ├── kotlin/                 # Kotlin/JVM package over UniFFI (Gradle)
+│   └── swift/                  # Swift sources over UniFFI + XCTest suite
 └── .github/workflows/
-    ├── ci.yml                  # Test + lint
+    ├── ci.yml                  # Lint + test every surface
     ├── docs.yml                # Documentation deployment
-    └── release.yml             # Publish to crates.io, PyPI, npm
+    └── release.yml             # Build, test and publish to every registry
 ```
 
 ### Crate Summary
 
-| Crate         | Produces                         | Build Tool     | Published To  |
-| ------------- | -------------------------------- | -------------- | ------------- |
-| `iscc-lib`    | Rust library                     | cargo          | crates.io     |
-| `iscc-py`     | Python wheel                     | maturin + PyO3 | PyPI          |
-| `iscc-napi`   | Native Node.js addon             | napi-rs        | npm           |
-| `iscc-wasm`   | WASM package                     | wasm-bindgen   | npm           |
-| `iscc-ffi`    | Shared library (.so/.dll/.dylib) | cargo          | Source        |
-| `iscc-jni`    | JNI shared library               | cargo          | Maven Central |
-| `packages/go` | Go module                        | go             | pkg.go.dev    |
+| Crate             | Produces                               | Build Tool     | Published To                                                               |
+| ----------------- | -------------------------------------- | -------------- | -------------------------------------------------------------------------- |
+| `iscc-lib`        | Rust library                           | cargo          | crates.io                                                                  |
+| `iscc-py`         | Python wheel                           | maturin + PyO3 | PyPI                                                                       |
+| `iscc-napi`       | Native Node.js addon                   | napi-rs        | npm (`@iscc/lib`)                                                          |
+| `iscc-wasm`       | WASM package                           | wasm-bindgen   | npm (`@iscc/wasm`)                                                         |
+| `iscc-ffi`        | Shared + static library, C header      | cargo          | GitHub Release assets (`iscc-ffi-v<version>-<target>` archives)            |
+| `iscc-jni`        | JNI shared library + Java JAR          | cargo + Maven  | Maven Central (`io.iscc:iscc-lib`)                                         |
+| `iscc-rb`         | Ruby gem (native extension)            | rb-sys + rake  | RubyGems (`iscc-lib`)                                                      |
+| `iscc-uniffi`     | UniFFI library for Swift and Kotlin    | cargo + UniFFI | Not published itself — feeds `packages/swift` and `packages/kotlin`        |
+| `packages/cpp`    | C++17 header-only wrapper (`iscc.hpp`) | CMake          | Inside the `iscc-ffi` GitHub Release archives; vcpkg port and Conan recipe |
+| `packages/dotnet` | .NET package (P/Invoke over the C FFI) | dotnet         | NuGet (`Iscc.Lib`)                                                         |
+| `packages/go`     | Go module                              | go             | pkg.go.dev                                                                 |
+| `packages/swift`  | Swift package                          | SwiftPM        | SwiftPM via Git tag, with the XCFramework as a GitHub Release asset        |
+| `packages/kotlin` | Kotlin/JVM library                     | Gradle         | Maven Central (`io.iscc:iscc-lib-kotlin`)                                  |
 
 ## Internal Module Structure
 
@@ -179,14 +178,19 @@ of any size, then finalize to get the result.
 
 ### Per-Binding Adaptation
 
-| Binding     | Async Strategy                                                                            |
-| ----------- | ----------------------------------------------------------------------------------------- |
-| **Python**  | Sync API, GIL released during `update()`. Callers use `asyncio.to_thread()` if needed     |
-| **Node.js** | Sync napi-rs exports. `DataHasher`/`InstanceHasher` classes with `update()`/`finalize()`  |
-| **WASM**    | Sync exports — no threading in browser WASM                                               |
-| **C FFI**   | `ctx_new()` / `ctx_update()` / `ctx_finalize()` / `ctx_free()` — standard streaming C API |
-| **Java**    | Sync JNI API. `DataHasher`/`InstanceHasher` via opaque `long` handles                     |
-| **Go**      | Sync API. `DataHasher`/`InstanceHasher` with `Push([]byte)` / `Finalize(bits)` streaming  |
+| Binding     | Async Strategy                                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Python**  | Sync API, GIL released during `update()`. Callers use `asyncio.to_thread()` if needed                            |
+| **Node.js** | Sync napi-rs exports. `DataHasher`/`InstanceHasher` classes with `update()`/`finalize()`                         |
+| **WASM**    | Sync exports — no threading in browser WASM                                                                      |
+| **C FFI**   | `ctx_new()` / `ctx_update()` / `ctx_finalize()` / `ctx_free()` — standard streaming C API                        |
+| **Java**    | Sync JNI API. `DataHasher`/`InstanceHasher` via opaque `long` handles                                            |
+| **Go**      | Sync API. `DataHasher`/`InstanceHasher` with `Push([]byte)` / `Finalize(bits)` streaming                         |
+| **Ruby**    | Sync API. `IsccLib::DataHasher`/`InstanceHasher` with chainable `update` and `finalize(bits:)`                   |
+| **C#**      | Sync API. `IsccDataHasher`/`IsccInstanceHasher` (`IDisposable`, `SafeHandle`) with `Update`/`Finalize`           |
+| **C++**     | Sync API. Move-only RAII `iscc::DataHasher`/`InstanceHasher` with `update()`/`finalize()`                        |
+| **Swift**   | Sync API. UniFFI `DataHasher`/`InstanceHasher` classes with `update(data:)`/`finalize(bits:)`, freed on `deinit` |
+| **Kotlin**  | Sync API. UniFFI `DataHasher`/`InstanceHasher` (`AutoCloseable`) with `update()`/`finalize()`                    |
 
 !!! note "Why not async in the core?"
 
@@ -202,21 +206,33 @@ official [iscc-core](https://github.com/iscc/iscc-core) Python reference impleme
 ### How It Works
 
 1. The canonical `data.json` file lives in `crates/iscc-lib/tests/data.json`
-2. Every binding loads the **same file** (via relative path or `include_str!`)
-3. Test vectors contain inputs and expected outputs for all 10 `gen_*_v0` functions
+2. The test suites read that file by relative path or `include_str!`; .NET, Swift, Kotlin and Go's
+    embedded self-test use vendored copies that `tests/test_vendored_fixtures.py` keeps
+    byte-identical. C++ runs the library's built-in `conformance_selftest`, and the C test program
+    checks expected values written into the test
+3. Test vectors contain inputs and expected outputs for the 9 standard `gen_*_v0` functions
+    (iscc-core has no `gen_sum_code_v0`), plus `encode_seq` and `decode_seq`
 4. Tests are parametrized — each test case name maps to a key in the JSON
+
+A second fixture, `crates/iscc-lib/tests/data-edge.json`, holds project-owned edge-case vectors that
+every surface runs too.
 
 ### Cross-Language Test Matrix
 
-| Language | Test Runner   | Vector Access                     |
-| -------- | ------------- | --------------------------------- |
-| Rust     | `cargo test`  | `include_str!` at compile time    |
-| Python   | pytest        | Relative path from test file      |
-| Node.js  | `node:test`   | Relative path from `__tests__/`   |
-| WASM     | `cargo test`  | `include_str!` (no filesystem)    |
-| C        | gcc + runtime | Linked against shared library     |
-| Java     | `mvn test`    | Relative path from test resources |
-| Go       | `go test`     | Relative path from test file      |
+| Language | Test Runner                 | Vector Access                                                                        |
+| -------- | --------------------------- | ------------------------------------------------------------------------------------ |
+| Rust     | `cargo test`                | `include_str!` at compile time (`data-edge.json` read at runtime)                    |
+| Python   | pytest                      | Relative path from test file                                                         |
+| Node.js  | `node:test` (`npm test`)    | Relative path from `__tests__/`                                                      |
+| WASM     | `wasm-pack test --node`     | `include_str!` (no filesystem)                                                       |
+| C        | gcc + test program          | Expected values in the test; `data-edge.json` via generated `data_edge_vectors.h`    |
+| C++      | CMake + test program (ASAN) | Library `conformance_selftest`; `data-edge.json` via generated `data_edge_vectors.h` |
+| Java     | `mvn test`                  | Relative path from the Maven project                                                 |
+| Go       | `go test`                   | Relative path to `crates/iscc-lib/tests/`; vendored `testdata/` copies               |
+| Ruby     | `rake test` (Minitest)      | Relative path from test file                                                         |
+| C#       | `dotnet test` (xUnit)       | Vendored copies in `Iscc.Lib.Tests/testdata/`                                        |
+| Swift    | `swift test` (XCTest)       | Vendored copies bundled as SwiftPM test resources                                    |
+| Kotlin   | `./gradlew test`            | Vendored copies on the test classpath (`src/test/resources/`)                        |
 
 This approach catches cross-language drift — encoding differences, rounding behavior, default
 parameter mismatches — immediately when any binding diverges from the reference.

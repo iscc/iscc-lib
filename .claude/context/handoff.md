@@ -1,66 +1,54 @@
-## 2026-11-21 — Review of: JNI loader tests pass in the release layout, and CI runs the suite in that layout
+## 2026-11-21 — Docs accuracy batch: architecture.md covers every surface, no "10 standard functions" or Sum-Code-as-string claims
 
-**Verdict:** PASS
+**Done:** `docs/architecture.md` now has Ruby, C#, C++, Swift and Kotlin (plus `iscc-uniffi`) in the
+workspace tree, Crate Summary, Per-Binding Adaptation and Cross-Language Test Matrix, with release
+channels and test runners taken from `release.yml`/`ci.yml`. `ecosystem.md` counts the 9 standard
+`gen_*_v0` functions and names all 11 surfaces. The four "Code generation" paragraphs name the
+Sum-Code result type instead of claiming all 10 functions return a string.
 
-**Summary:** The child-JVM loader tests now find a real fallback library in both layouts (the
-`java.library.path` entry in CI, a temp copy of the bundled resource in the release layout), a new
-test pins the both-fail error, and the CI `java` job runs the suite a second time with the library
-only bundled. The diff touches the two test files and `ci.yml` only, as scoped. The `critical` issue
-is resolved and deleted; the loader commit `8a99a3c` and this step are pushed, and CI run
-44955385494 is green on all jobs.
+**Files changed:**
+
+- `docs/architecture.md`: tree marked as excerpt, one line per crate/package dir (Go file list
+    collapsed), `release.yml` comment "every registry"; Crate Summary 13 rows (`iscc-ffi` → GitHub
+    Release assets `iscc-ffi-v<version>-<target>`, from `release.yml:738`); 5 new adaptation rows;
+    "How It Works" item 2 reworded (vendored copies for .NET/Swift/Kotlin/Go selftest, C++ via
+    `conformance_selftest`, C via expected values in the test), item 3 → 9 functions + seq, one
+    sentence on `data-edge.json`; matrix 12 rows, WASM = `wasm-pack test --node`
+- `docs/ecosystem.md`: iscc-core / iscc-core-ts / Contributing → 9 standard functions; iscc-lib
+    intro + Language row list all 11 surfaces; Packages row adds Maven Central, RubyGems, NuGet, Go
+    module "among others"; Coverage → 9 standard functions plus `gen_sum_code_v0`
+- `docs/howto/nodejs.md`: `gen_sum_code_v0` returns `NapiSumCodeResult` (`index.d.ts:193`)
+- `docs/howto/java.md`, `docs/java-api.md`: `genSumCodeV0` returns `SumCodeResult`
+    (`IsccLib.java:161`); java-api also names `genIsccIdV1` as string-returning (`IsccLib.java:172`)
+- `docs/c-ffi-api.md`: `iscc_gen_sum_code_v0` returns `iscc_IsccSumCodeResult`, freed with
+    `iscc_free_sum_code_result()`; `iscc_gen_iscc_id_v1` named as `char*` (`lib.rs:660-666`)
 
 **Verification:**
 
-- [x] CI layout: `cargo build -p iscc-jni && mvn -q test -f crates/iscc-jni/java/pom.xml` exits 0 —
-    run in a `git archive HEAD` tree with the library only in `target/debug`: IsccLibTest tests=114,
-    skipped=0; the three `loaderFallsBack*` tests and `loaderReportsBothFailures` ran
-- [x] Release layout: `mvn test` exits 0 with the same four tests run, none skipped — same tree,
-    library only under `src/main/resources/META-INF/native/linux-x86_64/`, `target/debug` empty:
-    `Tests run: 122, Failures: 0, Errors: 0, Skipped: 0`
-- [x] The both-fail test fails without `addSuppressed` — exit 1, `expected: <3> but was: <2>`. Two
-    more mutations of mine: without `initCause` it fails the same way; with the bundled-library
-    error rethrown instead of kept, `loaderFallsBackOnBrokenBundledLibrary` fails too
-- [x] `ci.yml` job `java` has the step (copy to resources, move the library away, `mvn test`), and
-    its body exits 0 when run as CI runs it — extracted with PyYAML, run with
-    `bash --noprofile --norc -eo pipefail` in the throwaway tree. In CI itself: both steps report
-    `Tests run: 122 … Skipped: 0` and `BUILD SUCCESS` (job log of run 44955385494)
-- [x] `mise run check` exits 0
+- `git grep -nE '10 .gen_' -- docs/ecosystem.md docs/architecture.md` → no output
+- The `All 10 .*(return a .String|…)` grep over the four pages → no output; each paragraph names its
+    Sum-Code type (diff above)
+- `git grep -n Source docs/architecture.md` → no output; WASM matrix row names `wasm-pack test`
+- `uv run pytest tests/test_c_ffi_docs.py` → 6 passed; `uv run scripts/check_tier1_docs.py` → exit 0
+    ("20 full and 2 exact Tier 1 docs match")
+- `uv run zensical build` → exit 0, "No issues found"
+- `mise run check` → exit 0
+- Only the six docs files are modified (`git status --short`, plus the runner's `iterations.jsonl`)
 
-**Issues found:**
-
-- Three more pages carry the false "all 10 gen functions return a string" sentence:
-    `docs/howto/java.md`, `docs/java-api.md` (`genSumCodeV0` returns `SumCodeResult`) and
-    `docs/c-ffi-api.md` (`iscc_gen_sum_code_v0` returns a struct). Pre-existing; added to the
-    existing `normal` docs issue, now titled "Six docs pages count 10 standard functions or give
-    Sum-Code a string result"
-- Not filed: `loaderReportsBothFailures` skips through `writeBrokenBundledLibrary`'s `assumeTrue` on
-    a host with no bundled-library slot. Neither CI nor `release.yml` → `test-jni` runs on such a
-    host (both `ubuntu-latest`, x86_64)
-- Not filed: the new CI step hard-codes `linux-x86_64`. On another runner architecture the parent
-    JVM would fail to load the library, so the step fails loudly instead of passing empty
-
-**Codex review:** "No actionable regressions found." It ran the suite in both layouts itself (122
-tests, no skips in each).
-
-**Next:** the docs-only batch, both `normal` issues in one step: "`docs/architecture.md` sections
-below the graph cover half the surfaces" and "Six docs pages count 10 standard functions or give
-Sum-Code a string result" (`ecosystem.md`, `architecture.md`, `howto/nodejs.md`, `howto/java.md`,
-`java-api.md`, `c-ffi-api.md`). Scope it with a repo-wide `git grep -niE 'all 10' -- docs` and state
-for each hit whether it is a library-wide count (correct) or a return-type claim (check it against
-the binding's signature). `docs/howto/wasm.md:82` has the same sentence but belongs to the `[audit]`
-WASM docs issue, which needs a probe against a `--target web` build and is better as its own step.
+**Next:** the `[audit]` WASM Node.js docs issue (`docs/howto/wasm.md:82` carries the same "all 10
+return a string" sentence, and `crates/iscc-wasm/README.md`), with its `--target web` release-build
+probe.
 
 **Notes:**
 
-- No `critical` issue is open. Open `normal` issues: the two docs issues above, the WASM Node.js
-    docs (`[audit]`), the one-shot/streaming duplication (`[audit]`, mind the iai baseline) and the
-    `alg_minhash_256([])` decision (`[audit]`)
-- The advance handoff's open question about `Swatinem/rust-cache` is settled: with
-    `target/debug/libiscc_jni.so` moved away, `cargo build -p iscc-jni` restores it in 0.2 s (a hard
-    link from `target/debug/deps`), byte-identical. A cache saved without the file is harmless
-- A new Java test that spawns a child JVM should take its library directory from
-    `assertLoaderProbePasses` / `runLoaderProbe`; the second CI step now catches one that reads
-    `target/debug` directly
-- Each bundled-library load still leaves an empty `/tmp/iscc-jni-*` directory (the `low` issue,
-    human-directed only); the release-layout step adds a few per CI run on an ephemeral runner
-- No decisions.md entry: the step made no trade-off beyond what next.md recorded
+- Facts checked against source: Ruby hashers chain `update` and `finalize(bits:)`
+    (`lib/iscc_lib.rb`); .NET `IsccDataHasher` is `IDisposable` over a `SafeHandle`; C++ hashers are
+    move-only RAII (`iscc.hpp:640-715`); Swift UniFFI classes free on `deinit`; Kotlin classes are
+    `AutoCloseable`; no binding exposes async (`grep 'async \|Task<'` empty). Python GIL claim kept
+    (`py.detach` in all three `update`s, `iscc-py/src/lib.rs:643/692/743`)
+- `howto/java.md:74` still says "All 10 `gen*V0` methods are static … and throw
+    `IllegalArgumentException`" — a library-wide count, correct (`JavaError` maps every non-OOM
+    error to it)
+- Pre-existing, left as is: the C FFI adaptation row uses generic `ctx_new()/ctx_update()…` names
+    rather than the real `iscc_data_hasher_new` etc. Not a count/return-type claim, so out of scope
+- The ecosystem Packages row is long (8 links); next.md allowed "among others", which it ends with

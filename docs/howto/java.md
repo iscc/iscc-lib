@@ -71,9 +71,10 @@ All ISCC methods are static — there is no runtime object to create or close.
 
 ## Code generation
 
-All 10 `gen*V0` methods are static on `IsccLib`, return a `String` (the ISCC code prefixed with
-`ISCC:`), and throw `IllegalArgumentException` on invalid input. Optional parameters use `null`. The
-default `bits` value is `64`.
+All 10 `gen*V0` methods are static on `IsccLib` and throw `IllegalArgumentException` on invalid
+input. The nine methods other than `genSumCodeV0` return a `String` (the ISCC code prefixed with
+`ISCC:`); `genSumCodeV0` returns a `SumCodeResult` (see [Sum-Code](#sum-code)). Optional parameters
+use `null`. The default `bits` value is `64`.
 
 ### Meta-Code
 
