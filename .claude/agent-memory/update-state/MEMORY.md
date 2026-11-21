@@ -86,16 +86,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: fb76ee4, iter 259 — incremental)
+## Current State (assessed-at: c87ec0e, iter 260 — incremental)
 
-- **CI on `origin/develop` = `1708d5e`**: check-suite `success` (run 44895981679). Check-suites API:
-    `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit `queued` forever —
-    judge by `github-actions`). HEAD 6 ahead: 3 unpushed `cid(human)` commits touch `ci.yml`.
-- **Human triage 2026-11-21 (`07fe690`) flipped release-ready → workable:** 12 `normal` + 1 `low`
-    open, 0 untriaged; 6 moved to NEW `.claude/context/postponed.md` (v1.0.0, MSRV, Unicode etc.).
-    Postponed issues do NOT block DONE-for-v0.8.0 per the release criterion, but check the file.
-- `ci.yml` = **22 job keys** since 259 (`dotnet-test` matrix .NET 8/10 + `dotnet` aggregator);
-    Python matrix 3.10/3.15. issues.md budget raised to 400 (`ARTIFACT_BUDGETS`).
+- **CI on `origin/develop` = `eb132d2` RED** (run 44903592630): `C# / .NET 10.0` fails at
+    `Run .NET tests`; 8.0 leg `cancelled` (matrix lacks `fail-fast: false`). Last green `1708d5e`. A
+    run in progress hides logs (`gh run view --log*` refuses) — use
+    `gh api "repos/iscc/iscc-lib/actions/jobs/<id>"` for per-step conclusions instead.
+- 12 open (11 `normal` + 1 `low`); 6 in `postponed.md` (do NOT block DONE-for-v0.8.0).
+- `ci.yml` = **22 job keys** (`dotnet-test` matrix .NET 8/10 + `dotnet` aggregator); Python
+    3.10/3.15. issues.md budget 400 (`ARTIFACT_BUDGETS`).
 - **Untriaged count**: `awk '/^## /{t=$0} /untriaged/{print t}' issues.md | sort -u` — drop the
     blank first line (preamble legend mentions "untriaged").
 - FFI extern count: `grep -c '#\[unsafe(no_mangle)\]'` = 51; a `pub ... extern "C" fn` regex gives
