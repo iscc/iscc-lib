@@ -1,59 +1,43 @@
-## 2026-11-21 — Review of: Step NONE (no-op)
+## 2026-11-21 — meta-improve, iteration 248
 
-**Verdict:** PASS
+**IDLE**: The loop is healthy, nothing was auto-applied, and the one open proposal is not urgent.
 
-**IDLE**: All remaining issues are low priority — no actionable work for CID.
+**Evidence gathered** (`cid.py stats`, the `iteration_summary` series, the role rows in
+`iterations.jsonl`):
 
-**Summary:** next.md declared `## Step: NONE`, and the advance agent changed nothing but the
-handoff. Review checked the three IDLE conditions independently and all hold: no code change, every
-open issue is `low`, and state.md lists no unmet gap of `normal` priority or higher. The loop has no
-work left until Titusz decides the items below.
+- **Verdicts, iterations 209–248:** 2 NEEDS_WORK (215, 239), 1 IDLE (248), the rest PASS or
+    PASS_WITH_NOTES. Both NEEDS_WORK verdicts caught real defects: a test helper that fails the
+    CI-only CRAP gate (215), and an `rb_sys` gemspec dependency that broke cross-gem's version
+    lookup (239). Both lessons are already in `learnings.md`. No NEEDS_WORK cause repeats.
+- **Effort is going down:** `turns_total` had a median of about 113 over iterations 211–220 and
+    about 81 over 238–247. Median per role over 228–247: update-state 8, define-next 17, advance 19,
+    review 30. Review is the most expensive role, which is expected for the quality gate, and it is
+    not a meta target.
+- **Timeouts:** the last review TIMEOUT was at iteration 212 (195 before that). Both runs were
+    recovered. Titusz raised the review timeout to 7200 s in `091dc7c`, and none has occurred in the
+    36 iterations since.
+- **`learnings.md`** is at 200 lines, exactly its budget. The runner has recorded no overrun. Review
+    keeps it at the limit by compressing entries, so pruning it now would be churn without evidence.
 
-**Verification:**
+**Auto-applied:** nothing. No whitelisted file shows friction backed by evidence. With the loop
+idle, any change would also be judged against windows made of no-op iterations, so the result would
+be noise. No `meta-log.jsonl` exists yet, so the runner has recorded no rollback.
 
-- [x] No code change: the advance agent no-ops on NONE — the advance commit touches only
-    `.claude/context/handoff.md`; the whole unpushed range touches only files under `.claude/`
-- [x] `mise run check` exits 0 — every hook passed
+**Open proposals:** 1, in `proposals.md` and not urgent. Two summary rows (195 and 212) record
+`turns_total: 0` and enter the median_turns metric. The fix is in `tools/cid.py`, which only Titusz
+edits.
 
-Beyond next.md (3 probes):
+**Still waiting on Titusz** (carried over from the iteration-248 review; nothing for define-next
+until one of these changes):
 
-- [x] Every issue is `low`: 13 entries in issues.md (12 before this review), none `normal` or
-    `critical`; 8 carry `**Triage:** untriaged`
-- [x] CI is green on `origin/develop` = `4d04bf9`; the last 4 `develop` runs are `success`
-- [x] The Dependabot claim in next.md holds: 6 open alerts (4 soupsieve, 1 setuptools, 1 json), all
-    for `main`. On `develop`, `uv.lock` has setuptools 84.2.1 and no soupsieve, and
-    `crates/iscc-rb/Gemfile.lock` has json 2.21.2 — each at or above the fixed version
-
-No gate was touched, no Rust or API change, nothing to benchmark.
-
-**Issues found:**
-
-- **Filed `low`, untriaged:** "`target.md` states a version-sync target count that is out of date" —
-    the CI/CD section says "all 12 sync targets", `TARGETS` in `scripts/version_sync.py` holds 21.
-    The criterion is met; only the number is stale. next.md carried this as a side note, which would
-    have been lost with the next rewrite. Only Titusz edits `target.md`.
-
-**Codex review:** No actionable findings. Codex confirmed the commit only updates the handoff to
-document the no-op.
-
-**Next:** Nothing for define-next until one of these changes. Each needs Titusz:
-
-1. **Cut v0.8.0.** The release criteria are met and CI is green. Merge `develop` → `main`, then run
-    `/release 0.8.0`. The merge also closes the 6 Dependabot alerts on `main`. The release notes
-    should say that `@iscc/wasm` `alg_cdc_chunks` now returns `Uint8Array[]`.
-2. **Triage the 8 untriaged `low` issues**: promote each to `normal`, or delete its `**Triage:**`
-    line to park it. Two are small spec/docs fixes the loop can finish right after promotion: the
-    `ci-cd.md` tag trigger and the Sum-Code `KAA` comments. The pkg-config `Version: 0.2.0` example
-    is a third.
+1. **Cut v0.8.0.** The criteria are met and CI is green on `4d04bf9`. Merge `develop` → `main` (this
+    also closes the 6 Dependabot alerts on `main`), then run `/release 0.8.0`. The release notes
+    must say that `@iscc/wasm` `alg_cdc_chunks` now returns `Uint8Array[]`.
+2. **Triage the 8 untriaged `low` issues.** The loop can finish the `ci-cd.md` tag-trigger fix, the
+    Sum-Code `KAA` comments and the pkg-config `Version: 0.2.0` example as soon as they are
+    promoted.
 3. **End-of-life version floors** (Python 3.10, .NET 8, Ruby 3.1): raise each one or keep it on
     purpose.
-4. **v1.0.0 and MSRV**: no milestone is set after v0.8.0.
-5. **Fix the count in `target.md`** ("all 12 sync targets"): one line, human-owned file.
-
-If define-next runs again with none of these changed, the right output is again `## Step: NONE`.
-
-**Notes:**
-
-- After the release, the Ruby source gem issue can be checked against rubygems.org (its "Resolved
-    when" needs the published 0.8.0 gem to install into a clean gem home).
-- No new learnings and no decision entry: this was a routine no-op review.
+4. **What comes after v0.8.0:** v1.0.0 and MSRV, no milestone set.
+5. **`target.md` "all 12 sync targets"**: the count is stale (`TARGETS` has 21). One line in a file
+    only Titusz edits.
