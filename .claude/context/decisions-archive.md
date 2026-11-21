@@ -618,3 +618,23 @@ microsecond on a Meta-Code path dominated by NFD/NFKC and hashing, and the Go po
 (Codex, iteration 203). Rejected: two code paths for a sub-µs gain on an ungated path. Re-open only
 with a Go benchmark showing a regression at the Meta-Code level. **Context:** iteration 203 review;
 next.md prescribed `FieldsFunc` verbatim.
+
+## 2026-11-19 — Embedded NUL is rejected at the .NET and C++ wrapper boundary
+
+**Decision:** the .NET and C++ wrappers reject any string input containing an embedded NUL before
+marshalling, instead of letting `CStr::from_ptr` truncate it. The C FFI ABI stays NUL-terminated.
+**Why:** a wrong ISCC returned as success is worse than an error; a C string cannot hold a NUL, so
+the wrappers are what breaks the contract; the check is one choke point per wrapper. Accepted cost:
+.NET and C++ refuse NUL-bearing text that Rust and Python accept. **Alternatives:** strings with a
+length across the FFI. Rejected: it breaks every string-taking C function for a rare input.
+**Context:** human decision (Titusz, interactive session, 2026-11-19); issues.md has the evidence.
+
+## 2026-11-19 — Edge-case vectors are collected in `data-edge.json` and go upstream later
+
+**Decision:** edge-case inputs on which surfaces, or iscc-lib and iscc-core, disagree are collected
+in one shared file that every conformance harness runs (`specs/edge-vectors.md`). Titusz signals
+when the file is contributed to iscc/iscc-core; nobody opens an upstream PR or issue before that.
+**Why:** `data.json` has only well-formed inputs, and every cross-surface disagreement found so far
+(strict base32 in Go, case folding, embedded NUL, empty lists) was on an input it does not cover.
+**Alternatives:** per-binding negative tests only, the status quo. Rejected: eleven hand-written
+copies drift. **Context:** human decision (Titusz, interactive session, 2026-11-19).

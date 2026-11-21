@@ -29,26 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-19 — Embedded NUL is rejected at the .NET and C++ wrapper boundary
-
-**Decision:** the .NET and C++ wrappers reject any string input containing an embedded NUL before
-marshalling, instead of letting `CStr::from_ptr` truncate it. The C FFI ABI stays NUL-terminated.
-**Why:** a wrong ISCC returned as success is worse than an error; a C string cannot hold a NUL, so
-the wrappers are what breaks the contract; the check is one choke point per wrapper. Accepted cost:
-.NET and C++ refuse NUL-bearing text that Rust and Python accept. **Alternatives:** strings with a
-length across the FFI. Rejected: it breaks every string-taking C function for a rare input.
-**Context:** human decision (Titusz, interactive session, 2026-11-19); issues.md has the evidence.
-
-## 2026-11-19 — Edge-case vectors are collected in `data-edge.json` and go upstream later
-
-**Decision:** edge-case inputs on which surfaces, or iscc-lib and iscc-core, disagree are collected
-in one shared file that every conformance harness runs (`specs/edge-vectors.md`). Titusz signals
-when the file is contributed to iscc/iscc-core; nobody opens an upstream PR or issue before that.
-**Why:** `data.json` has only well-formed inputs, and every cross-surface disagreement found so far
-(strict base32 in Go, case folding, embedded NUL, empty lists) was on an input it does not cover.
-**Alternatives:** per-binding negative tests only, the status quo. Rejected: eleven hand-written
-copies drift. **Context:** human decision (Titusz, interactive session, 2026-11-19).
-
 ## 2026-11-19 — Review-found old defects are filed `low` until the human promotes them
 
 **Decision:** the review files a defect as `normal` only when the step caused it, ordinary
@@ -396,3 +376,17 @@ thousand throws, and no built-in does the type check in one crossing (`Float64Ar
 typed-array fast path (`dyn_ref` + copy; more code for one input form); an `inline_js` helper that
 checks in JS (one crossing, but adds a `snippets/` directory to the published package). **Revisit:**
 when a user reports number-array throughput. **Context:** iteration 269.
+
+## 2026-11-21 — The development Ruby is a `mise.toml` `[tools]` pin, the only tool pinned there
+
+**Decision:** the root `mise.toml` pins `ruby = "3.4.13"`; the standardrb hooks, the devcontainer
+setup and the docs run `mise exec -- …` and name no version (`tests/test_ruby_gem_docs.py`). The pin
+test reads `mise.toml` with a regex, as the docs-nav gate does (`tomllib` is missing on Python
+3.10). **Why:** the gem floor (3.3) is above Debian Bookworm's Ruby 3.1, and before the pin three
+files spelled two versions. mise fetches a prebuilt Ruby in about 13 s, so setup needs no compiler
+step. **Accepted cost:** every `mise run <task>` on a machine without that Ruby installs it first
+(measured with an empty `MISE_DATA_DIR`: `mise run version:check` downloaded 92 MB), and inside the
+repo the pinned Ruby precedes any system Ruby on PATH. CI does not use mise, so the pin never
+reaches it. **Alternatives:** a supported Ruby in the `Dockerfile` (a source build or a third-party
+apt repository, and the hooks would still need one named version); pinning Rust, Python and Node too
+(out of scope: the image and `uv` own those). **Context:** iteration 271.

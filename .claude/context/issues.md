@@ -63,23 +63,6 @@ how-tos under `docs/howto/` and in `docs/java-api.md` carry the comment `"ISCC:K
 
 Resolved when each Sum-Code example comment shows a prefix the call can return.
 
-## A rebuilt devcontainer cannot run the Ruby gates `normal` [review]
-
-The gem floor is Ruby 3.3 since iteration 270, and the devcontainer's system Ruby is Debian's 3.1.
-`.devcontainer/post-create.sh` still runs `bundle install` in `crates/iscc-rb` under that Ruby,
-which Bundler now refuses (the step is non-fatal, so setup continues). Both standardrb hooks in
-`.pre-commit-config.yaml` run `mise exec ruby@3.4 -- bundle exec standardrb`: mise installs a Ruby
-3.4 on demand, but nothing installs its bundle, so on a fresh container `mise run check` and every
-commit that touches a `.rb` file fail until someone runs `bundle install` under the mise Ruby by
-hand. Ruby is pinned in no config file: the hooks say `ruby@3.4`, `crates/iscc-rb/CLAUDE.md` and
-`specs/ruby-bindings.md` say `ruby@3.4.13`. The working container of iteration 270 has the bundle,
-so nothing fails there today. Introduced by the floor raise; next.md kept the devcontainer out of
-that step. Also found by the Codex review.
-
-Resolved when a fresh devcontainer build runs `mise run check` and the Ruby suite with no manual
-step, and the Ruby version the hooks and docs use is named in one place (a `mise.toml` pin, or a
-supported Ruby in the image).
-
 ## `release.yml` loads only one precompiled Ruby binary before publishing `low` [review]
 
 **Triage:** untriaged. A Ruby 3.4 user (or anyone not on x86_64 Linux) would get a precompiled gem

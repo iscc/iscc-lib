@@ -99,7 +99,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     vs a `git archive` build, **one `CARGO_TARGET_DIR` PER tree** (269) → `binding-reviews.md`
 - **C++ wrapper-only (227)**, **JNI error-path (230)**, **verbatim code-move (231)**,
     **test-harness-only (232)**, **WASM return-shape (234)**, **Ruby gem packaging (239–241)**,
-    **Ruby floor (270: never `rake clobber`)** → `binding-reviews.md`
+    **Ruby floor (270: never `rake clobber`)**, **dev-tool pin (271)** → `binding-reviews.md`
 - **A `[human]` issue with a `**Spec:**` field**: on closing it, the reviewer corrects the spec rows
     it names (227) — stage the spec file
 - **Waiting on a background run** (bare `sleep` is blocked):

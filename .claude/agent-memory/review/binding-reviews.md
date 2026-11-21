@@ -805,3 +805,19 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - `serde_wasm_bindgen::from_value` paths die after 5,000 to 8,200 throwing-element calls, on the
     0.7.0-line build too (filed `low`, untriaged). `number_vec` paths are safe
 - decisions.md sat at 398 before my 13-line entry: rotate with `cid.archive_overflow` right away
+
+## Dev-tool pin / devcontainer setup step (271, ~15 min, PASS, Codex clean)
+
+- The advance work was two commits (implementation, then handoff): Codex ran with
+    `--base <define-next sha>`, not `--commit HEAD`, and finished in about 5 minutes
+- `.devcontainer/devcontainer.json` is `skip-worktree` locally (disk = array form calling the
+    untracked `post-create.sh`): judge the COMMITTED copy with `git show HEAD:…`, and check
+    `git ls-files -v .devcontainer` still shows `S`. A pytest on the disk copy cannot gate it here
+- Fresh-setup simulation is cheap (80 s): `git archive HEAD` into `/tmp`, an EMPTY `MISE_DATA_DIR`,
+    `mise trust`, run the group extracted from the committed `postCreateCommand` with `sh -c`, then
+    the hook command; untrust and delete afterwards.
+- Side-effect probe for any `[tools]` addition: run `mise run version:check` with `MISE_DATA_DIR`
+    set to an empty directory; it shows what every task now installs first (271: Ruby, 92 MB)
+- Mutation of a "names no version" test: feed its helpers the previous real files via
+    `git show <define-next sha>:<path>`
+- `which ruby` is the mise shim, so the pin changes the Ruby of EVERY command in the repo

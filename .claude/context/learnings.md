@@ -112,10 +112,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     rb_sys pin UNANCHORED (first `Gemfile.lock` line containing `rb_sys`), so the gemspec declares
     `rb_sys` only next to `core/`. The staged manifest is its own workspace: of the root, only
     `[profile.release]` reaches it (copied key lines, LTO install ≈ 55 s). Tests need `ruby` on PATH
-- **Ruby floor is 3.3 (270)**: system Ruby 3.1 cannot `bundle` in `crates/iscc-rb`; run
-    `mise exec ruby@3.4.13 -- …` (floor: `mise install ruby@3.3`, prebuilt, 30 s). **Never
-    `rake clobber`: it empties the workspace `target/`.** The `lib/` `.so` fits one Ruby series:
-    delete it and `tmp/` to switch. A test edit can red pre-push `ty` (`re.search(…).group`)
+- **Ruby floor is 3.3 (270); the dev Ruby is the `mise.toml` `[tools]` pin (271)**: run
+    `mise exec -- …` in `crates/iscc-rb` (floor: `mise exec ruby@3.3 -- …`); the pin puts that Ruby
+    first on PATH repo-wide, ahead of system 3.1. **Never `rake clobber`: it empties the workspace
+    `target/`.** The `lib/` `.so` fits one Ruby series: delete it and `tmp/` to switch
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a
