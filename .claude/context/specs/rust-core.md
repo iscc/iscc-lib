@@ -348,29 +348,30 @@ until the upstream format settles. Upstream has already moved the format once in
 - Body (big-endian `u64`): `timestamp = body >> 12` (52-bit microseconds since the UNIX epoch),
     `hub_id = body & 0xFFF` (12-bit issuing-hub slot, 0–4095)
 
-### Part 1 — the generic codec must accept Version 1 (conformance)
+### Part 1 — the generic codec accepts Version 1 (conformance)
 
-**This is the load-bearing half of the work, and it adds no new symbols.** In the reference,
-`decode_header` performs *no* version validation at all — it decodes four varnibbles and returns
-them — so `iscc_core.iscc_decode` is fully generic and handles ISCC-IDv1 today with no dedicated
-function:
+**This is the load-bearing half, and it adds no new symbols.** In the reference, `decode_header`
+performs *no* version validation at all — it decodes four varnibbles and returns them — so
+`iscc_core.iscc_decode` is fully generic and handles ISCC-IDv1 today with no dedicated function:
 
 ```text
 iscc_core.iscc_decode("ISCC:MAIGHFECJMOPMIAB")
   -> (6, 0, 1, 0, b'c\x94\x82K\x1c\xf6 \x01')   # (ID, realm 0, V1, len 0, 64-bit body)
 ```
 
-Our `codec::Version` enum has only `V0`, and `Version::try_from` rejects everything else, so **every
-iscc-lib surface currently fails** on any ISCC-IDv1 — verified live against the built Python wheel:
+`codec::Version` has `V0` and `V1` (`#[non_exhaustive]`). `Version::try_from` maps both nibbles, and
+the private `validate_version` admits `(any MainType, V0)` and `(Id, V1)` only, so a Version-1
+header on any other MainType is rejected. `iscc_decode` and `iscc_decompose` therefore decode an
+ISCC-IDv1 on every surface, matching the reference:
 
 ```text
-iscc_lib.iscc_decode("ISCC:MAIGHFECJMOPMIAB")     -> ValueError: invalid input: invalid Version: 1
-iscc_lib.iscc_decompose("ISCC:MAIGHFECJMOPMIAB")  -> ValueError: invalid input: invalid Version: 1
+iscc_lib.iscc_decode("ISCC:MAIGHFECJMOPMIAB")
+  -> (MT.ID, ST.NONE, VS.V1, 0, b'c\x94\x82K\x1c\xf6 \x01')
+iscc_lib.iscc_decompose("ISCC:MAIGHFECJMOPMIAB")  -> ['MAIGHFECJMOPMIAB']
 ```
 
-Restoring parity on the already-shipped generic `iscc_decode` / `iscc_decompose` is a prerequisite
-for Part 2 and is independently valuable: it is what makes iscc-lib a drop-in for `iscc-core` on
-ID-bearing input. It can land as its own work package ahead of any new function.
+This parity on the generic `iscc_decode` / `iscc_decompose` is what makes iscc-lib a drop-in for
+`iscc-core` on ID-bearing input.
 
 ### Part 2 — one new symbol: `gen_iscc_id_v1`
 
@@ -390,9 +391,9 @@ pub struct IsccIdResult {
 ```
 
 **There is deliberately no `decode_iscc_id_v1`** (decided by Titusz, 2026-07-28). `iscc-core` has no
-IDv1 decoder — `iscc_decode` is generic and covers it once Part 1 lands — so a dedicated decoder
-would be an iscc-lib invention: permanent surface on every binding, with no upstream to track as the
-format evolves, in place of three lines of arithmetic. Callers decode like this:
+IDv1 decoder — `iscc_decode` is generic and covers it (Part 1) — so a dedicated decoder would be an
+iscc-lib invention: permanent surface on every binding, with no upstream to track as the format
+evolves, in place of three lines of arithmetic. Callers decode like this:
 
 ```text
 mt, st, vs, ln, body = iscc_decode("ISCC:MAIGHFECJMOPMIAB")   # (6, 0, 1, 0, 8 bytes)
@@ -437,19 +438,17 @@ Go's existing `"iscc: timestamp overflow: %d (must be < 2^52)"` is correct and i
 napi/WASM raise a JS `Error`, JNI throws, the C FFI fills its error-string out-param. Only the
 *which check fires first* ordering is asserted cross-surface.
 
-### Codec changes this requires
+### Codec rules for Version 1
 
-- `codec::Version` gains `V1 = 1` **and** `#[non_exhaustive]` in the same change. The enum is not
-    currently `#[non_exhaustive]`, so adding a variant is a SemVer-major break; the 0.x window is
-    the last free opportunity to add the attribute before the v1.0.0 lock makes every future version
-    variant cost a major bump.
+- `codec::Version` carries `V1 = 1` **and** `#[non_exhaustive]`, added together in the 0.x window so
+    that a future version variant does not cost a SemVer-major bump after the v1.0.0 lock.
 - `decode_header`, `encode_component` and `encode_header` accept Version 1 **only** when MainType is
-    `Id`; every other MainType keeps rejecting Version > 0.
-- This changes the observable behaviour of the already-shipped Tier 1 `iscc_decode` on every
-    surface: inputs that previously failed with `invalid Version: 1` now succeed. The change is
-    additive-permissive (no signature change), and it is *intended* — `iscc/iscc-monitor` maintains
-    a tripwire test (ADR-0011) that flips red exactly when a binding starts accepting Version 1, as
-    the signal to delete its interim in-repo codec port.
+    `Id`; every other MainType rejects Version > 0.
+- Tier 1 `iscc_decode` accepts an ISCC-IDv1 on every surface (earlier releases failed with
+    `invalid Version: 1`). The change is additive-permissive (no signature change), and it is
+    *intended* — `iscc/iscc-monitor` maintains a tripwire test (ADR-0011) that flips red exactly
+    when a binding starts accepting Version 1, as the signal to delete its interim in-repo codec
+    port.
 
 ### ISCC-IDv0 is out of scope — permanently
 

@@ -63,7 +63,7 @@ from `maturin develop`.
 | `MixedCodeResult` struct                                  | `PyDict` with `iscc`, `parts`                                           | `MixedCodeResult(IsccResult)`                                   |
 | `ImageCodeResult` / `AudioCodeResult` / `VideoCodeResult` | `PyDict` with `iscc`                                                    | Corresponding `IsccResult` subclass                             |
 | `SumCodeResult` struct                                    | `PyDict` with `iscc`, `datahash`, `filesize`, optional `units`          | `SumCodeResult(IsccResult)`                                     |
-| `iscc_lib::Error`                                         | `PyValueError`                                                          | `ValueError`                                                    |
+| `iscc_lib::IsccError`                                     | `PyValueError`                                                          | `ValueError`                                                    |
 | `Vec<u8>` (from `soft_hash_video_v0` / `*_flat` variants) | `PyBytes`                                                               | `bytes`                                                         |
 | `DataHasher` / `InstanceHasher` / `SumHasher`             | `#[pyclass]` with `Option<inner>`                                       | Python wrapper class accepting `bytes \| bytearray \| BinaryIO` |
 

@@ -33,7 +33,7 @@ napi-rs bindings exposing the `iscc-lib` Rust core as a native Node.js addon pub
 | `f64`                          | `number`                                      | Every numeric input, narrowed by `to_u8`/`to_u32`/`to_i32` |
 | `i64`                          | `number`                                      | Filesize in `NapiSumCodeResult`                            |
 | `#[napi(object)] struct`       | plain JS object                               | `IsccDecodeResult`, `NapiSumCodeResult`                    |
-| `napi::Result<T>`              | throws on Err                                 | Maps `iscc_lib::Error` via `napi::Error::from_reason`      |
+| `napi::Result<T>`              | throws on Err                                 | Maps `iscc_lib::IsccError` via `napi::Error::from_reason`  |
 | `bool`                         | `boolean`                                     | Direct mapping                                             |
 
 ## Build Commands
@@ -63,7 +63,7 @@ cargo build -p iscc-napi
 - Rust docstrings on `#[napi]` functions propagate to `index.d.ts` as JSDoc comments
 - `Buffer` (from `napi::bindgen_prelude::Buffer`) is the type for byte data, not `Vec<u8>`
 - Return `napi::Result<T>` for fallible functions; use `napi::Error::from_reason(e.to_string())` to
-    convert `iscc_lib::Error` -- never panic across FFI
+    convert `iscc_lib::IsccError` -- never panic across FFI
 - Infallible functions (text utils) return the value directly, no `napi::Result` wrapper
 - Default parameter values are applied in the Rust wrapper, not in JS: `bits.unwrap_or(64)`,
     `wide.unwrap_or(false)`

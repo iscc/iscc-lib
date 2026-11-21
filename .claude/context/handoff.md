@@ -1,84 +1,62 @@
-## 2026-11-21 — Review of: Gate the stale Python extension and the undiffed generated sources
+## 2026-11-21 — Realign the specs and crate CLAUDE.md files with the shipped code
 
-**Verdict:** PASS
+**Done:** Rewrote every statement the audit issue cites, in the present tense, to match the tree. No
+code file changed. Where a sentence next to a cited block said the same stale thing, I fixed it as
+well (listed under Notes).
 
-**Summary:** The pre-push `pytest` hook and `mise run test` now rebuild the Python extension through
-one mise task (`py:develop`), and CI diffs `NativeMethods.g.cs` (job `c-ffi`) and the three UniFFI
-outputs (job `kotlin`) against their committed copies. I re-ran both CI step bodies against real
-regressions in a throwaway copy, pushed the advance commits first, and read the job logs: CI run
-44946870015 on `e24d041` is green on all 24 jobs and both steps ran their generators. The audit
-issue is resolved and deleted.
+**Files changed:**
+
+- `.claude/context/specs/rust-core.md`: IDv1 Part 1 now says what shipped. `Version` has `V0`/`V1`
+    (`#[non_exhaustive]`) and `validate_version` admits `(any, V0)` and `(Id, V1)`, which matches
+    codec.rs:105-130. The failing-output block is replaced by live `iscc_lib` output. Also fixed
+    "once Part 1 lands", and "Codec changes this requires" → "Codec rules for Version 1" (present
+    tense)
+- `.claude/context/specs/python-bindings.md`: the "GIL Release for Text/Video" section is now in the
+    present tense. Text, video, video_flat, soft_hash_video and soft_hash_video_flat run inside
+    `py.detach` (I checked the `.detach(` sites at iscc-py lib.rs:140/192/219/243/609). The
+    `extract_frame_sigs` caveat stays, as a constraint that holds
+- `.claude/context/specs/go-bindings.md`: removed `io.Reader` from 3 places (:13 is now
+    "`Push`/`Finalize` hashers for streaming"). The "exist only on `develop`" paragraph is replaced
+    (see Notes)
+- `.claude/context/specs/wasm-bindings.md`: "Rust Bridge Layer" now shows the real
+    `gen_meta_code_v0`, copied verbatim from iscc-wasm lib.rs:181-191. It has snake_case exports,
+    `JsValue` + `unchecked_optional_param_type` + `opt_u32`, and returns a `String`. The text names
+    `gen_sum_code_v0` → `WasmSumCodeResult` as the exception. Two "Key Differences" bullets were
+    also wrong and are fixed: the WASM `gen_sum_code_v0` takes bytes, not a path, and serde is used
+    only to deserialize array inputs
+- `crates/iscc-{napi,py,wasm}/CLAUDE.md`: `iscc_lib::Error` → `iscc_lib::IsccError`; mdformat
+    realigned the tables
+- `packages/go/CLAUDE.md`: the per-file unit-test list is replaced by a rule on file names
+    (`<name>_test.go` sibling, `code_*_test.go`). I checked that every non-test `.go` file has a
+    sibling test file. Publishing now says the proxy needs `packages/go/vX.Y.Z`, which `release.yml`
+    creates on a `workflow_dispatch` with a `version` input; the "Create tags" step at :112-115 is
+    gated by `if: inputs.version != ''` on `prepare-release`. The FFI claim now says only C++ and
+    .NET wrap `iscc-ffi`
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_generated_artifact_gates.py` passes, and `uv run pytest` passes — 5
-    passed; 822 passed in 21.6 s
-- [x] With `_lowlevel.abi3.so` moved out of the tree, `uv run prek run pytest --stage pre-push`
-    exits 0 and the `.so` exists again — exit 0 in 40 s, new mtime, moved copy deleted
-- [x] The handoff shows the throwaway-repo runs, each step non-zero on a mutated committed file and
-    0 on the unmodified tree — shown by advance, and re-run by me from a `git archive` copy with
-    `bash --noprofile --norc -eo pipefail`:
-    - `.cs` step: clean tree rc=0; one changed line after a rebuild rc=1
-    - UniFFI step: clean tree rc=0; `iscc_uniffi.swift` from `1a39d0d~1` rc=1 (advance had left the
-        Swift file out); trailing whitespace and extra blank lines at EOF only rc=0; one added inner
-        space rc=1; an empty `iscc_uniffi.kt` rc=1; restored rc=0
-- [x] `uv run scripts/check_ci_job_table.py` exits 0, and `mise run check` exits 0 — "22 CI jobs
-    consistent"; all hooks passed
-- [x] `git status --porcelain` shows no change to `NativeMethods.g.cs`, `iscc_uniffi.kt`,
-    `iscc_uniffi.swift` or `iscc_uniffiFFI.h` — only the runner's `iterations.jsonl` is modified
+- All 6 grep criteria in next.md print nothing, and `grep -n 'packages/go/v' packages/go/CLAUDE.md`
+    prints line 126
+- `uv run scripts/check_spec_paths.py` → "OK: every tree entry and backticked path in 15 specs
+    resolves."
+- `mise run format` rc=0, and `mise run check` rc=0 (all hooks passed)
+- `git diff --stat`: only the 8 scoped files, plus the runner's `iterations.jsonl`, which I did not
+    stage
+- IDv1 decode output, live: `uv run python -c "...iscc_decode('ISCC:MAIGHFECJMOPMIAB')"` →
+    `(<MT.ID: 6>, <ST.NONE: 0>, <VS.V1: 1>, 0, b'c\x94\x82K\x1c\xf6 \x01')`. The spec shows it as
+    `MT.ID, ST.NONE, VS.V1`
 
-Beyond next.md (3 probes):
-
-- CI logs. `c-ffi` → "Build FFI crate" prints `Compiling iscc-ffi` before `Compiling iscc-lib` on a
-    full rust-cache hit, so csbindgen's `build.rs` ran and the `.cs` diff is not vacuous. `kotlin` →
-    the step ran `uniffi-bindgen generate` for Kotlin and for Swift.
-- Anchor-test mutations (8, on a copy of the workflow, hook and mise files): 7 failed the test as
-    they should. Dropping the UniFFI step's last line `exit "$stale"` stayed green, and without that
-    line the step can never fail. Fixed here: the test now asserts the step ends with it (mutation
-    re-run: 1 failed).
-- Hook cost: `mise run py:develop` takes about 15 s after `cargo clippy` or `cargo test` (it
-    recompiles `pyo3-ffi`, `pyo3` and `iscc-py`) and 0.3 s when repeated. The whole pre-push batch
-    took 60 s.
-
-**Issues found:**
-
-- Fixed in this review: the anchor test did not pin the `exit "$stale"` line (see above). One
-    assertion added to `tests/test_generated_artifact_gates.py`; `ty` and ruff are green on it.
-- Not filed, behaviour to know: the hook and `mise run test` install a debug build, as CI does. A
-    `maturin develop --release` build is replaced on every push, so rebuild with `--release` before
-    running the Python benchmarks (`docs/benchmarks.md` already gives that command).
-- Not filed: the UniFFI check runs `cargo run --features bindgen`, which rebuilds
-    `libiscc_uniffi.so` with that feature, so the Gradle tests after it load that build. The exports
-    are the same and the job is green.
-- Not filed, confirmed advance's note: in a warm tree a change to `NativeMethods.g.cs` alone does
-    not rerun `build.rs` (rc=0 until `crates/iscc-ffi/src/lib.rs` is touched). CI is not affected
-    (fresh checkout, log evidence above). Recorded in learnings.md.
-- A bare `uv run pytest` still imports whatever `.so` is there. next.md excluded that on purpose.
-
-**Codex review:** No actionable findings. Codex ran the Rust and Python suites and both freshness
-checks, and confirmed that they reject modified artifacts.
-
-**Next:** No `critical` issue is open. Candidates among the `normal` entries, for define-next to
-weigh:
-
-- `conformance_selftest` repeats one runner loop nine times (audit, 2 files plus
-    `.crap-baseline.json`). It is a core change, so it goes alone. The CRAP gate is CI-only: move
-    the baseline in the same step and run the CI CRAP lines locally.
-- "Specs and crate CLAUDE.md files describe shipped work as pending" (audit, 8 files, audit-scope
-    step). define-next and advance read these files as truth, so this one pays back on every later
-    step.
-- The docs entries (`KAA` Sum-Code prefix, pkg-config version line, `docs/development.md` release
-    section, `llms.txt` coverage, `@iscc/wasm` Node setup) are small and independent.
-
-`alg_minhash_256([])` needs a decision between two behaviours before it can be scoped; if
-define-next picks it, it should say which behaviour it chooses and why, or ask Titusz.
+**Next:** `conformance_selftest`'s single section runner (Rust + Go, plus `.crap-baseline.json` in
+the same step), as handoff and next.md proposed.
 
 **Notes:**
 
-- Gates are in good shape: no gate was weakened, and the scope was 3 non-test, non-doc files.
-- The advance commits (`b915d78`, `e24d041`) are already on `origin/develop`; this review commit
-    adds the test assertion and the context files on top.
-- learnings.md stays at 200 lines: the test-framework-major note moved to `learnings-archive.md` to
-    make room. Any new bullet needs an equal cut.
-- No gate strengthening to flag. The other gitignored native artifacts (napi `.node`, Ruby `.so`,
-    JNI `.so`) are still rebuilt by hand before local probing (learnings.md → CI/CD).
+- I departed from next.md on Go: it says "the old symbols were removed in 0.6.0", but that is false.
+    `git grep 'func EncodeIsccID\|func GenIsccIDV1' <tag> -- packages/go` finds no IDv1 API in
+    v0.3.0–v0.5.0, and only `GenIsccIDV1` in v0.6.0 and v0.7.0. So the spec now says that neither
+    old symbol was ever in a tagged release and that `GenIsccIDV1` first shipped in 0.6.0. The
+    "update issue #43 when this lands" sentence is dropped
+- Out of scope, not touched: `crates/iscc-py/CLAUDE.md` "Test Patterns" still lists test files one
+    by one (`test_new_symbols.py`, …). This is the same kind of list the 2026-11-21 decision forbids
+    in per-crate CLAUDE.md files, and it is likely stale. It is a candidate for a later sweep
+- The `iscc_core.iscc_decode` reference example in rust-core.md is kept unchanged

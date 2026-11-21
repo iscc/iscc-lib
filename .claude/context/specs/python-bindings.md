@@ -295,20 +295,18 @@ small-input size threshold to avoid GIL release/reacquire overhead regressing ti
 
 GitHub: https://github.com/iscc/iscc-lib/issues/41
 
-Follow-up to the GIL-release work above (issue #39, shipped in 0.5.0), which intentionally excluded
-two heavyweight compute-bearing entry points. (The meta, audio, and mixed paths also run attached,
-but their compute is negligible — short strings, a small fingerprint vector, a handful of codes — so
-they stay attached by design.) `gen_text_code_v0` (text cleaning/collapsing + n-gram + minhash) and
-`gen_video_code_v0` / `soft_hash_video_v0` (WTA-hash over frame signatures) still hold the GIL for
-the full duration of their Rust work, serializing them against all other Python threads and negating
-the concurrency benefit for callers who batch text/video alongside data/instance hashing.
+Follow-up to the GIL-release work above (issue #39, shipped in 0.5.0), covering the two remaining
+heavyweight compute-bearing entry points. `gen_text_code_v0` (text cleaning/collapsing + n-gram +
+minhash) and `gen_video_code_v0` / `soft_hash_video_v0` and their `*_flat` variants (WTA-hash over
+frame signatures) run their pure-Rust compute inside `py.detach(|| ...)` in
+`crates/iscc-py/src/lib.rs`, the same pattern as the data/instance/image/sum functions, so they no
+longer serialize against other Python threads. The meta, audio, and mixed paths stay attached by
+design: their compute is negligible (short strings, a small fingerprint vector, a handful of codes).
 
-Wrap the core calls in `py.detach(|| ...)` in `crates/iscc-py/src/lib.rs`, mirroring the pattern
-already applied to the data/instance/image/sum functions. **Caveat:** `gen_video_code_v0` and
-`soft_hash_video_v0` extract frame signatures via raw borrowed `PyList_GetItem` pointers in
-`extract_frame_sigs`, which are NOT free-threading-safe (this is why the module sets
-`gil_used = true`). The detach window must be placed strictly around the pure-Rust compute,
-**after** all Python-object extraction is complete — never around the extraction itself.
+**Constraint:** `gen_video_code_v0` and `soft_hash_video_v0` extract frame signatures via raw
+borrowed `PyList_GetItem` pointers in `extract_frame_sigs`, which are NOT free-threading-safe (this
+is why the module sets `gil_used = true`). The detach window sits strictly around the pure-Rust
+compute, **after** all Python-object extraction is complete — never around the extraction itself.
 
 **Verified when:**
 

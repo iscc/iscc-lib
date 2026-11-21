@@ -10,8 +10,8 @@ is a native Go implementation — not an FFI wrapper, CGO bridge, or WASM embed.
 
 - Native Go implementation of all ISCC algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash)
 - No CGO, no WASM, no embedded binaries — just Go source code
-- Idiomatic Go API with Go naming conventions, `error` returns, `[]byte` slices, and `io.Reader`
-    support for streaming
+- Idiomatic Go API with Go naming conventions, `error` returns, `[]byte` slices, and `Push`/
+    `Finalize` hashers for streaming
 - Lives in this repository under `packages/go/` as a Go sub-module
 - Validated against the same conformance test vectors as all other bindings
 
@@ -90,8 +90,6 @@ func (h *DataHasher) Finalize(bits uint32) (*DataCodeResult, error)
 Hashers are single-use: the first `Finalize` call consumes the hasher, even when it fails. After
 that, `Push` and `Finalize` return an "already finalized" error.
 
-Streaming functions also accept `io.Reader` for file/network streaming.
-
 ## ISCC-IDv1 Support (Experimental)
 
 GitHub: https://github.com/iscc/iscc-lib/issues/43
@@ -133,9 +131,8 @@ both halves differently:
     `n := binary.BigEndian.Uint64(body)`, then `timestamp := n >> 12`, `hubID := uint16(n & 0xFFF)`,
     `realm := st`
 
-Both symbols exist only on `develop` and have never appeared in a tagged release, so no published
-consumer is affected. `iscc/iscc-monitor` must be told the final shape before it deletes its interim
-port — update issue #43 when this lands.
+Neither old symbol appeared in a tagged release: `GenIsccIDV1` is the first IDv1 API any release
+shipped (0.6.0), so no published consumer was affected.
 
 **Conformance vector:** `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub_id 1, timestamp 1751831876325218
 (from iscc-hub's `schema.py` example).
@@ -214,7 +211,7 @@ embeds no package-version string, so there is no sync target.
 - No cgo required (`CGO_ENABLED=0` works)
 - Cross-compilation works (`GOOS`/`GOARCH` combinations)
 - All Tier 1 symbols accessible with idiomatic Go types and error handling
-- API uses Go conventions: `PascalCase`, `error` returns, `[]byte`, `io.Reader`
+- API uses Go conventions: `PascalCase`, `error` returns, `[]byte`
 - No binary artifacts committed to the repository
 - `check-added-large-files` threshold at 256KB
 - `go vet ./...` clean

@@ -109,16 +109,9 @@ CI confirms the package has no cgo dependencies.
 
 ### Unit tests
 
-- **`codec_test.go`** — varnibble roundtrip, header encode/decode, length encoding, base32/64, unit
-    encoding, `EncodeComponent`, `IsccDecode`, `IsccDecompose`
-- **`simhash_test.go`** — `AlgSimhash` edge cases, `SlidingWindow` with Unicode
-- **`minhash_test.go`** — `minhashFn`, `minhashCompress`, `AlgMinhash256`
-- **`dct_test.go`** — fast DCT known values, error cases
-- **`wtahash_test.go`** — WTA-Hash, permutation table validation
-- **`xxh32_test.go`** — canonical xxHash32 test vectors
-- **`cdc_test.go`** — CDC params, offset, chunk reassembly, UTF-32 alignment
-- **`utils_test.go`** — text cleaning, collapsing, trimming, newline removal
-- **`code_sum_test.go`** — `GenSumCodeV0` equivalence, result fields, wide mode, units
+- Each algorithm or code-type file has a sibling `<name>_test.go` holding its unit tests (edge
+    cases, error paths, known values); a `code_*_test.go` file keeps its generator's unit tests next
+    to the conformance test
 
 ### Test conventions
 
@@ -130,10 +123,11 @@ CI confirms the package has no cgo dependencies.
 
 ## Publishing
 
-Go modules are published automatically via the Go module proxy. When a version tag is pushed to
-`main`, the Go module proxy (`proxy.golang.org`) picks up the module at
-`github.com/iscc/iscc-lib/packages/go`. No explicit publish step is needed — the proxy indexes
-modules from public Git repositories on demand.
+Go modules are published via the Go module proxy, which needs a `packages/go/vX.Y.Z` tag (the
+sub-module prefix, not the plain `vX.Y.Z`). `.github/workflows/release.yml` creates and pushes both
+tags when it is dispatched (`workflow_dispatch`) with a `version` input; pushing a tag triggers
+nothing. The proxy (`proxy.golang.org`) then indexes `github.com/iscc/iscc-lib/packages/go` from the
+public repository on demand — there is no explicit publish step.
 
 Install: `go get github.com/iscc/iscc-lib/packages/go`
 
@@ -143,8 +137,9 @@ Documentation: [pkg.go.dev](https://pkg.go.dev/github.com/iscc/iscc-lib/packages
 
 ### Pure Go (no cgo, no FFI)
 
-Unlike most other language packages in this monorepo (which wrap `iscc-ffi` via C interop), the Go
-package reimplements all ISCC algorithms in native Go. This eliminates:
+Only the C++ and .NET packages wrap the `iscc-ffi` C interface; the other bindings link the Rust
+core natively (PyO3, napi-rs, wasm-bindgen, JNI, Magnus, UniFFI). The Go package instead
+reimplements all ISCC algorithms in native Go. This eliminates:
 
 - Cross-compilation complexity (no C toolchain needed)
 - Runtime shared library loading

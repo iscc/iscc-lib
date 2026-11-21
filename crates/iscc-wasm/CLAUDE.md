@@ -40,7 +40,7 @@ Browser-compatible WASM bindings for iscc-lib, published as `@iscc/wasm` on npm.
 
 - Use `serde_wasm_bindgen` for nested collections (`Vec<Vec<T>>`, `Vec<String>` from JS arrays).
     Never use `serde_json` in the WASM path -- it adds ~50KB.
-- Errors are always `Result<T, JsError>`. Map `iscc_lib::Error` with
+- Errors are always `Result<T, JsError>`. Map `iscc_lib::IsccError` with
     `.map_err(|e| JsError::new(&e.to_string()))`.
 - Most gen functions return the `iscc` string field from the core result struct, not the full
     struct. Exception: `gen_sum_code_v0` returns a `WasmSumCodeResult` struct with `iscc`,

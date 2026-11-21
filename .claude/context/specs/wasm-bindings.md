@@ -36,20 +36,29 @@ tracked.
 
 ## Rust Bridge Layer
 
-Functions use `#[wasm_bindgen]` attribute. Return types are serialized to `JsValue` via serde:
+Functions use a bare `#[wasm_bindgen]` attribute, so every export keeps its snake_case Rust name
+(`gen_meta_code_v0`, never a camelCase `js_name`). Optional numbers and booleans arrive as
+`JsValue`, keep their TypeScript type through `unchecked_optional_param_type`, and are type-checked
+in Rust by the private `opt_u32` / `opt_bool` helpers at the top of `crates/iscc-wasm/src/lib.rs`.
+Gen functions return the `iscc` string:
 
 ```rust
-#[wasm_bindgen(js_name = "genMetaCodeV0")]
+#[wasm_bindgen]
 pub fn gen_meta_code_v0(
     name: &str,
-    description: Option<String>,
-    meta: Option<String>,
-    bits: Option<u32>,
-) -> Result<JsValue, JsError> {
-    let result = iscc_lib::gen_meta_code_v0(name, ...)?;
-    Ok(serde_wasm_bindgen::to_value(&result)?)
+    #[wasm_bindgen(unchecked_optional_param_type = "string | null")] description: Option<String>,
+    #[wasm_bindgen(unchecked_optional_param_type = "string | null")] meta: Option<String>,
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+) -> Result<String, JsError> {
+    let bits = opt_u32(&bits, 64, "bits")?;
+    iscc_lib::gen_meta_code_v0(name, description.as_deref(), meta.as_deref(), bits)
+        .map(|r| r.iscc)
+        .map_err(|e| JsError::new(&e.to_string()))
 }
 ```
+
+The exception is `gen_sum_code_v0`, which returns a `WasmSumCodeResult` object (`iscc`, `datahash`,
+`filesize`, optional `units`).
 
 ### Streaming Hashers
 
@@ -67,9 +76,10 @@ The core struct is shared with the PyO3 binding (see `python-bindings.md` → "S
 ### Key Differences from Node.js Binding
 
 - Uses `&[u8]` / `Vec<u8>` mapped to `Uint8Array` (not Node.js `Buffer`)
-- File path operations (`gen_sum_code_v0`) not available in browser context
+- `gen_sum_code_v0` takes a `Uint8Array`, not a file path (no filesystem in a browser context)
 - No native filesystem access — streaming via `update()` calls only
-- `serde-wasm-bindgen` for complex type serialization (vs napi-rs's `#[napi(object)]`)
+- `serde-wasm-bindgen` deserializes nested array inputs (frame signatures, code lists); structured
+    results such as `WasmSumCodeResult` are `#[wasm_bindgen]` structs
 
 ## Build Process
 
