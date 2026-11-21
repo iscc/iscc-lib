@@ -87,18 +87,19 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 1b3a50f, iter 248 — incremental)
+## Current State (assessed-at: 68c9ab4, iter 250 — incremental)
 
-- **CI GREEN on `origin/develop` = `4d04bf9`**. HEAD ahead only by `.claude`. Check-suites API:
-    `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor suites sit `queued`
-    forever — judge by `github-actions`). `gh run view <id> --json jobs` per-job.
-- **v0.8.0 release criteria MET; 0 normal open.** 12 open, ALL `low` (= human-directed, CID must
-    skip — legend at issues.md top); 7 carry `**Triage:** untriaged` (count with
-    `grep -c '^\*\*Triage:\*\* untriaged'`, a bare grep hits the legend). Next = human: `/release`,
-    triage, EOL floors, v1.0.0. Stays IN_PROGRESS (low issues + v1.0.0 criteria).
+- **CI GREEN on `origin/develop` = `fe20717`**. HEAD ahead by loop-infra only (`tools/cid.py`,
+    `tests/test_cid.py`) — report as uncovered-but-not-product. Check-suites API:
+    `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit `queued` forever).
+- **v0.8.0 criteria UNMET again (250):** 6 `normal` open (Go JCS escaping `code_meta.go:243`, video
+    ragged-frame panic `lib.rs:740`, FFI NULL split, JS integer wrap, published-docs drift, pytest
+    gate time). `[human]`-tagged normal issues are CID-WORKABLE, not "blocked on the human". 13
+    `low` (8 untriaged; count with `grep -c '^\*\*Triage:\*\* untriaged'`). issues.md 300/300.
+- **An audit or `cid(human)` commit can flip DONE-adjacent → workable with zero code change** —
+    always diff issues.md after an audit iteration (249 filed 4 normal).
 - Spec trees carry a "not every file" note gated by `scripts/check_spec_paths.py` (247).
 - Tier 1 doc gate registry near top of `scripts/check_tier1_docs.py` (20 FULL, 2 EXACT, 2 EXEMPT).
-- Spec diffs: a digit-free `grep -E '^[-+]'` skim of the diff confirms no criterion changed.
 - data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`.
 
