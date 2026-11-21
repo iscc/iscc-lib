@@ -1,4 +1,4 @@
-<!-- assessed-at: 32c2f75aa453c510fc3c913f55d1474792124f56 -->
+<!-- assessed-at: 26cebb429dcdd8168ffff23c07ac9db752d45927 -->
 
 # Project State
 
@@ -7,9 +7,9 @@
 ## Phase: v0.8.0 — all features landed; 1 normal guidance issue owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 245 removed the hand-written counts, tallies and line numbers from the
-specs and per-crate `CLAUDE.md` files (docs-only); CI is green on that commit. One `normal` issue
-blocks v0.8.0: the file-list remainder of the derived-fact drift issue.
+all 11 bindings. Iteration 246 removed the file trees and file tables from the 12 per-crate/package
+`CLAUDE.md` files (docs-only); CI is green on that commit. One `normal` issue blocks v0.8.0: the
+directory trees left in `.claude/context/specs/`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -28,8 +28,7 @@ blocks v0.8.0: the file-list remainder of the derived-fact drift issue.
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
     `conformance_selftest` runs the seq vectors; iai, Coverage + CRAP and semver jobs pass in CI
-- No core source changed since iteration 235; the `rust-core.md` edits in 245 removed counts only,
-    no criterion changed
+- No core source changed since iteration 235; no spec or `target.md` change since 245
 - **Missing (human-gated, not v0.8.0):** crate `>= 1.0.0`; MSRV verification
 
 ## Python Bindings
@@ -121,12 +120,11 @@ blocks v0.8.0: the file-list remainder of the derived-fact drift issue.
     section; root README plus 12 per-crate/package READMEs
 - Tier 1 doc gate `scripts/check_tier1_docs.py` (prek hook + pytest, fail-closed `lib.rs` parse): 20
     `FULL`, 2 `EXACT`, 2 `EXEMPT`; `tests/test_rust_api_signatures.py` pins `rust-api.md` signatures
-- Counts, tallies, file sizes and `path:NN` references are gone from the 15 specs and the 12
-    per-crate/package `CLAUDE.md` files (245)
-- **Left in the drift issue (`normal`):** file lists — all 12 per-crate/package `CLAUDE.md` files
-    carry an unchecked directory tree or module table (`crates/iscc-lib`, `crates/iscc-rb`,
-    `packages/go` use tables); spec trees are checked for existence only
-    (`scripts/check_spec_paths.py`), not completeness
+- Counts, line numbers (245) and file trees/tables (246) are gone from the 12 per-crate/package
+    `CLAUDE.md` files; decision recorded that those files carry no file lists
+- **Left in the drift issue (`normal`):** directory trees in 9 specs (cpp, dotnet, go, java, kotlin,
+    nodejs, ruby, swift, wasm) — checked for existence only by `scripts/check_spec_paths.py`, whose
+    zero-tree floor must change with `tests/test_check_spec_paths.py` if the trees go
 - `low` issues: Sum-Code example comments show `ISCC:KAA…` (call returns `ISCC:KUA…`); the
     pkg-config example in `c-cpp.md` hard-codes `Version: 0.2.0`
 
@@ -145,17 +143,16 @@ blocks v0.8.0: the file-list remainder of the derived-fact drift issue.
     `workflow_dispatch`-only with 8 registry toggles; 21 version-sync targets at 0.7.0
 - Security criterion met except the exempt EOL floors (Python 3.10, .NET 8, Ruby 3.1 — `low`, for
     Titusz); only Rust has a standing advisory gate (`cargo deny`)
-- **Latest CI: PASSING** on `origin/develop` = `8e7541c` (github-actions suite `success`):
-    https://github.com/iscc/iscc-lib/actions/runs/44861283461
+- **Latest CI: PASSING** on `origin/develop` = `0653726` (github-actions suite `success`):
+    https://github.com/iscc/iscc-lib/actions/runs/44864718419
 - HEAD is ahead only by a `.claude` log commit — green CI covers all code at HEAD
 
 ## Open Issues
 
-12 open: 0 critical, **1 normal** (derived-fact drift `[human]`, file-list part), 11 low. issues.md
-is at 217 of 300 lines.
+12 open: 0 critical, **1 normal** (derived-fact drift `[human]`, spec-tree part), 11 low. issues.md
+is at 215 of 300 lines.
 
 ## Next Milestone
 
-Close the last `normal` issue — every file list (directory trees, module tables) in
-`.claude/context/specs/` and the per-crate/package `CLAUDE.md` files is either removed in favour of
-wording that cannot go stale or covered by a check — so v0.8.0 meets its release criteria.
+Close the last `normal` issue — every file list in `.claude/context/specs/` is either removed in
+favour of wording that cannot go stale or covered by a check — so v0.8.0 meets its release criteria.
