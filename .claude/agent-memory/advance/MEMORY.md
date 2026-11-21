@@ -115,6 +115,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     reads only it)
 - Video ragged input (250): `soft_hash_video_v0` / Go `SoftHashVideoV0` reject unequal frame-sig
     lengths via private `check_frame_sig_lengths` (deliberate iscc-core deviation: ref truncates)
+- Python int range (265): out-of-range ints → `OverflowError` (decision 2026-11-21); video
+    `extract_frame_sigs` uses `PyLong_AsLongLong` (C `long` is 32-bit on Windows) +
+    `PyOverflowError`. Pinned in `tests/test_int_range.py`; IDv1 `checked_id_arg` stays `ValueError`
 - Go meta JCS (251): `parseMetaJSON` = Encoder `SetEscapeHTML(false)` + `unescapeLineSeparators`
     (U+2028/9 raw); never `json.Marshal`. Heredocs can smuggle raw U+2028 into Go raw strings —
     write JSON `\u2028` escapes and `grep -nP '[^\x00-\x7f]'` the test file

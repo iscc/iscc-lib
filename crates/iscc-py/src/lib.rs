@@ -7,7 +7,7 @@
 //! All `gen_*_v0` functions return Python `dict` objects with the same keys
 //! and value types as the iscc-core reference implementation.
 
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyOverflowError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyInt, PyList};
 
@@ -27,8 +27,10 @@ fn to_pylist<'py>(py: Python<'py>, obj: &Bound<'py, PyAny>) -> PyResult<Bound<'p
 
 /// Extract nested frame signatures from a Python sequence using CPython C API.
 ///
-/// Accepts any sequence of sequences (lists, tuples, etc.). Uses `PyLong_AsLong`
-/// to bypass PyO3 object wrapping overhead. Returns a flat `Vec<i32>` plus dimensions.
+/// Accepts any sequence of sequences (lists, tuples, etc.). Uses `PyLong_AsLongLong`
+/// (64 bits on every platform) to bypass PyO3 object wrapping overhead, so a value
+/// outside the `i32` range raises `OverflowError` regardless of the C `long` width.
+/// Returns a flat `Vec<i32>` plus dimensions.
 fn extract_frame_sigs(
     py: Python<'_>,
     frame_sigs: &Bound<'_, PyAny>,
@@ -51,7 +53,7 @@ fn extract_frame_sigs(
 
     // SAFETY: frame_list is a verified PyList. Inner sequences are converted
     // to PyList as needed. PyList_GetItem returns borrowed references with
-    // bounds checking. PyLong_AsLong is called with error and range checking.
+    // bounds checking. PyLong_AsLongLong is called with error and range checking.
     unsafe {
         let outer_ptr = frame_list.as_ptr();
         for f in 0..num_frames {
@@ -83,12 +85,12 @@ fn extract_frame_sigs(
                 if val_ptr.is_null() {
                     return Err(pyo3::PyErr::fetch(py));
                 }
-                let val = pyo3::ffi::PyLong_AsLong(val_ptr);
+                let val = pyo3::ffi::PyLong_AsLongLong(val_ptr);
                 if val == -1 && !pyo3::ffi::PyErr_Occurred().is_null() {
                     return Err(pyo3::PyErr::fetch(py));
                 }
                 let val_i32 = i32::try_from(val).map_err(|_| {
-                    PyValueError::new_err(format!(
+                    PyOverflowError::new_err(format!(
                         "frame_sigs[{f}][{i}]: value {val} out of i32 range"
                     ))
                 })?;
