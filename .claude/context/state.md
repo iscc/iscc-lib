@@ -1,15 +1,16 @@
-<!-- assessed-at: 24ae20ac2957ce015d3b4a10085b452bb37b9fed -->
+<!-- assessed-at: 4c0df09b5de9fb426deb555c7205777e05998aa5 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 13 `normal` issues block the release
+## Phase: v0.8.0 — features done; 12 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 273 removed the
-C++ `safe_data` sentinel and the .NET `PinnedRows` padding, closing that issue. CI is green on the
-pushed tip `621bd77`, which covers all code at HEAD. 19 issues are open: 0 `critical`, 13 `normal`,
-6 `low`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 274 made the
+pre-push `pytest` hook and `mise run test` rebuild the Python extension, and CI now diffs
+`NativeMethods.g.cs` and the UniFFI outputs, closing that audit issue. CI on `e24d041` is green and
+covers all code but one test assertion; the run on the tip `81395df` is green except Kotlin, still
+running. 18 issues are open: 0 `critical`, 12 `normal`, 6 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -41,6 +42,7 @@ pushed tip `621bd77`, which covers all code at HEAD. 19 issues are open: 0 `crit
 
 - 35 Tier 1 symbols with `.pyi` stubs and `__all__`; abi3-py310 wheels for 4 platforms; 12
     `py.detach` sites; 0.7.0 on PyPI; data-edge harness with the iscc-core cross-check; CI 3.10/3.15
+- The pre-push `pytest` hook and `mise run test` run `mise run py:develop` first (debug build)
 - `specs/python-bindings.md` still says text/video paths hold the GIL (part of the spec issue)
 
 ## Node.js Bindings
@@ -92,8 +94,7 @@ pushed tip `621bd77`, which covers all code at HEAD. 19 issues are open: 0 `crit
 
 - `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 9 sections strictly; 0.7.0 on NuGet;
     `dotnet-test` 8.0/10.0 legs
-- `PinnedRows` sizes arrays to `Count` (no `Math.Max` padding); `ArrayInputTests` covers an empty
-    inner row
+- `NativeMethods.g.cs` is now diffed against a fresh csbindgen run in the `c-ffi` CI job
 - .NET 8 reached end of support 2026-11-10; the `net8.0` floor is the human's call
 
 ## C++ Bindings
@@ -102,17 +103,14 @@ pushed tip `621bd77`, which covers all code at HEAD. 19 issues are open: 0 `crit
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job; 0.7.0
     vcpkg/Conan
-- `safe_data` is gone (no match in `packages/`, `tests/`, `docs/`); `iscc.hpp` passes `.data()`, so
-    empty vectors reach the FFI as `(NULL, 0)`; `tests/test_cpp_safe_data.py` deleted
+- `iscc.hpp` passes `.data()`, so empty vectors reach the FFI as `(NULL, 0)`
 
 ## Ruby Bindings
 
 **Status**: partially met (one `normal`, three `low`)
 
 - `encode_seq` / `decode_seq`; data-edge runs strictly; floor is 3.3 (gemspec `>= 3.3.0`, CI `ruby`
-    job 3.3, `release.yml` cross-gems 3.3 and 3.4); minitest 6.1.0
-- Development Ruby pinned in root `mise.toml` (`ruby = "3.4.13"`); both standardrb hooks run
-    `mise exec --`; guarded by `tests/test_ruby_gem_docs.py`
+    job 3.3, `release.yml` cross-gems 3.3 and 3.4); dev Ruby 3.4.13 pinned in `mise.toml`
 - `normal`: document the implicit Float→Integer `to_int` conversion
 - `low`: source gems up to 0.7.0 do not build; `release.yml` loads only the 3.3 precompiled binary
     before publish; Ruby 4.0 gets no precompiled gem (needs rb_sys past 0.9.123)
@@ -122,10 +120,9 @@ pushed tip `621bd77`, which covers all code at HEAD. 19 issues are open: 0 `crit
 **Status**: met (v0.8.0 scope)
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
-    all 9 data-edge sections; shipped 0.7.0
-- `text_trim` saturates `nbytes` via `usize::try_from(..).unwrap_or(usize::MAX)`; the doc comment
-    matches the core and is regenerated into both bindings; 30 `#[test]` in iscc-uniffi
-- The 32-bit wrap test only bites on a 32-bit target, which CI does not run for Rust (settled)
+    all 9 data-edge sections; shipped 0.7.0; 30 `#[test]` in iscc-uniffi
+- The `kotlin` CI job regenerates the UniFFI Kotlin + Swift outputs and diffs them against the
+    committed copies (modulo trailing whitespace)
 
 ## Documentation
 
@@ -148,26 +145,26 @@ pushed tip `621bd77`, which covers all code at HEAD. 19 issues are open: 0 `crit
 
 ## CI/CD and Publishing
 
-**Status**: partially met (one `normal`, one `low`; release criteria otherwise met)
+**Status**: partially met (one `low`; release criteria otherwise met)
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- `normal` (audit): gates test generated/built artifacts nothing refreshes or diffs (stale local
-    `_lowlevel.abi3.so` under pre-push pytest; `NativeMethods.g.cs` and UniFFI outputs undiffed —
-    UniFFI outputs are in a known-clean state as of `06238f6`)
+- Generated-artifact gates: `c-ffi` diffs `NativeMethods.g.cs`, `kotlin` diffs the UniFFI outputs;
+    anchored by `tests/test_generated_artifact_gates.py`; `specs/ci-cd.md` job table updated
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING** on `origin/develop` = `621bd77`:
-    https://github.com/iscc/iscc-lib/actions/runs/44944695726 — github-actions suite `success`;
-    HEAD's only unpushed commit is `.claude/` only
+- **Latest CI: PASSING** on `e24d041` (all 24 jobs):
+    https://github.com/iscc/iscc-lib/actions/runs/44946870015 — the tip `81395df` run 44947460714 is
+    in progress (all jobs green except Kotlin, still running); it adds only one test assertion to
+    `tests/test_generated_artifact_gates.py`. HEAD's only unpushed commit is `.claude/` only
 
 ## Open Issues
 
-19 open in issues.md: 0 `critical`, 13 `normal`, 6 `low`; none blocked on the human or upstream (the
-`alg_minhash_256` entry needs a decision). The C++/.NET padding issue was closed this iteration. 7
-sit in `postponed.md`.
+18 open in issues.md: 0 `critical`, 12 `normal`, 6 `low`; none blocked on the human or upstream (the
+`alg_minhash_256` entry needs a decision). The generated-artifacts gate issue was closed this
+iteration. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the 13 `normal` issues that block v0.8.0 — the code defects (JNI loader fallback, Ruby Float
-coercion docs, `alg_minhash_256` decision, duplication), the undiffed generated-artifacts gate, and
-the docs/spec accuracy entries. Then Titusz cuts v0.8.0 via `/release`.
+Clear the 12 `normal` issues that block v0.8.0 — the code defects (JNI loader fallback, Ruby Float
+coercion docs, `alg_minhash_256` decision, duplication) and the docs/spec accuracy entries. Then
+Titusz cuts v0.8.0 via `/release`.
