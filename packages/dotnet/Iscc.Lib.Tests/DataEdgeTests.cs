@@ -31,6 +31,7 @@ public class DataEdgeTests
         ["alg_simhash"] = CallSimhash,
         ["gen_meta_code_v0"] = CallMeta,
         ["gen_video_code_v0"] = CallVideo,
+        ["alg_cdc_chunks"] = CallCdc,
     };
 
     /// <summary>Load and parse testdata/data-edge.json from the test output directory.</summary>
@@ -53,18 +54,31 @@ public class DataEdgeTests
         return result;
     }
 
+    /// <summary>Decode one <c>bytes:&lt;hex&gt;</c> input value into bytes.</summary>
+    private static byte[] ToBytes(JsonElement input)
+    {
+        string item = input.GetString()!;
+        if (!item.StartsWith("bytes:", StringComparison.Ordinal))
+            throw new InvalidOperationException($"expected a bytes:<hex> input, got {item}");
+        return Convert.FromHexString(item["bytes:".Length..]);
+    }
+
     /// <summary>Decode a JSON array of <c>bytes:&lt;hex&gt;</c> values into one byte array per item.</summary>
     private static byte[][] ToByteArrays(JsonElement array)
     {
         byte[][] result = new byte[array.GetArrayLength()][];
         for (int i = 0; i < result.Length; i++)
-        {
-            string item = array[i].GetString()!;
-            if (!item.StartsWith("bytes:", StringComparison.Ordinal))
-                throw new InvalidOperationException($"expected a bytes:<hex> input, got {item}");
-            result[i] = Convert.FromHexString(item["bytes:".Length..]);
-        }
+            result[i] = ToBytes(array[i]);
         return result;
+    }
+
+    /// <summary>Convert AlgCdcChunks chunks to a list of <c>bytes:&lt;hex&gt;</c> values.</summary>
+    private static JsonNode ChunksArray(object result)
+    {
+        var chunks = new JsonArray();
+        foreach (byte[] chunk in (byte[][])result)
+            chunks.Add(BytesValue(chunk));
+        return chunks;
     }
 
     /// <summary>Convert a JSON array of integer lists to one int array per item.</summary>
@@ -142,6 +156,15 @@ public class DataEdgeTests
     {
         byte[][] digests = ToByteArrays(inputs[0]);
         return new Prepared(() => IsccLib.AlgSimhash(digests), r => BytesValue((byte[])r));
+    }
+
+    /// <summary>Prepare AlgCdcChunks on the vector's data, <c>utf32</c> flag and average size.</summary>
+    private static Prepared CallCdc(JsonElement inputs)
+    {
+        byte[] data = ToBytes(inputs[0]);
+        bool utf32 = inputs[1].GetBoolean();
+        uint avg = inputs[2].GetUInt32();
+        return new Prepared(() => IsccLib.AlgCdcChunks(data, utf32, avg), ChunksArray);
     }
 
     /// <summary>Prepare GenMetaCodeV0 (an empty description means none).</summary>
