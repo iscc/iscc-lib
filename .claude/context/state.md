@@ -1,16 +1,16 @@
-<!-- assessed-at: 908bd7bae481f38d1e806312c448fce1f2a52997 -->
+<!-- assessed-at: d4d4d593f6028106f80e54e94cf5ae12b030ce37 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 6 `normal` issues block the release
+## Phase: v0.8.0 — features done; a `critical` JNI test regression and 5 `normal` issues block it
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 277 was a
-docs-accuracy batch that closed five `normal` issues (pkg-config version, Sum-Code prefix, ISO and
-language-coverage claims, the Publish section, Ruby Float docs) and filed two leftovers. CI on
-`7bbb1f0` is fully green; the run on the pushed tip `c6bc616` is 22/24 green with Kotlin and Perf
-still running. 14 issues are open: 0 `critical`, 6 `normal`, 8 `low`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 278 rewrote the
+JNI `NativeLoader` fallback (review: loader correct) but its three new child-JVM tests fail in the
+`release.yml` → `test-jni` layout, so the next Maven publish would be blocked; the commit is local
+and unpushed (NEEDS_WORK). CI on the pushed tip `c6bc616` is fully green. 15 issues are open: 1
+`critical`, 5 `normal`, 9 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -68,15 +68,20 @@ still running. 14 issues are open: 0 `critical`, 6 `normal`, 8 `low`.
 
 - 51 exports incl. `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with freshness check;
     `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
-- The pkg-config example no longer pins a stale version (closed 277)
 
 ## Java Bindings
 
-**Status**: partially met (one `normal` issue)
+**Status**: partially met (one `critical` release regression at local HEAD, one `low`)
 
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 9 sections strictly; 0.7.0 on Maven Central
     with five bundled native libraries
-- `normal`: `NativeLoader` throws on an unknown OS/arch before trying `java.library.path`
+- Local HEAD (`8a99a3c`, unpushed): `NativeLoader` no longer throws on an unknown OS/arch; it falls
+    back to `System.loadLibrary` and attaches the bundled-library error as suppressed; docs, README
+    and crate CLAUDE.md updated
+- `critical`: the three `loaderFallsBack*` child-JVM tests pass the parent's `java.library.path`
+    (`target/debug`), which is absent in the `test-jni` release layout, so `publish-maven` would be
+    blocked; the CI `java` job stays green because it builds the library first
+- `low` (untriaged): each bundled load leaves an empty `iscc-jni-*` temp directory (pre-existing)
 
 ## Go Bindings
 
@@ -84,15 +89,13 @@ still running. 14 issues are open: 0 `critical`, 6 `normal`, 8 `low`.
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
     sections; `go` CI job also runs as `GOARCH=386`
-- `conformance.go` uses one generic `runSection` + `reportCase`
 
 ## C# / .NET Bindings
 
 **Status**: met (v0.8.0 scope)
 
 - `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 9 sections strictly; 0.7.0 on NuGet;
-    `dotnet-test` 8.0/10.0 legs
-- `NativeMethods.g.cs` is diffed against a fresh csbindgen run in the `c-ffi` CI job
+    `dotnet-test` 8.0/10.0 legs; `NativeMethods.g.cs` diffed against fresh csbindgen in `c-ffi`
 - .NET 8 reached end of support 2026-11-10; the `net8.0` floor is the human's call
 
 ## C++ Bindings
@@ -107,9 +110,7 @@ still running. 14 issues are open: 0 `critical`, 6 `normal`, 8 `low`.
 **Status**: met (v0.8.0 scope; three `low`)
 
 - `encode_seq` / `decode_seq`; data-edge runs strictly; floor is 3.3 (gemspec, CI, `release.yml`
-    cross-gems 3.3 and 3.4); dev Ruby 3.4.13 pinned in `mise.toml`
-- Float-to-integer truncation is now documented behaviour: decisions.md "Ruby integer parameters
-    keep Ruby's implicit `to_int` conversion"; `docs/ruby-api.md` states it (closed 277)
+    cross-gems 3.3 and 3.4); dev Ruby 3.4.13 pinned in `mise.toml`; Float truncation documented
 - `low`: source gems up to 0.7.0 do not build; `release.yml` loads only the 3.3 precompiled binary
     before publish; Ruby 4.0 gets no precompiled gem (needs rb_sys past 0.9.123)
 
@@ -119,10 +120,9 @@ still running. 14 issues are open: 0 `critical`, 6 `normal`, 8 `low`.
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
     all 9 data-edge sections; shipped 0.7.0; 30 `#[test]` in iscc-uniffi
-- The `kotlin` CI job regenerates the UniFFI Kotlin + Swift outputs and diffs them against the
-    committed copies
-- `specs/swift-bindings.md` now describes commit-checksum-then-tag-once; target.md still says the
-    release workflow force-updates the tag (`low`, untriaged; target.md edit needs Titusz)
+- The `kotlin` CI job regenerates the UniFFI Kotlin + Swift outputs and diffs them
+- `low`: target.md still says the release workflow force-updates the tag; the Swift spec describes
+    commit-checksum-then-tag-once (target.md edit needs Titusz)
 
 ## Documentation
 
@@ -130,11 +130,10 @@ still running. 14 issues are open: 0 `critical`, 6 `normal`, 8 `low`.
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (20 `FULL`, 2 `EXACT`)
-- Closed 277: Sum-Code examples now show `KUA`; `docs/llms.txt` names all languages; ISO scope
-    claims and the `development.md` Publish section match `release.yml`
 - `normal`: `architecture.md` lower sections cover half the surfaces; `docs/ecosystem.md`,
     `architecture.md` and `howto/nodejs.md` still count 10 standard functions; WASM Node.js setup
     (see WASM)
+- `docs/howto/java.md` describes the loader fallback at local HEAD (unpushed)
 
 ## Benchmarks
 
@@ -146,27 +145,25 @@ still running. 14 issues are open: 0 `critical`, 6 `normal`, 8 `low`.
 
 ## CI/CD and Publishing
 
-**Status**: partially met (one `low`; release criteria otherwise met)
+**Status**: partially met (one `low`; the JNI `critical` would break `test-jni`)
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- Generated-artifact gates: `c-ffi` diffs `NativeMethods.g.cs`, `kotlin` diffs the UniFFI outputs;
-    anchored by `tests/test_generated_artifact_gates.py`
+- No CI job runs the Java suite in the release layout (library bundled as a resource only), which is
+    why the JNI regression is invisible to CI
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: IN PROGRESS** on the pushed tip `c6bc616`:
-    https://github.com/iscc/iscc-lib/actions/runs/44952542030 — 22 of 24 jobs green, Kotlin and Perf
-    (iai-callgrind) still running. Run 44950595748 on `7bbb1f0` (selftest rewrite) finished fully
-    green. The tip delta since then is docs, doc comments and one Ruby comment block only. HEAD's
-    only unpushed commit is `.claude/` only
+- **Latest CI: PASSING** on the pushed tip `c6bc616`:
+    https://github.com/iscc/iscc-lib/actions/runs/44952542030 (github-actions suite `success`).
+    **Not covered:** local HEAD carries unpushed code commit `8a99a3c` (JNI loader, tests, docs)
 
 ## Open Issues
 
-14 open in issues.md: 0 `critical`, 6 `normal`, 8 `low` (7 `low` untriaged). Only the
+15 open in issues.md: 1 `critical`, 5 `normal`, 9 `low` (8 `low` untriaged). Only the
 `alg_minhash_256` entry needs a decision; none is blocked on upstream. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Confirm the tip CI run finishes green, then clear the 6 `normal` issues that block v0.8.0: the JNI
-loader fallback, the `alg_minhash_256([])` decision, the one-shot gen duplication, and the three
-user-docs accuracy entries (architecture sections, the 10-function count, `@iscc/wasm` Node setup).
-Then Titusz cuts v0.8.0 via `/release`.
+Repair the `critical` JNI release-layout test regression so the local loader work can be pushed with
+Maven publishing intact, then clear the 5 `normal` issues that block v0.8.0 (`alg_minhash_256([])`
+decision, one-shot gen duplication, three user-docs accuracy entries). Then Titusz cuts v0.8.0 via
+`/release`.

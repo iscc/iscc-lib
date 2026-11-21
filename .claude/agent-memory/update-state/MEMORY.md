@@ -86,16 +86,17 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 908bd7b, iter 278 — incremental)
+## Current State (assessed-at: d4d4d59, iter 279 — incremental)
 
-- **Tip `c6bc616` run 44952542030 IN PROGRESS** (22/24 green, Kotlin+Perf running); last fully green
-    = `7bbb1f0` (selftest rewrite covered; tip delta docs/comments only). codecov/cursor suites sit
-    `queued` forever — judge by the github-actions suite. A `null` check-run conclusion = still
-    running; `gh run view <id> --json status,conclusion,jobs` settles it.
-- 14 open (0 `critical` + 6 `normal` + 8 `low`; 277 docs batch closed 5 normal); 7 postponed.
-    iscc-uniffi 30 `#[test]`. 271 pinned dev Ruby 3.4.13 in `mise.toml` `[tools]` (only tools pin);
-    Ruby floor 3.3 (gemspec, ci.yml, release.yml). Fast suite check:
-    `gh api .../commits/<sha>/check-suites` (one call). iscc-lib `src/` has 315 `#[test]`.
+- **Tip `c6bc616` run 44952542030 GREEN** (github-actions suite `success`). Local HEAD carries
+    UNPUSHED code commit `8a99a3c` (JNI loader, NEEDS_WORK at 278) — not covered by green CI.
+    codecov/cursor suites sit `queued` forever — judge by the github-actions suite.
+- 15 open (1 `critical` JNI release-layout test regression + 5 `normal` + 9 `low`, 8 untriaged); 7
+    postponed. A NEEDS_WORK review can file a `critical` replacing the issue it resolved — count
+    holds-ish, composition flips. iscc-lib `src/` 315 `#[test]`; iscc-uniffi 30.
+- **JNI gotcha:** CI `java` job builds `target/debug` first; `release.yml` → `test-jni` has only the
+    bundled `META-INF/native/` resource — tests leaning on `java.library.path` pass CI, fail
+    release.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
