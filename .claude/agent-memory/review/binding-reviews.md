@@ -821,3 +821,23 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - Mutation of a "names no version" test: feed its helpers the previous real files via
     `git show <define-next sha>:<path>`
 - `which ruby` is the mise shim, so the pin changes the Ruby of EVERY command in the repo
+
+## UniFFI wrapper edit + regenerated bindings (272, ~15 min)
+
+- Criteria + three probes cover it: (1) regenerate BOTH bindings into `/tmp` out-dirs (commands in
+    `packages/{swift,kotlin}/CLAUDE.md`, swap `--out-dir`) and `diff` against the tracked files
+    modulo trailing whitespace and the end-of-file newline; expected: zero lines for Kotlin, only
+    "No newline at end of file" for Swift. This also proves a changed checksum constant is genuine
+- (2) negative control for a 32-bit-only fix: `git archive HEAD | tar -x -C /tmp/x`, revert the one
+    expression with a Python `replace`, then
+    `CARGO_TARGET_DIR=/tmp/t cargo test --manifest-path /tmp/x/Cargo.toml -p iscc-uniffi --target i686-unknown-linux-musl <filter>`
+    (about 1 min; the wrap test must FAIL, a `u64::MAX` test passes under the old cast too)
+- (3) sibling casts: `git grep -n "text_trim(" -- 'crates/*/src/lib.rs'`. napi and wasm narrow an
+    `f64` with `as usize`, which saturates in Rust, so they are not the same defect
+- Kotlin: `packages/kotlin/gradlew -p packages/kotlin test --rerun-tasks` (2 min), count from the
+    JUnit XML. Swift: toolchain at `/tmp/swifttc/swift-6.1.2-RELEASE-debian12/usr/bin/swift` (may
+    vanish), `swift test --package-path packages/swift --scratch-path /tmp/swiftbuild` with the
+    three `-Xlinker` flags for `target/debug`. Both suites load the library, so a wrong checksum
+    constant fails them at init
+- The background Codex run also starts gradle in the same tree: its "Kotlin tests blocked by
+    build-directory conflicts" is the race with my run, not a finding

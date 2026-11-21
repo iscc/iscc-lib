@@ -44,15 +44,15 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## Tooling
 
-- `mise` for tools/tasks, `uv` for the Python env, `prek` for hooks; never use `mise` in CI — call
-    tools directly. Pre-push-**only** gates: clippy `-D warnings`, cargo test, pytest, `ty check`
+- Never use `mise` in CI: call the tools directly. Tools, tasks and hook stages → root `CLAUDE.md`
 - **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (133):
     inline `# /// script` metadata, `uv run --script <path>`, `[tool.ty.src] exclude` **only if it
     imports a non-project dep** (159). A dep a *pytest* test imports in-process must be a dev-group
     dep (142, `pyyaml`). Generated Rust must be data-only + rustfmt-stable; generated C must be
     ASCII + LF + one trailing newline, else prek hygiene hooks rewrite it and break the
     regeneration-no-op gate — a **third-party** generator you can't fix (uniffi bindgen, 172) always
-    trips it, so verify no-op modulo `sed 's/[[:space:]]*$//'`, never `git status`
+    trips it, so verify no-op modulo `sed 's/[[:space:]]*$//'`, never `git status`. A `///` edit on
+    a uniffi export moves its checksum constant in both outputs (272): regenerate them together
 - **C/C++ read `data-edge.json` from a generated header** (219): `gen_data_edge_vectors.py` renders
     `crates/iscc-ffi/tests/data_edge_vectors.h`; a vector = JSON edit + regen. **A new section is
     one unsplittable 12-surface fan-out** (226): each harness and the generator fail closed on it.
@@ -68,17 +68,17 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## ISCC Algorithm Knowledge
 
-- **Unicode 16.0.0 pin REMOVED 2026-07-30** (decisions.md, human): `text_clean`/`text_collapse`
-    mirror the reference on whatever tables dependencies ship; never resurrect a freeze mechanism
+- **Unicode 16.0.0 pin REMOVED 2026-07-30** (decisions.md): never resurrect a freeze mechanism
 - **A data-driven fixture is self-referential — assert CONTENT, not shape** (141): ungate guards on
     version, case counts, code points + skip-list keys (ASCII no-op swaps stay green forever). A
     test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin it
     **Per-algorithm internals**, normalization order, `data.json` counts, API-parameter facts,
     **ISCC-IDv1** details, the three codec rules → `learnings-archive.md`
 - **Integer widths differ per platform**: Go `int(x)` of a `uint32` wraps on 386 (263: subtract
-    unsigned, then `clampInt`); the `go` CI job runs the suite as `GOARCH=386` too (267), 386 `vet`
-    does not see a wrap. C `long` is 32 bits on Windows (265: read a Python `int` with
-    `PyLong_AsLongLong`); no Windows CI job: prove it from the type (`c_longlong`), not a green run
+    unsigned, then `clampInt`); CI runs the Go suite as `GOARCH=386` too (267), 386 `vet` sees no
+    wrap. C `long` is 32 bits on Windows (265: `PyLong_AsLongLong`; no Windows CI, prove it from the
+    type). Rust `u64 as usize` truncates on 32-bit Android (272: `usize::try_from` + saturate); only
+    `cargo test -p iscc-uniffi --target i686-unknown-linux-musl` sees it, and no CI job runs it
 
 ## CI/CD
 
