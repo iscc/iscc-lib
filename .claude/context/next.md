@@ -1,100 +1,100 @@
 # Next Work Package
 
-## Step: `@iscc/wasm` type-checks every scalar argument in Rust instead of letting the glue coerce it
+## Step: Repair the `@iscc/wasm` type checks — optional `gen_meta_code_v0` params and exception-safe number arrays
 
 ## Goal
 
-Resolve the issue "`@iscc/wasm` converts non-number values to numbers instead of rejecting them"
-with the code branch: every numeric (and boolean) parameter of `crates/iscc-wasm/src/lib.rs` arrives
-as a `JsValue` and is type-checked in Rust, so `null`, `"2"` and `true` throw like they do in
-`@iscc/lib` instead of silently producing a different valid code.
+Resolve the `critical` issue "`@iscc/wasm` type checks broke a TypeScript signature and let a JS
+exception kill the instance" so the unpushed iteration-268 step can pass review and reach CI. This
+reframes the number-array read rather than reverting the type checks.
 
 ## Alternatives Considered
 
-- **Chosen:** code fix. Plain JavaScript callers get a wrong result without an error today (an audio
-    vector with `null` hashes as `0`). That breaks the conformance-parity promise, and a docs
-    sentence cannot fix it. wasm-bindgen 0.2.126 has `unchecked_optional_param_type` (read in
-    `wasm-bindgen-macro-support-0.2.126/src/parser.rs`), so the `.d.ts` keeps `bits?: number | null`
-    and TypeScript callers see no change.
-- **Rejected:** docs-only branch (state the coercion in `docs/howto/wasm.md`). It is cheaper but
-    keeps a silent wrong-result path that napi does not have.
-- **Rejected for now:** Ruby 3.3 floor and FFI padding removal. Both are ready and small, but they
-    rank below a correctness item.
-- **Booleans included:** the glue maps `wide`/`add_units`/`utf32` by truthiness (`"false"` → `true`,
-    seen in the `pkg/` glue). That is the same "scalar coerced in glue" pattern on the same surface,
-    so the pattern rule puts it in this step.
+- **Chosen:** repair both defects on the WASM surface. A `critical` issue comes before everything
+    else, and the type-check work is done apart from these two defects.
+- **Rejected:** revert `8560f6a` and go back to the docs-only branch of the coercion issue. That
+    throws away verified work, and both defects have small, well-understood fixes.
 
 ## Scope
 
-- **Modify**: `crates/iscc-wasm/src/lib.rs`, `crates/iscc-wasm/CLAUDE.md` (Type Mapping table),
-    `docs/howto/wasm.md` (→ "Error handling")
-- **Tests (outside budget)**: `crates/iscc-wasm/tests/unit.rs`, `tests/conformance.rs`,
-    `tests/data_edge.rs`, with call sites adapted to the new signatures
-- **Reference**: `~/.cargo/registry/src/*/wasm-bindgen-macro-support-0.2.126/src/parser.rs`
-    (attributes, lines 120-130 and 1615-1705); `serde-wasm-bindgen-0.6.5/src/de.rs:225-301` (its
-    `as_f64()` strictness is the model)
+- **Modify**: `crates/iscc-wasm/src/lib.rs`, `docs/howto/wasm.md`
+- **Modify (tests)**: `crates/iscc-wasm/tests/unit.rs`
+- **Reference**: `~/.cargo/registry/src/*/js-sys-0.3.103/src/lib.rs` (`Reflect::get` :7627,
+    `Reflect::get_u32` :7659, both `catch`; `try_iter` :5531), the critical entry in issues.md
 
 ## Not In Scope
 
-- `frame_sigs`, `codes`, `units`, `hash_digests` (the `serde_wasm_bindgen` path). It already rejects
-    non-numbers through `as_f64()`. Leave it unchanged unless the Node probe shows otherwise.
-- Byte inputs (`&[u8]`/`Uint8Array`) and string inputs. Do not change them.
-- Changing range rules, error wording of the existing `Invalid <name>: <value>` messages, or napi.
-- A `data-edge.json` vector (`edge-vectors.md` → Rules: wrong argument types are per-binding).
+- Byte and string parameter conversion (`&[u8]`, `&str`): this is the `low`, untriaged issue. Do not
+    convert `name`, `text` or byte inputs to `JsValue`
+- The `serde_wasm_bindgen::from_value` paths (`frame_sigs`, `codes`, `units`, `hash_digests`). Its
+    `Array` fast path reads elements through getters that have no `catch`. This is older than
+    iteration 268 and not part of the critical issue. Do not rewrite it. If a probe shows a throwing
+    element kills the instance, report it in the handoff
+- The CI `.d.ts` declaration-diff gate (a review idea for a later step)
+- Any other binding, and the decisions.md entry about the element-wise read (review writes it)
 
 ## Implementation Notes
 
-- **Parameters to convert.** Do every `f64`, `Option<f64>`, `bool`, `Option<bool>` parameter and
-    both `Vec<f64>` parameters (`cv`, `features`). That covers every gen `bits`, the three hasher
-    `finalize` methods, `text_trim`, `sliding_window`, `encode_component` (4), `gen_iscc_id_v1` (3),
-    `alg_cdc_chunks` (`utf32`, `avg_chunk_size`), `gen_sum_code_v0`, `gen_iscc_code_v0` and
-    `soft_hash_video_v0`. Grep for them, and leave no `f64`/`bool` parameter on any
-    `#[wasm_bindgen]` export.
-- **Signatures.** A required scalar becomes `JsValue` with
-    `#[wasm_bindgen(unchecked_param_type =   "number")]` (or `"boolean"`). An optional one becomes
-    `JsValue` with `unchecked_optional_param_type = "number | null"`. Optional parameters must stay
-    trailing (the macro errors otherwise). Arrays get `unchecked_param_type = "ArrayLike<number>"`.
-- **Helpers** (short, documented, next to `checked`): a `number(&JsValue, name) -> Result<f64>` that
-    uses `as_f64()` and errors as `Invalid {name}: expected a number`. An optional variant treats
-    `undefined` **and** `null` as absent, which is today's `isLikeNone` behaviour, so a `null`
-    `bits` still means the default. Add matching boolean helpers (`as_bool()`). The existing
-    `to_u8`/`to_u32`/`to_i32`/`opt_u32` then take the checked `f64`. Do not duplicate them.
-- **Arrays.** Reject a non-object. Read the rest via `js_sys::Array::from(&value)` and check each
-    element with `as_f64()`, naming it `cv[i]`. The existing `to_i32_vec`/`to_u32_vec` index-naming
-    style is the model. A typed-array fast path (`Float64Array::new(&v).to_vec()` when
-    `is_instance_of` a typed array) is optional, so keep it only if it stays short.
-- `wasm_bindgen_test` calls the Rust export directly. With `JsValue` parameters there is no glue
-    conversion left, so `JsValue::NULL`, `JsValue::from_str("2")` and `JsValue::TRUE` in `unit.rs`
-    exercise the real check. Add one rejection test per parameter class: required number, optional
-    number, number array element, required boolean, optional boolean. Add a positive test that
-    `JsValue::NULL`/`UNDEFINED` for `bits` gives the default. A small test helper like `num(64.0)`
-    keeps the call-site rewrite readable.
-- `docs/howto/wasm.md` → "Error handling": state that a non-number (incl. `null` for a required
-    number, numeric strings, booleans) throws, that `null`/`undefined` select an optional default,
-    and that boolean flags must be booleans. Update the CLAUDE.md table rows for `f64`,
-    `Option<f64>`, `Option<bool>` and `Vec<f64>`.
-- The behaviour change belongs in the v0.8.0 release notes, like the `alg_cdc_chunks` shape change.
-    Say so in the handoff. No changelog file exists to edit.
-- Not a hot path of the core, so the CRAP and iai gates do not apply. `iscc-wasm` sits outside both.
+**`.d.ts` optional parameters.** In wasm-bindgen 0.2.126, `cli-support/src/js/binding.rs`
+`typescript_signature` walks the parameters in reverse. A parameter with a type override gets `?`
+whenever it is marked optional, and it ends `omittable` for every parameter before it. That is why a
+plain `Option<String>` placed before `bits` lost its `?`. Source:
+https://raw.githubusercontent.com/wasm-bindgen/wasm-bindgen/0.2.126/crates/cli-support/src/js/binding.rs.
+The fix: add `#[wasm_bindgen(unchecked_optional_param_type = "string | null")]` to `description` and
+`meta`, and keep them as `Option<String>`. The glue still converts them as before. If the macro
+rejects the attribute on an `Option<String>`, the fallback is a `JsValue` read with `as_string()`
+and `is_null_or_undefined()` that names the parameter on rejection. Say in the handoff which one you
+used. Only `gen_meta_code_v0` has an `Option` before a `JsValue` (grep `Option<String>`).
+
+**`number_vec` without unwinding.** No JavaScript exception may cross a Rust frame, so every JS
+access must go through an import marked `catch`. `Array::from`, the `Array` index getter, and
+`try_iter`'s `IteratorNext::done()`/`value()` all lack `catch`, so do not use them. Read the input
+as an array-like:
+
+1. Keep the `is_object()` rejection.
+2. `Reflect::get(value, &"length".into())` → `number(…)` → `to_u32(…, "<name>.length")`.
+3. Read each element with `Reflect::get_u32(value, i)`, then `number(&v, "<name>[i]")`.
+4. Map a caught exception (`Err(JsValue)`) to `JsError` with the parameter name and the message
+    (`js_sys::Error` `message()` via `dyn_ref`, or a fixed text).
+
+This accepts the same inputs as 0.7.0, whose glue copied array-likes into typed arrays: arrays,
+typed arrays, and objects with `length`. A missing index reads `undefined` and fails at the first
+gap, so a huge fake `length` costs nothing. Iterables without `length` (`Set`, generators) are
+rejected with an error. Iteration 268 accepted them through `Array.from`, and 0.7.0 read them as
+empty. State this narrowing in the doc comment and in the handoff. Measure the release-build time of
+`gen_audio_code_v0` for 1,000,000 elements against the handoff figures (350 ms plain array).
+
+**Test** (`tests/unit.rs`, `#[wasm_bindgen_test]` calls Rust directly, so this runs the real code
+path): build a throwing array-like with
+`js_sys::eval("({ get length() { throw new Error('boom') } })")` (or
+`js_sys::Function::new_no_args`). Call `gen_audio_code_v0` 5,000 times and assert every call returns
+`Err`. Then assert `text_trim("abc", …)` still returns `Ok`. Add one case for an element getter that
+throws (`length: 1` plus `get 0()`), and one for an iterable without `length` being rejected. One
+bad input per call.
+
+**Docs.** In `docs/howto/wasm.md` → "Error handling", say that number-array parameters accept
+arrays, typed arrays and array-likes. Also fix the review nit: the paragraph ends with a colon that
+leads into an unrelated code example.
+
+**Verify the declarations** (scratch dirs in `/tmp`, removed afterwards):
+`git archive 3ef83ce | tar -x -C /tmp/wasm-base`, then build both trees with
+`wasm-pack build --release --target nodejs`. Strip JSDoc lines from both `.d.ts` files (lines
+starting with `/**`, `*` or `*/` after leading whitespace) and diff what is left.
 
 ## Verification
 
 - `wasm-pack test --node crates/iscc-wasm --features conformance` passes, including the new
-    rejection and default tests
-- `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings` clean
-- `grep -nE '[( ][a-z_]+: (Option<)?(f64|bool|Vec<f64>)\b' crates/iscc-wasm/src/lib.rs` prints only
-    lines of private helpers (`fn checked`, `to_*`, `opt_*`, …) and the `filesize` result field
-    (today most matches are export parameters)
-- Node probe on a `wasm-pack build --target nodejs` build outside the tracked tree, with output
-    quoted in the handoff: `gen_audio_code_v0([1, null, 3])`, `text_trim("abc", "2")`,
-    `text_trim("abc", true)`, `gen_iscc_code_v0(codes, "yes")` and
-    `gen_video_code_v0([[1, null, …]])` each throw; `gen_text_code_v0("Hello", null)` and
-    `gen_text_code_v0("Hello")` return the 64-bit default
-- The built `.d.ts` still declares `bits?: number | null` on `gen_text_code_v0` and
-    `cv: ArrayLike<number>` on `gen_audio_code_v0` (quote both lines)
-- `mise run check` exits 0
+    throwing-array-like tests
+- `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings` is clean
+- The comment-stripped `.d.ts` of a release build of the working tree is identical to that of
+    `3ef83ce` (the `diff` exits 0, output quoted in the handoff)
+- Node, on a release `--target nodejs` build: the throwing-getter loop
+    (`gen_audio_code_v0({ get   length() { throw … } })` inside `try`, 10,000 times) completes, and
+    a later `text_trim("abc", 2)` returns `"ab"`
+- `grep -n 'Array::from' crates/iscc-wasm/src/lib.rs` prints nothing
+- `mise run check` exits 0, and `git status --porcelain` shows no build output or `/tmp` leftovers
 
 ## Done When
 
-All six verification criteria pass and `git status --porcelain` shows no build output under the
-tracked tree.
+All six verification criteria pass, and the handoff names the optional-parameter mechanism used and
+the narrowing for iterables without `length`.
