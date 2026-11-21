@@ -3,16 +3,17 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 255):** v0.8.0 blocked by 3 `normal` `[audit]` issues; 254 pytest gate
-PASS → 255 = FFI `slice_or_empty` (lib.rs + .NET sentinel removal + regen `iscc.h`/`.g.cs`; C++
-`safe_data` deliberately kept: uniform, gated, still correct) → int wrap → docs (audit 8-file; the
-.NET/C++ wrapper tests already assert the core error on empty input, so the FFI flip leaves them
-green — only Rust FFI tests pin the len-0 NULL rejection). **Collecting rule vs "core first and
-alone":** land the behaviour first, then batch pending sections into one fan-out. **"A vector costs
-one edit" is proven by a throwaway vector run on every surface and then reverted** (path-scoped
-`git checkout`, never stash). Ledger/traps → [v0.8.0 iteration ledger](v080-iteration-ledger.md);
-slice history → [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md).
-**Dependabot alerts track `main`, not `develop`** — check the lockfile on `develop` before scoping.
+**Status 2026-11-21 (iter 256):** v0.8.0 blocked by 2 `normal` `[audit]` issues; 255 FFI
+`slice_or_empty` PASS → 256 = integer range (napi/WASM params → `f64` + one range helper, JNI
+negative-`jint` guard, Py `OverflowError` / Rb `RangeError` documented not remapped; 3 code files,
+no data-edge vector: out-of-range is a wrong *type* for typed harnesses) → docs issue (audit
+8-file). napi `u8`/`u32`/`i32` all go through ToUint32/ToInt32 (napi-3.11.0 `number.rs:63`);
+`serde_wasm_bindgen` already range-checks ints. **Collecting rule vs "core first and alone":** land
+the behaviour first, then batch pending sections into one fan-out. **"A vector costs one edit" is
+proven by a throwaway vector run on every surface and then reverted** (path-scoped `git checkout`,
+never stash). Ledger/traps → [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
+[ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
+track `main`, not `develop`** — check the lockfile on `develop` before scoping.
 
 ## Scope Calibration Principles
 

@@ -1,98 +1,97 @@
 # Next Work Package
 
-## Step: C FFI accepts `(NULL, 0)` everywhere and checks inner pointers, via one `slice_or_empty` helper
+## Step: Range-check every JS integer argument, reject negative JNI counts, document the Python/Ruby classes
 
 ## Goal
 
-Pick up the `normal` `[audit]` issue "C FFI treats `(NULL, 0)` two opposite ways and never checks
-inner pointers": every pointer+length input of `crates/iscc-ffi` goes through one helper (len 0 →
-empty slice, NULL with len > 0 → error), which also removes the undefined behaviour on NULL inner
-pointers and the 7 .NET stack-sentinel workarounds that the split forced.
+Fixes the `normal` `[audit]` issue "Out-of-range integer arguments wrap silently on JS, raise
+undocumented classes elsewhere". Today napi and WASM silently turn an out-of-range JS number into a
+different valid integer, so the caller gets a wrong code back with no error. After this step every
+binding rejects such input, and the docs name the error class each binding actually raises.
 
 ## Alternatives Considered
 
-- **Chosen:** FFI `(NULL, 0)` unification. It fixes UB (a NULL `frame_sigs[i]`/`digests[i]` reaches
-    `from_raw_parts`), is the smallest of the three release blockers, and the handoff names it next.
-- **Rejected:** out-of-range integer issue (5-6 files over napi, WASM, JNI, Py, Rb). A larger
-    multi-surface change with no UB; it goes next. The published-docs issue (~11 files) comes last,
-    because the FFI change edits `packages/dotnet/CLAUDE.md` first.
+- **Chosen:** integer range — silent wrong output is a correctness bug. It touches 3 non-test code
+    files (fits the 6-file default, no audit valve needed) and the handoff points here
+- **Rejected:** "Published-package docs contradict what ships" — docs only, ~11 files. It is the
+    last blocker and comes next; this step's doc edits (python.md, ruby-api.md) do not overlap it
 
 ## Scope
 
-- **Modify**: `crates/iscc-ffi/src/lib.rs` (helper + every slice call site),
-    `packages/dotnet/Iscc.Lib/IsccLib.cs` (drop the 7 `sentinel` branches),
-    `packages/dotnet/CLAUDE.md` (the "Empty span sentinel" section and the pitfall at line ~166)
-- **Regenerate**: `crates/iscc-ffi/include/iscc.h` and `packages/dotnet/Iscc.Lib/NativeMethods.g.cs`
-    (export doc comments move, e.g. the `iscc_encode_seq` errors list "`units` is NULL")
-- **Tests**: `crates/iscc-ffi/src/tests.rs`, `crates/iscc-ffi/tests/test_iscc.c`
-- **Reference**: `crates/iscc-ffi/CLAUDE.md`, `packages/dotnet/Iscc.Lib.Tests/ArrayInputTests.cs`,
-    `packages/cpp/include/iscc/iscc.hpp` (`detail::safe_data`)
+- **Modify**: `crates/iscc-napi/src/lib.rs`, `crates/iscc-wasm/src/lib.rs`,
+    `crates/iscc-jni/src/lib.rs`; docs: `docs/howto/python.md` (Error handling), `docs/ruby-api.md`
+    (error statement near line 82). Also any napi/WASM/Java doc page or crate `CLAUDE.md` that
+    describes the IDv1-only `checked()` rule or integer error behaviour (grep for `checked` and
+    `ValueError`/`RuntimeError`)
+- **Tests**: `crates/iscc-napi/__tests__/functions.test.mjs`, `crates/iscc-wasm/tests/unit.rs`,
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`, a Python test under
+    `tests/`, `crates/iscc-rb/test/test_array_args.rb`
+- **Reference**: `checked()` in napi (lib.rs ~330) and WASM (~378); decision 2026-07-29 "JS-number
+    ISCC-IDv1 surfaces take all params as `f64` and validate before narrowing"; `narrow_to_i32` in
+    `crates/iscc-rb/src/lib.rs`; JNI `encode_component` range checks (~755)
 
 ## Not In Scope
 
-- Removing C++ `detail::safe_data` and `tests/test_cpp_safe_data.py`. It is one uniform helper on
-    the C++ surface and stays correct once the FFI accepts `(NULL, 0)`. Whether to drop it is a
-    separate cleanup that the reviewer may file.
-- .NET `PinnedRows` (jagged arrays): it does the null check and padded pinning (decision 2026-11-20)
-    and stays as it is.
-- `*const c_char` string parameters (`ptr_to_str` / `ptr_to_optional_str`): a NULL string is not a
-    slice and stays an error.
-- `data-edge.json` vectors. NULL pointers cannot be written in JSON, so the collecting rule does not
-    apply.
-- The integer-range and published-docs issues.
+- No `data-edge.json` vector. A value like `2**32+64` for `bits` cannot be passed through the typed
+    signatures of the Rust, C, C++, Go, .NET, Swift and Kotlin harnesses. To them it is a wrong
+    argument type, which `edge-vectors.md` → Rules leaves to per-binding tests. Append a short
+    decisions.md entry that records this reading
+- Python and Ruby keep their exceptions (`OverflowError`, `RangeError`). Each is the class the host
+    language raises itself when an integer conversion fails. Fix the docs, not the bindings
+- JNI `alg_minhash_256` keeps reading `int[]` elements as unsigned (`v as u32`, the commented Java
+    idiom). Its `avg_chunk_size`, `encode_component` and `gen_iscc_id_v1` checks already exist
+- WASM `gen_video_code_v0` / `soft_hash_video_v0` deserialize through `serde_wasm_bindgen`, which
+    already rejects non-safe and out-of-range integers. Leave them alone unless a probe shows
+    wrapping
+- Go, C FFI, C++, .NET, Swift and Kotlin take typed unsigned/signed integers and are unaffected. Do
+    not touch the core
 
 ## Implementation Notes
 
-- Helper (private, in `lib.rs`):
-    `unsafe fn slice_or_empty<'a, T>(ptr: *const T, len: usize, name: &str) -> Option<&'a [T]>`.
-    `len == 0` → `Some(&[])` whatever `ptr` is. NULL with `len > 0` →
-    `set_last_error("<name> must not be NULL")` and `None`. Otherwise `from_raw_parts` with a
-    `// SAFETY:` comment. Call sites use
-    `let Some(x) = (unsafe { … }) else { return <err value>; };` and keep their own error return
-    (`ptr::null_mut()`, `null_byte_buffer()`, `false`, …).
-- Cover **every** input `std::slice::from_raw_parts` in `lib.rs`: image `pixels`, audio `cv`, data,
-    instance, `encode_base64`, `encode_component` `digest`, `decode_seq`, `alg_minhash_256`
-    `features`, `alg_cdc_chunks`, both hasher `update`s, and the **outer** arrays (`codes` in mixed
-    and `gen_iscc_code_v0`, `units` in `encode_seq`, `frame_sigs`/`frame_lens` in video and
-    `soft_hash_video_v0`, `digests`/`digest_lens` in `alg_simhash`). With count 0 these now reach
-    the core, which raises its own error (empty list, too few codes). That is the point: the FFI no
-    longer hides the core's message.
-- Inner pointers: in the video, `soft_hash_video_v0` and `alg_simhash` loops, call the helper per
-    row with an indexed name (`frame_sigs[{i}]`, `digests[{i}]`) and stop at the first error. Use a
-    plain `for` loop or `collect::<Option<Vec<_>>>()`, whichever reads cleaner. Inner pointers of
-    string arrays already go through `ptr_to_str`.
-- Rewrite the `# Safety` / errors doc comments of each touched export to say that a pointer may be
-    NULL when its length is 0. Then regenerate the header with the cbindgen command in
-    `crates/iscc-ffi/CLAUDE.md`. `cargo build -p iscc-ffi` rewrites `NativeMethods.g.cs`; commit
-    both in this step (learnings: csbindgen rewrites on every build).
-- Flip the Rust tests that pin a len-0 NULL rejection: `test_gen_data_code_v0_null` and
-    `test_encode_seq_null_units` (now: the core's empty-list error, not "must not be NULL"), plus
-    any other test the change breaks. Add tests: `(NULL, 0)` accepted on each former rejecter
-    (image, audio, data, instance, `encode_base64`); NULL + len > 0 rejected with the parameter name
-    on a representative set; a NULL inner row with len > 0 rejected for video, `soft_hash_video_v0`
-    and `alg_simhash`, and a NULL inner row with len 0 accepted as an empty row. One bad case per
-    call (learnings). Mirror the `(NULL, 0)` and inner-NULL cases in `test_iscc.c`.
-- .NET: each `if (span.IsEmpty) { … sentinel … }` branch goes; the `fixed` path handles empty spans
-    (a NULL pointer with length 0). `ArrayInputTests.cs` already asserts the core's error and no
-    "must not be NULL", so it must stay green unchanged.
-- Not a core or hot-path change: the CRAP and iai gates do not apply (`iscc-ffi` is outside both).
+- **Why it wraps:** napi converts `u8`/`u32` with `napi_get_value_uint32` and `i32` with
+    `napi_get_value_int32` (napi-3.11.0 `js_values/number.rs:63-69`). Both apply ToUint32/ToInt32,
+    so `256` becomes `u8` 0 and `2**40` becomes `i32` 0. The wasm-bindgen glue does `>>> 0` for
+    `u32` and copies `Vec<i32>`/`Vec<u32>` into typed arrays, which wrap the same way
+- **Fix on both JS surfaces (finish the pattern):** every numeric parameter of an exported fn or
+    method becomes `f64` / `Option<f64>` / `Vec<f64>` / `Vec<Vec<f64>>` and is narrowed through one
+    range-checked helper. Generalise the existing `checked` to take a minimum, or add thin
+    `to_u8`/`to_u32`/`to_i32` wrappers over it, and keep `gen_iscc_id_v1` on the same helper.
+    Bounds: `u8` \[0, 256), `u32` \[0, 2^32), `i32` \[-2^31, 2^31); reject non-finite and fractional
+    values. `-0.0` maps to 0. `undefined` stays `None`. Sites: `bits` on every gen fn and on the
+    streaming `finalize`/`finalize_code`, `gen_sum_code_v0` `bits`, `text_trim` `nbytes`,
+    `sliding_window` `width`, `alg_cdc_chunks` `avg_chunk_size`, `encode_component`
+    (`mtype`/`stype`/`version`/`bit_length`), and the elements of `gen_audio_code_v0` `cv`,
+    `alg_minhash_256` `features` and napi's `gen_video_code_v0`/`soft_hash_video_v0` frames. Name
+    the parameter in the error message, and an element by its index
+- Constants and result fields (`META_TRIM_*`, `IsccDecodeResult`) are outputs; leave them. The napi
+    `.d.ts` is generated, not committed: `f64` and `u32` both map to `number`
+- `#[wasm_bindgen_test]` bypasses the JS glue (learnings 234). Prove the WASM fix from Node as well:
+    `wasm-pack build crates/iscc-wasm --target nodejs --out-dir /tmp/wasm-int` and call it
+- **JNI:** one helper that rejects a negative `jint` with `IllegalArgumentException` (via
+    `throw_and_default`) before the unsigned cast. Use it at every `bits as u32` site (all gen fns,
+    `gen_sum_code_v0` and any hasher finalize), `text_trim` `nbytes` and `sliding_window` `width`
+- Tests: per surface, one negative case and one `2**32 + 64`-style case (where the host type can
+    hold it) per parameter kind. Assert on the raw call (learnings: one bad case per call)
+- Binding-only change: CRAP and iai gates are not affected
 
 ## Verification
 
-- `cargo test -p iscc-ffi` passes, with the new `(NULL, 0)`, NULL + len > 0 and inner-NULL tests;
-    `cargo clippy -p iscc-ffi -- -D warnings` clean
-- `grep -n 'slice::from_raw_parts(' crates/iscc-ffi/src/lib.rs` prints only lines inside the body of
-    `slice_or_empty`
-- The C test compiles and exits 0 (commands in `crates/iscc-ffi/CLAUDE.md` → Build Commands)
-- Regeneration is a no-op: after the cbindgen command and `cargo build -p iscc-ffi`,
-    `git status --porcelain crates/iscc-ffi/include packages/dotnet/Iscc.Lib/NativeMethods.g.cs` is
-    empty, once the regenerated files are committed
-- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug` passes, and
-    `grep -n sentinel packages/dotnet/Iscc.Lib/IsccLib.cs packages/dotnet/CLAUDE.md` prints nothing
-- The C++ suite passes against the rebuilt FFI (`packages/cpp/CLAUDE.md` build commands, cmake via
-    `uv run --with cmake cmake …`), and `mise run check` exits 0
+- `cd crates/iscc-napi && npm run build:debug && npm test` passes. New tests show that `bits`
+    `2**32+64` and `-1`, `text_trim(…, -1)`, `gen_audio_code_v0([2**40])`, `alg_minhash_256([-1])`,
+    a video frame holding `2**31`, `encode_component(256, …)` and `bits` `64.5` each throw
+- `wasm-pack test --node crates/iscc-wasm` passes with the same cases in `tests/unit.rs`, and a Node
+    call on the built `/tmp/wasm-int` package shows `gen_text_code_v0("x", 2**32+64)` and
+    `gen_audio_code_v0([2**40])` throwing
+- `grep -nE '(\(|^\s+)[a-z_]+: (Option<)?(u8|u32|i32|Vec<(Vec<)?(i32|u32)>)[,)>]' crates/iscc-napi/src/lib.rs crates/iscc-wasm/src/lib.rs`
+    prints nothing
+- `mvn -f crates/iscc-jni/java/pom.xml clean test` passes, with tests showing that negative `bits`,
+    `nbytes` and `width` each raise `IllegalArgumentException`
+- `uv run pytest` passes with a test pinning `OverflowError` for `bits=-1` and `bits=2**32+64`, and
+    `bundle exec rake test` (in `crates/iscc-rb`) passes with a test pinning `RangeError`. The two
+    doc pages name these classes
+- `cargo clippy --workspace --all-targets -- -D warnings` and `mise run check` exit 0
 
 ## Done When
 
-The advance agent is done when every pointer+length input of the C FFI goes through `slice_or_empty`
-and all six verification criteria pass.
+All six verification criteria pass. Every out-of-range integer throws on napi, WASM and JNI, and the
+Python and Ruby docs name the exception class each binding actually raises.
