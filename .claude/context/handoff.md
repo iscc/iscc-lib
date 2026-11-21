@@ -1,75 +1,72 @@
-## 2026-11-21 — Review of: Raise the Ruby floor to 3.3 and precompile gems for Ruby 3.3 and 3.4
+## 2026-11-21 — Pin the development Ruby in `mise.toml` and bundle under it at container setup
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** The root `mise.toml` pins `ruby = "3.4.13"` in a `[tools]` table. Both standardrb hooks
+now run `mise exec -- bundle exec standardrb[ --fix]` and the two docs say `mise exec -- …`. The
+committed `postCreateCommand` (and the local `post-create.sh`) now installs the pinned Ruby and runs
+the bundle under it, still non-fatal. A pin test in `tests/test_ruby_gem_docs.py` checks that the
+pin is at or above the gemspec floor and that the hooks and docs name no `ruby@<version>`.
 
-**Summary:** The gemspec, the CI `ruby` job and the `release.yml` cross-gem list all say Ruby 3.3 as
-the floor, precompiled gems cover 3.3 and 3.4, minitest moved to 6.1.0 with identical counts, and a
-parity test ties the three floors together. The work is correct and the `[human]` issue is closed.
-Two notes: the advance commit failed the pre-push `ty` check on one test line (fixed in this
-review), and a rebuilt devcontainer can no longer run the Ruby gates (filed `normal`).
+**Files changed:**
+
+- `mise.toml`: `[tools]` table with `ruby = "3.4.13"` and a comment saying CI does not use mise
+- `.pre-commit-config.yaml`: both standardrb entries use `mise exec --`, comments name the pin
+- `.devcontainer/devcontainer.json` (committed via `update-index --cacheinfo`, not from disk): the
+    Ruby group is now
+    `{ (cd crates/iscc-rb && mise install ruby && mise exec -- bundle config set --local path vendor/bundle && mise exec -- bundle install --quiet) || echo '… run mise exec -- bundle install in crates/iscc-rb manually'; }`
+- `.devcontainer/post-create.sh` (local, untracked, excluded): the same edit, so its body still
+    matches the committed `postCreateCommand`. Not committed
+- `crates/iscc-rb/CLAUDE.md`, `.claude/context/specs/ruby-bindings.md`: `mise exec -- …`, pin named
+    in `mise.toml`; `.claude/context/specs/ci-cd.md` "Tool Management": mise also pins the
+    development Ruby
+- `tests/test_ruby_gem_docs.py`: `mise_ruby_pin`, `check_dev_ruby_pin`, `inline_ruby_pins` and 8
+    tests (2 on the real files, the rest negative or edge cases, including an injected `ruby@3.4`
+    hook string)
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_ruby_gem_docs.py` passes with the floor-parity test and its negative
-    cases — 47 passed together with `tests/test_build_ruby_source_gem.py`
-- [x] The three greps print one line each: `release.yml:850`, gemspec `:16`, `ci.yml:253` (the
-    `ruby` job)
-- [x] Under `mise exec ruby@3.4.13 --`: `bundle exec standardrb` exits 0;
-    `bundle exec rake compile test` → `168 runs, 481 assertions, 0 failures, 0 errors, 0 skips`
-- [x] The `3\.1 to 3\.3|>= 3\.1|3\.1, 3\.2` sweep prints nothing (exit 1). A wider sweep of my own
-    for `Ruby 3.1` / `3.2` found only the two intended mentions of the system Ruby
-- [x] `uv run scripts/check_release_workflow.py` exits 0; `Gemfile.lock:28` is `rb_sys (0.9.123)`
-- [x] `mise run check` exits 0, tree clean afterwards
-- [x] Handoff records the minitest counts (5.27.0 and 6.1.0: 168 runs, 481 assertions) and the
-    devcontainer gap
+- `mise ls --current ruby` → `ruby  3.4.13  /workspace/iscc-lib/mise.toml  3.4.13`
+- `grep -nE 'ruby@[0-9]' .pre-commit-config.yaml crates/iscc-rb/CLAUDE.md .claude/context/specs/ruby-bindings.md`
+    prints nothing (exit 1). The same regex finds `ruby@3.4` twice in HEAD~1's hook file and
+    `ruby@3.4.13` in HEAD~1's CLAUDE.md, so the check catches the old spellings
+- `git show HEAD:.devcontainer/devcontainer.json | python3 -m json.tool` → OK; contains
+    `mise exec -- bundle install --quiet`
+- **Fresh-setup simulation**: `git archive HEAD` → `/tmp/rbfresh` (no `vendor/`), with an EMPTY
+    `MISE_DATA_DIR`, so Ruby was really downloaded. The Ruby group was extracted from HEAD's
+    `postCreateCommand`:
+    ```
+    mise ✓ ruby@3.4.13  10.5s  ruby-3.4.13.x86_64_linux.tar.gz
+    setup-group exit=0 (66s)      # no "failed" line in the log (grep -c failed → 0)
+    ruby 3.4.13 … [x86_64-linux]   /tmp/rbfresh-mise/installs/ruby/3.4.13/bin/ruby
+    standardrb exit=0
+    ```
+    `.bundle/config` held `BUNDLE_PATH: "vendor/bundle"`. Cleanup done: untrusted, then removed
+    `/tmp/rbfresh` and `/tmp/rbfresh-mise`
+- `LANG=C.UTF-8 mise exec -- bundle exec rake compile test` →
+    `168 runs, 481 assertions, 0 failures, 0 errors, 0 skips`
+- `uv run pytest tests/test_ruby_gem_docs.py` → 28 passed; also 28 passed under Python 3.10
+    (`uv run --no-project --python 3.10 --with pytest --with pyyaml`); `uv run ty check` on the file
+    is clean
+- `mise run check` → exit 0 (the `Ruby linting (fix)` hook passed under the pin)
+- `git ls-files -v .devcontainer/devcontainer.json` → `S …`; `git status --porcelain` lists only
+    `.claude/context/iterations.jsonl` (runner-owned)
 
-Extra checks (3 of 3):
-
-- **The floor itself, Ruby 3.3.14** (`mise install ruby@3.3`, a 30 s prebuilt download):
-    `bundle install`, `standardrb` exit 0, `rake compile test` → 168 runs, 481 assertions, 0
-    failures. The handoff listed this as not verified; it is now
-- **The image claim**, re-derived from source: the rb-sys 0.9.123 image is `FROM`
-    rake-compiler-dock-image 1.10.0, whose `RUBY_CC_VERSION` is `3.4.5:3.3.9:3.2.9:3.1.7:…` (the
-    x64-mingw-ucrt plan too). rb-sys-dock resolves `--ruby-versions` through the locked
-    rake-compiler-dock gem 1.10.0, whose `cross_rubies` maps 3.4 → 3.4.5 and 3.3 → 3.3.9. They match
-- **Floor parity on the real files with one value changed per run** (gemspec 3.2, CI 3.4, release
-    list `3.2, 3.3, 3.4`, release list `3.4`): each fails with `Ruby floor mismatch`
-
-**Issues found:**
-
-- **Fixed here (step 9):** `tests/test_build_ruby_source_gem.py:477` called `.group(1)` on an
-    optional match, and `uv run ty check` (a pre-push gate) failed. Now an explicit
-    `assert out_match is not None`. `ty`, ruff and both test files are green
-- **Filed `normal`:** "A rebuilt devcontainer cannot run the Ruby gates". `post-create.sh` still
-    runs `bundle install` under system Ruby 3.1, which Bundler refuses, and nothing installs the
-    bundle for the mise Ruby the standardrb hooks now use. Today's container works
-- **Filed `low`, untriaged:** "`release.yml` loads only one precompiled Ruby binary before
-    publishing" (`test-gem` runs 3.3 on x86_64 Linux only; the 3.4 binary is new and never loaded)
-- **Filed `low`, untriaged:** "Ruby 4.0 gets no precompiled gem" (the remainder of the closed issue;
-    needs rb_sys past the 0.9.123 hold)
-- The two unscoped changes are accepted. The hooks had to leave system Ruby or `mise run check`
-    could not pass. The replaced test assertion (CI Ruby outside the cross-gem list) became false by
-    design; the new one pins that the job installs the built `.gem` file, which is what makes it a
-    source install on any Ruby. No gate was weakened. 5 code files changed, within the cap
-- Nit, not filed: the hooks say `ruby@3.4`, the docs `ruby@3.4.13` (covered by the `normal` issue)
-
-**Codex review:** one finding (P2), the same devcontainer bootstrap gap: the hooks select mise Ruby
-3.4 but the bootstrap installs no bundle for it, so `mise run check` fails on a fresh container with
-`bundler: command not found: standardrb`. Filed as the `normal` issue above.
-
-**Next:** "A rebuilt devcontainer cannot run the Ruby gates" (`normal`). It is small and it protects
-the loop's own gate: after a container rebuild every `mise run check` would fail. Suggested shape:
-pin `ruby` in `mise.toml`, let `post-create.sh` run `bundle install` under the mise Ruby, and make
-the hooks and the two docs use that one pin. Do not change the gemspec, CI or release.yml. After
-that, the decided cleanup "C++ `safe_data` and .NET `PinnedRows` padding".
+**Next:** UniFFI `text_trim` saturation (`normal`), then the decided cleanup "C++ `safe_data` and
+.NET `PinnedRows` padding".
 
 **Notes:**
 
-- Resolved and deleted: "The Ruby floor is past end of life and current Rubies get no precompiled
-    gem". The spec (`specs/ruby-bindings.md`) was updated by the advance step
-- **Never run `rake clobber` in `crates/iscc-rb`.** rb_sys lists the workspace cargo `target/` in
-    it. I ran it during this review and it emptied the build cache (gitignored, rebuilt by the next
-    cargo run). The extension in `lib/` is rebuilt for Ruby 3.4.13, as the advance step left it
-- The first CI run of the `ruby` job on 3.3 follows this push. The local 3.3.14 run predicts green
-- `release.yml` was not run (it is `workflow_dispatch`-only). The 3.4 cross-build rests on the
-    source reading above
+- **Deviation from next.md:** the pin test parses `mise.toml` with a regex, not `tomllib`. The first
+    version used `tomllib`, and ruff flagged it as third-party under `requires-python >=3.10`.
+    `tomllib` does not exist in 3.10, and CI's `python-test` matrix runs 3.10 (as
+    `scripts/check_docs_nav.py` and `build_ruby_source_gem.py` note). Two extra tests check that the
+    regex reads only the `[tools]` table
+- `git update-index --cacheinfo` clears the skip-worktree flag. I set it again before
+    `mise run check` and the commit, so prek never saw the local array-form `devcontainer.json`. The
+    on-disk file is still the array form
+- With the pin, any shell where mise is active puts Ruby 3.4.13 first on PATH inside the repo, ahead
+    of system Ruby 3.1. That applies to `tests/test_build_ruby_source_gem.py` too, which needs
+    `ruby` on PATH
+- For review: `learnings.md` (Tooling → "Ruby floor is 3.3 (270)") still says
+    `mise exec ruby@3.4.13 -- …`. It should say `mise exec -- …` (the pin is in `mise.toml`)
+- Two commits: the implementation commit, then this handoff and memory. The simulation needed the
+    committed tree

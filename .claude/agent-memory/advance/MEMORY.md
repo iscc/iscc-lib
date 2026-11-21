@@ -33,10 +33,13 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
 - Ruby: `crates/iscc-rb/` — src/lib.rs (Magnus), lib/iscc_lib.rb (wrapper); Cargo lib name `iscc_rb`
-- Ruby floor 3.3 (270): system Ruby 3.1 is refused by Bundler. Run Ruby via
-    `mise exec ruby@3.4.13 -- bundle exec rake compile test` (`LANG=C.UTF-8`); standardrb hooks use
-    `mise exec ruby@3.4`. Floor parity (gemspec/ci `ruby` job/lowest cross-gem) in
-    `tests/test_ruby_gem_docs.py`; minitest 6 = 168 runs / 481 assertions
+- Ruby floor 3.3 (270): system Ruby 3.1 is refused by Bundler. Dev Ruby pinned ONCE in root
+    `mise.toml` `[tools] ruby` (271): `mise exec -- bundle exec rake compile test` (`LANG=C.UTF-8`);
+    hooks + docs name no `ruby@X` (pin test in `tests/test_ruby_gem_docs.py`, regex not `tomllib`:
+    CI python-test runs 3.10). minitest 6 = 168 runs / 481 assertions
+- Devcontainer (271): `devcontainer.json` is `skip-worktree` (disk = local array form); edit HEAD
+    copy in /tmp, `git update-index --cacheinfo` (CLEARS the flag), re-set `--skip-worktree` before
+    `mise run check`. Untracked `post-create.sh` mirrors the committed `postCreateCommand`
 - UniFFI: `crates/iscc-uniffi/` — proc-macro interface for Swift/Kotlin, `publish = false`. Full
     detail → uniffi-swift-kotlin.md
 - Go pure: `packages/go/` — one `.go` per algorithm/code-type (codec, utils, cdc, minhash, simhash,
