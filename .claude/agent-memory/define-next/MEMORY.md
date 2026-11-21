@@ -3,14 +3,14 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 271):** v0.8.0 features done; 16 `normal` left (271 scoped the
-devcontainer Ruby pin in `mise.toml`). Per-iteration traps for 259-269 (dotnet roll-forward,
-build-dependent iscc-core, lone-surrogate vectors, wasm-bindgen `.d.ts` `?` rule, uncaught js-sys
-imports) → [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds
-(py3.10 + py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's
-"Scope estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track
-`main`, not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints
-nothing.
+**Status 2026-11-21 (iter 272):** v0.8.0 features done; 15 `normal` left (272 scoped UniFFI
+`text_trim` saturation; next likely the decided C++/.NET padding removal). Per-iteration traps for
+259-269 (dotnet roll-forward, build-dependent iscc-core, lone-surrogate vectors, wasm-bindgen
+`.d.ts` `?` rule, uncaught js-sys imports) → [v0.8.0 iteration ledger](v080-iteration-ledger.md).
+**Probe the ref on BOTH builds (py3.10 + py3.15) before scoping a vector. External-flake red: still
+scope a hardening. An issue's "Scope estimate" can over-count — apply the docs-excluded rule
+yourself. Dependabot alerts track `main`, not `develop`.** NONE verification:
+`grep -E '^## .*(critical|normal)' issues.md` prints nothing.
 
 ## Scope Calibration Principles
 
@@ -76,6 +76,8 @@ nothing.
 - `dotnet` 8.0.423 on `$PATH`, nuget.org reachable → .NET restore/test locally verifiable.
     cargo-crap 0.2.2, cargo-llvm-cov 0.8.7, valgrind 3.19 + iai-callgrind-runner installed;
     cargo-deny via `cargo binstall cargo-deny@0.19.9 --force`.
+- **`i686-unknown-linux-musl` is installed** → a 32-bit `usize` claim on a crate without C-built
+    dev-deps is locally testable: `cargo test -p <crate> --target i686-unknown-linux-musl` (272).
 - **rustup carries stable (1.97.1) *and* 1.85.0** → every MSRV claim is locally verifiable:
     `cargo +1.85.0 check -p <crate> --locked`. Never defer an MSRV assertion to a CI job.
 - **`mise run lint` is only `cargo fmt --check` + clippy + ruff**; taplo/mdformat/hygiene run in
