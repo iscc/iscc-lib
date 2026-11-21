@@ -36,8 +36,9 @@ tracked.
 
 ## Rust Bridge Layer
 
-Functions use a bare `#[wasm_bindgen]` attribute, so every export keeps its snake_case Rust name
-(`gen_meta_code_v0`, never a camelCase `js_name`). Optional numbers and booleans arrive as
+Functions use a bare `#[wasm_bindgen]` attribute, so each exported function keeps its snake_case
+Rust name (`gen_meta_code_v0`, never a camelCase `js_name`). Only the constant getters carry a
+`js_name`, the upper-case constant name (`META_TRIM_NAME`). Optional numbers and booleans arrive as
 `JsValue`, keep their TypeScript type through `unchecked_optional_param_type`, and are type-checked
 in Rust by the private `opt_u32` / `opt_bool` helpers at the top of `crates/iscc-wasm/src/lib.rs`.
 Gen functions return the `iscc` string:

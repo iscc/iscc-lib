@@ -214,32 +214,6 @@ was found by reading the code. Pre-existing, measured 2026-11-21.
 Resolved when either CI runs at least the Python suite on `windows-latest`, or a decisions.md entry
 keeps CI on Linux and macOS on purpose.
 
-## Specs and crate CLAUDE.md files describe shipped work as pending and name missing items `normal` [audit]
-
-Verified by the iteration-260 audit at 3040298. CID-fixable (decision of 2026-11-20: realign).
-
-- `specs/rust-core.md:360-371`: `Version` "has only V0" and every surface "fails on any ISCC-IDv1";
-    `codec.rs:105-131` defines `V1` and admits `(Id, V1)`.
-- `specs/python-bindings.md:301-304`: text and video paths "still hold the GIL";
-    `iscc-py/src/lib.rs` wraps them in `.detach(` (:138, :190, :217, :241).
-- `specs/go-bindings.md`: the IDv1 rename "exists only on `develop`" (it shipped in 0.6.0);
-    "Streaming functions also accept `io.Reader`" and the two `io.Reader` bullets (no such API in
-    `packages/go`).
-- `specs/wasm-bindings.md` → "Rust Bridge Layer": the sketch shows `js_name = "genMetaCodeV0"`,
-    `bits: Option<u32>` and a serde `JsValue` result; the exports are snake_case, take scalars as
-    `JsValue` and return the `iscc` string.
-- `crates/iscc-napi/CLAUDE.md:36,66`, `crates/iscc-py/CLAUDE.md:66`, `crates/iscc-wasm/CLAUDE.md:43`
-    name `iscc_lib::Error`; the type is `IsccError`.
-- `packages/go/CLAUDE.md`: :95-121 keeps a test-file list (missing three files) that the 2026-11-21
-    decision removed; :146 says most packages wrap `iscc-ffi` (only C++ and .NET do); :133-135 omits
-    the `packages/go/vX.Y.Z` tag the module proxy needs (`release.yml:115-116`).
-
-**Why it matters:** define-next and advance read these as truth, so stale claims become scoped work.
-**Suggested fix:** rewrite each statement in the present tense to match the code. **Scope
-estimate:** 8 files, needs audit-scope step (≤8 files).
-
-Resolved when each cited statement matches the tree.
-
 ## `@iscc/wasm` docs show a Node.js setup the published package cannot run `normal` [audit]
 
 Verified by the iteration-270 audit at 34303a6. The npm package is built with
@@ -300,3 +274,17 @@ input-parsing closure; the same helper in Go. Move the CRAP baseline in the same
 estimate:** 2 non-test files plus `.crap-baseline.json`.
 
 Resolved when each language has one section runner and the selftest still passes on every surface.
+
+## `crates/iscc-py/CLAUDE.md` still lists test files one by one `low` [review]
+
+**Triage:** untriaged. An agent that reads the "Test Patterns" list as complete would look for
+Python binding tests in six modules only; the code is unaffected.
+
+"Test Patterns" names six test modules with a description each (`test_smoke.py`,
+`test_new_symbols.py` and four more), while the suite under `tests/` has more binding test modules
+than that (`test_gil.py`, `test_seq.py`, `test_data_edge.py` among them). It is the kind of partial
+file list the decision of 2026-11-21 removed from the per-crate `CLAUDE.md` files. Pre-existing,
+reported by advance in iteration 275. No other `crates/*/CLAUDE.md` or `packages/*/CLAUDE.md` file
+has such a list.
+
+Resolved when the section states its conventions as rules on file names and lists no modules.

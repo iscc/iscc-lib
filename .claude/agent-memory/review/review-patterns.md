@@ -806,6 +806,21 @@ Docs-only, no gate covers what matters. Three probes did the work, all from the 
     heading or intro that names a design pattern is rationale: file it, do not rewrite it.
 - `decisions.md` over budget: `cid.archive_overflow` moved two entries (422 → 396) in one call.
 
+### Second pass (275 — eight files of an audit issue, ~15 min, PASS)
+
+- One read-only pass per file while `mise run check` runs in the background: the code lines each
+    rewritten sentence names (`.detach(` sites + the enclosing `fn`, `validate_version` callers,
+    `js_name` and `serde_wasm_bindgen` greps), the spec's example output run live in Python.
+- **A release-history claim is checked per tag**:
+    `for t in $(git tag -l); do git grep -l '<pat>' $t -- <path>; done`. next.md said the old Go
+    IDv1 symbols were "removed in 0.6.0"; no tag ever held them, and advance corrected it.
+- **A sentence that generalizes from the one copied example is its own claim**: "every export keeps
+    its Rust name" was false for the five constant getters (`js_name`). Grep the attribute over the
+    whole file. Fixed in step 9 as a sub-spec fact.
+- A leftover of the same kind outside the cited statements (the test-file list in
+    `crates/iscc-py/CLAUDE.md`) is filed `low` with `**Triage:** untriaged`, not fixed: the step did
+    not touch it and Titusz's rule is "document unrelated issues, do not fix them".
+
 ## Core + Go behaviour fix (250)
 
 A step that makes the Rust core and the Go port reject an input (250: ragged video frame
