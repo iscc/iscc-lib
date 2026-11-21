@@ -701,3 +701,20 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     work; removing the redundant workaround is a `low` untriaged issue
 - learnings.md and decisions.md both sat at their budget: an in-place bullet rewrite can still add a
     line after mdformat, so `wc -l` after formatting
+
+## JS integer-range / marshalling step (256, ~15 min)
+
+- One logged script, in this order: napi `npm run build:debug && npm test`,
+    `wasm-pack test --node crates/iscc-wasm`,
+    `wasm-pack build crates/iscc-wasm --target nodejs --out-dir /tmp/wasm-int`,
+    `cargo build -p iscc-jni` + `mvn -q … clean test`, `uv run pytest -q`, `bundle exec rake test`,
+    clippy
+- `mvn -q` hides the `Tests run:` lines: read the counts from
+    `crates/iscc-jni/java/target/surefire-reports/TEST-*.xml` (`tests="…"`)
+- A JNI "rejects negative" test proves nothing by class alone (the wrapped value also raised
+    `IllegalArgumentException` from the core): check that it asserts the MESSAGE
+- Probe the WASM glue from Node with a CJS script outside the repo (`require('/tmp/wasm-int/…')`):
+    out-of-range, typed arrays vs plain arrays, the `.d.ts`, and wrong-typed values. The glue
+    converts `null`/strings/booleans with JS number conversion (filed `low` in 256); `undefined`
+    becomes `NaN`. napi throws on all of them, and on a typed array for a `Vec<T>` parameter
+- `serde_wasm_bindgen` rejects out-of-range and fractional numbers for `Vec<Vec<i32>>` itself

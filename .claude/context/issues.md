@@ -251,16 +251,21 @@ stays). Keeping both on purpose is a valid outcome too.
 Resolved when both are removed with the C++ and .NET empty-input tests still green, or a
 decisions.md entry keeps them on purpose.
 
-## Out-of-range integer arguments wrap silently on JS, raise undocumented classes elsewhere `normal` [audit]
+## `@iscc/wasm` converts non-number values to numbers instead of rejecting them `low` [review]
 
-napi/WASM take `u32`/`i32` (`iscc-napi/src/lib.rs:138,162,292,373,397`); only `gen_iscc_id_v1` runs
-`checked()`. Measured: bits `2**32+64` gives the bits-64 code, `text_trim("abc",-1)` → `"abc"`,
-`gen_audio_code_v0([2**40])` wraps to 0. JNI casts `bits as u32` unchecked
-(`iscc-jni/src/lib.rs:230…`). Python raises `OverflowError` vs documented `ValueError`
-(`docs/howto/python.md:540`); Ruby `RangeError` (`iscc-rb/src/lib.rs:62-70`) vs documented
-`RuntimeError` (`docs/ruby-api.md:82`). **Fix:** route JS numerics through `checked()`, reject
-negative JNI `bits`, map or document Py/Rb classes; one negative + 2^32+x test per surface. **Scope
-estimate:** 5-6 non-test files.
+**Triage:** untriaged — a JavaScript caller without TypeScript who passes `null`, a string or a
+boolean where a number is expected gets a result for the converted value instead of an error.
+
+The wasm-bindgen glue applies JavaScript number conversion before the range check runs. Measured on
+a `--target nodejs` build in iteration 256: `gen_audio_code_v0([1, null, 3])` returns the code of
+`[1, 0, 3]`, `text_trim("abc", "2")` returns `"ab"`, `text_trim("abc", true)` returns `"a"`.
+`undefined` and a non-numeric string become `NaN` and are rejected. `@iscc/lib` (napi) throws on
+each of these inputs. Pre-existing, and TypeScript callers are stopped by the `.d.ts`. No
+`data-edge.json` vector is owed (`edge-vectors.md` → Rules: wrong argument types).
+
+Resolved when either each numeric parameter of `crates/iscc-wasm/src/lib.rs` rejects a non-number,
+pinned by a Node test on a built package, or `docs/howto/wasm.md` → "Error handling" states the
+conversion.
 
 ## Published-package docs contradict what ships `normal` [audit]
 

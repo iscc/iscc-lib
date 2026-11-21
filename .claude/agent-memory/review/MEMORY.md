@@ -95,6 +95,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     `binding-reviews.md`
 - **C FFI marshalling-helper step (255, ~35 min)**: read per-row closures for allocations (no perf
     gate covers `iscc-ffi`), ASAN-probe new C macros with a forced mismatch → `binding-reviews.md`
+- **JS integer-range / marshalling step (256, ~15 min)**: Node probes on the built WASM package,
+    surefire XML for JNI counts, message-asserting negatives → `binding-reviews.md`
 - **C++ wrapper-only (227)**, **JNI error-path (230)**, **verbatim code-move (231)**,
     **test-harness-only (232)**, **WASM return-shape (234)**, **Ruby gem packaging (239–241)** →
     `binding-reviews.md`

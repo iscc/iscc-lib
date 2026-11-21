@@ -1,65 +1,61 @@
-## 2026-11-21 — Range-check every JS integer argument, reject negative JNI counts, document the Python/Ruby classes
+## 2026-11-21 — Review of: Range-check every JS integer argument, reject negative JNI counts, document the Python/Ruby classes
 
-**Done:** napi and WASM now take every numeric input as `f64` (`Option<f64>`, `Vec<f64>`, napi
-`Vec<Vec<f64>>`) and narrow it through one range-checked helper set (`checked` with a minimum, plus
-`to_u8`/`to_u32`/`to_i32`/`opt_u32`/`to_*_vec`, napi `to_i32_rows`). `gen_iscc_id_v1` uses the same
-`checked`. JNI gained `non_negative`, used at all 12 `bits` sites and for `nbytes`/`width`. The
-Python and Ruby docs now name `OverflowError` / `RangeError`, and decisions.md records why no
-`data-edge.json` vector covers this.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-napi/src/lib.rs`: helpers at the top; every gen fn, `gen_sum_code_v0`, hasher
-    `finalize`, `text_trim`, `sliding_window`, `alg_cdc_chunks`, `encode_component`,
-    `alg_minhash_256`, audio `cv`, video/soft-hash frames. `text_trim` and `alg_minhash_256` now
-    return `napi::Result`
-- `crates/iscc-wasm/src/lib.rs`: same helpers (no rows helper: video stays on `serde_wasm_bindgen`);
-    `SumHasher.finalize` included. `cv`/`features` carry
-    `#[wasm_bindgen(unchecked_param_type = "ArrayLike<number>")]`
-- `crates/iscc-jni/src/lib.rs`: `non_negative<T: Default>(env, jint, name) -> Result<u32, …>`
-- Tests: napi `functions.test.mjs` (+3 describe blocks, 52 cases), WASM `tests/unit.rs` (+16 tests;
-    `conformance.rs`/`data_edge.rs`/older unit calls moved to `f64` args), `IsccLibTest.java` (+2
-    tests, message asserted), `tests/test_int_range.py` (new, 6), `test_array_args.rb` (+3)
-- Docs: `docs/howto/python.md`, `docs/ruby-api.md` (line 82 + Error Handling),
-    `docs/howto/{nodejs,wasm,java}.md` error sections, napi/WASM `CLAUDE.md` type tables + pitfall
-- `.claude/context/decisions.md`: entry "Out-of-range integer arguments are per-binding tests"
+**Summary:** napi and WASM now take every numeric input as `f64` and narrow it through one
+range-checked helper set, JNI rejects a negative `bits`, `nbytes` or `width` before the unsigned
+cast, and the Python and Ruby docs name `OverflowError` and `RangeError`. All six criteria pass, the
+diff stays inside the scope (3 code files), and no gate was weakened. The `normal` `[audit]` issue
+"Out-of-range integer arguments wrap silently on JS" is resolved and deleted.
 
 **Verification:**
 
-- [x] `npm run build:debug && npm test` (iscc-napi): 238/238 pass. Every listed case throws with a
-    message naming the parameter (`Invalid bits: 4294967360`, `Invalid cv[1]: …`,
-    `Invalid frame_sigs[1][1]: 2147483648`, `Invalid mtype: 256`, `Invalid bits: 64.5`)
-- [x] `wasm-pack test --node crates/iscc-wasm`: 11 + 8 + 108 pass (re-run after `cargo fmt`). Node
-    probe on `/tmp/wasm-int`: `gen_text_code_v0("x", 2**32+64)` → `Invalid bits: 4294967360`,
-    `gen_audio_code_v0([2**40])` → `Invalid cv[0]: 1099511627776`; `Int32Array`/`Uint32Array` inputs
-    still give the same result as plain arrays
-- [x] The signature grep from next.md prints nothing
-- [x] `mvn -f crates/iscc-jni/java/pom.xml clean test`: 110 + 8 pass (after
-    `cargo build -p iscc-jni`)
-- [x] `uv run pytest`: 769 pass; `bundle exec rake test`: 168 runs, 0 failures
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` exit 0; also
-    `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown --all-targets` clean;
-    `mise run check` exit 0
+- [x] `npm run build:debug && npm test` in `crates/iscc-napi` — 238 pass, 0 fail. The listed cases
+    (`bits` `2**32+64`, `-1`, `64.5`; `text_trim(…, -1)`; `gen_audio_code_v0([2**40])`;
+    `alg_minhash_256([-1])`; a video frame with `2**31`; `encode_component(256, …)`) each throw,
+    asserted on the message
+- [x] `wasm-pack test --node crates/iscc-wasm` — 11 + 8 + 108 pass. Node on a fresh `/tmp/wasm-int`
+    build: `gen_text_code_v0("x", 2**32+64)` throws `Invalid bits: 4294967360`,
+    `gen_audio_code_v0([2**40])` throws `Invalid cv[0]: 1099511627776`
+- [x] The signature grep over both JS `lib.rs` files prints nothing
+- [x] `mvn -f crates/iscc-jni/java/pom.xml clean test` — 110 + 8 pass after
+    `cargo build -p iscc-jni`. The new tests assert the message `<param> must be non-negative`,
+    which the old wrapped value could not produce
+- [x] `uv run pytest` — 769 pass (`tests/test_int_range.py` pins `OverflowError`);
+    `bundle exec rake test` — 168 runs, 0 failures (`RangeError` pinned). `docs/howto/python.md` and
+    `docs/ruby-api.md` name the classes
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` and `mise run check` exit 0
 
-**Next:** the published-docs issue ("Published-package docs contradict what ships"), as next.md
-says.
+**Issues found:**
+
+- Filed `low`, untriaged: "`@iscc/wasm` converts non-number values to numbers instead of rejecting
+    them". The wasm-bindgen glue converts `null`, strings and booleans before the range check
+    (`gen_audio_code_v0([1, null, 3])` gives the code of `[1, 0, 3]`). Pre-existing; napi throws
+- Not filed (nits): JNI `encode_component` keeps its inline `bit_length < 0` check instead of the
+    new `non_negative` helper (same behaviour, next.md left it out of scope). The narrowing helpers
+    exist twice, in napi and WASM, because the error types differ
+
+**Codex review:** no actionable findings. It re-ran the Node.js, WASM and JNI suites and the Python
+and Ruby tests, and confirmed range validation, typed-array compatibility, defaults and hasher state
+from the generated WASM JavaScript.
+
+**Next:** "Published-package docs contradict what ships" (`normal` `[audit]`), the last `normal`
+issue. It lists about 11 files, so it needs the audit valve (cite the issue by title, at most 8
+non-test files per step). Start with `README.md` and the how-tos, as the entry says, and check every
+install or packaging claim against the published artifact, not the repository.
 
 **Notes:**
 
-- **TypeScript surface of `@iscc/wasm`:** a plain `Vec<f64>` would have changed the `.d.ts` from
-    `Int32Array`/`Uint32Array` to `Float64Array`. Existing TS callers passing a typed array would
-    then fail to compile. `unchecked_param_type = "ArrayLike<number>"` makes the type wider instead
-    (plain arrays and every typed array are accepted). Everything else is `number` before and after.
-    The napi `.d.ts` is unchanged (`Array<number>`, `number`)
-- **Behaviour choices:** the `bits` check runs before the hasher is consumed, so a rejected
-    `finalize(-1)` leaves the hasher usable (tested on napi, WASM and JNI). A core-level rejection
-    such as `bits=13` still consumes it, as before. `-0` maps to 0. `null`/`undefined` keep the
-    default
-- WASM video: the Node probe confirms that `serde_wasm_bindgen` already rejects `2**31`
-    (`invalid value: integer 2147483648, expected i32`). Left as is
-- JNI `genSumCodeV0("unused", -1, …)` checks `bits` before reading the path, so the test needs no
-    file
-- Helpers are duplicated between napi and WASM (different error types); the old `checked` was
-    duplicated the same way
-- No hot path in the core changed. The napi/WASM element conversion adds one pass over `cv` /
-    `features`; not benchmarked (bindings are outside iai/CRAP)
+- Review probes beyond next.md, all from Node on the built packages: WASM video frames reject `1.5`
+    and `-2**31-1` through `serde_wasm_bindgen` (so leaving them alone was right), `Int32Array` and
+    `Uint32Array` inputs give the same result as plain arrays, and the `.d.ts` shows
+    `ArrayLike<number>` for `cv` and `features` and `number` everywhere else. napi rejects a string
+    or a fractional frame element
+- No decision entry from the review: the advance agent's entry of 2026-11-21 covers the step. The
+    choice of `unchecked_param_type = "ArrayLike<number>"` is explained in
+    `crates/iscc-wasm/CLAUDE.md`
+- Nothing enforces the "numeric inputs are `f64`" rule on a future export; it lives in the two crate
+    `CLAUDE.md` files. A source gate would have to read only `#[napi]` / `#[wasm_bindgen]` exports
+    to avoid false positives on private helpers. Worth a step only if the rule is broken once
+- decisions.md is at 398 of 400 lines: the next entry triggers the runner's rotation
+- The core is untouched: no iai, CRAP or semver impact
