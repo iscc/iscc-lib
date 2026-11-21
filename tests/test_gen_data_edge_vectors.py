@@ -211,15 +211,21 @@ def test_video_rows_render_frames_with_their_lengths():
     assert any(len(set(row)) > 1 for row in lens), "no ragged video row"
 
 
-def test_meta_row_renders_object_as_json_text():
-    """A meta object input renders as its JSON text with an explicit byte length."""
+def test_meta_row_renders_meta_text():
+    """A meta input renders as C text: an object as its JSON text, a string as is."""
     fixture = load_fixture()
     text = HEADER.read_text(encoding="utf-8")
+    object_rows = 0
     for name, vector in fixture["gen_meta_code_v0"].items():
         meta = vector["inputs"][2]
-        assert isinstance(meta, dict), name
-        rendered = gen.c_str(json.dumps(meta, ensure_ascii=False).encode("utf-8"))
-        assert rendered in text, name
+        if isinstance(meta, dict):
+            object_rows += 1
+            raw = json.dumps(meta, ensure_ascii=False)
+        else:
+            assert isinstance(meta, str), name
+            raw = meta
+        assert gen.c_str(raw.encode("utf-8")) in text, name
+    assert object_rows >= 1
 
 
 def test_non_int32_frame_value_fails_closed(tmp_path):

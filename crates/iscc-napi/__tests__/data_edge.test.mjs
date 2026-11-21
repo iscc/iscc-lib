@@ -96,12 +96,12 @@ function loadDoc() {
  * Section name -> expected output keys its napi result does not carry, which are
  * therefore not compared (an absent section compares every key). The gen functions
  * here return a bare ISCC string, so text drops `characters`, mixed drops `parts` and
- * meta drops `name`, `meta` and `metahash`.
+ * meta drops `name`, `description`, `meta` and `metahash`.
  */
 const UNCOMPARED = {
     gen_text_code_v0: ['characters'],
     gen_mixed_code_v0: ['parts'],
-    gen_meta_code_v0: ['name', 'meta', 'metahash'],
+    gen_meta_code_v0: ['name', 'description', 'meta', 'metahash'],
 };
 
 /**

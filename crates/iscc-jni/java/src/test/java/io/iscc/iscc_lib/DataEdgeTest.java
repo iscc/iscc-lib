@@ -181,12 +181,12 @@ class DataEdgeTest {
      * Section name to the expected output keys its JNI result does not carry, which are therefore
      * not compared (an absent section compares every key). The gen functions here return a bare
      * ISCC string, so text drops {@code characters}, mixed drops {@code parts} and meta drops
-     * {@code name}, {@code meta} and {@code metahash}.
+     * {@code name}, {@code description}, {@code meta} and {@code metahash}.
      */
     private static final Map<String, Set<String>> UNCOMPARED = Map.of(
             "gen_text_code_v0", Set.of("characters"),
             "gen_mixed_code_v0", Set.of("parts"),
-            "gen_meta_code_v0", Set.of("name", "meta", "metahash"));
+            "gen_meta_code_v0", Set.of("name", "description", "meta", "metahash"));
 
     /**
      * Compare an actual output with the expected one and return a failure, or null.

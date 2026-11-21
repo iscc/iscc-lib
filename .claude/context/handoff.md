@@ -1,62 +1,74 @@
-## 2026-11-21 — Review of: `gen_meta_code_v0` and `gen_video_code_v0` sections in `data-edge.json`, on all 12 surfaces
+## 2026-11-21 — Data-edge harnesses accept every valid `gen_meta_code_v0` vector shape
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** The napi, WASM, JNI and .NET `gen_meta_code_v0` uncompared sets now hold `name`,
+`description`, `meta`, `metahash`, and their doc comments list the same keys. The generator test
+`test_meta_row_renders_meta_text` renders a dict `meta` as JSON text and a str `meta` as is, and
+asserts at least one dict row exists. Two throwaway meta vectors (description output; data-URL
+string `meta`) ran green on all 12 surfaces with no other harness edit, then were reverted.
 
-**Summary:** Both sections are in `data-edge.json` and its 4 copies, and all 12 surfaces run the
-three vectors green. The fan-out is honest: 12 per-surface commits plus one for the fixture and the
-generator, no core or binding change, no `except` entry, no lint suppression. Both `normal`
-`[human]` issues are closed. Codex found two gaps in the new harness code that would reject a valid
-future meta vector; they are filed as one `normal` issue.
+**Files changed:**
+
+- `crates/iscc-napi/__tests__/data_edge.test.mjs`: `UNCOMPARED.gen_meta_code_v0` + comment
+- `crates/iscc-wasm/tests/data_edge.rs`: `UNCOMPARED` meta entry (rustfmt split it over lines) + doc
+    comment
+- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java`: `UNCOMPARED` + Javadoc
+- `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs`: `Uncompared` + summary
+- `tests/test_gen_data_edge_vectors.py`: `test_meta_row_renders_object_as_json_text` →
+    `test_meta_row_renders_meta_text` (dict/str branches, `object_rows >= 1`).
+    `test_non_object_meta_fails_closed` unchanged
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib --test test_data_edge` — 7 passed (default, `--no-default-features`,
-    `--no-default-features --features text-processing`, `--all-features`); pytest on the three files
-    141 passed; `cargo llvm-cov` + `cargo crap … --fail-regression --fail-above` exit 0 (0
-    regressed, 157 unchanged)
-- [x] Node `npm test` after a fresh `napi build` 182 pass; `wasm-pack test --node` data_edge 8
-    passed; `mvn clean test` 116 run, 0 failures (DataEdgeTest 8); Go `go test ./...`, `go vet`,
-    `gofmt -l` clean; .NET 153 passed; Ruby 165 runs, 0 failures
-- [x] Swift (Linux recipe) 30 tests, 0 failures; Kotlin `./gradlew test --rerun-tasks`, JUnit XML of
-    `DataEdgeTest`: `tests="6" failures="0" errors="0"`
-- [x] C test (gcc as in `ci.yml`) 104 passed, C++ CMake build with `SANITIZE_ADDRESS=ON` 112 passed;
-    each prints PASS for the three new rows and the two new negatives
-- [x] Generator rerun leaves `data_edge_vectors.h` unchanged; the count assertion exits 0
-- [x] `mise run check` exits 0; `cargo clippy --workspace --all-targets -- -D warnings` clean
+Throwaway vectors (outputs from `uv run --no-project --with iscc-core==1.5.0 --python 3.13`, only
+`data.json` keys), in all 5 fixture copies plus a regenerated header:
 
-Probes beyond next.md (2 of 3):
+- `test_0002_description_object_meta`: `["Hello", "A short description", {"title": "x"}, 64]` → iscc
+    `ISCC:AAAWKLHFXO3B7GJD`, outputs `iscc`/`name`/`description`/`meta`/`metahash`
+- `test_0003_data_url_meta`: `["Hello", "", "data:application/json;base64,eyJuIjox…", 64]` → iscc
+    `ISCC:AAAWKLHFXP6JMUP3`, outputs `iscc`/`name`/`meta`/`metahash`
 
-- The meta vector's four outputs match `iscc_lib` and iscc-core 1.5.0. Escaping any single one of
-    `&`, `<`, `>`, U+2028, U+2029 in the canonical bytes changes the `iscc` (measured through a
-    data-URL `meta`), so the four surfaces that return only the ISCC string detect the defect too
-- A mutation of only the expected `meta` data URL reds Python, Ruby and Kotlin with "field meta"
-    (the handoff claimed it for Rust, Go and Swift)
+Per surface with both vectors present (all green):
 
-**Issues found:**
+- Rust `cargo test -p iscc-lib --test test_data_edge`: 7 passed
+- Python `pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py`: 137 passed (131 on
+    the committed fixture, so the 2 vectors add 6 parametrized rows)
+- Go `go test -count=1 -run DataEdge ./...`: 5 tests PASS
+- Node (fresh `napi build --platform`) `npm test`: 182 pass, 0 fail
+- WASM `wasm-pack test --node crates/iscc-wasm --test data_edge`: 8 passed
+- JNI `cargo build -p iscc-jni` + `mvn clean test`: 116 run, DataEdgeTest `tests="8" failures="0"`
+- .NET `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`: 153
+    passed
+- Ruby `rake compile` + `rake test`: 165 runs, 0 failures, 0 errors
+- Swift (Linux toolchain `/tmp/swifttc`): 30 tests, 0 failures
+- Kotlin `./gradlew test --rerun-tasks`: `TEST-uniffi.iscc_uniffi.DataEdgeTest.xml` `tests="6"`, 0
+    failures/errors
+- C (gcc as in ci.yml): 106 passed, 0 failed; prints PASS for `test_0002…` and `test_0003…`
+- C++ (`uvx cmake`, `SANITIZE_ADDRESS=ON`): 114 passed, 0 failed; PASS for both rows
 
-- Filed `normal`: "Four data-edge harnesses and a generator test reject valid `gen_meta_code_v0`
-    vectors". The napi, WASM, JNI and .NET uncompared sets lack `description`, and
-    `test_meta_row_renders_object_as_json_text` requires every `meta` input to be an object. Today's
-    fixture is green; a later vector would need a harness edit, against "A vector costs one edit"
-- Fixed in this review (comment only): the C negative row's comment said "the same object written
-    with escaped `&` and `<`"; the row holds a different object, as the C++ comment says
-- Not filed: the Python ragged-frame error text ("frame_sigs[1] has length 381, expected 380")
-    differs from the core's. Harnesses never match error text, and the binding's own check is out of
-    scope by next.md
+Fix is real: with only the napi set put back to `['name', 'meta', 'metahash']`, `npm test` fails 1
+("test_0002_description_object_meta: missing field description in {"iscc":…}"); set restored after.
 
-**Codex review:** Two P2 findings, both confirmed by reading the code and filed as the issue above.
-Codex ran the suites and reported all 12 surfaces green on the committed fixture.
+Revert: `git checkout --` on the 5 fixture copies and the header only. After a generator rerun,
+`git status --porcelain -- '*data-edge.json' crates/iscc-ffi/tests/data_edge_vectors.h` prints
+nothing.
 
-**Next:** The new `normal` `[review]` issue is the smallest open item: five test files, no library
-code, and the four affected suites plus pytest prove it. After that the `normal` `[audit]` issues,
-the C FFI `(NULL, 0)` behaviour change first and alone.
+On the committed fixture: pytest 131 passed; napi 182 pass; WASM data_edge 8 passed;
+`mvn clean test` exit 0 (DataEdgeTest 8, 0 failures); .NET 153 passed. `mise run check` exits 0
+(first run failed only because rustfmt reformatted the WASM tuple).
+`prek run --hook-stage pre-push --files <5 files>` exits 0 (clippy, cargo test, ty, pytest).
+
+**Next:** The pytest gate-time `[audit]` issue, as next.md planned. After it, the C FFI `(NULL, 0)`
+core change, alone.
 
 **Notes:**
 
-- The Swift harness ran only on Linux here. The `swift` job on `macos-15` is the first Darwin run of
-    the two sections; check it in the CI run of this push
-- `call_meta` in `crates/iscc-lib/tests/test_data_edge.rs` scores CRAP 30.0, exactly the
-    `--fail-above` limit. One more `?` or branch in it reds CI: split it instead
-- A data-edge `meta` input is a JSON object, because iscc-core reads a string `meta` as a data URL.
-    C and C++ receive it as `json.dumps(…, ensure_ascii=False)` text from the generator
-- issues.md is at 295 lines and learnings.md at 200: a new entry needs an equal cut
+- No full-result surface (Rust, Python, Go, Ruby, Swift, Kotlin, C, C++) needed a change: each
+    already compares `description` and accepts a string `meta`. `call_meta` was not touched
+- The WASM data_edge run came before rustfmt reformatted the tuple. The change is layout only, and
+    the pre-push hook ran clippy and cargo test on it afterwards
+- `dotnet test packages/dotnet` (as next.md writes it) fails with MSB1003, since there is no
+    solution file at that level. CI runs `packages/dotnet/Iscc.Lib.Tests/` with `LD_LIBRARY_PATH`,
+    and so did I
+- The throwaway fixture was written with plain `json.dumps(indent=2)`, which differs in layout from
+    the committed fixture (compact arrays, escaped U+2028 and U+2029). It was reverted, so this has
+    no effect

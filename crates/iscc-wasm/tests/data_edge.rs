@@ -226,11 +226,14 @@ fn find_caller(section: &str) -> Option<Caller> {
 /// Expected output keys each section's WASM result does not carry, which are
 /// therefore not compared (an absent section compares every key). The gen
 /// functions here return a bare ISCC string, so text drops `characters`, mixed
-/// drops `parts` and meta drops `name`, `meta` and `metahash`.
+/// drops `parts` and meta drops `name`, `description`, `meta` and `metahash`.
 const UNCOMPARED: &[(&str, &[&str])] = &[
     ("gen_text_code_v0", &["characters"]),
     ("gen_mixed_code_v0", &["parts"]),
-    ("gen_meta_code_v0", &["name", "meta", "metahash"]),
+    (
+        "gen_meta_code_v0",
+        &["name", "description", "meta", "metahash"],
+    ),
 ];
 
 /// Look up the static uncompared output keys of a section (empty if none).

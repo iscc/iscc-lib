@@ -39,6 +39,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     No cmake in container: `uvx cmake`. Swift toolchain persists in `/tmp/swifttc`. Reusable
     mutation-check = a `/tmp` script that edits expected values in the copy each harness reads. Rust
     harness `call_meta` sits at cc 5 (CRAP 30.0 = limit)
+- Throwaway-vector proof (253): write vectors with iscc-core 1.5.0 into all 5 copies, regen header,
+    run 12 surfaces, then `git checkout --` those 6 paths only. .NET local run needs
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`
+    (`packages/dotnet` alone = MSB1003). iscc-core 1.5.0 has no `json_to_data_url`
 - Output subset (236): gen `outputs` keys ⊆ `data.json` per-function keys, `iscc` required;
     validator `validate_vector(section, name, vector)` + generator `allowed_output_keys` derive it
     from data.json (gen = `gen_` prefix). Harnesses fix uncompared keys statically per result type

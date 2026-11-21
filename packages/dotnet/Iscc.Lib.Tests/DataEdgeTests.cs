@@ -173,13 +173,13 @@ public class DataEdgeTests
     /// Section name to the expected output keys its .NET result type does not carry, which
     /// are therefore not compared (an absent section compares every key). Gen results here
     /// wrap a bare ISCC string, so text drops <c>characters</c>, mixed drops <c>parts</c> and
-    /// meta drops <c>name</c>, <c>meta</c> and <c>metahash</c>.
+    /// meta drops <c>name</c>, <c>description</c>, <c>meta</c> and <c>metahash</c>.
     /// </summary>
     private static readonly Dictionary<string, string[]> Uncompared = new()
     {
         ["gen_text_code_v0"] = new[] { "characters" },
         ["gen_mixed_code_v0"] = new[] { "parts" },
-        ["gen_meta_code_v0"] = new[] { "name", "meta", "metahash" },
+        ["gen_meta_code_v0"] = new[] { "name", "description", "meta", "metahash" },
     };
 
     /// <summary>
