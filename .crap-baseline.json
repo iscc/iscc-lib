@@ -245,7 +245,7 @@
     {
       "file": "./crates/iscc-lib/src/cdc.rs",
       "function": "gear_scan",
-      "line": 77,
+      "line": 90,
       "cyclomatic": 8.0,
       "coverage": 100.0,
       "crap": 8.0
@@ -445,7 +445,7 @@
     {
       "file": "./crates/iscc-lib/src/cdc.rs",
       "function": "alg_cdc_chunks_unchecked",
-      "line": 191,
+      "line": 204,
       "cyclomatic": 5.0,
       "coverage": 100.0,
       "crap": 5.0
@@ -621,7 +621,7 @@
     {
       "file": "./crates/iscc-lib/src/cdc.rs",
       "function": "alg_cdc_offset",
-      "line": 141,
+      "line": 154,
       "cyclomatic": 3.0,
       "coverage": 100.0,
       "crap": 3.0
@@ -717,7 +717,7 @@
     {
       "file": "./crates/iscc-lib/src/cdc.rs",
       "function": "alg_cdc_chunks",
-      "line": 178,
+      "line": 191,
       "cyclomatic": 2.0,
       "coverage": 100.0,
       "crap": 2.0
@@ -1045,7 +1045,15 @@
     {
       "file": "./crates/iscc-lib/src/cdc.rs",
       "function": "alg_cdc_params",
-      "line": 59,
+      "line": 63,
+      "cyclomatic": 1.0,
+      "coverage": 100.0,
+      "crap": 1.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/cdc.rs",
+      "function": "low_bits_mask",
+      "line": 79,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0

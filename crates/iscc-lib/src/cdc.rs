@@ -56,15 +56,28 @@ pub(crate) const DATA_AVG_CHUNK_SIZE: u32 = 1024;
 /// - `center_size`: threshold between strict and relaxed mask phases
 /// - `mask_s`: strict mask for early boundary detection (harder to match)
 /// - `mask_l`: relaxed mask for late boundary detection (easier to match)
+///
+/// Matches the reference for every `avg_size >= 2`: `max_size` is computed in
+/// `u64` and saturates at `usize::MAX`, and a mask of 32 or more bits saturates
+/// at `u32::MAX` (see [`low_bits_mask`]). Callers must pass `avg_size >= 2`.
 pub(crate) fn alg_cdc_params(avg_size: u32) -> (usize, usize, usize, u32, u32) {
     let min_size = (avg_size / 4) as usize;
-    let max_size = (avg_size * 8) as usize;
+    let max_size = usize::try_from(u64::from(avg_size) * 8).unwrap_or(usize::MAX);
     let offset = min_size + min_size.div_ceil(2);
     let center_size = avg_size as usize - offset;
     let bits = (avg_size as f64).log2().round() as u32;
-    let mask_s = (1u32 << (bits + 1)) - 1;
-    let mask_l = (1u32 << (bits - 1)) - 1;
+    let mask_s = low_bits_mask(bits + 1);
+    let mask_l = low_bits_mask(bits - 1);
     (min_size, max_size, center_size, mask_s, mask_l)
+}
+
+/// Return a `u32` with the lowest `n` bits set, saturating at `u32::MAX` for `n >= 32`.
+///
+/// The gear pattern is `(pattern >> 1) + gear[b]` with every gear value below
+/// 2^31, so it never reaches 2^32 — a reference mask of 32 or more bits tests
+/// the same bits as `u32::MAX`.
+fn low_bits_mask(n: u32) -> u32 {
+    1u32.checked_shl(n).map_or(u32::MAX, |v| v - 1)
 }
 
 /// Scan buffer for a gear-hash cut point, returning the offset if found.
@@ -243,6 +256,87 @@ mod tests {
         assert_eq!(cs, 640, "center_size");
         assert_eq!(mask_s, 2047, "mask_s = (1 << 11) - 1");
         assert_eq!(mask_l, 511, "mask_l = (1 << 9) - 1");
+    }
+
+    /// Expected `(min, max, center, mask_s, mask_l)`; `max` as `u64` to hold values above `u32`.
+    type ExpectedParams = (usize, u64, usize, u32, u32);
+
+    /// Reference parameters for large `avg_chunk_size` values.
+    const LARGE_AVG_PARAMS: [(u32, ExpectedParams); 4] = [
+        (
+            536_870_912,
+            (
+                134_217_728,
+                4_294_967_296,
+                335_544_320,
+                1_073_741_823,
+                268_435_455,
+            ),
+        ),
+        (
+            2_147_483_647,
+            (
+                536_870_911,
+                17_179_869_176,
+                1_342_177_280,
+                u32::MAX,
+                1_073_741_823,
+            ),
+        ),
+        (
+            2_147_483_648,
+            (
+                536_870_912,
+                17_179_869_184,
+                1_342_177_280,
+                u32::MAX,
+                1_073_741_823,
+            ),
+        ),
+        (
+            u32::MAX,
+            (
+                1_073_741_823,
+                34_359_738_360,
+                2_684_354_560,
+                u32::MAX,
+                2_147_483_647,
+            ),
+        ),
+    ];
+
+    #[test]
+    fn test_alg_cdc_params_large_avg_matches_reference() {
+        for (avg, (mi, ma, cs, mask_s, mask_l)) in LARGE_AVG_PARAMS {
+            let got = alg_cdc_params(avg);
+            assert_eq!(got.0, mi, "min_size for {avg}");
+            assert_eq!(got.2, cs, "center_size for {avg}");
+            assert_eq!(got.3, mask_s, "mask_s for {avg}");
+            assert_eq!(got.4, mask_l, "mask_l for {avg}");
+            #[cfg(target_pointer_width = "64")]
+            assert_eq!(got.1 as u64, ma, "max_size for {avg}");
+            #[cfg(not(target_pointer_width = "64"))]
+            assert_eq!(got.1, usize::try_from(ma).unwrap_or(usize::MAX));
+        }
+    }
+
+    #[test]
+    fn test_alg_cdc_chunks_large_avg_single_chunk() {
+        // Debug builds panicked on `avg * 8` overflow before the u64 maths.
+        let data: Vec<u8> = (0..64).collect();
+        for (avg, _) in LARGE_AVG_PARAMS {
+            let chunks = alg_cdc_chunks(&data, false, avg).unwrap();
+            assert_eq!(chunks, vec![&data[..]], "avg_chunk_size {avg}");
+        }
+    }
+
+    #[test]
+    fn test_low_bits_mask_saturates() {
+        assert_eq!(low_bits_mask(0), 0);
+        assert_eq!(low_bits_mask(11), 2047);
+        assert_eq!(low_bits_mask(31), 0x7FFF_FFFF);
+        assert_eq!(low_bits_mask(32), u32::MAX);
+        assert_eq!(low_bits_mask(33), u32::MAX);
     }
 
     #[test]
