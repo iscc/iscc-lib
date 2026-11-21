@@ -1,15 +1,14 @@
-<!-- assessed-at: 1ca63c213c6080f986519facb613c30d1563aecb -->
+<!-- assessed-at: f4c8de1ecf0762621e6e3778faa6f4bfbc1e9a49 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features complete; four `normal` issues block the release
+## Phase: v0.8.0 — features complete; three `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 253 closed the
-data-edge harness-gap issue: every harness now accepts any valid `gen_meta_code_v0` vector shape.
-Four `normal` `[audit]` issues remain, none blocked on the human or upstream. CI is green on
-`f2861f2`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 254 closed the
+pytest gate-time issue (benchmarks disabled by default, Tier 1 doc tests cache their sources). Three
+`normal` `[audit]` issues remain, none blocked on the human or upstream. CI is green on `b12c94b`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -140,18 +139,19 @@ Four `normal` `[audit]` issues remain, none blocked on the human or upstream. CI
 
 - `ci.yml` has 21 jobs (job table gated); `release.yml` is `workflow_dispatch`-only with 8 registry
     toggles; 21 version-sync targets at 0.7.0
-- `normal` (audit, next planned): the pytest gate rose 25.6 → 44.1 s; `tests/test_benchmarks.py`
-    runs timing loops every gate and the Tier 1 doc tests copy the docs tree per case
-- **Latest CI: PASSING** on `origin/develop` = `f2861f2` (meta harness fix):
-    https://github.com/iscc/iscc-lib/actions/runs/44887979250
+- pytest gate time fixed (254): `pyproject.toml` `addopts = "--benchmark-disable"`;
+    `docs/benchmarks.md` command passes `--benchmark-enable`; `tests/test_check_tier1_docs.py`
+    caches source bytes
+- **Latest CI: PASSING** on `origin/develop` = `b12c94b` (pytest gate fix):
+    https://github.com/iscc/iscc-lib/actions/runs/44889260317
 - HEAD is ahead of origin only by the `cid(log)` commit; green CI covers all code at HEAD
 
 ## Open Issues
 
-18 open: 0 critical, 4 normal (all `[audit]`, all CID-workable), 14 low (human-directed; 9
-`untriaged`). issues.md is at 276 of 300 lines.
+17 open: 0 critical, 3 normal (all `[audit]`, all CID-workable), 14 low (human-directed; 9
+`untriaged`). issues.md is at 268 of 300 lines.
 
 ## Next Milestone
 
-Close the four `normal` issues that block v0.8.0: the pytest gate time, the FFI NULL handling, the
-integer-range bugs and the published-docs corrections. The release itself stays with Titusz.
+Close the three `normal` issues that block v0.8.0: the FFI NULL handling, the integer-range bugs and
+the published-docs corrections. The release itself stays with Titusz.

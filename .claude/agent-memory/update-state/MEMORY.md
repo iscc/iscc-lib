@@ -87,15 +87,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 1ca63c2, iter 254 — incremental)
+## Current State (assessed-at: f4c8de1, iter 255 — incremental)
 
-- **CI GREEN on `origin/develop` = `f2861f2`** (meta harness fix; data-edge section now MET). HEAD
-    ahead by `cid(log)` only. Check-suites API:
-    `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit `queued` forever —
-    judge by `github-actions`).
-- **v0.8.0 UNMET (254):** 4 `normal` open, all `[audit]` — pytest gate time (next planned), FFI NULL
-    split, JS integer wrap, published-docs drift. 14 `low` (9 untriaged;
-    `grep -c '^\*\*Triage:\*\* untriaged'`). issues.md 276/300.
+- **CI GREEN on `origin/develop` = `b12c94b`** (pytest gate fix). HEAD ahead by `cid(log)` only.
+    Check-suites API: `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit
+    `queued` forever — judge by `github-actions`).
+- **v0.8.0 UNMET (255):** 3 `normal` open, all `[audit]` — FFI NULL split (next planned), JS integer
+    wrap, published-docs drift. 14 `low` (9 untriaged; `grep -c '^\*\*Triage:\*\* untriaged'`).
+    issues.md 268/300. pytest `addopts` disables benchmarks since 254.
 - JNI test path is `crates/iscc-jni/java/src/test/...` (note the `java/` level) — use
     `git ls-files '*DataEdgeTest.java'`.
 - **A fixed issue is often REWRITTEN to its remainder, not closed** (250, 251) — title changes,
