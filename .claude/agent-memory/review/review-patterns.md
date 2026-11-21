@@ -1079,3 +1079,10 @@ the findings came from sweeping for siblings.
     entry when closing it (the Ruby `to_int` idiom)
 - A comment-only leftover in two files is a step-9 fix; prose leftovers on other pages are one
     `normal` issue (leftover of the step's own pattern)
+- **Surface-coverage batch (280, ~20 min, PASS)**: every new table row checked in five greps (paths
+    via `git ls-files`, `release.yml` staging steps for archive contents, hasher class/method names
+    per binding, `ci.yml` run lines, each test's vector loader) plus `curl -w '%{http_code}'` on
+    each added registry link. **Read the PRE-EXISTING rows of a section whose issue you close**: the
+    C FFI row named `ctx_new()` (no such function) and the Java row a `DataHasher` class (static
+    `dataHasher*` methods only); two cells are a step-9 fix. **Keep a replaced table cell within the
+    widest row**, or mdformat re-pads every row of the table

@@ -105,15 +105,6 @@ from 12 to 14. Pre-existing. Not measured: Windows, where a loaded DLL cannot be
 Resolved when a JVM that loaded the bundled library leaves no `iscc-jni-*` directory behind on
 Linux, pinned by a child-JVM test, or a decisions.md entry accepts the leak.
 
-## `docs/architecture.md` sections below the graph cover half the surfaces `normal` [review]
-
-"Crate Summary" gives `iscc-ffi` → "Source", while each GitHub release attaches prebuilt
-`iscc-ffi-v*-<target>` archives. The test matrix names `cargo test` as the WASM runner, which runs
-no `#[wasm_bindgen_test]` (CI runs `wasm-pack test --node`). Pre-existing.
-
-Resolved when each of the three sections covers every surface the graph shows or says it is an
-excerpt, and the `iscc-ffi` and WASM rows match the release assets and the CI command.
-
 ## One-shot gen functions re-implement their streaming counterparts `normal` [audit]
 
 Verified by the iteration-249 and iteration-260 audits (3040298).
@@ -204,31 +195,6 @@ reported by advance in iteration 275. No other `crates/*/CLAUDE.md` or `packages
 has such a list.
 
 Resolved when the section states its conventions as rules on file names and lists no modules.
-
-## Six docs pages count 10 standard functions or give Sum-Code a string result `normal` [review]
-
-Leftovers of the iteration-277 docs batch, which corrected the same sentences on `docs/index.md`,
-`docs/llms.txt` and `docs/benchmarks.md` only. Measured 2026-11-21: `data.json` has 9 `gen_*_v0`
-sections, and iscc-core 1.5.0 has no `gen_sum_code_v0`.
-
-- `docs/ecosystem.md` → "iscc-core": Coverage says "All 10 `gen_*_v0` functions". → "iscc-core-ts":
-    "9 of the 10 `gen_*_v0` functions from ISO 24138", above a table of the 9 standard ones. →
-    "Contributing an Implementation": `data.json` has vectors "for all 10 `gen_*_v0` functions"
-- `docs/ecosystem.md` → "iscc-lib": the intro and the Language row name six languages (Python,
-    Node.js, WASM, Go, Java, C) and the Packages row four of the registries
-- `docs/architecture.md` → "How It Works": test vectors "for all 10 `gen_*_v0` functions"
-- `docs/howto/nodejs.md` → "Code generation": "All 10 `gen_*_v0` functions return the ISCC code as a
-    string", while `gen_sum_code_v0` returns a `NapiSumCodeResult` (the example below it reads
-    `result.iscc`)
-- `docs/howto/java.md` → "Code generation" and `docs/java-api.md` → "Code Generation": all 10
-    `gen*V0` methods "return a `String`", while `genSumCodeV0` returns a `SumCodeResult`.
-    `docs/c-ffi-api.md` → "Code Generation": all 10 `iscc_gen_*_v0` functions "return a
-    heap-allocated ISCC string", while `iscc_gen_sum_code_v0` returns a
-    `struct iscc_IsccSumCodeResult` (found in iteration 279 with `git grep -niE 'all 10' -- docs`)
-
-Resolved when these sentences give 9 standard functions and 9 `data.json` sections, the iscc-lib
-section names every surface or says it is an excerpt, the Node.js, Java and C sentences name the
-Sum-Code result type, and `git grep -nE '10 .gen_' -- docs` shows only library-wide counts.
 
 ## target.md and the Swift spec criterion say the release workflow force-updates the tag `low` [review]
 

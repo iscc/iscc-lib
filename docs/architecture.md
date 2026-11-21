@@ -183,8 +183,8 @@ of any size, then finalize to get the result.
 | **Python**  | Sync API, GIL released during `update()`. Callers use `asyncio.to_thread()` if needed                            |
 | **Node.js** | Sync napi-rs exports. `DataHasher`/`InstanceHasher` classes with `update()`/`finalize()`                         |
 | **WASM**    | Sync exports — no threading in browser WASM                                                                      |
-| **C FFI**   | `ctx_new()` / `ctx_update()` / `ctx_finalize()` / `ctx_free()` — standard streaming C API                        |
-| **Java**    | Sync JNI API. `DataHasher`/`InstanceHasher` via opaque `long` handles                                            |
+| **C FFI**   | `iscc_data_hasher_new()` / `_update()` / `_finalize()` / `_free()`, same for `iscc_instance_hasher_*`            |
+| **Java**    | Sync JNI API. Static `dataHasher*`/`instanceHasher*` methods on `IsccLib` over an opaque `long` handle           |
 | **Go**      | Sync API. `DataHasher`/`InstanceHasher` with `Push([]byte)` / `Finalize(bits)` streaming                         |
 | **Ruby**    | Sync API. `IsccLib::DataHasher`/`InstanceHasher` with chainable `update` and `finalize(bits:)`                   |
 | **C#**      | Sync API. `IsccDataHasher`/`IsccInstanceHasher` (`IDisposable`, `SafeHandle`) with `Update`/`Finalize`           |
