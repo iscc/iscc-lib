@@ -291,8 +291,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ```
 
 System Ruby from Debian Bookworm (Ruby 3.1) is below the gem's `>= 3.3` floor, so development runs
-on a mise-managed Ruby (`mise exec ruby@3.4.13 -- bundle exec rake compile test`). CI tests the
-floor (Ruby 3.3) in the `ruby` job and installs the source gem on Ruby 3.4.
+on the Ruby pinned in the root `mise.toml` `[tools]` table
+(`mise exec -- bundle exec rake compile test`); the devcontainer setup installs the bundle under it.
+CI tests the floor (Ruby 3.3) in the `ruby` job and installs the source gem on Ruby 3.4.
 
 ## Version Sync
 

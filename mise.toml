@@ -2,6 +2,13 @@
 #
 # Usage: mise run <task>
 
+# --- Development tools ---
+
+# The development Ruby. The gem's floor (>= 3.3) is above the devcontainer's
+# Debian Ruby 3.1, which Bundler refuses. CI does not use mise.
+[tools]
+ruby = "3.4.13"
+
 # --- CID (Continuous Iterative Development) ---
 
 [tasks."cid:run"]

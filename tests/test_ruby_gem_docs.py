@@ -7,7 +7,11 @@ to the release matrix fails here until the docs follow.
 
 The Ruby floor must also agree in three places: the gemspec ``required_ruby_version``, the
 ``ruby-version`` the ``ci.yml`` ``ruby`` job tests, and the lowest series ``release.yml``
-precompiles. No network, no mocks.
+precompiles.
+
+The development Ruby is pinned once, in the root ``mise.toml`` ``[tools]`` table, at or above
+the gemspec floor; the standardrb hooks and the development docs use that pin and name no
+``ruby@<version>`` of their own. No network, no mocks.
 """
 
 import re
@@ -20,6 +24,18 @@ ROOT = Path(__file__).resolve().parents[1]
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 GEMSPEC = ROOT / "crates" / "iscc-rb" / "iscc-lib.gemspec"
+MISE_TOML = ROOT / "mise.toml"
+DEV_RUBY_FILES = [
+    ROOT / ".pre-commit-config.yaml",
+    ROOT / "crates" / "iscc-rb" / "CLAUDE.md",
+    ROOT / ".claude" / "context" / "specs" / "ruby-bindings.md",
+]
+INLINE_RUBY_PIN_RE = re.compile(r"ruby@\d[\w.]*")
+# Regex parsing instead of tomllib: CI's python-test matrix includes 3.10.
+MISE_TOOLS_TABLE_RE = re.compile(
+    r"^\[tools\][ \t]*$(.*?)(?=^\[|\Z)", re.MULTILINE | re.DOTALL
+)
+MISE_RUBY_PIN_RE = re.compile(r"""^ruby[ \t]*=[ \t]*["']([^"'\s]+)["']""", re.MULTILINE)
 RUBY_DOCS = [
     ROOT / "docs" / "howto" / "ruby.md",
     ROOT / "crates" / "iscc-rb" / "README.md",
@@ -228,3 +244,76 @@ def test_ci_without_ruby_job_raises():
     """A ci.yml without a ruby job is an error."""
     with pytest.raises(ValueError, match="no ruby job"):
         ci_ruby_job_version({"jobs": {"go": {"steps": []}}})
+
+
+def mise_ruby_pin(text):
+    """Return the ``[tools]`` ``ruby`` version from ``mise.toml`` text.
+
+    Raises ``ValueError`` when ``mise.toml`` pins no Ruby.
+    """
+    table = MISE_TOOLS_TABLE_RE.search(text)
+    pin = MISE_RUBY_PIN_RE.search(table.group(1)) if table else None
+    if pin is None:
+        raise ValueError("mise.toml [tools] pins no ruby")
+    return pin.group(1)
+
+
+def check_dev_ruby_pin(pin, floor):
+    """Raise ``ValueError`` unless the development Ruby pin is at or above the floor series."""
+    series = ".".join(pin.split(".")[:2])
+    if version_key(series) < version_key(floor):
+        raise ValueError(f"mise.toml ruby {pin} is below the gem floor {floor}")
+
+
+def inline_ruby_pins(text):
+    """Return every ``ruby@<version>`` spelling in a text, in order."""
+    return INLINE_RUBY_PIN_RE.findall(text)
+
+
+def test_mise_pins_dev_ruby_at_or_above_floor():
+    """The root mise.toml pins a development Ruby no lower than the gemspec floor."""
+    pin = mise_ruby_pin(MISE_TOML.read_text(encoding="utf-8"))
+    check_dev_ruby_pin(pin, gemspec_floor(GEMSPEC.read_text(encoding="utf-8")))
+
+
+@pytest.mark.parametrize("path", DEV_RUBY_FILES, ids=lambda p: p.name)
+def test_dev_ruby_files_use_the_mise_pin(path):
+    """The hooks and development docs name no Ruby version of their own."""
+    assert inline_ruby_pins(path.read_text(encoding="utf-8")) == []
+
+
+def test_inline_ruby_pin_in_hook_is_found():
+    """A hook entry that pins its own Ruby is caught."""
+    entry = "entry: bash -c 'cd crates/iscc-rb && mise exec ruby@3.4 -- bundle exec standardrb'"
+    assert inline_ruby_pins(entry) == ["ruby@3.4"]
+
+
+def test_mise_without_ruby_pin_raises():
+    """A mise.toml without a Ruby pin is an error, not a pass."""
+    with pytest.raises(ValueError, match="pins no ruby"):
+        mise_ruby_pin('[tasks.check]\nrun = "true"\n')
+
+
+def test_mise_ruby_outside_tools_table_raises():
+    """A ruby key in another table is not the development pin."""
+    with pytest.raises(ValueError, match="pins no ruby"):
+        mise_ruby_pin('[tools]\nnode = "22"\n\n[env]\nruby = "3.4.13"\n')
+
+
+def test_mise_ruby_pin_reads_tools_table():
+    """The pin is read from the [tools] table, whatever follows it."""
+    assert (
+        mise_ruby_pin('[tools]\nruby = "3.4.13"\n\n[tasks.check]\nrun = "x"\n')
+        == "3.4.13"
+    )
+
+
+def test_dev_ruby_pin_below_floor_raises():
+    """A development Ruby below the gem floor fails."""
+    with pytest.raises(ValueError, match="below the gem floor"):
+        check_dev_ruby_pin("3.2.9", "3.3")
+
+
+def test_dev_ruby_pin_compares_as_versions():
+    """Ruby 3.10 is above a 3.9 floor (numeric, not string, comparison)."""
+    check_dev_ruby_pin("3.10.0", "3.9")

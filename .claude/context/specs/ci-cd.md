@@ -390,7 +390,8 @@ above). CI runs `version:check` on every push to catch drift.
 
 ### Tool Management
 
-**mise** (`mise.toml`) holds the task definitions. **uv** manages the Python environment. Neither is
+**mise** (`mise.toml`) holds the task definitions and pins the development Ruby (`[tools]`, used by
+the standardrb hooks and the devcontainer setup). **uv** manages the Python environment. Neither is
 used in CI — CI installs tools via GitHub Actions.
 
 ### Task Runner (mise tasks)

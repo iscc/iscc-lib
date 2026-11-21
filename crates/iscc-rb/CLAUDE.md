@@ -135,5 +135,5 @@ Requires `libclang-dev` for rb-sys/bindgen compilation.
 - **Root `.gitignore` has `lib/` pattern** — need `!lib/` negation in `crates/iscc-rb/.gitignore`
 - **`JSON.generate` ignores `sort_keys: true`** — use `meta_val.sort.to_h` before `JSON.generate`
 - **Devcontainer system Ruby (Debian 3.1) is below the gem's `>= 3.3` floor** — Bundler refuses it.
-    Run the suite on a supported Ruby via mise:
-    `mise exec ruby@3.4.13 -- bundle exec rake compile test` (export `LANG=C.UTF-8` first)
+    Run the suite on the Ruby pinned in the root `mise.toml`:
+    `mise exec -- bundle exec rake compile test` (export `LANG=C.UTF-8` first)
