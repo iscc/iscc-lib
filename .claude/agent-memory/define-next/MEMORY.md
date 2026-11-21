@@ -3,13 +3,15 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 248):** v0.8.0 criteria all met, CI green, only `low` issues left → wrote
-`## Step: NONE` (blockers: release cut, triage of untriaged `low`s, EOL floors, v1.0.0). Resume when
-a human commit promotes an issue or edits target.md. Per-iteration ledger, traps, probe kit and
-next-step plan → [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
+**Status 2026-11-21 (iter 250):** v0.8.0 reopened by 6 `normal` issues (2 human, 4 audit). Plan: 250
+core+Go ragged-video reject (CRAP baseline regen) → Go JCS escaping → ONE fan-out adding BOTH new
+`data-edge.json` sections (`gen_video_code_v0` error w/ `diverges`, `gen_meta_code_v0` JCS) to 12
+harnesses → FFI NULL → int wrap → docs (audit 8-file) → pytest gate. **Collecting rule vs "core
+first and alone":** when the vector needs a NEW section, land the behaviour first, then fan out the
+section(s) — batch pending sections into one fan-out. Ledger/traps →
+[v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
 [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
-track `main`, not `develop`** (248: soupsieve/setuptools/json alerts open, yet develop's lockfiles
-were already clean) — check the lockfile on `develop` before scoping.
+track `main`, not `develop`** — check the lockfile on `develop` before scoping.
 
 ## Scope Calibration Principles
 
