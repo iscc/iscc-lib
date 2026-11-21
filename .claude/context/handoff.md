@@ -1,61 +1,87 @@
-## 2026-11-21 — Review of: The `go` CI job runs the Go suite a second time as a 32-bit (`GOARCH=386`) build
+## 2026-11-21 — `@iscc/wasm` type-checks every scalar argument in Rust instead of letting the glue coerce it
 
-**Verdict:** PASS
+**Done:** Every number, boolean and number-array parameter of a `#[wasm_bindgen]` export in
+`crates/iscc-wasm/src/lib.rs` is now a `JsValue`. Rust checks its type with five private helpers
+(`number`, `opt_number`, `number_vec`, `boolean`, `opt_bool`), then narrows it with the existing
+`to_*` helpers. So `null`, `"2"` and `true` now throw instead of being coerced. `null` and
+`undefined` still select an optional default. The `.d.ts` types do not change
+(`unchecked_param_type` / `unchecked_optional_param_type`).
 
-**Summary:** The `go` job in `ci.yml` has one more step that runs the Go suite and `go vet` as a
-`GOARCH=386` build, and `ci-cd.md` and `packages/go/CLAUDE.md` say so. The diff touches exactly the
-three files next.md named, no Go source and no other job. The step ran green on a GitHub runner, and
-a reverted 32-bit fix fails it.
+**Files changed:**
+
+- `crates/iscc-wasm/src/lib.rs`: added the 5 helpers (a section above "Integer narrowing").
+    `opt_u32` now takes `&JsValue`. Converted every gen `bits`, `wide`/`add_units` (gen_iscc,
+    gen_sum, SumHasher), all 3 hasher `finalize`, `text_trim`, `sliding_window`, `encode_component`
+    (4), `gen_iscc_id_v1` (3), `alg_cdc_chunks` (`utf32`, `avg_chunk_size`), `soft_hash_video_v0`,
+    and `cv`/`features`. Updated the `checked` and `gen_iscc_id_v1` docstrings
+- `crates/iscc-wasm/tests/unit.rs`: added `num()`/`nums()` helpers and rewrote all call sites with a
+    script. `assert_bits_rejected` now takes `&JsValue`. Added 10 tests: bits non-number across all
+    13 bits exports, bits `NULL`/`UNDEFINED` → default, required number (4 bad values on
+    `text_trim`, plus `sliding_window`, `encode_component`, `gen_iscc_id_v1`), optional number
+    (`avg_chunk_size`), array element (`cv[1]` null, `features[1]` "2"), array non-object, typed
+    array accepted, required boolean (`utf32`: null, "false", 0), optional boolean (`wide`,
+    `add_units`, SumHasher `wide`), boolean `NULL` → default
+- `crates/iscc-wasm/tests/conformance.rs`, `tests/data_edge.rs`: changed call sites to
+    `JsValue::from(...)` / `JsValue::UNDEFINED`
+- `crates/iscc-wasm/CLAUDE.md`: updated the Type Mapping rows (number, optional number, boolean,
+    number array) and rewrote the "Never take …" pitfall around the `JsValue` + helper rule
+- `docs/howto/wasm.md` → "Error handling": added a paragraph on type checks, `null`/`undefined`
+    defaults and boolean flags
 
 **Verification:**
 
-- [x] `cd packages/go && GOARCH=386 CGO_ENABLED=0 go test -count=1 ./...` exits 0 — `ok`, rc=0;
-    `GOARCH=386 go vet ./...` rc=0
-- [x] The next.md YAML assertion on the `go` job exits 0 — run with `uv run python` (system
-    `python3` has no PyYAML)
-- [x] `.claude/context/specs/ci-cd.md` and `packages/go/CLAUDE.md` each contain `GOARCH=386` — 2
-    lines each
-- [x] `mise run check` exits 0 — all hooks passed, no file modified
+- `wasm-pack test --node crates/iscc-wasm --features conformance`: rc=0. Results: 11 passed
+    (conformance), 8 (data_edge), 119 (unit), 0 failed
 
-Beyond next.md's list (3 probes):
+- `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings`: clean. Also clean:
+    native `--all-targets --features conformance` and wasm32 `--tests`
 
-- **The step works on CI.** I pushed the advance commits first. In run 44925892273 (`cea653f`) the
-    `Go (go test, go vet)` job is green on `ubuntu-26.04` with Go 1.26.11, and the step
-    `Run Go tests (32-bit, GOARCH=386)` printed `ok github.com/iscc/iscc-lib/packages/go 0.072s`
-- **Both builds run the same tests.** In a `/tmp` copy, `go test -v` runs 560 tests on amd64 and on
-    386 with 0 failures. The 386 build skips one, `TestCdcParamsLargeAvgExactOn64Bit`, on purpose.
-    The test binary is `ELF 32-bit LSB executable, Intel 80386, statically linked`
-- **The step sees the defect it guards.** In the same copy I put back the signed subtraction in
-    `algCdcParams` and dropped `clampInt`. 386 fails with
-    `--- FAIL: TestCdcParamsLargeAvgMatchesReference … center_size: got -1610612736, want 2684354560`;
-    amd64 stays `ok`. This matches the advance agent's claim
+- The next.md grep matches only `fn opt_bool`, `fn checked`, `fn to_u8`, `fn to_u32`, `fn to_i32`
+    (private helpers) and line 308 `pub filesize: f64`
 
-**Issues found:**
+- Node probe on
+    `wasm-pack build crates/iscc-wasm --target nodejs --dev --out-dir /tmp/wasm-probe-268/pkg`:
 
-- (none filed)
-- Nit, not filed: `GOARCH=386 go vet` passes on the reverted code, so the vet line adds only
-    type-checking for the 32-bit word size. It costs about 9 s together with the 386 test build
+    ```
+    gen_audio_code_v0([1, null, 3]) -> THROWS Error: Invalid cv[1]: expected a number
+    text_trim("abc", "2") -> THROWS Error: Invalid nbytes: expected a number
+    text_trim("abc", true) -> THROWS Error: Invalid nbytes: expected a number
+    gen_iscc_code_v0(codes, "yes") -> THROWS Error: Invalid wide: expected a boolean
+    gen_video_code_v0([[1, null, …]]) -> THROWS Error: Error: invalid type: unit value, expected i32
+    alg_cdc_chunks(data, "false") -> THROWS Error: Invalid utf32: expected a boolean
+    gen_text_code_v0("Hello", null) -> "ISCC:EAAWSPUDF7GJWQVD"
+    gen_text_code_v0("Hello") -> "ISCC:EAAWSPUDF7GJWQVD"
+    gen_text_code_v0("Hello", 64) -> "ISCC:EAAWSPUDF7GJWQVD"
+    gen_audio_code_v0(Int32Array [1,-2,3]) -> "ISCC:EIAQAAAAAMAAAAAB"
+    gen_audio_code_v0([1,-2,3]) -> "ISCC:EIAQAAAAAMAAAAAB"
+    ```
 
-**Codex review:** "No actionable regressions found." It ran the Go tests and vet on both
-architectures and the workflow and docs consistency checks.
+- The built `.d.ts` keeps the TypeScript types:
+    `export function gen_text_code_v0(text: string, bits?: number | null): string;`,
+    `export function gen_audio_code_v0(cv: ArrayLike<number>, bits?: number | null): string;`,
+    `alg_cdc_chunks(data: Uint8Array, utf32: boolean, avg_chunk_size?: number | null)`,
+    `gen_iscc_code_v0(codes: any, wide?: boolean | null)`,
+    `SumHasher.finalize(bits?: number | null, wide?: boolean | null, add_units?: boolean | null)`
 
-**Next:** `@iscc/wasm` converts non-number values to numbers instead of rejecting them (`normal`).
-It is the remaining correctness item that ordinary JavaScript callers can hit. The issue allows two
-resolutions: reject a non-number on each numeric parameter of `crates/iscc-wasm/src/lib.rs`, pinned
-by a Node test on a built package, or state the conversion in `docs/howto/wasm.md`. define-next
-should pick one and say why. Smaller ready items if that step turns out too large for one iteration:
-the Ruby 3.3 floor, the FFI padding removal (C++ `safe_data`, .NET `PinnedRows`), the Ruby Float
-docs fix, the pkg-config version line.
+- `mise run check`: rc=0, no files modified. I deleted the probe dir. `git status --porcelain` shows
+    no build output (only the 6 edited files and the runner's `iterations.jsonl`)
+
+**Next:** The ready small items from the last handoff: the Ruby 3.3 floor, the FFI padding removal
+(C++ `safe_data`, .NET `PinnedRows`), the Ruby Float docs fix, the pkg-config version line.
 
 **Notes:**
 
-- Issue "No CI job runs the Go port as a 32-bit build" is resolved and deleted. `state.md` still
-    lists it (lines 93, 161, 175); update-state will pick that up
-- I shifted the `packages/go/CLAUDE.md` line references in the issue "Specs and crate CLAUDE.md
-    files describe shipped work as pending" by 4, because this step added 4 lines above them
-- The 386 step runs without `-v`, so the CI log shows only the `ok` line. To see which test fails
-    after a red run, read the `--- FAIL` lines; the `FAILED: encode_seq…` lines come from the
-    conformance runner's own negative self-tests and print on green runs too
-- The Go tests read `../../crates/iscc-lib/tests/data.json`. A copy of `packages/go` alone fails ten
-    conformance tests for that reason, not because of the code under test
-- No decisions.md entry: the 32-bit coverage choice was already recorded on 2026-11-21
+- **Release notes (v0.8.0):** this changes `@iscc/wasm` behaviour in the same way the
+    `alg_cdc_chunks` shape change did. Plain-JS callers that passed numeric strings, `null` for a
+    required number, or truthy/falsy non-booleans (`"false"`, `0`, `1`) for `wide`/`add_units`/
+    `utf32` now get an error. Before, they got a coerced value. No changelog file exists to edit
+- `frame_sigs` keeps the `serde_wasm_bindgen` path, as next.md said. The probe shows it already
+    rejects `null`, but its message has a doubled prefix (`Error: invalid type: unit value…`) and
+    does not name the parameter. That message is unchanged by this step
+- `number_vec` reads any object through `Array.from`, so array-likes, iterables and typed arrays all
+    work (the test covers `Int32Array`). A `BigInt64Array` element fails as "expected a number". I
+    added no typed-array fast path. It costs one JS call per element, and this is not a core hot
+    path
+- `JsValue::is_null_or_undefined` exists in wasm-bindgen 0.2.126 (`src/lib.rs:400`), and
+    `impl<T> From<Option<T>> for JsValue` exists too (`lib.rs:933`). data_edge uses
+    `JsValue::from(wide)` on an `Option<bool>` for that reason

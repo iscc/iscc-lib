@@ -66,7 +66,7 @@ fn test_gen_meta_code_v0_conformance() {
             Some(description.to_string())
         };
 
-        let result = iscc_wasm::gen_meta_code_v0(name_arg, desc, meta, Some(bits))
+        let result = iscc_wasm::gen_meta_code_v0(name_arg, desc, meta, JsValue::from(bits))
             .unwrap_or_else(|e| panic!("gen_meta_code_v0 failed for {tc_name}: {e:?}"));
         assert_eq!(result, expected, "ISCC mismatch in test case {tc_name}");
         tested += 1;
@@ -89,7 +89,7 @@ fn test_gen_text_code_v0_conformance() {
         let bits = inputs[1].as_u64().unwrap() as f64;
         let expected = tc["outputs"]["iscc"].as_str().unwrap();
 
-        let result = iscc_wasm::gen_text_code_v0(text, Some(bits))
+        let result = iscc_wasm::gen_text_code_v0(text, JsValue::from(bits))
             .unwrap_or_else(|e| panic!("gen_text_code_v0 failed for {tc_name}: {e:?}"));
         assert_eq!(result, expected, "ISCC mismatch in test case {tc_name}");
         tested += 1;
@@ -117,7 +117,7 @@ fn test_gen_image_code_v0_conformance() {
             .map(|v| v.as_u64().unwrap() as u8)
             .collect();
 
-        let result = iscc_wasm::gen_image_code_v0(&pixels, Some(bits))
+        let result = iscc_wasm::gen_image_code_v0(&pixels, JsValue::from(bits))
             .unwrap_or_else(|e| panic!("gen_image_code_v0 failed for {tc_name}: {e:?}"));
         assert_eq!(result, expected, "ISCC mismatch in test case {tc_name}");
         tested += 1;
@@ -140,9 +140,12 @@ fn test_gen_audio_code_v0_conformance() {
         let bits = inputs[1].as_u64().unwrap() as f64;
         let expected = tc["outputs"]["iscc"].as_str().unwrap();
 
-        let cv: Vec<f64> = cv_json.iter().map(|v| v.as_i64().unwrap() as f64).collect();
+        let cv: js_sys::Array = cv_json
+            .iter()
+            .map(|v| JsValue::from(v.as_i64().unwrap() as f64))
+            .collect();
 
-        let result = iscc_wasm::gen_audio_code_v0(cv, Some(bits))
+        let result = iscc_wasm::gen_audio_code_v0(cv.into(), JsValue::from(bits))
             .unwrap_or_else(|e| panic!("gen_audio_code_v0 failed for {tc_name}: {e:?}"));
         assert_eq!(result, expected, "ISCC mismatch in test case {tc_name}");
         tested += 1;
@@ -178,7 +181,7 @@ fn test_gen_video_code_v0_conformance() {
             .collect();
 
         let frame_sigs_js: JsValue = serde_wasm_bindgen::to_value(&frame_sigs).unwrap();
-        let result = iscc_wasm::gen_video_code_v0(frame_sigs_js, Some(bits))
+        let result = iscc_wasm::gen_video_code_v0(frame_sigs_js, JsValue::from(bits))
             .unwrap_or_else(|e| panic!("gen_video_code_v0 failed for {tc_name}: {e:?}"));
         assert_eq!(result, expected, "ISCC mismatch in test case {tc_name}");
         tested += 1;
@@ -207,7 +210,7 @@ fn test_gen_mixed_code_v0_conformance() {
             .collect();
 
         let codes_js: JsValue = serde_wasm_bindgen::to_value(&codes).unwrap();
-        let result = iscc_wasm::gen_mixed_code_v0(codes_js, Some(bits))
+        let result = iscc_wasm::gen_mixed_code_v0(codes_js, JsValue::from(bits))
             .unwrap_or_else(|e| panic!("gen_mixed_code_v0 failed for {tc_name}: {e:?}"));
         assert_eq!(result, expected, "ISCC mismatch in test case {tc_name}");
         tested += 1;
@@ -232,7 +235,7 @@ fn test_gen_data_code_v0_conformance() {
 
         let input_bytes = decode_stream(stream_str);
 
-        let result = iscc_wasm::gen_data_code_v0(&input_bytes, Some(bits))
+        let result = iscc_wasm::gen_data_code_v0(&input_bytes, JsValue::from(bits))
             .unwrap_or_else(|e| panic!("gen_data_code_v0 failed for {tc_name}: {e:?}"));
         assert_eq!(result, expected, "ISCC mismatch in test case {tc_name}");
         tested += 1;
@@ -257,7 +260,7 @@ fn test_gen_instance_code_v0_conformance() {
 
         let input_bytes = decode_stream(stream_str);
 
-        let result = iscc_wasm::gen_instance_code_v0(&input_bytes, Some(bits))
+        let result = iscc_wasm::gen_instance_code_v0(&input_bytes, JsValue::from(bits))
             .unwrap_or_else(|e| panic!("gen_instance_code_v0 failed for {tc_name}: {e:?}"));
         assert_eq!(result, expected, "ISCC mismatch in test case {tc_name}");
         tested += 1;
@@ -285,7 +288,7 @@ fn test_gen_iscc_code_v0_conformance() {
             .collect();
 
         let codes_js: JsValue = serde_wasm_bindgen::to_value(&codes).unwrap();
-        let result = iscc_wasm::gen_iscc_code_v0(codes_js, None)
+        let result = iscc_wasm::gen_iscc_code_v0(codes_js, JsValue::UNDEFINED)
             .unwrap_or_else(|e| panic!("gen_iscc_code_v0 failed for {tc_name}: {e:?}"));
         assert_eq!(result, expected, "ISCC mismatch in test case {tc_name}");
         tested += 1;

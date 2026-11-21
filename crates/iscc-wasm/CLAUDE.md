@@ -20,21 +20,21 @@ Browser-compatible WASM bindings for iscc-lib, published as `@iscc/wasm` on npm.
 
 ## Type Mapping (Rust to JS via wasm-bindgen)
 
-| Rust type            | JS type                | How                                                               |
-| -------------------- | ---------------------- | ----------------------------------------------------------------- |
-| `&str`               | `string`               | Direct wasm-bindgen conversion                                    |
-| `String`             | `string`               | Direct wasm-bindgen conversion                                    |
-| `Option<String>`     | `string \| undefined`  | wasm-bindgen handles Option natively                              |
-| `Option<f64>`        | `number \| undefined`  | Optional numbers narrowed by `opt_u32`                            |
-| `f64`                | `number`               | Every numeric input, narrowed by `to_u8`/`to_u32`/`to_i32`        |
-| `Option<bool>`       | `boolean \| undefined` | wasm-bindgen handles Option natively                              |
-| `&[u8]`              | `Uint8Array`           | Direct wasm-bindgen conversion                                    |
-| `Vec<u8>`            | `Uint8Array`           | Direct wasm-bindgen conversion                                    |
-| `Vec<String>`        | `string[]`             | Direct wasm-bindgen conversion                                    |
-| `Vec<f64>`           | `ArrayLike<number>`    | Via `unchecked_param_type`; narrowed by `to_i32_vec`/`to_u32_vec` |
-| `Vec<Vec<i32>>`      | `JsValue`              | Use `serde_wasm_bindgen::from_value` to deserialize               |
-| `Vec<Uint8Array>`    | `Uint8Array[]`         | Return-side byte chunks via `js_sys::Uint8Array`                  |
-| `Result<T, JsError>` | throws on Err          | `JsError::new(&e.to_string())`                                    |
+| Rust type               | JS type                                  | How                                                                                                 |
+| ----------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `&str`                  | `string`                                 | Direct wasm-bindgen conversion                                                                      |
+| `String`                | `string`                                 | Direct wasm-bindgen conversion                                                                      |
+| `Option<String>`        | `string \| undefined`                    | wasm-bindgen handles Option natively                                                                |
+| `JsValue` (opt. number) | `number \| null` (optional)              | `unchecked_optional_param_type`; `opt_u32` (`null`/`undefined` → default)                           |
+| `JsValue` (number)      | `number`                                 | `unchecked_param_type = "number"`; checked by `number`, narrowed by `to_u8`/`to_u32`/`to_i32`       |
+| `JsValue` (boolean)     | `boolean` / `boolean \| null` (optional) | Checked by `boolean` / `opt_bool` (`as_bool()`; `null`/`undefined` → default)                       |
+| `&[u8]`                 | `Uint8Array`                             | Direct wasm-bindgen conversion                                                                      |
+| `Vec<u8>`               | `Uint8Array`                             | Direct wasm-bindgen conversion                                                                      |
+| `Vec<String>`           | `string[]`                               | Direct wasm-bindgen conversion                                                                      |
+| `JsValue` (numbers)     | `ArrayLike<number>`                      | Via `unchecked_param_type`; elements checked by `number_vec`, narrowed by `to_i32_vec`/`to_u32_vec` |
+| `Vec<Vec<i32>>`         | `JsValue`                                | Use `serde_wasm_bindgen::from_value` to deserialize                                                 |
+| `Vec<Uint8Array>`       | `Uint8Array[]`                           | Return-side byte chunks via `js_sys::Uint8Array`                                                    |
+| `Result<T, JsError>`    | throws on Err                            | `JsError::new(&e.to_string())`                                                                      |
 
 **Key rules:**
 
@@ -180,12 +180,14 @@ crate-root Tier 1 re-export) and its `finalize(bits?, wide?, add_units?)` return
     annotation.
 - **Do not use `Option<&str>`.** wasm-bindgen does not support `Option<&str>` -- use
     `Option<String>` and convert with `.as_deref()`.
-- **Never take `u8`, `u32`, `i32` or a `Vec` of them as an input.** The JS glue wraps them (`>>> 0`
-    for `u32`, typed-array copies for `Vec<i32>`/`Vec<u32>`), so an out-of-range number turns into a
-    different valid integer. Take `f64` / `Vec<f64>` and narrow through the range-checked helpers at
-    the top of `src/lib.rs`. A `Vec<f64>` parameter carries
-    `#[wasm_bindgen(unchecked_param_type = "ArrayLike<number>")]` so TypeScript accepts plain arrays
-    and every typed array. Nested arrays (`gen_video_code_v0`) take `JsValue` +
+- **Never take a number, a `bool` or a `Vec` of numbers as an input.** The JS glue converts them
+    (`>>> 0` for `u32`, `null` → 0 and `"2"` → 2 for `f64`, truthiness for `bool`, typed-array
+    copies for `Vec<f64>`/`Vec<i32>`), so a wrong value turns into a different valid argument. Take
+    a `JsValue`, type-check it with the helpers at the top of `src/lib.rs` (`number`, `opt_number`,
+    `number_vec`, `boolean`, `opt_bool`), then narrow through the range-checked `to_*` helpers. Keep
+    the TypeScript type with `unchecked_param_type` (`"number"`, `"boolean"`, `"ArrayLike<number>"`)
+    or, for a trailing optional parameter, `unchecked_optional_param_type` (`"number | null"`,
+    `"boolean | null"`). Nested arrays (`gen_video_code_v0`) take `JsValue` +
     `serde_wasm_bindgen::from_value`, which rejects non-`i32` numbers itself.
 - **`#[wasm_bindgen_test]` calls the Rust function directly and skips the JS glue.** Prove a
     marshalling change from Node on a `wasm-pack build --target nodejs` package as well.

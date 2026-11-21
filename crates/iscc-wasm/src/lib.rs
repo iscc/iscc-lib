@@ -8,16 +8,70 @@
 use std::fmt::Display;
 use wasm_bindgen::prelude::*;
 
+// ── Argument type checks ──────────────────────────────────────────────────────
+
+/// Read a JS value as a number, rejecting every non-number.
+///
+/// Scalar parameters arrive as raw `JsValue`s so the wasm-bindgen glue cannot
+/// coerce them (`null` → 0, `"2"` → 2, `true` → 1). Only `typeof value ===
+/// "number"` passes; `NaN` and infinities pass here and are rejected by the
+/// narrowing helpers. The `name` is formatted only on rejection.
+fn number(value: &JsValue, name: impl Display) -> Result<f64, JsError> {
+    value
+        .as_f64()
+        .ok_or_else(|| JsError::new(&format!("Invalid {name}: expected a number")))
+}
+
+/// Read an optional JS number; `undefined` and `null` both mean absent.
+fn opt_number(value: &JsValue, name: &str) -> Result<Option<f64>, JsError> {
+    if value.is_null_or_undefined() {
+        return Ok(None);
+    }
+    number(value, name).map(Some)
+}
+
+/// Read a JS array-like of numbers, naming a non-number element by index.
+///
+/// Rejects any non-object (a string, `null`, a bare number); arrays, typed
+/// arrays and other array-likes or iterables are read via `Array.from`.
+fn number_vec(value: &JsValue, name: &str) -> Result<Vec<f64>, JsError> {
+    if !value.is_object() {
+        return Err(JsError::new(&format!(
+            "Invalid {name}: expected an array of numbers"
+        )));
+    }
+    js_sys::Array::from(value)
+        .iter()
+        .enumerate()
+        .map(|(i, v)| number(&v, format_args!("{name}[{i}]")))
+        .collect()
+}
+
+/// Read a JS value as a boolean, rejecting every non-boolean (`"false"`, `0`, …).
+fn boolean(value: &JsValue, name: &str) -> Result<bool, JsError> {
+    value
+        .as_bool()
+        .ok_or_else(|| JsError::new(&format!("Invalid {name}: expected a boolean")))
+}
+
+/// Read an optional JS boolean, using `default` for `undefined`/`null`.
+fn opt_bool(value: &JsValue, default: bool, name: &str) -> Result<bool, JsError> {
+    if value.is_null_or_undefined() {
+        return Ok(default);
+    }
+    boolean(value, name)
+}
+
 // ── Integer narrowing ─────────────────────────────────────────────────────────
 
 /// Validate a JS number before narrowing it to an integer type.
 ///
 /// The wasm-bindgen glue wraps a JS number passed as an integer type (`>>> 0`
 /// for `u32`, typed-array copies for `Vec<i32>`/`Vec<u32>`), so every numeric
-/// parameter is taken as `f64` and checked here. Rejects non-finite,
-/// non-integral and out-of-range (`< min` or `>= max_exclusive`) values so an
-/// invalid JS number throws instead of turning into a different valid integer.
-/// `-0` passes as 0. The `name` is formatted only on rejection.
+/// parameter is read as an `f64` (via [`number`]) and checked here. Rejects
+/// non-finite, non-integral and out-of-range (`< min` or `>= max_exclusive`)
+/// values so an invalid JS number throws instead of turning into a different
+/// valid integer. `-0` passes as 0. The `name` is formatted only on rejection.
 fn checked(value: f64, min: f64, max_exclusive: f64, name: impl Display) -> Result<f64, JsError> {
     if !value.is_finite() || value.fract() != 0.0 || value < min || value >= max_exclusive {
         return Err(JsError::new(&format!("Invalid {name}: {value}")));
@@ -41,8 +95,8 @@ fn to_i32(value: f64, name: impl Display) -> Result<i32, JsError> {
 }
 
 /// Narrow an optional JS number to `u32`, using `default` for `undefined`/`null`.
-fn opt_u32(value: Option<f64>, default: u32, name: &str) -> Result<u32, JsError> {
-    value.map_or(Ok(default), |v| to_u32(v, name))
+fn opt_u32(value: &JsValue, default: u32, name: &str) -> Result<u32, JsError> {
+    opt_number(value, name)?.map_or(Ok(default), |v| to_u32(v, name))
 }
 
 /// Narrow every element of a JS number array to `u32`, naming a bad one by index.
@@ -104,9 +158,9 @@ pub fn gen_meta_code_v0(
     name: &str,
     description: Option<String>,
     meta: Option<String>,
-    bits: Option<f64>,
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
 ) -> Result<String, JsError> {
-    let bits = opt_u32(bits, 64, "bits")?;
+    let bits = opt_u32(&bits, 64, "bits")?;
     iscc_lib::gen_meta_code_v0(name, description.as_deref(), meta.as_deref(), bits)
         .map(|r| r.iscc)
         .map_err(|e| JsError::new(&e.to_string()))
@@ -117,8 +171,11 @@ pub fn gen_meta_code_v0(
 /// Produces an ISCC Content-Code for text using MinHash-based
 /// similarity hashing.
 #[wasm_bindgen]
-pub fn gen_text_code_v0(text: &str, bits: Option<f64>) -> Result<String, JsError> {
-    let bits = opt_u32(bits, 64, "bits")?;
+pub fn gen_text_code_v0(
+    text: &str,
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+) -> Result<String, JsError> {
+    let bits = opt_u32(&bits, 64, "bits")?;
     iscc_lib::gen_text_code_v0(text, bits)
         .map(|r| r.iscc)
         .map_err(|e| JsError::new(&e.to_string()))
@@ -129,8 +186,11 @@ pub fn gen_text_code_v0(text: &str, bits: Option<f64>) -> Result<String, JsError
 /// Produces an ISCC Content-Code for images from 1024 grayscale pixels
 /// (32x32) using a DCT-based perceptual hash.
 #[wasm_bindgen]
-pub fn gen_image_code_v0(pixels: &[u8], bits: Option<f64>) -> Result<String, JsError> {
-    let bits = opt_u32(bits, 64, "bits")?;
+pub fn gen_image_code_v0(
+    pixels: &[u8],
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+) -> Result<String, JsError> {
+    let bits = opt_u32(&bits, 64, "bits")?;
     iscc_lib::gen_image_code_v0(pixels, bits)
         .map(|r| r.iscc)
         .map_err(|e| JsError::new(&e.to_string()))
@@ -142,11 +202,11 @@ pub fn gen_image_code_v0(pixels: &[u8], bits: Option<f64>) -> Result<String, JsE
 /// Chromaprint fingerprint features using multi-stage SimHash.
 #[wasm_bindgen]
 pub fn gen_audio_code_v0(
-    #[wasm_bindgen(unchecked_param_type = "ArrayLike<number>")] cv: Vec<f64>,
-    bits: Option<f64>,
+    #[wasm_bindgen(unchecked_param_type = "ArrayLike<number>")] cv: JsValue,
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
 ) -> Result<String, JsError> {
-    let cv = to_i32_vec(&cv, "cv")?;
-    let bits = opt_u32(bits, 64, "bits")?;
+    let cv = to_i32_vec(&number_vec(&cv, "cv")?, "cv")?;
+    let bits = opt_u32(&bits, 64, "bits")?;
     iscc_lib::gen_audio_code_v0(&cv, bits)
         .map(|r| r.iscc)
         .map_err(|e| JsError::new(&e.to_string()))
@@ -157,8 +217,11 @@ pub fn gen_audio_code_v0(
 /// Produces an ISCC Content-Code for video from MPEG-7 frame
 /// signature vectors using WTA-Hash. Accepts a JS array of arrays of i32.
 #[wasm_bindgen]
-pub fn gen_video_code_v0(frame_sigs: JsValue, bits: Option<f64>) -> Result<String, JsError> {
-    let bits = opt_u32(bits, 64, "bits")?;
+pub fn gen_video_code_v0(
+    frame_sigs: JsValue,
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+) -> Result<String, JsError> {
+    let bits = opt_u32(&bits, 64, "bits")?;
     let frame_sigs: Vec<Vec<i32>> =
         serde_wasm_bindgen::from_value(frame_sigs).map_err(|e| JsError::new(&e.to_string()))?;
     iscc_lib::gen_video_code_v0(&frame_sigs, bits)
@@ -171,8 +234,11 @@ pub fn gen_video_code_v0(frame_sigs: JsValue, bits: Option<f64>) -> Result<Strin
 /// Produces a Mixed Content-Code by combining multiple ISCC Content-Codes
 /// of different types using SimHash. Accepts a JS array of strings.
 #[wasm_bindgen]
-pub fn gen_mixed_code_v0(codes: JsValue, bits: Option<f64>) -> Result<String, JsError> {
-    let bits = opt_u32(bits, 64, "bits")?;
+pub fn gen_mixed_code_v0(
+    codes: JsValue,
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+) -> Result<String, JsError> {
+    let bits = opt_u32(&bits, 64, "bits")?;
     let codes: Vec<String> =
         serde_wasm_bindgen::from_value(codes).map_err(|e| JsError::new(&e.to_string()))?;
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
@@ -186,8 +252,11 @@ pub fn gen_mixed_code_v0(codes: JsValue, bits: Option<f64>) -> Result<String, Js
 /// Produces an ISCC Data-Code by splitting data into content-defined
 /// chunks and applying MinHash for similarity hashing.
 #[wasm_bindgen]
-pub fn gen_data_code_v0(data: &[u8], bits: Option<f64>) -> Result<String, JsError> {
-    let bits = opt_u32(bits, 64, "bits")?;
+pub fn gen_data_code_v0(
+    data: &[u8],
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+) -> Result<String, JsError> {
+    let bits = opt_u32(&bits, 64, "bits")?;
     iscc_lib::gen_data_code_v0(data, bits)
         .map(|r| r.iscc)
         .map_err(|e| JsError::new(&e.to_string()))
@@ -198,8 +267,11 @@ pub fn gen_data_code_v0(data: &[u8], bits: Option<f64>) -> Result<String, JsErro
 /// Produces an ISCC Instance-Code by hashing the complete byte stream
 /// with BLAKE3. Returns the ISCC string with "ISCC:" prefix.
 #[wasm_bindgen]
-pub fn gen_instance_code_v0(data: &[u8], bits: Option<f64>) -> Result<String, JsError> {
-    let bits = opt_u32(bits, 64, "bits")?;
+pub fn gen_instance_code_v0(
+    data: &[u8],
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+) -> Result<String, JsError> {
+    let bits = opt_u32(&bits, 64, "bits")?;
     iscc_lib::gen_instance_code_v0(data, bits)
         .map(|r| r.iscc)
         .map_err(|e| JsError::new(&e.to_string()))
@@ -210,8 +282,11 @@ pub fn gen_instance_code_v0(data: &[u8], bits: Option<f64>) -> Result<String, Js
 /// Combines multiple ISCC unit codes into a single composite ISCC-CODE.
 /// Requires at least Data-Code and Instance-Code. Accepts a JS array of strings.
 #[wasm_bindgen]
-pub fn gen_iscc_code_v0(codes: JsValue, wide: Option<bool>) -> Result<String, JsError> {
-    let wide = wide.unwrap_or(false);
+pub fn gen_iscc_code_v0(
+    codes: JsValue,
+    #[wasm_bindgen(unchecked_optional_param_type = "boolean | null")] wide: JsValue,
+) -> Result<String, JsError> {
+    let wide = opt_bool(&wide, false, "wide")?;
     let codes: Vec<String> =
         serde_wasm_bindgen::from_value(codes).map_err(|e| JsError::new(&e.to_string()))?;
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
@@ -247,13 +322,13 @@ pub struct WasmSumCodeResult {
 #[wasm_bindgen]
 pub fn gen_sum_code_v0(
     data: &[u8],
-    bits: Option<f64>,
-    wide: Option<bool>,
-    add_units: Option<bool>,
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+    #[wasm_bindgen(unchecked_optional_param_type = "boolean | null")] wide: JsValue,
+    #[wasm_bindgen(unchecked_optional_param_type = "boolean | null")] add_units: JsValue,
 ) -> Result<WasmSumCodeResult, JsError> {
-    let bits = opt_u32(bits, 64, "bits")?;
-    let wide = wide.unwrap_or(false);
-    let add_units = add_units.unwrap_or(false);
+    let bits = opt_u32(&bits, 64, "bits")?;
+    let wide = opt_bool(&wide, false, "wide")?;
+    let add_units = opt_bool(&add_units, false, "add_units")?;
 
     let mut data_hasher = iscc_lib::DataHasher::new();
     let mut instance_hasher = iscc_lib::InstanceHasher::new();
@@ -311,8 +386,11 @@ pub fn text_remove_newlines(text: &str) -> String {
 /// Multi-byte characters that would be split are dropped entirely.
 /// Leading/trailing whitespace is stripped from the result.
 #[wasm_bindgen]
-pub fn text_trim(text: &str, nbytes: f64) -> Result<String, JsError> {
-    let nbytes = to_u32(nbytes, "nbytes")?;
+pub fn text_trim(
+    text: &str,
+    #[wasm_bindgen(unchecked_param_type = "number")] nbytes: JsValue,
+) -> Result<String, JsError> {
+    let nbytes = to_u32(number(&nbytes, "nbytes")?, "nbytes")?;
     Ok(iscc_lib::text_trim(text, nbytes as usize))
 }
 
@@ -353,17 +431,17 @@ pub fn encode_base64(data: &[u8]) -> String {
 /// ISCC unit string (without "ISCC:" prefix).
 #[wasm_bindgen]
 pub fn encode_component(
-    mtype: f64,
-    stype: f64,
-    version: f64,
-    bit_length: f64,
+    #[wasm_bindgen(unchecked_param_type = "number")] mtype: JsValue,
+    #[wasm_bindgen(unchecked_param_type = "number")] stype: JsValue,
+    #[wasm_bindgen(unchecked_param_type = "number")] version: JsValue,
+    #[wasm_bindgen(unchecked_param_type = "number")] bit_length: JsValue,
     digest: &[u8],
 ) -> Result<String, JsError> {
     iscc_lib::encode_component(
-        to_u8(mtype, "mtype")?,
-        to_u8(stype, "stype")?,
-        to_u8(version, "version")?,
-        to_u32(bit_length, "bit_length")?,
+        to_u8(number(&mtype, "mtype")?, "mtype")?,
+        to_u8(number(&stype, "stype")?, "stype")?,
+        to_u8(number(&version, "version")?, "version")?,
+        to_u32(number(&bit_length, "bit_length")?, "bit_length")?,
         digest,
     )
     .map_err(|e| JsError::new(&e.to_string()))
@@ -443,17 +521,26 @@ pub fn decode_seq(data: &[u8]) -> Result<Vec<String>, JsError> {
 /// with `realm` (0 = testnet, 1 = mainnet) as SubType and Version `V1`.
 ///
 /// All three parameters are JS `number`s (valid `timestamp` values are `< 2^52`,
-/// exactly representable in `f64`). Throws if any parameter is non-finite,
-/// non-integral, or negative, or if `timestamp >= 2^52`, `hub_id >= 2^12`, or
+/// exactly representable in `f64`). Throws if any parameter is not a number,
+/// non-finite, non-integral, or negative, or if `timestamp >= 2^52`, `hub_id >= 2^12`, or
 /// `realm` is not `0` or `1`.
 ///
 /// **Experimental:** the ISCC-IDv1 format is not yet part of ISO 24138 and may
 /// change. There is no dedicated decoder — use `iscc_decode` to decode.
 #[wasm_bindgen]
-pub fn gen_iscc_id_v1(timestamp: f64, hub_id: f64, realm: f64) -> Result<String, JsError> {
-    let timestamp = checked(timestamp, 0.0, 4_503_599_627_370_496.0, "timestamp")?; // 2^52
-    let hub_id = checked(hub_id, 0.0, 4096.0, "hub_id")?;
-    let realm = checked(realm, 0.0, 2.0, "realm")?;
+pub fn gen_iscc_id_v1(
+    #[wasm_bindgen(unchecked_param_type = "number")] timestamp: JsValue,
+    #[wasm_bindgen(unchecked_param_type = "number")] hub_id: JsValue,
+    #[wasm_bindgen(unchecked_param_type = "number")] realm: JsValue,
+) -> Result<String, JsError> {
+    let timestamp = checked(
+        number(&timestamp, "timestamp")?,
+        0.0,
+        4_503_599_627_370_496.0,
+        "timestamp",
+    )?; // 2^52
+    let hub_id = checked(number(&hub_id, "hub_id")?, 0.0, 4096.0, "hub_id")?;
+    let realm = checked(number(&realm, "realm")?, 0.0, 2.0, "realm")?;
     iscc_lib::gen_iscc_id_v1(timestamp as u64, hub_id as u16, realm as u8)
         .map(|r| r.iscc)
         .map_err(|e| JsError::new(&e.to_string()))
@@ -477,8 +564,11 @@ pub fn conformance_selftest() -> bool {
 /// Returns overlapping substrings of `width` Unicode characters, advancing
 /// by one character at a time. Throws if width is less than 2.
 #[wasm_bindgen]
-pub fn sliding_window(seq: &str, width: f64) -> Result<Vec<String>, JsError> {
-    let width = to_u32(width, "width")?;
+pub fn sliding_window(
+    seq: &str,
+    #[wasm_bindgen(unchecked_param_type = "number")] width: JsValue,
+) -> Result<Vec<String>, JsError> {
+    let width = to_u32(number(&width, "width")?, "width")?;
     iscc_lib::sliding_window(seq, width as usize).map_err(|e| JsError::new(&e.to_string()))
 }
 
@@ -502,9 +592,9 @@ pub fn alg_simhash(hash_digests: JsValue) -> Result<Vec<u8>, JsError> {
 /// produce a 32-byte similarity-preserving digest.
 #[wasm_bindgen]
 pub fn alg_minhash_256(
-    #[wasm_bindgen(unchecked_param_type = "ArrayLike<number>")] features: Vec<f64>,
+    #[wasm_bindgen(unchecked_param_type = "ArrayLike<number>")] features: JsValue,
 ) -> Result<Vec<u8>, JsError> {
-    let features = to_u32_vec(&features, "features")?;
+    let features = to_u32_vec(&number_vec(&features, "features")?, "features")?;
     Ok(iscc_lib::alg_minhash_256(&features))
 }
 
@@ -516,10 +606,11 @@ pub fn alg_minhash_256(
 #[wasm_bindgen]
 pub fn alg_cdc_chunks(
     data: &[u8],
-    utf32: bool,
-    avg_chunk_size: Option<f64>,
+    #[wasm_bindgen(unchecked_param_type = "boolean")] utf32: JsValue,
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] avg_chunk_size: JsValue,
 ) -> Result<Vec<js_sys::Uint8Array>, JsError> {
-    let avg = opt_u32(avg_chunk_size, 1024, "avg_chunk_size")?;
+    let utf32 = boolean(&utf32, "utf32")?;
+    let avg = opt_u32(&avg_chunk_size, 1024, "avg_chunk_size")?;
     let chunks = iscc_lib::alg_cdc_chunks(data, utf32, avg)
         .map_err(|e| JsError::new(&e.to_string()))?
         .into_iter()
@@ -533,8 +624,11 @@ pub fn alg_cdc_chunks(
 /// Accepts a JS array of arrays of `i32`. Returns raw bytes of length
 /// `bits / 8`. Default `bits` is 64. Throws if `frame_sigs` is empty.
 #[wasm_bindgen]
-pub fn soft_hash_video_v0(frame_sigs: JsValue, bits: Option<f64>) -> Result<Vec<u8>, JsError> {
-    let bits = opt_u32(bits, 64, "bits")?;
+pub fn soft_hash_video_v0(
+    frame_sigs: JsValue,
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+) -> Result<Vec<u8>, JsError> {
+    let bits = opt_u32(&bits, 64, "bits")?;
     let frame_sigs: Vec<Vec<i32>> =
         serde_wasm_bindgen::from_value(frame_sigs).map_err(|e| JsError::new(&e.to_string()))?;
     iscc_lib::soft_hash_video_v0(&frame_sigs, bits).map_err(|e| JsError::new(&e.to_string()))
@@ -581,8 +675,11 @@ impl DataHasher {
     ///
     /// After calling `finalize`, subsequent calls to `update` or `finalize`
     /// will throw. Default `bits` is 64.
-    pub fn finalize(&mut self, bits: Option<f64>) -> Result<String, JsError> {
-        let bits = opt_u32(bits, 64, "bits")?;
+    pub fn finalize(
+        &mut self,
+        #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+    ) -> Result<String, JsError> {
+        let bits = opt_u32(&bits, 64, "bits")?;
         let hasher = self
             .inner
             .take()
@@ -633,8 +730,11 @@ impl InstanceHasher {
     ///
     /// After calling `finalize`, subsequent calls to `update` or `finalize`
     /// will throw. Default `bits` is 64.
-    pub fn finalize(&mut self, bits: Option<f64>) -> Result<String, JsError> {
-        let bits = opt_u32(bits, 64, "bits")?;
+    pub fn finalize(
+        &mut self,
+        #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+    ) -> Result<String, JsError> {
+        let bits = opt_u32(&bits, 64, "bits")?;
         let hasher = self
             .inner
             .take()
@@ -691,17 +791,19 @@ impl SumHasher {
     /// Instance-Code ISCC strings.
     pub fn finalize(
         &mut self,
-        bits: Option<f64>,
-        wide: Option<bool>,
-        add_units: Option<bool>,
+        #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+        #[wasm_bindgen(unchecked_optional_param_type = "boolean | null")] wide: JsValue,
+        #[wasm_bindgen(unchecked_optional_param_type = "boolean | null")] add_units: JsValue,
     ) -> Result<WasmSumCodeResult, JsError> {
-        let bits = opt_u32(bits, 64, "bits")?;
+        let bits = opt_u32(&bits, 64, "bits")?;
+        let wide = opt_bool(&wide, false, "wide")?;
+        let add_units = opt_bool(&add_units, false, "add_units")?;
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| JsError::new("SumHasher already finalized"))?;
         let result = hasher
-            .finalize(bits, wide.unwrap_or(false), add_units.unwrap_or(false))
+            .finalize(bits, wide, add_units)
             .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(WasmSumCodeResult {
             iscc: result.iscc,

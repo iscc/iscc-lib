@@ -540,7 +540,15 @@ console.log(conformance_selftest()); // true
 Functions throw on invalid input. Every number argument must be an integer within the range of its
 parameter (for example, `bits` and `nbytes` must lie in 0 to 2^32 − 1 and each `gen_audio_code_v0`
 feature in the signed 32-bit range). A negative, fractional, non-finite or too large number throws
-an error that names the parameter, for example `Invalid bits: -1`:
+an error that names the parameter, for example `Invalid bits: -1`.
+
+Arguments are type-checked, not converted. A value that is not a number where a number is expected
+throws `Invalid <name>: expected a number`: `null` for a required number, a numeric string such as
+`"2"`, or a boolean. This applies to every element of a number array too
+(`Invalid cv[1]: expected a number`). For an optional number such as `bits`, `null` and `undefined`
+both select the default. Boolean flags (`wide`, `add_units`, `utf32`) must be `true` or `false`. Any
+other value, such as the string `"false"` or `0`, throws `Invalid <name>: expected a boolean`, and
+`null` or `undefined` select the default of an optional flag:
 
 ```javascript
 import {

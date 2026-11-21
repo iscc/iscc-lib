@@ -177,7 +177,7 @@ fn call_text(inputs: &[Value]) -> Result<Outcome, String> {
     let text = str_arg(inputs, 0)?;
     let bits = u32_arg(inputs, 1)?;
     Ok(to_outcome(
-        iscc_wasm::gen_text_code_v0(text, Some(f64::from(bits))),
+        iscc_wasm::gen_text_code_v0(text, JsValue::from(bits)),
         iscc_json,
     ))
 }
@@ -187,7 +187,7 @@ fn call_mixed(inputs: &[Value]) -> Result<Outcome, String> {
     let codes = str_list_arg(inputs, 0)?;
     let bits = u32_arg(inputs, 1)?;
     Ok(to_outcome(
-        iscc_wasm::gen_mixed_code_v0(codes, Some(f64::from(bits))),
+        iscc_wasm::gen_mixed_code_v0(codes, JsValue::from(bits)),
         iscc_json,
     ))
 }
@@ -197,7 +197,7 @@ fn call_iscc_code(inputs: &[Value]) -> Result<Outcome, String> {
     let codes = str_list_arg(inputs, 0)?;
     let wide = inputs.get(1).and_then(Value::as_bool);
     Ok(to_outcome(
-        iscc_wasm::gen_iscc_code_v0(codes, wide),
+        iscc_wasm::gen_iscc_code_v0(codes, JsValue::from(wide)),
         iscc_json,
     ))
 }
@@ -217,7 +217,7 @@ fn call_meta(inputs: &[Value]) -> Result<Outcome, String> {
     let meta = meta_arg(inputs, 2)?;
     let bits = u32_arg(inputs, 3)?;
     Ok(to_outcome(
-        iscc_wasm::gen_meta_code_v0(name, description, Some(meta), Some(f64::from(bits))),
+        iscc_wasm::gen_meta_code_v0(name, description, Some(meta), JsValue::from(bits)),
         iscc_json,
     ))
 }
@@ -227,7 +227,7 @@ fn call_video(inputs: &[Value]) -> Result<Outcome, String> {
     let frames = frames_arg(inputs, 0)?;
     let bits = u32_arg(inputs, 1)?;
     Ok(to_outcome(
-        iscc_wasm::gen_video_code_v0(frames, Some(f64::from(bits))),
+        iscc_wasm::gen_video_code_v0(frames, JsValue::from(bits)),
         iscc_json,
     ))
 }
@@ -243,7 +243,7 @@ fn call_cdc(inputs: &[Value]) -> Result<Outcome, String> {
     let utf32 = bool_arg(inputs, 1)?;
     let avg = u32_arg(inputs, 2)?;
     Ok(to_outcome(
-        iscc_wasm::alg_cdc_chunks(&data, utf32, Some(f64::from(avg))),
+        iscc_wasm::alg_cdc_chunks(&data, JsValue::from(utf32), JsValue::from(avg)),
         chunks_json,
     ))
 }
