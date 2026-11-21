@@ -12,25 +12,30 @@ to `MEMORY-archive.md`.
 - iter 260 @ 3040298: filed 5 (Go TextTrim panic + hasher reuse, CDC param overflow, one-shot gen
     duplicates streaming, Python video exception class, spec/CLAUDE.md drift). 5 finders + 5 batch
     skeptics cost about $17.7; 62 of 63 survived.
+- iter 270 @ 34303a6: filed 5 (wasm Node docs vs web build, UniFFI text_trim 32-bit + doc, minhash
+    empty vs reference, conformance runner duplication, gates on stale generated/built artifacts). 5
+    finders + 4 batch skeptics (watch list included) cost about $18; 54 of 58 survived.
 
 ## Clean areas
 
-(none: every dimension had verified findings at 3040298)
+(none: every dimension had verified findings at 34303a6)
 
 ## Watch list
 
-- [Watch list](watch-list.md) — verified findings left unfiled (5-per-pass cap); IDv1 range-check
-    duplication goes first
+- [Watch list](watch-list.md) — verified findings left unfiled (5-per-pass cap); WASM finalize
+    consumption and data-edge harness duplication go first
 
 ## False-positive patterns
 
-- [False positives](false-positives.md) — bits>256 is reference parity; Go Skipf is backed by
-    sibling Fatalf
+- [False positives](false-positives.md) — reference parity, decided behavior (IDv1 binding range
+    checks, ruff S/C901 hooks, Go TextTrim), superseded decisions
 
 ## Operating notes
 
-- issues.md budget is 400 lines (293 after iter 260); run the prek `mdformat` hook on it before
-    committing (wrapping adds lines).
+- issues.md budget is 400 lines (373 after iter 270: file at most 1-2 next pass); run the prek
+    `mdformat` hook on it before committing (wrapping adds lines).
+- Handing the watch list to the skeptics works: it refuted 4 stale items (incl. the 2-pass IDv1
+    item) by decision. Workflow output JSON nests results under `.result`.
 - One batch skeptic per finder is lenient (62/63 survive): spot-check the top candidates yourself
     with `sed -n` before filing; refute-by-decision is what it catches.
 - Grouping 9 dimensions into 5 finders, each followed by one batch skeptic (10 agents), stayed

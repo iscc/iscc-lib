@@ -268,3 +268,106 @@ Verified by the iteration-260 audit at 3040298. CID-fixable (decision of 2026-11
 estimate:** 8 files, needs audit-scope step (≤8 files).
 
 Resolved when each cited statement matches the tree.
+
+## `@iscc/wasm` docs show a Node.js setup the published package cannot run `normal` [audit]
+
+Verified by the iteration-270 audit at 34303a6. The npm package is built with
+`wasm-pack build --target web` (`release.yml:427`). Its default `init()` builds a URL from
+`import.meta.url` and calls `fetch()` on it, which Node's `fetch` refuses for `file:` URLs.
+
+- `docs/howto/wasm.md` → "Node.js" (:58-72) imports from `"@iscc/wasm"` and calls `gen_text_code_v0`
+    with no init at all, after telling the reader to build with `--target nodejs` (the reader
+    installed the npm package and has no build). :42 says most bundlers initialize WASM
+    automatically, which a web-target package never does.
+- `crates/iscc-wasm/README.md:28-37`: the quick start's `await init()` fails under Node, and the
+    next line says "Both browser and Node.js targets are supported."
+- `docs/howto/wasm.md:82` and `README.md:56` say every gen function returns a string;
+    `gen_sum_code_v0` returns `WasmSumCodeResult` (`lib.rs:348-353`, and the how-to's own example
+    reads `result.iscc`). The README's Streaming line omits `SumHasher`.
+
+**Why it matters:** the registry page and how-to are the first thing a Node user copies, and both
+paths fail on the published artifact. **Suggested fix:** show the Node path for the web build
+(`initSync({ module: readFileSync(...) })` or bytes passed to `init`), probed against a packed
+release build; drop the bundler and "both targets" claims; correct the return-type sentences.
+**Scope estimate:** 2 non-test files.
+
+Resolved when the Node example runs against a `--target web` release build and both pages state
+`gen_sum_code_v0`'s result type.
+
+## UniFFI `text_trim` truncates `nbytes` on 32-bit Android and documents a word boundary `normal` [audit]
+
+Verified by the iteration-270 audit at 34303a6 (the doc half since iteration 249).
+
+- `crates/iscc-uniffi/src/lib.rs:330-331` passes `nbytes as usize`. `release.yml:1131-1144` ships
+    the library for `armeabi-v7a` and `x86` Android, where `usize` is 32 bits, so
+    `textTrim(text, 4294967301UL)` trims to 5 bytes instead of returning the text. The only test
+    uses `nbytes = 5` (:643).
+- The doc comment at :328 says "on a word boundary"; the core (`utils.rs:127-137`) cuts at a UTF-8
+    byte boundary and strips whitespace. The wrong text is in the generated
+    `packages/swift/Sources/IsccLib/iscc_uniffi.swift` and the Kotlin `iscc_uniffi.kt`.
+
+**Why it matters:** a silent wrong result on two shipped ABIs, and the published Swift/Kotlin API
+docs describe behavior the function lacks. **Suggested fix:** saturate
+(`usize::try_from(nbytes).unwrap_or(usize::MAX)`, a limit beyond the address space trims nothing),
+add a `u64::MAX` test, fix the doc comment and regenerate both bindings. **Scope estimate:** 3
+non-test files.
+
+Resolved when an oversized `nbytes` returns the whole text on every target and the doc matches the
+core.
+
+## `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises, with no decision `normal` [audit]
+
+Verified by the iteration-270 audit at 34303a6. The reference computes `min([...])` over the
+features (`reference/iscc-core/iscc_core/minhash.py:14-16`), so an empty list raises `ValueError`.
+The core's `minhash` falls back to `MAXH` (`crates/iscc-lib/src/minhash.rs:156-164`), so
+`alg_minhash_256` returns all `0xFF`. Five hand-written tests pin the divergence
+(`tests/test_algorithm_primitives.rs:146`, `iscc-ffi/src/tests.rs:784`, `IsccLibTest.java:932`,
+`packages/cpp/tests/test_iscc.cpp:688`, `packages/go/minhash_test.go:79`); `data-edge.json` has no
+`alg_minhash_256` section, and no decision or edge-vector rule mentions it. The closest decision
+(2026-11-20) made `alg_simhash` reject an empty list, the opposite direction.
+
+**Why it matters:** a Tier 1 function silently differs from the normative reference on one input,
+and the per-surface tests freeze it without anyone having chosen it. **Suggested fix:** decide:
+reject empty input in the core (as `alg_simhash` does) or keep `0xFF` with a decisions.md entry;
+either way pin it with one `data-edge.json` vector instead of per-surface tests. **Scope estimate:**
+1-2 non-test files plus the vector fan-out.
+
+Resolved when the empty-input behavior is a recorded decision pinned by a shared vector.
+
+## `conformance_selftest` repeats one runner loop nine times, in Rust and in Go `normal` [audit]
+
+Verified by the iteration-249, -260 and -270 audits (34303a6). `crates/iscc-lib/src/conformance.rs`
+has nine gen runners (:64, 128, 176, 229, 282, 342, 402, 451, 500), each repeating the section
+lookup with its "section missing" message, `Ok(result) if result.iscc == expected_iscc`, and an
+8-line `match` ending in "could not parse test inputs". `report_case` (:560) exists but only the two
+seq runners call it (:604, :641). `packages/go/conformance.go:156-516` mirrors the layout with about
+36 copied `Fprintf` lines. This is shipped library code (Tier 1 `conformance_selftest`).
+
+**Why it matters:** about 400 lines per language where a reporting change needs nine edits, and the
+copies already differ (two use `report_case`, nine do not). **Suggested fix:** one generic section
+runner that does lookup, `iscc` comparison and `report_case`, so each gen function supplies only its
+input-parsing closure; the same helper in Go. Move the CRAP baseline in the same step. **Scope
+estimate:** 2 non-test files plus `.crap-baseline.json`.
+
+Resolved when each language has one section runner and the selftest still passes on every surface.
+
+## Gates test generated and built artifacts that nothing refreshes or diffs `normal` [audit]
+
+Verified by the iteration-270 audit at 34303a6 (the pytest half since iteration 249).
+
+- Pre-push `uv run pytest` (`.pre-commit-config.yaml:176-182`) imports the hand-built
+    `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so`. No hook, `mise` task or conftest rebuilds it
+    or checks it is newer than `crates/iscc-py/src`; only CI runs `maturin develop` (`ci.yml:67`). A
+    Rust change pushes green against the old binary.
+- CI diffs only `iscc.h` (`ci.yml:136-140`). `crates/iscc-ffi/build.rs:4-10` rewrites
+    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` on every build and `dotnet-test` builds against
+    the fresh copy, so a stale committed file is never caught. The tracked UniFFI outputs
+    (`iscc_uniffi.kt`, `iscc_uniffi.swift`) are regenerated by hand and no workflow runs
+    `uniffi-bindgen` to compare them; doc drift (see the `text_trim` entry) ships unseen.
+
+**Why it matters:** a green gate that checks the wrong artifact is worse than no gate. **Suggested
+fix:** rebuild (or fail on a stale `.so`) before pre-push pytest; add `git diff --exit-code` for
+`NativeMethods.g.cs` after the FFI build and a regenerate-and-diff step for the UniFFI sources
+(compare modulo trailing whitespace, per learnings). **Scope estimate:** 3 non-test files.
+
+Resolved when a stale `.so` or a stale committed generated file fails a gate.

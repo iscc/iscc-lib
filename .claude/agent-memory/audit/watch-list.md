@@ -5,8 +5,8 @@ metadata:
   type: project
 ---
 
-Verified true in the iter-260 sweep (HEAD 3040298) unless marked. Re-check against the tree before
-filing; drop any that a commit has fixed.
+All items verified true in the iter-270 sweep (HEAD 34303a6). Re-check against the tree before
+filing; drop any a commit has fixed.
 
 **Why:** each survived a skeptic pass; only the 5-issue cap or ownership kept them out. **How to
 apply:** hand every item to the verify phase next pass; file the top ones first. target.md/decisions
@@ -14,43 +14,55 @@ items are `low` + `**Triage:** untriaged` (human-owned).
 
 Code (CID-fixable), ranked:
 
-- IDv1 range checks repeated in py/napi/wasm/rb/jni (`gen_iscc_id_v1`), four wordings (core/py, JS
-    `checked`, Ruby, JNI). On the list since iter 249 — file first.
-- GLD-4: pre-push `uv run pytest` tests a hand-built `_lowlevel.abi3.so` that nothing rebuilds (no
-    `[build-system]` in root pyproject, no conftest check); CI runs `maturin develop` first.
-- `crates/iscc-uniffi/src/lib.rs:328` text_trim doc says "on a word boundary" (shipped in
-    Swift/Kotlin generated sources).
-- `_lowlevel.pyi` docstrings contradict code (encode_component ranges, meta trim units).
-- .NET: null string -> IsccException, null array -> ArgumentNullException.
-- Go naming: hashers `Push` (spec/others `update`), `IsccIdResult.ISCC` vs `Iscc`; Ruby
-    `IdCodeResult` vs `IsccIdResult` everywhere else. API-break territory — likely v1.0.0 decisions.
-- Go `MetaTrimMeta` unused, Go GenMetaCodeV0 enforces no meta size limit.
-- napi alg_cdc_chunks tests "respects utf32 mode"/"accepts custom avg_chunk_size" can never fail.
-- Duplication: error-mapping closures (py ~26, wasm ~32, napi ~23); JNI nested new_string/throw x21;
-    napi/wasm JS number helpers copied; DataHasher/InstanceHasher wrapper pairs in FFI/.NET/C++;
-    Python stream-read loop x5; conformance.rs runners x9 (report_case used by 2), Go conformance
-    x8; soft_hash_meta_v0 repeats meta_name_simhash; bits_to_bytes twice (lib.rs, codec.rs);
-    iscc_decode re-decodes base32 up to 4x; gen_meta_code_v0 124 lines.
-- Dead: unused `serde` dep in iscc-wasm and iscc-lib dev-deps; ruff S/C901 pre-push hooks duplicate
-    pyproject-selected rules.
+- WASM hasher `finalize()`: bits rejected by `opt_u32` (-1, 1.5) leave the hasher usable, bits
+    rejected by the core (13) consume it (`iscc-wasm/src/lib.rs:703-718`, 758, 817); wasm.md:338
+    says always consumed; Go consumes on any first Finalize.
+- Data-edge harness duplication: `iscc-lib/tests/test_data_edge.rs` vs
+    `iscc-wasm/tests/   data_edge.rs` (10 byte-identical helpers, drivers drifted); Python schema
+    rules twice (`tests/test_data_edge.py` vs `scripts/gen_data_edge_vectors.py`: SURFACE_IDS,
+    output keys).
+- npm parity: napi `Vec<f64>` rejects typed arrays/ArrayLike that @iscc/wasm accepts; JS range
+    errors print Rust f64 Display (`inf`) and tests pin it.
+- alg_cdc_chunks defaults: .NET alone makes utf32 optional, C++ alone has no avg_chunk_size default.
+- Ruby gen_instance_code_v0 doc: bits "accepted for API consistency" but changes output.
+- JNI encode_component/algCdcChunks hand-write negative checks instead of `non_negative`.
+- Vacuous tests: WASM `test_iscc_decode_has_all_fields` (no asserts); napi alg_cdc_chunks "respects
+    utf32 mode"/"accepts custom avg_chunk_size".
+- .NET null string -> IsccException, null array -> ArgumentNullException.
+- Go: MetaTrimMeta unused / no meta size limit; GenMetaCodeV0 three meta passes + duplicated tail;
+    one-shot Data/Instance handle Push errors that cannot occur.
+- WASM scalar params pass the name twice (`number()` and `to_*()`); `tests/unit.rs` 1604-line
+    catch-all whose header says non-gen only.
+- Complexity: core gen_iscc_code_v0, iscc_decompose, gen_meta_code_v0.
+- Duplication: error-mapping closures (py/wasm/napi); DataHasher/InstanceHasher wrapper pairs in
+    FFI/.NET/C++; Python stream-read loop x5; soft_hash_meta_v0 vs meta_name_simhash; bits_to_bytes
+    twice; iscc_decode re-decodes base32.
+- Dead: unused `serde` in iscc-wasm and iscc-lib dev-deps; `pytest-cov` dev dep unused.
+- Gate latency: `tests/test_gil.py` text test is ~6 s of ~23 s pytest test time (16 threads x 215k
+    chars on a debug build).
 
 Docs (CID-fixable):
 
-- docs/development.md hook + mise task tables, project tree, tools table stale; prek link wrong repo
-    (the open "Publish" issue covers only that section).
-- Root CLAUDE.md: says mise pins tool versions (mise.toml has no [tools]); hook list misses 6.
-- Getting-started says Go 1.21+, module needs 1.26.1. README binding list omits Swift. Six registry
-    READMEs omit several Tier 1 functions. specs/documentation.md language lists stale.
-- Binding spec CI YAML snippets pin stale action/Go versions (8 files). iscc-wasm CLAUDE.md
-    flat-file threshold exceeded.
+- Ruby how-to Error Handling names only RuntimeError (RangeError/TypeError raised too).
+- Getting-started Go streaming example ignores Push/read errors; says Go 1.21+ (go.mod 1.26.1).
+- `_lowlevel.pyi` docstrings (encode_component ranges, meta trim units).
+- docs/development.md hook/mise/tree/tools tables stale; README omits Swift; registry READMEs omit
+    Tier 1 functions.
 
-Human-owned (target.md / decisions / agent prompts), from iter 249, not re-checked at 260:
+Context drift (CID-fixable; consider one combined entry once the open spec entry is resolved):
 
-- decisions.md "Fable 5.2 as advisor" / `ADVISOR_ROLES` entries reversed later but still listed.
-- `.claude/agents/advance.md`, `review.md` say "stability-committed (v1.0.0+)" at 0.7.0.
-- target.md hard-codes "35" Tier 1 symbols; gen count 9 vs 10 disagrees.
+- Root CLAUDE.md: `iscc_lib::api` module does not exist (streaming module omitted); reference map
+    names a missing file; OIDC list omits npm; says mise pins tools.
+- Specs: nodejs-bindings bridge sketch (camelCase, u32, objects); go-bindings API table/structs;
+    rust-core signatures (alg_cdc_chunks, alg_simhash, soft_hash_video_v0, json_to_data_url);
+    ci-cd.md + ruby-bindings.md describe nonexistent hooks; edge-vectors.md says recover the
+    generator from git (it exists); java-bindings says JUnit 5 (6); 8 specs pin stale CI snippets.
+- `crates/iscc-wasm/CLAUDE.md`: conventions no longer match lib.rs, flat-file threshold exceeded.
+- Human-owned: archived decision "JS-number IDv1 surfaces take f64" contradicted by wasm `JsValue`.
 
-Loop tooling (meta-improve/human, not the CID queue): `tools/metrics.py` times narrower warm-cache
-commands than the pre-push hooks, one sample each, so cargo_test/clippy seconds are noise; TIMEOUT
-rows log cost 0.0; `cid stats` Fails counts legacy PASS rows; metrics skip `scripts/` and ty
-suppressions; on-demand runs consume iteration numbers.
+Loop tooling (meta-improve/human, not the CID queue):
+
+- advance.md step 6 never runs ty/clippy (pre-push only); review fixed advance's ty failure in 270.
+- metrics.py gate timings measure other commands than pre-push, one warm sample (noise); counts
+    gitignored/generated files; TODO/skip counts false positives.
+- release.yml build/test jobs run only on real publish. Review ~47% of iteration cost.
