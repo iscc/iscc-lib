@@ -86,15 +86,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 94cc972, iter 266 — incremental)
+## Current State (assessed-at: 8641ace, iter 267 — incremental)
 
-- **CI on `origin/develop` = `2d1a4f2` GREEN** (run 44922888832; codecov/cursor suites sit `queued`
+- **CI on `origin/develop` = `e195294` GREEN** (run 44924695693; codecov/cursor suites sit `queued`
     forever — judge by the github-actions suite). A `null` check-run conclusion = still running;
     `gh run view <id> --json status,conclusion,jobs` settles it. Job logs: `actions/jobs/<id>/logs`
     API with `--allow-escape-sequences`, strip ANSI.
-- 16 open (14 `normal` + 2 `low`); 7 in `postponed.md`. 265 closed the Python video exception issue
-    (Python now met); review filed `low` untriaged "No CI job runs a test suite on Windows".
-    data-edge.json = 9 sections. `grep -c '#\[test\]' crates/iscc-lib/src/*.rs` sum = 311.
+- 15 open (13 `normal` + 2 `low`); 7 in `postponed.md`. 266 closed Go canonical meta (2 meta vectors
+    added); 265 closed Python video exception (Python met). Swift is the slowest CI job — wait on
+    it. data-edge.json = 9 sections. `grep -c '#\[test\]' crates/iscc-lib/src/*.rs` sum = 311.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
