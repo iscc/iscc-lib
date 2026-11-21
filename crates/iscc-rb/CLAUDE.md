@@ -8,26 +8,7 @@ Magnus 0.8 bridge between Rust `iscc-lib` core and Ruby. Compiled as a native ex
 `rb_sys`. The compiled shared library is named `iscc_rb.so` (matching the Cargo package name
 `iscc-rb` → `iscc_rb`), loaded by Ruby as `require "iscc_lib/iscc_rb"`.
 
-## Key Files
-
-| File                       | Purpose                                                        |
-| -------------------------- | -------------------------------------------------------------- |
-| `src/lib.rs`               | Magnus bindings — `#[magnus::init]` entry point                |
-| `lib/iscc_lib.rb`          | Ruby API wrapper — Result classes, keyword args, native loader |
-| `lib/iscc_lib/version.rb`  | `IsccLib::VERSION` constant                                    |
-| `iscc-lib.gemspec`         | Gem specification (name: `iscc-lib`)                           |
-| `Rakefile`                 | Build tasks — `RbSys::ExtensionTask` with gemspec              |
-| `extconf.rb`               | Extension config — must be at crate root (next to Cargo.toml)  |
-| `Gemfile` / `Gemfile.lock` | Dependencies pinned to specific rb_sys version                 |
-| `.standard.yml`            | Ruby linting config (standard gem + rubocop-minitest)          |
-| `test/test_smoke.rb`       | Smoke tests — all functions, constants, attribute access       |
-| `test/test_iscc_lib.rb`    | Streaming hasher tests — DataHasher, InstanceHasher            |
-| `test/test_conformance.rb` | Conformance tests against data.json vectors                    |
-| `test/test_iscc_id.rb`     | ISCC-IDv1 tests — golden vector, decode round trip, validation |
-| `test/test_seq.rb`         | ISCC-SEQ tests — byte round trip, return types, rejections     |
-| `test/test_array_args.rb`  | Array-argument conversion — mutating elements, TypeError       |
-| `test/test_data_edge.rb`   | Every data-edge.json vector (except.ruby), unknown section     |
-| `test/test_helper.rb`      | Test setup — load path and minitest require                    |
+`extconf.rb` must stay at the crate root, next to `Cargo.toml`.
 
 ## Cross-Compilation (Critical Knowledge)
 

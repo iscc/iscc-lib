@@ -12,26 +12,7 @@ JNI bindings exposing the `iscc-lib` Rust core to Java/Kotlin/JVM languages, pub
 - Wraps all Tier 1 API symbols as `extern "system"` JNI functions with mangled names matching the
     Java class `io.iscc.iscc_lib.IsccLib`
 
-## Module Layout
-
-```
-crates/iscc-jni/
-  Cargo.toml                  # jni crate dep, cdylib
-  src/
-    lib.rs                    # All JNI wrapper functions (single file)
-  java/
-    pom.xml                   # Maven build: io.iscc:iscc-lib, Java 17
-    src/main/java/io/iscc/iscc_lib/
-      IsccLib.java            # Static native method declarations + constants
-      IsccDecodeResult.java   # Result class for isccDecode (maintype, subtype, version, length, digest)
-      SumCodeResult.java      # Result class for genSumCodeV0 (iscc, datahash, filesize, units)
-      NativeLoader.java       # Platform-aware native library loader (JAR extraction + fallback)
-    src/test/java/io/iscc/iscc_lib/
-      IsccLibTest.java        # JUnit 6 conformance + unit tests
-      DataEdgeTest.java       # every data-edge.json vector (except.java), unknown section fails
-      OomProbe.java           # child-JVM main for the OutOfMemoryError mapping test
-  README.md                   # Maven installation and API overview
-```
+## Code Organization
 
 Single Rust file crate. All JNI bridge functions, helper extractors, and streaming hasher wrappers
 live in `src/lib.rs`. Do not split into submodules unless the file exceeds ~1500 lines.
@@ -191,7 +172,7 @@ initializer in `IsccLib` triggers `NativeLoader.load()` automatically on first c
 - Supported platforms: `linux-x86_64`, `linux-aarch64`, `macos-x86_64`, `macos-aarch64`,
     `windows-x86_64`
 - Library filenames: `libiscc_jni.so` (Linux), `libiscc_jni.dylib` (macOS), `iscc_jni.dll` (Windows)
-- Version must stay in sync with workspace version -- coordinated by `scripts/sync_versions.py`
+- Version must stay in sync with workspace version -- coordinated by `scripts/version_sync.py`
     (pom.xml version updated separately)
 
 ## Common Pitfalls

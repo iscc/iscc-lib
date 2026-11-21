@@ -18,20 +18,11 @@ PyO3/maturin Python bindings for the `iscc-lib` Rust core, published to PyPI as 
 - Minimum Python version: `>=3.10` (declared in `pyproject.toml`)
 - Do NOT add features that require newer CPython APIs or per-version builds
 
-## Module Layout
+## Layers
 
-```
-crates/iscc-py/
-  Cargo.toml              # cdylib crate, lib name = "_lowlevel"
-  pyproject.toml           # maturin build backend, module-name = "iscc_lib._lowlevel"
-  src/
-    lib.rs                 # All PyO3 bindings: 30 #[pyfunction]s + 3 #[pyclass]es + #[pymodule]
-  python/iscc_lib/
-    __init__.py            # Public API: wrapper functions, IsccResult classes, re-exports
-    _lowlevel.pyi          # Type stubs for the native Rust extension module
-    _lowlevel.abi3.so      # Build artifact (gitignored in CI, present after maturin develop)
-    py.typed               # PEP 561 marker for type checker discovery
-```
+The Cargo lib name is `_lowlevel`, and `pyproject.toml` sets maturin's
+`module-name = "iscc_lib._lowlevel"`. The compiled `_lowlevel.abi3.so` is gitignored build output
+from `maturin develop`.
 
 ### Rust layer (`src/lib.rs`)
 

@@ -11,38 +11,6 @@ code generation.
 - Does NOT implement any ISCC logic; all computation delegates through `iscc-ffi` to `iscc-lib`
 - Published to NuGet as `Iscc.Lib`
 
-## File Layout
-
-```
-packages/dotnet/
-  README.md                              # NuGet package readme (packed into .nupkg)
-  Iscc.Lib/                              # Library project
-    Iscc.Lib.csproj                      # .NET 8.0 class library, AllowUnsafeBlocks
-    NativeMethods.g.cs                   # csbindgen-generated P/Invoke declarations (DO NOT EDIT)
-    IsccLib.cs                           # Public static API: gen functions, text utils, codec, helpers
-    Results.cs                           # Typed record result types (MetaCodeResult, DataCodeResult, etc.)
-    IsccException.cs                     # Exception type for native library errors
-    IsccDataHasher.cs                    # Streaming Data-Code hasher (IDisposable, SafeHandle)
-    IsccInstanceHasher.cs                # Streaming Instance-Code hasher (IDisposable, SafeHandle)
-    runtimes/                            # Native libraries per RID (populated by CI, gitignored)
-      linux-x64/native/libiscc_ffi.so
-      linux-arm64/native/libiscc_ffi.so
-      osx-arm64/native/libiscc_ffi.dylib
-      osx-x64/native/libiscc_ffi.dylib
-      win-x64/native/iscc_ffi.dll
-  Iscc.Lib.Tests/                        # xUnit test project
-    Iscc.Lib.Tests.csproj                # References Iscc.Lib, xunit.v3, Microsoft.NET.Test.Sdk (exact pinned versions)
-    packages.lock.json                   # Committed NuGet lock file (CI restores with --locked-mode)
-    SmokeTests.cs                        # End-to-end P/Invoke validation for every public method
-    ConformanceTests.cs                  # data.json conformance vectors for gen_*_v0 functions + encode_seq/decode_seq
-    SeqTests.cs                          # EncodeSeq / DecodeSeq error surfacing and accepted input forms
-    NulInputTests.cs                     # Embedded-NUL rejection across string-input methods
-    ArrayInputTests.cs                   # Empty / null inputs across the jagged-array methods
-    DataEdgeTests.cs                     # every data-edge.json vector (except.dotnet), unknown section fails
-    testdata/data.json                   # Vendored ISCC conformance test vectors
-    testdata/data-edge.json              # Vendored shared edge-case vectors
-```
-
 ## C FFI to C# Type Mapping
 
 | C / Rust FFI type             | C# P/Invoke type       | C# public API type     | Notes                                     |
@@ -83,6 +51,9 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 
 ## Test Patterns
 
+`Iscc.Lib.Tests/testdata/data.json` and `data-edge.json` are vendored copies of the fixtures in
+`crates/iscc-lib/tests/`.
+
 ### Smoke tests (`SmokeTests.cs`)
 
 - One `[Fact]` per public method verifying basic functionality
@@ -112,6 +83,7 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 ## Publishing (NuGet)
 
 - **Package ID:** `Iscc.Lib`
+- **Readme:** `packages/dotnet/README.md` is packed into the `.nupkg` as the package readme
 - **Target framework:** `net8.0`
 - **Version source:** `<Version>` in `Iscc.Lib.csproj`, synced with workspace version via
     `mise run version:sync`
@@ -199,9 +171,10 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 - **Version drift:** the `<Version>` in `Iscc.Lib.csproj` must stay in sync with the workspace
     `Cargo.toml` version. Use `mise run version:sync` to update all manifests, and
     `mise run version:check` to verify.
-- **Test dependencies are pinned via a committed lock file:** `Iscc.Lib.Tests` sets
-    `RestorePackagesWithLockFile` and CI restores with `--locked-mode`, so a `PackageReference`
-    version change must regenerate `packages.lock.json` in the same commit:
+- **Test dependencies are pinned via a committed lock file:** `Iscc.Lib.Tests.csproj` pins exact
+    `PackageReference` versions and sets `RestorePackagesWithLockFile`, and CI restores with
+    `--locked-mode`, so a `PackageReference` version change must regenerate `packages.lock.json` in
+    the same commit:
     `dotnet restore packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj --force-evaluate`.
 - **runtimes/ directory is gitignored:** native libraries under `runtimes/` are populated by CI
     during the pack step. Local development uses `LD_LIBRARY_PATH` instead of bundled runtimes.

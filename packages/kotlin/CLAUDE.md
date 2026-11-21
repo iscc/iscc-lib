@@ -11,28 +11,6 @@ code generation.
 - JVM-only (no Kotlin/Native or Kotlin Multiplatform support)
 - Native library loaded at runtime via JNA (`net.java.dev.jna:jna:5.19.1`)
 
-## File Layout
-
-```
-packages/kotlin/
-  build.gradle.kts                          # Gradle build (Kotlin JVM plugin, JNA + test deps)
-  gradle.properties                         # Version property (synced by version_sync.py)
-  settings.gradle.kts                       # Root project name
-  gradlew / gradlew.bat                     # Gradle wrapper scripts
-  gradle/wrapper/                           # Gradle wrapper JAR + properties
-  README.md                                 # Package readme with install and usage examples
-  CLAUDE.md                                 # This file
-  src/
-    main/kotlin/uniffi/iscc_uniffi/
-      iscc_uniffi.kt                        # UniFFI-generated Kotlin bindings (DO NOT EDIT)
-    test/kotlin/uniffi/iscc_uniffi/
-      ConformanceTest.kt                    # data.json vectors (gen_*_v0 functions, ISCC-SEQ) + gen_iscc_id_v1 golden test
-      DataEdgeTest.kt                       # data-edge.json edge-case vectors (every vector, except["kotlin"])
-    test/resources/
-      data.json                             # Vendored ISCC conformance test vectors
-      data-edge.json                        # Vendored edge-case vectors
-```
-
 ## Build Commands
 
 ```bash
@@ -53,6 +31,9 @@ The Gradle build auto-configures `java.library.path`, `jna.library.path`, and `L
 point to `../../target/debug/` relative to the Kotlin package root.
 
 ## Test Patterns
+
+`src/test/resources/data.json` and `data-edge.json` are vendored copies of the fixtures in
+`crates/iscc-lib/tests/`.
 
 ### Conformance tests (`ConformanceTest.kt`)
 

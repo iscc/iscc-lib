@@ -10,25 +10,7 @@ C ABI FFI layer over `iscc-lib`, enabling integration from C, Go (cgo), Java (JN
 - Does NOT implement any ISCC logic; all computation delegates to `iscc-lib`
 - Published: `publish = false` (distributed as compiled artifacts, not to crates.io)
 
-## Module Layout
-
-```
-crates/iscc-ffi/
-  Cargo.toml         # cdylib + staticlib, depends on iscc-lib; csbindgen build-dep
-  cbindgen.toml      # C header generation config
-  build.rs           # Generates C# P/Invoke bindings via csbindgen
-  include/
-    iscc.h           # Generated C header (checked in, regenerate after API changes)
-  src/
-    lib.rs           # All extern "C" functions, #[repr(C)] types, memory management
-    tests.rs         # Rust unit tests (#[cfg(test)] mod tests)
-  tests/
-    test_iscc.c      # C test program that links against the shared library
-    data_edge_vectors.h  # Generated data-edge.json table (C99 + C++17), shared with packages/cpp
-  examples/
-    iscc_sum.c       # Streaming example: reads a file, produces ISCC-CODE
-    CMakeLists.txt   # CMake build for the example
-```
+## Code Organization
 
 All FFI symbols, helper functions, `#[repr(C)]` types, and memory management live in `src/lib.rs`;
 the Rust unit tests live in `src/tests.rs`. Keep every export in `lib.rs`: `build.rs` passes only

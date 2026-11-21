@@ -12,27 +12,14 @@ symbols live in the `iscc::` namespace.
 - Distributed as pre-built tarballs attached to GitHub Releases (shared lib + static lib + `iscc.h`
     \+ `iscc.hpp` + LICENSE) and via a vcpkg portfile
 
-## File Layout
-
-```
-packages/cpp/
-  CMakeLists.txt           # Top-level CMake config (header-only INTERFACE library)
-  README.md                # Package documentation with API overview
-  portfile.cmake           # vcpkg portfile — downloads pre-built FFI tarballs from GitHub Releases
-  include/
-    iscc/
-      iscc.hpp             # The entire C++ wrapper (single header)
-  tests/
-    CMakeLists.txt          # Test build config (links test_iscc against iscc::iscc + iscc_ffi;
-                            # PRIVATE include of crates/iscc-ffi/tests for data_edge_vectors.h)
-    test_iscc.cpp           # Comprehensive smoke tests (35+ test cases)
-  build/                    # Local debug build output (gitignored)
-  build-ci/                 # CI build output (gitignored)
-  build-asan/               # AddressSanitizer build output (gitignored)
-```
+## Code Organization
 
 Single-header package. All RAII guards, result types, wrapper functions, and streaming classes live
 in `include/iscc/iscc.hpp`. Do not split into multiple headers unless the file exceeds ~1500 lines.
+
+`tests/CMakeLists.txt` adds `crates/iscc-ffi/tests` as a PRIVATE include directory of the test
+target, for `data_edge_vectors.h`. The `build/` and `build-*/` directories are gitignored build
+output.
 
 ## Type Mapping (C FFI to C++)
 

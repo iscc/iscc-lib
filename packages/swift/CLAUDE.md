@@ -10,28 +10,6 @@ generation.
 - Does NOT implement any ISCC logic; all computation delegates through `iscc-uniffi` to `iscc-lib`
 - Distributed as a Swift Package Manager (SPM) package via Git tags (not a registry upload)
 
-## File Layout
-
-```
-packages/swift/
-  Package.swift                              # SPM package manifest (swift-tools-version: 5.9)
-  README.md                                  # Package readme with install and usage examples
-  CLAUDE.md                                  # This file
-  Sources/
-    IsccLib/
-      Constants.swift                        # Version constant (isccLibVersion)
-      iscc_uniffi.swift                      # UniFFI-generated Swift bindings (DO NOT EDIT)
-    iscc_uniffiFFI/
-      iscc_uniffiFFI.h                       # UniFFI-generated C header (DO NOT EDIT)
-      module.modulemap                       # Simplified modulemap for SPM (manual, not generated)
-  Tests/
-    IsccLibTests/
-      ConformanceTests.swift                 # data.json vectors (gen_*_v0 functions, ISCC-SEQ) + gen_iscc_id_v1 golden test
-      DataEdgeTests.swift                    # data-edge.json edge-case vectors (every vector, except["swift"])
-      data.json                              # Vendored ISCC conformance test vectors (SPM resource)
-      data-edge.json                         # Vendored edge-case vectors (SPM resource)
-```
-
 ## Build Commands
 
 ```bash
@@ -53,6 +31,9 @@ swift test \
 ```
 
 ## Test Patterns
+
+`Tests/IsccLibTests/data.json` and `data-edge.json` are vendored copies of the fixtures in
+`crates/iscc-lib/tests/`, loaded as SPM resources.
 
 ### Conformance tests (`ConformanceTests.swift`)
 

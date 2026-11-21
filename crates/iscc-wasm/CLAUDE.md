@@ -12,18 +12,7 @@ Browser-compatible WASM bindings for iscc-lib, published as `@iscc/wasm` on npm.
 - Stability tier: "best-effort" -- versioned by npm package version, not SemVer-governed like the
     Rust core
 
-## Module Layout
-
-```
-crates/iscc-wasm/
-  Cargo.toml          # cdylib + rlib, wasm-bindgen deps, publish = false, conformance feature
-  src/
-    lib.rs            # All #[wasm_bindgen] exports (single file, flat)
-  tests/
-    conformance.rs       # gen_*_v0 functions vs canonical data.json vectors
-    data_edge.rs         # every data-edge.json vector (except.wasm), unknown section fails
-    unit.rs              # gen_sum_code_v0, text utils, encoding, codec, algorithm primitives, hashers
-```
+## Code Organization
 
 - `src/lib.rs` contains every exported function. No submodules -- keep it flat until the file
     exceeds ~500 lines.
