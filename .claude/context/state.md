@@ -1,15 +1,15 @@
-<!-- assessed-at: 4a6e546ebbd07b264553609136be85027e726bcf -->
+<!-- assessed-at: b5555637213d08c1a2dfd41dcdbb1401345e5426 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed; 2 normal doc issues owed
+## Phase: v0.8.0 — all features landed; 1 normal guidance issue owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 243 completed and registered the Rust docs with the Tier 1 doc gate, and
-CI is green on that commit. Two `normal` issues block v0.8.0: the derived-fact drift issue (2 parts
-left) and a Rust snippet pinned to the stale 0.4 release.
+all 11 bindings. Iteration 244 completed the C/C++ how-to, registered it with the Tier 1 doc gate
+and removed the stale 0.4 crate pin; CI is green on that commit. One `normal` issue blocks v0.8.0:
+the last part of the derived-fact drift issue (specs and per-crate `CLAUDE.md` files).
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -61,7 +61,8 @@ left) and a Rust snippet pinned to the stale 0.4 release.
 **Status**: met (v0.8.0 scope)
 
 - 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
-    check; `examples/iscc_sum.c` + CMake; `docs/howto/c-cpp.md`; 0.7.0 tarballs on GitHub Releases
+    check; `examples/iscc_sum.c` + CMake; 0.7.0 tarballs on GitHub Releases
+- `docs/howto/c-cpp.md` now names every Tier 1 symbol and is registered `FULL` in the doc gate
 - `tests/test_iscc.c` runs every data-edge row except the 2 marked `c: skip`
 
 ## Java Bindings
@@ -93,16 +94,15 @@ left) and a Rust snippet pinned to the stale 0.4 release.
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run from the generated
     header; ASAN `cpp` job green; 0.7.0 vcpkg/Conan
+- The C++ examples in `docs/howto/c-cpp.md` have no committed compile or output check; review
+    verified them by hand in 244
 
 ## Ruby Bindings
 
 **Status**: met (v0.8.0 scope)
 
 - `encode_seq` / `decode_seq` in `test_conformance.rb`; `test_data_edge.rb` runs all 6 sections
-    strictly; 0.7.0 on RubyGems; `tests/test_ruby_gem_docs.py` ties the documented Ruby range to the
-    `release.yml` cross-gem list
-- Source gem: `scripts/build_ruby_source_gem.py` stages a standalone manifest, the core crate,
-    `Cargo.lock` and the root `[profile.release]`; the `ruby-source-gem` CI job is green
+    strictly; 0.7.0 on RubyGems; `ruby-source-gem` CI job green
 - `low`: published source gems up to 0.7.0 do not build (needs a release; yank is Titusz's call);
     Ruby 3.1 floor EOL (human-only); integer list elements accept a Float
 
@@ -115,22 +115,19 @@ left) and a Rust snippet pinned to the stale 0.4 release.
 
 ## Documentation
 
-**Status**: partially met — 2 `normal` issues open
+**Status**: met for `docs/` and READMEs; 1 `normal` guidance issue open
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs
 - Tier 1 doc gate `scripts/check_tier1_docs.py` (prek hook + pytest, fail-closed `lib.rs` parse):
-    since 243 the registry holds 19 `FULL` docs (incl. `docs/rust-api.md`, `docs/howto/rust.md`,
-    `docs/architecture.md`), 2 `EXACT` and 2 `EXEMPT` (incl. `docs/api.md`, rendered by
-    mkdocstrings); `tests/test_rust_api_signatures.py` pins every signature printed in `rust-api.md`
-    to the crate source
-- **Left in the drift issue:** `docs/howto/c-cpp.md` is the one how-to / API page outside the
-    registry (incomplete C/C++ listing); unchecked counts, file lists and line numbers remain in
-    specs and per-crate `CLAUDE.md` files
-- **`normal` issue:** `docs/howto/rust.md:34` and `crates/iscc-lib/README.md:72` show
-    `version = "0.4"`, which resolves to 0.4.0 (no `encode_seq` / `gen_iscc_id_v1`); not a
-    `version_sync.py` target
-- `low` issue: Sum-Code example comments show `ISCC:KAA…` where the call returns `ISCC:KUA…`
+    registry holds 20 `FULL` docs (every per-language how-to and API page, incl. `c-cpp.md` since
+    244), 2 `EXACT`, 2 `EXEMPT`; `tests/test_rust_api_signatures.py` pins `rust-api.md` signatures
+- 0.4 crate pin gone: `docs/howto/rust.md` and `crates/iscc-lib/README.md` use a version-free
+    `cargo add iscc-lib --no-default-features`
+- **Left in the drift issue (`normal`):** unchecked counts, file lists and line numbers in
+    `.claude/context/specs/` and the per-crate `CLAUDE.md` files
+- `low` issues: Sum-Code example comments show `ISCC:KAA…` (call returns `ISCC:KUA…`); the
+    pkg-config example in `c-cpp.md` hard-codes `Version: 0.2.0`
 
 ## Benchmarks
 
@@ -148,17 +145,17 @@ left) and a Rust snippet pinned to the stale 0.4 release.
     0.7.0
 - Security criterion met except the exempt EOL floors (Python 3.10, .NET 8, Ruby 3.1 — `low`, for
     Titusz); only Rust has a standing advisory gate (`cargo deny`)
-- **Latest CI: PASSING** on `origin/develop` = `3efd437` (github-actions suite `success`):
-    https://github.com/iscc/iscc-lib/actions/runs/44853805032
+- **Latest CI: PASSING** on `origin/develop` = `f09041d` (github-actions suite `success`):
+    https://github.com/iscc/iscc-lib/actions/runs/44857445897
 - HEAD is ahead only by a `.claude` log commit — green CI covers all code at HEAD
 
 ## Open Issues
 
-12 open: 0 critical, **2 normal** (derived-fact drift `[human]`; 0.4 snippet pin `[review]`), 10
-low. issues.md is at 221 of 300 lines.
+12 open: 0 critical, **1 normal** (derived-fact drift `[human]`, specs + `CLAUDE.md` part), 11 low.
+issues.md is at 213 of 300 lines.
 
 ## Next Milestone
 
-Close the two open `normal` documentation issues — the unregistered C/C++ how-to, the unchecked
-hand-written counts in specs and guidance, and the stale 0.4 crate-version snippet — so v0.8.0 meets
+Close the last `normal` issue — remove or bring under a check the hand-written counts, file lists
+and line numbers in `.claude/context/specs/` and the per-crate `CLAUDE.md` files — so v0.8.0 meets
 its release criteria.
