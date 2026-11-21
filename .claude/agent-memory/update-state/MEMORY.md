@@ -86,13 +86,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: b5d43e0, iter 280 — incremental)
+## Current State (assessed-at: f1c7636, iter 281 — incremental)
 
-- All code pushed; run 44955385494 (`363d8c5`) GREEN on every job; tip `ef754ed` (`.claude`-only
-    review commit) in progress. codecov/cursor suites sit `queued` forever — judge by the
-    github-actions suite.
-- 14 open (0 `critical` + 5 `normal` + 9 `low`, 8 untriaged); 7 postponed. iscc-lib `src/` 315
-    `#[test]`; iscc-uniffi 30; JNI `IsccLibTest.java` 65 `@Test`.
+- Origin tip `8e8a5a9` run 44957320561 GREEN (24/24); local HEAD +4 `.claude`-only commits (audit
+    280 + logs). codecov/cursor suites sit `queued` forever — judge by the github-actions suite.
+- 17 open (0 `critical` + 8 `normal` + 9 `low`, 8 untriaged); 7 postponed. Audit 280 filed 5
+    `normal` (Go MetaTrimMeta unenforced, vcpkg v0.2.0 SHA512s, dup data.json parsers, WASM finalize
+    state, Rust tier docs) → Go + C++ sections flipped to partially met with zero code change.
+    iscc-lib `src/` 315 `#[test]`; iscc-uniffi 30; JNI `IsccLibTest.java` 65 `@Test`.
 - **JNI layouts:** CI `java` job runs Maven twice since 279 — `target/debug` layout, then
     bundled-resource-only (mirrors `release.yml` → `test-jni`).
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
