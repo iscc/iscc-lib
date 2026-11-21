@@ -46,6 +46,8 @@ var edgeSections = map[string]edgeCaller{
 	"gen_mixed_code_v0": edgeCallMixed,
 	"gen_iscc_code_v0":  edgeCallIsccCode,
 	"alg_simhash":       edgeCallSimhash,
+	"gen_meta_code_v0":  edgeCallMeta,
+	"gen_video_code_v0": edgeCallVideo,
 }
 
 // loadEdgeDoc reads and parses the vendored data-edge.json.
@@ -188,6 +190,66 @@ func edgeCallSimhash(inputs []json.RawMessage) (edgeCall, error) {
 	}
 	call := func() (any, error) { return AlgSimhash(digests) }
 	convert := func(r any) any { return edgeBytes(r.([]byte)) }
+	return edgeCall{call, convert}, nil
+}
+
+// edgeMetaArg reads the input at index as a meta argument: a JSON object is
+// passed as its raw JSON text, a string as is.
+func edgeMetaArg(inputs []json.RawMessage, index int) (string, error) {
+	if index >= len(inputs) {
+		return "", fmt.Errorf("input %d is missing", index)
+	}
+	raw := strings.TrimSpace(string(inputs[index]))
+	if strings.HasPrefix(raw, "{") {
+		return raw, nil
+	}
+	var meta string
+	err := edgeArg(inputs, index, &meta)
+	return meta, err
+}
+
+// edgeCallMeta prepares GenMetaCodeV0 (an empty description means none).
+func edgeCallMeta(inputs []json.RawMessage) (edgeCall, error) {
+	var name, description string
+	var bits uint32
+	if err := edgeArg(inputs, 0, &name); err != nil {
+		return edgeCall{}, err
+	}
+	if err := edgeArg(inputs, 1, &description); err != nil {
+		return edgeCall{}, err
+	}
+	meta, err := edgeMetaArg(inputs, 2)
+	if err != nil {
+		return edgeCall{}, err
+	}
+	if err := edgeArg(inputs, 3, &bits); err != nil {
+		return edgeCall{}, err
+	}
+	var desc *string
+	if description != "" {
+		desc = &description
+	}
+	call := func() (any, error) { return GenMetaCodeV0(name, desc, &meta, bits) }
+	convert := func(r any) any {
+		res := r.(*MetaCodeResult)
+		return map[string]any{"iscc": res.Iscc, "name": res.Name,
+			"description": res.Description, "meta": res.Meta, "metahash": res.Metahash}
+	}
+	return edgeCall{call, convert}, nil
+}
+
+// edgeCallVideo prepares GenVideoCodeV0 on the vector's frame signatures and bits.
+func edgeCallVideo(inputs []json.RawMessage) (edgeCall, error) {
+	var frames [][]int32
+	var bits uint32
+	if err := edgeArg(inputs, 0, &frames); err != nil {
+		return edgeCall{}, err
+	}
+	if err := edgeArg(inputs, 1, &bits); err != nil {
+		return edgeCall{}, err
+	}
+	call := func() (any, error) { return GenVideoCodeV0(frames, bits) }
+	convert := func(r any) any { return map[string]any{"iscc": r.(*VideoCodeResult).Iscc} }
 	return edgeCall{call, convert}, nil
 }
 
