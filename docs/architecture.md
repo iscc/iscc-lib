@@ -114,8 +114,8 @@ downstream Rust consumers.
 
 ### Tier 1 — Stable Public API
 
-Tier 1 is everything `lib.rs` makes public at the crate root, bound in all languages. Changes
-require a SemVer MAJOR bump.
+Tier 1 is the functions, constants and streaming types that `lib.rs` exports at the crate root,
+bound in all languages. Changes require a SemVer MAJOR bump.
 
 - **Code generation:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,

@@ -142,10 +142,8 @@ facts are checked or not written". The Tier 1 symbol list is gated since iterati
 (`scripts/check_tier1_docs.py`: registered docs must name every symbol derived from `lib.rs`, and
 the `lib.rs` parse fails closed). Two parts of the problem are left:
 
-- **Docs below the discovery threshold are unchecked.** `docs/howto/rust.md`, `docs/howto/c-cpp.md`,
-    `docs/rust-api.md` and `docs/architecture.md` → "Tier 1" enumerate the API, are incomplete, and
-    are too incomplete for the gate to notice. `docs/rust-api.md` also still says all gen functions
-    return `IsccResult<String>`
+- **`docs/howto/c-cpp.md` is not in the gate's registry.** It enumerates the C and C++ API, is
+    incomplete, and names too few symbols for the gate's discovery threshold to notice it
 - **Unchecked counts, file lists and line numbers** remain in `.claude/context/specs/` and the
     per-crate `CLAUDE.md` files
 
@@ -156,6 +154,19 @@ Resolved when both hold:
 - counts, file lists and line numbers that no check covers are gone from `.claude/context/specs/`
     and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
     functions") or brought under a check
+
+## The minimal-build snippet pins `iscc-lib` to 0.4 `normal` [review]
+
+`docs/howto/rust.md` → "Feature flags" and `crates/iscc-lib/README.md` both show
+`iscc-lib = { version = "0.4", default-features = false }`. Cargo reads `"0.4"` as `^0.4`, which
+resolves to 0.4.0 while 0.7.0 is current (crates.io, read 2026-11-21). A reader who copies the line
+and then follows the same how-to gets an unresolved import for `encode_seq` and `gen_iscc_id_v1`:
+the published 0.4.0 has neither (measured in iteration 243). `scripts/version_sync.py` does not
+cover the two lines. Pre-existing.
+
+Resolved when neither file shows a crate version that no check keeps current: the snippet is
+version-free (`cargo add iscc-lib --no-default-features`), or both lines are `version_sync.py`
+targets.
 
 ## Published Ruby source gems up to 0.7.0 do not build `low` [review]
 

@@ -103,7 +103,8 @@ Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`)
     CI job after the push → `binding-reviews.md`
 - **Doc-parity gate / doc-listing step (233, ~25 min)**: restore previous docs in a `git archive`
     repo, feed the parser unlisted forms (fail-open?), RUN every return type the docs add;
-    **parser-only step (242, ~6 min)**: old-vs-new derive, form sweep, mutants →
+    **parser-only step (242, ~6 min)**: old-vs-new derive, form sweep, mutants; **Rust docs
+    completion step (243, ~20 min)**: compile every example in a `/tmp` cargo project →
     `review-patterns.md` "Doc-parity gate (233)"
 - **WASM return-shape step (234, ~10 min)**: `#[wasm_bindgen_test]` never crosses the JS glue —
     probe the built `--target nodejs` pkg from Node + read the `.d.ts` → `binding-reviews.md`

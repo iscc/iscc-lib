@@ -636,8 +636,8 @@ assert_eq!(instance_hasher.finalize(64)?.iscc, "ISCC:IAAUD6BZIEI6W4J2");
 
 ## Constants
 
-Algorithm parameters shared with the reference implementation. The three `META_TRIM_*` constants
-require the `meta-code` feature (on by default).
+Algorithm parameters shared with the reference implementation. The `META_TRIM_*` constants require
+the `meta-code` feature (on by default).
 
 ```rust
 pub const META_TRIM_NAME: usize = 128;

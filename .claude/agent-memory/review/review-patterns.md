@@ -614,6 +614,19 @@ Full text of entries compacted out of `MEMORY.md`.
     `LC_ALL=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0` (233: `write_text` of `lib.rs` raised there)
 - **Rewriting a part-done `[human]` issue**: keep its untouched "Resolved when" bullets verbatim and
     replace the done bullet by the measured remainder; never mark the bullet done on a threshold
+- **Rust docs completion step (243 PASS, ~20 min)**: three probes carried it. (1) A `/tmp` cargo
+    project (`[workspace]` table, path dep on `crates/iscc-lib`, `CARGO_TARGET_DIR=/tmp/…`) with
+    every ```` ```rust ```` example block wrapped in a `#[test] fn … -> Result<(), Box<dyn Error>>`:
+    15 s build, nothing lands in the tree while Codex runs. Expected failures are only the
+    placeholder files (`document.pdf`, `large_file.bin`). Run it over the sibling pages too
+    (`README.md`, `crates/iscc-lib/README.md`, `docs/index.md`, the tutorial). (2) Python probe of
+    every `gen_*` for `isinstance(r, dict) and r["iscc"] == r.iscc`. (3) Signatures are now pinned
+    by `tests/test_rust_api_signatures.py`; its mutant is the page's previous version
+    (`git show HEAD~1:docs/rust-api.md` → 10 stale). A generic fn (`gen_video_code_v0<S…>(`) breaks
+    any `name(` match: match on the name alone
+- **A `zensical build` "page does not exist" warning during a background Codex run was a race**
+    (243: both wipe `site/`); it exits 0 either way, so re-run it once Codex is done and read the
+    output. **A count word hides from a digit grep**: "The three `META_TRIM_*` constants" (243)
 
 ## Install-claim probe (238)
 
