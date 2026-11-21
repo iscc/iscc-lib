@@ -1,15 +1,15 @@
-<!-- assessed-at: 8c3f8305959488bd7445f998bb10f4fa12d35964 -->
+<!-- assessed-at: e79919d96f30eae7558760578f8e89853e9e74ff -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 16 `normal` issues block the release
+## Phase: v0.8.0 — features done; 15 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 270 raised the
-Ruby floor to 3.3 (closing that `[human]` issue), and the iteration-270 audit filed 5 more `normal`
-issues. CI is green on the pushed tip `0fcdae3`, which covers all code at HEAD. 22 issues are open:
-0 `critical`, 16 `normal`, 6 `low`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 271 pinned the
+development Ruby (3.4.13) in `mise.toml` and closed the devcontainer Ruby-gates issue. CI on the
+pushed tip `d2d4012` (covers all code at HEAD) has 23 of 24 jobs green with Coverage + CRAP still
+running. 21 issues are open: 0 `critical`, 15 `normal`, 6 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -105,12 +105,13 @@ issues. CI is green on the pushed tip `0fcdae3`, which covers all code at HEAD. 
 
 ## Ruby Bindings
 
-**Status**: partially met (two `normal`, three `low`)
+**Status**: partially met (one `normal`, three `low`)
 
 - `encode_seq` / `decode_seq`; data-edge runs strictly; floor is 3.3 (gemspec `>= 3.3.0`, CI `ruby`
-    job 3.3, `release.yml:850` cross-gems 3.3 and 3.4, parity-tested); minitest 6.1.0
-- `normal`: a rebuilt devcontainer cannot run the Ruby gates (`post-create.sh` bundles under system
-    Ruby 3.1; nothing pins Ruby in `mise.toml`)
+    job 3.3, `release.yml` cross-gems 3.3 and 3.4); minitest 6.1.0
+- Development Ruby pinned in root `mise.toml` (`ruby = "3.4.13"`, the only `[tools]` pin); both
+    standardrb hooks run `mise exec --`; `postCreateCommand` bundles under it; guarded by
+    `tests/test_ruby_gem_docs.py`
 - `normal`: document the implicit Float→Integer `to_int` conversion
 - `low`: source gems up to 0.7.0 do not build; `release.yml` loads only the 3.3 precompiled binary
     before publish; Ruby 4.0 gets no precompiled gem (needs rb_sys past 0.9.123)
@@ -148,23 +149,24 @@ issues. CI is green on the pushed tip `0fcdae3`, which covers all code at HEAD. 
 **Status**: partially met (one `normal`, one `low`; release criteria otherwise met)
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
-    version-sync targets at 0.7.0
+    version-sync targets at 0.7.0; `specs/ci-cd.md` now records the `mise.toml` Ruby pin
 - `normal` (audit): gates test generated/built artifacts nothing refreshes or diffs (stale local
     `_lowlevel.abi3.so` under pre-push pytest; `NativeMethods.g.cs` and UniFFI outputs undiffed)
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING** on `origin/develop` = `0fcdae3`:
-    https://github.com/iscc/iscc-lib/actions/runs/44935056667 — first run of the `ruby` job on 3.3;
-    the unpushed commits touch `.claude/` only
+- **Latest CI: IN PROGRESS** on `origin/develop` = `d2d4012`:
+    https://github.com/iscc/iscc-lib/actions/runs/44940855523 — 23 of 24 jobs `success`, Coverage +
+    CRAP still running; the change since the last fully green run (`0fcdae3`, run 44935056667)
+    touches no Rust source; HEAD's only unpushed commit is `.claude/` only
 
 ## Open Issues
 
-22 open in issues.md: 0 `critical`, 16 `normal`, 6 `low`; none blocked on the human or upstream (the
-`alg_minhash_256` entry needs a decision). The Ruby floor issue was closed; review filed the
-devcontainer `normal` and two Ruby `low`; the audit filed 5 `normal`. 7 sit in `postponed.md`.
+21 open in issues.md: 0 `critical`, 15 `normal`, 6 `low`; none blocked on the human or upstream (the
+`alg_minhash_256` entry needs a decision). The devcontainer Ruby-gates issue was closed this
+iteration. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the 16 `normal` issues that block v0.8.0 — loop/tooling health (devcontainer Ruby gates,
-undiffed generated artifacts) first, then the code defects (UniFFI `text_trim`, FFI padding, JNI
-loader fallback, `alg_minhash_256` decision, duplication) and the docs/spec accuracy entries. Then
-Titusz cuts v0.8.0 via `/release`.
+Clear the 15 `normal` issues that block v0.8.0 — the remaining tooling-health entry (undiffed
+generated artifacts), the code defects (UniFFI `text_trim`, FFI padding, JNI loader fallback,
+`alg_minhash_256` decision, duplication) and the docs/spec accuracy entries. Confirm the in-progress
+CI run on `d2d4012` finishes green. Then Titusz cuts v0.8.0 via `/release`.
