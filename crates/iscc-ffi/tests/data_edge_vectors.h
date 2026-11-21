@@ -14,6 +14,7 @@
  * A frame signature is an int32 array with an explicit length; an empty
  * frame points at a one-element sentinel array with length 0.
  * A meta object is rendered as its JSON text (gen_meta_code_v0).
+ * alg_cdc_chunks data is one byte string; its chunks are a byte-string list.
  * Error rows carry zeroed outputs.
  *
  * Regenerate with: uv run --script scripts/gen_data_edge_vectors.py
@@ -129,6 +130,17 @@ struct iscc_edge_gen_video_code_v0_vector {
     struct iscc_edge_frames frame_sigs;
     unsigned int bits;
     struct iscc_edge_str iscc;
+};
+
+/* alg_cdc_chunks: bytes, utf32, avg_chunk_size -> byte-string chunk list. */
+struct iscc_edge_alg_cdc_chunks_vector {
+    const char *name;
+    int c;
+    int cpp;
+    struct iscc_edge_str data;
+    int utf32;
+    uint32_t avg_chunk_size;
+    struct iscc_edge_list chunks;
 };
 
 #define ISCC_EDGE_ISCC_DECODE_COUNT 5
@@ -318,6 +330,22 @@ static const struct iscc_edge_gen_video_code_v0_vector iscc_edge_gen_video_code_
      {iscc_edge_gen_video_code_v0_1_frames, iscc_edge_gen_video_code_v0_1_lens, 2}, 64, {0, 0}},
 };
 
-#define ISCC_EDGE_TOTAL_COUNT 21
+static const char *const iscc_edge_alg_cdc_chunks_0_items[] = {"\000", "\001\002", "\003\004\005", "\006\007\010", "\011\012\013", "\014\015\016", "\017\020\021", "\022", "\023\024", "\025", "\026\027", "\030\031", "\032", "\033", "\034", "\035\036", "\037"};
+static const size_t iscc_edge_alg_cdc_chunks_0_lens[] = {1, 2, 3, 3, 3, 3, 3, 1, 2, 1, 2, 2, 1, 1, 1, 2, 1};
+static const char *const iscc_edge_alg_cdc_chunks_1_items[] = {"\000\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037"};
+static const size_t iscc_edge_alg_cdc_chunks_1_lens[] = {32};
+static const char *const iscc_edge_alg_cdc_chunks_2_items[] = {""};
+static const size_t iscc_edge_alg_cdc_chunks_2_lens[] = {0};
+#define ISCC_EDGE_ALG_CDC_CHUNKS_COUNT 3
+static const struct iscc_edge_alg_cdc_chunks_vector iscc_edge_alg_cdc_chunks[ISCC_EDGE_ALG_CDC_CHUNKS_COUNT] = {
+    {"test_0001_small_average_many_chunks", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     {"\000\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037", 32}, 0, 2u, {iscc_edge_alg_cdc_chunks_0_items, iscc_edge_alg_cdc_chunks_0_lens, 17}},
+    {"test_0002_largest_average_all_reference_builds", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     {"\000\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037", 32}, 0, 536870911u, {iscc_edge_alg_cdc_chunks_1_items, iscc_edge_alg_cdc_chunks_1_lens, 1}},
+    {"test_0003_empty_input", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     {"", 0}, 0, 1024u, {iscc_edge_alg_cdc_chunks_2_items, iscc_edge_alg_cdc_chunks_2_lens, 1}},
+};
+
+#define ISCC_EDGE_TOTAL_COUNT 24
 
 #endif /* ISCC_DATA_EDGE_VECTORS_H */

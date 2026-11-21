@@ -252,6 +252,56 @@ def test_non_object_meta_fails_closed(tmp_path):
         gen.render(mutated)
 
 
+def test_cdc_rows_render_data_flag_size_and_chunks():
+    """The alg_cdc_chunks rows carry the data, utf32 flag, average size and chunk list."""
+    fixture = load_fixture()
+    text = HEADER.read_text(encoding="utf-8")
+    for index, (name, vector) in enumerate(fixture["alg_cdc_chunks"].items()):
+        data, utf32, avg = vector["inputs"]
+        chunks = [bytes.fromhex(c.removeprefix("bytes:")) for c in vector["outputs"]]
+        lines, init = gen.byte_list_arrays(f"iscc_edge_alg_cdc_chunks_{index}", chunks)
+        head = f"{gen.c_str(bytes.fromhex(data.removeprefix('bytes:')))}, {int(utf32)}, {avg}u"
+        assert all(line in text for line in lines), name
+        assert f"{head}, {init}}}," in text, name
+    assert '{"", 0}, 0, 1024u, ' in text, (
+        "empty data must render as a non-NULL empty string"
+    )
+
+
+def test_cdc_error_row_renders_zeroed_chunk_list(tmp_path):
+    """An alg_cdc_chunks error row renders a zeroed chunk list and no chunk arrays."""
+
+    def mutate(fixture):
+        vector = fixture["alg_cdc_chunks"]["test_0003_empty_input"]
+        del vector["outputs"]
+        vector["error"] = "e"
+
+    text = gen.render(write_mutated_fixture(tmp_path, mutate))
+    assert '{"", 0}, 0, 1024u, {0, 0, 0}},' in text
+    assert "iscc_edge_alg_cdc_chunks_2_items" not in text
+
+
+@pytest.mark.parametrize(
+    ("index", "value", "message"),
+    [
+        (0, "0001", "bytes:<hex>"),
+        (1, 0, "boolean"),
+        (2, 2**32, "uint32"),
+        (2, True, "non-negative integer"),
+    ],
+)
+def test_cdc_bad_input_fails_closed(tmp_path, index, value, message):
+    """An alg_cdc_chunks input of the wrong type or range refuses to render."""
+
+    def mutate(fixture):
+        vector = next(iter(fixture["alg_cdc_chunks"].values()))
+        vector["inputs"][index] = value
+
+    mutated = write_mutated_fixture(tmp_path, mutate)
+    with pytest.raises(SystemExit, match=message):
+        gen.render(mutated)
+
+
 def test_mutated_expected_value_renders_different_header(tmp_path):
     """A changed expected value changes the render, so the staleness gate fires."""
 

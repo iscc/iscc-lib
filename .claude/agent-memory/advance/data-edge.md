@@ -41,3 +41,10 @@ metadata:
 - Swift scalars (232): corelibs AND Darwin `NSNumber` casts are loose (`false as? Int`=0,
     `0 as? Bool` =false). Data-edge harness classifies via `DataEdge.scalar` (re-serialise `[v]`
     after `isValidJSONObject`); synthetic Swift docs → `parsedDoc(#"json"#)`, never literals
+- Sections (264): 9 incl. `alg_cdc_chunks` (`["bytes:<hex>", bool, int]` → list of `bytes:`).
+    **Fixture is HAND-FORMATTED** (compact int rows in video, a `\u2028` escape in meta): never
+    `json.dumps` the whole file. Splice the new section as text before the final `\n}\n`
+    (`json.dumps({sec: ...}, indent=2)[1:-2]`) and write the same bytes to all 5 copies. C struct
+    takes `uint32_t` for u32 inputs (literal `NNNu`); error rows zero a list as `{0, 0, 0}`.
+    iscc-core builds differ for CDC avg >= 2^29 (compiled wheel py3.10-3.14 vs pure 3.15 sdist):
+    check every vector with `uv run --no-project --python <3.10|3.15> --with iscc-core==1.5.0`

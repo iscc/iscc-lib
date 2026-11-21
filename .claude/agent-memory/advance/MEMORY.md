@@ -18,8 +18,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `encode_seq` + 4 `decode_seq`, outputs `bytes:<hex>`/list). Vendored copies
     (packages/{dotnet,go,kotlin,swift}) gated by `tests/test_vendored_fixtures.py` — any NEW tracked
     `data.json` copy → register in `VENDORED_COPIES` or the test reds
-- Data-edge vectors (215-253): `crates/iscc-lib/tests/data-edge.json`, 12 harnesses, C/C++ via
-    generated header, sections, output subset, Swift scalars, throwaway proof → data-edge.md
+- Data-edge vectors (215-264, 9 sections; fixture hand-formatted, splice as text):
+    `crates/iscc-lib/tests/data-edge.json`, 12 harnesses, C/C++ via generated header, sections,
+    output subset, Swift scalars, throwaway proof → data-edge.md
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
 - Doc example checks (238/243/244): Java/C++/Rust doc blocks compiled in /tmp → doc-checks.md

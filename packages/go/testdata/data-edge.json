@@ -227,5 +227,56 @@
       "note": "iscc-core truncates frame signatures of unequal length to the shortest, so a malformed input still yields a code.",
       "diverges": "decisions.md 2026-11-21: Video frame signatures of unequal length are rejected, where iscc-core truncates"
     }
+  },
+  "alg_cdc_chunks": {
+    "test_0001_small_average_many_chunks": {
+      "inputs": [
+        "bytes:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        false,
+        2
+      ],
+      "outputs": [
+        "bytes:00",
+        "bytes:0102",
+        "bytes:030405",
+        "bytes:060708",
+        "bytes:090a0b",
+        "bytes:0c0d0e",
+        "bytes:0f1011",
+        "bytes:12",
+        "bytes:1314",
+        "bytes:15",
+        "bytes:1617",
+        "bytes:1819",
+        "bytes:1a",
+        "bytes:1b",
+        "bytes:1c",
+        "bytes:1d1e",
+        "bytes:1f"
+      ],
+      "note": "The smallest accepted average cuts 32 bytes into 17 chunks, which pins the cut-point masks and the min/max chunk sizes."
+    },
+    "test_0002_largest_average_all_reference_builds": {
+      "inputs": [
+        "bytes:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        false,
+        536870911
+      ],
+      "outputs": [
+        "bytes:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      ],
+      "note": "2^29 - 1 is the largest average the compiled iscc-core build accepts (it types the mask as uint32_t); input shorter than the minimum chunk stays one chunk."
+    },
+    "test_0003_empty_input": {
+      "inputs": [
+        "bytes:",
+        false,
+        1024
+      ],
+      "outputs": [
+        "bytes:"
+      ],
+      "note": "Empty input yields one empty chunk, as in the reference, not an empty list."
+    }
   }
 }

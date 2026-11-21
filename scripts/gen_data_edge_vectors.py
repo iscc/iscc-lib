@@ -82,6 +82,7 @@ HEADER_PREAMBLE = """\
  * A frame signature is an int32 array with an explicit length; an empty
  * frame points at a one-element sentinel array with length 0.
  * A meta object is rendered as its JSON text (gen_meta_code_v0).
+ * alg_cdc_chunks data is one byte string; its chunks are a byte-string list.
  * Error rows carry zeroed outputs.
  *
  * Regenerate with: uv run --script scripts/gen_data_edge_vectors.py
@@ -198,11 +199,23 @@ struct iscc_edge_gen_video_code_v0_vector {
     unsigned int bits;
     struct iscc_edge_str iscc;
 };
+
+/* alg_cdc_chunks: bytes, utf32, avg_chunk_size -> byte-string chunk list. */
+struct iscc_edge_alg_cdc_chunks_vector {
+    const char *name;
+    int c;
+    int cpp;
+    struct iscc_edge_str data;
+    int utf32;
+    uint32_t avg_chunk_size;
+    struct iscc_edge_list chunks;
+};
 """
 
 HEADER_POSTAMBLE = "#endif /* ISCC_DATA_EDGE_VECTORS_H */\n"
 
 NULL_STR = "{0, 0}"
+NULL_LIST = "{0, 0, 0}"
 # Frame values per line in a rendered int32 array.
 INT32_PER_LINE = 20
 
@@ -257,6 +270,21 @@ def require_int(value: object, where: str) -> int:
     """Return value if it is a non-negative integer (not a bool), else fail closed."""
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise SystemExit(f"{where}: expected a non-negative integer, got {value!r}")
+    return value
+
+
+def require_u32(value: object, where: str) -> int:
+    """Return value if it is an integer in the `uint32_t` range (not a bool), else fail closed."""
+    number = require_int(value, where)
+    if number >= 2**32:
+        raise SystemExit(f"{where}: expected a uint32 integer, got {value!r}")
+    return number
+
+
+def require_bool(value: object, where: str) -> bool:
+    """Return value if it is a boolean, else fail closed."""
+    if not isinstance(value, bool):
+        raise SystemExit(f"{where}: expected a boolean, got {value!r}")
     return value
 
 
@@ -498,6 +526,21 @@ def row_gen_video_code_v0(
     return lines, f"{frames_init}, {require_int(bits, where)}, {iscc}"
 
 
+def row_alg_cdc_chunks(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
+    """Return the chunk-list array lines and fields of one `alg_cdc_chunks` row."""
+    data, utf32, avg = require_arity(vector["inputs"], (3,), where)
+    head = (
+        f"{c_str(fixture_bytes(data, where))}, {int(require_bool(utf32, where))}, "
+        f"{require_u32(avg, where)}u"
+    )
+    if "error" in vector:
+        return [], f"{head}, {NULL_LIST}"
+    lines, chunks_init = byte_list_arrays(
+        ident, require_bytes_list(vector["outputs"], where)
+    )
+    return lines, f"{head}, {chunks_init}"
+
+
 # Section name -> row renderer; the section order is the header order.
 RENDERERS = {
     "iscc_decode": row_iscc_decode,
@@ -508,6 +551,7 @@ RENDERERS = {
     "alg_simhash": row_alg_simhash,
     "gen_meta_code_v0": row_gen_meta_code_v0,
     "gen_video_code_v0": row_gen_video_code_v0,
+    "alg_cdc_chunks": row_alg_cdc_chunks,
 }
 
 
