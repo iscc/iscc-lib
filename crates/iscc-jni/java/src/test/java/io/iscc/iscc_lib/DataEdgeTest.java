@@ -46,7 +46,8 @@ class DataEdgeTest {
             "gen_iscc_code_v0", DataEdgeTest::callIsccCode,
             "alg_simhash", DataEdgeTest::callSimhash,
             "gen_meta_code_v0", DataEdgeTest::callMeta,
-            "gen_video_code_v0", DataEdgeTest::callVideo);
+            "gen_video_code_v0", DataEdgeTest::callVideo,
+            "alg_cdc_chunks", DataEdgeTest::callCdc);
 
     /** Load and parse the canonical data-edge.json. */
     private static JsonObject loadDoc() throws Exception {
@@ -69,16 +70,30 @@ class DataEdgeTest {
         return out;
     }
 
+    /** Decode one {@code bytes:<hex>} input value into bytes. */
+    private static byte[] decodeBytes(JsonElement input) {
+        String item = input.getAsString();
+        if (!item.startsWith("bytes:")) {
+            throw new IllegalStateException("expected a bytes:<hex> input, got " + item);
+        }
+        return HexFormat.of().parseHex(item.substring("bytes:".length()));
+    }
+
     /** Decode a JSON array input of {@code bytes:<hex>} values into a byte array per item. */
     private static byte[][] byteArrays(JsonElement input) {
         JsonArray items = input.getAsJsonArray();
         byte[][] out = new byte[items.size()][];
         for (int i = 0; i < out.length; i++) {
-            String item = items.get(i).getAsString();
-            if (!item.startsWith("bytes:")) {
-                throw new IllegalStateException("expected a bytes:<hex> input, got " + item);
-            }
-            out[i] = HexFormat.of().parseHex(item.substring("bytes:".length()));
+            out[i] = decodeBytes(items.get(i));
+        }
+        return out;
+    }
+
+    /** Convert {@code algCdcChunks} chunks to a list of {@code bytes:<hex>} values. */
+    private static JsonElement chunksArray(Object result) {
+        JsonArray out = new JsonArray();
+        for (byte[] chunk : (byte[][]) result) {
+            out.add(bytesValue(chunk));
         }
         return out;
     }
@@ -158,6 +173,14 @@ class DataEdgeTest {
     private static Prepared callSimhash(JsonArray inputs) {
         byte[][] digests = byteArrays(inputs.get(0));
         return new Prepared(() -> IsccLib.algSimhash(digests), r -> bytesValue((byte[]) r));
+    }
+
+    /** Prepare {@code algCdcChunks} on the vector's data, {@code utf32} flag and average size. */
+    private static Prepared callCdc(JsonArray inputs) {
+        byte[] data = decodeBytes(inputs.get(0));
+        boolean utf32 = inputs.get(1).getAsBoolean();
+        int avg = inputs.get(2).getAsInt();
+        return new Prepared(() -> IsccLib.algCdcChunks(data, utf32, avg), DataEdgeTest::chunksArray);
     }
 
     /** Prepare {@code genMetaCodeV0} (an empty description means none). */
