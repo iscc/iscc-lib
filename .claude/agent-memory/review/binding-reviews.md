@@ -628,3 +628,11 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     `[patch]` and lints of the root do not reach it. `file <so>` shows "not stripped". I reviewed
     the 239 manifest for what it must NOT contain and never for what it lost
 - Codex over a multi-commit unpushed batch: `codex exec review --base <upstream sha>` (~12 min)
+- **Profile-copy review (iter 241, PASS, ~12 min)**: two scripts, both rerunnable in shape.
+    `verify.sh`: pytest, build, `tar -xOf <gem> data.tar.gz | tar -xz -C <dir>` + `grep -qxF` per
+    key, clean install (52 s with LTO), `file` on both `.so` copies, and
+    `find $GEM_HOME -name gem_make.out` to read the cargo line (`--profile release`). `mutate.sh`:
+    `git archive HEAD` copy, one `str.replace` per mutant with a `count == 1` assert, run with
+    `uv run --project /workspace/iscc-lib pytest … --no-cov`. Six mutants of a text-slice helper (no
+    stop at next header, retyped result, dropped key, each fail-closed arm off): all killed. Codex
+    (~4 min): no findings

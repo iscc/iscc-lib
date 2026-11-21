@@ -1,62 +1,68 @@
-## 2026-11-21 — Give the Ruby source gem the workspace release profile
+## 2026-11-21 — Review of: Give the Ruby source gem the workspace release profile
 
-**Done:** `scripts/build_ruby_source_gem.py` now copies the root `[profile.release]` table into the
-staged standalone `Cargo.toml`. It takes the key lines verbatim from the root `Cargo.toml`, so
-nothing is retyped (no `tomllib`). The helper `release_profile(text)` fails closed on a missing or
-duplicated table, a table with no keys, and any `[profile.release.<x>]` sub-table anywhere in the
-file. A source install on Ruby 3.4 now builds a stripped extension that passes the selftest.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `scripts/build_ruby_source_gem.py`: `TOML_HEADER` regex plus the helpers `header_name`,
-    `is_key_line` and `release_profile`.
-    `render_manifest(rb_package, release_profile_keys, core_dir)` writes the `[profile.release]`
-    table before `[workspace]`. `stage_gem_tree` reads the root `Cargo.toml` from
-    `metadata["workspace_root"]`. Module docstring updated
-- `tests/test_build_ruby_source_gem.py`: a `render()` helper (fixture profile) for the existing
-    tests, which now need the new required parameter. 6 new tests: the real root table is copied
-    (checked by the test's own line scan, with a non-empty floor); the bench keys stay out
-    (`strip = false`, `debug = true`); missing table, sub-table and empty table each raise
-    `SystemExit`, one failure arm per fixture with its own `match=`; derivation (a key removed from
-    the real root text is absent from the rendered table while the rest remain)
-- `crates/iscc-rb/CLAUDE.md` → Publishing: one sentence saying a source install uses the workspace
-    `[profile.release]`, copied by the script
+**Summary:** `scripts/build_ruby_source_gem.py` now copies the root `[profile.release]` key lines
+into the staged standalone `Cargo.toml` (`release_profile`, a text slice with no `tomllib`), and
+fails closed on a missing, duplicated or empty table and on any `[profile.release.<x>]` sub-table. A
+source install on Ruby 3.4.13 builds a stripped extension that passes the selftest. The diff stays
+inside next.md's scope (one script, its test file, one sentence in `crates/iscc-rb/CLAUDE.md`), adds
+no suppression and touches no gate. The issue "The Ruby source gem is built without the workspace
+release profile" is resolved and deleted.
 
 **Verification:**
 
-- `uv run pytest tests/test_build_ruby_source_gem.py tests/test_ruby_gem_docs.py`: 38 passed (32
-    before, plus 6 new)
-- `uv run --script scripts/build_ruby_source_gem.py --out /tmp/sg241` exit 0. I read `Cargo.toml`
-    out of the gem's `data.tar.gz`. Under the `[profile.release]` header it has `lto = true`,
-    `codegen-units = 1`, `strip = true` and `panic = "abort"`. It has no `debug` line and no
-    `strip = false`. The comment block between the root release and bench tables is dropped, because
-    that comment contains the text `debug = true`
-- Ruby 3.4.13, from `/tmp`, `LANG=C.UTF-8`, with a fresh `mktemp -d` used as both `GEM_HOME` and
-    `GEM_PATH`: `gem install /tmp/sg241/iscc-lib-0.7.0.gem --no-document` rc=0 (3 gems: rb_sys
-    0.9.130 and rake-compiler-dock 1.12.0 came in as dependencies). The selftest
-    `ruby -e 'require "iscc_lib"; exit(IsccLib.conformance_selftest ? 0 : 1)'` rc=0
-- `find` found two copies of `iscc_rb.so` (under `gems/…/lib/iscc_lib/` and
-    `extensions/x86_64-linux/3.4.0-static/…`). `file` reports both as `…, stripped`, and
-    `grep -c 'not stripped'` = 0. Size 1,049,536 bytes; the review measured 1,521,056 unstripped in
-    iteration 240
-- **Install time (report only):** 55 s wall clock for the whole `gem install`, including the
-    dependency gems. Warm `~/.cargo` registry cache, fresh build; this devcontainer is on WSL2. I
-    have no "before" number (none was recorded in 240, and next.md said not to reset)
-- `uv run prek run --hook-stage pre-push --files <script> <test>`: all passed (ruff S/C901, `ty`,
-    pytest). `mise run check` rc=0
+- [x] `uv run pytest tests/test_build_ruby_source_gem.py tests/test_ruby_gem_docs.py` passes,
+    including the new tests — 38 passed (6 new; next.md asked for 4, the two extra split the failure
+    arms one per fixture)
+- [x] `uv run --script scripts/build_ruby_source_gem.py --out …` exits 0; the unpacked gem's
+    `Cargo.toml` has `lto = true`, `codegen-units = 1`, `strip = true` and `panic = "abort"` under
+    `[profile.release]` and no `debug = true` (nor `strip = false`)
+- [x] Ruby 3.4.13, from `/tmp`, empty `GEM_HOME`/`GEM_PATH`: `gem install` exit 0 (52 s, 3 gems),
+    `conformance_selftest` exit 0
+- [x] `file` on the installed `iscc_rb.so` has no `not stripped` — two copies, both `stripped`,
+    1,049,536 bytes each (1,521,056 unstripped in iteration 240)
+- [x] `mise run check` exits 0
 
-**Next:** The remaining `normal` v0.8.0 blocker is "Derived facts in guidance and docs are written
-by hand and drift". Its first part is to make the Tier 1 doc gate fail closed on crate-root forms it
-does not parse.
+Probes beyond next.md (2 of 3 used):
+
+- `gem_make.out` in the gem home shows rb_sys calling `cargo rustc … --profile release`, so the
+    staged table is the one in effect. No `.cargo/config.toml` or other profile source exists in the
+    repository, so the source gem and the platform gems now build with the same profile
+- Six mutants of `release_profile`, run from a `git archive` copy, each turn the matching test red:
+    no stop at the next header, a retyped (hard-coded) table, a dropped key, and each of the three
+    fail-closed arms switched off. The issue's "a test fails when a key is missing" holds
+
+**Issues found:**
+
+- Nit, not filed: the "duplicated table" half of the `expected one` arm has no test. A duplicated
+    `[profile.release]` is invalid TOML, and `cargo metadata` fails on it before the script reads
+    the file
+- Nit, not filed (advance named it): `TOML_HEADER` reads a line that is only `["x"]` inside a
+    multi-line array as a header. The root table has no multi-line value. If one is added, the slice
+    ends inside the array, the staged manifest is invalid TOML, and the `ruby-source-gem` CI job
+    fails at install
+- No new issues.md entries
+
+**Codex review:** no actionable findings. Codex ran the 38 tests and an offline source-gem build
+itself and confirmed the packaged manifest carries the release profile without the bench keys.
+
+**Next:** One `normal` v0.8.0 blocker is left: "Derived facts in guidance and docs are written by
+hand and drift". Start with its second part, as the smallest self-contained piece: make
+`scripts/check_tier1_docs.py` fail closed on column-0 `pub` items of `lib.rs` that it does not parse
+(`pub use x as y;`, nested `pub use a::{b::{c}};`, `pub struct`, `pub static`, `pub unsafe fn`,
+`pub async fn`), pinned by a fire test per form. The registry design and the discovery threshold are
+settled (decisions.md 2026-11-20, "The Tier 1 doc gate matches names against a registry…"); do not
+re-open them. The other two parts (docs below the threshold, unchecked counts in specs and per-crate
+`CLAUDE.md` files) are separate steps.
 
 **Notes:**
 
-- I placed the table before `[workspace]`, so `test_render_manifest_is_standalone` (which checks the
-    manifest ends with `[workspace]`) passes unchanged
-- `release_profile` matches headers on the whole line (`TOML_HEADER`, spaces removed from the table
-    name). A line inside a multi-line array that consists of `["x"]` alone would read as a header.
-    The root release table has no such value, and the fail-closed checks catch a slice that
-    collapses to nothing
-- No Rust source changed, so the CRAP, iai and semver gates are unaffected
-- The `ruby-source-gem` CI job will run on this push and build the gem with the profile. It should
-    stay well inside its timeout (55 s locally)
+- Install time of the source gem with the profile: 52 s here, 55 s in the advance run (WSL2, warm
+    cargo registry, about 50 s of it is the LTO build). No "before" number exists. The
+    `ruby-source-gem` CI job on this push is the first CI run with the profile; update-state should
+    confirm it is green
+- No decisions.md entry: the parity branch follows root `CLAUDE.md` → Design Constraints, and the
+    text slice follows the existing no-`tomllib` precedent (decisions.md 2026-07-26)
+- No Rust source changed, so CRAP, iai and semver gates are unaffected
+- learnings.md is at its 200-line budget; this review edited one bullet in place

@@ -162,26 +162,6 @@ Resolved when all hold:
     and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
     functions") or brought under a check
 
-## The Ruby source gem is built without the workspace release profile `normal` [review]
-
-`scripts/build_ruby_source_gem.py` → `render_manifest` writes a standalone `Cargo.toml` with no
-`[profile.release]` table. A `gem install` from source therefore compiles with cargo's default
-release profile, not the one in the root `Cargo.toml` (`lto = true`, `codegen-units = 1`,
-`strip = true`, `panic = "abort"`; root `CLAUDE.md` → "Design Constraints"). The precompiled
-platform gems are built inside the workspace and do get that profile, so the two kinds of gem differ
-in size, link-time optimization and panic behaviour. Measured in iteration 240 on Ruby 3.4.13: the
-source-built `iscc_rb.so` is 1,521,056 bytes and not stripped, the checkout build 1,061,576 bytes
-and stripped. The gem installs and passes `conformance_selftest`; no output differs. Introduced with
-the staging script in iteration 239, found by Codex.
-
-Resolved when either holds:
-
-- the staged manifest carries the `[profile.release]` of the workspace, derived from the root
-    `Cargo.toml` and not retyped, and a test in `tests/test_build_ruby_source_gem.py` fails when a
-    key of it is missing
-- a decisions.md entry records why a source install uses a different profile (for example, install
-    time under LTO), and `crates/iscc-rb/CLAUDE.md` → Publishing states the difference
-
 ## Published Ruby source gems up to 0.7.0 do not build `low` [review]
 
 **Triage:** untriaged — a user who runs `gem install iscc-lib` on Ruby 3.4 or newer, or on a

@@ -104,10 +104,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): source gems
     up to 0.7.0 do not build. Probe: `gem fetch iscc-lib --platform ruby`, then
     `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`
-- **Ruby source gem = `scripts/build_ruby_source_gem.py` only** (239/240). `cross-gem@v1` reads the
+- **Ruby source gem = `scripts/build_ruby_source_gem.py` only** (239-241). `cross-gem@v1` reads the
     rb_sys pin UNANCHORED (first `Gemfile.lock` line containing `rb_sys`), so the gemspec declares
-    `rb_sys` only next to `core/`. The staged manifest is its own workspace: root `[profile.*]` and
-    `[patch]` do not reach it. Its tests make `pytest` need `ruby` on PATH (CI: runner image's 3.2)
+    `rb_sys` only next to `core/`. The staged manifest is its own workspace: of the root, only
+    `[profile.release]` reaches it (copied key lines, LTO install ≈ 55 s). Tests need `ruby` on PATH
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a
