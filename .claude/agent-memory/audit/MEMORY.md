@@ -15,6 +15,9 @@ to `MEMORY-archive.md`.
 - iter 270 @ 34303a6: filed 5 (wasm Node docs vs web build, UniFFI text_trim 32-bit + doc, minhash
     empty vs reference, conformance runner duplication, gates on stale generated/built artifacts). 5
     finders + 4 batch skeptics (watch list included) cost about $18; 54 of 58 survived.
+- iter 280 @ db1fe55: filed 5 (Go meta limit unenforced, vcpkg v0.2.0 hashes, data.json parsers
+    beside the runners, WASM finalize consumption, Rust API tier docs). 4 finders + 4 batch skeptics
+    \+ 1 watch-list skeptic = 9 agents, about $19; 59 of 61 survived, 23 of 24 watch items held.
 
 ## Clean areas
 
@@ -22,8 +25,8 @@ to `MEMORY-archive.md`.
 
 ## Watch list
 
-- [Watch list](watch-list.md) — verified findings left unfiled (5-per-pass cap); WASM finalize
-    consumption and data-edge harness duplication go first
+- [Watch list](watch-list.md) — verified findings left unfiled (5-per-pass cap); data-edge harness
+    duplication and napi/wasm narrowing helpers go first
 
 ## False-positive patterns
 
@@ -32,11 +35,14 @@ to `MEMORY-archive.md`.
 
 ## Operating notes
 
-- issues.md budget is 400 lines (373 after iter 270: file at most 1-2 next pass); run the prek
-    `mdformat` hook on it before committing (wrapping adds lines).
+- issues.md budget is 400 lines (351 after iter 280); run the prek `mdformat` hook on it before
+    committing (wrapping adds lines).
+- Downloading a published artifact settles a packaging claim cheaply (iter 280: vcpkg hashes matched
+    the v0.2.0 tarball, not v0.7.0).
 - Handing the watch list to the skeptics works: it refuted 4 stale items (incl. the 2-pass IDv1
     item) by decision. Workflow output JSON nests results under `.result`.
 - One batch skeptic per finder is lenient (62/63 survive): spot-check the top candidates yourself
     with `sed -n` before filing; refute-by-decision is what it catches.
+- Budget: the 9-agent workflow cost ~$19 of $30; leave ~$8 for spot-checks, filing and memory.
 - Grouping 9 dimensions into 5 finders, each followed by one batch skeptic (10 agents), stayed
     within the $30 budget. The iter-240 workflow, run with the advisor on, was killed.

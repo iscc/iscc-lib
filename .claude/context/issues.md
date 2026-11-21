@@ -212,3 +212,140 @@ sub-spec line (decision of 2026-11-20), but `target.md` is Titusz's to edit.
 Verification Criteria
 
 Resolved when both criteria say the workflow tags the checksum commit once and moves no tag.
+
+## Go `GenMetaCodeV0` never enforces the 128,000-byte meta payload limit `normal` [audit]
+
+Verified by the iteration-280 audit at db1fe55. `packages/go/codec.go:22` declares
+`MetaTrimMeta = 128_000`, and `packages/go/README.md:117` and `docs/howto/go.md:468` document it as
+the "max decoded payload size in bytes for the meta element". No code reads it:
+`grep -rn MetaTrimMeta packages/go` finds only the declaration. `GenMetaCodeV0`
+(`packages/go/code_meta.go:53-69`) decodes the Data-URL or canonicalizes the JSON and hashes the
+whole payload, whatever its size. The Rust core rejects a decoded payload over the limit, and checks
+before decoding too (`crates/iscc-lib/src/lib.rs:363-385`). iscc-core raises `ValueError`
+(`reference/iscc-core/iscc_core/code_meta.py:72-76`).
+
+**Why it matters:** the pure-Go port returns a code where the reference and every Rust-backed
+binding return an error, and its docs promise a limit it does not apply. No vector pins the limit,
+so the conformance gates cannot see the gap.
+
+**Suggested fix:** in `GenMetaCodeV0`, reject a payload longer than `MetaTrimMeta` with the core's
+message (and add the core's pre-decode bound on the Data-URL length). Pin it with Go tests at
+128,000 and 128,001 bytes for both meta forms. Consider a shared `data-edge.json` vector if the
+edge-vector rules allow inputs of this size.
+
+**Scope estimate:** 1 non-test file.
+
+Resolved when an oversized meta payload is an error in Go, as it is in the core, and a test pins the
+boundary.
+
+## vcpkg portfile pins the SHA512 hashes of the v0.2.0 tarballs `normal` [audit]
+
+Verified by the iteration-280 audit at db1fe55. `packages/cpp/portfile.cmake` builds its download
+URL from `${VERSION}` (`:43-45`, so 0.7.0 from `vcpkg.json:3`, which `version_sync.py` keeps in
+step). The five `ISCC_SHA512` values (`:14-38`) have not changed since commit `d140555c`, where they
+were added for v0.2.0. Measured: the published `iscc-ffi-v0.2.0-x86_64-unknown-linux-gnu.tar.gz`
+hashes to `ebed9b50…`, the portfile value, and the v0.7.0 tarball to `26f396ed…`. So
+`vcpkg_download_distfile` fails its hash check on every platform for every release after 0.2.0.
+Neither `version_sync.py`, `release.yml` nor any test touches the hashes, and no CI job runs the
+port. `docs/architecture.md:110` and `packages/cpp/CLAUDE.md:13` present the port as a distribution
+channel.
+
+**Why it matters:** the vcpkg path has been broken for five releases and nothing would notice the
+next one. Every release silently adds one more version that cannot install.
+
+**Suggested fix:** make the hashes a release step (`release.yml` writes them from the built
+tarballs, as it does for the Swift checksum), or drop the hard-coded hashes and the port claim. Add
+a test that ties the portfile to the release artifacts, or a check that fails while the hashes
+belong to another version.
+
+**Scope estimate:** 2-3 non-test files.
+
+Resolved when the portfile's hashes match the tarballs of the version in `vcpkg.json`, and a gate
+keeps them matched.
+
+## Rust and Go per-function tests re-parse `data.json` beside the conformance runners `normal` [audit]
+
+Verified by the iteration-280 audit at db1fe55. The rewritten runners
+(`crates/iscc-lib/src/conformance.rs`, `packages/go/conformance.go`) parse every `gen_*` section,
+but parallel parsers remain:
+
+- Rust: nine `test_gen_*_conformance` tests in `crates/iscc-lib/src/lib.rs:1317-1953` (plus
+    `codec.rs:1806`) `include_str!` the fixture and decode inputs by hand. The meta dispatch
+    (`lib.rs:1336-1341`) and the `stream:` decoding (`:1840`, `:1884`) repeat
+    `conformance.rs:126-131` and `:228-231`.
+- Go: about ten `*_test.go` files `os.ReadFile` the monorepo path instead of the embedded copy.
+    `code_meta_test.go:49-63` copies `metaArg`, and `code_data_test.go:37` and
+    `code_instance_test.go:37` copy `decodeStream`. `conformance.go` itself parses the document
+    twice through `parseConformanceData` (`:29`) and `parseSeqConformanceData` (`:345`), with two
+    vector types.
+- The runners disagree on malformed vectors. Rust `strip_prefix("stream:")?` rejects a bare hex
+    string, while Go `TrimPrefix` (`conformance.go:270`) accepts it. A missing `iscc` output is a
+    parse failure in Rust (`conformance.rs:111-113`, pinned `:391`), but Go's `expectedISCC` reports
+    a mismatch. The Go failure-arm tests leave out both cases.
+
+**Why it matters:** a `data.json` schema change has to be fixed in three or four places per
+language, and the two "mirror" selftests already give different verdicts on the same fixture.
+
+**Suggested fix:** expose the runners' case parsers to the in-crate and in-package tests, and keep
+only the checks of the extra output fields (`metahash`, `datahash`, …) in the per-function tests.
+Use one Go parse with `Outputs json.RawMessage`. Settle one malformed-vector policy and pin it on
+both sides.
+
+**Scope estimate:** needs audit-scope step (≤8 files); Rust and Go can be separate steps.
+
+Resolved when each language parses `data.json` inputs in one place and both runners give the same
+verdict on the same malformed case.
+
+## `@iscc/wasm` hasher `finalize()` consumes the hasher on some argument errors but not others `normal` [audit]
+
+Verified by the iteration-249/260/270 audits; unchanged at db1fe55. `DataHasher.finalize`,
+`InstanceHasher.finalize` and `SumHasher.finalize` (`crates/iscc-wasm/src/lib.rs:703-718`,
+`758-770`, and the SumHasher method after them) run `opt_u32`/`opt_bool` *before* `inner.take()`. So
+a `bits` that the JS-side check rejects (`-1`, `1.5`, `"x"`) throws and leaves the hasher usable. A
+`bits` that the core rejects (e.g. `13`) throws *after* `take()` and consumes it.
+`docs/howto/wasm.md:338` says "After calling `finalize()`, the hasher is consumed". Go decided that
+the first `Finalize` consumes even when it fails (decisions.md, 2026-11-21). No other surface states
+its rule, and no test pins either branch.
+
+**Why it matters:** whether a caller can retry after a bad argument depends on which validator
+caught it. That is an implementation accident, and copying it to other surfaces makes it the API.
+
+**Suggested fix:** decide the cross-binding rule (follow Go: the first `finalize` consumes, whatever
+its outcome, or validate everything before consuming) and record it. Apply it to the three WASM
+hashers, pin both error kinds with a test, and state the rule in `wasm.md`.
+
+**Scope estimate:** 2 non-test files.
+
+Resolved when a rejected `bits` leaves every WASM hasher in the same state, whichever check rejects
+it, as decided and pinned by a test.
+
+## Rust public API docs misclassify `IsccError`, omit `SumHasher`, and contradict `gen_sum_code_v0` `normal` [audit]
+
+Verified by the iteration-280 audit at db1fe55. `crates/iscc-lib/src/lib.rs:8-14` makes `codec`,
+`streaming` and `types` public, and `IsccError` is defined at the crate root (`:51`).
+
+- `docs/architecture.md:141-144` names `codec` as the only Tier 2 module, and nothing classifies
+    `streaming`/`types`. `iscc_lib::streaming::SumHasher` (`streaming.rs:157`) is public and bound
+    in Python and WASM, yet it is absent from `docs/rust-api.md`, `architecture.md` and the Tier 1
+    doc gate.
+- `docs/architecture.md:162-163`: "The core library takes bytes, not file paths". But Tier 1
+    `gen_sum_code_v0` takes a path (`lib.rs:1059-1068`).
+- `docs/rust-api.md:678-687` presents `IsccError` as a `codec` type ("Import codec types with
+    `use iscc_lib::codec::…`").
+- Root `CLAUDE.md:154` says the bound surface is "`iscc_lib::api`", a module that does not exist.
+    `CLAUDE.md:217` and the crate doc `lib.rs:3` say all 10 `gen_*_v0` functions match `data.json`
+    (`gen_sum_code_v0` has no vectors).
+
+**Why it matters:** these are the pages a Rust user and every agent read to learn what is covered by
+SemVer and what the bindings may bind. A public type outside every tier list cannot be reasoned
+about at the v1.0.0 stability cut.
+
+**Suggested fix:** classify `streaming::SumHasher` (Tier 1 re-export or documented Tier 2). Fix the
+three sentences in `architecture.md`/`rust-api.md`, and point `CLAUDE.md` and the crate doc at the
+crate-root re-exports and the right vector count. A repo-wide `git grep` on each phrase (learnings:
+false claims outlive their pages).
+
+**Scope estimate:** 4-5 non-test files.
+
+Resolved when every public path of `iscc-lib` is classified in one tier list and the cited sentences
+match `lib.rs`.

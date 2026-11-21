@@ -25,3 +25,7 @@ Do not file these:
 **Why:** finders surface these with plausible evidence; checking against the reference, the sibling
 tests or decisions.md refutes them. **How to apply:** before verifying a "surprising behavior" or
 "duplicated check" finding, grep decisions.md (live + archive) and compare with the reference.
+
+- **Archived decision "JS-number IDv1 surfaces take f64" vs wasm `JsValue`**: wasm reads the number
+    as f64 and runs `checked()` before narrowing, which is what the decision requires (refuted iter
+    280).
