@@ -85,7 +85,7 @@ enum DataEdge {
         return value
     }
 
-    /// Read the input at `index` as a `UInt32` bit length.
+    /// Read the input at `index` as a `UInt32` (a bit length or an average chunk size).
     static func bits(_ inputs: [Any], _ index: Int) throws -> UInt32 {
         let value = try intArg(inputs, index)
         guard let bits = UInt32(exactly: value) else {
@@ -152,6 +152,20 @@ enum DataEdge {
     static func prepareSimhash(_ inputs: [Any]) throws -> () throws -> Any {
         let digests = try bytesList(inputs, 0)
         return { try algSimhash(hashDigests: digests) }
+    }
+
+    /// Prepare `algCdcChunks` on the vector's data, `utf32` flag and average size.
+    static func prepareCdc(_ inputs: [Any]) throws -> () throws -> Any {
+        let data = try decodeBytes(arg(inputs, 0, as: String.self))
+        let utf32 = try boolArg(inputs, 1)
+        let avg = try bits(inputs, 2)
+        return { try algCdcChunks(data: data, utf32: utf32, avgChunkSize: avg) }
+    }
+
+    /// Convert `algCdcChunks` chunks to a list of `bytes:<hex>` values.
+    static func convertChunks(_ result: Any) -> Any {
+        guard let chunks = result as? [Data] else { return "not [Data]: \(result)" }
+        return chunks.map(bytesValue) as [Any]
     }
 
     /// Prepare `genTextCodeV0` on the vector's text and bits.
@@ -260,6 +274,7 @@ enum DataEdge {
         "alg_simhash": EdgeCaller(prepare: prepareSimhash, convert: convertSeq),
         "gen_meta_code_v0": EdgeCaller(prepare: prepareMeta, convert: convertMeta),
         "gen_video_code_v0": EdgeCaller(prepare: prepareVideo, convert: convertVideo),
+        "alg_cdc_chunks": EdgeCaller(prepare: prepareCdc, convert: convertChunks),
     ]
 
     /// Load and parse the vendored data-edge.json.
