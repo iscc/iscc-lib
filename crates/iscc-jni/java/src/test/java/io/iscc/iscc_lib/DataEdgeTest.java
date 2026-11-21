@@ -44,7 +44,9 @@ class DataEdgeTest {
             "gen_text_code_v0", DataEdgeTest::callText,
             "gen_mixed_code_v0", DataEdgeTest::callMixed,
             "gen_iscc_code_v0", DataEdgeTest::callIsccCode,
-            "alg_simhash", DataEdgeTest::callSimhash);
+            "alg_simhash", DataEdgeTest::callSimhash,
+            "gen_meta_code_v0", DataEdgeTest::callMeta,
+            "gen_video_code_v0", DataEdgeTest::callVideo);
 
     /** Load and parse the canonical data-edge.json. */
     private static JsonObject loadDoc() throws Exception {
@@ -79,6 +81,25 @@ class DataEdgeTest {
             out[i] = HexFormat.of().parseHex(item.substring("bytes:".length()));
         }
         return out;
+    }
+
+    /** Read a JSON array input of integer lists as an int array per item. */
+    private static int[][] intArrays(JsonElement input) {
+        JsonArray items = input.getAsJsonArray();
+        int[][] out = new int[items.size()][];
+        for (int i = 0; i < out.length; i++) {
+            JsonArray values = items.get(i).getAsJsonArray();
+            out[i] = new int[values.size()];
+            for (int j = 0; j < out[i].length; j++) {
+                out[i][j] = values.get(j).getAsInt();
+            }
+        }
+        return out;
+    }
+
+    /** Read a meta input: a JSON object is serialized, a string is passed as is. */
+    private static String metaArg(JsonElement input) {
+        return input.isJsonObject() ? input.toString() : input.getAsString();
     }
 
     /** Wrap a bare ISCC string result (gen functions) as an {@code {iscc}} object. */
@@ -139,14 +160,33 @@ class DataEdgeTest {
         return new Prepared(() -> IsccLib.algSimhash(digests), r -> bytesValue((byte[]) r));
     }
 
+    /** Prepare {@code genMetaCodeV0} (an empty description means none). */
+    private static Prepared callMeta(JsonArray inputs) {
+        String name = inputs.get(0).getAsString();
+        String description = inputs.get(1).getAsString();
+        String desc = description.isEmpty() ? null : description;
+        String meta = metaArg(inputs.get(2));
+        int bits = inputs.get(3).getAsInt();
+        return new Prepared(() -> IsccLib.genMetaCodeV0(name, desc, meta, bits), DataEdgeTest::isccObject);
+    }
+
+    /** Prepare {@code genVideoCodeV0} on the vector's frame signatures and bits. */
+    private static Prepared callVideo(JsonArray inputs) {
+        int[][] frames = intArrays(inputs.get(0));
+        int bits = inputs.get(1).getAsInt();
+        return new Prepared(() -> IsccLib.genVideoCodeV0(frames, bits), DataEdgeTest::isccObject);
+    }
+
     /**
      * Section name to the expected output keys its JNI result does not carry, which are therefore
      * not compared (an absent section compares every key). The gen functions here return a bare
-     * ISCC string, so text drops {@code characters} and mixed drops {@code parts}.
+     * ISCC string, so text drops {@code characters}, mixed drops {@code parts} and meta drops
+     * {@code name}, {@code meta} and {@code metahash}.
      */
     private static final Map<String, Set<String>> UNCOMPARED = Map.of(
             "gen_text_code_v0", Set.of("characters"),
-            "gen_mixed_code_v0", Set.of("parts"));
+            "gen_mixed_code_v0", Set.of("parts"),
+            "gen_meta_code_v0", Set.of("name", "meta", "metahash"));
 
     /**
      * Compare an actual output with the expected one and return a failure, or null.
