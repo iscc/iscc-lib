@@ -1,15 +1,15 @@
-<!-- assessed-at: e79919d96f30eae7558760578f8e89853e9e74ff -->
+<!-- assessed-at: 67b380f5a7c1dd14fd3f77e64a1b8567a0e53308 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 15 `normal` issues block the release
+## Phase: v0.8.0 — features done; 14 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 271 pinned the
-development Ruby (3.4.13) in `mise.toml` and closed the devcontainer Ruby-gates issue. CI on the
-pushed tip `d2d4012` (covers all code at HEAD) has 23 of 24 jobs green with Coverage + CRAP still
-running. 21 issues are open: 0 `critical`, 15 `normal`, 6 `low`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 272 made UniFFI
+`text_trim` saturate `nbytes` on 32-bit targets and fixed its doc comment, closing that issue. CI is
+green on the pushed tip `06238f6`, which covers all code at HEAD. 20 issues are open: 0 `critical`,
+14 `normal`, 6 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -24,7 +24,7 @@ running. 21 issues are open: 0 `critical`, 15 `normal`, 6 `low`.
 
 ## Rust Core Crate
 
-**Status**: partially met (v0.8.0 features met; four `normal` issues)
+**Status**: partially met (v0.8.0 features met; three `normal` issues)
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
     `conformance_selftest` runs the seq vectors; 311 `#[test]` in `src/`
@@ -109,21 +109,21 @@ running. 21 issues are open: 0 `critical`, 15 `normal`, 6 `low`.
 
 - `encode_seq` / `decode_seq`; data-edge runs strictly; floor is 3.3 (gemspec `>= 3.3.0`, CI `ruby`
     job 3.3, `release.yml` cross-gems 3.3 and 3.4); minitest 6.1.0
-- Development Ruby pinned in root `mise.toml` (`ruby = "3.4.13"`, the only `[tools]` pin); both
-    standardrb hooks run `mise exec --`; `postCreateCommand` bundles under it; guarded by
-    `tests/test_ruby_gem_docs.py`
+- Development Ruby pinned in root `mise.toml` (`ruby = "3.4.13"`); both standardrb hooks run
+    `mise exec --`; guarded by `tests/test_ruby_gem_docs.py`
 - `normal`: document the implicit Float→Integer `to_int` conversion
 - `low`: source gems up to 0.7.0 do not build; `release.yml` loads only the 3.3 precompiled binary
     before publish; Ruby 4.0 gets no precompiled gem (needs rb_sys past 0.9.123)
 
 ## Swift and Kotlin Bindings
 
-**Status**: partially met (one `normal` issue)
+**Status**: met (v0.8.0 scope)
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
     all 9 data-edge sections; shipped 0.7.0
-- `normal` (audit): `text_trim` casts `nbytes as usize`, truncating on 32-bit Android ABIs, and its
-    doc comment (copied into the generated Swift/Kotlin) says "word boundary"
+- `text_trim` saturates `nbytes` via `usize::try_from(..).unwrap_or(usize::MAX)`; the doc comment
+    matches the core and is regenerated into both bindings; 30 `#[test]` in iscc-uniffi
+- The 32-bit wrap test only bites on a 32-bit target, which CI does not run for Rust (settled)
 
 ## Documentation
 
@@ -149,24 +149,24 @@ running. 21 issues are open: 0 `critical`, 15 `normal`, 6 `low`.
 **Status**: partially met (one `normal`, one `low`; release criteria otherwise met)
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
-    version-sync targets at 0.7.0; `specs/ci-cd.md` now records the `mise.toml` Ruby pin
+    version-sync targets at 0.7.0
 - `normal` (audit): gates test generated/built artifacts nothing refreshes or diffs (stale local
-    `_lowlevel.abi3.so` under pre-push pytest; `NativeMethods.g.cs` and UniFFI outputs undiffed)
+    `_lowlevel.abi3.so` under pre-push pytest; `NativeMethods.g.cs` and UniFFI outputs undiffed —
+    UniFFI outputs are in a known-clean state as of `06238f6`)
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: IN PROGRESS** on `origin/develop` = `d2d4012`:
-    https://github.com/iscc/iscc-lib/actions/runs/44940855523 — 23 of 24 jobs `success`, Coverage +
-    CRAP still running; the change since the last fully green run (`0fcdae3`, run 44935056667)
-    touches no Rust source; HEAD's only unpushed commit is `.claude/` only
+- **Latest CI: PASSING** on `origin/develop` = `06238f6`:
+    https://github.com/iscc/iscc-lib/actions/runs/44943160407 — github-actions suite `success`;
+    HEAD's only unpushed commit is `.claude/` only
 
 ## Open Issues
 
-21 open in issues.md: 0 `critical`, 15 `normal`, 6 `low`; none blocked on the human or upstream (the
-`alg_minhash_256` entry needs a decision). The devcontainer Ruby-gates issue was closed this
-iteration. 7 sit in `postponed.md`.
+20 open in issues.md: 0 `critical`, 14 `normal`, 6 `low`; none blocked on the human or upstream (the
+`alg_minhash_256` entry needs a decision). The UniFFI `text_trim` issue was closed this iteration. 7
+sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the 15 `normal` issues that block v0.8.0 — the remaining tooling-health entry (undiffed
-generated artifacts), the code defects (UniFFI `text_trim`, FFI padding, JNI loader fallback,
-`alg_minhash_256` decision, duplication) and the docs/spec accuracy entries. Confirm the in-progress
-CI run on `d2d4012` finishes green. Then Titusz cuts v0.8.0 via `/release`.
+Clear the 14 `normal` issues that block v0.8.0 — the code defects (FFI-consumer padding, JNI loader
+fallback, Ruby Float coercion docs, `alg_minhash_256` decision, duplication), the undiffed
+generated-artifacts gate, and the docs/spec accuracy entries. Then Titusz cuts v0.8.0 via
+`/release`.

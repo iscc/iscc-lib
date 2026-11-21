@@ -86,17 +86,16 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: e79919d, iter 272 — incremental)
+## Current State (assessed-at: 67b380f, iter 273 — incremental)
 
-- **CI on `origin/develop` = `d2d4012` IN PROGRESS at assess time** (run 44940855523, 23/24 green,
-    CRAP running; last full green 0fcdae3; codecov/cursor suites sit `queued` forever — judge by the
-    github-actions suite). A `null` check-run conclusion = still running;
+- **CI on `origin/develop` = `06238f6` GREEN** (run 44943160407; codecov/cursor suites sit `queued`
+    forever — judge by the github-actions suite). A `null` check-run conclusion = still running;
     `gh run view <id> --json status,conclusion,jobs` settles it. Job logs: `actions/jobs/<id>/logs`
     API with `--allow-escape-sequences`, strip ANSI.
-- 21 open (0 `critical` + 15 `normal` + 6 `low`); 7 in `postponed.md`. 271 pinned dev Ruby 3.4.13 in
-    `mise.toml` `[tools]` (only tools pin); Ruby floor 3.3 (gemspec, ci.yml, release.yml). Fast
-    suite check: `gh api .../commits/<sha>/check-suites` (one call). iscc-lib `src/` has 311
-    `#[test]`.
+- 20 open (0 `critical` + 14 `normal` + 6 `low`); 7 in `postponed.md`. iscc-uniffi 30 `#[test]`. 271
+    pinned dev Ruby 3.4.13 in `mise.toml` `[tools]` (only tools pin); Ruby floor 3.3 (gemspec,
+    ci.yml, release.yml). Fast suite check: `gh api .../commits/<sha>/check-suites` (one call).
+    iscc-lib `src/` has 311 `#[test]`.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
