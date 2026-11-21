@@ -78,8 +78,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     fixture mutations → `review-patterns.md`
 - **Docs-only**: `mise run check` + clippy + `mise run version:check` + `uv run zensical build`;
     green gates say NOTHING about truth (143) → `review-patterns.md` "Moved from the index (239)"
-- **Python-only**: `mise run check` + `pytest`; a new `.py` adds pre-push `ty`/ruff; rebuild with
-    `maturin develop` before any test; PyO3 marshalling step (265, ~8 min) → `binding-reviews.md`
+- **Python-only**: `mise run check` + `pytest`; ANY edited `.py` (tests too, 270) needs pre-push
+    `ty`/ruff; `maturin develop` before any test; PyO3 marshalling (265) → `binding-reviews.md`
 - **New gate script / gate hardening / parity gate (142–146/163, ~10 min)**: write your OWN
     mutations, probe equal-empty and duplicated-row blind spots → `review-patterns.md`
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
@@ -98,8 +98,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **JS marshalling step (256, 268, 269)**: Node probes on a RELEASE WASM build, whole-`.d.ts` diff
     vs a `git archive` build, **one `CARGO_TARGET_DIR` PER tree** (269) → `binding-reviews.md`
 - **C++ wrapper-only (227)**, **JNI error-path (230)**, **verbatim code-move (231)**,
-    **test-harness-only (232)**, **WASM return-shape (234)**, **Ruby gem packaging (239–241)** →
-    `binding-reviews.md`
+    **test-harness-only (232)**, **WASM return-shape (234)**, **Ruby gem packaging (239–241)**,
+    **Ruby floor (270: never `rake clobber`)** → `binding-reviews.md`
 - **A `[human]` issue with a `**Spec:**` field**: on closing it, the reviewer corrects the spec rows
     it names (227) — stage the spec file
 - **Waiting on a background run** (bare `sleep` is blocked):

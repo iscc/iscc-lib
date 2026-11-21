@@ -37,13 +37,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **`iscc-core` output is not stable across CPython versions** (5,185 code points differ 3.13 vs
     3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so output tracks
     `unicodedata.unidata_version`; iscc-core#137). Always name the interpreter (`--python 3.13`)
-- **iscc-core 1.5.0 has two builds that can disagree** (264): the compiled wheel (cp310 to cp314)
-    raises `OverflowError` for `alg_cdc_chunks` with `avg_chunk_size >= 2^29`, pure Python (3.15)
-    does not. Probe a vector under `uv run --no-project --python` 3.10 AND 3.15. With `utf32` and a
-    small average both yield `b""` forever
-- **String-input divergences from iscc-core** (strict base32, the Python `strip()` set, ASCII-only
-    upper-casing: decisions of 2026-11-18): the reference's reject set differs per entry point, so
-    probe each before calling a fix "reference-matching" → `learnings-archive.md` (268)
+- **iscc-core 1.5.0 has two builds that can disagree** (264: compiled wheel cp310 to cp314, pure
+    Python on 3.15): probe a vector under `uv run --no-project --python` 3.10 AND 3.15
+- **String-input divergences from iscc-core** (decisions of 2026-11-18): the reference's reject set
+    differs per entry point, so probe each → `learnings-archive.md` (268)
 
 ## Tooling
 
@@ -99,8 +96,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     leave it pending. HotSpot 17 `-Xcheck:jni` is SILENT on `ThrowNew` over a pending exception:
     assert the class. Trigger: shadow result class with a throwing ctor first on a child `-cp`
 - **Release pipeline** + `version_sync.py`'s targets → `learnings-archive.md`. Its doc targets are
-    the Maven/Gradle/SPM snippets only: any other version in docs is hand-typed, so write none
-    (244). `@iscc/wasm` metadata = wasm-pack 0.13.1 output of its `Cargo.toml` (214)
+    the Maven/Gradle/SPM snippets only: any other version in docs is hand-typed, so write none (244)
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are gated: `scripts/check_release_workflow.py` (prek hook + tests) and the CI-only
     `--check-action-inputs`; never hand-retype either. **`prepare-release` never moves an existing
@@ -116,6 +112,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     rb_sys pin UNANCHORED (first `Gemfile.lock` line containing `rb_sys`), so the gemspec declares
     `rb_sys` only next to `core/`. The staged manifest is its own workspace: of the root, only
     `[profile.release]` reaches it (copied key lines, LTO install ≈ 55 s). Tests need `ruby` on PATH
+- **Ruby floor is 3.3 (270)**: system Ruby 3.1 cannot `bundle` in `crates/iscc-rb`; run
+    `mise exec ruby@3.4.13 -- …` (floor: `mise install ruby@3.3`, prebuilt, 30 s). **Never
+    `rake clobber`: it empties the workspace `target/`.** The `lib/` `.so` fits one Ruby series:
+    delete it and `tmp/` to switch. A test edit can red pre-push `ty` (`re.search(…).group`)
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a

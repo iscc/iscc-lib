@@ -63,23 +63,48 @@ how-tos under `docs/howto/` and in `docs/java-api.md` carry the comment `"ISCC:K
 
 Resolved when each Sum-Code example comment shows a prefix the call can return.
 
-## The Ruby floor is past end of life and current Rubies get no precompiled gem `normal` [human]
+## A rebuilt devcontainer cannot run the Ruby gates `normal` [review]
 
-**Decided (Titusz, 2026-11-21):** raise the Ruby floor from 3.1 to 3.3. Ruby 3.1 reached end of life
-on 2025-03-26 and 3.2 on 2026-03-31 (endoflife.date). The Python 3.10 and .NET 8 floors stay
-(decisions.md, 2026-11-21).
+The gem floor is Ruby 3.3 since iteration 270, and the devcontainer's system Ruby is Debian's 3.1.
+`.devcontainer/post-create.sh` still runs `bundle install` in `crates/iscc-rb` under that Ruby,
+which Bundler now refuses (the step is non-fatal, so setup continues). Both standardrb hooks in
+`.pre-commit-config.yaml` run `mise exec ruby@3.4 -- bundle exec standardrb`: mise installs a Ruby
+3.4 on demand, but nothing installs its bundle, so on a fresh container `mise run check` and every
+commit that touches a `.rb` file fail until someone runs `bundle install` under the mise Ruby by
+hand. Ruby is pinned in no config file: the hooks say `ruby@3.4`, `crates/iscc-rb/CLAUDE.md` and
+`specs/ruby-bindings.md` say `ruby@3.4.13`. The working container of iteration 270 has the bundle,
+so nothing fails there today. Introduced by the floor raise; next.md kept the devcontainer out of
+that step. Also found by the Codex review.
 
-The floor is in `crates/iscc-rb/iscc-lib.gemspec` (`required_ruby_version`), the `ruby` job in
-`ci.yml` (`ruby-version: '3.1'`), the minitest hold in `crates/iscc-rb/Gemfile`, and the docs
-(`crates/iscc-rb/README.md`, `docs/howto/ruby.md`, `crates/iscc-rb/CLAUDE.md`,
-`specs/ruby-bindings.md`). The cross-gem step in `release.yml` builds precompiled gems for 3.1, 3.2
-and 3.3 only, so a user on Ruby 3.4 or newer always compiles from source.
+Resolved when a fresh devcontainer build runs `mise run check` and the Ruby suite with no manual
+step, and the Ruby version the hooks and docs use is named in one place (a `mise.toml` pin, or a
+supported Ruby in the image).
 
-Resolved when the gemspec, CI and docs say `>= 3.3`, CI tests the floor, and the cross-gem list
-covers every supported Ruby series from 3.3 up that the cross-gem image can build (the docs name the
-list).
+## `release.yml` loads only one precompiled Ruby binary before publishing `low` [review]
 
-**Spec:** `.claude/context/specs/ruby-bindings.md`
+**Triage:** untriaged. A Ruby 3.4 user (or anyone not on x86_64 Linux) would get a precompiled gem
+that fails at `require` if a cross-build ever produces a broken binary for that series or platform.
+
+`build-gem` builds Ruby 3.3 and 3.4 binaries for five platforms. `test-gem` installs the
+`x86_64-linux` gem on Ruby 3.3 and runs `conformance_selftest`, so the 3.4 binary and the other
+platforms are published without being loaded once. The 3.4 cross-build is new in iteration 270 and
+no run has exercised it (`release.yml` is `workflow_dispatch`-only). Pre-existing in kind: the 3.1
+and 3.2 binaries were published the same way.
+
+Resolved when `test-gem` loads the gem on every series in the cross-gem `ruby-versions` list (a
+matrix whose list a test ties to that input), or a decisions.md entry keeps the single smoke test.
+
+## Ruby 4.0 gets no precompiled gem `low` [review]
+
+**Triage:** untriaged. Every user on Ruby 4.0, the current stable series, installs the source gem
+and needs a Rust toolchain and `libclang-dev`; the docs say so.
+
+The cross-gem image is pinned to rb-sys 0.9.123, whose newest cross Ruby is 3.4.5. Ruby 4.0 needs
+rb_sys 0.9.124 or newer, and the hold comment in `crates/iscc-rb/Gemfile` says that version breaks
+`RbSys::ExtensionTask`. Unverified since the hold was written.
+
+Resolved when the cross-gem list includes 4.0 and the docs name the range, or a decisions.md entry
+keeps 4.0 on the source gem.
 
 ## `docs/development.md` tells maintainers to release by pushing a tag `normal` [review]
 

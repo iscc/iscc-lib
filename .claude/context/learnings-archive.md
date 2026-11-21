@@ -1139,3 +1139,15 @@ runs on `opus`. Deliberate — do not "unify" them.
     and ACCEPTS them — only those whose `upper()` is ASCII (`ẞ` U+1E9E fails in both, 222) — **the
     reference's reject set differs per entry point; probe each before calling a fix
     "reference-matching"**. A bare `b…` string reads as plain base32 in BOTH: not a defect
+
+## Rotated in iteration 270
+
+- **iscc-core 1.5.0 has two builds that can disagree** (264): the compiled wheel (cp310 to cp314)
+    raises `OverflowError` for `alg_cdc_chunks` with `avg_chunk_size >= 2^29`, pure Python (3.15)
+    does not. With `utf32` and a small average both yield `b""` forever
+- `@iscc/wasm` metadata = wasm-pack 0.13.1 output of its `Cargo.toml` (214)
+- **cross-gem Ruby series (270)**: rb-sys-dock resolves `--ruby-versions` through the LOCKED
+    rake-compiler-dock gem's `cross_rubies` (1.10.0: 3.4 → 3.4.5, 3.3 → 3.3.9), and the image's
+    `RUBY_CC_VERSION` must hold the same patch versions (rb-sys 0.9.123 image: 3.4.5 down to 2.7.8,
+    x64-mingw-ucrt 3.4.5 to 3.1.7). Sources: `gem/exe/rb-sys-dock` and `docker/Dockerfile.*` at the
+    rb-sys tag, `Dockerfile.mri.erb` and `lib/rake_compiler_dock.rb` at the rake-compiler-dock tag

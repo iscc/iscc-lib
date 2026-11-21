@@ -70,6 +70,20 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 
 ## Ruby Binding Review
 
+- **Ruby floor / toolchain step (270, ~25 min)**: the floor is 3.3 and system Ruby 3.1 cannot run
+    `bundle` in `crates/iscc-rb` any more, so every older command in this file needs the prefix
+    `LANG=C.UTF-8 mise exec ruby@3.4.13 --`. Test the FLOOR too: `mise install ruby@3.3` is a
+    prebuilt download (30 s), then `bundle install`, `standardrb`, `rake compile test` under it.
+    **NEVER run `rake clobber`**: rb_sys puts the workspace cargo `target/` in CLOBBER, and it
+    emptied the whole build cache (rmdir of the volume mount then fails and aborts rake). The
+    `lib/iscc_lib/iscc_rb.so` fits ONE Ruby series and rake thinks it is current: to switch,
+    `rm lib/iscc_lib/iscc_rb.so` and `rm -rf tmp/x86_64-linux/iscc-rb/<version>`, and leave the tree
+    on the 3.4 build. A cross-gem `ruby-versions` claim: read `RUBY_CC_VERSION` in
+    rake-compiler-dock's `Dockerfile.mri.erb` at the tag the rb-sys image is `FROM`, and
+    `cross_rubies` of the LOCKED rake-compiler-dock gem (rb-sys-dock resolves through the gem).
+    Advance's test edit failed pre-push `ty` (`re.search(…).group` on an Optional): run
+    `uv run ty check` on ANY edited `.py`, tests included. Codex and I both found the devcontainer
+    bootstrap gap (post-create `bundle install` under system Ruby)
 - Magnus **0.8.2** since iter 167 (the old "0.8 needs Ruby 3.2+" note was wrong — 0.8's README says
     Ruby 3.0-3.4 fully supported, MSRV 1.65; gemspec floor `>= 3.1.0`, CI 3.1, cross-gem 3.1/3.2/3.3
     all fit). 0.8 drops `old-api`: `ruby.exception_runtime_error()` and `ruby.str_from_slice()`
@@ -136,9 +150,9 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 
 ## Per-binding review commands (moved from MEMORY.md index, iter 149)
 
-- **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` +
-    `pushd crates/iscc-rb && bundle exec rake test; popd` + `bundle exec standardrb` (the last needs
-    `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`).
+- **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` + `rake compile test` +
+    `standardrb` in `crates/iscc-rb`, each under `LANG=C.UTF-8 mise exec ruby@3.4.13 -- bundle exec`
+    (270: system Ruby 3.1 is below the floor).
 - **Kotlin-only**: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
     workspace + `mise run check`. Gradle flakes on this bind mount — read
     `build/test-results/test/*.xml` and re-run after `./gradlew clean` before calling it a failure.

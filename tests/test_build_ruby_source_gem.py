@@ -474,7 +474,9 @@ def test_ci_source_gem_install_takes_built_source_gem_file():
     ]
     assert rubies
     build = next(s for s in steps if SCRIPT_CALL in s.get("run", ""))
-    out_dir = re.search(r"--out\s+(\S+)", build["run"].replace('"', "")).group(1)
+    out_match = re.search(r"--out\s+(\S+)", build["run"].replace('"', ""))
+    assert out_match is not None
+    out_dir = out_match.group(1)
     install = next(s for s in steps if "gem install" in s.get("run", ""))
     install_run = install["run"].replace('"', "")
     assert f"gem install {out_dir}/iscc-lib-*.gem" in install_run
