@@ -3,13 +3,14 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 251):** v0.8.0 reopened by 6 `normal` issues (2 human, 4 audit). Plan: 250
-core+Go ragged-video reject (PASS) → 251 Go JCS escaping (Rust-derived expected bytes) → ONE fan-out
-adding BOTH new `data-edge.json` sections (`gen_video_code_v0` error w/ `diverges`,
-`gen_meta_code_v0` JCS) to 12 harnesses → FFI NULL → int wrap → docs (audit 8-file) → pytest gate.
-**Collecting rule vs "core first and alone":** when the vector needs a NEW section, land the
-behaviour first, then fan out the section(s) — batch pending sections into one fan-out. Ledger/traps
-→ [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
+**Status 2026-11-21 (iter 252):** v0.8.0 reopened by 6 `normal` issues (2 human, 4 audit). 250
+core+Go ragged-video reject → 251 Go JCS escaping (both PASS) → 252 ONE fan-out adding
+`gen_meta_code_v0` (raw JCS chars, meta as JSON OBJECT — iscc-core crashes on a string meta) +
+`gen_video_code_v0` (positive + ragged `diverges`) to 12 harnesses → FFI NULL → int wrap → docs
+(audit 8-file) → pytest gate. Template for a section fan-out: next.md at `3237e83`. **Collecting
+rule vs "core first and alone":** when the vector needs a NEW section, land the behaviour first,
+then fan out the section(s) — batch pending sections into one fan-out. Ledger/traps →
+[v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
 [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
 track `main`, not `develop`** — check the lockfile on `develop` before scoping.
 
