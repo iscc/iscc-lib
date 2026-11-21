@@ -36,6 +36,7 @@ const SECTIONS: &[(&str, Caller)] = &[
     ("alg_simhash", call_simhash),
     ("gen_meta_code_v0", call_meta),
     ("gen_video_code_v0", call_video),
+    ("alg_cdc_chunks", call_cdc),
 ];
 
 /// Parse the embedded `data-edge.json`.
@@ -79,6 +80,22 @@ fn bytes_item(item: &Value, index: usize) -> Result<Vec<u8>, String> {
         .and_then(|s| s.strip_prefix("bytes:"))
         .and_then(|h| hex::decode(h).ok())
         .ok_or_else(|| format!("input {index} holds a non-`bytes:<hex>` item"))
+}
+
+/// Read the input at `index` as one `bytes:<hex>` byte string.
+fn bytes_arg(inputs: &[Value], index: usize) -> Result<Vec<u8>, String> {
+    inputs
+        .get(index)
+        .ok_or_else(|| format!("input {index} is missing"))
+        .and_then(|v| bytes_item(v, index))
+}
+
+/// Read the input at `index` as a boolean.
+fn bool_arg(inputs: &[Value], index: usize) -> Result<bool, String> {
+    inputs
+        .get(index)
+        .and_then(Value::as_bool)
+        .ok_or_else(|| format!("input {index} is not a boolean"))
 }
 
 /// Read the input at `index` as a list of `bytes:<hex>` digests, converted to a JS array.
@@ -212,6 +229,22 @@ fn call_video(inputs: &[Value]) -> Result<Outcome, String> {
     Ok(to_outcome(
         iscc_wasm::gen_video_code_v0(frames, Some(f64::from(bits))),
         iscc_json,
+    ))
+}
+
+/// Encode `alg_cdc_chunks` chunks as a list of `bytes:<hex>` values.
+fn chunks_json(chunks: Vec<js_sys::Uint8Array>) -> Value {
+    Value::Array(chunks.iter().map(|c| bytes_value(&c.to_vec())).collect())
+}
+
+/// Run `alg_cdc_chunks` on the vector's data, `utf32` flag and average size.
+fn call_cdc(inputs: &[Value]) -> Result<Outcome, String> {
+    let data = bytes_arg(inputs, 0)?;
+    let utf32 = bool_arg(inputs, 1)?;
+    let avg = u32_arg(inputs, 2)?;
+    Ok(to_outcome(
+        iscc_wasm::alg_cdc_chunks(&data, utf32, Some(f64::from(avg))),
+        chunks_json,
     ))
 }
 
