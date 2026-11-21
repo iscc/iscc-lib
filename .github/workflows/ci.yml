@@ -152,9 +152,13 @@ jobs:
     name: C# / .NET ${{ matrix.runtime }} (dotnet build, test)
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         # The package targets net8.0, the supported floor. The 10.0 leg runs the
         # same net8.0 build on the .NET 10 runtime, as a consumer on .NET 10 does.
+        # setup-dotnet installs the SDKs into a private DOTNET_INSTALL_DIR, so a
+        # leg sees only the runtimes it lists, never the newer majors the runner
+        # image preinstalls; LatestMajor then resolves to the newest listed major.
         include:
           - runtime: '8.0'
             major: 8
@@ -171,6 +175,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-dotnet@v6
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
         with:
           dotnet-version: ${{ matrix.sdks }}
       - name: Build FFI native library

@@ -49,6 +49,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     c-ffi, dotnet, java, go, ruby, ruby-source-gem, cpp, swift, kotlin, bench, perf, semver,
     coverage, audit, release-workflow). `bench`=`cargo bench --no-run`; `swift` macos-15 (macos-14
     retired 2026-11-02, iter 196); `kotlin` ubuntu JDK17
+- .NET CI (260): `dotnet-test` legs install into private `DOTNET_INSTALL_DIR` (runner.temp) —
+    `/usr/share/dotnet` preinstalls newer majors that `LatestMajor` would pick. Verify action claims
+    via `gh api 'repos/<o>/<r>/contents/<path>?ref=<tag>' --jq .content | base64 -d`
 - Enforcing gates: `coverage` (CRAP baseline `.crap-baseline.json`), `audit` (cargo-deny), `perf`
     (iai vs `.iai-baseline.json`); `semver` informational until v1.0.0. CRAP gate is CI-ONLY —
     refresh `mise run crap:baseline` in the SAME step as any branch-adding change → ci-gates.md
