@@ -3,14 +3,14 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 269):** v0.8.0 features done; Titusz's triage (07fe690) left 11 `normal`
-issues + 1 `critical` (WASM type-check regression, repair scoped 269). Per-iteration traps for
-259-269 (dotnet roll-forward, build-dependent iscc-core, lone-surrogate vectors, wasm-bindgen
-`.d.ts` `?` rule, uncaught js-sys imports) → [v0.8.0 iteration ledger](v080-iteration-ledger.md).
-**Probe the ref on BOTH builds (py3.10 + py3.15) before scoping a vector. External-flake red: still
-scope a hardening. An issue's "Scope estimate" can over-count — apply the docs-excluded rule
-yourself. Dependabot alerts track `main`, not `develop`.** NONE verification:
-`grep -E '^## .*(critical|normal)' issues.md` prints nothing.
+**Status 2026-11-21 (iter 270):** v0.8.0 features done; critical closed 269; 11 `normal` issues left
+(270 scoped the Ruby 3.3 floor). Per-iteration traps for 259-269 (dotnet roll-forward,
+build-dependent iscc-core, lone-surrogate vectors, wasm-bindgen `.d.ts` `?` rule, uncaught js-sys
+imports) → [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds
+(py3.10 + py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's
+"Scope estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track
+`main`, not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints
+nothing.
 
 ## Scope Calibration Principles
 

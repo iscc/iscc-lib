@@ -208,4 +208,11 @@ array-like read via Reflect). Next small items: Ruby 3.3 floor, FFI padding remo
 **Collecting rule vs "core first and alone":** land the behaviour first, then batch pending sections
 into one fan-out. Ledger/traps → [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history
 → [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
-track `main`, not `develop`** — check the lockfile on `develop` before scoping.
+track `main`, not `develop`** — check the lockfile on `develop` before scoping. 270 scoped the Ruby
+3.3 floor (normal-issue cleanup phase). **rb-sys-dock 0.9.123 image = rake-compiler-dock-image
+1.10.0 → builds Ruby 3.4.5 too** (Dockerfile.mri.erb `RUBY_CC_VERSION`), so precompiled list =
+`3.3, 3.4` with no image bump; Ruby 4.0 needs rcd 1.11 / rb_sys ≥ 0.9.124 (hold says it breaks
+`RbSys::ExtensionTask`) → separate step. `tests/test_ruby_gem_docs.py` gates the docs' "Ruby X to Y"
+range against release.yml. Devcontainer system Ruby is 3.1 (below floor); `mise exec ruby@3.4.13 --`
+works locally. Remaining normal: FFI padding, JNI loader, Ruby Float docs, pkg-config version, KAA
+comments, dev.md publish, architecture.md, llms.txt/ISO, gen dup, spec staleness.
