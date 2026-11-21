@@ -24,9 +24,10 @@ to create a composite identifier that exhibits similarity-preserving properties 
 ```
 
 The JAR bundles the native library for Linux (x86_64, aarch64), macOS (x86_64, aarch64) and Windows
-(x86_64) and loads it automatically when `IsccLib` is first used. On other platforms, put your own
-build of the library (`libiscc_jni.so`, `libiscc_jni.dylib`, or `iscc_jni.dll`) on
-`java.library.path`.
+(x86_64) and loads it automatically when `IsccLib` is first used. The loader recognizes Linux, macOS
+and Windows on x86_64 and aarch64: where the JAR has no library for such a platform, it loads your
+own build (`libiscc_jni.so`, `libiscc_jni.dylib`, or `iscc_jni.dll`) from `java.library.path`. Any
+other operating system or architecture fails with `UnsatisfiedLinkError`.
 
 ## Quick Start
 

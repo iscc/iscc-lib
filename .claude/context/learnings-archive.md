@@ -1106,3 +1106,8 @@ runs on `opus`. Deliberate — do not "unify" them.
     `toolchain` line wins; a workflow that exports `GOTOOLCHAIN=local` falls back to the `go` line
 - Conan generates `iscc.pc` / `find_package(iscc)` at install time, so `check_spec_paths.py` lists
     them in `GENERATED` (228; moved from learnings.md in 245)
+
+## Archived from learnings.md (review 257)
+
+- A *concurrent* Gradle 9 build (a background Codex run in the same tree) makes `clean` fail "Unable
+    to delete" (165): re-run sequentially

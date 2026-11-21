@@ -28,7 +28,7 @@ No other setup is needed: the Maven dependency is enough.
 
 ??? tip "Build from source"
 
-    To build the native library yourself, for development or for a platform the JAR does not cover:
+    To build the native library yourself, for development on this repository:
 
     ```bash
     # Build the native JNI shared library
@@ -61,7 +61,9 @@ your own build:
 java -Djava.library.path=/path/to/native/libs -cp your-app.jar com.example.Main
 ```
 
-If neither strategy finds the library, the JVM throws `UnsatisfiedLinkError` at class load time.
+If neither strategy finds the library, the JVM throws `UnsatisfiedLinkError` at class load time. The
+loader throws the same error before it tries either strategy on an operating system other than
+Linux, macOS or Windows, and on an architecture other than x86_64 or aarch64.
 
 All ISCC methods are static — there is no runtime object to create or close.
 

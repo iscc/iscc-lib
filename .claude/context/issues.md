@@ -267,12 +267,32 @@ Resolved when either each numeric parameter of `crates/iscc-wasm/src/lib.rs` rej
 pinned by a Node test on a built package, or `docs/howto/wasm.md` → "Error handling" states the
 conversion.
 
-## Published-package docs contradict what ships `normal` [audit]
+## JNI `NativeLoader` rejects an unknown OS or architecture before the `java.library.path` fallback `low` [review]
 
-`README.md:190,285` print `result.iscc` from a string return; WASM snippet lacks `await init()`
-(package is `--target web`, `release.yml:427`). Java/Kotlin docs say no Maven Central/no loader
-(`docs/howto/java.md:6,29`, `crates/iscc-jni/README.md:27`); Swift READMEs say build from source
-though `Package.swift:18-20` fetches an XCFramework; `docs/architecture.md:30,178` (five bindings,
-napi AsyncTask); `docs/development.md:181` + `CLAUDE.md:207` claim pytest coverage enforcement, no
-`--cov` exists. **Fix:** correct each claim against the code. **Scope estimate:** ~11 files — needs
-audit-scope step (≤8 files); do README + how-tos first.
+**Triage:** untriaged — a Java user outside Linux, macOS and Windows on x86_64 or aarch64 (Linux
+riscv64, FreeBSD) cannot use `io.iscc:iscc-lib` even with their own build of `libiscc_jni`.
+
+`NativeLoader.load()` calls `detectOs()` and `detectArch()` first, and both throw
+`UnsatisfiedLinkError` for a value they do not know, so `System.loadLibrary("iscc_jni")` is never
+tried. Measured on the published 0.7.0 JAR in iteration 257 with a working library on
+`java.library.path`: `-Dos.arch=riscv64` fails with "Unsupported architecture: riscv64" and
+`-Dos.name=FreeBSD` with "Unsupported OS: FreeBSD", while a recognized pair without a bundled
+library (Windows on aarch64) loads it. Unverified: musl Linux probably fails too, because the
+bundled glibc library fails inside `System.load` and only `IOException` leads to the fallback.
+Pre-existing; the Java how-to and the JNI README describe it.
+
+Resolved when either an unknown OS or architecture reaches the `System.loadLibrary` fallback, pinned
+by a Java test, and the two docs say so, or a decisions.md entry keeps the limit on purpose.
+
+## `docs/architecture.md` sections below the graph cover half the surfaces `low` [review]
+
+**Triage:** untriaged — a reader of the architecture page finds no Ruby, UniFFI, .NET, C++, Swift or
+Kotlin in "Workspace Layout", "Crate Summary" and "Cross-Language Test Matrix", and reads that
+`iscc-ffi` is published as "Source".
+
+"Crate Summary" gives `iscc-ffi` → "Source", while each GitHub release attaches prebuilt
+`iscc-ffi-v*-<target>` archives. The test matrix names `cargo test` as the WASM runner, which runs
+no `#[wasm_bindgen_test]` (CI runs `wasm-pack test --node`). Pre-existing.
+
+Resolved when each of the three sections covers every surface the graph shows or says it is an
+excerpt, and the `iscc-ffi` and WASM rows match the release assets and the CI command.

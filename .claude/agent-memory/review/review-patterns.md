@@ -663,6 +663,28 @@ claim about the published artifact, and no gate in this repo installs one. Probe
     PASS_WITH_NOTES, a `normal` issue for the defect, and the old issue is replaced rather than
     kept. Codex did not catch it
 
+### Published-package docs sweep (257, ~20 min, PASS_WITH_NOTES)
+
+A docs-only step that rewrites install and loader claims for several registries. Green gates prove
+nothing here; the probes that did:
+
+- Java: download the Maven Central JAR into an empty `/tmp` dir, `unzip -l` for `META-INF/native/`,
+    then `javac`/`java -cp` a three-line `Probe.java` kept in a separate dir, with no library path.
+    Kotlin: read `<scope>` of the JNA dependency in the published POM. Swift:
+    `git show v<tag>:Package.swift` (SPM resolves the TAG, not HEAD) and `sha256sum` of the release
+    zip against `releaseChecksum`
+- **A fallback sentence ("on other platforms, do X") is a claim about a platform you are not on.**
+    Simulate it:
+    `java -Dos.arch=riscv64 -Dos.name=FreeBSD -Djava.library.path=<dir with the extracted .so>`.
+    257: `NativeLoader` throws before the fallback, so the new sentence was false. Codex found the
+    same from the source. Fixed in step 9 (three sentences), and the loader limit filed `low`
+- next.md's "optional override" for `java.library.path` was false as well: the bundled library wins
+- Sweep the page a step half-fixes: the graph in `docs/architecture.md` was completed while three
+    sections below it stayed partial. Filed `low`, not NEEDS_WORK, because next.md scoped only the
+    graph, one sentence and one row
+- A work-producing iteration that leaves only `low` issues is PASS without `**IDLE**`: the next
+    `Step: NONE` iteration signals it
+
 ## Moved from the index (239)
 
 Detail of index entries that were cut to one or two lines when the index was compacted.

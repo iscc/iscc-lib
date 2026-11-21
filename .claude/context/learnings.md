@@ -103,7 +103,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     Never hand-retype either into a heredoc
 - **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): source gems
     up to 0.7.0 do not build. Probe: `gem fetch iscc-lib --platform ruby`, then
-    `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`
+    `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`. **A platform-fallback claim needs
+    a foreign-platform run** (257): `java -Dos.arch=riscv64` → `NativeLoader` throws pre-fallback
 - **Ruby source gem = `scripts/build_ruby_source_gem.py` only** (239-241). `cross-gem@v1` reads the
     rb_sys pin UNANCHORED (first `Gemfile.lock` line containing `rb_sys`), so the gemspec declares
     `rb_sys` only next to `core/`. The staged manifest is its own workspace: of the root, only
@@ -140,8 +141,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A
     `files:`-scoped hook never sees deletions** — pair any consistency hook with a pytest anchor
     test against the real tree. Formatter caveats → `learnings-archive.md`
-- **JVM/Gradle gotchas** (128) → `learnings-archive.md`, read before touching `pom.xml`/`.kts`. A
-    *concurrent* Gradle 9 build (background Codex) makes `clean` fail "Unable to delete" (165)
+- **JVM/Gradle gotchas** (128, 165) → `learnings-archive.md`, read before touching `pom.xml`/`.kts`
 - **Prove a new gate with a REAL regression in a THROWAWAY repo, not a synthetic typo** (iters
     144/152/163): `git archive HEAD | tar -x -C /tmp/x && git init` gives a probe tree where
     `git add`/`git rm` are free; the cheapest *real* regression is the guarded file's own previous

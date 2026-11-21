@@ -110,7 +110,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     **C++ how-to / doc-example (244)** → `review-patterns.md` "Doc-parity gate (233)"
 - **Derived-fact removal (245)**, **file-list removal (246)**, **spec-list gate (247)** →
     `review-patterns.md`, sections of the same names
-- **Docs install/packaging-claim step (238)**: install the PUBLISHED artifact in a clean prefix →
+- **Docs install/packaging-claim step (238, 257)**: install the PUBLISHED artifact in a clean
+    prefix; simulate a foreign platform for any fallback sentence (`java -Dos.arch=…`) →
     `review-patterns.md` "Install-claim probe (238)"
 - **A test that shells out adds a tool to the `python-test` CI job** (240: `ruby`): check the runner
     image readme
