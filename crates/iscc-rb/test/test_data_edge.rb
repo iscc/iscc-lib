@@ -48,6 +48,16 @@ module DataEdge
     [inputs[0].map { |d| decode_bytes(d) }, *inputs.drop(1)]
   end
 
+  # Decode the `alg_cdc_chunks` data from a `bytes:<hex>` string into a binary string.
+  def self.prepare_cdc(inputs)
+    [decode_bytes(inputs[0]), *inputs.drop(1)]
+  end
+
+  # Convert `alg_cdc_chunks` chunks to a list of `bytes:<hex>` values.
+  def self.convert_chunks(chunks)
+    chunks.map { |c| bytes_value(c) }
+  end
+
   # Prepare `gen_meta_code_v0` inputs: an empty description becomes nil and a meta
   # Hash is serialized to the JSON string the binding takes.
   def self.prepare_meta(inputs)
@@ -83,6 +93,9 @@ module DataEdge
     ],
     "gen_video_code_v0" => [
       ->(inputs) { IsccLib.gen_video_code_v0(inputs[0], bits: inputs[1]) }, method(:convert_hash)
+    ],
+    "alg_cdc_chunks" => [
+      ->(inputs) { IsccLib.alg_cdc_chunks(*inputs) }, method(:convert_chunks), method(:prepare_cdc)
     ]
   }.freeze
 
