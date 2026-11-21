@@ -1,23 +1,23 @@
-<!-- assessed-at: 296161198a7ffa77e90221db3d20fb4d4109aa27 -->
+<!-- assessed-at: 94cc97228a7fec6dcb7327a61fa1d786ce184bd4 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; CI green; 15 `normal` issues block the release
+## Phase: v0.8.0 — features done; CI green; 14 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 264 added an
-`alg_cdc_chunks` section (3 vectors) to `data-edge.json` and all 12 harnesses. Titusz then ruled
-that no vector with `avg_chunk_size` of 2^29 or more is added, closed that issue, and moved the
-32-bit Go CI issue to `normal`. CI is green; 15 `normal` and 1 `low` issues remain open.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 265 made Python
+video frame values outside the `i32` range raise `OverflowError` on every platform and closed that
+issue; review filed a `low` issue that no CI job runs a test suite on Windows. CI is green; 14
+`normal` and 2 `low` issues remain open.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
 **Status**: met
 
-- `crates/iscc-lib/tests/data-edge.json` has 9 sections, now including `alg_cdc_chunks` (3 vectors);
-    the 5 tracked copies are byte-identical; C/C++ read the regenerated `data_edge_vectors.h`; all
-    12 harnesses gained an `alg_cdc_chunks` handler
+- `crates/iscc-lib/tests/data-edge.json` has 9 sections incl. `alg_cdc_chunks` (3 vectors); the 5
+    tracked copies are byte-identical; C/C++ read the generated `data_edge_vectors.h`; all 12
+    harnesses run every section
 - The ragged video vector carries a `diverges` marker; napi, WASM, JNI and .NET leave `name`,
     `description`, `meta`, `metahash` uncompared for meta
 - No vector from 2^29 up, on purpose (decision of 2026-11-21; mismatch is iscc/iscc-core#141)
@@ -33,17 +33,18 @@ that no vector with `avg_chunk_size` of 2^29 or more is added, closed that issue
     BLAKE3 twice, `gen_meta_code_v0` parses `meta` twice, WASM `gen_sum_code_v0` copies `SumHasher`
 - `normal` (audit): specs and crate `CLAUDE.md` files are stale — `rust-core.md` says `Version` has
     only V0, napi/py/wasm `CLAUDE.md` name `iscc_lib::Error` (type is `IsccError`)
-- **Postponed (human):** crate `>= 1.0.0`; MSRV verification; `no_std` support (filed 2026-11-21)
+- **Postponed (human):** crate `>= 1.0.0`; MSRV verification; `no_std` support
 
 ## Python Bindings
 
-**Status**: partially met (one `normal` issue)
+**Status**: met (v0.8.0 scope)
 
 - 35 Tier 1 symbols with `.pyi` stubs and `__all__`; abi3-py310 wheels for 4 platforms; 12
     `py.detach` sites; 0.7.0 on PyPI; data-edge harness with the iscc-core cross-check; CI 3.10/3.15
-- `normal` (audit): out-of-range video frame values raise `ValueError` on Linux/macOS but
-    `OverflowError` on Windows (`PyLong_AsLong`); `tests/test_int_range.py` has no video case
+- `extract_frame_sigs` reads frame values with `PyLong_AsLongLong` and raises `OverflowError`
+    outside `i32`; `tests/test_int_range.py` covers both video entry points (fixed 265)
 - `specs/python-bindings.md` still says text/video paths hold the GIL (part of the spec issue)
+- The Windows fix is proven from the type only — no CI run on Windows (`low`, see CI/CD)
 
 ## Node.js Bindings
 
@@ -87,7 +88,7 @@ that no vector with `avg_chunk_size` of 2^29 or more is added, closed that issue
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
     sections incl. the raw-JCS meta vector and the ragged video vector
 - `normal` (decided): add one `GOARCH=386` step to the `go` CI job — the 32-bit `algCdcParams`
-    handling is untested in CI (runs locally)
+    handling is untested in CI
 - `normal`: Go canonical `meta` differs from the core on UTF-16 key order, `-0` and lone surrogates
 - `TextTrim` clamps `nbytes <= 0`; hashers error after `Finalize` (API break, release-notes item)
 
@@ -154,23 +155,22 @@ that no vector with `avg_chunk_size` of 2^29 or more is added, closed that issue
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates — binding marshalling is not gated;
-    CRAP baseline refreshed in 264
+- `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates — binding marshalling is not gated
 - No 32-bit CI leg for the Go port yet (`normal`, decided, see Go)
-- **Latest CI: PASSING** on `origin/develop` = `774f82c`:
-    https://github.com/iscc/iscc-lib/actions/runs/44915088729 — all 24 check-runs `success`
-- HEAD is 3 commits ahead (`cid(log)` + two `cid(human)`, `.claude` only), so green CI covers the
-    code at HEAD
+- `low` (untriaged): no CI job runs a test suite on Windows — 21 Linux jobs, one macOS; in
+    `release.yml` only `test-nuget` runs on `windows-latest`
+- **Latest CI: PASSING** on `origin/develop` = `2d1a4f2`:
+    https://github.com/iscc/iscc-lib/actions/runs/44922888832 — all jobs `success`; HEAD adds only
+    the `cid(log)` commit, so green CI covers the code at HEAD
 
 ## Open Issues
 
-16 open in issues.md: 0 critical, 15 `normal`, 1 `low`; none blocked on the human or upstream.
-Titusz closed the large-CDC-vector issue (no such vectors) and raised the Go 32-bit CI issue to
-`normal`. 7 sit in `postponed.md`, incl. `no_std` support filed 2026-11-21.
+16 open in issues.md: 0 critical, 14 `normal`, 2 `low`; none blocked on the human or upstream. The
+Python video exception class issue closed in 265; the Windows CI issue is new and untriaged. 7 sit
+in `postponed.md`.
 
 ## Next Milestone
 
-Clear the 15 `normal` issues that block v0.8.0, correctness first: Go canonical `meta`, the Python
-video exception class, WASM coercion and the Go 32-bit CI step. Then the Ruby floor, the FFI padding
-removal, the JNI loader, the one-shot duplication and docs/spec alignment. Titusz then cuts v0.8.0
-via `/release`.
+Clear the 14 `normal` issues that block v0.8.0, correctness first: Go canonical `meta`, WASM
+coercion and the Go 32-bit CI step. Then the Ruby floor, the FFI padding removal, the JNI loader,
+the one-shot duplication and docs/spec alignment. Titusz then cuts v0.8.0 via `/release`.

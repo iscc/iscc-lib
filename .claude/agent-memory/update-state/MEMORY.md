@@ -86,14 +86,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 2961611, iter 265 — incremental)
+## Current State (assessed-at: 94cc972, iter 266 — incremental)
 
-- **CI on `origin/develop` = `774f82c` GREEN** (run 44915088729, 24 check-runs success; codecov/
-    cursor suites sit `queued` forever — judge by the github-actions suite). A `null` check-run
-    conclusion = still running. For job logs, call the `actions/jobs/<id>/logs` API with
-    `--allow-escape-sequences` and strip ANSI.
-- 16 open (15 `normal` + 1 `low`); 7 in `postponed.md` (no_std added 265 by `cid(human)`). Human
-    closed the 2^29 CDC vector issue (no such vectors, decision), Go 386 CI step now `normal`.
+- **CI on `origin/develop` = `2d1a4f2` GREEN** (run 44922888832; codecov/cursor suites sit `queued`
+    forever — judge by the github-actions suite). A `null` check-run conclusion = still running;
+    `gh run view <id> --json status,conclusion,jobs` settles it. Job logs: `actions/jobs/<id>/logs`
+    API with `--allow-escape-sequences`, strip ANSI.
+- 16 open (14 `normal` + 2 `low`); 7 in `postponed.md`. 265 closed the Python video exception issue
+    (Python now met); review filed `low` untriaged "No CI job runs a test suite on Windows".
     data-edge.json = 9 sections. `grep -c '#\[test\]' crates/iscc-lib/src/*.rs` sum = 311.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
