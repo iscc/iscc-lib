@@ -86,13 +86,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: f1c7636, iter 281 — incremental)
+## Current State (assessed-at: fb0d981, iter 282 — incremental)
 
-- Origin tip `8e8a5a9` run 44957320561 GREEN (24/24); local HEAD +4 `.claude`-only commits (audit
-    280 + logs). codecov/cursor suites sit `queued` forever — judge by the github-actions suite.
-- 17 open (0 `critical` + 8 `normal` + 9 `low`, 8 untriaged); 7 postponed. Audit 280 filed 5
-    `normal` (Go MetaTrimMeta unenforced, vcpkg v0.2.0 SHA512s, dup data.json parsers, WASM finalize
-    state, Rust tier docs) → Go + C++ sections flipped to partially met with zero code change.
+- Origin tip `2326695` run 44961587818 GREEN (24/24); local HEAD +1 `.claude`-only log commit.
+    codecov/cursor suites sit `queued` forever — judge by the github-actions suite.
+- 17 open (0 `critical` + 8 `normal` + 9 `low`, 8 untriaged); 7 postponed. 281 closed Go meta limit
+    (Go → met), review filed `normal` MSVC 128 KB literal in generated `data_edge_vectors.h`.
+    data-edge.json now ~144 KB/copy (a 2nd such vector would breach the 256 KB added-file limit).
     iscc-lib `src/` 315 `#[test]`; iscc-uniffi 30; JNI `IsccLibTest.java` 65 `@Test`.
 - **JNI layouts:** CI `java` job runs Maven twice since 279 — `target/debug` layout, then
     bundled-resource-only (mirrors `release.yml` → `test-jni`).

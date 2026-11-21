@@ -1,4 +1,4 @@
-<!-- assessed-at: f1c76365d029b64753f4e1b64a6932fcf8cacd24 -->
+<!-- assessed-at: fb0d9813e7bb3b00e6e3a9eee7df3fb1717332a0 -->
 
 # Project State
 
@@ -7,20 +7,22 @@
 ## Phase: v0.8.0 — features done; 8 `normal` issues block the release
 
 ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings, and all code is pushed and
-covered by green CI. Iteration 280 closed two `normal` docs issues; the iteration-280 audit then
-filed five more `normal` issues (Go meta limit, vcpkg hashes, duplicate `data.json` parsers, WASM
-`finalize()` state, Rust API tier docs). 17 issues are open: 8 `normal`, 9 `low`.
+covered by green CI. Iteration 281 made Go enforce the 128,000-byte meta limit and added a shared
+vector for it; review filed a new `normal` issue because that vector puts a 128 KB string literal
+into the generated C header, which MSVC cannot compile. 17 issues are open: 8 `normal`, 9 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
-**Status**: met
+**Status**: met (one `normal` follow-up)
 
-- `crates/iscc-lib/tests/data-edge.json` has 9 sections; the 5 tracked copies are byte-identical;
-    C/C++ read the generated `data_edge_vectors.h`; all 12 harnesses run every section
+- `crates/iscc-lib/tests/data-edge.json` has 9 sections; the 5 tracked copies are byte-identical
+    (now about 144 KB each); C/C++ read the generated `data_edge_vectors.h`; all 12 harnesses run
+    every section
+- `test_0004_meta_payload_over_limit` pins the meta size limit on every surface
+- `normal`: the generated header carries a 128 KB string literal, over MSVC's 65,535-byte limit
 - The ragged video vector carries a `diverges` marker; napi, WASM, JNI and .NET leave `name`,
-    `description`, `meta`, `metahash` uncompared for meta
-- No vector from 2^29 up, on purpose (decision of 2026-11-21); no `alg_minhash_256` section and no
-    meta-size-limit vector (see Rust core and Go)
+    `description`, `meta`, `metahash` uncompared for meta. No vector from 2^29 up (decision
+    2026-11-21); no `alg_minhash_256` section
 
 ## Rust Core Crate
 
@@ -30,11 +32,10 @@ filed five more `normal` issues (Go meta limit, vcpkg hashes, duplicate `data.js
     `conformance_selftest` runs the seq vectors; 315 `#[test]` in `src/`
 - `normal`: `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises; no decision
 - `normal`: one-shot gen functions re-implement streaming (double BLAKE3, double `meta` parse)
-- `normal` (audit 280): nine `test_gen_*_conformance` tests in `lib.rs` re-parse `data.json` beside
+- `normal`: nine `test_gen_*_conformance` tests in `lib.rs` re-parse `data.json` beside
     `conformance.rs`; the Rust and Go runners disagree on malformed vectors
-- `normal` (audit 280): public `streaming::SumHasher` and `IsccError` sit in no tier list; docs and
-    `CLAUDE.md` cite a nonexistent `iscc_lib::api` module. **Postponed (human):** `>= 1.0.0`, MSRV,
-    `no_std`
+- `normal`: public `streaming::SumHasher` and `IsccError` sit in no tier list; docs and `CLAUDE.md`
+    cite a nonexistent `iscc_lib::api` module. **Postponed (human):** `>= 1.0.0`, MSRV, `no_std`
 
 ## Python Bindings
 
@@ -49,25 +50,24 @@ filed five more `normal` issues (Go meta limit, vcpkg hashes, duplicate `data.js
 **Status**: met (v0.8.0 scope)
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and strict data-edge tests;
-    `@iscc/lib` 0.7.0 on npm (OIDC); `howto/nodejs.md` now names `NapiSumCodeResult`
+    `@iscc/lib` 0.7.0 on npm (OIDC)
 - The napi `Buffer` reference leak is postponed (`postponed.md`)
 
 ## WASM Bindings
 
 **Status**: partially met (two `normal`, two `low`)
 
-- 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust; tests: 11
-    conformance, 8 data-edge, 126 unit
+- 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust
 - `normal`: `docs/howto/wasm.md` and the crate README show a Node.js setup the `--target web`
     package cannot run; `wasm.md:82` still says all 10 gen functions return a string
-- `normal` (audit 280): hasher `finalize()` consumes the hasher on a core-rejected `bits` but not on
-    a JS-rejected one; no cross-binding rule recorded, no test
+- `normal`: hasher `finalize()` consumes the hasher on a core-rejected `bits` but not on a
+    JS-rejected one; no cross-binding rule recorded, no test
 - `low`: byte/string parameters glue-converted; a throwing serde-read list element kills the
     instance
 
 ## C FFI
 
-**Status**: met
+**Status**: met (MSVC portability of the test header tracked under data-edge)
 
 - 51 exports incl. `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with freshness check;
     `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
@@ -78,19 +78,18 @@ filed five more `normal` issues (Go meta limit, vcpkg hashes, duplicate `data.js
 
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 9 sections strictly; 0.7.0 on Maven Central
     with five bundled native libraries; 65 `@Test` in `IsccLibTest.java`
-- `NativeLoader` falls back to `System.loadLibrary`; loader tests pass in both the CI and the
-    `release.yml` → `test-jni` layouts
+- CI `java` job runs the suite in both the CI and the `release.yml` → `test-jni` layouts
 - `low`: each bundled load leaves an empty `iscc-jni-*` temp directory
 
 ## Go Bindings
 
-**Status**: partially met (one `normal`)
+**Status**: met (v0.8.0 scope)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
     sections; `go` CI job also runs as `GOARCH=386`
-- `normal` (audit 280): `MetaTrimMeta = 128_000` is declared (`codec.go:22`) and documented but read
-    nowhere; `GenMetaCodeV0` hashes oversized meta where the core and iscc-core raise
-- Go per-function tests re-read `data.json` beside `conformance.go` (see Rust core)
+- `GenMetaCodeV0` now rejects meta over `MetaTrimMeta` (`code_meta.go:72`) plus a 170,922-byte
+    pre-decode bound; boundary tests in `code_meta_test.go` for both meta forms
+- Go per-function tests re-read `data.json` beside `conformance.go` (tracked under Rust core)
 
 ## C# / .NET Bindings
 
@@ -105,8 +104,9 @@ filed five more `normal` issues (Go meta limit, vcpkg hashes, duplicate `data.js
 **Status**: partially met (one `normal`)
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job
-- `normal` (audit 280): `packages/cpp/portfile.cmake` still pins the five v0.2.0 tarball SHA512s
-    while the URL follows `vcpkg.json` 0.7.0, so the vcpkg port cannot install; no gate checks it
+- `normal`: `packages/cpp/portfile.cmake` still pins the five v0.2.0 tarball SHA512s while the URL
+    follows `vcpkg.json` 0.7.0, so the vcpkg port cannot install; no gate checks it
+- MSVC cannot build the C++ test program against the generated header (see data-edge)
 
 ## Ruby Bindings
 
@@ -133,9 +133,6 @@ filed five more `normal` issues (Go meta limit, vcpkg hashes, duplicate `data.js
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (20 `FULL`, 2 `EXACT`)
-- `architecture.md` "Crate Summary", "Per-Binding Adaptation" and "Cross-Language Test Matrix" now
-    cover every surface; no page left counts 10 standard functions or gives Sum-Code a string,
-    except `howto/wasm.md:82` (tracked under WASM)
 - `normal`: WASM Node.js setup (see WASM); Rust API tier docs (see Rust core)
 
 ## Benchmarks
@@ -150,24 +147,23 @@ filed five more `normal` issues (Go meta limit, vcpkg hashes, duplicate `data.js
 
 **Status**: partially met (one `low`)
 
-- `ci.yml` has 22 job keys; the `java` job runs the Maven suite twice (CI layout, then the
-    `test-jni` bundled-only layout)
-- `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21 version-sync targets at
-    0.7.0; the vcpkg hashes are not a release step (see C++)
-- `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 44957320561 on the origin tip `8e8a5a9` is green on all 24 jobs:
-    https://github.com/iscc/iscc-lib/actions/runs/44957320561. Local HEAD adds 4 unpushed
-    `.claude`-only commits (audit + log); no code is uncovered
+- `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
+    version-sync targets at 0.7.0; the vcpkg hashes are not a release step (see C++)
+- `low`: no CI job runs a test suite on Windows (so the MSVC header limit goes unseen); `iscc-ffi`,
+    napi and WASM sit outside iai/CRAP
+- **Latest CI: PASSING.** Run 44961587818 on the origin tip `2326695` is green on all 24 jobs:
+    https://github.com/iscc/iscc-lib/actions/runs/44961587818. Local HEAD adds one unpushed
+    `.claude`-only log commit; no code is uncovered
 
 ## Open Issues
 
-17 open in issues.md: 8 `normal` (6 from audits 270–280 still `[audit]`), 9 `low` (8 untriaged), no
-`critical`. Two need a behaviour decision first (`alg_minhash_256([])`, WASM `finalize()`); none is
-blocked on upstream. 7 sit in `postponed.md`.
+17 open in issues.md: 8 `normal`, 9 `low` (8 untriaged), no `critical`. Two need a behaviour
+decision first (`alg_minhash_256([])`, WASM `finalize()`); none is blocked on upstream. 7 sit in
+`postponed.md`.
 
 ## Next Milestone
 
-Clear the 8 `normal` issues that block v0.8.0 — the Go meta-size limit and the vcpkg hashes are
-user-facing correctness gaps; the WASM docs, Rust API tier docs, duplicate `data.json` parsers,
-one-shot/streaming duplication and the two behaviour decisions follow. Then Titusz cuts v0.8.0 via
-`/release`.
+Clear the 8 `normal` issues that block v0.8.0 — the vcpkg hashes and the MSVC-incompatible generated
+header are user-/portability-facing gaps; the WASM docs, Rust API tier docs, duplicate `data.json`
+parsers, one-shot/streaming duplication and the two behaviour decisions follow. Then Titusz cuts
+v0.8.0 via `/release`.
