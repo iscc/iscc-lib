@@ -91,15 +91,13 @@ helpers gets no failing test; Java callers would then see a constructor or JVM e
 `IllegalArgumentException: Java exception was thrown`.
 
 `throw_and_default` and `throw_state_error` in `crates/iscc-jni/src/lib.rs` return without throwing
-while an exception is pending (iter 230). The committed tests cover the `OutOfMemoryError` mapping
-and the zero-handle guards, but none reaches the guard: with it removed, `mvn clean test` stays
-green. The iter-230 handoff found no deterministic trigger; one exists. `new_object` leaves a
-constructor's exception pending, so a child JVM whose `-cp` starts with a directory holding a shadow
+while an exception is pending (iter 230). No committed test reaches the guard: with it removed,
+`mvn clean test` stays green. A deterministic trigger exists: `new_object` leaves a constructor's
+exception pending, so a child JVM whose `-cp` starts with a directory holding a shadow
 `io.iscc.iscc_lib.IsccDecodeResult` with a throwing `(IIII[B)V` constructor makes `isccDecode` reach
 the guard. Measured: at HEAD the caller sees the constructor's exception, without the guard the
-`IllegalArgumentException`. HotSpot 17 `-Xcheck:jni` prints no warning either way, so only the
-exception class shows the difference. The shadow class must not be a Maven test source (it would
-replace the real class for every test); compile it at test time or keep it outside `src/test/java`.
+`IllegalArgumentException`; `-Xcheck:jni` is silent either way. The shadow class must not be a Maven
+test source (it would replace the real class for every test): compile it at test time.
 
 Resolved when a Java test fails with the guard removed from `throw_and_default`.
 
@@ -109,9 +107,8 @@ napi 3.11.0's `Buffer::from_napi_value` (`napi-3.11.0/src/bindgen_runtime/js_val
 creates a reference before `napi_get_buffer_info` and returns on its failure without deleting it. So
 passing an `ArrayBuffer`, plain array or other non-Buffer object to any `Buffer` parameter of
 `@iscc/lib` throws as expected but keeps the object referenced for the life of the Node environment.
-Every `Buffer` parameter in `crates/iscc-napi/src/lib.rs` has this shape. Pre-existing; Codex, iter
-204\. Unverified fixes: a napi release that frees the reference, a conversion that takes none, or
-`#[napi(strict)]` (check it still accepts plain `Uint8Array`).
+Every `Buffer` parameter in `crates/iscc-napi/src/lib.rs` has this shape. Pre-existing (iter 204).
+Unverified fixes: a napi release that frees the reference, or `#[napi(strict)]`.
 
 Resolved when repeated `ArrayBuffer` calls to a `Buffer`-taking export show no reference or heap
 growth, and every existing Buffer/Uint8Array input still works.
@@ -121,14 +118,12 @@ growth, and every existing Buffer/Uint8Array input still works.
 **Triage:** untriaged — a Ruby caller who passes Float elements where integers are expected gets the
 code of the truncated values instead of an error.
 
-Magnus' integer conversions start with `Integer::try_convert`, which applies Ruby's implicit
-`to_int`. So `IsccLib.gen_audio_code_v0([1.9])` returns the code of `[1]`, and `alg_minhash_256`
-does the same, where Python raises `TypeError`. It follows Ruby's own convention
-(`[10, 20, 30][1.9]` is `20`), so it may be acceptable as host idiom; `NaN` raises
-`FloatDomainError`. Pre-existing, measured in iter 229. The doc comment on `array_to_i32_vec` in
-`crates/iscc-rb/src/lib.rs` says "`TypeError` for a non-Integer", which does not hold for a Float. A
-wrong-typed element stays in per-binding tests (`edge-vectors.md` → Rules), so no `data-edge.json`
-vector is owed.
+Magnus' integer conversions apply Ruby's implicit `to_int`. So `IsccLib.gen_audio_code_v0([1.9])`
+returns the code of `[1]`, and `alg_minhash_256` does the same, where Python raises `TypeError`. It
+follows Ruby's own convention (`[10, 20, 30][1.9]` is `20`), so it may be acceptable as host idiom.
+Pre-existing, measured in iter 229. The doc comment on `array_to_i32_vec` in
+`crates/iscc-rb/src/lib.rs` says "`TypeError` for a non-Integer", which does not hold for a Float.
+No `data-edge.json` vector is owed (`edge-vectors.md` → Rules: wrong-typed elements).
 
 Resolved when either a Float element raises `TypeError` in every integer-list parameter, pinned in
 `crates/iscc-rb/test/test_array_args.rb`, or `docs/ruby-api.md` → Error Handling states the implicit
@@ -154,10 +149,9 @@ gem.
 
 The source gem on rubygems.org was built with a bare `gem build` up to 0.7.0: it declares no
 `rb_sys` dependency and ships a workspace-inheriting `Cargo.toml` without the core (measured for
-0.7.0 in iteration 238). The repository now builds a standalone source gem
-(`scripts/build_ruby_source_gem.py`, install-checked by the `ruby-source-gem` CI job), but published
-versions cannot be changed. Yanking the broken `ruby`-platform gems is a registry action for Titusz;
-a yank would turn the build failure into a "no matching gem" error. CID must not act on this.
+0.7.0 in iteration 238). The repository now builds a standalone source gem (`ruby-source-gem` CI
+job), but published versions cannot be changed. Yanking the broken `ruby`-platform gems is a
+registry action for Titusz. CID must not act on this.
 
 Resolved when a release with the repaired source gem is on rubygems.org and it installs from the
 registry into a clean gem home on a Ruby series without a precompiled gem
@@ -169,9 +163,8 @@ registry into a clean gem home on a Ruby series without a precompiled gem
 `ISCC:KUA…` where the docs say `"ISCC:KAA..."`.
 
 `gen_sum_code_v0` composes a Data-Code and an Instance-Code, so without `wide` its result has
-SubType SUM and starts with `ISCC:KUA` (measured in iteration 238:
-`ISCC:KUABGAWXH2VYUQWIVYLQGD2NZH6TM` for the Java how-to's example file). The Sum-Code examples in
-the how-tos under `docs/howto/` and in `docs/java-api.md` carry the comment `"ISCC:KAA..."`, and the
+SubType SUM and starts with `ISCC:KUA` (measured in iteration 238). The Sum-Code examples in the
+how-tos under `docs/howto/` and in `docs/java-api.md` carry the comment `"ISCC:KAA..."`, and the
 `iscc` field comment in `SumCodeResult.java` says `"ISCC:KAC..."`. Pre-existing and cosmetic. The
 `gen_iscc_code_v0` examples next to them use the same comment and were not checked.
 
@@ -207,9 +200,8 @@ publish every registry. Nothing happens, or someone adds the trigger to match th
 tag push does not trigger the workflow". Three places in `.claude/context/specs/ci-cd.md` say
 otherwise: the Trigger cell of the Release row in "Workflow Files", the "Tag trigger as convenience"
 bullet under "Release Workflow — Selective Publishing" → Design Principles, and the
-`push: tags: [v*.*.*]` lines in the "Trigger Configuration" YAML block. Pre-existing. The decision
-of 2026-11-20 on spec criteria that name a mechanism that does not exist applies: realign the spec,
-no escalation.
+`push: tags: [v*.*.*]` lines in the "Trigger Configuration" YAML block. Pre-existing. Realign the
+spec without escalation (decision of 2026-11-20).
 
 Resolved when the three places describe `workflow_dispatch` as the only trigger.
 
@@ -229,21 +221,31 @@ Resolved when the `target.md` line names no count ("every entry in `TARGETS`") o
 
 **Spec:** `.claude/context/target.md` → "CI/CD, Dev Tooling, and Publishing"
 
-## Go Meta-Code differs from every other surface when metadata contains `&`, `<`, `>` or U+2028/9 `normal` [human]
+## No shared vector pins raw `&`, `<`, `>`, U+2028 and U+2029 in canonical `meta` JSON `normal` [human]
 
-`parseMetaJSON` (`packages/go/code_meta.go`) canonicalizes the `meta` JSON with `json.Marshal`. Go's
-encoder writes `&`, `<` and `>` as `\u0026`, `\u003c`, `\u003e`, and U+2028/U+2029 as
-`\u2028`/`\u2029` even with `SetEscapeHTML(false)`. RFC 8785 (JCS), which iscc-core and the Rust
-core use, emits all five raw. So for `{"title":"Tom & Jerry"}` the Go package hashes different
-bytes: `GenMetaCodeV0` returns a different Meta-Code and metahash, and `JsonToDataUrl` a different
-data-URL, than Rust, Python and the other bindings. Measured 2026-11-21: Go prints
-`{"title":"Tom \u0026 Jerry \u003c3"}`, `iscc_lib.json_to_data_url` encodes the raw `&` and `<`. The
-published Go 0.7.0 has the defect; no conformance vector carries these characters, so CI is green.
-Found by the iteration-240 audit (its workflow was killed before verification).
+RFC 8785 (JCS) emits these five characters raw. The Go package escaped them until iteration 251, so
+`GenMetaCodeV0` and `JsonToDataUrl` returned a different Meta-Code, metahash and data-URL than every
+other surface; the published Go 0.7.0 has the defect. Go now matches the Rust core, but only Go's
+own tests prove it: no conformance vector and no `data-edge.json` section carries these characters
+in `meta`, so a surface that escapes them again stays green.
 
-Resolved when Go's canonical bytes match RFC 8785 for these characters and a shared vector
-(`data-edge.json` or equivalent) with `&`, `<`, `>`, U+2028 and U+2029 in `meta` passes on every
-surface, Go included.
+Resolved when a shared vector (`data-edge.json` or equivalent) with `&`, `<`, `>`, U+2028 and U+2029
+in `meta` passes on every surface, Go included.
+
+## Go canonical `meta` JSON differs from the core in key order, `-0` and lone surrogates `low` [review]
+
+**Triage:** untriaged — a Go caller whose `meta` JSON has an emoji key next to a key from
+U+E000–U+FFFF, a `-0.0` value or a lone `\ud800` escape gets a different Meta-Code, metahash and
+data-URL than the other surfaces return (for the third input they return an error).
+
+`parseMetaJSON` (`packages/go/code_meta.go`) keeps three differences from RFC 8785, measured against
+`iscc_lib` in iteration 251. `encoding/json` sorts keys by UTF-8 bytes, JCS by UTF-16 code units:
+for `{"\ue000":1,"\ud83d\ude00":2}` Go keeps this key order, the core swaps it. Go writes `-0.0` as
+`-0`, the core as `0`. Go turns a lone surrogate escape into U+FFFD, the core rejects the input.
+Pre-existing. The other numbers probed match (`1.0`, `1e21`, `1e-7`, `9007199254740993`).
+
+Resolved when Go returns the core's result for the three inputs and each is a `data-edge.json`
+vector.
 
 ## Ragged video frame signatures are rejected by the core but no shared vector pins it `normal` [human]
 

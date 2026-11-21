@@ -4,7 +4,8 @@ Concise index — **one line per entry, detail belongs in a topic file.** `revie
 verification, claim-probing, gate scripts, parity gates), `gate-reviews.md` (CI +
 Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`),
 `dep-refresh-reviews.md` (bumps, lockfiles, framework majors), `gha-workflow-reviews.md`
-(release.yml, action bumps), `codex-integration.md`; Stale → `MEMORY-archive.md`.
+(release.yml, action bumps), `codex-integration.md`; Stale → `MEMORY-archive.md`. The long form of
+every entry below: `review-patterns.md` "Moved from the index (251)".
 
 ## Quality Gate Details
 
@@ -14,7 +15,7 @@ Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`)
 - **`mise run bench:iai:check` is NOT in `mise run check`** — run it on ANY benchmarked hot-path
     change (191's +36% reached red CI) → `gate-reviews.md`
 - **Pre-push needs `iscc_lib` built**: `uv run maturin develop --release` in `crates/iscc-py` BEFORE
-    `git push` → `binding-reviews.md`
+    `git push` after a core or binding change → `binding-reviews.md`
 - Proper scoping, NOT circumvention: `[tool.ty.src] exclude` for non-venv imports (`conanfile.py`),
     `per-file-ignores` waiving `S101`/`S603`/`S607` in tests, a commented `# noqa: S603` in scripts
 - **After ANY step-9 edit to a `.py` file, re-run the PRE-PUSH gates** (`uv run ty check`, ruff
@@ -22,120 +23,89 @@ Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`)
 
 ## Common Issues
 
-- Verification greps false-positive: `grep -qv 'pat'` is always true on multi-line files (use
-    `! grep -q`). Substring `grep -c` and exact counts in next.md are a recurring mis-spec class
-    (139) — test the criterion against `HEAD~1` before believing advance broke it
-- **next.md's Implementation Notes are a HYPOTHESIS — algorithms, prose and quoted commands alike**
-    (142, 143, 149; 239 a misquoted third-party grep). Re-derive every number, command and expected
-    value from source → `review-patterns.md` "Claim-Probing"
+- Verification greps false-positive (`grep -qv`, substring `grep -c`, exact counts, 139): test the
+    criterion against `HEAD~1` before believing advance broke it
+- **next.md's Implementation Notes are a HYPOTHESIS** (142, 143, 149, 239): re-derive every number,
+    command and expected value from source → `review-patterns.md` "Claim-Probing"
 - `iscc_decompose` returns units WITHOUT "ISCC:" prefix. Docs site: `https://lib.iscc.codes/`
-- **A docs-only sweep can FABRICATE a per-surface return type** (190); a `#[deprecated]` claim is a
-    hypothesis (168) → `review-patterns.md` "Moved from the index"
-- **Codec changes**: probe empty/garbage inputs (191), `MDFZAAAAAAAAAAAAAA` on a header-gate change
-    (174), case-fold aliases + every reference entry point (201) → `review-patterns.md`
-- **next.md under-scoping a spec's "Verified when"**, `.crap-baseline.json` scope cap, differential
-    / repo-state / lint-config / prek-scope reviews → `review-patterns.md` "Moved … (204)"
-- **6-file cap counts files whose CODE changes** (225, decisions.md): comment-only binding edits +
-    regenerated outputs don't count, IF next.md lists them as such — confirm from the diff
-- **Core behaviour change with flipped binding tests (225, ~25 min)**: all suites from ONE logged
-    script + grep docs for touched signatures → `review-patterns.md` "Moved from the index (239)"
-- **Run the full CI feature matrix on any core change** — only `--no-default-features` catches a
-    feature-gated `#[test]` compile break (174) → `review-patterns.md`
-- Go `// indirect`, CI `find` cross-arch, prek stash conflict, mode-only commits under
-    `core.fileMode=false` → `review-patterns.md` "Gotchas"
-- **`\uXXXX` decodes to literal UTF-8 through Edit/Write and bash**; who may edit `issues.md` / a
-    spec is protocol-fixed (135/144/172) → `review-patterns.md` "Artifact-editing traps"
-- **`mise run check` mdformat may reformat context files**: check `git status --porcelain` right
-    after and STAGE it; never stage `iterations.jsonl`; format only with
-    `uv run prek run mdformat --files <f>` → `review-patterns.md` "Moved from the index (239)"
-- **No-op / human-handoff iteration** (111/173): verdict PASS; `low`-only + human spec work or an
-    upstream-gated `normal` → HUMAN REVIEW REQUESTED, never `**IDLE**`. Verify an advance "only low
-    issues remain" claim independently; all-`low` `Step: NONE` → PASS + `**IDLE**` (248, ~5 min) →
-    `review-patterns.md`
-- **Push message "GitHub found N vulnerabilities" is about `main`** (234), not `develop` →
-    `review-patterns.md` "Moved from the index (239)"
+- **A docs-only sweep can FABRICATE a return type** (190); a `#[deprecated]` claim is a hypothesis
+    (168) → `review-patterns.md` "Moved from the index"
+- **Codec changes**: probe empty/garbage inputs (191), `MDFZAAAAAAAAAAAAAA` (174), case-fold aliases
+    \+ every reference entry point (201) → `review-patterns.md`
+- **next.md under-scoping a spec's "Verified when"**, `.crap-baseline.json` scope cap →
+    `review-patterns.md` "Moved … (204)"
+- **6-file cap counts files whose CODE changes** (225, decisions.md): comment-only edits and
+    regenerated outputs don't count IF next.md lists them as such — confirm from the diff
+- **Core behaviour change with flipped binding tests (225)**: all suites from ONE logged script +
+    grep docs for touched signatures → `review-patterns.md` "Moved from the index (239)"
+- **Run the full CI feature matrix on any core change** (174) → `review-patterns.md`
+- Go `// indirect`, CI `find` cross-arch, prek stash conflict, mode-only commits →
+    `review-patterns.md` "Gotchas". **Search with `git grep`, never `grep -r`** (230)
+- **Backslash-u escapes decode to raw UTF-8 through Edit/Write**, and an Edit containing them fails
+    to match (251): write such text with a Python script that builds the backslash as `chr(92)`. Who
+    may edit `issues.md` / a spec is protocol-fixed → "Artifact-editing traps"
+- **`mise run check` mdformat may reformat context files**: check `git status --porcelain` after and
+    STAGE it; never stage `iterations.jsonl`; format with `uv run prek run mdformat --files <f>`
+- **No-op / human-handoff iteration** (111/173/248): PASS; `low`-only + human work or an
+    upstream-gated `normal` → HUMAN REVIEW REQUESTED, never `**IDLE**`; all-`low` `Step: NONE` →
+    PASS + `**IDLE**` → `review-patterns.md`
+- **Push message "GitHub found N vulnerabilities" is about `main`** (234), not `develop`
 - **Unicode freeze rule REMOVED 2026-07-30** — reintroducing any freeze mechanism = NEEDS_WORK
-- **`git push` failing "index.lock: File exists" while prek stashes is a WSL2 race, NOT a hook
-    rejection** (207): confirm no 2nd loop in `ps aux`, then retry once
+- **`git push` failing "index.lock: File exists" is a WSL2 race, NOT a hook rejection** (207):
+    confirm no 2nd loop in `ps aux`, then retry once
 - **"files were modified by this hook" often means SOMETHING ELSE WAS WRITING** (97/164): a second
     CID loop, or my own Edits during a backgrounded prek run. Never edit while prek runs
 - **Spec paths are gated (224)**; a "mechanism does not exist" realignment is a hypothesis. **Mutate
     each helper the step adds** (228) → `review-patterns.md` "Moved from the index (239)"
-- **Spec-hygiene (223), docs fan-out (211), issues.md at budget, uncommitted human edits (212)** →
-    `review-patterns.md` "Moved from the index (223)"
-- **learnings.md sits AT its 200-line budget**: every new bullet needs an equal cut or a move to
-    `learnings-archive.md` in the same commit (239); check `wc -l` after mdformat
+- **Spec-hygiene (223), docs fan-out (211), uncommitted human edits (212)** → `review-patterns.md`
+    "Moved from the index (223)"
+- **Budgets**: learnings.md sits AT 200 lines and issues.md AT 300 (251) — every new bullet or entry
+    needs an equal cut in the same commit; check `wc -l` after mdformat. This index: under 140 lines
+    (a hook enforces it) — move the long form to a topic file
 
 ## Review Shortcuts (detail in the topic files named above)
 
-- **Rust-only**: `cargo test -p iscc-lib` + clippy workspace (~2 s warm) + `mise run check`. Version
-    sync adds `version_sync.py --check`, a shell script `bash -n <script>`
-- **Core + Go behaviour-fix step (250, ~10 min)**: one logged script (tests, feature matrix, clippy,
-    Go, llvm-cov + CRAP, iai) → `review-patterns.md` "Core + Go behaviour fix (250)"
-- **Test-fixture / vector-file only (141/149, ~5 min)**: Rust-only + full feature matrix (assert
-    per-target `N passed`) + the four fixture mutations → `review-patterns.md`
+- **Rust-only**: `cargo test -p iscc-lib` + clippy workspace + `mise run check`. Version sync adds
+    `version_sync.py --check`, a shell script `bash -n <script>`
+- **Core + Go behaviour-fix step (250, ~10 min)** → `review-patterns.md` "Core + Go behaviour fix
+    (250)"
+- **Go-only canonicalizer / serializer fix (251, ~8 min)**: Go criteria + ONE differential against
+    `iscc_lib` from a `git archive` copy (`go test -v`, or the output is hidden) →
+    `review-patterns.md` "Go-only serializer fix (251)"
+- **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
+    `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go` (empty)
+- **Test-fixture / vector-file only (141/149, ~5 min)**: Rust-only + feature matrix + the four
+    fixture mutations → `review-patterns.md`
 - **Docs-only**: `mise run check` + clippy + `mise run version:check` + `uv run zensical build`;
     green gates say NOTHING about truth (143) → `review-patterns.md` "Moved from the index (239)"
 - **Python-only**: `mise run check` + `pytest`; a new `.py` adds pre-push `ty`/ruff; rebuild with
-    `maturin develop` before any `__doc__` test (222) → same section
+    `maturin develop` before any `__doc__` test (222)
 - **New gate script / gate hardening / parity gate (142–146/163, ~10 min)**: write your OWN
     mutations, probe equal-empty and duplicated-row blind spots → `review-patterns.md`
-- **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
-    `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go` (empty)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed → `gate-reviews.md` Audit)
-- **Bumps** (generated artifact, MSRV `cargo +1.85.0 check -p <c> --locked`, lockfile, wrapper,
-    framework major) → `dep-refresh-reviews.md`
-- **Security-pass / advisory-bump step (235, ~15 min)**: cargo-deny + govulncheck + ONE osv-scanner
-    pass; `diff -rq` the Go module cache → `dep-refresh-reviews.md`
+- **Bumps** (generated artifact, MSRV, lockfile, wrapper, framework major) and **security-pass /
+    advisory-bump steps (235)** → `dep-refresh-reviews.md`
 - **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table (215-221)**, new
-    data-edge SECTION = 12-surface script (226) → `binding-reviews.md` "Moved from the index (223)"
-- **C++ wrapper-only step (227, ~4 min)**: ASAN build in an own `build-*/` dir + previous-header
-    mutation + strict `g++ -Werror -fsyntax-only` → `binding-reviews.md`
+    data-edge SECTION = 12-surface script (226), **data-edge rule / validator / C-generator (236)**,
+    **harness-compare fan-out (237)** → `binding-reviews.md`
+- **C++ wrapper-only (227)**, **JNI error-path (230)**, **verbatim code-move (231)**,
+    **test-harness-only (232)**, **WASM return-shape (234)**, **Ruby gem packaging (239–241)** →
+    `binding-reviews.md`
 - **A `[human]` issue with a `**Spec:**` field**: on closing it, the reviewer corrects the spec rows
     it names (227) — stage the spec file
 - **Waiting on a background run** (bare `sleep` is blocked):
     `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15; done'`
 - **Core text/codec change + generated data (≈12–20 min)**: Rust-only + feature matrix + CRAP +
     `bench:iai:check` + generator no-op + pre-push gates on new `.py` (203) → `gate-reviews.md`
-- **JNI error-path step (230, ~12 min)**: shadow-class probe of the pending-exception guard;
-    `-Xcheck:jni` is silent on `ThrowNew` over a pending exception → `binding-reviews.md`
-- **Verbatim code-move step (231, ~5 min)**: prefix `diff`, de-indented body `diff`, test-name set
-    `diff`; cbindgen to a temp file + `cmp` → `binding-reviews.md`
-- **Test-harness-only step (232, ~8 min)**: mutate from throwaway copies; macOS proof = the `swift`
-    CI job after the push → `binding-reviews.md`
-- **Doc-parity gate / doc-listing step (233, ~25 min)**: restore previous docs in a `git archive`
-    repo, feed the parser unlisted forms (fail-open?), RUN every return type the docs add;
-    **parser-only step (242, ~6 min)**: old-vs-new derive, form sweep, mutants; **Rust docs
-    completion step (243, ~20 min)**: compile every example in a `/tmp` cargo project →
-    `review-patterns.md` "Doc-parity gate (233)"
-- **Derived-fact removal step (245, ~10 min)**: wrap-insensitive sweep incl. untouched files; each
-    reworded sentence is a new claim to check → `review-patterns.md` "Derived-fact removal step
-    (245)". **File-list removal (246, ~8 min)**: rule-retention `git grep` per removed entry,
-    `git check-ignore -v` per "gitignored" claim → same file, "File-list removal step (246)".
-    **Spec-list gate step (247, ~15 min)**: before closing a list-drift issue, grep the specs for
-    table rows starting with a backticked path and compare with the code's own list → "Spec-list
-    gate step (247)"
-- **WASM return-shape step (234, ~10 min)**: `#[wasm_bindgen_test]` never crosses the JS glue —
-    probe the built `--target nodejs` pkg from Node + read the `.d.ts` → `binding-reviews.md`
-- **data-edge rule / validator / C-generator step (236, ~8 min)**: two pytest files, regen +
-    `git status` on the header, `gen.render` on a mutated fixture copy → `binding-reviews.md`
-- **Harness-compare fan-out step (237, ~6 min)**: four suites from one logged script, .NET mutant
-    from a `git archive` copy → `binding-reviews.md`
-- **Docs install/packaging-claim step (238, ~12 min)**: install the PUBLISHED artifact in a clean
-    prefix → `review-patterns.md` "Install-claim probe (238)"
-- **C++ how-to / doc-example step (244, ~8 min)**: extract + `g++` each `main()` block, previous
-    page as gate mutant, grep the page for hand-typed versions → `review-patterns.md` "Doc-parity
-    gate (233)"
-- **Ruby gem packaging step (239 NEEDS_WORK, 240/241 PASS, ~12–25 min)**: run the action's real
-    unanchored lookup; criteria from one logged script with the mise Ruby 3.4 `bin/` on PATH. Codex
-    caught BOTH early misses (lookup, dropped `[profile.release]`): for any generated manifest, diff
-    what the root `Cargo.toml` has that the copy lacks; mutate a text-slice helper from a
-    `git archive` copy (241) → `binding-reviews.md`
+- **Doc-parity gate / doc-listing (233)**, **parser-only (242)**, **Rust docs completion (243)**,
+    **C++ how-to / doc-example (244)** → `review-patterns.md` "Doc-parity gate (233)"
+- **Derived-fact removal (245)**, **file-list removal (246)**, **spec-list gate (247)** →
+    `review-patterns.md`, sections of the same names
+- **Docs install/packaging-claim step (238)**: install the PUBLISHED artifact in a clean prefix →
+    `review-patterns.md` "Install-claim probe (238)"
 - **A test that shells out adds a tool to the `python-test` CI job** (240: `ruby`): check the runner
-    image readme (`gh api repos/actions/runner-images/contents/images/ubuntu/Ubuntu2404-Readme.md`)
-- **Search with `git grep`, never `grep -r`** over dirs with build output (230) →
-    `review-patterns.md` "Gotchas"
+    image readme
 - **Action pin / release.yml / any GHA bump**: static-verify only via the committed gates
     (`check_release_workflow.py` + `--check-action-inputs`); `always()` = NEEDS_WORK →
     `gha-workflow-reviews.md`
@@ -154,5 +124,4 @@ Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`)
 - **`--commit HEAD` reviews ONLY the last commit**: `git log @{upstream}..HEAD` first; for a range
     use ONE run with `codex exec review --base <sha-before-the-range>` (217)
 - **The background Codex run executes real builds in the SAME tree** (164/165/172): a build tool
-    failing once may be losing a race. Re-run sequentially → `review-patterns.md` "Moved from the
-    index (239)"
+    failing once may be losing a race. Re-run sequentially
