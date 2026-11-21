@@ -81,7 +81,11 @@ def test_native_methods_diffed_after_ffi_build():
 
 
 def test_kotlin_job_regenerates_and_diffs_uniffi_outputs():
-    """The ``kotlin`` job runs uniffi-bindgen for both languages and names every output."""
+    """The ``kotlin`` job runs uniffi-bindgen for both languages and names every output.
+
+    The step collects the comparison results in ``stale`` and must end by exiting with it:
+    without that last line the step is green whatever the comparisons found.
+    """
     steps = ci_steps("kotlin")
     build = step_index(steps, "cargo build -p iscc-uniffi")
     check = step_index(steps, "uniffi-bindgen")
@@ -92,6 +96,7 @@ def test_kotlin_job_regenerates_and_diffs_uniffi_outputs():
     assert "diff" in body
     for path in UNIFFI_OUTPUTS:
         assert path in body, path
+    assert body.rstrip().endswith('exit "$stale"')
 
 
 def test_uniffi_check_skips_hand_edited_modulemap():

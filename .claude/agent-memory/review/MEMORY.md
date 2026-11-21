@@ -14,8 +14,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     `cargo clippy --workspace --all-targets -- -D warnings`. Added files must be ≤256kb
 - **`mise run bench:iai:check` is NOT in `mise run check`** — run it on ANY benchmarked hot-path
     change (191's +36% reached red CI) → `gate-reviews.md`
-- **Pre-push needs `iscc_lib` built**: `uv run maturin develop --release` in `crates/iscc-py` BEFORE
-    `git push` after a core or binding change → `binding-reviews.md`
+- **Pre-push pytest rebuilds the extension itself** (274: `mise run py:develop`, debug build); a
+    bare `uv run pytest` does not, so run that task first after a core or binding change
 - Proper scoping, NOT circumvention: `[tool.ty.src] exclude` for non-venv imports (`conanfile.py`),
     `per-file-ignores` waiving `S101`/`S603`/`S607` in tests, a commented `# noqa: S603` in scripts
 - **After ANY step-9 edit to a `.py` file, re-run the PRE-PUSH gates** (`uv run ty check`, ruff
@@ -119,8 +119,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **Action pin / release.yml / any GHA bump**: static-verify only via the committed gates
     (`check_release_workflow.py` + `--check-action-inputs`); `always()` = NEEDS_WORK →
     `gha-workflow-reviews.md`
-- **ci.yml fix only CI can prove (260/262/267, ~15 min)**: read the action's source at the tag, push
-    the advance commits FIRST, read the job LOG, then write the handoff → `gha-workflow-reviews.md`
+- **ci.yml fix only CI can prove / freshness step (260–274, ~20 min)**: push the advance commits
+    FIRST, read the job LOG, pin a step's `exit` line, then the handoff → `gha-workflow-reviews.md`
 - **Pre-flight `uv run prek run --hook-stage pre-push --all-files` before pushing never-CI'd code**
     (~15 min, background, last) → `review-patterns.md` "Moved from the index (239)"
 - **Per-binding commands + traps** ("not locally verifiable" claims: all FALSE so far) →

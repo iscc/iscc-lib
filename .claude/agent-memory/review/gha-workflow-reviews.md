@@ -217,3 +217,26 @@ to polling loops.
     `gh api --allow-escape-sequences repos/iscc/iscc-lib/actions/jobs/<job-id>/logs > /tmp/x.log`,
     then `grep -a` (the log carries ANSI escapes).
 - The Go job finishes about 1 minute after the push; waiting for the whole run is not needed.
+
+### Iter 274: freshness steps for generated files (`c-ffi` `.cs` diff, `kotlin` UniFFI diff, ~25 min, PASS)
+
+- One script, one log (`/tmp/<x>/probe.sh`): `git archive HEAD | tar -x` + `git init` + commit,
+    extract each step's `run` with PyYAML into a file, run it with
+    `bash --noprofile --norc -eo pipefail <file>` and `RUNNER_TEMP` set. A cold debug build of
+    `iscc-ffi` + `iscc-uniffi` (+ `--features bindgen`) in the throwaway tree takes about 2 minutes.
+- Mutations that paid off: the guarded file's own previous version
+    (`git log -1 --format=%h -- <path>`, then `git show <sha>~1:<path>`), an EMPTY committed file, a
+    whitespace-only change (must stay green) and one added inner space (must fail). Advance had
+    mutated `.kt` and `.h`; take the file it left out (`.swift`).
+- **A step that collects failures in a variable is green without its last `exit "$var"` line**, and
+    an anchor test that greps for paths and flags does not see the line go. Mutate the workflow file
+    (drop the exit line, swap step order, remove one language) and run the anchor test on each; add
+    the missing assertion as a step-9 fix.
+- **A `git diff` after a build proves nothing unless the build script ran.** In a warm tree a change
+    to `NativeMethods.g.cs` alone does not rerun csbindgen's `build.rs` (rc=0, false green). On CI
+    it runs on a full rust-cache hit: the `Build FFI crate` log shows `Compiling iscc-ffi` BEFORE
+    `Compiling iscc-lib` (the build-script unit was dirty). Read that line, not the job colour.
+- The check step runs `cargo run --features bindgen`, which rebuilds `libiscc_uniffi.so` with that
+    feature, so the Gradle tests after it load that build. Same exports; noted, not filed.
+- `maturin develop` after `cargo clippy`/`cargo test` recompiles `pyo3-ffi`, `pyo3` and `iscc-py`
+    (about 15 s, then 0.3 s when repeated): the pre-push batch took 60 s in total.

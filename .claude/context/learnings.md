@@ -26,11 +26,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     cost, decisions.md); `serde_wasm_bindgen::from_value` still has it. Probe a RELEASE build from
     Node. **Two `git archive` trees on ONE `CARGO_TARGET_DIR` package the first tree's wasm twice**
 - **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
-    `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
-    modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an
-    export moves BOTH (205). **C docs name types `iscc_X`** (cbindgen `[export] prefix`), guarded by
-    `tests/test_c_ffi_docs.py`; `cbindgen --crate iscc-ffi` loads the crate's `cbindgen.toml`
-    itself, so `--config` changes nothing (221)
+    `build.rs` rewrites tracked `NativeMethods.g.cs` whenever it runs** (pre-push clippy: "files
+    were modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit
+    on an export moves BOTH (205). CI `c-ffi` diffs both after the build (274). A change to the
+    `.cs` ALONE does not rerun `build.rs`: in a probe tree `touch crates/iscc-ffi/src/lib.rs`. **C
+    docs name types `iscc_X`** (cbindgen `[export] prefix`), guarded by `tests/test_c_ffi_docs.py`;
+    `cbindgen --crate iscc-ffi` loads its `cbindgen.toml` itself: `--config` changes nothing (221)
 
 ## Reference Implementation
 
@@ -85,7 +86,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **A binding suite's runner is not `cargo test`** (151): `cargo test -p iscc-wasm` reports
     `0 passed`; only `wasm-pack test --node …` runs `#[wasm_bindgen_test]`. **Gitignored native
     artifacts go stale silently** (Ruby `.so`, napi `.node`, JNI `.so`): rebuild before probing;
-    after a dep bump `strings <artifact>` shows the dep version linked in (167). Local-only
+    after a dep bump `strings <artifact>` shows the dep version linked in (167). Local-only. The
+    Python `.so` is rebuilt (debug build) by pre-push pytest and `mise run test` through
+    `mise run py:develop` (274); a bare `pytest` still imports whatever is there
 - **The JVM type-checks nothing a native method returns** (168): an `Object[]` returned where
     `String[]` is declared survives every element read — assert `getClass().getName()` and probe
     under `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test` (log shows
@@ -152,11 +155,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `git add`/`git rm` are free; the cheapest *real* regression is the guarded file's own previous
     version (`git show HEAD~1:<path>`). A **set-equality** gate is blind twice: equal *empty* sets
     pass (hence a count floor) and a **duplicated** row passes (keep row order to count repeats —
-    163). A **test-framework major** is the same: a "≥ N passed" floor cannot see a silent collapse
-    of parameterized rows (164: xunit v2/v3 both gave 104), so demand the SAME total as the pre-bump
-    tree (`git archive HEAD~1`) or derive it from the FIXTURE (166: `data.json` vector counts +
-    static `@Test` count). **`mvn test` reuses stale test classes** ("Nothing to compile"), so only
-    `mvn clean test` proves the new framework compiles
+    163). Test-framework majors (164/166) → `learnings-archive.md`. **Run a CI step body as CI
+    does** (274): extract `run` with PyYAML, then `bash --noprofile --norc -eo pipefail <file>`
 
 ## CID Process
 

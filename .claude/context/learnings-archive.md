@@ -1151,3 +1151,12 @@ runs on `opus`. Deliberate — do not "unify" them.
     `RUBY_CC_VERSION` must hold the same patch versions (rb-sys 0.9.123 image: 3.4.5 down to 2.7.8,
     x64-mingw-ucrt 3.4.5 to 3.1.7). Sources: `gem/exe/rb-sys-dock` and `docker/Dockerfile.*` at the
     rb-sys tag, `Dockerfile.mri.erb` and `lib/rake_compiler_dock.rb` at the rake-compiler-dock tag
+
+## Archived from learnings.md (review 274)
+
+- **A test-framework major needs the SAME test total, not a floor** (from the "Prove a new gate"
+    bullet): a "≥ N passed" floor cannot see a silent collapse of parameterized rows (164: xunit
+    v2/v3 both gave 104), so demand the same total as the pre-bump tree (`git archive HEAD~1`) or
+    derive it from the FIXTURE (166: `data.json` vector counts + static `@Test` count). **`mvn test`
+    reuses stale test classes** ("Nothing to compile"), so only `mvn clean test` proves the new
+    framework compiles

@@ -1,78 +1,84 @@
-## 2026-11-21 — Gate the stale Python extension and the undiffed generated sources
+## 2026-11-21 — Review of: Gate the stale Python extension and the undiffed generated sources
 
-**Done:** The pre-push `pytest` hook and `mise run test` now rebuild `_lowlevel.abi3.so` before
-pytest runs. Both go through one mise task, `py:develop`, which runs
-`uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml`, the same command CI uses. CI now
-diffs `NativeMethods.g.cs` after `cargo build -p iscc-ffi` in `c-ffi`. The `kotlin` job regenerates
-the UniFFI Kotlin and Swift outputs into `$RUNNER_TEMP` and diffs the three committed files against
-them, ignoring trailing whitespace and blank lines at the end of the file. An anchor test pins all
-three wirings.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `mise.toml`: new task `py:develop`; `test` now has `depends = ["py:develop"]`, with a comment
-    giving the reason
-- `.pre-commit-config.yaml`: the `pytest` entry is now
-    `bash -c 'mise run py:develop && uv run pytest --timeout=120'`, with a comment explaining why it
-    rebuilds instead of comparing mtimes
-- `.github/workflows/ci.yml`: new `c-ffi` step "Check C# bindings freshness". New `kotlin` step
-    "Check UniFFI bindings freshness": it prints the diff and an `::error::` that names the
-    regeneration command. If either side is missing or empty, the step fails
-- `tests/test_generated_artifact_gates.py` (new, 5 tests): checks that the `.cs` diff step comes
-    after the FFI build; that the kotlin step comes after the uniffi build, uses both languages,
-    names all 3 paths and leaves out `module.modulemap`; and that the hook and the `test` task run
-    `maturin develop` before pytest (any `mise run X` is expanded to the task body)
-- Docs: the `c-ffi` and `kotlin` rows in `specs/ci-cd.md` (kept within the old column width, so only
-    those 2 lines change), the pre-push `pytest` bullet in `docs/development.md`, and the CI
-    sections of `packages/{kotlin,swift}/CLAUDE.md`
+**Summary:** The pre-push `pytest` hook and `mise run test` now rebuild the Python extension through
+one mise task (`py:develop`), and CI diffs `NativeMethods.g.cs` (job `c-ffi`) and the three UniFFI
+outputs (job `kotlin`) against their committed copies. I re-ran both CI step bodies against real
+regressions in a throwaway copy, pushed the advance commits first, and read the job logs: CI run
+44946870015 on `e24d041` is green on all 24 jobs and both steps ran their generators. The audit
+issue is resolved and deleted.
 
 **Verification:**
 
-- `uv run pytest tests/test_generated_artifact_gates.py`: 5 passed. `mise run test` exits 0: its log
-    starts with `[py:develop] $ uv run maturin develop …`, then cargo tests, then
-    `822 passed in 43.91s`
-- I moved `_lowlevel.abi3.so` to /tmp and ran `uv run prek run pytest --stage pre-push`: exit 0
-    ("Python tests…Passed", 43 s), and the `.so` was rebuilt (new mtime 20:18). The moved copy is
-    deleted
-- `uv run scripts/check_ci_job_table.py` reported "OK: 22 CI jobs consistent". `mise run check`
-    exited 0
-- Step bodies were taken verbatim from ci.yml (PyYAML) and run with
-    `bash --noprofile --norc -eo pipefail` (the GitHub default shell):
-    - Real checkout, after building: `.cs` step rc=0 and UniFFI step rc=0 (green from the start)
-    - Throwaway repo (`git archive HEAD | tar -x` + `git init` + commit), one change committed at a
-        time:
-        - `NativeMethods.g.cs` with one changed line: after the build, rc=1, diff and `::error::`
-            printed. Restored and rebuilt: rc=0
-        - `iscc_uniffi.kt` with the `package` line changed: rc=1,
-            `::error::…iscc_uniffi.kt is stale. Regenerate: cargo run … --language kotlin …`. Restored:
-            rc=0
-        - `iscc_uniffiFFI.h` with `#pragma once` changed: rc=1, `::error::` names the swift command plus
-            "then move iscc_uniffiFFI.h …"
-        - Real regressions, using each file's own previous version (`.cs` from `3b4250d~1`, `.kt` from
-            `1a39d0d~1`): `.cs` step rc=1 (56 changed lines), UniFFI step rc=1
-    - The throwaway repo and the moved `.so` are deleted
-- `git status --porcelain` shows no change to `NativeMethods.g.cs`, `iscc_uniffi.kt`,
-    `iscc_uniffi.swift` or `iscc_uniffiFFI.h`
+- [x] `uv run pytest tests/test_generated_artifact_gates.py` passes, and `uv run pytest` passes — 5
+    passed; 822 passed in 21.6 s
+- [x] With `_lowlevel.abi3.so` moved out of the tree, `uv run prek run pytest --stage pre-push`
+    exits 0 and the `.so` exists again — exit 0 in 40 s, new mtime, moved copy deleted
+- [x] The handoff shows the throwaway-repo runs, each step non-zero on a mutated committed file and
+    0 on the unmodified tree — shown by advance, and re-run by me from a `git archive` copy with
+    `bash --noprofile --norc -eo pipefail`:
+    - `.cs` step: clean tree rc=0; one changed line after a rebuild rc=1
+    - UniFFI step: clean tree rc=0; `iscc_uniffi.swift` from `1a39d0d~1` rc=1 (advance had left the
+        Swift file out); trailing whitespace and extra blank lines at EOF only rc=0; one added inner
+        space rc=1; an empty `iscc_uniffi.kt` rc=1; restored rc=0
+- [x] `uv run scripts/check_ci_job_table.py` exits 0, and `mise run check` exits 0 — "22 CI jobs
+    consistent"; all hooks passed
+- [x] `git status --porcelain` shows no change to `NativeMethods.g.cs`, `iscc_uniffi.kt`,
+    `iscc_uniffi.swift` or `iscc_uniffiFFI.h` — only the runner's `iterations.jsonl` is modified
 
-**Next:** the `conformance_selftest` single-runner refactor (audit), now that the gates check the
-right artifacts, or the docs entries that were deferred in favour of this step.
+Beyond next.md (3 probes):
+
+- CI logs. `c-ffi` → "Build FFI crate" prints `Compiling iscc-ffi` before `Compiling iscc-lib` on a
+    full rust-cache hit, so csbindgen's `build.rs` ran and the `.cs` diff is not vacuous. `kotlin` →
+    the step ran `uniffi-bindgen generate` for Kotlin and for Swift.
+- Anchor-test mutations (8, on a copy of the workflow, hook and mise files): 7 failed the test as
+    they should. Dropping the UniFFI step's last line `exit "$stale"` stayed green, and without that
+    line the step can never fail. Fixed here: the test now asserts the step ends with it (mutation
+    re-run: 1 failed).
+- Hook cost: `mise run py:develop` takes about 15 s after `cargo clippy` or `cargo test` (it
+    recompiles `pyo3-ffi`, `pyo3` and `iscc-py`) and 0.3 s when repeated. The whole pre-push batch
+    took 60 s.
+
+**Issues found:**
+
+- Fixed in this review: the anchor test did not pin the `exit "$stale"` line (see above). One
+    assertion added to `tests/test_generated_artifact_gates.py`; `ty` and ruff are green on it.
+- Not filed, behaviour to know: the hook and `mise run test` install a debug build, as CI does. A
+    `maturin develop --release` build is replaced on every push, so rebuild with `--release` before
+    running the Python benchmarks (`docs/benchmarks.md` already gives that command).
+- Not filed: the UniFFI check runs `cargo run --features bindgen`, which rebuilds
+    `libiscc_uniffi.so` with that feature, so the Gradle tests after it load that build. The exports
+    are the same and the job is green.
+- Not filed, confirmed advance's note: in a warm tree a change to `NativeMethods.g.cs` alone does
+    not rerun `build.rs` (rc=0 until `crates/iscc-ffi/src/lib.rs` is touched). CI is not affected
+    (fresh checkout, log evidence above). Recorded in learnings.md.
+- A bare `uv run pytest` still imports whatever `.so` is there. next.md excluded that on purpose.
+
+**Codex review:** No actionable findings. Codex ran the Rust and Python suites and both freshness
+checks, and confirmed that they reject modified artifacts.
+
+**Next:** No `critical` issue is open. Candidates among the `normal` entries, for define-next to
+weigh:
+
+- `conformance_selftest` repeats one runner loop nine times (audit, 2 files plus
+    `.crap-baseline.json`). It is a core change, so it goes alone. The CRAP gate is CI-only: move
+    the baseline in the same step and run the CI CRAP lines locally.
+- "Specs and crate CLAUDE.md files describe shipped work as pending" (audit, 8 files, audit-scope
+    step). define-next and advance read these files as truth, so this one pays back on every later
+    step.
+- The docs entries (`KAA` Sum-Code prefix, pkg-config version line, `docs/development.md` release
+    section, `llms.txt` coverage, `@iscc/wasm` Node setup) are small and independent.
+
+`alg_minhash_256([])` needs a decision between two behaviours before it can be scoped; if
+define-next picks it, it should say which behaviour it chooses and why, or ask Titusz.
 
 **Notes:**
 
-- What the generator writes compared with the committed files (cmp/od): `.kt` has 3 extra blank
-    lines at the end, `.swift` has no final newline, `.h` has 1 extra blank line at the end. That is
-    why the step normalises both the end of the file and trailing whitespace:
-    `sed 's/[[:space:]]*$//' | awk` drops blank lines at the end and always writes the final newline
-- The kotlin generator writes to `<out>/uniffi/iscc_uniffi/iscc_uniffi.kt`. The swift generator
-    writes `.swift`, `.h` and `.modulemap` into one directory, so the header's regeneration message
-    tells you to move the file into `Sources/iscc_uniffiFFI/`
-- Probe pitfall, no CI impact: the `.cs` gate depends on csbindgen's `build.rs` actually running
-    again. In a probe tree where only `NativeMethods.g.cs` changed, cargo did not rerun the build
-    script (it has no `rerun-if-changed`), so I had to `touch crates/iscc-ffi/src/lib.rs`. In CI,
-    the fresh checkout and rust-cache (which does not cache workspace crates) make it run again. The
-    existing `iscc.h` step has the same property
-- The UniFFI step shells out through `cargo run` with a relative `target/debug/libiscc_uniffi.so`.
-    With a non-default `CARGO_TARGET_DIR` it fails closed (rc=1, os error 2), not false-green
-- Local `uv run` prints a `VIRTUAL_ENV … does not match` warning because the CID runner sets
-    `VIRTUAL_ENV`. maturin still installs into the project env (`/home/dev/.venvs/iscc-lib`)
-- No core change: CRAP, iai and the feature matrix are not affected
+- Gates are in good shape: no gate was weakened, and the scope was 3 non-test, non-doc files.
+- The advance commits (`b915d78`, `e24d041`) are already on `origin/develop`; this review commit
+    adds the test assertion and the context files on top.
+- learnings.md stays at 200 lines: the test-framework-major note moved to `learnings-archive.md` to
+    make room. Any new bullet needs an equal cut.
+- No gate strengthening to flag. The other gitignored native artifacts (napi `.node`, Ruby `.so`,
+    JNI `.so`) are still rebuilt by hand before local probing (learnings.md → CI/CD).
