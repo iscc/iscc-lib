@@ -104,8 +104,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     it names (227) — stage the spec file
 - **Waiting on a background run** (bare `sleep` is blocked):
     `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15; done'`
-- **Core text/codec change + generated data (≈12–20 min)**: Rust-only + feature matrix + CRAP +
-    `bench:iai:check` + generator no-op + pre-push gates on new `.py` (203) → `gate-reviews.md`
+- **Core text/codec change + generated data (203)**: Rust-only + feature matrix + CRAP + iai +
+    generator no-op; **CRAP-re-keying refactor (276)**: regen to `/tmp` → `gate-reviews.md`
 - **Doc-parity gate / doc-listing (233)**, **parser-only (242)**, **Rust docs completion (243)**,
     **C++ how-to / doc-example (244)** → `review-patterns.md` "Doc-parity gate (233)"
 - **Derived-fact removal (245)**, **file-list removal (246)**, **spec-list gate (247)**, **spec

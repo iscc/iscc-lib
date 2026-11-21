@@ -96,3 +96,16 @@ Full text of entries compacted out of `MEMORY.md`.
 - **decisions.md over budget → rotate with the runner's OWN function**, never hand-compress bodies:
     `uv run --no-project python -I -c "import sys; sys.path.insert(0,'tools'); import cid; from   pathlib import Path; cid.archive_overflow(Path('.'), cid.DECISIONS_FILE, cid.DECISIONS_ARCHIVE,   cid.ARTIFACT_BUDGETS[cid.DECISIONS_FILE])"`;
     stage `decisions-archive.md` too (195)
+
+## Core refactor that re-keys the CRAP baseline (276, ~15 min, PASS)
+
+- `mise run coverage`, then the CI gate line, then
+    `cargo crap --lcov lcov.info --format json --output /tmp/regen.json` and compare it with the
+    committed `.crap-baseline.json` in Python (equal = the baseline was regenerated after the last
+    reformat). Never regenerate into the tracked file during review
+- Mutate each failure arm of a shared helper in a `git archive HEAD` copy under `/tmp` with its own
+    `CARGO_TARGET_DIR` (Codex builds in the real tree at the same time): one arm per run,
+    `cargo test -p iscc-lib --lib <module>`, and for Go `go test -count=1 -run '<names>' .` in the
+    copy's `packages/go`. Assert first that the replaced text occurs exactly once
+- A runner refactor keeps behaviour only if the per-section parse order and the old `filter_map` /
+    explicit-`null` handling survive: read the old file side by side (`git show <define-next>:path`)

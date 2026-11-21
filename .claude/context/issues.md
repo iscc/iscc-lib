@@ -258,23 +258,6 @@ either way pin it with one `data-edge.json` vector instead of per-surface tests.
 
 Resolved when the empty-input behavior is a recorded decision pinned by a shared vector.
 
-## `conformance_selftest` repeats one runner loop nine times, in Rust and in Go `normal` [audit]
-
-Verified by the iteration-249, -260 and -270 audits (34303a6). `crates/iscc-lib/src/conformance.rs`
-has nine gen runners (:64, 128, 176, 229, 282, 342, 402, 451, 500), each repeating the section
-lookup with its "section missing" message, `Ok(result) if result.iscc == expected_iscc`, and an
-8-line `match` ending in "could not parse test inputs". `report_case` (:560) exists but only the two
-seq runners call it (:604, :641). `packages/go/conformance.go:156-516` mirrors the layout with about
-36 copied `Fprintf` lines. This is shipped library code (Tier 1 `conformance_selftest`).
-
-**Why it matters:** about 400 lines per language where a reporting change needs nine edits, and the
-copies already differ (two use `report_case`, nine do not). **Suggested fix:** one generic section
-runner that does lookup, `iscc` comparison and `report_case`, so each gen function supplies only its
-input-parsing closure; the same helper in Go. Move the CRAP baseline in the same step. **Scope
-estimate:** 2 non-test files plus `.crap-baseline.json`.
-
-Resolved when each language has one section runner and the selftest still passes on every surface.
-
 ## `crates/iscc-py/CLAUDE.md` still lists test files one by one `low` [review]
 
 **Triage:** untriaged. An agent that reads the "Test Patterns" list as complete would look for
