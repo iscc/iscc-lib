@@ -204,7 +204,7 @@ release-workflow static checks (`scripts/check_release_workflow.py`, scoped to
 invariants are never exercised by CI runs).
 
 **Pre-push stage** (thorough quality gates): `cargo clippy`, `cargo test`, `ty check`, Ruff security
-scan (`S` rules), Ruff complexity check (`C901`), `pytest` with coverage enforcement.
+scan (`S` rules), Ruff complexity check (`C901`), `pytest`.
 
 **Pre-format before committing:** Run `mise run format` before `git add` and `git commit`. This runs
 the same pre-commit auto-fix hooks (formatting, whitespace, line endings) that would fire during

@@ -19,12 +19,11 @@ Add the dependency to your `build.gradle.kts`:
 ```kotlin
 dependencies {
     implementation("io.iscc:iscc-lib-kotlin:0.7.0")
-    implementation("net.java.dev.jna:jna:5.19.1")
 }
 ```
 
-The JNA dependency is required for loading the native Rust library at runtime. The native
-`libiscc_uniffi` shared library must be available on `java.library.path` and `jna.library.path`.
+The artifact bundles the native `libiscc_uniffi` library for Linux, macOS and Windows and pulls in
+JNA as a runtime dependency, which loads the library automatically. No other setup is needed.
 
 !!! note "Requires Kotlin 2.3 or newer"
 
@@ -32,13 +31,9 @@ The JNA dependency is required for loading the native Rust library at runtime. T
     version of forward metadata; older compilers fail with
     `Module was compiled with an incompatible version of Kotlin`.
 
-!!! note "Not yet published to Maven Central"
-
-    The Kotlin package is not yet published to Maven Central. For now, build from source (see below).
-
 ??? tip "Build from source"
 
-    To build from source instead of using a Maven dependency:
+    To build the native library yourself, for development on this repository:
 
     ```bash
     # Build the Rust UniFFI library

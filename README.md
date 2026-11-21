@@ -104,7 +104,7 @@ npm install @iscc/lib
 </dependency>
 ```
 
-The native library must be available on `java.library.path` at runtime.
+The JAR bundles the native library for Linux, macOS and Windows and loads it automatically.
 
 ### <img src="https://cdn.simpleicons.org/go/00ADD8" width="20" height="20" alt="Go"> Go
 
@@ -140,21 +140,20 @@ dependencies: [
 ]
 ```
 
-> **Note:** The native `libiscc_uniffi` library must be built from source and linked at build time.
-> See the [Swift howto guide](https://lib.iscc.codes/howto/swift/) for build instructions.
+SwiftPM downloads the prebuilt XCFramework from the matching GitHub Release, so no Rust toolchain is
+needed.
 
 ### <img src="https://cdn.simpleicons.org/kotlin/7F52FF" width="20" height="20" alt="Kotlin"> Kotlin
 
 ```kotlin
 dependencies {
     implementation("io.iscc:iscc-lib-kotlin:0.7.0")
-    implementation("net.java.dev.jna:jna:5.19.1")
 }
 ```
 
 Requires **Kotlin 2.3 or newer** (the artifact is compiled with Kotlin 2.4.10; older compilers
-reject its metadata). The native library must be available on `java.library.path` and
-`jna.library.path` at runtime.
+reject its metadata). The artifact bundles the native `libiscc_uniffi` library for Linux, macOS and
+Windows and pulls in JNA as a runtime dependency, which loads the library automatically.
 
 ### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM
 
@@ -187,8 +186,8 @@ print(f"Meta-Code: {result['iscc']}")
 ```javascript
 const ic = require("@iscc/lib");
 
-const result = ic.gen_meta_code_v0("ISCC Test Document!");
-console.log(`Meta-Code: ${result.iscc}`);
+const iscc = ic.gen_meta_code_v0("ISCC Test Document!");
+console.log(`Meta-Code: ${iscc}`);
 ```
 
 ### <img src="https://cdn.simpleicons.org/openjdk/ED8B00" width="20" height="20" alt="Java"> Java
@@ -278,12 +277,13 @@ println("Meta-Code: ${result.iscc}")
 ### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM
 
 ```javascript
-import {
+import init, {
     gen_meta_code_v0
 } from "@iscc/wasm";
 
-const result = gen_meta_code_v0("ISCC Test Document!");
-console.log(`Meta-Code: ${result.iscc}`);
+await init();
+const iscc = gen_meta_code_v0("ISCC Test Document!");
+console.log(`Meta-Code: ${iscc}`);
 ```
 
 ## Implementors Guide

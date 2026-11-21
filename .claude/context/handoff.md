@@ -1,61 +1,71 @@
-## 2026-11-21 — Review of: Range-check every JS integer argument, reject negative JNI counts, document the Python/Ruby classes
+## 2026-11-21 — Make the published-package docs match what 0.7.0 ships
 
-**Verdict:** PASS
+**Done:** Fixed every install, distribution, return-shape and gate claim that the issue
+"Published-package docs contradict what ships" names, in the 9 scoped Markdown files. Java and
+Kotlin now say the JARs bundle and load the native library. Swift says SwiftPM fetches the released
+XCFramework. The JS quick starts print the returned string (WASM with `await init()`). The
+architecture page lists every binding crate and package, and the pytest hook is no longer described
+as enforcing coverage.
 
-**Summary:** napi and WASM now take every numeric input as `f64` and narrow it through one
-range-checked helper set, JNI rejects a negative `bits`, `nbytes` or `width` before the unsigned
-cast, and the Python and Ruby docs name `OverflowError` and `RangeError`. All six criteria pass, the
-diff stays inside the scope (3 code files), and no gate was weakened. The `normal` `[audit]` issue
-"Out-of-range integer arguments wrap silently on JS" is resolved and deleted.
+**Files changed:**
+
+- `README.md`: Java note says the JAR bundles and loads the native lib. Swift note says the
+    XCFramework comes from the GitHub Release and no Rust is needed. Kotlin snippet drops the
+    explicit JNA line and the library-path sentence. The Node.js and WASM snippets print `iscc` (the
+    string return), and WASM uses `import init, {…}` + `await init();`
+- `docs/howto/java.md`: rewrote the intro and Setup to describe the two `NativeLoader` strategies
+    (bundled `META-INF/native/{os}-{arch}/`, then `System.loadLibrary` on `java.library.path`).
+    "Build from source" is now an optional collapsed `??? tip`
+- `docs/howto/kotlin.md`: dropped the JNA line, the library-path sentence and the "Not yet published
+    to Maven Central" admonition. Build from source stays as an optional collapsed tip
+- `crates/iscc-jni/README.md`: replaced "automatic native loader is not yet included" with the
+    bundled platforms, plus `java.library.path` as the fallback for other platforms
+- `packages/kotlin/README.md`: dropped the JNA line and the library-path sentence. "Building from
+    Source" is marked optional
+- `packages/swift/README.md`: replaced the "must be built from source / planned for a future
+    release" note. The Rust toolchain is now listed as needed only to build the library yourself
+- `docs/architecture.md`: the mermaid graph adds `iscc-rb`, `iscc-uniffi`, .NET and C++ (→ FFI), and
+    Swift and Kotlin (→ UniFFI). The prose names the crates with no count. The Node.js async row now
+    reads as sync exports with `DataHasher`/`InstanceHasher` classes
+- `docs/development.md`, `CLAUDE.md`: the pytest pre-push entry no longer claims coverage
+    enforcement
 
 **Verification:**
 
-- [x] `npm run build:debug && npm test` in `crates/iscc-napi` — 238 pass, 0 fail. The listed cases
-    (`bits` `2**32+64`, `-1`, `64.5`; `text_trim(…, -1)`; `gen_audio_code_v0([2**40])`;
-    `alg_minhash_256([-1])`; a video frame with `2**31`; `encode_component(256, …)`) each throw,
-    asserted on the message
-- [x] `wasm-pack test --node crates/iscc-wasm` — 11 + 8 + 108 pass. Node on a fresh `/tmp/wasm-int`
-    build: `gen_text_code_v0("x", 2**32+64)` throws `Invalid bits: 4294967360`,
-    `gen_audio_code_v0([2**40])` throws `Invalid cv[0]: 1099511627776`
-- [x] The signature grep over both JS `lib.rs` files prints nothing
-- [x] `mvn -f crates/iscc-jni/java/pom.xml clean test` — 110 + 8 pass after
-    `cargo build -p iscc-jni`. The new tests assert the message `<param> must be non-negative`,
-    which the old wrapped value could not produce
-- [x] `uv run pytest` — 769 pass (`tests/test_int_range.py` pins `OverflowError`);
-    `bundle exec rake test` — 168 runs, 0 failures (`RangeError` pinned). `docs/howto/python.md` and
-    `docs/ruby-api.md` name the classes
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` and `mise run check` exit 0
+- Verification grep 1
+    (`not yet …|planned for a future release|must be built from source|AsyncTask|five binding crates|coverage enforcement`
+    over the 9 files) printed nothing (exit 1)
+- `grep -n "result.iscc" README.md`: lines 172/229/249/260/274 only (Rust, Ruby, C++, Swift, Kotlin
+    blocks), none from JS. `await init();` is at README:284
+- `uv run zensical build`: exit 0. `gen_llms_full.py` re-run afterwards: 22 pages
+- `uv run pytest tests/`: 769 passed
+- `mise run check`: exit 0. `version_sync.py --check`: exit 0, so removing the JNA line kept the
+    Gradle snippets' version targets intact
+- `git status --short`: only `.md` files changed (plus the runner's `iterations.jsonl`)
+- **Published-artifact probes:**
+    - The Kotlin POM (`iscc-lib-kotlin-0.7.0.pom`) declares `jna 5.19.1` with `<scope>runtime</scope>`
+    - A throwaway Gradle project in `/tmp/kprobe` uses only
+        `implementation("io.iscc:iscc-lib-kotlin:0.7.0")` from Maven Central: no JNA declaration, no
+        library path. It compiled and ran `genMetaCodeV0` and `DataHasher`, printing
+        `ISCC:AAAT4EBWK27737D2` / `ISCC:GAAXSGGUNFQ4GKBE`
+    - The JAR lists `android-*`, `darwin-*`, `linux-*` and `win32-x86-64` libs
+    - `gh release view v0.7.0` lists `IsccLib.xcframework.zip`
+    - napi `gen_meta_code_v0` returns `napi::Result<String>` via `.map(|r| r.iscc)`, and
+        `AsyncTask|Promise|spawn` has 0 matches in napi `lib.rs`
 
-**Issues found:**
-
-- Filed `low`, untriaged: "`@iscc/wasm` converts non-number values to numbers instead of rejecting
-    them". The wasm-bindgen glue converts `null`, strings and booleans before the range check
-    (`gen_audio_code_v0([1, null, 3])` gives the code of `[1, 0, 3]`). Pre-existing; napi throws
-- Not filed (nits): JNI `encode_component` keeps its inline `bit_length < 0` check instead of the
-    new `non_negative` helper (same behaviour, next.md left it out of scope). The narrowing helpers
-    exist twice, in napi and WASM, because the error types differ
-
-**Codex review:** no actionable findings. It re-ran the Node.js, WASM and JNI suites and the Python
-and Ruby tests, and confirmed range validation, typed-array compatibility, defaults and hasher state
-from the generated WASM JavaScript.
-
-**Next:** "Published-package docs contradict what ships" (`normal` `[audit]`), the last `normal`
-issue. It lists about 11 files, so it needs the audit valve (cite the issue by title, at most 8
-non-test files per step). Start with `README.md` and the how-tos, as the entry says, and check every
-install or packaging claim against the published artifact, not the repository.
+**Next:** No `normal` issues remain. The open items are the `low` doc issues (Sum-Code `KAA`
+comments, pkg-config `0.2.0`, the `ci-cd.md` tag trigger, the `target.md` count), which the human
+directs, and the human-gated v1.0.0, MSRV and EOL work.
 
 **Notes:**
 
-- Review probes beyond next.md, all from Node on the built packages: WASM video frames reject `1.5`
-    and `-2**31-1` through `serde_wasm_bindgen` (so leaving them alone was right), `Int32Array` and
-    `Uint32Array` inputs give the same result as plain arrays, and the `.d.ts` shows
-    `ArrayLike<number>` for `cv` and `features` and `number` everywhere else. napi rejects a string
-    or a fractional frame element
-- No decision entry from the review: the advance agent's entry of 2026-11-21 covers the step. The
-    choice of `unchecked_param_type = "ArrayLike<number>"` is explained in
-    `crates/iscc-wasm/CLAUDE.md`
-- Nothing enforces the "numeric inputs are `f64`" rule on a future export; it lives in the two crate
-    `CLAUDE.md` files. A source gate would have to read only `#[napi]` / `#[wasm_bindgen]` exports
-    to avoid false positives on private helpers. Worth a step only if the rule is broken once
-- decisions.md is at 398 of 400 lines: the next entry triggers the runner's rotation
-- The core is untouched: no iai, CRAP or semver impact
+- I removed the explicit JNA line from the Kotlin snippets only after the runtime-scope POM check
+    and the compile+run probe. Kotlin's public API exposes no JNA supertypes: the hashers implement
+    `Disposable`/`AutoCloseable`.
+- The Kotlin docs say "Linux, macOS and Windows" even though the JAR also carries Android libs.
+    Loading via JNA on Android (which needs the JNA AAR) is unverified, so I made no claim about it.
+- Only Linux x86_64 was probed at runtime (Kotlin). The Java platform list comes from next.md's JAR
+    listing and `crates/iscc-jni/CLAUDE.md`.
+- `docs/architecture.md`'s "Per-Binding Adaptation" table does not claim to be complete, so I fixed
+    the Node.js row only and added no rows for Ruby, .NET, C++, Swift or Kotlin, per next.md.
+- No code was touched, so there is no CRAP, iai or semver impact.

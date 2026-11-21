@@ -6,9 +6,9 @@ description: Guide to using iscc-lib from Java — JNI setup, code generation, s
 # Java
 
 A guide to using iscc-lib from Java. The Java package provides JNI (Java Native Interface) bindings
-to the Rust-compiled ISCC library. All methods are static calls on the `IsccLib` class — the native
-shared library is loaded via `System.loadLibrary("iscc_jni")` and must be available on
-`java.library.path` at runtime.
+to the Rust-compiled ISCC library. All methods are static calls on the `IsccLib` class. The
+published JAR bundles the native library for Linux (x86_64, aarch64), macOS (x86_64, aarch64) and
+Windows (x86_64) and loads it automatically.
 
 ---
 
@@ -24,10 +24,11 @@ Add the Maven dependency to your `pom.xml`:
 </dependency>
 ```
 
-!!! note "Build from source"
+No other setup is needed: the Maven dependency is enough.
 
-    Maven Central publishing is not yet available. Currently, the native library must be built from
-    source:
+??? tip "Build from source"
+
+    To build the native library yourself, for development or for a platform the JAR does not cover:
 
     ```bash
     # Build the native JNI shared library
@@ -49,16 +50,18 @@ The `IsccLib` class loads the native library automatically in its static initial
 import io.iscc.iscc_lib.IsccLib;
 
 // The native library is loaded when the class is first referenced.
-// Ensure java.library.path includes the directory containing the native library:
-//   java -Djava.library.path=target/debug -cp ... YourApp
 ```
 
-If the native library is not found on `java.library.path`, the JVM throws `UnsatisfiedLinkError` at
-class load time. Set the path when launching your application:
+The loader first extracts the library bundled in the JAR under `META-INF/native/{os}-{arch}/` and
+loads it. If the JAR has no library for the current platform, it falls back to
+`System.loadLibrary("iscc_jni")`, which searches `java.library.path`. Use that fallback to supply
+your own build:
 
 ```bash
 java -Djava.library.path=/path/to/native/libs -cp your-app.jar com.example.Main
 ```
+
+If neither strategy finds the library, the JVM throws `UnsatisfiedLinkError` at class load time.
 
 All ISCC methods are static — there is no runtime object to create or close.
 

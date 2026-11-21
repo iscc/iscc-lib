@@ -178,7 +178,7 @@ Runs on every `git push`. Blocks the push if any check fails.
 - `ty check` — Python type checking
 - Ruff security scan (`S` rules) — focused re-run of rules already enforced by `ruff check`
 - Ruff complexity check (`C901`) — focused re-run of rules already enforced by `ruff check`
-- `pytest` with 100% coverage enforcement
+- `pytest` — full Python test suite (120 s per-test timeout)
 
 ### Manual Commands
 

@@ -11,12 +11,11 @@ Add the dependency to your `build.gradle.kts`:
 ```kotlin
 dependencies {
     implementation("io.iscc:iscc-lib-kotlin:0.7.0")
-    implementation("net.java.dev.jna:jna:5.19.1")
 }
 ```
 
-The native `libiscc_uniffi` shared library must be available on `java.library.path` and
-`jna.library.path` at runtime.
+The artifact bundles the native `libiscc_uniffi` library for Linux, macOS and Windows and pulls in
+JNA as a runtime dependency, which loads the library automatically.
 
 ## Requirements
 
@@ -73,6 +72,8 @@ text utilities (`textClean`, `textCollapse`, `textTrim`, `textRemoveNewlines`), 
 (`encodeBase64`, `jsonToDataUrl`), algorithm primitives, and constants.
 
 ## Building from Source
+
+Optional, for development on this repository:
 
 ```bash
 # Build the Rust UniFFI library

@@ -23,14 +23,21 @@ graph TD
     WASM["iscc-wasm<br/><small>WebAssembly · wasm-bindgen</small>"] --> CORE
     FFI["iscc-ffi<br/><small>C FFI · extern &quot;C&quot;</small>"] --> CORE
     JNI["iscc-jni<br/><small>Java · JNI</small>"] --> CORE
+    RB["iscc-rb<br/><small>Ruby · Magnus</small>"] --> CORE
+    UNIFFI["iscc-uniffi<br/><small>UniFFI</small>"] --> CORE
+    DOTNET[".NET package<br/><small>C# · P/Invoke</small>"] --> FFI
+    CPP["C++ package<br/><small>Header-only wrapper</small>"] --> FFI
+    SWIFT["Swift package"] --> UNIFFI
+    KOTLIN["Kotlin package"] --> UNIFFI
     GO["Go module<br/><small>Pure Go reimplementation</small>"]
     style GO fill:#e8f5e9,stroke:#4caf50
 ```
 
-The five binding crates (Python, Node.js, WASM, C FFI, Java) are thin wrappers — they contain no
-algorithm logic. The Go module is a standalone reimplementation of the same algorithms in pure Go.
-All languages produce identical results for the same inputs, verified by shared conformance test
-vectors.
+The binding crates (Python, Node.js, WASM, C FFI, Java, Ruby, UniFFI) are thin wrappers — they
+contain no algorithm logic. The .NET and C++ packages wrap the C FFI, and the Swift and Kotlin
+packages wrap the bindings that UniFFI generates from `iscc-uniffi`. The Go module is a standalone
+reimplementation of the same algorithms in pure Go. All languages produce identical results for the
+same inputs, verified by shared conformance test vectors.
 
 ## Workspace Layout
 
@@ -175,7 +182,7 @@ of any size, then finalize to get the result.
 | Binding     | Async Strategy                                                                            |
 | ----------- | ----------------------------------------------------------------------------------------- |
 | **Python**  | Sync API, GIL released during `update()`. Callers use `asyncio.to_thread()` if needed     |
-| **Node.js** | napi-rs `AsyncTask` offloads to libuv thread pool, returning `Promise<T>`                 |
+| **Node.js** | Sync napi-rs exports. `DataHasher`/`InstanceHasher` classes with `update()`/`finalize()`  |
 | **WASM**    | Sync exports — no threading in browser WASM                                               |
 | **C FFI**   | `ctx_new()` / `ctx_update()` / `ctx_finalize()` / `ctx_free()` — standard streaming C API |
 | **Java**    | Sync JNI API. `DataHasher`/`InstanceHasher` via opaque `long` handles                     |

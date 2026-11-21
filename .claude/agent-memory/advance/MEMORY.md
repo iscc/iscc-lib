@@ -126,6 +126,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     symbols). New API symbol → update every FULL doc + both `tier1:begin` blocks in the same step.
     Fail-closed lib.rs parse (242): `scan_lib` classifies each column-0 `pub` by offset; a new
     non-derived crate-root item needs an `EXCLUDED_ITEMS` entry (named, never kind-wide)
+- Published-artifact probe (257): Kotlin = `/tmp` Gradle project reusing `packages/kotlin/gradlew` +
+    `gradle/`, `implementation("io.iscc:iscc-lib-kotlin:X")` only, `./gradlew -q run` (~3 min,
+    background). JARs bundle native libs (JNI `META-INF/native/`, Kotlin JNA prefixes); JNA is a
+    runtime-scope POM dep; Swift SPM fetches the release XCFramework. Docs say so
 - Per-crate `CLAUDE.md` files carry no file trees/tables (246): a rule goes in prose against a file
     name. Line-range edits via an anchored `/tmp` Python script; mdformat reflows inserted lines
 - Guidance docs carry no counts/`path:NN` (245): write "every binding", "all Tier 1 symbols". Line

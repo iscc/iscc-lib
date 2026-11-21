@@ -23,8 +23,10 @@ to create a composite identifier that exhibits similarity-preserving properties 
 </dependency>
 ```
 
-The native library (`libiscc_jni.so`, `libiscc_jni.dylib`, or `iscc_jni.dll`) must be available on
-`java.library.path` at runtime. An automatic native loader is not yet included.
+The JAR bundles the native library for Linux (x86_64, aarch64), macOS (x86_64, aarch64) and Windows
+(x86_64) and loads it automatically when `IsccLib` is first used. On other platforms, put your own
+build of the library (`libiscc_jni.so`, `libiscc_jni.dylib`, or `iscc_jni.dll`) on
+`java.library.path`.
 
 ## Quick Start
 
