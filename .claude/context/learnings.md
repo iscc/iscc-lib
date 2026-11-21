@@ -102,7 +102,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `--check-action-inputs`; never hand-retype either. **`prepare-release` never moves an existing
     tag** (259): `git tag … || echo` keeps it, so a hand-pushed tag stays on the pre-checksum
     commit. **`test-jni` runs `mvn test` on libraries bundled as JAR resources, with NO
-    `target/debug`** (278): rerun a new Java test in that layout
+    `target/debug`** (278); the CI `java` job runs that layout as its second step (279)
 - **`setup-dotnet` installs the latest LTS runtime before each requested version** (260), a private
     `DOTNET_INSTALL_DIR` included; `skip-lts-prepass: true` stops it (262: SDK 10 still drives)
 - **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): source gems

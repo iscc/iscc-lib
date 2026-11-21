@@ -90,21 +90,6 @@ Pre-existing: the build of `3ef83ce` behaves the same. The number-array paramete
 Resolved when a throwing element on each of these parameters gives an ordinary error and leaves the
 instance usable, pinned by a test per parameter, or a decisions.md entry keeps the limit on purpose.
 
-## JNI loader tests fail in `release.yml` → `test-jni` and block the Maven publish `critical` [review]
-
-The three `loaderFallsBack*` tests in `IsccLibTest` (iteration 278) hand their child JVM the
-parent's `java.library.path`, which the pom sets to `target/debug`. `test-jni` copies the built
-libraries into `src/main/resources/META-INF/native/` and runs `mvn test` without a `cargo build`, so
-that directory does not exist there: each child skips or rejects the bundled library, finds nothing
-on the fallback path and fails with `UnsatisfiedLinkError`. `publish-maven` needs `test-jni`.
-Measured in iteration 278 in a `git archive` tree with the debug `.so` copied to
-`…/resources/META-INF/native/linux-x86_64/` and no `target/`: the parent commit exits 0, HEAD gives
-`Tests run: 121, Failures: 3`. The CI `java` job stays green because it builds the library first.
-The loader change itself is correct and needs no rework.
-
-Resolved when `mvn test` passes in both configurations (library only on `java.library.path`; library
-only bundled as a resource) with the three tests run, not skipped.
-
 ## JNI `NativeLoader` leaves an empty temp directory behind on every JVM start `low` [review]
 
 **Triage:** untriaged. Every application that loads the bundled library leaves one empty
@@ -220,7 +205,7 @@ has such a list.
 
 Resolved when the section states its conventions as rules on file names and lists no modules.
 
-## `docs/ecosystem.md` and two other pages still count 10 standard functions `normal` [review]
+## Six docs pages count 10 standard functions or give Sum-Code a string result `normal` [review]
 
 Leftovers of the iteration-277 docs batch, which corrected the same sentences on `docs/index.md`,
 `docs/llms.txt` and `docs/benchmarks.md` only. Measured 2026-11-21: `data.json` has 9 `gen_*_v0`
@@ -235,10 +220,15 @@ sections, and iscc-core 1.5.0 has no `gen_sum_code_v0`.
 - `docs/howto/nodejs.md` → "Code generation": "All 10 `gen_*_v0` functions return the ISCC code as a
     string", while `gen_sum_code_v0` returns a `NapiSumCodeResult` (the example below it reads
     `result.iscc`)
+- `docs/howto/java.md` → "Code generation" and `docs/java-api.md` → "Code Generation": all 10
+    `gen*V0` methods "return a `String`", while `genSumCodeV0` returns a `SumCodeResult`.
+    `docs/c-ffi-api.md` → "Code Generation": all 10 `iscc_gen_*_v0` functions "return a
+    heap-allocated ISCC string", while `iscc_gen_sum_code_v0` returns a
+    `struct iscc_IsccSumCodeResult` (found in iteration 279 with `git grep -niE 'all 10' -- docs`)
 
 Resolved when these sentences give 9 standard functions and 9 `data.json` sections, the iscc-lib
-section names every surface or says it is an excerpt, the Node.js sentence names the Sum-Code result
-type, and `git grep -nE '10 .gen_' -- docs` shows only library-wide counts.
+section names every surface or says it is an excerpt, the Node.js, Java and C sentences name the
+Sum-Code result type, and `git grep -nE '10 .gen_' -- docs` shows only library-wide counts.
 
 ## target.md and the Swift spec criterion say the release workflow force-updates the tag `low` [review]
 

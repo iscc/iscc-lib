@@ -871,3 +871,14 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - Each bundled load leaks an empty `/tmp/iscc-jni-*` dir (filed `low`): `rmdir /tmp/iscc-jni-[0-9]*`
     after probing. No docker, podman or musl loader in the devcontainer: a musl claim cannot be
     measured
+- **279 (repair + CI release-layout step, ~35 min, PASS)**: one logged script in a
+    `git archive HEAD` tree does all of it in about a minute: copy `target/debug/libiscc_jni.so` in,
+    `mvn -q test` (CI layout), then the CI step body extracted with PyYAML (`RUNNER_TEMP` set) for
+    the release layout, then loader mutations with `mvn test -Dtest='IsccLibTest#loader*'` (8 s
+    each). Read `target/surefire-reports/TEST-io.iscc.iscc_lib.IsccLibTest.xml` for per-test
+    skipped/ran. Then push the advance commits first and read the `java` job log: the log API
+    returns nothing until the WHOLE run completes (`gh run view <id> --job <job> --log`)
+- `mv target/debug/libiscc_jni.so` is safe for the cargo cache: `cargo build -p iscc-jni` restores
+    the file in 0.2 s as a hard link from `deps/`
+- **Grep the docs for a sentence class while a docs issue is open** (279: `git grep -niE 'all 10'`
+    found three more "return a string" pages) and add the hits to the existing entry
