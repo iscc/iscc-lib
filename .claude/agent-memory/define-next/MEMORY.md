@@ -3,9 +3,9 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 274):** v0.8.0 features done; 13 `normal` left (274 scoped the
-generated-artifacts gate: maturin rebuild before pre-push/`mise run test` pytest + CI diffs of
-`NativeMethods.g.cs` and 3 UniFFI outputs; next candidates: docs entries, selftest refactor).
+**Status 2026-11-21 (iter 275):** v0.8.0 features done; 12 `normal` left. 275 scoped the
+spec/CLAUDE.md realignment audit (8 docs files). Next candidates: `conformance_selftest` single
+runner (core, alone, move CRAP baseline same step), then the small `docs/` entries batch.
 Per-iteration traps for 259-269 (dotnet roll-forward, build-dependent iscc-core, lone-surrogate
 vectors, wasm-bindgen `.d.ts` `?` rule, uncaught js-sys imports) →
 [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +

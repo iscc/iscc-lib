@@ -1,95 +1,92 @@
 # Next Work Package
 
-## Step: Gate the stale Python extension and the undiffed generated sources
+## Step: Realign the specs and crate CLAUDE.md files with the shipped code
 
 ## Goal
 
-Close the `[audit]` issue "Gates test generated and built artifacts that nothing refreshes or
-diffs". Three changes: local pytest runs against a freshly built `_lowlevel.abi3.so`, CI fails on a
-stale committed `NativeMethods.g.cs`, and CI fails on stale committed UniFFI outputs.
+Pick up the `[audit]` issue "Specs and crate CLAUDE.md files describe shipped work as pending and
+name missing items": rewrite each cited statement in the present tense so it matches the tree.
+define-next and advance read these files as truth, so every stale claim risks becoming scoped work.
 
 ## Alternatives Considered
 
-- **Chosen:** the generated-artifacts gate. It is the review's "Next". The UniFFI outputs have
-    matched the generator since iteration 272, so the gate starts green. A gate that checks the
-    wrong artifact misleads every later step, so it goes before the docs entries.
-- **Rejected:** the `conformance_selftest` single-runner refactor (audit, 2 files plus the CRAP
-    baseline). It is a core change, which goes alone, and it needs a CRAP baseline move that only CI
-    checks. Better taken when the gates are trustworthy.
+- **Chosen:** spec/CLAUDE.md realignment — docs-only, no gate risk, and it pays back on every later
+    step (handoff names it as the highest-leverage candidate); the last three steps were code/CI.
+- **Rejected:** `conformance_selftest` single section runner (Rust + Go) — a core change that also
+    has to move the CI-only CRAP baseline in the same step; it is worth its own iteration, next.
+- **Rejected:** batching the small user-docs entries (`KAA`, pkg-config, `development.md`,
+    `llms.txt`) — independent and cheap, but the agents' own source of truth comes first.
 
 ## Scope
 
-- **Create**: `tests/test_generated_artifact_gates.py`
-- **Modify**: `.pre-commit-config.yaml` (pre-push `pytest` hook), `mise.toml` (`test` task, plus a
-    shared build task if you add one), `.github/workflows/ci.yml` (`c-ffi` and `kotlin` jobs)
-- **Modify (docs)**: `.claude/context/specs/ci-cd.md` (the `c-ffi` and `kotlin` rows of the CI job
-    table), `docs/development.md` (the pre-push `pytest` bullet near line 181),
-    `packages/kotlin/CLAUDE.md` and `packages/swift/CLAUDE.md` (the "CI" sections: CI diffs the
-    generated files)
-- **Reference**: `crates/iscc-ffi/build.rs` (csbindgen rewrites `NativeMethods.g.cs` on every
-    build), the "Binding Generation" sections of `packages/kotlin/CLAUDE.md` and
-    `packages/swift/CLAUDE.md`, the `python-test` job in `ci.yml` (its `maturin develop` line),
-    `scripts/check_ci_job_table.py`
+Audit refactor, file budget **8** (all are docs/specs; the realignment decision of 2026-11-20 means
+no escalation):
+
+- **Modify**: `.claude/context/specs/rust-core.md`, `.claude/context/specs/python-bindings.md`,
+    `.claude/context/specs/go-bindings.md`, `.claude/context/specs/wasm-bindings.md`,
+    `crates/iscc-napi/CLAUDE.md`, `crates/iscc-py/CLAUDE.md`, `crates/iscc-wasm/CLAUDE.md`,
+    `packages/go/CLAUDE.md`
+- **Reference**: `crates/iscc-lib/src/codec.rs` (`Version`, `V1`, `(Id, V1)`),
+    `crates/iscc-lib/src/lib.rs:51` (`IsccError`), `crates/iscc-py/src/lib.rs` (`.detach(` sites),
+    `crates/iscc-wasm/src/lib.rs:181-191` (`gen_meta_code_v0` shape), `packages/go/*.go`,
+    `.github/workflows/release.yml:110-116` (Go module tag)
 
 ## Not In Scope
 
-- `packages/swift/Sources/iscc_uniffiFFI/module.modulemap`: it is maintained by hand (Darwin `use`
-    lines removed), so do not diff it against the generator output
-- Do not regenerate or edit `iscc_uniffi.kt`, `iscc_uniffi.swift`, `iscc_uniffiFFI.h` or
-    `NativeMethods.g.cs`. If a check finds one stale, stop and report it in the handoff. Do not fix
-    it in this step
-- No Windows CI leg, no change to the iai/CRAP gates, no `release.yml` edits
-- Do not add a staleness check to bare `pytest` runs (a conftest that builds). Cover only the
-    pre-push hook and `mise run test`
+- The user-facing docs issues (`docs/` pages, READMEs, `llms.txt`) — separate entries.
+- Rewriting specs beyond the cited statements, or touching `notes/` (never swept).
+- Adding a file list anywhere — the 2026-11-21 decisions forbid file lists in per-crate `CLAUDE.md`
+    files and aggregate lists in specs.
+- Any code change; if a statement cannot be made true without one, leave it and say so in the
+    handoff.
 
 ## Implementation Notes
 
-- **Stale `.so`**: rebuild instead of comparing mtimes. A checkout resets mtimes, and a core change
-    under `crates/iscc-lib/src` also makes the extension stale. Use the command CI uses:
-    `uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml`, run before `uv run pytest`
-    in both the pre-push `pytest` hook and `mise run test`. One rule, two places: define the build
-    command once if you can (for example a `mise` task that `test` depends on and the hook calls via
-    `mise run`, as the standardrb hook already calls `mise exec`). Write the reason in a comment
-    above the hook.
-- **`NativeMethods.g.cs`**: in the `c-ffi` job, after `Build FFI crate`, add a step
-    `git diff --exit-code packages/dotnet/Iscc.Lib/NativeMethods.g.cs` with an `::error::` message
-    in the style of the `iscc.h` step. The build has already rewritten the file, so a diff means the
-    committed copy is stale.
-- **UniFFI**: in the `kotlin` job (ubuntu; it already runs `cargo build -p iscc-uniffi`), add one
-    step. Run the generator with the commands documented in the two CLAUDE.md files, but write into
-    a temp dir (`$RUNNER_TEMP`). Then compare three generated files with their committed copies:
-    `iscc_uniffi.kt`, `iscc_uniffi.swift`, and `iscc_uniffiFFI.h` (committed under
-    `packages/swift/Sources/iscc_uniffiFFI/`). Compare modulo trailing whitespace: pipe both sides
-    through `sed 's/[[:space:]]*$//'` and `diff` them (learnings: the third-party generator writes
-    bytes the hooks rewrite). If the files also differ in trailing blank lines at EOF, normalise
-    those too and say so in the handoff. Exit non-zero with an `::error::` that names the
-    regeneration command.
-- **Test** (`tests/test_generated_artifact_gates.py`): an anchor test that parses `ci.yml` and
-    `.pre-commit-config.yaml` with PyYAML (already a dev dep). Assert that the `NativeMethods.g.cs`
-    diff step comes after the `cargo build -p iscc-ffi` step in `c-ffi`, that the `kotlin` job names
-    all three generated files and runs `uniffi-bindgen` for both languages, and that the `pytest`
-    hook entry (or the task it calls) runs `maturin develop` before `pytest`. Keep the functions
-    small and plain, with no classes.
-- **Prove each CI step on a real regression** (learnings: throwaway repo). In
-    `git archive HEAD | tar -x -C /tmp/<dir>` plus `git init` and a commit, commit a copy of
-    `NativeMethods.g.cs` with one line changed, build, and run the step body: it must exit non-zero.
-    Do the same with one changed line in `iscc_uniffi.kt`. Then run both step bodies on the
-    unmodified tree: they must exit 0. Paste the commands and exit codes into the handoff. Delete
-    the temp dirs afterwards.
+Per cited item (all re-confirmed present at HEAD):
+
+- `rust-core.md` ~:360-371 (ISCC-IDv1 "Part 1"): `Version` "has only `V0`" and the "every surface
+    currently fails" block with the `ValueError` output. Rewrite as the shipped state: `Version` has
+    `V1`, the codec admits `(Id, V1)`, and `iscc_decode`/`iscc_decompose` decode an ISCC-IDv1 (keep
+    the reference `iscc_core.iscc_decode` example; drop the failing-output block and "can land as
+    its own work package"). Read the codec to state the admitted pairs exactly.
+- `python-bindings.md` → "GIL Release for Text/Video Compute Paths" (:294-): says text/video "still
+    hold the GIL" and "Wrap the core calls…". Rewrite as present tense (they run inside `py.detach`;
+    keep the `extract_frame_sigs` caveat as the constraint that holds). Check the actual `.detach(`
+    sites before writing which functions detach.
+- `go-bindings.md`: :93 "Streaming functions also accept `io.Reader`" — delete (no `io.Reader` in
+    `packages/go/*.go`). Also :13 and :217 list `io.Reader` among the API conventions — drop it
+    there too. :136 "Both symbols exist only on `develop`…" — the rename shipped in 0.6.0; say the
+    old symbols were removed in 0.6.0 (keep the field-extraction guidance; drop the "update issue
+    #43 when this lands" sentence if it reads as pending work).
+- `wasm-bindings.md` → "Rust Bridge Layer" (:37-): the sketch shows `js_name = "genMetaCodeV0"`,
+    `bits: Option<u32>`, a serde `JsValue` result. Replace with the real shape: snake_case exports,
+    optional scalars as `JsValue` with `unchecked_optional_param_type` and an `opt_u32` check, and
+    gen functions returning the `iscc` string (`gen_sum_code_v0` returns `WasmSumCodeResult`). Copy
+    from `crates/iscc-wasm/src/lib.rs`, do not paraphrase.
+- napi :36, :66; py :66; wasm :43 `CLAUDE.md`: `iscc_lib::Error` → `iscc_lib::IsccError`.
+- `packages/go/CLAUDE.md`: remove the per-file test lists under "Test Patterns" (:95-121) and state
+    the conventions against file-name patterns instead (decision 2026-11-21; e.g. "`code_*_test.go`
+    read …", "`data_edge_test.go` …" is fine as a rule on a name, an enumerated unit-test list is
+    not). :146 "Unlike most other language packages… wrap `iscc-ffi`" — only C++ and .NET wrap the C
+    FFI; the others are native bindings (PyO3, napi, wasm-bindgen, JNI, Magnus, UniFFI). Publishing
+    (:133-135): the proxy needs the `packages/go/vX.Y.Z` tag, which `release.yml` creates on a
+    `workflow_dispatch` with a `version` input — no tag push triggers anything.
+- Specs are gated by `scripts/check_spec_paths.py` (prek hook): every backticked repo path must be
+    tracked. Run `mise run format` before committing (mdformat wraps at 100).
 
 ## Verification
 
-- `uv run pytest tests/test_generated_artifact_gates.py` passes, and `uv run pytest` passes
-- Move `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` out of the tree, then
-    `uv run prek run pytest --stage pre-push` exits 0 and the `.so` exists again (then delete the
-    moved copy)
-- The handoff shows the throwaway-repo runs: the `NativeMethods.g.cs` step and the UniFFI step each
-    exit non-zero on a mutated committed file and exit 0 on the unmodified tree
-- `uv run scripts/check_ci_job_table.py` exits 0, and `mise run check` exits 0
-- `git status --porcelain` shows no change to `NativeMethods.g.cs`, `iscc_uniffi.kt`,
-    `iscc_uniffi.swift` or `iscc_uniffiFFI.h`
+- `grep -rn 'iscc_lib::Error\b' crates/*/CLAUDE.md packages/*/CLAUDE.md` prints nothing
+- `grep -n 'io.Reader\|exist only on .develop' .claude/context/specs/go-bindings.md` prints nothing,
+    and `grep -n 'genMetaCodeV0\|Option<u32>' .claude/context/specs/wasm-bindings.md` prints nothing
+- `grep -n 'has only .V0\|currently fails' .claude/context/specs/rust-core.md` and
+    `grep -n 'still hold the GIL' .claude/context/specs/python-bindings.md` print nothing
+- `grep -n 'Unlike most other language packages' packages/go/CLAUDE.md` prints nothing and
+    `grep -n 'packages/go/v' packages/go/CLAUDE.md` prints a line
+- `uv run scripts/check_spec_paths.py` exits 0 and `mise run check` exits 0
+- `git show --stat` of the advance commit lists only the 8 scoped files plus `.claude/context/` and
+    agent-memory files (no code file changed)
 
 ## Done When
 
-Every verification criterion passes: the pre-push pytest rebuilds the extension, and CI diffs all
-four generated sources against their committed copies.
+Every statement the audit issue cites matches the tree and all verification checks pass.
