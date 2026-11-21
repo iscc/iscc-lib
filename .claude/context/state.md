@@ -1,15 +1,15 @@
-<!-- assessed-at: 94c3f76c854bca02460a839947dc4188bab1f308 -->
+<!-- assessed-at: 4a6e546ebbd07b264553609136be85027e726bcf -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed; 1 normal issue owed (derived-fact drift, 2 parts left)
+## Phase: v0.8.0 — all features landed; 2 normal doc issues owed
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 242 made the Tier 1 doc gate fail closed on crate-root items it does not
-parse, and CI is green on that commit. One `normal` issue still blocks v0.8.0: derived facts in
-docs, specs and guidance drift, with two of its three parts still open.
+all 11 bindings. Iteration 243 completed and registered the Rust docs with the Tier 1 doc gate, and
+CI is green on that commit. Two `normal` issues block v0.8.0: the derived-fact drift issue (2 parts
+left) and a Rust snippet pinned to the stale 0.4 release.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -115,18 +115,21 @@ docs, specs and guidance drift, with two of its three parts still open.
 
 ## Documentation
 
-**Status**: partially met — 1 `normal` `[human]` issue (2 of 3 parts left)
+**Status**: partially met — 2 `normal` issues open
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs
-- Tier 1 doc gate `scripts/check_tier1_docs.py` (prek hook + pytest): registered docs (`FULL` /
-    `EXEMPT`) must name every symbol derived from `lib.rs`; since 242 one `scan_lib` pass classifies
-    every column-0 `pub` item as derived, a named `EXCLUDED_ITEMS` entry, or a gate failure
-    (fail-closed part of the issue resolved, 20 test functions)
-- **Left in the drift issue:** `docs/howto/rust.md`, `docs/howto/c-cpp.md`, `docs/rust-api.md` and
-    `docs/architecture.md` → "Tier 1" are unregistered and incomplete (`rust-api.md` still claims
-    `IsccResult<String>` returns); unchecked counts, file lists and line numbers remain in specs and
-    per-crate `CLAUDE.md` files
+- Tier 1 doc gate `scripts/check_tier1_docs.py` (prek hook + pytest, fail-closed `lib.rs` parse):
+    since 243 the registry holds 19 `FULL` docs (incl. `docs/rust-api.md`, `docs/howto/rust.md`,
+    `docs/architecture.md`), 2 `EXACT` and 2 `EXEMPT` (incl. `docs/api.md`, rendered by
+    mkdocstrings); `tests/test_rust_api_signatures.py` pins every signature printed in `rust-api.md`
+    to the crate source
+- **Left in the drift issue:** `docs/howto/c-cpp.md` is the one how-to / API page outside the
+    registry (incomplete C/C++ listing); unchecked counts, file lists and line numbers remain in
+    specs and per-crate `CLAUDE.md` files
+- **`normal` issue:** `docs/howto/rust.md:34` and `crates/iscc-lib/README.md:72` show
+    `version = "0.4"`, which resolves to 0.4.0 (no `encode_seq` / `gen_iscc_id_v1`); not a
+    `version_sync.py` target
 - `low` issue: Sum-Code example comments show `ISCC:KAA…` where the call returns `ISCC:KUA…`
 
 ## Benchmarks
@@ -145,16 +148,17 @@ docs, specs and guidance drift, with two of its three parts still open.
     0.7.0
 - Security criterion met except the exempt EOL floors (Python 3.10, .NET 8, Ruby 3.1 — `low`, for
     Titusz); only Rust has a standing advisory gate (`cargo deny`)
-- **Latest CI: PASSING** on `origin/develop` = `2551069` (all 22 jobs green):
-    https://github.com/iscc/iscc-lib/actions/runs/44849660940
+- **Latest CI: PASSING** on `origin/develop` = `3efd437` (github-actions suite `success`):
+    https://github.com/iscc/iscc-lib/actions/runs/44853805032
 - HEAD is ahead only by a `.claude` log commit — green CI covers all code at HEAD
 
 ## Open Issues
 
-11 open: 0 critical, **1 normal** (derived-fact drift `[human]`), 10 low. issues.md is at 210 of 300
-lines.
+12 open: 0 critical, **2 normal** (derived-fact drift `[human]`; 0.4 snippet pin `[review]`), 10
+low. issues.md is at 221 of 300 lines.
 
 ## Next Milestone
 
-Resolve the remaining two parts of the open `normal` issue — unregistered, incomplete API docs and
-unchecked hand-written counts in specs and guidance — so v0.8.0 meets its release criteria.
+Close the two open `normal` documentation issues — the unregistered C/C++ how-to, the unchecked
+hand-written counts in specs and guidance, and the stale 0.4 crate-version snippet — so v0.8.0 meets
+its release criteria.

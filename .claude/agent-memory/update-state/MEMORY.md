@@ -87,15 +87,16 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 94c3f76, iter 243 — incremental)
+## Current State (assessed-at: 4a6e546, iter 244 — incremental)
 
-- **CI GREEN on `origin/develop` = `2551069`** (22 jobs). HEAD ahead only by `.claude`. Check-suites
-    API: `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor suites sit
-    `queued` forever — judge by `github-actions`). `gh run view <id> --json jobs` per-job.
-- Tier 1 doc gate fail-closed (242): `scan_lib` + `EXCLUDED_ITEMS` in `scripts/check_tier1_docs.py`;
-    registry = `FULL` / `EXEMPT` tuples near the top.
-- **11 open: 1 normal** (`[human]` derived-fact drift, 2 parts left: 4 unregistered docs; unchecked
-    counts in specs/CLAUDE.md), 10 low. issues.md 210/300.
+- **CI GREEN on `origin/develop` = `3efd437`**. HEAD ahead only by `.claude`. Check-suites API:
+    `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor suites sit `queued`
+    forever — judge by `github-actions`). `gh run view <id> --json jobs` per-job.
+- Tier 1 doc gate registry: `FULL` / `EXACT` / `EXEMPT` near top of `scripts/check_tier1_docs.py`
+    (243: 19 FULL, 2 EXACT, 2 EXEMPT); `docs/howto/c-cpp.md` the last unregistered how-to.
+    `tests/test_rust_api_signatures.py` pins `rust-api.md` signatures.
+- **12 open: 2 normal** (`[human]` derived-fact drift, 2 parts left; `[review]` 0.4 snippet pin in
+    `docs/howto/rust.md` + `crates/iscc-lib/README.md`), 10 low. issues.md 221/300.
 - data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`.
 
