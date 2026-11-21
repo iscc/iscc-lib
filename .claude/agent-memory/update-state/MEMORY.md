@@ -86,16 +86,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 566abdd, iter 268 — incremental)
+## Current State (assessed-at: 9ff44ec, iter 269 — incremental)
 
 - **CI on `origin/develop` = `bc01c26` GREEN** (run 44926209534; codecov/cursor suites sit `queued`
     forever — judge by the github-actions suite). A `null` check-run conclusion = still running;
     `gh run view <id> --json status,conclusion,jobs` settles it. Job logs: `actions/jobs/<id>/logs`
     API with `--allow-escape-sequences`, strip ANSI.
-- 14 open (12 `normal` + 2 `low`); 7 in `postponed.md`. 267 closed Go 386 CI step (Go met; `go` job
-    now has a `GOARCH=386` step). Kotlin finishes last on the tip — check-runs `null` = wait. Swift
-    is the slowest CI job — wait on it. data-edge.json = 9 sections.
-    `grep -c '#\[test\]' crates/iscc-lib/src/*.rs` sum = 311.
+- 15 open (1 `critical` + 11 `normal` + 3 `low`); 7 in `postponed.md`. 268 = WASM type-check step
+    NEEDS_WORK: advance `8560f6a` sits UNPUSHED at HEAD (green `bc01c26` does NOT cover it). WASM
+    regressed to "not met". data-edge.json = 9 sections. iscc-lib `src/` `#[test]` sum = 311.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.

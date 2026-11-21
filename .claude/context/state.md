@@ -1,23 +1,22 @@
-<!-- assessed-at: 566abdd1ae5528c67fa7e352f25ab00920a1a2db -->
+<!-- assessed-at: 9ff44ec9f8ac503df9e11c27bc3d62f3dddd824a -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; CI green; 12 `normal` issues block the release
+## Phase: v0.8.0 — features done; a `critical` WASM regression sits unpushed at HEAD
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 267 added a 32-bit
-(`GOARCH=386`) run of the Go suite to the `go` CI job; that issue is closed. CI is green; 12
-`normal` and 2 `low` issues remain open.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 268 moved every
+WASM number and boolean parameter to a Rust-side type check; review returned NEEDS_WORK and filed a
+`critical` issue for two defects it introduced. That code is at HEAD, unpushed, and not covered by
+CI. 15 issues are open: 1 `critical`, 11 `normal`, 3 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
 **Status**: met
 
-- `crates/iscc-lib/tests/data-edge.json` has 9 sections; `gen_meta_code_v0` now holds 3 vectors
-    (`test_0002_utf16_key_order`, `test_0003_negative_zero` added 266); the 5 tracked copies are
-    byte-identical; C/C++ read the regenerated `data_edge_vectors.h`; all 12 harnesses run every
-    section
+- `crates/iscc-lib/tests/data-edge.json` has 9 sections; the 5 tracked copies are byte-identical;
+    C/C++ read the generated `data_edge_vectors.h`; all 12 harnesses run every section
 - The ragged video vector carries a `diverges` marker; napi, WASM, JNI and .NET leave `name`,
     `description`, `meta`, `metahash` uncompared for meta
 - No vector from 2^29 up, on purpose (decision of 2026-11-21; mismatch is iscc/iscc-core#141); no
@@ -32,8 +31,8 @@ ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteratio
 - `alg_cdc_params` saturates for every `u32` from 2 up; no upper bound (decision of 2026-11-21)
 - `normal` (audit): one-shot gen functions re-implement streaming — `gen_instance_code_v0` hashes
     BLAKE3 twice, `gen_meta_code_v0` parses `meta` twice, WASM `gen_sum_code_v0` copies `SumHasher`
-- `normal` (audit): specs and crate `CLAUDE.md` files are stale — `rust-core.md` says `Version` has
-    only V0, napi/py/wasm `CLAUDE.md` name `iscc_lib::Error` (type is `IsccError`)
+- `normal` (audit): specs and crate `CLAUDE.md` files are stale (`rust-core.md` `Version` enum,
+    `iscc_lib::Error` vs `IsccError`, the `specs/wasm-bindings.md` bridge sketch)
 - **Postponed (human):** crate `>= 1.0.0`; MSRV verification; `no_std` support
 
 ## Python Bindings
@@ -44,7 +43,6 @@ ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteratio
     `py.detach` sites; 0.7.0 on PyPI; data-edge harness with the iscc-core cross-check; CI 3.10/3.15
 - Video frame values outside `i32` raise `OverflowError` (`tests/test_int_range.py`)
 - `specs/python-bindings.md` still says text/video paths hold the GIL (part of the spec issue)
-- The Windows behaviour is proven from the type only — no CI run on Windows (`low`, see CI/CD)
 
 ## Node.js Bindings
 
@@ -56,12 +54,18 @@ ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteratio
 
 ## WASM Bindings
 
-**Status**: partially met (one `normal` issue, plus the shared duplication issue)
+**Status**: not met at HEAD (one `critical` issue, one `low`, plus the shared duplication issue)
 
-- 35 Tier 1 symbols; conformance, unit and strict data-edge tests; SIMD release build met
-- `normal`: the wasm-bindgen glue converts `null`, strings and booleans to numbers instead of
-    rejecting them
-- `alg_cdc_chunks` returns `Uint8Array[]` since 234 — needs a v0.8.0 release-notes line
+- 35 Tier 1 symbols; SIMD release build met. At HEAD (`8560f6a`, unpushed) number and boolean
+    parameters arrive as `JsValue` and are type-checked in Rust; the glue no longer coerces them
+- `critical`: `gen_meta_code_v0` keeps `description: Option<String>` / `meta: Option<String>` before
+    a `JsValue` `bits`, so the built `.d.ts` makes them required (README call no longer
+    type-checks); `number_vec` calls `js_sys::Array::from` with no `catch`, so a throwing array-like
+    corrupts the instance after ~4,095 calls
+- `low` (untriaged): byte and string parameters are still glue-converted (`"abc"` hashes as three
+    zero bytes; a number for a string traps)
+- Release-notes items: `alg_cdc_chunks` returns `Uint8Array[]` (234); plain-JS callers passing
+    numeric strings, `null` for a required number or non-boolean flags now get an error
 
 ## C FFI
 
@@ -79,26 +83,22 @@ ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteratio
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 9 sections strictly; 0.7.0 on Maven Central
     with five bundled native libraries
 - `normal`: `NativeLoader` throws on an unknown OS/arch before trying `java.library.path`
-- `algCdcChunks` takes a signed `int` — 2147483647 is the largest CDC average it can pass
 
 ## Go Bindings
 
 **Status**: met (v0.8.0 scope; shares the audit spec-staleness issue)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
-    sections incl. the three meta vectors and the ragged video vector
-- `code_meta.go` writes RFC 8785 JSON itself (`writeCanonical*`, `checkSurrogateEscapes`): UTF-16
-    key order at every depth, `-0` as `0`, lone surrogate escapes rejected (fixed 266)
-- The `go` CI job reruns `go test` + `go vet` as a `GOARCH=386` build (267), so the 32-bit
-    `algCdcParams` handling is now CI-tested; `ci-cd.md` and `packages/go/CLAUDE.md` say so
-- `TextTrim` clamps `nbytes <= 0`; hashers error after `Finalize` (API break, release-notes item)
+    sections; RFC 8785 canonical meta JSON matches the core
+- The `go` CI job reruns `go test` + `go vet` as a `GOARCH=386` build
+- `go-bindings.md` claims an `io.Reader` API that `packages/go` lacks (audit spec issue)
 
 ## C# / .NET Bindings
 
 **Status**: partially met (one `normal` issue)
 
-- `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 9 sections strictly; 0.7.0 on NuGet
-- CI: `dotnet-test` 8.0/10.0 legs on a private `DOTNET_INSTALL_DIR` with `skip-lts-prepass: true`
+- `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 9 sections strictly; 0.7.0 on NuGet;
+    `dotnet-test` 8.0/10.0 legs
 - `normal`: the `PinnedRows` padding (and C++ `safe_data`) guard a NULL rejection the FFI no longer
     has — removal decided
 - .NET 8 reached end of support 2026-11-10; the `net8.0` floor is the human's call
@@ -107,10 +107,9 @@ ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteratio
 
 **Status**: partially met (one `normal` issue, shared with .NET)
 
-- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run incl.
-    `alg_cdc_chunks`; ASAN `cpp` job; 0.7.0 vcpkg/Conan
+- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job; 0.7.0
+    vcpkg/Conan
 - `normal`: remove the redundant `safe_data` padding
-- The C++ examples in `docs/howto/c-cpp.md` have no committed compile or output check
 
 ## Ruby Bindings
 
@@ -128,7 +127,6 @@ ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteratio
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
     all 9 data-edge sections; shipped 0.7.0
-- Kotlin resolves Gradle plugins from `mavenCentral()` first; Kotlin and macOS `swift` jobs green
 
 ## Documentation
 
@@ -139,8 +137,8 @@ ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteratio
 - `normal`: `architecture.md` lower sections cover half the surfaces; how-to Sum-Code comments show
     `KAA`; docs overstate language coverage and what ISO 24138 specifies (audit)
 - `normal`: `docs/development.md` "Publish" says a tag push triggers the release
-- `normal` (audit): spec/`CLAUDE.md` staleness, including `go-bindings.md` claiming an `io.Reader`
-    API that `packages/go` lacks
+- `normal` (audit): spec/`CLAUDE.md` staleness
+- `docs/howto/wasm.md` "Error handling" now limits the type-check claim to number/boolean arguments
 
 ## Benchmarks
 
@@ -152,25 +150,26 @@ ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteratio
 
 ## CI/CD and Publishing
 
-**Status**: partially met — CI green; the v1.0.0 semver gate is human-gated
+**Status**: partially met — CI green on the pushed tip, but HEAD carries unverified WASM code
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates — binding marshalling is not gated
-- The Go port has a 32-bit `GOARCH=386` step in the `go` job (267); Rust has no 32-bit leg (decided)
-- `low`: no CI job runs a test suite on Windows — 21 Linux jobs, one macOS; in `release.yml` only
-    `test-nuget` runs on `windows-latest`
+- `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates; no check diffs the built WASM
+    `.d.ts` against an expected declaration list (review gate idea)
+- `low`: no CI job runs a test suite on Windows
 - **Latest CI: PASSING** on `origin/develop` = `bc01c26`:
-    https://github.com/iscc/iscc-lib/actions/runs/44926209534 — all jobs `success`; HEAD adds only
-    the `cid(log)` commit, so green CI covers the code at HEAD
+    https://github.com/iscc/iscc-lib/actions/runs/44926209534 — **does NOT cover HEAD**: 4 local
+    commits unpushed, including the NEEDS_WORK advance commit `8560f6a` (6 non-`.claude` files under
+    `crates/iscc-wasm/` and `docs/howto/wasm.md`)
 
 ## Open Issues
 
-14 open in issues.md: 0 critical, 12 `normal`, 2 `low`; none blocked on the human or upstream. The
-Go 32-bit CI issue closed in 267. 7 sit in `postponed.md`.
+15 open in issues.md: 1 `critical`, 11 `normal`, 3 `low`; none blocked on the human or upstream. The
+WASM coercion issue was rewritten into the `critical` regression entry; a `low` byte/string
+conversion issue was filed. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the 12 `normal` issues that block v0.8.0, correctness first: the WASM numeric coercion. Then
-the Ruby floor, the FFI padding removal, the JNI loader, the one-shot duplication and docs/spec
-alignment. Titusz then cuts v0.8.0 via `/release`.
+Resolve the `critical` `@iscc/wasm` regression so the unpushed step can pass review and reach CI —
+the built `.d.ts` must match the pre-step declarations and a throwing array-like must leave the
+instance usable. Then clear the 11 `normal` issues blocking v0.8.0; Titusz cuts it via `/release`.
