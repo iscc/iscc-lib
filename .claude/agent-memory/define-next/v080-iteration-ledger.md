@@ -152,4 +152,8 @@ mdformat wraps lines. Collapse entries below a GENERATED prefix (the gate can ne
 Widen `BACKTICK_RE` with `.github` for the ci-cd "Workflow Files" table. Found and left for review
 to file: ci-cd.md still specifies a release tag trigger (lines ~10/173/187) against target.md and
 `release.yml` (`workflow_dispatch` only). Next: if PASS, v0.8.0 has no normal blocker left. Check
-the tag-trigger realignment, then NONE/IDLE.
+the tag-trigger realignment, then NONE/IDLE. 248-252 → git log. 253 = review issue "harnesses reject
+valid meta vectors": a reduced-result harness's uncompared set = every `data.json` output key minus
+`iscc` (napi/WASM/JNI/.NET lacked `description`); generator test accepted only object `meta`.
+Test-only, 5 files. Trap: `call_meta` (Rust test helper) sits at CRAP 30.0 — forbid any branch added
+there.
