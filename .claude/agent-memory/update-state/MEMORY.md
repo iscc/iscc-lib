@@ -86,13 +86,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 6566550, iter 263 — incremental)
+## Current State (assessed-at: 7766b59, iter 264 — incremental)
 
-- **CI on `origin/develop` = `d31695f` GREEN** (run 44909977285, 24 check-runs success). 262 fixed
-    Kotlin via `pluginManagement` (mavenCentral first) + .NET `skip-lts-prepass: true`. For job
+- **CI on `origin/develop` = `d5a15b9` GREEN** (run 44911781227, 24 check-runs success; was
+    in_progress at first probe — re-poll check-runs, a `null` conclusion = still running). For job
     logs, call the `actions/jobs/<id>/logs` API with `--allow-escape-sequences` and strip ANSI.
-- 16 open (15 `normal` + 1 `low`); 6 in `postponed.md` (do NOT block DONE-for-v0.8.0). 262 closed
-    the .NET LTS issue. Go has 290 `Test*` funcs.
+- 17 open (15 `normal` + 2 `low`); 6 in `postponed.md`. 263 rewrote CDC overflow issue → vector
+    remainder, filed 32-bit CI `low`. Go 294 `Test*`; `grep -c '#\[test\]' crates/iscc-lib/src/*.rs`
+    sum = 311.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.

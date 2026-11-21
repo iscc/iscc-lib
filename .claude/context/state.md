@@ -1,4 +1,4 @@
-<!-- assessed-at: 6566550377a70dd588cbccde2759b01078e1de8b -->
+<!-- assessed-at: 7766b597690c103a55b31bb27341b34648011c89 -->
 
 # Project State
 
@@ -6,9 +6,9 @@
 
 ## Phase: v0.8.0 — features done; CI green; 15 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 262 got CI green
-again: Kotlin resolves Gradle plugins from Maven Central first, and the .NET legs skip
-setup-dotnet's LTS pre-pass, which closed the .NET LTS issue. 15 `normal` issues remain open.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 263 made the Rust
+and Go CDC parameter maths match iscc-core for every `avg_chunk_size`. The audit issue was rewritten
+to what is left: a shared vector. CI is green; 15 `normal` and 2 `low` issues remain open.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -18,22 +18,23 @@ setup-dotnet's LTS pre-pass, which closed the .NET LTS issue. 15 `normal` issues
     `diverges` marker; the 5 tracked copies are byte-identical; C/C++ read the generated
     `data_edge_vectors.h`
 - napi, WASM, JNI and .NET leave `name`, `description`, `meta`, `metahash` uncompared for meta
-- `normal` (audit): no vector pins `alg_cdc_chunks` at an overflowing `avg_chunk_size`, where Rust
-    and Go cut differently (see Rust core)
+- `normal` (audit): no `alg_cdc_chunks` section yet, so `avg_chunk_size` 2^29 and 2147483647 are not
+    run by the 12 harnesses (one fan-out step incl. the C generator)
 
 ## Rust Core Crate
 
-**Status**: partially met (v0.8.0 features met; three `normal` issues)
+**Status**: partially met (v0.8.0 features met; two `normal` issues)
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
-    `conformance_selftest` runs the seq vectors; 308 lib tests; code untouched since iteration 252
-- `normal` (audit): `alg_cdc_chunks` rejects only `avg_chunk_size < 2`; `alg_cdc_params` overflows
-    `u32` from 2^29 (debug panic, release wrap) and differs from Go
+    `conformance_selftest` runs the seq vectors; 311 `#[test]` in `src/`
+- `alg_cdc_params` saturates instead of overflowing for every `u32` from 2 up (decision of
+    2026-11-21); 3 new `cdc::tests`; CRAP baseline updated
 - `normal` (audit): one-shot gen functions re-implement streaming — `gen_instance_code_v0` hashes
     BLAKE3 twice, `gen_meta_code_v0` parses `meta` twice, WASM `gen_sum_code_v0` copies `SumHasher`
 - `normal` (audit): specs and crate `CLAUDE.md` files are stale — `rust-core.md` says `Version` has
     only V0, napi/py/wasm `CLAUDE.md` name `iscc_lib::Error` (type is `IsccError`)
-- **Missing (human-gated, postponed):** crate `>= 1.0.0`; MSRV verification
+- `low`: the 32-bit `max_size` saturation is compiled by the wasm32 check, executed nowhere.
+    **Missing (human-gated, postponed):** crate `>= 1.0.0`; MSRV verification
 
 ## Python Bindings
 
@@ -78,26 +79,25 @@ setup-dotnet's LTS pre-pass, which closed the .NET LTS issue. 15 `normal` issues
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 8 sections strictly; 0.7.0 on Maven Central
     with five bundled native libraries
 - `normal`: `NativeLoader` throws on an unknown OS/arch before trying `java.library.path`
-- The pending-exception guard test is postponed
+- `algCdcChunks` takes a signed `int` — 2147483647 is the largest CDC average it can pass
 
 ## Go Bindings
 
 **Status**: partially met (one `normal` issue)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green incl.
-    the raw-JCS meta vector and the ragged video vector; 290 `Test*` functions
-- `TextTrim` returns `""` for `nbytes <= 0`; hashers error on every call after `Finalize` and `Push`
-    returns `error` (API break, v0.8.0 release-notes item, decisions.md 2026-11-21)
+    the raw-JCS meta vector and the ragged video vector; 294 `Test*` functions
+- `algCdcParams` uses `uint32` subtraction and clamps to `math.MaxInt` (32-bit safe); `low`: CI runs
+    Go on amd64 only, so no CI test fails if the 32-bit handling is reverted
+- `TextTrim` clamps `nbytes <= 0`; hashers error after `Finalize` (API break, release-notes item)
 - `normal`: Go canonical `meta` differs from the core on UTF-16 key order, `-0` and lone surrogates
-- Published 0.7.0 still escapes `&`, `<`, `>`, U+2028/9 in canonical `meta` (fixed on develop)
 
 ## C# / .NET Bindings
 
 **Status**: partially met (one `normal` issue)
 
 - `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 8 sections strictly; 0.7.0 on NuGet
-- CI: `dotnet-test` 8.0/10.0 legs use a private `DOTNET_INSTALL_DIR` plus `skip-lts-prepass: true`
-    (`ci.yml:183`), so a leg holds only the runtimes it lists; the LTS issue is closed
+- CI: `dotnet-test` 8.0/10.0 legs on a private `DOTNET_INSTALL_DIR` with `skip-lts-prepass: true`
 - `normal`: the `PinnedRows` padding (and C++ `safe_data`) guard a NULL rejection the FFI no longer
     has — removal decided
 - .NET 8 reached end of support 2026-11-10; the `net8.0` floor is the human's call
@@ -127,8 +127,7 @@ setup-dotnet's LTS pre-pass, which closed the .NET LTS issue. 15 `normal` issues
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
     all 8 data-edge sections; shipped 0.7.0
-- `packages/kotlin/settings.gradle.kts` declares `pluginManagement` with `mavenCentral()` before
-    `gradlePluginPortal()`; `.kotlin/` is gitignored. Kotlin and macOS `swift` jobs green on the tip
+- Kotlin resolves Gradle plugins from `mavenCentral()` first; Kotlin and macOS `swift` jobs green
 
 ## Documentation
 
@@ -148,27 +147,28 @@ setup-dotnet's LTS pre-pass, which closed the .NET LTS issue. 15 `normal` issues
 
 - 12 criterion benches + iai-callgrind in `crates/iscc-lib/benches/`; pytest-benchmark in
     `benchmarks/python/`; speedups in `docs/benchmarks.md`
+- The iai baseline reads 3–8% high on 9 of 16 benches (toolchain drift); a refresh is a human call
 
 ## CI/CD and Publishing
 
 **Status**: partially met — CI green; the v1.0.0 semver gate is human-gated
 
-- `ci.yml` has 22 job keys (`dotnet-test` matrix + `if: always()` `dotnet` aggregator);
-    `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21 version-sync targets at
-    0.7.0
+- `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
+    version-sync targets at 0.7.0
 - `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates — binding marshalling is not gated
-- **Latest CI: PASSING** on `origin/develop` = `d31695f`:
-    https://github.com/iscc/iscc-lib/actions/runs/44909977285 — all 24 check-runs `success`
+- **Latest CI: PASSING** on `origin/develop` = `d5a15b9`:
+    https://github.com/iscc/iscc-lib/actions/runs/44911781227 — all 24 check-runs `success`
 - HEAD is 1 commit ahead (`cid(log)`, `.claude` only), so green CI covers the code at HEAD
 
 ## Open Issues
 
-16 open in issues.md: 0 critical, 15 `normal`, 1 `low`; none blocked on the human or upstream.
-Iteration 262 closed the .NET LTS pre-pass issue and filed none. 6 more sit in `postponed.md`.
+17 open in issues.md: 0 critical, 15 `normal`, 2 `low`; none blocked on the human or upstream.
+Iteration 263 rewrote the CDC overflow issue to its vector remainder and filed the 32-bit CI `low`
+issue. 6 more sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the 15 `normal` issues that block v0.8.0, correctness defects first: the Rust `alg_cdc_chunks`
-overflow (with a `data-edge.json` vector), Go canonical `meta`, the Python video exception class and
-WASM coercion. Then the Ruby floor, the FFI padding removal, the JNI loader and docs/spec alignment.
-Titusz then cuts v0.8.0 via `/release`.
+Clear the 15 `normal` issues that block v0.8.0, correctness first: the `alg_cdc_chunks` shared
+vector, Go canonical `meta`, the Python video exception class and WASM coercion. Then the Ruby
+floor, the FFI padding removal, the JNI loader and docs/spec alignment. Titusz then cuts v0.8.0 via
+`/release`.
