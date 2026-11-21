@@ -386,9 +386,37 @@ sentinel error (the package has none). **Context:** iteration 261.
 bits is `u32::MAX`. **Why:** audit issue: from 2^29 the core panicked in debug builds and returned
 `mask_s = 0` in release. iscc-core's pure-Python build accepts every value, so a bound would add an
 error and a `diverges` marker for no gain (its compiled wheel raises `OverflowError` from 2^29,
-found in iteration 264: which build is the reference there is open, see issues.md). Saturation
-changes no result: the sizes are only used as `min(size, len(buffer))`, and the gear pattern stays
-below 2^32 (every gear value is below 2^31), so the bits a wider mask adds are never set. Measured:
-both equal iscc-core on 210 values around each point where `bits` changes. **Alternatives:** an
-upper bound such as `avg_chunk_size <= 2^28` (the audit's other suggestion); a `u64` pattern and
-masks (slower hot loop, same chunks). **Context:** iteration 263.
+found in iteration 264: see the next entry). Saturation changes no result: the sizes are only used
+as `min(size, len(buffer))`, and the gear pattern stays below 2^32 (every gear value is below 2^31),
+so the bits a wider mask adds are never set. Measured: both equal iscc-core on 210 values around
+each point where `bits` changes. **Alternatives:** an upper bound such as `avg_chunk_size <= 2^28`
+(the audit's other suggestion); a `u64` pattern and masks (slower hot loop, same chunks).
+**Context:** iteration 263.
+
+## 2026-11-21 — No shared `alg_cdc_chunks` vector from 2^29 up; no upper bound on `avg_chunk_size`
+
+**Decision:** `data-edge.json` carries no `alg_cdc_chunks` vector with `avg_chunk_size >= 2^29`, and
+iscc-lib adds no upper bound. Neither iscc-core build is the reference in that range. **Why:** ISO
+24138 fixes the average chunk size at 1024, so other values are not an expected use. The range has
+no memory-safety stake: the bounds of the unsafe scan come from the buffer length
+(`min(size, len(buffer))`), not from the parameter. Validation runs once per call, outside the hot
+loop, and the Data-Code path skips it, so a bound would cost nothing and buy nothing. The Rust and
+Go unit tests pin the large-value parameters. The wheel's `OverflowError` is a side effect of
+`uint32_t` in `cdc.pxd`, reported as iscc/iscc-core#141; nothing here waits on it. **Alternatives:**
+vectors with a reference-check skip where the compiled build is loaded (a permanent harness special
+case for an unused input); rejecting from 2^29 up like the wheel (copies an accidental overflow to
+12 surfaces). **Revisit:** if iscc-core defines a deliberate bound, follow it. **Context:** human
+decision (Titusz, interactive session, 2026-11-21), answering the iteration 264 escalation.
+
+## 2026-11-21 — 32-bit coverage: a Go `GOARCH=386` CI step, no native 32-bit Rust leg
+
+**Decision:** CI runs the Go suite once with `GOARCH=386`. The Rust core gets no native 32-bit test
+leg, and bare-metal (`no_std`) targets stay out of scope (the core needs `std`). **Why:** the Go
+port is separate code that CI executes on amd64 only. The Rust core already runs on a 32-bit target
+on every push: the WASM job executes the conformance and data-edge suites on `wasm32`. Measured
+2026-11-21: all 442 core tests pass on `i686-unknown-linux-musl` (debug build, overflow checks on),
+and `GOARCH=386 CGO_ENABLED=0 go test ./...` passes. A native Rust leg needs extra setup, because
+the bench dev-dependencies do not build there as they are: `alloca` (via `criterion`) needs a C
+cross-compiler, and `iai-callgrind-runner` does not compile for `wasm32-wasip1`. **Alternatives:**
+an `i686` `cargo test` leg with a C cross toolchain; leaving the Go port untested on 32-bit.
+**Context:** human decision (Titusz, interactive session, 2026-11-21).

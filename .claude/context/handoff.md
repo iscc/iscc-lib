@@ -1,13 +1,9 @@
-> **HUMAN REVIEW REQUESTED**: iscc-core 1.5.0 disagrees with itself on `alg_cdc_chunks` for
-> `avg_chunk_size >= 2^29`, and one `normal` issue is blocked on which build counts as the
-> reference. The compiled wheel (Python 3.10 to 3.14) raises `OverflowError`. The pure-Python build
-> (Python 3.15) returns chunks, as iscc-lib does. Options: (a) report it to iscc-core and leave the
-> large shared vectors out until the wheel is fixed; (b) add them now and let the Python harness
-> skip the reference check on the compiled build; (c) reject values from 2^29 up, like the wheel.
-> Recommendation: (a). The Rust and Go unit tests already pin the fixed parameter maths, the new
-> shared section already shows every binding passes the three arguments through, and a 512 MB
-> average chunk size is not a real use. Evidence and details: issues.md, "No shared vector pins
-> `alg_cdc_chunks` for `avg_chunk_size` from 2^29 up".
+> **HUMAN REVIEW RESOLVED (2026-11-21, Titusz → no large vectors, no bound):** `data-edge.json` gets
+> no `alg_cdc_chunks` vector with `avg_chunk_size >= 2^29`, and iscc-lib keeps accepting every value
+> from 2 up. ISO 24138 fixes the average chunk size at 1024, and the range has no memory-safety
+> stake. The build mismatch is reported as iscc/iscc-core#141; nothing here waits on it. The
+> decision is in decisions.md, and the issues.md entry is gone. Also decided: the 32-bit issue is
+> now `normal` and asks for one Go `GOARCH=386` CI step (decisions.md, issues.md).
 
 ## 2026-11-21 — Review of: `alg_cdc_chunks` data-edge section on all 12 surfaces (reference-stable vectors)
 

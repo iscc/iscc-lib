@@ -176,49 +176,17 @@ estimate:** 3 non-test files.
 
 Resolved when the three pages state the coverage and the standard's scope correctly.
 
-## No shared vector pins `alg_cdc_chunks` for `avg_chunk_size` from 2^29 up `normal` [audit]
+## No CI job runs the Go port as a 32-bit build `normal` [review]
 
-`data-edge.json` has an `alg_cdc_chunks` section on all 12 surfaces, with averages up to 2^29 - 1.
-The range from 2^29 up, where the core panicked before iteration 263, has no shared vector, because
-iscc-core 1.5.0 disagrees with itself there. Its compiled wheel (cp310 to cp314; `cdc.pxd` types the
-maximum chunk size, `avg * 8`, as `uint32_t`) raises
-`OverflowError: value too large to convert to uint32_t`. Its pure-Python build returns one chunk for
-a short input, as iscc-lib does. Python 3.15 has no wheel and installs the pure build. Measured in
-iteration 264 for 2^29, 2147483647 and 4294967295 with
-`uv run --no-project --python 3.10 --with iscc-core==1.5.0` (loads `cdc.cpython-310-*.so`) against
-`--python 3.15` (loads `cdc.py`). CI runs pytest on both, so the reference check in
-`tests/test_data_edge.py` fails on one leg for such a vector, with or without `diverges`.
-
-**Blocked on a decision (Titusz):** which iscc-core build is the reference where the two disagree.
-The decision of 2026-11-21 accepts every value, which matches the pure build. Options: (a) report
-upstream and leave the large vectors out until the wheel is fixed; (b) add them now and have the
-Python harness skip the reference check where the compiled build is loaded; (c) reject from 2^29 up,
-like the wheel.
-
-Facts for the vector. An input that fits in JSON is shorter than `min_size` (`avg / 4`), so the
-expected output is one chunk equal to the input: the vector pins acceptance, and the parameters stay
-pinned by the Rust and Go unit tests. Java `algCdcChunks` takes a signed `int`, so 2147483647 is the
-largest value every surface takes.
-
-**Upstream:** iscc/iscc-core. The compiled and the pure-Python build of `alg_cdc_chunks` differ for
-`avg_chunk_size >= 2^29`.
-
-Resolved when a decisions.md entry names the reference build, and either the section carries vectors
-for 2^29 and 2147483647 that every harness runs, or that entry keeps them out.
-
-## No CI job executes the 32-bit code paths of the core or the Go port `low` [review]
-
-**Triage:** untriaged — a user on a 32-bit target (Go `386`/`arm`, Rust `wasm32`) would hit a later
-edit that breaks the integer-width handling, with CI green.
+**Decided (Titusz, 2026-11-21):** add one CI step that runs the Go suite with `GOARCH=386`; the Rust
+core gets no native 32-bit leg (decisions.md, 2026-11-21).
 
 `algCdcParams` subtracts in `uint32` and clamps to `math.MaxInt` because `int(avgSize)` is negative
 on a 32-bit `int` (iteration 263). CI's Go job runs amd64 only, where the old signed form is also
-correct, so reverting it fails no CI test. The Rust `max_size` saturation for a 32-bit `usize` is
-compiled by the `wasm32` check and executed nowhere. Measured locally:
-`GOARCH=386 CGO_ENABLED=0 go test ./...` runs on an amd64 host and passes.
+correct, so reverting it fails no CI test. `GOARCH=386 CGO_ENABLED=0 go test ./...` runs on an amd64
+host and passes (measured 2026-11-21).
 
-Resolved when CI runs the Go suite once with `GOARCH=386`, or a decisions.md entry leaves 32-bit
-targets untested on purpose.
+Resolved when the `go` job in `ci.yml` runs the suite once with `GOARCH=386`.
 
 ## One-shot gen functions re-implement their streaming counterparts `normal` [audit]
 
