@@ -1,115 +1,88 @@
 # Next Work Package
 
-## Step: User-docs accuracy batch — pkg-config version, Sum-Code prefix, llms.txt/ISO scope, Publish section, Ruby Float
+## Step: JNI `NativeLoader` reaches the `java.library.path` fallback on any platform
 
 ## Goal
 
-Close five `normal` docs issues that block v0.8.0 in one docs-only pass: "The pkg-config example in
-the C/C++ how-to says `Version: 0.2.0`", "How-to examples show the Sum-Code prefix as `KAA`", "Docs
-overstate language coverage and what ISO 24138 specifies" (`[audit]`), "`docs/development.md` tells
-maintainers to release by pushing a tag", and "Ruby integer list elements accept a Float and
-truncate it" (decided: keep the conversion, fix the docs).
+Close the `normal` issue "JNI `NativeLoader` rejects an unknown OS or architecture before the
+`java.library.path` fallback": an unrecognized OS or architecture, and a bundled library that fails
+to load (musl Linux, broken binary), must fall through to `System.loadLibrary("iscc_jni")` instead
+of throwing first.
 
 ## Alternatives Considered
 
-- **Chosen:** the docs batch. All five are decided, docs-only (two comment-only source edits), and
-    together they clear half the remaining `normal` blockers in one session.
-- **Rejected:** the JNI `NativeLoader` fallback. It is a real code defect, but it needs Java tests
-    and a foreign-platform probe, so it is better as its own step. It is next in line.
+- **Chosen:** JNI loader fallback — a user-visible code defect on a published artifact (FreeBSD,
+    riscv64 and likely musl users cannot supply their own build); the handoff's first pick, and the
+    last iteration was docs-only.
+- **Rejected:** docs-only batch (`architecture.md` sections + `ecosystem.md` / `nodejs.md` counts) —
+    cheap and independent, good next step; no code risk to defer it by one iteration.
+- Also open: `@iscc/wasm` Node docs (needs a release-build probe), one-shot dedup (iai gate),
+    `alg_minhash_256([])` (needs a decision first).
 
 ## Scope
 
-- **Modify** (docs): `docs/howto/c-cpp.md`,
-    `docs/howto/{dotnet,go,java,kotlin,nodejs,python,ruby,rust,swift,wasm}.md` (comment lines only),
-    `docs/java-api.md`, `docs/llms.txt`, `docs/index.md`, `docs/benchmarks.md`,
-    `docs/development.md`, `docs/ruby-api.md`, `.claude/context/specs/swift-bindings.md`
-- **Modify** (comment-only source, outside the file cap per decision 2026-11-20):
-    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/SumCodeResult.java` (`iscc` field Javadoc),
-    `crates/iscc-rb/src/lib.rs` (doc comment on `array_to_i32_vec`, and any sibling `array_to_vec`
-    comment making the same "TypeError for a non-Integer" claim)
-- **Reference**: `.github/workflows/release.yml` (inputs at lines 6-42, `prepare-release`),
-    `scripts/version_sync.py` (`TARGETS`), learnings → "Release pipeline" / "prepare-release"
+- **Modify**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`
+- **Modify** (tests): `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
+- **Create** (tests): `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/LoaderProbe.java`
+- **Modify** (docs): `docs/howto/java.md` (→ "Setup", the sentence on unsupported OS/arch),
+    `crates/iscc-jni/README.md` (:26-30), `crates/iscc-jni/CLAUDE.md` (→ "Native Library Loading")
+- **Reference**: `OomProbe.java` + `IsccLibTest.allocationFailureSurfacesAsOutOfMemoryError`
+    (child-JVM pattern), `.claude/context/specs/java-bindings.md` → "Native Library Loading"
 
 ## Not In Scope
 
-- `docs/howto/wasm.md` Node.js setup and return-type sentences (separate `[audit]` issue, needs a
-    packed-build probe). Edit only the `KAA` comment lines in that file
-- `docs/architecture.md` and the "Crate Summary" table in `docs/development.md` (separate
-    architecture issue)
-- The Swift spec's Verification Criteria line and target.md's "force-updates the tag" criterion.
-    Change only the heading, the intro paragraph and the line-9 summary
-- Changing Ruby's conversion behaviour, adding Ruby tests, or adding a `data-edge.json` vector (the
-    edge-vectors rules exclude wrong-typed elements)
-- Making the pkg-config line a `version_sync.py` target. Use a placeholder
-- The `iscc_decompose("ISCC:KAA...")` placeholder input in `docs/ruby-api.md`. It is an input, not a
-    result claim
+- Adding bundled libraries for more platforms (musl, riscv64, Windows aarch64) or changing
+    `release.yml`
+- Renaming resource directories or changing the resource path layout (the spec's table stays)
+- Any change to `IsccLib.java`, the Rust JNI crate, or the Kotlin/JNA loader
+- A `-Xcheck:jni` sweep or other unrelated JNI test cleanup
 
 ## Implementation Notes
 
-**pkg-config (`c-cpp.md:86`):** replace `0.2.0` with a placeholder the reader fills in (e.g.
-`Version: X.Y.Z` plus a one-line note to use the installed release). Learnings: never hand-type a
-version in docs.
-
-**Sum-Code prefix:** every `"ISCC:KAA..."` comment in `docs/howto/*.md` and `docs/java-api.md:338`
-sits after `gen_sum_code_v0` or after `gen_iscc_code_v0([dataCode, instanceCode])`. Both return
-SubType SUM, so `ISCC:KUA...` for 64-bit, non-wide. Run one example of each kind once (Python via
-`uv run python -c`, after `mise run py:develop`) to confirm the prefix, and record the outputs in
-the handoff. If an example passes `wide=True` or extra units, use the prefix that call actually
-returns. `SumCodeResult.java:13` says `KAC`: fix it the same way.
-
-**llms.txt (`docs/llms.txt:5,9`):** name all 11 surfaces (Rust, Python, Node.js, WASM, Go, Java,
-Ruby, C#/.NET, C/C++, Swift, Kotlin). Give each install command, or point to the install section of
-the index/getting-started page (keep it short). The file is hand-written, not generated. Check
-`scripts/check_docs_nav.py` still passes.
-
-**ISO scope:** `docs/index.md:17,26` and `docs/benchmarks.md:15` must say the standard specifies 9
-`gen_*_v0` functions and that `gen_sum_code_v0` is an iscc-lib convenience on top (Data-Code +
-Instance-Code in one pass). Keep "10 functions implemented" where it is only a count.
-
-**`docs/development.md` → Publish (:351-385):** after the merge to `main`, tell the reader to
-dispatch the Release workflow with a `version` input (Actions page or
-`gh workflow run release.yml --ref main -f version=X.Y.Z`; check the input names in `release.yml`).
-Say explicitly not to push `vX.Y.Z` by hand: `prepare-release` creates `vX.Y.Z` and
-`packages/go/vX.Y.Z` after the `Package.swift` checksum commit and never moves an existing tag. The
-registry table must cover every chain: crates.io, PyPI, npm `@iscc/lib` + `@iscc/wasm`, Maven
-Central `io.iscc:iscc-lib` and `io.iscc:iscc-lib-kotlin`, RubyGems, NuGet `Iscc.Lib`, FFI tarballs
-and the XCFramework on GitHub Releases, and SPM/Go via the tags. Read the auth methods from
-`release.yml`; do not guess them. Name all 8 checkboxes, or say the table is an excerpt. Also fix
-the tree comment at `:259` (`release.yml # Publish to …`) so it lists all registries or none.
-
-**Swift spec (`swift-bindings.md:8-9, 231-236`):** rename the heading (e.g. "Release Process —
-Checksum Commit, Then Tag"). In the intro, say the workflow commits the checksum first and then
-creates the tag once, so it never moves one. Ferrostar may stay as the model for the toggle. Spec
-paths are gated by `scripts/check_spec_paths.py`.
-
-**Ruby Float:** build the extension (`mise exec -- bundle exec rake compile` in `crates/iscc-rb`;
-never `rake clobber`) and probe `IsccLib.gen_audio_code_v0([1.9])` against `[1]`. Also probe a
-scalar such as `IsccLib.gen_audio_code_v0([1], bits: 64.9)` and the `alg_minhash_256` features. In
-`docs/ruby-api.md` → Error Handling (:854), describe what you measured: Integer parameters and
-integer list elements accept a Float (and anything with `to_int`) and truncate it toward zero, as
-Ruby's own `Array#[]` does. Make the doc comment(s) in `lib.rs` match. Comment edits only: no code
-change.
-
-No text hot path is touched, so neither the iai nor the CRAP gate is affected.
+- `detectOs()` / `detectArch()` must no longer throw: return `null` (or `Optional`) for an unknown
+    value. `load()` skips strategy 1 when either is unknown and goes straight to
+    `System.loadLibrary`. `libraryFileName`'s `default` throw becomes unreachable — remove or keep
+    it consistent; no throw may precede strategy 2.
+- Strategy 1 must also fall through when `System.load` of the extracted file throws
+    `UnsatisfiedLinkError` (the musl/glibc case — today only `IOException` falls through). Keep that
+    first error: attach it via `addSuppressed` to the final `UnsatisfiedLinkError` if strategy 2
+    also fails, so a user sees why the bundled binary was rejected.
+- Final error message: when OS/arch is unknown, print the raw `os.name` / `os.arch` property values
+    and say no bundled library exists for them, instead of a resource path that was never tried.
+- Update the class/method Javadoc so it describes the new behaviour (evergreen wording).
+- `LoaderProbe` (test source, modelled on `OomProbe`): `main` calls `IsccLib.conformanceSelftest()`
+    and prints `true`/`false` or the thrown class name + message. Tests in `IsccLibTest` run it in a
+    child JVM with `-Djava.library.path=` + `System.getProperty("java.library.path")` and
+    `-cp System.getProperty("java.class.path")`:
+    1. `-Dos.arch=riscv64` → stdout `true`
+    2. `-Dos.name=FreeBSD` → stdout `true` (the issue measured that both overrides reach
+        `NativeLoader` on HotSpot 17)
+    3. broken bundled library: write garbage bytes to a temp dir at
+        `META-INF/native/<detectOs()>-<detectArch()>/<libraryFileName(os)>` (call the package-private
+        helpers from the test; skip with `assumeTrue` only if the host is unknown), PREPEND that dir
+        to the child classpath → stdout `true`. Against today's code this child throws. One child per
+        case; capture stderr into the assertion message like the OOM test.
+- Docs: state that an unrecognized platform, or a bundled library that fails to load, falls back to
+    `java.library.path`; drop "Any other operating system or architecture fails". Keep the README's
+    list of bundled platforms.
+- Binding-only change: trips neither the CRAP nor the iai gate.
+- Rebuild the debug JNI library before `mvn test` (`cargo build -p iscc-jni`): gitignored artifacts
+    go stale silently.
 
 ## Verification
 
-- `grep -rnE 'ISCC:KA[AC]\.\.\.' docs/howto docs/java-api.md crates/iscc-jni/java/src/main` prints
-    nothing, and the handoff records the measured prefix for one Sum-Code and one
-    `gen_iscc_code_v0([data, instance])` example
-- `grep -nE '^Version: [0-9]' docs/howto/c-cpp.md` prints nothing
-- `grep -nE '(specified|defined) by ISO 24138|Complete ISO 24138 coverage' docs/index.md docs/benchmarks.md`
-    prints nothing; `docs/llms.txt` names Ruby, .NET, C++, Swift and Kotlin
-- `grep -nE 'git (tag|push origin) v|tag push triggers' docs/development.md` prints nothing, and
-    `grep -n 'Force-Update Tag Pattern' .claude/context/specs/swift-bindings.md` prints nothing
-- `docs/ruby-api.md` → Error Handling states the Float conversion; the `array_to_i32_vec` doc
-    comment no longer claims `TypeError` for every non-Integer; the only edits under `crates/` are
-    comment lines
-- `uv run zensical build` exits 0,
-    `uv run pytest tests/test_check_docs_nav.py tests/test_c_ffi_docs.py` passes, and
-    `mise run check` exits 0
+- `cargo build -p iscc-jni && mvn -q test -f crates/iscc-jni/java/pom.xml` exits 0, including the
+    three child-JVM loader tests
+- `grep -n 'throw new UnsatisfiedLinkError("Unsupported' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`
+    prints nothing
+- Each of the three loader tests fails against `git show HEAD:<NativeLoader.java path>` (advance
+    reports the mechanism, e.g. a throwaway `git archive` tree, and the failing output in the
+    handoff) — never via `git stash`/`reset` in the working tree
+- `git grep -nE 'other operating system or architecture fails|before it tries either strategy' -- docs crates/iscc-jni`
+    prints nothing
+- `mise run check` exits 0
 
 ## Done When
 
-All six verification criteria pass, and the five issues' "Resolved when" conditions hold in the
-tree.
+All verification criteria pass and the docs describe the fallback for unrecognized platforms and
+unloadable bundled libraries.
