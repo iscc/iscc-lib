@@ -48,6 +48,7 @@ var edgeSections = map[string]edgeCaller{
 	"alg_simhash":       edgeCallSimhash,
 	"gen_meta_code_v0":  edgeCallMeta,
 	"gen_video_code_v0": edgeCallVideo,
+	"alg_cdc_chunks":    edgeCallCdc,
 }
 
 // loadEdgeDoc reads and parses the vendored data-edge.json.
@@ -86,6 +87,25 @@ func edgeBytes(data []byte) string {
 	return "bytes:" + hex.EncodeToString(data)
 }
 
+// edgeDecodeBytes decodes one `bytes:<hex>` value of the input at index.
+func edgeDecodeBytes(item string, index int) ([]byte, error) {
+	digits, ok := strings.CutPrefix(item, "bytes:")
+	data, err := hex.DecodeString(digits)
+	if !ok || err != nil {
+		return nil, fmt.Errorf("input %d holds a non-bytes:<hex> item %q", index, item)
+	}
+	return data, nil
+}
+
+// edgeByteArg reads the input at index as one `bytes:<hex>` value.
+func edgeByteArg(inputs []json.RawMessage, index int) ([]byte, error) {
+	var item string
+	if err := edgeArg(inputs, index, &item); err != nil {
+		return nil, err
+	}
+	return edgeDecodeBytes(item, index)
+}
+
 // edgeBytesArg reads the input at index as a list of `bytes:<hex>` values.
 func edgeBytesArg(inputs []json.RawMessage, index int) ([][]byte, error) {
 	var items []string
@@ -94,10 +114,9 @@ func edgeBytesArg(inputs []json.RawMessage, index int) ([][]byte, error) {
 	}
 	digests := make([][]byte, 0, len(items))
 	for _, item := range items {
-		digits, ok := strings.CutPrefix(item, "bytes:")
-		data, err := hex.DecodeString(digits)
-		if !ok || err != nil {
-			return nil, fmt.Errorf("input %d holds a non-bytes:<hex> item %q", index, item)
+		data, err := edgeDecodeBytes(item, index)
+		if err != nil {
+			return nil, err
 		}
 		digests = append(digests, data)
 	}
@@ -250,6 +269,32 @@ func edgeCallVideo(inputs []json.RawMessage) (edgeCall, error) {
 	}
 	call := func() (any, error) { return GenVideoCodeV0(frames, bits) }
 	convert := func(r any) any { return map[string]any{"iscc": r.(*VideoCodeResult).Iscc} }
+	return edgeCall{call, convert}, nil
+}
+
+// edgeCallCdc prepares AlgCdcChunks on the vector's data, utf32 flag and average size.
+func edgeCallCdc(inputs []json.RawMessage) (edgeCall, error) {
+	var utf32 bool
+	var avg uint32
+	data, err := edgeByteArg(inputs, 0)
+	if err != nil {
+		return edgeCall{}, err
+	}
+	if err := edgeArg(inputs, 1, &utf32); err != nil {
+		return edgeCall{}, err
+	}
+	if err := edgeArg(inputs, 2, &avg); err != nil {
+		return edgeCall{}, err
+	}
+	call := func() (any, error) { return AlgCdcChunks(data, utf32, avg) }
+	convert := func(r any) any {
+		chunks := r.([][]byte)
+		values := make([]string, len(chunks))
+		for i, chunk := range chunks {
+			values[i] = edgeBytes(chunk)
+		}
+		return values
+	}
 	return edgeCall{call, convert}, nil
 }
 
