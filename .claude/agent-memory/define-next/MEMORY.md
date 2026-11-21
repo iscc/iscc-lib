@@ -29,9 +29,11 @@ scoped Python video `OverflowError` (`PyLong_AsLong` = 32-bit `long` on Windows 
 floor. 266: scoped Go JCS `meta` (UTF-16 key order + `-0` as vectors in the existing meta section,
 no harness change). **A lone surrogate cannot be a data-edge vector**: serde_json rejects `\ud800`
 in the file, and a JSON-text string `meta` makes iscc-core raise `AttributeError` (outside pytest
-`REJECTIONS`) → Go unit test only, flagged for review. **An issue's own "Scope estimate" can
-over-count — apply the docs-excluded rule yourself** (257). **Collecting rule vs "core first and
-alone":** land the behaviour first, then batch pending sections into one fan-out. Ledger/traps →
+`REJECTIONS`) → Go unit test only, flagged for review. 267: scoped the Go `GOARCH=386` CI step (one
+`ci.yml` step + spec/CLAUDE.md docs); next = WASM non-number coercion (code fix = `JsValue` on ~15
+params, or docs-only branch). **An issue's own "Scope estimate" can over-count — apply the
+docs-excluded rule yourself** (257). **Collecting rule vs "core first and alone":** land the
+behaviour first, then batch pending sections into one fan-out. Ledger/traps →
 [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
 [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
 track `main`, not `develop`** — check the lockfile on `develop` before scoping.
