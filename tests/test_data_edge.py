@@ -113,10 +113,26 @@ def prepare_alg_simhash(inputs):
     return [[decode_bytes(d) for d in digests], *rest]
 
 
+def prepare_alg_cdc_chunks(inputs):
+    """Decode the `alg_cdc_chunks` data from a `bytes:<hex>` string into bytes."""
+    data, *rest = inputs
+    return [decode_bytes(data), *rest]
+
+
+def convert_chunks(result):
+    """Encode `alg_cdc_chunks` chunks as a list of `bytes:<hex>` fixture values.
+
+    iscc_core returns a lazy generator, so the chunks are built here, outside the raw
+    call; no vector expects an error, so none can surface here unnoticed.
+    """
+    return [f"bytes:{chunk.hex()}" for chunk in result]
+
+
 # Section name -> preparer of the raw JSON inputs into call arguments. Sections not
 # listed are called with the raw JSON inputs; `bytes:` strings are decoded only here.
 PREPARERS = {
     "alg_simhash": prepare_alg_simhash,
+    "alg_cdc_chunks": prepare_alg_cdc_chunks,
 }
 
 
@@ -139,6 +155,7 @@ CONVERTERS = {
     "alg_simhash": convert_encode_seq,
     "gen_meta_code_v0": dict,
     "gen_video_code_v0": dict,
+    "alg_cdc_chunks": convert_chunks,
 }
 
 
