@@ -31,6 +31,8 @@ const SECTIONS: &[(&str, Caller)] = &[
     ("gen_mixed_code_v0", call_mixed),
     ("gen_iscc_code_v0", call_iscc_code),
     ("alg_simhash", call_simhash),
+    ("gen_meta_code_v0", call_meta),
+    ("gen_video_code_v0", call_video),
 ];
 
 /// Load and parse `tests/data-edge.json` from the crate source tree.
@@ -88,6 +90,41 @@ fn bytes_list_arg(inputs: &[Value], index: usize) -> Result<Vec<Vec<u8>>, String
         .and_then(Value::as_array)
         .ok_or_else(|| format!("input {index} is not a list"))?;
     items.iter().map(|v| bytes_item(v, index)).collect()
+}
+
+/// Read the input at `index` as a `meta` argument: a JSON object is serialized,
+/// a string is passed as is.
+#[cfg(feature = "meta-code")]
+fn meta_arg(inputs: &[Value], index: usize) -> Result<String, String> {
+    match inputs.get(index) {
+        Some(Value::String(s)) => Ok(s.clone()),
+        Some(v @ Value::Object(_)) => Ok(v.to_string()),
+        _ => Err(format!("input {index} is not a meta object or string")),
+    }
+}
+
+/// Read one frame-signature item as an `i32`.
+fn i32_item(item: &Value, index: usize) -> Result<i32, String> {
+    item.as_i64()
+        .and_then(|n| i32::try_from(n).ok())
+        .ok_or_else(|| format!("input {index} holds a non-i32 frame value"))
+}
+
+/// Read one frame signature (a list of integers).
+fn frame_item(item: &Value, index: usize) -> Result<Vec<i32>, String> {
+    let values = item
+        .as_array()
+        .ok_or_else(|| format!("input {index} holds a non-list frame"))?;
+    values.iter().map(|v| i32_item(v, index)).collect()
+}
+
+/// Read the input at `index` as a list of frame signatures.
+fn frames_arg(inputs: &[Value], index: usize) -> Result<Vec<Vec<i32>>, String> {
+    let items = inputs
+        .get(index)
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("input {index} is not a list"))?;
+    items.iter().map(|v| frame_item(v, index)).collect()
 }
 
 /// Read the input at `index` as a `u32`.
@@ -162,6 +199,48 @@ fn call_simhash(inputs: &[Value]) -> Result<Option<Outcome>, String> {
     let digests = bytes_list_arg(inputs, 0)?;
     let encode = |data: Vec<u8>| bytes_value(&data);
     Ok(Some(to_outcome(iscc_lib::alg_simhash(&digests), encode)))
+}
+
+/// Encode a `gen_meta_code_v0` result as JSON (absent options become `null`).
+#[cfg(feature = "meta-code")]
+fn meta_json(r: iscc_lib::MetaCodeResult) -> Value {
+    json!({
+        "iscc": r.iscc,
+        "name": r.name,
+        "description": r.description,
+        "meta": r.meta,
+        "metahash": r.metahash,
+    })
+}
+
+/// Run `gen_meta_code_v0` (an empty description means none).
+#[cfg(feature = "meta-code")]
+fn call_meta(inputs: &[Value]) -> Result<Option<Outcome>, String> {
+    let name = str_arg(inputs, 0)?;
+    let description = Some(str_arg(inputs, 1)?).filter(|d| !d.is_empty());
+    let meta = meta_arg(inputs, 2)?;
+    let bits = u32_arg(inputs, 3)?;
+    Ok(Some(to_outcome(
+        iscc_lib::gen_meta_code_v0(name, description, Some(&meta), bits),
+        meta_json,
+    )))
+}
+
+/// Report `gen_meta_code_v0` as compiled out (no `meta-code` feature).
+#[cfg(not(feature = "meta-code"))]
+fn call_meta(_inputs: &[Value]) -> Result<Option<Outcome>, String> {
+    Ok(None)
+}
+
+/// Run `gen_video_code_v0` on the vector's frame signatures.
+fn call_video(inputs: &[Value]) -> Result<Option<Outcome>, String> {
+    let frames = frames_arg(inputs, 0)?;
+    let bits = u32_arg(inputs, 1)?;
+    let encode = |r: iscc_lib::VideoCodeResult| json!({"iscc": r.iscc});
+    Ok(Some(to_outcome(
+        iscc_lib::gen_video_code_v0(&frames, bits),
+        encode,
+    )))
 }
 
 /// Look up the caller of a function section; `None` for an unknown section.
