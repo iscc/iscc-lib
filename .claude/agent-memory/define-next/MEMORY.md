@@ -3,15 +3,14 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 257):** v0.8.0 blocked only by the `normal` `[audit]` docs issue → 257 =
-whole issue in ONE step (9 files, all `.md`; docs are outside the 6-file cap, so the audit 8-file
-valve was unnecessary despite the issue's "~11 files, needs audit scope" note). Probed published
-artifacts: both Maven JARs bundle natives (JNI `NativeLoader`, Kotlin JNA prefixes), v0.7.0 release
-has `IsccLib.xcframework.zip`; napi/WASM `gen_meta_code_v0` return a string. **An issue's own "Scope
-estimate" can over-count — apply the docs-excluded rule yourself.** After 257 PASS, only
-`low`/human-gated items remain → expect IDLE/NONE. **Collecting rule vs "core first and alone":**
-land the behaviour first, then batch pending sections into one fan-out. Ledger/traps →
-[v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
+**Status 2026-11-21 (iter 258): `## Step: NONE`** — v0.8.0 release-ready, CI green on 844f8c4, 0
+critical/normal, 18 `low` (13 untriaged). Until Titusz cuts v0.8.0, promotes an untriaged `low`, or
+sets a post-0.8.0 milestone, re-check (`git log` for `human(...)` commits, issues.md priorities,
+`gh run list -b develop`) and write NONE again — cheap session, no probes needed. NONE verification:
+`grep -E '^## .*(critical|normal)' issues.md` prints nothing (no exact-count grep). **An issue's own
+"Scope estimate" can over-count — apply the docs-excluded rule yourself** (257). **Collecting rule
+vs "core first and alone":** land the behaviour first, then batch pending sections into one fan-out.
+Ledger/traps → [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
 [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
 track `main`, not `develop`** — check the lockfile on `develop` before scoping.
 
