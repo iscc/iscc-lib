@@ -55,11 +55,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     a uniffi export moves its checksum constant in both outputs (272): regenerate them together
 - **C/C++ read `data-edge.json` from a generated header** (219): `gen_data_edge_vectors.py` renders
     `crates/iscc-ffi/tests/data_edge_vectors.h`; a vector = JSON edit + regen. **A new section is
-    one unsplittable 12-surface fan-out** (226): each harness and the generator fail closed on it.
-    Checks over generated source tokenize escapes, split on lines, and tally visited rows. **A
-    harness's uncompared set holds EVERY `data.json` output key its result type lacks** (252:
-    `description` missed); a `meta` input is a JSON object (iscc-core reads a string `meta` as a
-    data URL). A lone surrogate escape is no vector: serde_json fails on the file (266: Go test)
+    one unsplittable 12-surface fan-out** (226: every harness and the generator fail closed). Checks
+    over generated source tokenize escapes, split on lines, and tally visited rows. **A harness's
+    uncompared set holds EVERY `data.json` output key its result type lacks** (252); a `meta` input
+    is a JSON object (iscc-core reads a string `meta` as a data URL). A lone surrogate escape is no
+    vector (266). **No second string over 65,535 bytes: MSVC rejects the C literal** (281)
 - **Perf-gate tooling is NOT in the devcontainer** (250): `mise run bench:iai:check` needs
     `apt-get install valgrind` + `cargo install --locked iai-callgrind-runner@0.16.1`
 - **A docs page lives in FOUR places**, all gated by `scripts/check_docs_nav.py` (145/146).

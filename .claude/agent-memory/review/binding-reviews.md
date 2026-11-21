@@ -882,3 +882,17 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     the file in 0.2 s as a hard link from `deps/`
 - **Grep the docs for a sentence class while a docs issue is open** (279: `git grep -niE 'all 10'`
     found three more "return a string" pages) and add the hits to the existing entry
+
+## New vector in an existing data-edge section (281, ~12 min, PASS_WITH_NOTES)
+
+- A vector added to a handled section needs no harness edit, so the review is: next.md's criteria
+    from one logged script, both iscc-core builds on the vector, one md5 over the 5 copies, and a
+    generator re-run with `git diff --exit-code` on the header
+- The Rust-backed harnesses the advance agent skips are cheap after `cargo build -p iscc-ffi`: .NET
+    (~15 s), `cargo build -p iscc-jni` + `mvn -B test` (~20 s), `cargo build -p iscc-uniffi` +
+    `gradlew -p packages/kotlin cleanTest test --offline` (~25 s). Run them in the same script
+- **Ask what the vector does to the GENERATED C header, for a compiler CI does not run.** The 128 KB
+    meta string became one C string literal: gcc and clang accept it, MSVC caps a literal at 65,535
+    bytes (C2026/C1091). next.md checked only "no `-pedantic`/`-Werror` in CI". Codex found the same
+    thing. Also watch the 256 KB added-file limit: the JSON copies stood at 144 KB afterwards
+- `cmake` is not on PATH: `uv run --with cmake cmake -S packages/cpp -B /tmp/<dir> …`

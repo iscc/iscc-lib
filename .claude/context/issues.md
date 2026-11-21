@@ -213,30 +213,21 @@ Verification Criteria
 
 Resolved when both criteria say the workflow tags the checksum commit once and moves no tag.
 
-## Go `GenMetaCodeV0` never enforces the 128,000-byte meta payload limit `normal` [audit]
+## Generated `data_edge_vectors.h` holds a 128 KB string literal that MSVC cannot compile `normal` [review]
 
-Verified by the iteration-280 audit at db1fe55. `packages/go/codec.go:22` declares
-`MetaTrimMeta = 128_000`, and `packages/go/README.md:117` and `docs/howto/go.md:468` document it as
-the "max decoded payload size in bytes for the meta element". No code reads it:
-`grep -rn MetaTrimMeta packages/go` finds only the declaration. `GenMetaCodeV0`
-(`packages/go/code_meta.go:53-69`) decodes the Data-URL or canonicalizes the JSON and hashes the
-whole payload, whatever its size. The Rust core rejects a decoded payload over the limit, and checks
-before decoding too (`crates/iscc-lib/src/lib.rs:363-385`). iscc-core raises `ValueError`
-(`reference/iscc-core/iscc_core/code_meta.py:72-76`).
+Introduced in iteration 281. The vector `gen_meta_code_v0/test_0004_meta_payload_over_limit` has a
+meta string of 128,002 bytes, and `scripts/gen_data_edge_vectors.py` (`escape_c_string`) writes it
+as one C string literal into `crates/iscc-ffi/tests/data_edge_vectors.h`. gcc and clang accept it (C
+148 passed, C++ ASAN 119 passed). MSVC limits a string literal to 16,380 bytes per piece and 65,535
+bytes after concatenation (errors C2026 and C1091), so neither `test_iscc.c` nor the C++
+`test_iscc.cpp` can be built with MSVC any more; both use standard headers only and had no such
+limit before. Not measured: the devcontainer and CI have no MSVC, and no CI job builds either test
+program on Windows. Found by the review and by Codex independently.
 
-**Why it matters:** the pure-Go port returns a code where the reference and every Rust-backed
-binding return an error, and its docs promise a limit it does not apply. No vector pins the limit,
-so the conformance gates cannot see the gap.
-
-**Suggested fix:** in `GenMetaCodeV0`, reject a payload longer than `MetaTrimMeta` with the core's
-message (and add the core's pre-decode bound on the Data-URL length). Pin it with Go tests at
-128,000 and 128,001 bytes for both meta forms. Consider a shared `data-edge.json` vector if the
-edge-vector rules allow inputs of this size.
-
-**Scope estimate:** 1 non-test file.
-
-Resolved when an oversized meta payload is an error in Go, as it is in the core, and a test pins the
-boundary.
+Resolved when either the generator writes a string over the MSVC limit in a form MSVC accepts (for
+example a `static const char` array initializer), with a generator test that fails on any string
+literal over 65,535 bytes, or a decisions.md entry states that the C and C++ test programs are built
+with gcc and clang only.
 
 ## vcpkg portfile pins the SHA512 hashes of the v0.2.0 tarballs `normal` [audit]
 
