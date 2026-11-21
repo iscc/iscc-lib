@@ -53,6 +53,9 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - JNI errors (230): `throw_and_default(env, &e)` — `JavaError` trait picks class (NoMemory → OOM);
     never `&e.to_string()`, `String` has no impl (`.as_str()`). jni `*_with_catch*` macros CLEAR the
     JVM OOM. OOM test = child JVM (`OomProbe`, `-Xmx16m`); never null-test unfixed (SEGV)
+- JNI loader (278): `NativeLoader` detect\* return null → straight to `System.loadLibrary`;
+    child-JVM `LoaderProbe` tests. Prove vs HEAD: `git archive` tree + symlink `target` → workspace
+    `target/`
 - CI `.github/workflows/ci.yml`: 21 jobs (version-check, rust, python-test, python, nodejs, wasm,
     c-ffi, dotnet, java, go, ruby, ruby-source-gem, cpp, swift, kotlin, bench, perf, semver,
     coverage, audit, release-workflow). `bench`=`cargo bench --no-run`; `swift` macos-15 (macos-14

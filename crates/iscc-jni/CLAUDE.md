@@ -157,8 +157,16 @@ Functions returning structured results (`isccDecode`, `genSumCodeV0`) construct 
 `NativeLoader.java` implements a two-strategy loading sequence:
 
 1. Extract platform-specific binary from JAR at `META-INF/native/{os}-{arch}/{libname}` to a temp
-    directory and load via `System.load()`
-2. Fall back to `System.loadLibrary("iscc_jni")` (for dev/CI with `java.library.path`)
+    directory and load via `System.load()`. Skipped when `detectOs()` or `detectArch()` returns
+    `null` (unrecognized platform)
+2. Fall back to `System.loadLibrary("iscc_jni")` (dev/CI and every platform without a bundled
+    binary). Also reached when the bundled binary fails to extract or load (`IOException` or
+    `UnsatisfiedLinkError`, e.g. musl Linux); that first error is attached via `addSuppressed` to
+    the final `UnsatisfiedLinkError`
+
+No throw may precede strategy 2. The loader tests run `LoaderProbe` in a child JVM (overridden
+`os.name`/`os.arch`, or a garbage bundled library prepended to the classpath), because the test JVM
+has already loaded the library.
 
 Loading is synchronized with a volatile guard to ensure exactly-once semantics. The static
 initializer in `IsccLib` triggers `NativeLoader.load()` automatically on first class access.

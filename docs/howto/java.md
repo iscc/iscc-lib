@@ -53,7 +53,9 @@ import io.iscc.iscc_lib.IsccLib;
 ```
 
 The loader first extracts the library bundled in the JAR under `META-INF/native/{os}-{arch}/` and
-loads it. If the JAR has no library for the current platform, it falls back to
+loads it. If the JAR has no library for the current platform (including an operating system other
+than Linux, macOS or Windows, or an architecture other than x86_64 or aarch64), or the bundled
+library fails to load (for example on musl Linux), it falls back to
 `System.loadLibrary("iscc_jni")`, which searches `java.library.path`. Use that fallback to supply
 your own build:
 
@@ -61,9 +63,9 @@ your own build:
 java -Djava.library.path=/path/to/native/libs -cp your-app.jar com.example.Main
 ```
 
-If neither strategy finds the library, the JVM throws `UnsatisfiedLinkError` at class load time. The
-loader throws the same error before it tries either strategy on an operating system other than
-Linux, macOS or Windows, and on an architecture other than x86_64 or aarch64.
+If neither strategy loads the library, the JVM throws `UnsatisfiedLinkError` at class load time. The
+error names what was tried and the `os.name` and `os.arch` values; the reason the bundled library
+was rejected is attached as a suppressed exception.
 
 All ISCC methods are static — there is no runtime object to create or close.
 

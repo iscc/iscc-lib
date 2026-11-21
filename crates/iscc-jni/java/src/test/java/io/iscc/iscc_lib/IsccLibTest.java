@@ -13,16 +13,19 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import org.junit.jupiter.api.BeforeAll;
@@ -664,6 +667,81 @@ class IsccLibTest {
             assertTrue(!stderr.contains("WARNING in native method"), stderr);
         } finally {
             Files.deleteIfExists(stderrFile);
+        }
+    }
+
+    // ── Native library loading ───────────────────────────────────────────────
+
+    /**
+     * Run {@link LoaderProbe} in a child JVM and assert it loaded the library and the selftest passed.
+     *
+     * @param classpath the child's classpath
+     * @param property a {@code -D} system property override for the child, or {@code null}
+     */
+    private static void assertLoaderProbePasses(String classpath, String property) throws Exception {
+        Path javaBin = Path.of(System.getProperty("java.home"), "bin", "java");
+        List<String> cmd = new ArrayList<>();
+        cmd.add(javaBin.toString());
+        if (property != null) {
+            cmd.add(property);
+        }
+        cmd.add("-Djava.library.path=" + System.getProperty("java.library.path"));
+        cmd.add("-cp");
+        cmd.add(classpath);
+        cmd.add(LoaderProbe.class.getName());
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        Path stderrFile = Files.createTempFile("iscc-loader-probe", ".err");
+        pb.redirectError(stderrFile.toFile());
+        try {
+            Process proc = pb.start();
+            String stdout = new String(proc.getInputStream().readAllBytes()).trim();
+            int exit = proc.waitFor();
+            String stderr = Files.readString(stderrFile);
+            assertEquals(0, exit, "probe exit code; stdout:\n" + stdout + "\nstderr:\n" + stderr);
+            assertEquals("true", stdout, "probe stderr:\n" + stderr);
+        } finally {
+            Files.deleteIfExists(stderrFile);
+        }
+    }
+
+    /** Verify an unrecognized architecture falls back to {@code java.library.path}. */
+    @Test
+    void loaderFallsBackOnUnknownArchitecture() throws Exception {
+        assertLoaderProbePasses(System.getProperty("java.class.path"), "-Dos.arch=riscv64");
+    }
+
+    /** Verify an unrecognized operating system falls back to {@code java.library.path}. */
+    @Test
+    void loaderFallsBackOnUnknownOperatingSystem() throws Exception {
+        assertLoaderProbePasses(System.getProperty("java.class.path"), "-Dos.name=FreeBSD");
+    }
+
+    /**
+     * Verify a bundled library that fails to load falls back to {@code java.library.path}.
+     *
+     * <p>Writes garbage bytes where the JAR would bundle the library for this host and puts that
+     * directory first on the child's classpath, so strategy 1 finds and rejects it.
+     */
+    @Test
+    void loaderFallsBackOnBrokenBundledLibrary() throws Exception {
+        String os = NativeLoader.detectOs();
+        String arch = NativeLoader.detectArch();
+        assumeTrue(os != null && arch != null,
+                "host platform has no bundled-library slot");
+        Path root = Files.createTempDirectory("iscc-broken-native");
+        Path lib = root.resolve("META-INF/native/" + os + "-" + arch + "/"
+                + NativeLoader.libraryFileName(os));
+        try {
+            Files.createDirectories(lib.getParent());
+            Files.write(lib, "not a shared library".getBytes());
+            String classpath = root + File.pathSeparator
+                    + System.getProperty("java.class.path");
+            assertLoaderProbePasses(classpath, null);
+        } finally {
+            Files.deleteIfExists(lib);
+            for (Path dir = lib.getParent(); !dir.equals(root.getParent()); dir = dir.getParent()) {
+                Files.deleteIfExists(dir);
+            }
         }
     }
 
