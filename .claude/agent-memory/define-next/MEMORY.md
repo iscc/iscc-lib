@@ -9,8 +9,10 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
 ci.yml-only fix (`DOTNET_INSTALL_DIR` private dir + `fail-fast: false`). **Runtime-matrix trap:**
 `setup-dotnet`/preinstalled dirs share `/usr/share/dotnet` — any roll-forward leg drifts when the
 image adds a major. Then Ruby 3.3 floor (touches ci.yml + release.yml); .NET 8 is EOL (floor =
-human). Go JCS `meta` issue: lone-surrogate vector needs every harness JSON parser to accept
-`\ud800` (serde_json rejects) — probe before scoping. NONE verification (when it returns):
+human). 261 scoped Go `TextTrim`/hashers (Go-only correctness; adding an `error` return to a Go
+method keeps statement calls compiling — the non-breaking way to add rejection). Go JCS `meta`
+issue: lone-surrogate vector needs every harness JSON parser to accept `\ud800` (serde_json rejects)
+— probe before scoping. NONE verification (when it returns):
 `grep -E '^## .*(critical|normal)' issues.md` prints nothing. **An issue's own "Scope estimate" can
 over-count — apply the docs-excluded rule yourself** (257). **Collecting rule vs "core first and
 alone":** land the behaviour first, then batch pending sections into one fan-out. Ledger/traps →
