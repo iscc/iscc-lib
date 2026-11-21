@@ -384,10 +384,11 @@ sentinel error (the package has none). **Context:** iteration 261.
 **Decision:** Rust and Go compute iscc-core's CDC parameters for every `u32` and reject nothing new.
 `max_size` (in Go also `center_size`) saturates at the platform integer, and a mask of 32 or more
 bits is `u32::MAX`. **Why:** audit issue: from 2^29 the core panicked in debug builds and returned
-`mask_s = 0` in release. iscc-core accepts every value, so a bound would add an error and a
-`diverges` marker for no gain. Saturation changes no result: the sizes are only used as
-`min(size, len(buffer))`, and the gear pattern stays below 2^32 (every gear value is below 2^31), so
-the bits a wider mask adds are never set. Measured: both equal iscc-core on 210 values around each
-point where `bits` changes. **Alternatives:** an upper bound such as `avg_chunk_size <= 2^28` (the
-audit's other suggestion); a `u64` pattern and masks (slower hot loop, same chunks). **Context:**
-iteration 263.
+`mask_s = 0` in release. iscc-core's pure-Python build accepts every value, so a bound would add an
+error and a `diverges` marker for no gain (its compiled wheel raises `OverflowError` from 2^29,
+found in iteration 264: which build is the reference there is open, see issues.md). Saturation
+changes no result: the sizes are only used as `min(size, len(buffer))`, and the gear pattern stays
+below 2^32 (every gear value is below 2^31), so the bits a wider mask adds are never set. Measured:
+both equal iscc-core on 210 values around each point where `bits` changes. **Alternatives:** an
+upper bound such as `avg_chunk_size <= 2^28` (the audit's other suggestion); a `u64` pattern and
+masks (slower hot loop, same chunks). **Context:** iteration 263.

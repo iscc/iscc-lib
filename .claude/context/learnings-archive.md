@@ -1116,3 +1116,8 @@ runs on `opus`. Deliberate — do not "unify" them.
 
 - `cargo deny` ignore for `basic-toml` (196): uniffi_bindgen 0.32.2 hard-enables askama `config` →
     `basic-toml`; crates.io `/dependencies` shows the `features` of each edge
+
+## Archived from learnings.md (review 264)
+
+- A dependency shipping DATA TABLES (Unicode, locale, tz) can change output without any `data.json`
+    vector catching it (every vector predates Unicode 16) — name table-version changes in dep bumps

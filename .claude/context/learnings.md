@@ -29,8 +29,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **`iscc-core` output is not stable across CPython versions** (5,185 code points differ 3.13 vs
     3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so output tracks
     `unicodedata.unidata_version`; iscc-core#137). Always name the interpreter (`--python 3.13`)
-- A dependency shipping DATA TABLES (Unicode, locale, tz) can change output without any `data.json`
-    vector catching it (every vector predates Unicode 16) — name table-version changes in dep bumps
+- **iscc-core 1.5.0 has two builds that can disagree** (264): the compiled wheel (cp310 to cp314)
+    raises `OverflowError` for `alg_cdc_chunks` with `avg_chunk_size >= 2^29`, pure Python (3.15)
+    does not. Probe a vector under `uv run --no-project --python` 3.10 AND 3.15. With `utf32` and a
+    small average both yield `b""` forever
 - **String-input divergences from iscc-core** hit any differential on *string* inputs (`encode_seq`,
     `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
     \+ Go pinned (199); a padding negative must be validly padded (`ISCC:GAAAAAAAAA======`:
@@ -157,11 +159,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## CID Process
 
-- Never force-push `develop` in a loop. **Never trust state.md/handoff claims about external state**
-    (registries, CI, upstream tags): verify at the source (`npm view`, `gh api`, …)
-- **Pre-push mdformat blocks on non-conforming context files**: it runs over every file in the push
-    range (incl. `next.md`, per-agent `MEMORY*.md`), so one non-conforming file rejects the batch
-    although `git commit` passed. Unblock by reformatting + amending
+- Never force-push `develop`. **Verify external state at the source** (`npm view`, `gh api`, …)
+- **Pre-push mdformat runs over every file in the push range** (`next.md`, `MEMORY*.md` too): one
+    non-conforming file rejects the batch although `git commit` passed. Reformat + amend
 - **Never write an exact count, substring `grep -c`, unverified CLI flag, or unverified
     `#[deprecated]` claim into a criterion** (139, 148, 168: a "must not appear" grep banned an
     *undeprecated* API, reverted 169). Confirm attributes in the crate source under

@@ -254,7 +254,7 @@
         "bytes:1d1e",
         "bytes:1f"
       ],
-      "note": "The smallest accepted average cuts 32 bytes into 17 chunks, which pins the cut-point masks and the min/max chunk sizes."
+      "note": "The smallest accepted average cuts 32 bytes into 17 chunks of 1 to 3 bytes, which pins the cut-point masks and the minimum chunk size (the maximum, 16 bytes, is never reached)."
     },
     "test_0002_largest_average_all_reference_builds": {
       "inputs": [

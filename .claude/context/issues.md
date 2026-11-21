@@ -176,23 +176,35 @@ estimate:** 3 non-test files.
 
 Resolved when the three pages state the coverage and the standard's scope correctly.
 
-## No shared vector pins `alg_cdc_chunks` for a large `avg_chunk_size` `normal` [audit]
+## No shared vector pins `alg_cdc_chunks` for `avg_chunk_size` from 2^29 up `normal` [audit]
 
-Rust and Go compute the reference's CDC parameters for every `u32` since iteration 263 (decision of
-2026-11-21), unit-tested on both. Before that, `avg_chunk_size` from 2^29 up panicked in a debug
-build of the core. `data-edge.json` has no `alg_cdc_chunks` section, so nothing shows that each
-binding accepts such a value and returns the core's chunks.
+`data-edge.json` has an `alg_cdc_chunks` section on all 12 surfaces, with averages up to 2^29 - 1.
+The range from 2^29 up, where the core panicked before iteration 263, has no shared vector, because
+iscc-core 1.5.0 disagrees with itself there. Its compiled wheel (cp310 to cp314; `cdc.pxd` types the
+maximum chunk size, `avg * 8`, as `uint32_t`) raises
+`OverflowError: value too large to convert to uint32_t`. Its pure-Python build returns one chunk for
+a short input, as iscc-lib does. Python 3.15 has no wheel and installs the pure build. Measured in
+iteration 264 for 2^29, 2147483647 and 4294967295 with
+`uv run --no-project --python 3.10 --with iscc-core==1.5.0` (loads `cdc.cpython-310-*.so`) against
+`--python 3.15` (loads `cdc.py`). CI runs pytest on both, so the reference check in
+`tests/test_data_edge.py` fails on one leg for such a vector, with or without `diverges`.
 
-Facts for the vector. An input that fits in JSON is shorter than `min_size` (`avg / 4`, 2^27 bytes
-or more), so the expected output is one chunk equal to the input: the vector pins acceptance, and
-the masks stay pinned by the Rust and Go parameter tests. Java `algCdcChunks` takes a signed `int`,
-so 2^31 and 4294967295 cannot be passed there; 2147483647 is the largest value every surface takes
-and it reaches both former overflow sites (`avg * 8` and the 32-bit mask shift).
+**Blocked on a decision (Titusz):** which iscc-core build is the reference where the two disagree.
+The decision of 2026-11-21 accepts every value, which matches the pure build. Options: (a) report
+upstream and leave the large vectors out until the wheel is fixed; (b) add them now and have the
+Python harness skip the reference check where the compiled build is loaded; (c) reject from 2^29 up,
+like the wheel.
 
-**Scope estimate:** one fan-out (12 harnesses and the C generator, learnings 226).
+Facts for the vector. An input that fits in JSON is shorter than `min_size` (`avg / 4`), so the
+expected output is one chunk equal to the input: the vector pins acceptance, and the parameters stay
+pinned by the Rust and Go unit tests. Java `algCdcChunks` takes a signed `int`, so 2147483647 is the
+largest value every surface takes.
 
-Resolved when `data-edge.json` has an `alg_cdc_chunks` section with `avg_chunk_size` 2^29 and
-2147483647, and every harness runs it.
+**Upstream:** iscc/iscc-core. The compiled and the pure-Python build of `alg_cdc_chunks` differ for
+`avg_chunk_size >= 2^29`.
+
+Resolved when a decisions.md entry names the reference build, and either the section carries vectors
+for 2^29 and 2147483647 that every harness runs, or that entry keeps them out.
 
 ## No CI job executes the 32-bit code paths of the core or the Go port `low` [review]
 

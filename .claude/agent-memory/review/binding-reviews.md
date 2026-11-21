@@ -718,3 +718,24 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     converts `null`/strings/booleans with JS number conversion (filed `low` in 256); `undefined`
     becomes `NaN`. napi throws on all of them, and on a typed array for a `Vec<T>` parameter
 - `serde_wasm_bindgen` rejects out-of-range and fractional numbers for `Vec<Vec<i32>>` itself
+
+### New data-edge section, reference-stable vectors (iter 264, ~25 min) — PASS + escalation
+
+- The 226 script ran green in ~3 min on a warm tree. Fixes to the recipe:
+    `dotnet test packages/dotnet` (next.md's form) fails with MSB1003, the CI line is
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/` with `LD_LIBRARY_PATH=$PWD/target/debug`. The Bash
+    tool runs zsh, which does not word-split `$F`: put file lists in a bash script with an array
+    (`"${F[@]}"`)
+- Mutation on the surfaces advance skipped (Java, .NET, Kotlin, WASM, Swift, C++): one bash script
+    seds the canonical file + the .NET, Kotlin and Swift copies, regenerates the header, runs the
+    six suites, then `git checkout --` the five files. ~1 min, every surface named the vector
+- **Probe a reference claim on both iscc-core builds**: the compiled wheel (3.10 to 3.14) and the
+    pure build (3.15) differ for CDC averages from 2^29 up. A script in `/tmp` that prints
+    `iscc_core.cdc.__file__`, run with `uv run -q --no-project --python <v> --with iscc-core==1.5.0`
+- **Read each vector's `note` as a claim** (the file goes upstream): the `avg = 2` note said it pins
+    "min/max chunk sizes", but `max_size` (16) is never reached. Derive the parameters by hand
+    (`min = avg/4`, `max = avg*8`, `bits = round(log2(avg))`, `mask_s = 2^(bits+1)-1`,
+    `mask_l = 2^(bits-1)-1`). A note fix is step-9 work: sed all 5 copies, `cmp`, rerun pytest
+- A `normal` issue that ends up blocked on a human decision with an upstream defect behind it:
+    verdict stays PASS, the handoff opens with HUMAN REVIEW REQUESTED, the entry gets
+    `**Upstream:**`

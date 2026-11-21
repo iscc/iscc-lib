@@ -89,10 +89,10 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **Bumps** (generated artifact, MSRV, lockfile, wrapper, framework major) and **security-pass /
     advisory-bump steps (235)** → `dep-refresh-reviews.md`
 - **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table (215-221)**, new
-    data-edge SECTION = 12-surface script (226) + **diff each new `UNCOMPARED` row against the
-    function's `data.json` keys (252: Codex caught a missed key)**, **validator / C-generator
-    (236)**, **harness-compare fan-out (237)**, **throwaway-vector proof (253)** →
-    `binding-reviews.md`
+    data-edge SECTION = 12-surface script (226, 264: both iscc-core builds) + **diff each new
+    `UNCOMPARED` row against the function's `data.json` keys (252: Codex caught a missed key)**,
+    **validator / C-generator (236)**, **harness-compare fan-out (237)**, **throwaway-vector proof
+    (253)** → `binding-reviews.md`
 - **C FFI marshalling-helper step (255, ~35 min)**: read per-row closures for allocations (no perf
     gate covers `iscc-ffi`), ASAN-probe new C macros with a forced mismatch → `binding-reviews.md`
 - **JS integer-range / marshalling step (256, ~15 min)**: Node probes on the built WASM package,
