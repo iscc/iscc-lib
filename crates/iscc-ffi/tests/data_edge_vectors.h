@@ -227,10 +227,14 @@ static const struct iscc_edge_alg_simhash_vector iscc_edge_alg_simhash[ISCC_EDGE
      {iscc_edge_alg_simhash_1_items, iscc_edge_alg_simhash_1_lens, 2}, {"\374\?", 2}},
 };
 
-#define ISCC_EDGE_GEN_META_CODE_V0_COUNT 1
+#define ISCC_EDGE_GEN_META_CODE_V0_COUNT 3
 static const struct iscc_edge_gen_meta_code_v0_vector iscc_edge_gen_meta_code_v0[ISCC_EDGE_GEN_META_CODE_V0_COUNT] = {
     {"test_0001_raw_jcs_characters", ISCC_EDGE_OK, ISCC_EDGE_OK,
      {"Hello", 5}, {"", 0}, {"{\"title\": \"Tom & Jerry <3 > \342\200\250 \342\200\251\", \"note\": \"a\\\\u2028b \\b\\f\\u001f\"}", 69}, 64, {"ISCC:AAAWKLHFXO3IKDKI", 21}},
+    {"test_0002_utf16_key_order", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     {"Hello", 5}, {"", 0}, {"{\"\356\200\200\": 1, \"\360\237\230\200\": 2}", 21}, 64, {"ISCC:AAAWKLHFXP2I3X3H", 21}},
+    {"test_0003_negative_zero", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     {"Hello", 5}, {"", 0}, {"{\"a\": -0.0}", 11}, 64, {"ISCC:AAAWKLHFXMHM7WHO", 21}},
 };
 
 static const int32_t iscc_edge_gen_video_code_v0_0_f0[] = {
@@ -346,6 +350,6 @@ static const struct iscc_edge_alg_cdc_chunks_vector iscc_edge_alg_cdc_chunks[ISC
      {"", 0}, 0, 1024u, {iscc_edge_alg_cdc_chunks_2_items, iscc_edge_alg_cdc_chunks_2_lens, 1}},
 };
 
-#define ISCC_EDGE_TOTAL_COUNT 24
+#define ISCC_EDGE_TOTAL_COUNT 26
 
 #endif /* ISCC_DATA_EDGE_VECTORS_H */

@@ -9,7 +9,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/zeebo/blake3"
 )
@@ -235,22 +238,149 @@ func decodeDataURL(dataURL string) ([]byte, error) {
 
 // parseMetaJSON parses a JSON string and re-serializes it to RFC 8785 (JCS) canonical bytes.
 //
-// Keys are sorted and the output is compact. Strings are serialized per RFC 8785
-// section 3.2.2.2: only '"', '\\' and control characters are escaped; '&', '<', '>',
-// U+2028 and U+2029 are emitted raw. Numbers are not canonicalized per JCS: they
-// pass through Go's float64 formatting unchanged.
+// The output is compact, and object keys are sorted by their UTF-16 code units (RFC 8785
+// section 3.2.3), at every nesting depth. Strings are serialized per RFC 8785 section
+// 3.2.2.2: only '"', '\\' and control characters are escaped; '&', '<', '>', U+2028 and
+// U+2029 are emitted raw. A negative zero is written as 0. Other numbers pass through Go's
+// float64 formatting, which matches the ECMAScript form for the values measured against the
+// Rust core. A \u escape of a UTF-16 surrogate that is not part of a high-low pair is an
+// error, as in the Rust core (encoding/json would decode it to U+FFFD).
 func parseMetaJSON(metaStr string) ([]byte, error) {
 	var parsed interface{}
 	if err := json.Unmarshal([]byte(metaStr), &parsed); err != nil {
 		return nil, fmt.Errorf("iscc: invalid JSON in meta: %w", err)
 	}
+	if err := checkSurrogateEscapes(metaStr); err != nil {
+		return nil, fmt.Errorf("iscc: invalid JSON in meta: %w", err)
+	}
 	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(parsed); err != nil {
+	if err := writeCanonical(&buf, parsed); err != nil {
 		return nil, fmt.Errorf("iscc: JSON canonicalization failed: %w", err)
 	}
-	return unescapeLineSeparators(bytes.TrimSuffix(buf.Bytes(), []byte("\n"))), nil
+	return buf.Bytes(), nil
+}
+
+// checkSurrogateEscapes rejects a \u escape of a UTF-16 surrogate that is not part of
+// a high-low pair: a high surrogate not directly followed by a low surrogate escape, or a
+// low surrogate on its own. It walks escape sequences pairwise, so an escaped backslash
+// followed by literal "ud800" text is not an escape. The input must be valid JSON.
+func checkSurrogateEscapes(s string) error {
+	for i := 0; i < len(s)-1; i++ {
+		if s[i] != '\\' {
+			continue
+		}
+		unit, ok := escapeUnit(s, i)
+		switch {
+		case !ok:
+			i++
+		case utf16.IsSurrogate(rune(unit)) && unit >= 0xdc00:
+			return fmt.Errorf("lone surrogate escape \\u%04x at offset %d", unit, i)
+		case utf16.IsSurrogate(rune(unit)):
+			low, isPair := escapeUnit(s, i+6)
+			if !isPair || low < 0xdc00 || low > 0xdfff {
+				return fmt.Errorf("lone surrogate escape \\u%04x at offset %d", unit, i)
+			}
+			i += 11
+		default:
+			i += 5
+		}
+	}
+	return nil
+}
+
+// escapeUnit reads the UTF-16 code unit of a \uXXXX escape starting at index i.
+// It reports false when s has no such escape at i.
+func escapeUnit(s string, i int) (uint16, bool) {
+	if i+6 > len(s) || s[i] != '\\' || s[i+1] != 'u' {
+		return 0, false
+	}
+	unit, err := strconv.ParseUint(s[i+2:i+6], 16, 16)
+	if err != nil {
+		return 0, false
+	}
+	return uint16(unit), true
+}
+
+// writeCanonical appends the RFC 8785 serialization of a decoded JSON value to buf.
+func writeCanonical(buf *bytes.Buffer, v interface{}) error {
+	switch x := v.(type) {
+	case map[string]interface{}:
+		return writeCanonicalObject(buf, x)
+	case []interface{}:
+		return writeCanonicalArray(buf, x)
+	case float64:
+		if x == 0 {
+			x = 0 // replaces a negative zero with 0, as RFC 8785 requires
+		}
+		return writeCanonicalScalar(buf, x)
+	default:
+		return writeCanonicalScalar(buf, x)
+	}
+}
+
+// writeCanonicalObject appends an object with its keys sorted by UTF-16 code units.
+func writeCanonicalObject(buf *bytes.Buffer, obj map[string]interface{}) error {
+	buf.WriteByte('{')
+	for i, key := range sortedKeysUTF16(obj) {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		if err := writeCanonicalScalar(buf, key); err != nil {
+			return err
+		}
+		buf.WriteByte(':')
+		if err := writeCanonical(buf, obj[key]); err != nil {
+			return err
+		}
+	}
+	buf.WriteByte('}')
+	return nil
+}
+
+// writeCanonicalArray appends an array with each element in canonical form.
+func writeCanonicalArray(buf *bytes.Buffer, arr []interface{}) error {
+	buf.WriteByte('[')
+	for i, elem := range arr {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		if err := writeCanonical(buf, elem); err != nil {
+			return err
+		}
+	}
+	buf.WriteByte(']')
+	return nil
+}
+
+// writeCanonicalScalar appends a string, number, bool or null. It uses an encoder
+// with SetEscapeHTML(false) and rewrites the U+2028/U+2029 escapes to raw UTF-8.
+func writeCanonicalScalar(buf *bytes.Buffer, v interface{}) error {
+	var tmp bytes.Buffer
+	enc := json.NewEncoder(&tmp)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return err
+	}
+	buf.Write(unescapeLineSeparators(bytes.TrimSuffix(tmp.Bytes(), []byte("\n"))))
+	return nil
+}
+
+// sortedKeysUTF16 returns the keys of obj sorted lexicographically by UTF-16 code units.
+func sortedKeysUTF16(obj map[string]interface{}) []string {
+	type utf16Key struct {
+		key   string
+		units []uint16
+	}
+	keys := make([]utf16Key, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, utf16Key{k, utf16.Encode([]rune(k))})
+	}
+	slices.SortFunc(keys, func(a, b utf16Key) int { return slices.Compare(a.units, b.units) })
+	out := make([]string, len(keys))
+	for i, k := range keys {
+		out[i] = k.key
+	}
+	return out
 }
 
 // unescapeLineSeparators rewrites the escapes \u2028 and \u2029 that encoding/json

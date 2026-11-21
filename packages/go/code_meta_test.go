@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -227,5 +228,95 @@ func TestJsonToDataUrlTomAndJerry(t *testing.T) {
 	}
 	if got != want {
 		t.Errorf("JsonToDataUrl = %q, want %q", got, want)
+	}
+}
+
+// jcsStructureCases covers RFC 8785 key order by UTF-16 code units and negative
+// zero, with the canonical payload computed by the Rust core (json_to_data_url).
+var jcsStructureCases = []struct {
+	name       string
+	meta       string
+	payloadHex string
+}{
+	{"utf16_key_order", `{"\ue000":1,"\ud83d\ude00":2}`, "7b22f09f9880223a322c22ee8080223a317d"},
+	{"negative_zero_float", `{"a":-0.0}`, "7b2261223a307d"},
+	{"negative_zero_int", `{"a":-0}`, "7b2261223a307d"},
+	{"nested_in_array", `{"a":[{"\ue000":1,"\ud83d\ude00":-0.0}]}`,
+		"7b2261223a5b7b22f09f9880223a302c22ee8080223a317d5d7d"},
+	{"nested_objects", `{"b":{"\ue000":[-0,{"\ud83d\ude00":0}],"a":null}}`,
+		"7b2262223a7b2261223a6e756c6c2c22ee8080223a5b302c7b22f09f9880223a307d5d7d7d"},
+	{"surrogate_pair_value", `{"a":"\ud83d\ude00"}`, "7b2261223a22f09f9880227d"},
+	{"escaped_backslash_before_u", `{"a":"\\ud800"}`, "7b2261223a225c5c7564383030227d"},
+	{"numbers", `{"a":[1.0,1e21,1e-7,9007199254740993, 0.1, -1.5e300]}`,
+		"7b2261223a5b312c31652b32312c31652d372c393030373139393235343734303939322c302e312c2d312e35652b3330305d7d"},
+}
+
+// TestParseMetaJSONStructure asserts key order and number output match the Rust core.
+func TestParseMetaJSONStructure(t *testing.T) {
+	for _, tc := range jcsStructureCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseMetaJSON(tc.meta)
+			if err != nil {
+				t.Fatalf("parseMetaJSON: %v", err)
+			}
+			if hex.EncodeToString(got) != tc.payloadHex {
+				t.Errorf("payload = %q (%x), want %s", got, got, tc.payloadHex)
+			}
+		})
+	}
+}
+
+// TestParseMetaJSONLoneSurrogate asserts every lone surrogate escape is rejected,
+// as the Rust core's serde_json parser does.
+func TestParseMetaJSONLoneSurrogate(t *testing.T) {
+	cases := map[string]string{
+		"high_alone":     `{"a":"\ud800"}`,
+		"low_alone":      `{"a":"\udc00"}`,
+		"high_then_text": `{"a":"\ud800A"}`,
+		"high_then_high": `{"\ud800\ud800":1}`,
+		"high_in_key":    `{"\ud800":1}`,
+		"high_at_end":    `{"a":"x\uDBFF"}`,
+		"low_after_pair": `{"a":"\ud83d\ude00\ude00"}`,
+	}
+	for name, meta := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := parseMetaJSON(meta)
+			if err == nil || !strings.HasPrefix(err.Error(), "iscc: invalid JSON in meta:") {
+				t.Errorf("parseMetaJSON(%s) error = %v, want invalid JSON in meta", meta, err)
+			}
+		})
+	}
+}
+
+// TestGenMetaCodeV0LoneSurrogate asserts both public entry points reject a lone surrogate.
+func TestGenMetaCodeV0LoneSurrogate(t *testing.T) {
+	meta := `{"a":"\ud800"}`
+	if _, err := GenMetaCodeV0("Hello", nil, &meta, 64); err == nil {
+		t.Error("GenMetaCodeV0 accepted a lone surrogate")
+	}
+	if _, err := JsonToDataUrl(meta); err == nil {
+		t.Error("JsonToDataUrl accepted a lone surrogate")
+	}
+}
+
+// TestGenMetaCodeV0Structure asserts iscc, meta and metahash match the Rust core
+// for the UTF-16 key order and negative zero inputs.
+func TestGenMetaCodeV0Structure(t *testing.T) {
+	cases := []struct{ meta, iscc, dataURL, metahash string }{
+		{`{"\ue000":1,"\ud83d\ude00":2}`, "ISCC:AAAWKLHFXP2I3X3H",
+			"data:application/json;base64,eyLwn5iAIjoyLCLugIAiOjF9",
+			"1e200776750a1835f47c953eac436a0991c2bced534a742b6e5b8893205a1469f3b9"},
+		{`{"a":-0.0}`, "ISCC:AAAWKLHFXMHM7WHO", "data:application/json;base64,eyJhIjowfQ==",
+			"1e20393859791157de56f69287760924ba3a7045e3d7c1b1674e3f5c213ee48a5196"},
+	}
+	for _, tc := range cases {
+		meta := tc.meta
+		r, err := GenMetaCodeV0("Hello", nil, &meta, 64)
+		if err != nil {
+			t.Fatalf("GenMetaCodeV0(%s): %v", tc.meta, err)
+		}
+		if r.Iscc != tc.iscc || r.Meta != tc.dataURL || r.Metahash != tc.metahash {
+			t.Errorf("GenMetaCodeV0(%s) = %+v, want %s %s %s", tc.meta, r, tc.iscc, tc.dataURL, tc.metahash)
+		}
 	}
 }

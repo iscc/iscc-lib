@@ -199,6 +199,41 @@
         "metahash": "1e207dd6353ce193db311db03f79168a99738635c0c36f66ab187f24e62c831d669c"
       },
       "note": "The Go port escaped &, <, >, U+2028 and U+2029 in canonical meta JSON, where RFC 8785 writes them raw."
+    },
+    "test_0002_utf16_key_order": {
+      "inputs": [
+        "Hello",
+        "",
+        {
+          "\ue000": 1,
+          "\ud83d\ude00": 2
+        },
+        64
+      ],
+      "outputs": {
+        "iscc": "ISCC:AAAWKLHFXP2I3X3H",
+        "name": "Hello",
+        "meta": "data:application/json;base64,eyLwn5iAIjoyLCLugIAiOjF9",
+        "metahash": "1e200776750a1835f47c953eac436a0991c2bced534a742b6e5b8893205a1469f3b9"
+      },
+      "note": "The Go port sorted canonical meta JSON keys by UTF-8 bytes, where RFC 8785 sorts by UTF-16 code units (U+1F600 before U+E000)."
+    },
+    "test_0003_negative_zero": {
+      "inputs": [
+        "Hello",
+        "",
+        {
+          "a": -0.0
+        },
+        64
+      ],
+      "outputs": {
+        "iscc": "ISCC:AAAWKLHFXMHM7WHO",
+        "name": "Hello",
+        "meta": "data:application/json;base64,eyJhIjowfQ==",
+        "metahash": "1e20393859791157de56f69287760924ba3a7045e3d7c1b1674e3f5c213ee48a5196"
+      },
+      "note": "The Go port wrote a negative zero as -0 in canonical meta JSON, where RFC 8785 writes 0."
     }
   },
   "gen_video_code_v0": {

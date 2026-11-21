@@ -169,12 +169,15 @@ feeding both hashers from the same read loop.
     `ConformanceSelftest` is always available.
 - **Unicode character counting**: `SlidingWindow` and `TextCollapse` operate on `[]rune`, not bytes.
     Use `len([]rune(s))` for character counts, not `len(s)`.
-- **JSON canonicalization**: `parseMetaJSON` emits sorted keys, compact format and RFC 8785 string
-    serialization: a `json.Encoder` with `SetEscapeHTML(false)` keeps `&`, `<`, `>` raw, and
+- **JSON canonicalization**: `parseMetaJSON` writes RFC 8785 canonical JSON itself, recursively:
+    compact output, object keys sorted by UTF-16 code units at every depth (not by UTF-8 bytes,
+    which `encoding/json` uses), and a negative zero written as `0`. Strings go through a
+    `json.Encoder` with `SetEscapeHTML(false)` (keeps `&`, `<`, `>` raw), and
     `unescapeLineSeparators` rewrites the `\u2028`/`\u2029` escapes that `encoding/json` always
     emits to raw UTF-8 (walking escapes pairwise, so an escaped backslash before literal `u2028`
-    text survives). Never use `json.Marshal` here. Numbers are not canonicalized per JCS, so this is
-    not a full JCS implementation.
+    text survives). `checkSurrogateEscapes` rejects a lone surrogate escape, which `encoding/json`
+    would silently decode to U+FFFD. Never use `json.Marshal` here. Other numbers keep Go's float64
+    formatting; there is no hand-written ECMAScript number formatter.
 - **CDC tail handling**: `DataHasher.Push()` retains the last CDC chunk as `tail` for the next
     `Push` call (mirrors the Python `prev_chunk` pattern). Forgetting to call `Finalize()` loses the
     tail data.
