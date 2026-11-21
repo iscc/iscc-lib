@@ -60,7 +60,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     one unsplittable 12-surface fan-out** (226): each harness and the generator fail closed on it.
     Checks over generated source tokenize escapes, split on lines, and tally visited rows
 - **Perf-gate tooling installs on demand, NOT in the devcontainer**: `mise run bench:iai:check` dies
-    until `apt-get install valgrind` + `cargo binstall iai-callgrind-runner@0.16.1` (pin-matched)
+    until `apt-get install valgrind` + `cargo install --locked iai-callgrind-runner@0.16.1` (250)
 - **A docs page lives in FOUR places** — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
     `nav`, `ORDERED_PAGES`, `docs/llms.txt` — all gated by `scripts/check_docs_nav.py` (145/146).
     **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**

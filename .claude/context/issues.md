@@ -245,20 +245,18 @@ Resolved when Go's canonical bytes match RFC 8785 for these characters and a sha
 (`data-edge.json` or equivalent) with `&`, `<`, `>`, U+2028 and U+2029 in `meta` passes on every
 surface, Go included.
 
-## Core video hashing panics or returns a wrong digest on frame signatures of unequal length `normal` [human]
+## Ragged video frame signatures are rejected by the core but no shared vector pins it `normal` [human]
 
-`soft_hash_video_v0` (`crates/iscc-lib/src/lib.rs`) sizes its column sum from `frame_sigs[0]` and
-indexes it with every deduplicated signature. A later signature longer than the first indexes out of
-bounds and panics; the release profile has `panic = "abort"`, so the host process (Node, JVM, .NET,
-Ruby, Go via FFI, ...) dies. A shorter one is silently summed into a wrong digest, and since the
-BTreeSet sorts signatures while `cols` comes from input position 0, the result depends on input
-order. Only the Python binding validates frame lengths before calling the core; every other surface
-reaches the core unchecked, through `soft_hash_video_v0` and `gen_video_code_v0`. Found by the
-iteration-240 audit and confirmed by reading the code 2026-11-21.
+The Rust core and the Go port return an error for frame signatures of unequal length
+(`soft_hash_video_v0`, `gen_video_code_v0`; decisions.md 2026-11-21). Only their own unit tests
+prove it. Every binding reaches the core through its own marshalling, and before the fix such input
+aborted the host process on all of them except Python (`panic = "abort"`), so a binding that stops
+mapping the error would go unnoticed. `data-edge.json` has no `gen_video_code_v0` section. The
+Python binding keeps its own frame check in `extract_frame_sigs`, because it flattens the frames
+before it calls the core; it raises `ValueError` with the core's wording.
 
-Resolved when the core returns `InvalidInput` for signatures of unequal length (no panic, no
-digest), a shared error vector covers it on every surface, and the Python-only frame check is
-removed or reduced to the core's error.
+Resolved when a shared error vector with a ragged `frame_sigs` passes on every surface. It carries a
+`diverges` marker: iscc-core truncates to the shortest signature and returns a digest.
 
 ## C FFI treats `(NULL, 0)` two opposite ways and never checks inner pointers `normal` [audit]
 

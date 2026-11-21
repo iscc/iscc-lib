@@ -765,3 +765,23 @@ Docs-only, no gate covers what matters. Three probes did the work, all from the 
     hand-written version is a target" is false: the pkg-config example in `docs/howto/c-cpp.md`).
 - Codex said "no actionable regressions" and did not see the table: it reviews the diff, not what
     the diff left out.
+
+## Core + Go behaviour fix (250)
+
+A step that makes the Rust core and the Go port reject an input (250: ragged video frame
+signatures). PASS in about 10 minutes.
+
+- Run every next.md criterion from ONE logged script with a `=== END <name> rc=<n>` line per step:
+    `cargo test -p iscc-lib`, both clippy forms, `cargo fmt --check`, `--no-default-features`,
+    `--no-default-features --features text-processing`, Go test + vet + gofmt, `cargo llvm-cov` +
+    `cargo crap` with the CI flags, `mise run bench:iai:check`. Warm, the whole script took about
+    one minute. Run `go test -v -run <Name>` once more to see the new Go tests `PASS` by name
+- **Probe the reference for every "iscc-core does X" sentence the docs gain**, from an empty `/tmp`
+    dir:
+    `uv run --no-project --python 3.13 --with /workspace/iscc-lib/reference/iscc-core python -I   -c '…'`.
+    In 250 next.md said a short signature raises `IndexError`; the reference returned a code for
+    all three ragged pairs. Only the shipped sentence matters for the verdict, but the measured
+    result belongs in the decision entry and in the handoff for the follow-up vector
+- A deviation from iscc-core is a decisions.md entry. When the issue has a further "Resolved when"
+    clause (a shared vector), rewrite the entry to that remainder; do not delete it
+- Codex needed under 5 minutes for a diff of this size

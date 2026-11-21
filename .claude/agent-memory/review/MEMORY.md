@@ -70,6 +70,8 @@ Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`)
 
 - **Rust-only**: `cargo test -p iscc-lib` + clippy workspace (~2 s warm) + `mise run check`. Version
     sync adds `version_sync.py --check`, a shell script `bash -n <script>`
+- **Core + Go behaviour-fix step (250, ~10 min)**: one logged script (tests, feature matrix, clippy,
+    Go, llvm-cov + CRAP, iai) → `review-patterns.md` "Core + Go behaviour fix (250)"
 - **Test-fixture / vector-file only (141/149, ~5 min)**: Rust-only + full feature matrix (assert
     per-target `N passed`) + the four fixture mutations → `review-patterns.md`
 - **Docs-only**: `mise run check` + clippy + `mise run version:check` + `uv run zensical build`;
