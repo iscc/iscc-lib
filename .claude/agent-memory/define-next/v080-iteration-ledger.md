@@ -112,4 +112,12 @@ only (`pub(…)`, `pub mod`, `types::*`, `IsccError`, `IsccResult` — a kind-wi
 hide a new glob), group members bare idents (`{b as c}` derived junk `"b as c"` at HEAD), early
 return before the floor. Next: register + complete rust.md/c-cpp.md/rust-api.md/architecture.md AND
 `docs/api.md` (names 1 symbol; issue says every API reference) — 9-22 missing symbols each, maybe
-split; then part 3 count sweep.
+split; then part 3 count sweep. 243 = drift-issue part 1, Rust-sourced group: register
+`rust-api.md`, `howto/rust.md`, `architecture.md` FULL + `docs/api.md` EXEMPT (mkdocstrings
+`::: iscc_lib` renders the API; source lists nothing). Probed: Python results are `dict` subclasses,
+so api.md's `json.loads` example crashes; no Rust result type implements `Display`, so rust-api.md's
+`println!("{result}")` / `iscc.starts_with` examples don't compile. Trap: `json_to_data_url` +
+`encode_component` really return `IsccResult<String>` → never ban the string by grep. The gate exits
+0 with docs unregistered, so assert registry membership directly. Next: `docs/howto/c-cpp.md` (17
+missing; read c-ffi-dx.md / cpp-bindings.md to decide FULL vs EXEMPT), then part 3 count sweep in
+specs + per-crate CLAUDE.md.
