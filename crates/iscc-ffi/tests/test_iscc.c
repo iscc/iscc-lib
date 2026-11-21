@@ -199,6 +199,34 @@ static int check_edge_gen_iscc_code_v0(const struct iscc_edge_gen_iscc_code_v0_v
     return passed;
 }
 
+/* Check one gen_meta_code_v0 edge row against its c expectation.
+ * An empty description is passed as NULL (no description). */
+static int check_edge_gen_meta_code_v0(const struct iscc_edge_gen_meta_code_v0_vector *v) {
+    char *actual;
+    int passed;
+    if (!edge_str_fits_c(v->input_name) || !edge_str_fits_c(v->description) ||
+        !edge_str_fits_c(v->meta)) {
+        return 0;
+    }
+    actual = iscc_gen_meta_code_v0(v->input_name.ptr,
+                                   v->description.len ? v->description.ptr : NULL,
+                                   v->meta.ptr, v->bits);
+    passed = edge_gen_result_ok(v->c, actual, v->iscc);
+    iscc_free_string(actual);
+    return passed;
+}
+
+/* Check one gen_video_code_v0 edge row against its c expectation. */
+static int check_edge_gen_video_code_v0(const struct iscc_edge_gen_video_code_v0_vector *v) {
+    char *actual;
+    int passed;
+    actual = iscc_gen_video_code_v0(v->frame_sigs.frames, v->frame_sigs.lens,
+                                    v->frame_sigs.count, v->bits);
+    passed = edge_gen_result_ok(v->c, actual, v->iscc);
+    iscc_free_string(actual);
+    return passed;
+}
+
 /* Run every row of one data-edge section: skip rows marked c skip, check the rest,
  * print PASS/FAIL per row, and add each row (run or skipped) to `seen`. */
 #define RUN_EDGE_SECTION(section, rows, count, check, seen) \
@@ -669,6 +697,12 @@ int main(void) {
                          edge_seen);
         RUN_EDGE_SECTION("alg_simhash", iscc_edge_alg_simhash, ISCC_EDGE_ALG_SIMHASH_COUNT,
                          check_edge_alg_simhash, edge_seen);
+        RUN_EDGE_SECTION("gen_meta_code_v0", iscc_edge_gen_meta_code_v0,
+                         ISCC_EDGE_GEN_META_CODE_V0_COUNT, check_edge_gen_meta_code_v0,
+                         edge_seen);
+        RUN_EDGE_SECTION("gen_video_code_v0", iscc_edge_gen_video_code_v0,
+                         ISCC_EDGE_GEN_VIDEO_CODE_V0_COUNT, check_edge_gen_video_code_v0,
+                         edge_seen);
         ASSERT_EQ(edge_seen, ISCC_EDGE_TOTAL_COUNT,
                   "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
     }
@@ -699,6 +733,20 @@ int main(void) {
             "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {digests, lens, 2}, {"0\014", 2}};
         ASSERT_EQ(check_edge_alg_simhash(&tie_as_and), 0,
                   "data_edge negative: alg_simhash output mismatch fails");
+    }
+    {
+        /* The Meta-Code of the same object written with escaped `&` and `<`. */
+        const struct iscc_edge_gen_meta_code_v0_vector meta_mismatch = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {"Hello", 5}, {"", 0},
+            {"{\"t\":\"a&b\"}", 11}, 64, {"ISCC:AAAWKLHFXO3IKDKI", 21}};
+        /* A ragged frame list whose row expects the iscc-core truncation result. */
+        const struct iscc_edge_gen_video_code_v0_vector ragged_ok = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK,
+            iscc_edge_gen_video_code_v0[1].frame_sigs, 64, {"ISCC:EMAVFD4RIMPXYQWS", 21}};
+        ASSERT_EQ(check_edge_gen_meta_code_v0(&meta_mismatch), 0,
+                  "data_edge negative: gen_meta_code_v0 output mismatch fails");
+        ASSERT_EQ(check_edge_gen_video_code_v0(&ragged_ok), 0,
+                  "data_edge negative: gen_video_code_v0 expected output that errors fails");
     }
 
     /* Summary */
