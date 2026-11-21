@@ -48,3 +48,8 @@ metadata:
     takes `uint32_t` for u32 inputs (literal `NNNu`); error rows zero a list as `{0, 0, 0}`.
     iscc-core builds differ for CDC avg >= 2^29 (compiled wheel py3.10-3.14 vs pure 3.15 sdist):
     check every vector with `uv run --no-project --python <3.10|3.15> --with iscc-core==1.5.0`
+- Adding a vector to an existing section (281): sections sit at 2-space indent, vectors at 4, vector
+    keys at 6 — anchor the splice on the previous vector's `note` line + `}\n  },\n`. A ~128 KB
+    string literal in `data_edge_vectors.h` builds clean under gcc `-Wall` and the C++ cmake ASAN
+    build. Prove a Go vector bites: copy `packages/go` to /tmp, `git show HEAD:<file>` over the fix,
+    drop the new `_test.go`, run `-run DataEdge`

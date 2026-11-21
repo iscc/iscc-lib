@@ -1,61 +1,55 @@
-## 2026-11-21 — Review of: Docs accuracy batch — architecture.md covers every surface, no "10 standard functions" or Sum-Code-as-string claims
+## 2026-11-21 — Go `GenMetaCodeV0` enforces the 128,000-byte meta limit, pinned by a shared vector
 
-**Verdict:** PASS
+**Done:** `GenMetaCodeV0` checks meta size the same way the Rust core does, in the same order.
+First, a raw meta string longer than `MetaTrimMeta*4/3 + 256` (170,922 bytes) is rejected before any
+decoding. Second, a decoded payload longer than `MetaTrimMeta` (Data-URL bytes or canonical JSON) is
+rejected. Added the shared vector `gen_meta_code_v0/test_0004_meta_payload_over_limit` (canonical
+JSON of 128,001 bytes, `error`, no `diverges`) to all 5 copies and regenerated the C header.
 
-**Summary:** Docs-only step, six pages, exactly the scope next.md set. Every new row and sentence
-was checked against the source it describes (binding code, `ci.yml`, `release.yml`, test loaders,
-the four added registry links) and all of it holds. Two `normal` docs issues are closed and deleted.
+**Files changed:**
+
+- `packages/go/code_meta.go`: const `metaPreDecodeLimit = MetaTrimMeta*4/3 + 256` and helper
+    `checkMetaStringSize` (pre-decode, error
+    `iscc: meta string exceeds size limit (%d > %d bytes)`); post-decode check inline after the
+    payload is resolved (`iscc: decoded meta payload exceeds   size limit (%d > %d bytes)`)
+- `packages/go/code_meta_test.go`: `TestGenMetaCodeV0MetaSizeLimit` (JSON and Data-URL, 128,000
+    passes and 128,001 is rejected with the post-decode message) and
+    `TestGenMetaCodeV0MetaPreDecodeLimit` (a mostly-whitespace JSON string of exactly 170,922 bytes
+    passes, 170,923 is rejected with the pre-decode message; pins the constant at 170922)
+- `crates/iscc-lib/tests/data-edge.json` + 4 vendored copies (dotnet, go, kotlin, swift): the
+    vector, spliced in as text (the value is 127,993 `x`; the asserted canonical length is 128,001)
+- `crates/iscc-ffi/tests/data_edge_vectors.h`: regenerated with
+    `uv run --script scripts/gen_data_edge_vectors.py`
 
 **Verification:**
 
-- [x] `git grep -nE '10 .gen_' -- docs/ecosystem.md docs/architecture.md` prints nothing — exit 1,
-    no output
-- [x] The `All 10 .*(return a .String|…)` grep over the four pages prints nothing, and each "Code
-    generation" paragraph names its Sum-Code type — Node `NapiSumCodeResult` (`index.d.ts:193`),
-    Java `SumCodeResult` on both pages (`IsccLib.java:161`), C `iscc_IsccSumCodeResult` +
-    `iscc_free_sum_code_result` (`iscc.h:558/573`); `gen_iscc_id_v1` returns a string on Java and C
-- [x] `architecture.md` "Crate Summary", "Per-Binding Adaptation" and "Cross-Language Test Matrix"
-    each have a row for Ruby, C#/.NET, C++, Swift and Kotlin; no `iscc-ffi` row says `Source`; the
-    WASM row names `wasm-pack test --node` (`ci.yml:124`)
-- [x] `uv run pytest tests/test_c_ffi_docs.py` — 6 passed; `uv run scripts/check_tier1_docs.py` —
-    exit 0
-- [x] `uv run zensical build` — exit 0, "No issues found"
-- [x] `mise run check` — exit 0
-
-Beyond next.md: the facts behind the new rows (paths in `git ls-files`; archive contents in
-`release.yml:733-760`; hasher class and method names in the Ruby, .NET, C++, Swift and Kotlin
-sources; vector loaders in every test suite; `tests/test_vendored_fixtures.py` covering the four
-vendored copies) all match. The four registry links added to `ecosystem.md` return HTTP 200, and
-both Maven artifacts (`io.iscc:iscc-lib`, `io.iscc:iscc-lib-kotlin`) exist on Maven Central.
-
-**Issues found:**
-
-- Fixed in this review (two table cells in `architecture.md` → "Per-Binding Adaptation", both older
-    than this step): the C FFI row named `ctx_new()` / `ctx_update()` …, functions that do not exist
-    (real: `iscc_data_hasher_new()` and siblings); the Java row named `DataHasher`/`InstanceHasher`
-    classes, while Java has static `dataHasher*`/`instanceHasher*` methods on `IsccLib` only
-- Not filed (nits): `ecosystem.md` calls Go a "binding" in the iscc-lib intro (it is a pure-Go
-    port); the "Crate Summary" column is headed "Crate" but holds packages too; `IsccLibTest.java:2`
-    and root `CLAUDE.md` → "Conformance" say all 10 `gen_*_v0` functions have `data.json` vectors (9
-    do)
-- No new issue filed
-
-**Codex review:** no actionable findings ("Updated claims match the binding signatures and
-build/test configuration").
+- iscc-core 1.5.0 probe on both builds: `--python 3.10` (compiled wheel) and `--python 3.15` (pure
+    Python) both raise
+    `ValueError meta payload size (128001 bytes) exceeds META_TRIM_META (128000   bytes)`
+- `packages/go`: `CGO_ENABLED=0 go test -count=1 ./...` ok;
+    `GOARCH=386 CGO_ENABLED=0 go test   -count=1 ./...` ok; `go vet ./...` and
+    `GOARCH=386 go vet ./...` clean
+- The vector catches the old behaviour: in a /tmp copy of `packages/go` with HEAD's `code_meta.go`,
+    `go test -run DataEdge` FAILS with
+    `gen_meta_code_v0/test_0004_meta_payload_over_limit: expected   an error, got map[… iscc:ISCC:AAAWKLHFXNUBQAI7 …]`
+- `grep -n MetaTrimMeta packages/go/code_meta.go`: line 72/75 (post-decode check) and line 143
+    (`metaPreDecodeLimit`, which the pre-decode check uses)
+- `cargo test -p iscc-lib`: all test binaries ok (315 + 44 + 28 + … passed, 0 failed)
+- `uv run pytest tests/test_data_edge.py tests/test_vendored_fixtures.py   tests/test_gen_data_edge_vectors.py`:
+    165 passed
+- C FFI: built the way the CI step does (plus `-Wall`, no warnings); 148 passed, 0 failed, including
+    `PASS: data_edge/gen_meta_code_v0/test_0004_meta_payload_over_limit`
+- C++: cmake Debug + `SANITIZE_ADDRESS=ON` built with no warnings; 119 passed, 0 failed, same vector
+    PASS
+- `mise run check`: exit 0
 
 **Next:** the `[audit]` issue "`@iscc/wasm` docs show a Node.js setup the published package cannot
-run" (`normal`, 2 non-test files: `docs/howto/wasm.md`, `crates/iscc-wasm/README.md`). It needs a
-probe against a packed `wasm-pack build --target web` release build before any sentence is written,
-and it carries the last "All 10 … return the ISCC code as a string" sentence (`howto/wasm.md:82`).
-The other two `normal` entries: the one-shot/streaming dedup (core hot path, iai baseline in play)
-and `alg_minhash_256([])` (needs a behaviour decision first, then a `data-edge.json` vector).
+run" (docs only; probe a packed `wasm-pack build --target web` release build first).
 
 **Notes:**
 
-- Closed and deleted: "`docs/architecture.md` sections below the graph cover half the surfaces" and
-    "Six docs pages count 10 standard functions or give Sum-Code a string result". What is left of
-    the second one (`howto/wasm.md:82`) is already the third bullet of the WASM `[audit]` issue
-- `git grep -nE '10 .gen_' -- docs` now shows `howto/{python,ruby,rust}.md` and `ruby-api.md`
-    (library-wide counts with typed results, correct) plus `howto/wasm.md:82` (wrong, tracked)
-- Remaining `normal` issues: 3, all `[audit]`. `low`: 9
-- learnings.md stays at 200 lines; nothing added (routine pass)
+- Not run locally: the Node, WASM, JNI, Ruby, .NET, Swift and Kotlin harnesses. They all go through
+    the unchanged Rust core, which rejects the vector (the Rust and C/C++ harnesses prove it), and
+    they need no harness edit. CI runs them
+- The ~128 KB C string literal caused no compiler warning (gcc `-Wall`, C++ ASAN build)
+- No Rust code changed, so the iai and CRAP baselines are not affected

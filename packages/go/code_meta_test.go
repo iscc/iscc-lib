@@ -320,3 +320,55 @@ func TestGenMetaCodeV0Structure(t *testing.T) {
 		}
 	}
 }
+
+// metaJSONOfSize returns the JSON meta {"a":"xxx…"} whose canonical form is size bytes.
+func metaJSONOfSize(size int) string {
+	return `{"a":"` + strings.Repeat("x", size-8) + `"}`
+}
+
+// TestGenMetaCodeV0MetaSizeLimit pins the MetaTrimMeta boundary for both meta forms:
+// a payload of exactly MetaTrimMeta bytes succeeds, one byte more is rejected.
+func TestGenMetaCodeV0MetaSizeLimit(t *testing.T) {
+	cases := []struct {
+		name    string
+		size    int
+		dataURL bool
+		wantErr bool
+	}{
+		{"json at limit", MetaTrimMeta, false, false},
+		{"json over limit", MetaTrimMeta + 1, false, true},
+		{"data-url at limit", MetaTrimMeta, true, false},
+		{"data-url over limit", MetaTrimMeta + 1, true, true},
+	}
+	for _, tc := range cases {
+		meta := metaJSONOfSize(tc.size)
+		if tc.dataURL {
+			meta = buildMetaDataURL([]byte(meta), false)
+		}
+		_, err := GenMetaCodeV0("Hello", nil, &meta, 64)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("%s: err = %v, wantErr %v", tc.name, err, tc.wantErr)
+		}
+		if err != nil && !strings.Contains(err.Error(), "decoded meta payload exceeds size limit") {
+			t.Errorf("%s: err = %v, want post-decode rejection", tc.name, err)
+		}
+	}
+}
+
+// TestGenMetaCodeV0MetaPreDecodeLimit asserts a raw meta string longer than the
+// pre-decode bound is rejected even when its canonical form is tiny.
+func TestGenMetaCodeV0MetaPreDecodeLimit(t *testing.T) {
+	small := `{"a":1}`
+	atBound := small + strings.Repeat(" ", metaPreDecodeLimit-len(small))
+	if _, err := GenMetaCodeV0("Hello", nil, &atBound, 64); err != nil {
+		t.Errorf("meta string of %d bytes rejected: %v", len(atBound), err)
+	}
+	over := atBound + " "
+	_, err := GenMetaCodeV0("Hello", nil, &over, 64)
+	if err == nil || !strings.Contains(err.Error(), "meta string exceeds size limit") {
+		t.Errorf("meta string of %d bytes: err = %v, want pre-decode rejection", len(over), err)
+	}
+	if metaPreDecodeLimit != 170_922 {
+		t.Errorf("metaPreDecodeLimit = %d, want 170922", metaPreDecodeLimit)
+	}
+}

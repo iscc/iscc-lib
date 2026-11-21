@@ -52,6 +52,9 @@ func GenMetaCodeV0(name string, description, meta *string, bits uint32) (*MetaCo
 	var metaIsDataURL bool
 	if meta != nil {
 		metaStr := *meta
+		if err := checkMetaStringSize(metaStr); err != nil {
+			return nil, err
+		}
 		if strings.HasPrefix(metaStr, "data:") {
 			payload, err := decodeDataURL(metaStr)
 			if err != nil {
@@ -65,6 +68,12 @@ func GenMetaCodeV0(name string, description, meta *string, bits uint32) (*MetaCo
 				return nil, err
 			}
 			metaPayload = payload
+		}
+		if len(metaPayload) > MetaTrimMeta {
+			return nil, fmt.Errorf(
+				"iscc: decoded meta payload exceeds size limit (%d > %d bytes)",
+				len(metaPayload), MetaTrimMeta,
+			)
 		}
 	}
 
@@ -127,6 +136,22 @@ func GenMetaCodeV0(name string, description, meta *string, bits uint32) (*MetaCo
 		Meta:        "",
 		Metahash:    metahash,
 	}, nil
+}
+
+// metaPreDecodeLimit bounds the raw meta string before it is decoded or parsed:
+// the base64 size of a MetaTrimMeta payload plus room for a Data-URL header.
+const metaPreDecodeLimit = MetaTrimMeta*4/3 + 256
+
+// checkMetaStringSize rejects a raw meta string (JSON or Data-URL) longer than
+// metaPreDecodeLimit, before any decoding work, as the Rust core does.
+func checkMetaStringSize(metaStr string) error {
+	if len(metaStr) > metaPreDecodeLimit {
+		return fmt.Errorf(
+			"iscc: meta string exceeds size limit (%d > %d bytes)",
+			len(metaStr), metaPreDecodeLimit,
+		)
+	}
+	return nil
 }
 
 // metaNameSimhash computes a SimHash digest from name text for meta hashing.
