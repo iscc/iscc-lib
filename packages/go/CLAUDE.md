@@ -169,9 +169,12 @@ feeding both hashers from the same read loop.
     `ConformanceSelftest` is always available.
 - **Unicode character counting**: `SlidingWindow` and `TextCollapse` operate on `[]rune`, not bytes.
     Use `len([]rune(s))` for character counts, not `len(s)`.
-- **JSON canonicalization**: `parseMetaJSON` relies on Go's `json.Marshal` producing sorted keys and
-    compact format (matching JCS/RFC 8785 for string/boolean/null values). This works for all
-    conformance vectors but is not a full JCS implementation.
+- **JSON canonicalization**: `parseMetaJSON` emits sorted keys, compact format and RFC 8785 string
+    serialization: a `json.Encoder` with `SetEscapeHTML(false)` keeps `&`, `<`, `>` raw, and
+    `unescapeLineSeparators` rewrites the `\u2028`/`\u2029` escapes that `encoding/json` always
+    emits to raw UTF-8 (walking escapes pairwise, so an escaped backslash before literal `u2028`
+    text survives). Never use `json.Marshal` here. Numbers are not canonicalized per JCS, so this is
+    not a full JCS implementation.
 - **CDC tail handling**: `DataHasher.Push()` retains the last CDC chunk as `tail` for the next
     `Push` call (mirrors the Python `prev_chunk` pattern). Forgetting to call `Finalize()` loses the
     tail data.

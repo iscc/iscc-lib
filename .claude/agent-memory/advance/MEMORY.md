@@ -128,6 +128,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     reads only it)
 - Video ragged input (250): `soft_hash_video_v0` / Go `SoftHashVideoV0` reject unequal frame-sig
     lengths via private `check_frame_sig_lengths` (deliberate iscc-core deviation: ref truncates)
+- Go meta JCS (251): `parseMetaJSON` = Encoder `SetEscapeHTML(false)` + `unescapeLineSeparators`
+    (U+2028/9 raw); never `json.Marshal`. Heredocs can smuggle raw U+2028 into Go raw strings —
+    write JSON `\u2028` escapes and `grep -nP '[^\x00-\x7f]'` the test file
 - `alg_simhash` rejects `[]` (225, core + Go); generators keep 32 zeros via Rust `alg_simhash_inner`
     / Go unexported `algSimhash` — never call the public form from a generator
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type

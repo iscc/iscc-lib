@@ -4,6 +4,7 @@
 package iscc
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -232,19 +233,45 @@ func decodeDataURL(dataURL string) ([]byte, error) {
 	return decoded, nil
 }
 
-// parseMetaJSON parses a JSON string and re-serializes to RFC 8785 (JCS) canonical bytes.
-// Go's json.Marshal produces sorted keys and compact format, which matches JCS for
-// string/boolean/null values. This covers all ISCC conformance vectors.
+// parseMetaJSON parses a JSON string and re-serializes it to RFC 8785 (JCS) canonical bytes.
+//
+// Keys are sorted and the output is compact. Strings are serialized per RFC 8785
+// section 3.2.2.2: only '"', '\\' and control characters are escaped; '&', '<', '>',
+// U+2028 and U+2029 are emitted raw. Numbers are not canonicalized per JCS: they
+// pass through Go's float64 formatting unchanged.
 func parseMetaJSON(metaStr string) ([]byte, error) {
 	var parsed interface{}
 	if err := json.Unmarshal([]byte(metaStr), &parsed); err != nil {
 		return nil, fmt.Errorf("iscc: invalid JSON in meta: %w", err)
 	}
-	canonical, err := json.Marshal(parsed)
-	if err != nil {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(parsed); err != nil {
 		return nil, fmt.Errorf("iscc: JSON canonicalization failed: %w", err)
 	}
-	return canonical, nil
+	return unescapeLineSeparators(bytes.TrimSuffix(buf.Bytes(), []byte("\n"))), nil
+}
+
+// unescapeLineSeparators rewrites the escapes \u2028 and \u2029 that encoding/json
+// always emits into raw UTF-8, as RFC 8785 requires. It walks escape sequences
+// pairwise, so an escaped backslash followed by literal "u2028" text is kept.
+func unescapeLineSeparators(b []byte) []byte {
+	out := make([]byte, 0, len(b))
+	for i := 0; i < len(b); i++ {
+		if b[i] != '\\' || i+1 >= len(b) {
+			out = append(out, b[i])
+			continue
+		}
+		if i+5 < len(b) && b[i+1] == 'u' && string(b[i+2:i+5]) == "202" && (b[i+5] == '8' || b[i+5] == '9') {
+			out = append(out, 0xe2, 0x80, 0xa0+b[i+5]-'0')
+			i += 5
+			continue
+		}
+		out = append(out, b[i], b[i+1])
+		i++
+	}
+	return out
 }
 
 // jsonHasContext checks if a JSON string contains an "@context" key at the top level.
