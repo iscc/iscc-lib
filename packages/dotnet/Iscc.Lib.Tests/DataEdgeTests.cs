@@ -29,6 +29,8 @@ public class DataEdgeTests
         ["gen_mixed_code_v0"] = CallMixed,
         ["gen_iscc_code_v0"] = CallIsccCode,
         ["alg_simhash"] = CallSimhash,
+        ["gen_meta_code_v0"] = CallMeta,
+        ["gen_video_code_v0"] = CallVideo,
     };
 
     /// <summary>Load and parse testdata/data-edge.json from the test output directory.</summary>
@@ -64,6 +66,24 @@ public class DataEdgeTests
         }
         return result;
     }
+
+    /// <summary>Convert a JSON array of integer lists to one int array per item.</summary>
+    private static int[][] ToIntArrays(JsonElement array)
+    {
+        int[][] result = new int[array.GetArrayLength()][];
+        for (int i = 0; i < result.Length; i++)
+        {
+            JsonElement values = array[i];
+            result[i] = new int[values.GetArrayLength()];
+            for (int j = 0; j < result[i].Length; j++)
+                result[i][j] = values[j].GetInt32();
+        }
+        return result;
+    }
+
+    /// <summary>Read a meta input: a JSON object is passed as its raw JSON text, a string as is.</summary>
+    private static string MetaArg(JsonElement input) =>
+        input.ValueKind == JsonValueKind.Object ? input.GetRawText() : input.GetString()!;
 
     /// <summary>Wrap an ISCC string as an <c>{iscc}</c> object.</summary>
     private static JsonNode IsccObject(string iscc) => new JsonObject { ["iscc"] = iscc };
@@ -124,18 +144,42 @@ public class DataEdgeTests
         return new Prepared(() => IsccLib.AlgSimhash(digests), r => BytesValue((byte[])r));
     }
 
+    /// <summary>Prepare GenMetaCodeV0 (an empty description means none).</summary>
+    private static Prepared CallMeta(JsonElement inputs)
+    {
+        string name = inputs[0].GetString()!;
+        string descStr = inputs[1].GetString()!;
+        string? description = descStr.Length == 0 ? null : descStr;
+        string meta = MetaArg(inputs[2]);
+        uint bits = inputs[3].GetUInt32();
+        return new Prepared(
+            () => IsccLib.GenMetaCodeV0(name, description: description, meta: meta, bits: bits),
+            r => IsccObject(((MetaCodeResult)r).Iscc));
+    }
+
+    /// <summary>Prepare GenVideoCodeV0 on the vector's frame signatures and bits.</summary>
+    private static Prepared CallVideo(JsonElement inputs)
+    {
+        int[][] frames = ToIntArrays(inputs[0]);
+        uint bits = inputs[1].GetUInt32();
+        return new Prepared(
+            () => IsccLib.GenVideoCodeV0(frames, bits), r => IsccObject(((VideoCodeResult)r).Iscc));
+    }
+
     /// <summary>Serialize a JSON node compactly for comparison and messages.</summary>
     private static string Text(JsonNode? node) => node?.ToJsonString() ?? "null";
 
     /// <summary>
     /// Section name to the expected output keys its .NET result type does not carry, which
     /// are therefore not compared (an absent section compares every key). Gen results here
-    /// wrap a bare ISCC string, so text drops <c>characters</c> and mixed drops <c>parts</c>.
+    /// wrap a bare ISCC string, so text drops <c>characters</c>, mixed drops <c>parts</c> and
+    /// meta drops <c>name</c>, <c>meta</c> and <c>metahash</c>.
     /// </summary>
     private static readonly Dictionary<string, string[]> Uncompared = new()
     {
         ["gen_text_code_v0"] = new[] { "characters" },
         ["gen_mixed_code_v0"] = new[] { "parts" },
+        ["gen_meta_code_v0"] = new[] { "name", "meta", "metahash" },
     };
 
     /// <summary>
