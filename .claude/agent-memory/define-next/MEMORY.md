@@ -3,12 +3,12 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 276):** v0.8.0 features done; 11 `normal` left. 276 scoped the
-`conformance_selftest` single runner (Rust + Go generic `runSection`, CRAP baseline same step).
-Next: the docs-only batch (pkg-config, `KAA`, llms.txt/ISO, development.md Publish, Ruby Float docs
-— 5 issues, all decided), then JNI loader, one-shot/streaming dedup, WASM Node docs (probe),
-minhash. Per-iteration traps for 259-269 (dotnet roll-forward, build-dependent iscc-core,
-lone-surrogate vectors, wasm-bindgen `.d.ts` `?` rule, uncaught js-sys imports) →
+**Status 2026-11-21 (iter 277):** v0.8.0 features done; 10 `normal` left. 277 scoped the docs-only
+batch (pkg-config, `KAA`→`KUA` incl. `gen_iscc_code_v0([data, instance])` comments, llms.txt/ISO,
+development.md Publish + Swift heading, Ruby Float docs — 5 issues). Next: JNI loader fallback,
+architecture.md sections, WASM Node docs (probe), one-shot/streaming dedup (iai), minhash (needs
+decision → likely HUMAN). Per-iteration traps for 259-269 (dotnet roll-forward, build-dependent
+iscc-core, lone-surrogate vectors, wasm-bindgen `.d.ts` `?` rule, uncaught js-sys imports) →
 [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
 py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
 estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
