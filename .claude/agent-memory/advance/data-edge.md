@@ -53,3 +53,9 @@ metadata:
     string literal in `data_edge_vectors.h` builds clean under gcc `-Wall` and the C++ cmake ASAN
     build. Prove a Go vector bites: copy `packages/go` to /tmp, `git show HEAD:<file>` over the fix,
     drop the new `_test.go`, run `-run DataEdge`
+- C header literal limit (282): generator `c_text` turns any string > `C_LITERAL_MAX` (4095 decoded
+    bytes) into a zeroed `static char <ident>_<field>_buf[len+1]` filled by header-end
+    `iscc_edge_init()` (memcpy pieces ≤ 4095). Renderers take a per-section `bufs` collector; both
+    harnesses call init at the top of the edge block. Local MSVC stand-in:
+    `gcc -std=c99 -Woverlength-strings -Werror -fsyntax-only -x c <header>`. A missing init call
+    fails closed in C only; the pytest harness-call check guards C++

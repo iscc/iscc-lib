@@ -16,6 +16,10 @@ carry an explicit byte length, because a vector may hold an embedded NUL. Every
 non-printable or non-ASCII byte is emitted as a 3-digit octal escape: C hex escapes are
 greedy and unbounded (``\\xF0`` swallows any hex digit that follows), while octal
 escapes stop after 3 digits, so the header stays pure ASCII and parses unambiguously.
+A string longer than ``C_LITERAL_MAX`` bytes (the ISO C99 minimum literal length; MSVC
+rejects longer literals) is never a literal: it is a zeroed static buffer that the
+header's ``iscc_edge_init()`` fills from literal pieces of at most ``C_LITERAL_MAX``
+bytes, so every surface calls that function once before it reads a row.
 
 The generator fails closed (``SystemExit``) on a section it has no renderer for, an
 empty or missing section, an unexpected input arity or type, an ``except`` key
@@ -74,6 +78,8 @@ HEADER_PREAMBLE = """\
  *
  * Each row carries the resolved expectation for the c and cpp surfaces.
  * Strings carry an explicit byte length (a vector may hold an embedded NUL).
+ * A string over 4095 bytes (the ISO C99 minimum literal length) is a zeroed
+ * static buffer, filled by iscc_edge_init(): call it once before reading a row.
  * A list item is either text (UTF-8) or a binary digest (alg_simhash); both
  * are byte strings with an explicit length.
  * Non-printable and non-ASCII bytes are 3-digit octal escapes (never hex: C
@@ -92,6 +98,7 @@ HEADER_PREAMBLE = """\
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #define ISCC_EDGE_OK 0
 #define ISCC_EDGE_ERROR 1
@@ -218,6 +225,9 @@ NULL_STR = "{0, 0}"
 NULL_LIST = "{0, 0, 0}"
 # Frame values per line in a rendered int32 array.
 INT32_PER_LINE = 20
+# The longest string literal ISO C99 requires a compiler to accept, in bytes; longer
+# strings are filled into static buffers at runtime (MSVC rejects long literals).
+C_LITERAL_MAX = 4095
 
 
 def escape_c_bytes(data: bytes) -> str:
@@ -247,9 +257,47 @@ def escape_c_string(text: str) -> str:
     return escape_c_bytes(text.encode("utf-8"))
 
 
-def c_str(data: bytes) -> str:
+def c_text(data: bytes, ident: str, bufs: list[tuple[str, bytes]]) -> str:
+    """Render bytes as a C string expression: a literal, or a buffer when oversized.
+
+    Bytes longer than `C_LITERAL_MAX` become the buffer `<ident>_buf`, appended with its
+    bytes to `bufs` so the section declares it and `iscc_edge_init()` fills it.
+    """
+    if len(data) <= C_LITERAL_MAX:
+        return f'"{escape_c_bytes(data)}"'
+    name = f"{ident}_buf"
+    bufs.append((name, data))
+    return name
+
+
+def c_str(data: bytes, ident: str, bufs: list[tuple[str, bytes]]) -> str:
     """Render bytes as an `iscc_edge_str` initialiser carrying the byte length."""
-    return f'{{"{escape_c_bytes(data)}", {len(data)}}}'
+    return f"{{{c_text(data, ident, bufs)}, {len(data)}}}"
+
+
+def buffer_decl(name: str, data: bytes) -> str:
+    """Return the declaration of one zeroed static buffer, one byte longer for the NUL."""
+    return f"static char {name}[{len(data) + 1}];"
+
+
+def init_function(bufs: list[tuple[str, bytes]]) -> str:
+    """Return `iscc_edge_init()`, filling each buffer from literals of at most `C_LITERAL_MAX` bytes.
+
+    Each `memcpy` carries an explicit byte count, so an embedded NUL survives. The
+    function is emitted with an empty body when no buffer exists.
+    """
+    lines = [
+        "/* Fill the static buffers of strings over 4095 bytes; call once before use. */",
+        "static void iscc_edge_init(void) {",
+    ]
+    for name, data in bufs:
+        for offset in range(0, len(data), C_LITERAL_MAX):
+            piece = data[offset : offset + C_LITERAL_MAX]
+            lines.append(
+                f'    memcpy({name} + {offset}, "{escape_c_bytes(piece)}", {len(piece)});'
+            )
+    lines.append("}")
+    return "\n".join(lines) + "\n"
 
 
 def fixture_bytes(value: object, where: str) -> bytes:
@@ -378,7 +426,9 @@ def allowed_output_keys(section: str) -> frozenset[str]:
     return allowed
 
 
-def gen_iscc(vector: dict, where: str, section: str) -> str:
+def gen_iscc(
+    vector: dict, where: str, section: str, ident: str, bufs: list[tuple[str, bytes]]
+) -> str:
     """Return the expected `iscc` string initialiser of a gen vector (zeroed on error).
 
     The outputs may hold only keys the function's `data.json` vectors carry; C and C++
@@ -393,17 +443,23 @@ def gen_iscc(vector: dict, where: str, section: str) -> str:
     unknown = sorted(str(key) for key in set(outputs) - allowed)
     if unknown:
         raise SystemExit(f"{where}: output keys {unknown} not carried by data.json")
-    return c_str(require_str(outputs["iscc"], where).encode("utf-8"))
+    return c_str(
+        require_str(outputs["iscc"], where).encode("utf-8"), f"{ident}_iscc", bufs
+    )
 
 
-def byte_list_arrays(ident: str, items: list[bytes]) -> tuple[list[str], str]:
+def byte_list_arrays(
+    ident: str, items: list[bytes], bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
     """Return the static item/length array lines of one byte-string list and its initialiser.
 
     Every item carries an explicit length. An empty list gets a one-element sentinel
-    so the pointer is never NULL.
+    so the pointer is never NULL. An oversized item is the buffer `<ident>_i<k>_buf`.
     """
     padded = items or [b""]
-    strs = ", ".join(f'"{escape_c_bytes(e)}"' for e in padded)
+    strs = ", ".join(
+        c_text(e, f"{ident}_i{index}", bufs) for index, e in enumerate(padded)
+    )
     lens = ", ".join(str(len(e)) for e in padded)
     lines = [
         f"static const char *const {ident}_items[] = {{{strs}}};",
@@ -412,9 +468,11 @@ def byte_list_arrays(ident: str, items: list[bytes]) -> tuple[list[str], str]:
     return lines, f"{{{ident}_items, {ident}_lens, {len(items)}}}"
 
 
-def list_arrays(ident: str, items: list[str]) -> tuple[list[str], str]:
+def list_arrays(
+    ident: str, items: list[str], bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
     """Return the static item/length array lines of one string list (UTF-8) and its initialiser."""
-    return byte_list_arrays(ident, [item.encode("utf-8") for item in items])
+    return byte_list_arrays(ident, [item.encode("utf-8") for item in items], bufs)
 
 
 def int32_array(ident: str, values: list[int]) -> list[str]:
@@ -444,99 +502,123 @@ def frame_arrays(ident: str, frames: list[list[int]]) -> tuple[list[str], str]:
     return lines, f"{{{ident}_frames, {ident}_lens, {len(frames)}}}"
 
 
-def row_iscc_decode(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
+def row_iscc_decode(
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
     """Return the list-array lines and fields of one `iscc_decode` row."""
     (code,) = require_arity(vector["inputs"], (1,), where)
-    text = c_str(require_str(code, where).encode("utf-8"))
+    text = c_str(require_str(code, where).encode("utf-8"), f"{ident}_input", bufs)
     if "error" in vector:
         return [], f"{text}, 0, 0, 0, 0, {NULL_STR}"
     outputs = vector["outputs"]
     if not isinstance(outputs, list) or len(outputs) != 5:
         raise SystemExit(f"{where}: iscc_decode outputs must be a 5-element list")
     header = ", ".join(str(require_int(v, where)) for v in outputs[:4])
-    return [], f"{text}, {header}, {c_str(fixture_bytes(outputs[4], where))}"
+    digest = c_str(fixture_bytes(outputs[4], where), f"{ident}_digest", bufs)
+    return [], f"{text}, {header}, {digest}"
 
 
-def row_encode_seq(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
+def row_encode_seq(
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
     """Return the list-array lines and fields of one `encode_seq` row."""
     (units,) = require_arity(vector["inputs"], (1,), where)
-    lines, units_init = list_arrays(ident, require_str_list(units, where))
+    lines, units_init = list_arrays(ident, require_str_list(units, where), bufs)
     if "error" in vector:
         return lines, f"{units_init}, {NULL_STR}"
-    return lines, f"{units_init}, {c_str(fixture_bytes(vector['outputs'], where))}"
+    seq = c_str(fixture_bytes(vector["outputs"], where), f"{ident}_seq", bufs)
+    return lines, f"{units_init}, {seq}"
 
 
-def row_gen_text_code_v0(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
+def row_gen_text_code_v0(
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
     """Return the list-array lines and fields of one `gen_text_code_v0` row."""
     text, bits = require_arity(vector["inputs"], (2,), where)
-    text_init = c_str(require_str(text, where).encode("utf-8"))
-    iscc = gen_iscc(vector, where, "gen_text_code_v0")
+    text_init = c_str(require_str(text, where).encode("utf-8"), f"{ident}_text", bufs)
+    iscc = gen_iscc(vector, where, "gen_text_code_v0", ident, bufs)
     return [], f"{text_init}, {require_int(bits, where)}, {iscc}"
 
 
 def row_gen_mixed_code_v0(
-    vector: dict, where: str, ident: str
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
 ) -> tuple[list[str], str]:
     """Return the list-array lines and fields of one `gen_mixed_code_v0` row."""
     codes, bits = require_arity(vector["inputs"], (2,), where)
-    lines, codes_init = list_arrays(ident, require_str_list(codes, where))
-    iscc = gen_iscc(vector, where, "gen_mixed_code_v0")
+    lines, codes_init = list_arrays(ident, require_str_list(codes, where), bufs)
+    iscc = gen_iscc(vector, where, "gen_mixed_code_v0", ident, bufs)
     return lines, f"{codes_init}, {require_int(bits, where)}, {iscc}"
 
 
-def row_gen_iscc_code_v0(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
+def row_gen_iscc_code_v0(
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
     """Return the list-array lines and fields of one `gen_iscc_code_v0` row."""
     inputs = require_arity(vector["inputs"], (1, 2), where)
-    lines, codes_init = list_arrays(ident, require_str_list(inputs[0], where))
+    lines, codes_init = list_arrays(ident, require_str_list(inputs[0], where), bufs)
     wide = inputs[1] if len(inputs) == 2 else False
     if not isinstance(wide, bool):
         raise SystemExit(f"{where}: wide must be a boolean, got {wide!r}")
-    iscc = gen_iscc(vector, where, "gen_iscc_code_v0")
+    iscc = gen_iscc(vector, where, "gen_iscc_code_v0", ident, bufs)
     return lines, f"{codes_init}, {int(wide)}, {iscc}"
 
 
-def row_alg_simhash(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
+def row_alg_simhash(
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
     """Return the list-array lines and fields of one `alg_simhash` row."""
     (digests,) = require_arity(vector["inputs"], (1,), where)
-    lines, digests_init = byte_list_arrays(ident, require_bytes_list(digests, where))
+    lines, digests_init = byte_list_arrays(
+        ident, require_bytes_list(digests, where), bufs
+    )
     if "error" in vector:
         return lines, f"{digests_init}, {NULL_STR}"
-    return lines, f"{digests_init}, {c_str(fixture_bytes(vector['outputs'], where))}"
+    simhash = c_str(fixture_bytes(vector["outputs"], where), f"{ident}_simhash", bufs)
+    return lines, f"{digests_init}, {simhash}"
 
 
-def row_gen_meta_code_v0(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
+def row_gen_meta_code_v0(
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
     """Return the list-array lines and fields of one `gen_meta_code_v0` row."""
     name, description, meta, bits = require_arity(vector["inputs"], (4,), where)
     strs = [
-        c_str(require_str(name, where).encode("utf-8")),
-        c_str(require_str(description, where).encode("utf-8")),
-        c_str(meta_text(meta, where).encode("utf-8")),
+        c_str(require_str(name, where).encode("utf-8"), f"{ident}_input_name", bufs),
+        c_str(
+            require_str(description, where).encode("utf-8"),
+            f"{ident}_description",
+            bufs,
+        ),
+        c_str(meta_text(meta, where).encode("utf-8"), f"{ident}_meta", bufs),
     ]
-    iscc = gen_iscc(vector, where, "gen_meta_code_v0")
+    iscc = gen_iscc(vector, where, "gen_meta_code_v0", ident, bufs)
     return [], f"{', '.join(strs)}, {require_int(bits, where)}, {iscc}"
 
 
 def row_gen_video_code_v0(
-    vector: dict, where: str, ident: str
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
 ) -> tuple[list[str], str]:
     """Return the frame-array lines and fields of one `gen_video_code_v0` row."""
     frames, bits = require_arity(vector["inputs"], (2,), where)
     lines, frames_init = frame_arrays(ident, require_int32_frames(frames, where))
-    iscc = gen_iscc(vector, where, "gen_video_code_v0")
+    iscc = gen_iscc(vector, where, "gen_video_code_v0", ident, bufs)
     return lines, f"{frames_init}, {require_int(bits, where)}, {iscc}"
 
 
-def row_alg_cdc_chunks(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
+def row_alg_cdc_chunks(
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
     """Return the chunk-list array lines and fields of one `alg_cdc_chunks` row."""
     data, utf32, avg = require_arity(vector["inputs"], (3,), where)
     head = (
-        f"{c_str(fixture_bytes(data, where))}, {int(require_bool(utf32, where))}, "
+        f"{c_str(fixture_bytes(data, where), f'{ident}_data', bufs)}, "
+        f"{int(require_bool(utf32, where))}, "
         f"{require_u32(avg, where)}u"
     )
     if "error" in vector:
         return [], f"{head}, {NULL_LIST}"
     lines, chunks_init = byte_list_arrays(
-        ident, require_bytes_list(vector["outputs"], where)
+        ident, require_bytes_list(vector["outputs"], where), bufs
     )
     return lines, f"{head}, {chunks_init}"
 
@@ -560,11 +642,16 @@ def count_macro(section: str) -> str:
     return f"ISCC_EDGE_{section.upper()}_COUNT"
 
 
-def render_section(section: str, vectors: dict) -> str:
-    """Render one fixture section as list arrays, a count macro and a row array."""
+def render_section(section: str, vectors: dict) -> tuple[str, list[tuple[str, bytes]]]:
+    """Render one fixture section as buffers, list arrays, a count macro and a row array.
+
+    Returns the section text and its oversized strings (buffer name, bytes), which the
+    section declares first and `iscc_edge_init()` fills.
+    """
     if not isinstance(vectors, dict) or not vectors:
         raise SystemExit(f"fixture section {section!r} is missing or empty")
     arrays: list[str] = []
+    bufs: list[tuple[str, bytes]] = []
     rows = []
     for index, (name, vector) in enumerate(vectors.items()):
         where = f"{section}/{name}"
@@ -572,17 +659,19 @@ def render_section(section: str, vectors: dict) -> str:
             raise SystemExit(f"{where}: vector must be an object with inputs")
         expect = expectations(vector, where)
         ident = f"iscc_edge_{section}_{index}"
-        lines, fields = RENDERERS[section](vector, where, ident)
+        lines, fields = RENDERERS[section](vector, where, ident, bufs)
         arrays.extend(lines)
-        rows.append(f'    {{"{escape_c_string(name)}", {expect},\n     {fields}}},')
+        label = c_text(name.encode("utf-8"), f"{ident}_name", bufs)
+        rows.append(f"    {{{label}, {expect},\n     {fields}}},")
     macro = count_macro(section)
-    lines = [*arrays, f"#define {macro} {len(vectors)}"]
+    decls = [buffer_decl(buf, data) for buf, data in bufs]
+    lines = [*decls, *arrays, f"#define {macro} {len(vectors)}"]
     lines.append(
         f"static const struct iscc_edge_{section}_vector iscc_edge_{section}[{macro}] = {{"
     )
     lines.extend(rows)
     lines.append("};")
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines) + "\n", bufs
 
 
 def render(fixture_path: Path) -> str:
@@ -592,10 +681,14 @@ def render(fixture_path: Path) -> str:
     if unknown:
         raise SystemExit(f"no renderer for fixture section(s) {unknown}")
     blocks = [HEADER_PREAMBLE]
+    bufs: list[tuple[str, bytes]] = []
     for section in RENDERERS:
-        blocks.append(render_section(section, fixture.get(section)))
+        block, section_bufs = render_section(section, fixture.get(section))
+        blocks.append(block)
+        bufs.extend(section_bufs)
     total = sum(len(fixture[section]) for section in RENDERERS)
     blocks.append(f"#define ISCC_EDGE_TOTAL_COUNT {total}\n")
+    blocks.append(init_function(bufs))
     blocks.append(HEADER_POSTAMBLE)
     header = "\n".join(blocks)
     if not header.isascii():

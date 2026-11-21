@@ -793,6 +793,7 @@ int main() {
 
     // Shared edge-case vectors (data-edge.json) via the generated header
     {
+        iscc_edge_init();  // fill rows over 4095 bytes
         size_t seen = 0;
         seen += run_edge_section("iscc_decode", iscc_edge_iscc_decode,
                                  ISCC_EDGE_ISCC_DECODE_COUNT, check_edge_iscc_decode);

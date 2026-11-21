@@ -144,9 +144,10 @@ LD_LIBRARY_PATH=target/debug /tmp/test_iscc
 - Runs every `crates/iscc-lib/tests/data-edge.json` vector from the generated
     `tests/data_edge_vectors.h` (one check function per section, `RUN_EDGE_SECTION` loop, total row
     tally against `ISCC_EDGE_TOTAL_COUNT`). Each row carries its resolved `c`/`cpp` expectation, so
-    a harness never names a vector. Regenerate after editing the fixture:
-    `uv run --script scripts/gen_data_edge_vectors.py`; `tests/test_gen_data_edge_vectors.py` fails
-    when the header is stale
+    a harness never names a vector. A string over 4,095 bytes is a static buffer that
+    `iscc_edge_init()` fills, so `main` calls it once before the first edge section. Regenerate
+    after editing the fixture: `uv run --script scripts/gen_data_edge_vectors.py`;
+    `tests/test_gen_data_edge_vectors.py` fails when the header is stale
 
 ## Safety Rules for `unsafe` Code
 

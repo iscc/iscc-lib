@@ -96,9 +96,11 @@ The `cpp` job in `.github/workflows/ci.yml` runs on `ubuntu-latest`:
 - Runs every `crates/iscc-lib/tests/data-edge.json` vector from the generated header
     `crates/iscc-ffi/tests/data_edge_vectors.h`, shared with the C test (one check function per
     section, `run_edge_section` loop, total row tally against `ISCC_EDGE_TOTAL_COUNT`). A row's
-    `cpp` field is its resolved expectation; a rejection is `iscc::IsccError` from the raw call.
-    Regenerate after editing the fixture: `uv run --script scripts/gen_data_edge_vectors.py`;
-    `tests/test_gen_data_edge_vectors.py` fails when the header is stale
+    `cpp` field is its resolved expectation; a rejection is `iscc::IsccError` from the raw call. A
+    string over 4,095 bytes is a static buffer that `iscc_edge_init()` fills, so `main` calls it
+    once before the first edge section. Regenerate after editing the fixture:
+    `uv run --script scripts/gen_data_edge_vectors.py`; `tests/test_gen_data_edge_vectors.py` fails
+    when the header is stale
 - Temporary files for `gen_sum_code_v0` tests are created in
     `std::filesystem::temp_directory_path()` and cleaned up after
 

@@ -5,7 +5,9 @@ The anchor test asserts that regenerating the tracked header from the canonical
 which runs pytest but never the generator. A mutation test proves the gate fires.
 Fail-closed guards (unknown section, bad input arity, bad ``except`` key, a gen
 output key outside the ``data.json`` set) run on fixture copies in ``tmp_path``; the
-tracked fixture is never mutated. Counts are derived from the fixture, never written as
+tracked fixture is never mutated. Every string literal of the header fits the ISO C99
+minimum (``C_LITERAL_MAX``); longer strings are buffers filled by ``iscc_edge_init()``,
+which both harnesses call. Counts are derived from the fixture, never written as
 literals. No network, no mocks.
 """
 
@@ -28,6 +30,12 @@ _loader.exec_module(gen)
 
 FIXTURE = _REPO_ROOT / "crates" / "iscc-lib" / "tests" / "data-edge.json"
 HEADER = _REPO_ROOT / "crates" / "iscc-ffi" / "tests" / "data_edge_vectors.h"
+HARNESSES = {
+    _REPO_ROOT / "crates" / "iscc-ffi" / "tests" / "test_iscc.c": 'RUN_EDGE_SECTION("',
+    _REPO_ROOT / "packages" / "cpp" / "tests" / "test_iscc.cpp": 'run_edge_section("',
+}
+# A C block comment or a string literal (group 1 holds the literal body).
+C_TOKEN = re.compile(r'/\*.*?\*/|"((?:[^"\\\n]|\\.)*)"', flags=re.DOTALL)
 NUL_TEXT = "Hello\x00World"
 
 
@@ -48,6 +56,48 @@ def write_mutated_fixture(tmp_path, mutate):
 def c_escape_chars(text):
     """Return the character after each backslash escape, scanning left to right."""
     return re.findall(r"\\(.)", text, flags=re.DOTALL)
+
+
+def unescape_c(body):
+    """Decode the bytes of a C string literal body (octal and single-character escapes)."""
+    raw = body.encode("ascii")
+    out = bytearray()
+    for match in re.finditer(rb"\\([0-7]{1,3}|.)|([^\\])", raw, flags=re.DOTALL):
+        escape, plain = match.groups()
+        if plain is not None:
+            out += plain
+        elif escape[:1].isdigit():
+            out.append(int(escape, 8))
+        else:
+            out += escape
+    return bytes(out)
+
+
+def c_string_literals(text):
+    """Return the decoded bytes of every string literal, adjacent pieces joined."""
+    literals = []
+    previous_end = None
+    for match in C_TOKEN.finditer(text):
+        if match.group(1) is None:
+            previous_end = None
+            continue
+        piece = unescape_c(match.group(1))
+        gap = text[previous_end : match.start()] if previous_end is not None else None
+        if gap is not None and not gap.strip():
+            literals[-1] += piece
+        else:
+            literals.append(piece)
+        previous_end = match.end()
+    return literals
+
+
+def memcpy_pieces(text, name):
+    """Return the (offset, bytes, count) of every `memcpy` into buffer `name`."""
+    pattern = rf'memcpy\({name} \+ (\d+), "((?:[^"\\]|\\.)*)", (\d+)\);'
+    return [
+        (int(offset), unescape_c(body), int(count))
+        for offset, body, count in re.findall(pattern, text)
+    ]
 
 
 def find_vector(fixture, section, inputs):
@@ -124,7 +174,7 @@ def test_expectations_follow_outputs_error_and_except():
 
 def test_empty_list_renders_non_null_sentinel_with_count_zero():
     """An empty input list points at a one-element sentinel array with count 0."""
-    lines, init = gen.list_arrays("ident", [])
+    lines, init = gen.list_arrays("ident", [], [])
     assert lines == [
         'static const char *const ident_items[] = {""};',
         "static const size_t ident_lens[] = {0};",
@@ -134,13 +184,13 @@ def test_empty_list_renders_non_null_sentinel_with_count_zero():
 
 def test_byte_list_renders_binary_items_with_explicit_lengths():
     """A digest list renders each item as octal-escaped bytes with its own length."""
-    lines, init = gen.byte_list_arrays("ident", [b"\xf0\x0f", b"<<"])
+    lines, init = gen.byte_list_arrays("ident", [b"\xf0\x0f", b"<<"], [])
     assert lines == [
         'static const char *const ident_items[] = {"\\360\\017", "<<"};',
         "static const size_t ident_lens[] = {2, 2};",
     ]
     assert init == "{ident_items, ident_lens, 2}"
-    assert gen.byte_list_arrays("ident", []) == gen.list_arrays("ident", [])
+    assert gen.byte_list_arrays("ident", [], []) == gen.list_arrays("ident", [], [])
 
 
 def test_alg_simhash_rows_render_digests_and_empty_sentinel():
@@ -150,7 +200,9 @@ def test_alg_simhash_rows_render_digests_and_empty_sentinel():
     for name, vector in fixture["alg_simhash"].items():
         digests = [bytes.fromhex(d.removeprefix("bytes:")) for d in vector["inputs"][0]]
         index = list(fixture["alg_simhash"]).index(name)
-        lines, init = gen.byte_list_arrays(f"iscc_edge_alg_simhash_{index}", digests)
+        lines, init = gen.byte_list_arrays(
+            f"iscc_edge_alg_simhash_{index}", digests, []
+        )
         assert all(line in text for line in lines), name
         assert f'{{"{name}", ' in text and init in text, name
     empty, _ = find_vector(fixture, "alg_simhash", [[]])
@@ -216,7 +268,7 @@ def test_meta_row_renders_meta_text():
     fixture = load_fixture()
     text = HEADER.read_text(encoding="utf-8")
     object_rows = 0
-    for name, vector in fixture["gen_meta_code_v0"].items():
+    for index, (name, vector) in enumerate(fixture["gen_meta_code_v0"].items()):
         meta = vector["inputs"][2]
         if isinstance(meta, dict):
             object_rows += 1
@@ -224,7 +276,8 @@ def test_meta_row_renders_meta_text():
         else:
             assert isinstance(meta, str), name
             raw = meta
-        assert gen.c_str(raw.encode("utf-8")) in text, name
+        ident = f"iscc_edge_gen_meta_code_v0_{index}_meta"
+        assert gen.c_str(raw.encode("utf-8"), ident, []) in text, name
     assert object_rows >= 1
 
 
@@ -259,8 +312,10 @@ def test_cdc_rows_render_data_flag_size_and_chunks():
     for index, (name, vector) in enumerate(fixture["alg_cdc_chunks"].items()):
         data, utf32, avg = vector["inputs"]
         chunks = [bytes.fromhex(c.removeprefix("bytes:")) for c in vector["outputs"]]
-        lines, init = gen.byte_list_arrays(f"iscc_edge_alg_cdc_chunks_{index}", chunks)
-        head = f"{gen.c_str(bytes.fromhex(data.removeprefix('bytes:')))}, {int(utf32)}, {avg}u"
+        ident = f"iscc_edge_alg_cdc_chunks_{index}"
+        lines, init = gen.byte_list_arrays(ident, chunks, [])
+        raw = bytes.fromhex(data.removeprefix("bytes:"))
+        head = f"{gen.c_str(raw, f'{ident}_data', [])}, {int(utf32)}, {avg}u"
         assert all(line in text for line in lines), name
         assert f"{head}, {init}}}," in text, name
     assert '{"", 0}, 0, 1024u, ' in text, (
@@ -397,5 +452,87 @@ def test_gen_section_without_data_json_counterpart_fails_closed():
     """A gen section absent from data.json refuses to render, even on an error vector."""
     with pytest.raises(SystemExit, match="gen_foo_v0"):
         gen.gen_iscc(
-            {"inputs": [], "error": "e"}, "gen_foo_v0/test_0001_x", "gen_foo_v0"
+            {"inputs": [], "error": "e"},
+            "gen_foo_v0/test_0001_x",
+            "gen_foo_v0",
+            "ident",
+            [],
         )
+
+
+def test_c_string_literals_joins_pieces_and_decodes_escapes():
+    """The literal scanner joins adjacent pieces, decodes escapes and skips comments."""
+    text = '/* "no" */ x = "a\\101" "\\"b\\?";\ny = "\\0001";'
+    assert c_string_literals(text) == [b'aA"b?', b"\x001"]
+    oversized = '"' + "x" * (gen.C_LITERAL_MAX + 1) + '"'
+    assert [len(s) for s in c_string_literals(oversized)] == [gen.C_LITERAL_MAX + 1]
+
+
+def test_tracked_header_string_literals_fit_c99_minimum():
+    """Every string literal of the header, adjacent pieces joined, fits C_LITERAL_MAX bytes."""
+    literals = c_string_literals(HEADER.read_text(encoding="utf-8"))
+    assert literals, "no string literal checked"
+    too_long = [len(s) for s in literals if len(s) > gen.C_LITERAL_MAX]
+    assert too_long == []
+
+
+def test_tracked_header_always_defines_edge_init():
+    """The header defines iscc_edge_init, with an empty body when no buffer exists."""
+    text = HEADER.read_text(encoding="utf-8")
+    assert "#include <string.h>\n" in text
+    assert "static void iscc_edge_init(void) {\n" in text
+    assert gen.init_function([]).endswith("static void iscc_edge_init(void) {\n}\n")
+
+
+def test_harnesses_call_edge_init_before_the_first_edge_section():
+    """Both harnesses call iscc_edge_init() before they run the first edge section."""
+    for path, first_run in HARNESSES.items():
+        source = path.read_text(encoding="utf-8")
+        call = source.find("iscc_edge_init();")
+        assert call != -1, path.name
+        assert call < source.index(first_run), path.name
+
+
+def test_oversized_meta_renders_buffer_filled_by_init_pieces(tmp_path):
+    """An oversized non-ASCII meta is a len + 1 buffer whose init pieces rebuild its UTF-8.
+
+    The one-byte ASCII prefix puts a piece boundary inside a two-byte UTF-8 sequence.
+    """
+    meta = {"a": "x" + "\u00fc" * 3000}
+
+    def mutate(fixture):
+        vector = next(iter(fixture["gen_meta_code_v0"].values()))
+        vector["inputs"][2] = meta
+
+    text = gen.render(write_mutated_fixture(tmp_path, mutate))
+    raw = json.dumps(meta, ensure_ascii=False).encode("utf-8")
+    assert len(raw) > gen.C_LITERAL_MAX
+    name = "iscc_edge_gen_meta_code_v0_0_meta_buf"
+    assert f"static char {name}[{len(raw) + 1}];\n" in text
+    assert f"{{{name}, {len(raw)}}}" in text
+    pieces = memcpy_pieces(text, name)
+    assert len(pieces) == -(-len(raw) // gen.C_LITERAL_MAX)
+    offsets = [offset for offset, _, _ in pieces]
+    assert offsets == list(range(0, len(raw), gen.C_LITERAL_MAX))
+    assert all(len(piece) == count <= gen.C_LITERAL_MAX for _, piece, count in pieces)
+    assert b"".join(piece for _, piece, _ in pieces) == raw
+    assert all(len(s) <= gen.C_LITERAL_MAX for s in c_string_literals(text))
+
+
+def test_oversized_nul_bytes_survive_init_pieces():
+    """An oversized string of NUL bytes fills its buffer through explicit byte counts."""
+    data = b"\x00" * (gen.C_LITERAL_MAX + 10)
+    bufs = []
+    assert gen.c_str(data, "id", bufs) == f"{{id_buf, {len(data)}}}"
+    assert bufs == [("id_buf", data)]
+    pieces = memcpy_pieces(gen.init_function(bufs), "id_buf")
+    assert [count for _, _, count in pieces] == [gen.C_LITERAL_MAX, 10]
+    assert b"".join(piece for _, piece, _ in pieces) == data
+
+
+def test_short_string_stays_a_literal():
+    """A string of exactly C_LITERAL_MAX bytes stays a literal and adds no buffer."""
+    bufs = []
+    data = b"x" * gen.C_LITERAL_MAX
+    assert gen.c_str(data, "id", bufs) == f'{{"{data.decode()}", {len(data)}}}'
+    assert bufs == []
