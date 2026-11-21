@@ -102,7 +102,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     tag** (259): `fetch-depth: 0` fetches every tag, `git tag … || echo` keeps it and the
     `push --force` is a no-op, so a hand-pushed tag stays on the pre-checksum commit
 - **`setup-dotnet` installs the latest LTS runtime before each requested version** (260), a private
-    `DOTNET_INSTALL_DIR` included; `skip-lts-prepass: true` stops it. Read the action's source
+    `DOTNET_INSTALL_DIR` included; `skip-lts-prepass: true` stops it (262: SDK 10 still drives)
 - **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): source gems
     up to 0.7.0 do not build. Probe: `gem fetch iscc-lib --platform ruby`, then
     `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`. **A platform-fallback claim needs

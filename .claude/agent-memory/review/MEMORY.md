@@ -119,7 +119,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **Action pin / release.yml / any GHA bump**: static-verify only via the committed gates
     (`check_release_workflow.py` + `--check-action-inputs`); `always()` = NEEDS_WORK →
     `gha-workflow-reviews.md`
-- **ci.yml fix only CI can prove (260, ~25 min)**: read the action's source at the tag, push the
+- **ci.yml fix only CI can prove (260/262, ~15 min)**: read the action's source at the tag, push the
     advance commits FIRST, read the job LOG, then write the handoff → `gha-workflow-reviews.md`
 - **Pre-flight `uv run prek run --hook-stage pre-push --all-files` before pushing never-CI'd code**
     (~15 min, background, last) → `review-patterns.md` "Moved from the index (239)"

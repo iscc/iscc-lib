@@ -1,44 +1,55 @@
-## 2026-11-21 — Kotlin plugins resolve from Maven Central; the .NET 10 leg skips setup-dotnet's LTS pre-pass
+## 2026-11-21 — Review of: Kotlin plugins resolve from Maven Central; the .NET 10 leg skips setup-dotnet's LTS pre-pass
 
-**Done:** Added a `pluginManagement { repositories { mavenCentral(); gradlePluginPortal() } }` block
-with a comment to the top of `packages/kotlin/settings.gradle.kts`, so `kotlin("jvm")` and its BOM
-come from Maven Central and the portal is only the fallback. Set `skip-lts-prepass: true` on the
-`dotnet-test` `setup-dotnet` step and rewrote the matrix comment to say that the private install dir
-plus the skipped pre-pass leave a leg with only the runtimes it lists.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/kotlin/settings.gradle.kts`: `pluginManagement` block, Maven Central before the portal
-- `.github/workflows/ci.yml`: `dotnet-test` gets `skip-lts-prepass: true` under `with:`, plus the
-    rewritten matrix comment (no date named)
+**Summary:** CI is green again. `packages/kotlin/settings.gradle.kts` resolves Gradle plugins from
+Maven Central first, with the plugin portal as the fallback, and the `dotnet-test` job sets
+`skip-lts-prepass: true`, so each .NET leg holds only the SDKs it lists. The diff touches the two
+files next.md named and nothing else. Both changes are confirmed on the pushed run, including the
+one claim that could not be checked locally.
 
 **Verification:**
 
-- `grep -n 'pluginManagement'` matches line 5; `mavenCentral()` (l.7) comes before
-    `gradlePluginPortal()` (l.8)
-- `cargo build -p iscc-uniffi && ./gradlew test --refresh-dependencies --rerun-tasks`: BUILD
-    SUCCESSFUL, "5 actionable tasks: 5 executed" (`:test` ran, not UP-TO-DATE). JUnit XML:
-    ConformanceTest 19 tests, DataEdgeTest 6 tests, 0 failures/errors/skipped
-- `./gradlew buildEnvironment --refresh-dependencies --info` exit 0. The BOM line:
-    `Cached resource https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugins-bom/2.4.10/kotlin-gradle-plugins-bom-2.4.10.pom is up-to-date`
-    (Gradle checked the remote again because of `--refresh-dependencies`). The plugin marker POM
-    also resolves from `repo.maven.apache.org`. `grep -c plugins.gradle.org` on the log gives **0**
-- `grep -n 'skip-lts-prepass: true' .github/workflows/ci.yml` → line 183, inside `dotnet-test`
-- `yaml.safe_load` on ci.yml OK; `mise run check` exit 0 (all hooks Passed)
-- Confirmed the input exists: `gh api …/actions/setup-dotnet/contents/action.yml?ref=v6` lists
-    `skip-lts-prepass` ("skips the LTS runtime pre-pass … Default: false")
+- [x] `grep -n 'pluginManagement' packages/kotlin/settings.gradle.kts` matches, `mavenCentral()`
+    before `gradlePluginPortal()` — lines 5, 7, 8
+- [x] `cargo build -p iscc-uniffi && ./gradlew test --refresh-dependencies` exits 0, test task
+    forced — run with `--rerun-tasks`: BUILD SUCCESSFUL, "5 actionable tasks: 5 executed"
+- [x] `./gradlew buildEnvironment --refresh-dependencies --info` shows the BOM from Maven Central —
+    `Cached resource https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugins-bom/2.4.10/kotlin-gradle-plugins-bom-2.4.10.pom is up-to-date`;
+    0 lines mention `plugins.gradle.org`
+- [x] `grep -n 'skip-lts-prepass: true' .github/workflows/ci.yml` matches inside `dotnet-test` —
+    line 183; `yaml.safe_load` reads it as `True` under the setup-dotnet step's `with:`
+- [x] `yaml.safe_load` on `ci.yml` exits 0 and `mise run check` exits 0 — all hooks Passed
+- [x] Done When, on CI run 44909648953 (commit `28d4fb8`, whole run green): Kotlin job, both
+    `dotnet-test` legs and the `dotnet` aggregator succeeded. Both setup-dotnet logs print "Skipping
+    LTS runtime pre-pass (skip-lts-prepass: true)." and hold no `--channel LTS` call. The 8.0 leg
+    installed SDK 8.0.428 only, the 10.0 leg SDK 8.0.428 and 10.0.404. Each leg: 154 passed, 0
+    failed, so `Runtime_MatchesExpectedMajorVersion` passed on runtime 10. The Kotlin job log has 0
+    lines mentioning `plugins.gradle.org`
 
-**Next:** Review must confirm on the pushed run that the Kotlin job, both `dotnet-test` legs and the
-`dotnet` aggregator pass, and that the 10.0 leg's setup-dotnet log shows no `--channel LTS` install.
-The muxer claim (SDK 10 drives the 10.0 leg without the pre-pass) is **unverified locally**. Only
-`Runtime_MatchesExpectedMajorVersion` on that leg in CI can settle it. After that: the
-`alg_cdc_chunks` overflow (Rust + Go + vector).
+**Issues found:**
+
+- The issue "The .NET 10 CI leg depends on which .NET is the latest LTS" is resolved and deleted
+- Minor, fixed in this commit: a Gradle run leaves an untracked `packages/kotlin/.kotlin/` session
+    directory (advance noted it). Added `.kotlin/` to `packages/kotlin/.gitignore`
+- No new issues filed
+
+**Codex review:** No actionable findings. It reports 25 Kotlin tests and 154 .NET tests passing on
+runtimes 8 and 10 in its own run.
+
+**Next:** `alg_cdc_chunks` accepts an `avg_chunk_size` whose parameter maths overflows (`normal`
+[audit]): Rust + Go validation or u64 maths, plus a `data-edge.json` vector at the boundary. It is a
+core change on a benchmarked path, so the step needs `mise run bench:iai:check`, the CRAP baseline
+and the full feature matrix. A new vector in an existing `data-edge.json` section reaches every
+harness; a new section is a 12-surface fan-out.
 
 **Notes:**
 
-- The Gradle run creates `packages/kotlin/.kotlin/` (Kotlin 2.x session dir), which is not
-    gitignored. I deleted it and did not commit it. It is out of scope here, but `.gitignore` could
-    cover it.
-- I left `release.yml` alone as next.md said. Its Kotlin jobs build from the same directory, so they
-    pick up the `pluginManagement` block automatically.
-- No Rust changed, so the CRAP and iai gates are untouched.
+- With the pre-pass skipped, the `dotnet` host on the 10.0 leg comes from SDK 8 (the first one
+    installed, later installs keep non-versioned files). It still runs SDK 10 and runtime 10, as the
+    green leg shows. If a later .NET major needs a newer host, list the newest SDK first
+- `release.yml` was not touched and needs nothing: its Kotlin jobs build from `packages/kotlin` and
+    pick up the `pluginManagement` block; its `setup-dotnet` steps install 8.0 only, with no
+    roll-forward
+- The advance commits were pushed before this review commit, because only a CI run could prove the
+    .NET claim

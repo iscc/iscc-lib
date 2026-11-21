@@ -194,3 +194,16 @@ conclusion ("a leg sees only the runtimes it lists"). `setup-dotnet` runs
 
 The `gh` CLI prints a long "hint: … gh event listen" block to stderr on each poll: add `2>/dev/null`
 to polling loops.
+
+### Iter 262: the same recipe on a Gradle + setup-dotnet step (~15 min, PASS)
+
+- `skip-lts-prepass: true` is confirmed on CI: the log prints "Skipping LTS runtime pre-pass", no
+    `--channel LTS` call, and the SDK 8 host (first installed) still runs SDK 10 and runtime 10.
+- Kotlin plugin resolution:
+    `./gradlew -p packages/kotlin buildEnvironment --refresh-dependencies --info --console=plain` to
+    a log, then grep `kotlin-gradle-plugins-bom` and count `plugins.gradle.org` (expected 0). Read
+    the FAILED job's log first (`gh run view <run> --job <id> --log | grep -A14 'went wrong'`) to
+    check next.md's diagnosis against the real error.
+- The background Codex run executes Gradle in the same tree too. `.kotlin/` is gitignored since 262.
+- Wait on named jobs with one loop over
+    `gh run view <run> --json jobs --jq '[.jobs[] | select(.name|test("Kotlin|\\.NET")) | select(.status!="completed")] | length'`.

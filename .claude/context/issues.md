@@ -176,26 +176,6 @@ estimate:** 3 non-test files.
 
 Resolved when the three pages state the coverage and the standard's scope correctly.
 
-## The .NET 10 CI leg depends on which .NET is the latest LTS `normal` [review]
-
-`actions/setup-dotnet@v6` installs the latest LTS runtime before each requested version (the "LTS
-runtime pre-pass" in `installDotnet`, `src/installer.ts`), also into the private
-`DOTNET_INSTALL_DIR` that the `dotnet-test` job in `ci.yml` uses since iteration 260. Measured on
-run 44904543921: both legs ran `install-dotnet.sh --runtime dotnet --channel LTS` and extracted
-runtime 10.0.15, so the 8.0 leg holds runtimes 8 and 10. No result changes today: the 8.0 leg rolls
-forward `Minor`, and 10 is the newest major on the 10.0 leg. When .NET 12 is released (the next LTS,
-due November 2027), the pre-pass puts runtime 12 on the 10.0 leg, `LatestMajor` picks it and
-`Runtime_MatchesExpectedMajorVersion` fails with no change in the repository. The matrix comment
-says a leg sees only the runtimes it lists, which does not hold.
-
-The action has an input `skip-lts-prepass: true` that turns the pre-pass off (README at `v6`).
-Unverified: with it the `dotnet` host comes from the first SDK listed, which is 8.0 on the 10.0 leg,
-because later installs keep non-versioned files.
-
-Resolved when the result of the 10.0 leg does not depend on the latest LTS (the setup-dotnet log of
-a CI run shows no runtime outside the leg's list, or the roll-forward setting cannot pick one), the
-matrix comment matches, and the three .NET jobs are green.
-
 ## `alg_cdc_chunks` accepts an `avg_chunk_size` whose parameter maths overflows `normal` [audit]
 
 Verified by the iteration-260 audit at 3040298. `alg_cdc_chunks` (`crates/iscc-lib/src/cdc.rs:178`)
