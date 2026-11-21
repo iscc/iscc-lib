@@ -17,6 +17,14 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     redundant. **Never take `Vec<T>` from Ruby**: Magnus `to_vec` holds a slice, so a shrinking
     `to_str` segfaulted (212); use `array_to_vec`. `RBignum::to_i32` truncates negative Bignums:
     `i32` only via `array_to_i32_vec`
+- **WASM marshalling (268)**: the wasm-bindgen glue converts every typed parameter. Numbers and
+    `bool` now arrive as `JsValue` and are type-checked in Rust; `&[u8]` still converts (a string
+    reads as zero bytes) and a number for a `&str` traps. **An `Option<T>` before a `JsValue` with
+    `unchecked_optional_param_type` loses its `?` in the `.d.ts`**: diff the WHOLE built `.d.ts`
+    against the previous build, never two quoted lines. **A js-sys import without `catch`
+    (`Array::from`) lets a JS exception unwind through Rust frames**: 4,095 throws exhaust the stack
+    and every later call fails. Probe a RELEASE build from Node (`--dev` glue adds type asserts);
+    `#[wasm_bindgen_test]` skips the glue (234)
 - **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
     `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
     modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an
@@ -33,16 +41,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     raises `OverflowError` for `alg_cdc_chunks` with `avg_chunk_size >= 2^29`, pure Python (3.15)
     does not. Probe a vector under `uv run --no-project --python` 3.10 AND 3.15. With `utf32` and a
     small average both yield `b""` forever
-- **String-input divergences from iscc-core** hit any differential on *string* inputs (`encode_seq`,
-    `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
-    \+ Go pinned (199); a padding negative must be validly padded (`ISCC:GAAAAAAAAA======`:
-    `EEAY…====` fails in the ref too); (2) Python `strip()`/`split()` also take U+001C–U+001F: Rust
-    codec fixed (198), Go codec (200: Go `unicode.IsSpace` + U+001C–U+001F IS the `strip()` set, 29
-    code points, probed both ways), text utils (203); (3) ASCII-only upper-casing (201) rejects
-    `ı`/`ſ`/`ß`/`ﬁ`: ref `iscc_decode` rejects too, but ref `encode_seq` Unicode-`upper()`s first
-    and ACCEPTS them — only those whose `upper()` is ASCII (`ẞ` U+1E9E fails in both, 222) — **the
-    reference's reject set differs per entry point; probe each before calling a fix
-    "reference-matching"**. A bare `b…` string reads as plain base32 in BOTH: not a defect
+- **String-input divergences from iscc-core** (strict base32, the Python `strip()` set, ASCII-only
+    upper-casing: decisions of 2026-11-18): the reference's reject set differs per entry point, so
+    probe each before calling a fix "reference-matching" → `learnings-archive.md` (268)
 
 ## Tooling
 
@@ -196,5 +197,4 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **Tier 1 doc parity is gated** (233): `scripts/check_tier1_docs.py` derives the symbols from
     `lib.rs`, NAMES only; an unparsable crate-root `pub` fails (242): add a derive rule or an
     `EXCLUDED_ITEMS` entry. `rust-api.md` signatures: `tests/test_rust_api_signatures.py`; doc
-    examples compile in a `/tmp` cargo project, path dep (243), C++ `main()` blocks with `g++`
-    (244). **`#[wasm_bindgen_test]` skips the JS glue** (234): prove a JS shape from Node + `.d.ts`
+    examples compile in a `/tmp` cargo project (243), C++ `main()` blocks with `g++` (244)

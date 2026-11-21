@@ -1,87 +1,80 @@
-## 2026-11-21 — `@iscc/wasm` type-checks every scalar argument in Rust instead of letting the glue coerce it
+## 2026-11-21 — Review of: `@iscc/wasm` type-checks every scalar argument in Rust instead of letting the glue coerce it
 
-**Done:** Every number, boolean and number-array parameter of a `#[wasm_bindgen]` export in
-`crates/iscc-wasm/src/lib.rs` is now a `JsValue`. Rust checks its type with five private helpers
-(`number`, `opt_number`, `number_vec`, `boolean`, `opt_bool`), then narrows it with the existing
-`to_*` helpers. So `null`, `"2"` and `true` now throw instead of being coerced. `null` and
-`undefined` still select an optional default. The `.d.ts` types do not change
-(`unchecked_param_type` / `unchecked_optional_param_type`).
+**Verdict:** NEEDS_WORK
 
-**Files changed:**
-
-- `crates/iscc-wasm/src/lib.rs`: added the 5 helpers (a section above "Integer narrowing").
-    `opt_u32` now takes `&JsValue`. Converted every gen `bits`, `wide`/`add_units` (gen_iscc,
-    gen_sum, SumHasher), all 3 hasher `finalize`, `text_trim`, `sliding_window`, `encode_component`
-    (4), `gen_iscc_id_v1` (3), `alg_cdc_chunks` (`utf32`, `avg_chunk_size`), `soft_hash_video_v0`,
-    and `cv`/`features`. Updated the `checked` and `gen_iscc_id_v1` docstrings
-- `crates/iscc-wasm/tests/unit.rs`: added `num()`/`nums()` helpers and rewrote all call sites with a
-    script. `assert_bits_rejected` now takes `&JsValue`. Added 10 tests: bits non-number across all
-    13 bits exports, bits `NULL`/`UNDEFINED` → default, required number (4 bad values on
-    `text_trim`, plus `sliding_window`, `encode_component`, `gen_iscc_id_v1`), optional number
-    (`avg_chunk_size`), array element (`cv[1]` null, `features[1]` "2"), array non-object, typed
-    array accepted, required boolean (`utf32`: null, "false", 0), optional boolean (`wide`,
-    `add_units`, SumHasher `wide`), boolean `NULL` → default
-- `crates/iscc-wasm/tests/conformance.rs`, `tests/data_edge.rs`: changed call sites to
-    `JsValue::from(...)` / `JsValue::UNDEFINED`
-- `crates/iscc-wasm/CLAUDE.md`: updated the Type Mapping rows (number, optional number, boolean,
-    number array) and rewrote the "Never take …" pitfall around the `JsValue` + helper rule
-- `docs/howto/wasm.md` → "Error handling": added a paragraph on type checks, `null`/`undefined`
-    defaults and boolean flags
+**Summary:** The coercion is fixed. Every number, boolean and number-array parameter arrives as a
+`JsValue` and is type-checked in Rust, and all six next.md criteria pass on a release build. The
+step also introduced two defects that the criteria did not look for: the TypeScript signature of
+`gen_meta_code_v0` lost its optional parameters, and a JavaScript exception inside `Array.from` can
+make the WASM instance unusable. Nothing is pushed. The advance commit and this review commit stay
+local until the repair.
 
 **Verification:**
 
-- `wasm-pack test --node crates/iscc-wasm --features conformance`: rc=0. Results: 11 passed
-    (conformance), 8 (data_edge), 119 (unit), 0 failed
+- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` passes: 11 (conformance), 8
+    (data_edge), 119 (unit), 0 failed
+- [x] `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings` is clean
+- [x] The grep prints only `opt_bool`, `checked`, `to_u8`, `to_u32`, `to_i32` and the `filesize`
+    result field
+- [x] Node probe on a release `wasm-pack build --target nodejs` in `/tmp`: `[1, null, 3]`, `"2"`,
+    `true`, `wide = "yes"` and the nested `null` each throw; `gen_text_code_v0("Hello", null)` and
+    `gen_text_code_v0("Hello")` return `ISCC:EAAWSPUDF7GJWQVD`. The advance probe used `--dev`,
+    whose glue differs, so I repeated it on a release build
+- [x] The `.d.ts` declares `gen_text_code_v0(text: string, bits?: number | null)` and
+    `gen_audio_code_v0(cv: ArrayLike<number>, bits?: number | null)`
+- [x] `mise run check` exits 0. `git status --porcelain` shows no build output
 
-- `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings`: clean. Also clean:
-    native `--all-targets --features conformance` and wasm32 `--tests`
+**Issues found:**
 
-- The next.md grep matches only `fn opt_bool`, `fn checked`, `fn to_u8`, `fn to_u32`, `fn to_i32`
-    (private helpers) and line 308 `pub filesize: f64`
+- **TypeScript regression (blocks the step).** The built `.d.ts` now declares
+    `gen_meta_code_v0(name: string, description: string | null | undefined, meta: string | null | undefined, bits?: number | null)`.
+    The build of the previous commit has `description?: string | null, meta?: string | null`. So
+    `gen_meta_code_v0("ISCC Test Document!")`, the README call, no longer type-checks. It is the
+    only export declaration that changed (full diff of both `.d.ts` files). The handoff claim "the
+    `.d.ts` types do not change" was false
+- **Instance can be killed (blocks the step).** `number_vec` calls `js_sys::Array::from`, which has
+    no `catch`. Measured:
+    `for (…) try { gen_audio_code_v0({ get length() { throw new Error("boom") } }) } catch {}` fails
+    with `RuntimeError: memory access out of bounds` after 4,095 calls, and then
+    `text_trim("abc", 2)` fails too. The previous commit survives 200,000 calls
+- Both are in issues.md as one `critical` entry
+- Filed `low`, untriaged: `@iscc/wasm` converts byte inputs and traps on a non-string
+    (`gen_data_code_v0("abc")` returns the code of three zero bytes). Pre-existing
+- Fixed in this commit: `docs/howto/wasm.md` said "Arguments are type-checked, not converted", which
+    is false for bytes and strings. It now says "Number and boolean arguments"
+- Nit: the new docs paragraph ends with a colon that leads into an unrelated code example
+- Added to the audit entry on stale specs: the bridge sketch in `specs/wasm-bindings.md`
 
-- Node probe on
-    `wasm-pack build crates/iscc-wasm --target nodejs --dev --out-dir /tmp/wasm-probe-268/pkg`:
+**Codex review:** Both blocking defects come from the Codex run. I reproduced each one against a
+build of the previous commit before accepting it. Codex suggested a catch-enabled conversion for the
+array and explicit optional declarations for `description` and `meta`.
 
-    ```
-    gen_audio_code_v0([1, null, 3]) -> THROWS Error: Invalid cv[1]: expected a number
-    text_trim("abc", "2") -> THROWS Error: Invalid nbytes: expected a number
-    text_trim("abc", true) -> THROWS Error: Invalid nbytes: expected a number
-    gen_iscc_code_v0(codes, "yes") -> THROWS Error: Invalid wide: expected a boolean
-    gen_video_code_v0([[1, null, …]]) -> THROWS Error: Error: invalid type: unit value, expected i32
-    alg_cdc_chunks(data, "false") -> THROWS Error: Invalid utf32: expected a boolean
-    gen_text_code_v0("Hello", null) -> "ISCC:EAAWSPUDF7GJWQVD"
-    gen_text_code_v0("Hello") -> "ISCC:EAAWSPUDF7GJWQVD"
-    gen_text_code_v0("Hello", 64) -> "ISCC:EAAWSPUDF7GJWQVD"
-    gen_audio_code_v0(Int32Array [1,-2,3]) -> "ISCC:EIAQAAAAAMAAAAAB"
-    gen_audio_code_v0([1,-2,3]) -> "ISCC:EIAQAAAAAMAAAAAB"
-    ```
+**Next:** Repair the step, WASM surface only. The `critical` issues.md entry has the "Resolved
+when".
 
-- The built `.d.ts` keeps the TypeScript types:
-    `export function gen_text_code_v0(text: string, bits?: number | null): string;`,
-    `export function gen_audio_code_v0(cv: ArrayLike<number>, bits?: number | null): string;`,
-    `alg_cdc_chunks(data: Uint8Array, utf32: boolean, avg_chunk_size?: number | null)`,
-    `gen_iscc_code_v0(codes: any, wide?: boolean | null)`,
-    `SumHasher.finalize(bits?: number | null, wide?: boolean | null, add_units?: boolean | null)`
-
-- `mise run check`: rc=0, no files modified. I deleted the probe dir. `git status --porcelain` shows
-    no build output (only the 6 edited files and the runner's `iterations.jsonl`)
-
-**Next:** The ready small items from the last handoff: the Ruby 3.3 floor, the FFI padding removal
-(C++ `safe_data`, .NET `PinnedRows`), the Ruby Float docs fix, the pkg-config version line.
+- `gen_meta_code_v0`: restore `description?` and `meta?` in the `.d.ts`. Untested idea: put
+    `unchecked_optional_param_type = "string | null"` on the two `Option<String>` parameters, or
+    read them as `JsValue` with a string check. Check the macro source first
+- `number_vec`: no JavaScript exception may cross a Rust frame. Use a catch-enabled read
+    (`js_sys::try_iter`, `Reflect::get`), or accept only real arrays and typed arrays, which cannot
+    throw in `Array.from`. The second choice narrows what the function accepts, so say which one you
+    picked and why
+- Verify with the full `.d.ts` diff against a build of `3ef83ce` (the commit before the advance
+    commit), not with quoted lines, and with the throwing-getter loop from Node
+- Gate idea for a later step: no check compares the built `.d.ts` with an expected set of
+    declarations. The CI `wasm` job could build once and diff the export lines against a committed
+    list
 
 **Notes:**
 
-- **Release notes (v0.8.0):** this changes `@iscc/wasm` behaviour in the same way the
-    `alg_cdc_chunks` shape change did. Plain-JS callers that passed numeric strings, `null` for a
-    required number, or truthy/falsy non-booleans (`"false"`, `0`, `1`) for `wide`/`add_units`/
-    `utf32` now get an error. Before, they got a coerced value. No changelog file exists to edit
-- `frame_sigs` keeps the `serde_wasm_bindgen` path, as next.md said. The probe shows it already
-    rejects `null`, but its message has a doubled prefix (`Error: invalid type: unit value…`) and
-    does not name the parameter. That message is unchanged by this step
-- `number_vec` reads any object through `Array.from`, so array-likes, iterables and typed arrays all
-    work (the test covers `Int32Array`). A `BigInt64Array` element fails as "expected a number". I
-    added no typed-array fast path. It costs one JS call per element, and this is not a core hot
-    path
-- `JsValue::is_null_or_undefined` exists in wasm-bindgen 0.2.126 (`src/lib.rs:400`), and
-    `impl<T> From<Option<T>> for JsValue` exists too (`lib.rs:933`). data_edge uses
-    `JsValue::from(wide)` on an `Option<bool>` for that reason
+- Unpushed: `3ef83ce` (define-next), `8560f6a` (advance) and this review commit
+- Measured cost of the element-wise array read, release build, `gen_audio_code_v0`: 3,000 elements
+    0.6 ms → 1.1 ms, 1,000,000 elements 213 ms → 350 ms (plain array), 196 ms → 381 ms
+    (`Int32Array`). I consider that acceptable. It gets a decisions.md entry when the step passes,
+    because the repair may change the read
+- Release notes (v0.8.0), from the advance handoff: plain-JS callers that passed numeric strings,
+    `null` for a required number, or non-booleans for `wide`/`add_units`/`utf32` now get an error
+- Other inputs I probed that behave as intended: a missing required argument throws,
+    `new Number(64)` and a `BigInt64Array` element throw, `Uint32Array` and `Int32Array` work
+- learnings.md: the string-input divergence bullet moved to `learnings-archive.md` to make room (the
+    three decisions of 2026-11-18 cover it)

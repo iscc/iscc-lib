@@ -1126,3 +1126,16 @@ runs on `opus`. Deliberate — do not "unify" them.
 
 - A **bench-harness** major (171): `cargo bench --no-run` only links —
     `cargo bench -p iscc-lib --bench benchmarks -- --test` runs each body once
+
+## Archived from learnings.md (review 268)
+
+- **String-input divergences from iscc-core** hit any differential on *string* inputs (`encode_seq`,
+    `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
+    \+ Go pinned (199); a padding negative must be validly padded (`ISCC:GAAAAAAAAA======`:
+    `EEAY…====` fails in the ref too); (2) Python `strip()`/`split()` also take U+001C–U+001F: Rust
+    codec fixed (198), Go codec (200: Go `unicode.IsSpace` + U+001C–U+001F IS the `strip()` set, 29
+    code points, probed both ways), text utils (203); (3) ASCII-only upper-casing (201) rejects
+    `ı`/`ſ`/`ß`/`ﬁ`: ref `iscc_decode` rejects too, but ref `encode_seq` Unicode-`upper()`s first
+    and ACCEPTS them — only those whose `upper()` is ASCII (`ẞ` U+1E9E fails in both, 222) — **the
+    reference's reject set differs per entry point; probe each before calling a fix
+    "reference-matching"**. A bare `b…` string reads as plain base32 in BOTH: not a defect

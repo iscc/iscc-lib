@@ -113,18 +113,43 @@ dead.
 
 Resolved when both are removed with the C++ and .NET empty-input tests still green.
 
-## `@iscc/wasm` converts non-number values to numbers instead of rejecting them `normal` [review]
+## `@iscc/wasm` type checks broke a TypeScript signature and let a JS exception kill the instance `critical` [review]
 
-The wasm-bindgen glue applies JavaScript number conversion before the range check runs. Measured on
-a `--target nodejs` build in iteration 256: `gen_audio_code_v0([1, null, 3])` returns the code of
-`[1, 0, 3]`, `text_trim("abc", "2")` returns `"ab"`, `text_trim("abc", true)` returns `"a"`.
-`undefined` and a non-numeric string become `NaN` and are rejected. `@iscc/lib` (napi) throws on
-each of these inputs. Pre-existing, and TypeScript callers are stopped by the `.d.ts`. No
+Iteration 268 moved every number and boolean parameter to `JsValue` with type checks in Rust. The
+coercion is fixed (verified from Node on a release build). The step is unpushed because it
+introduced two defects, both reproduced against a build of the commit before it:
+
+- The built `.d.ts` now declares
+    `gen_meta_code_v0(name: string, description: string | null | undefined, meta: string | null | undefined, bits?: number | null)`.
+    Before, `description?` and `meta?` were optional. wasm-bindgen marks an `Option<T>` parameter
+    optional only when every later parameter is, and a `JsValue` with
+    `unchecked_optional_param_type` does not count. So `gen_meta_code_v0("ISCC Test Document!")`,
+    the README call, no longer type-checks. It is the only export declaration that changed.
+- `number_vec` calls `js_sys::Array::from`, an import without `catch`. A JavaScript exception inside
+    it (a throwing `length` getter or iterator) unwinds through the Rust frames. After 4,095 such
+    calls every export fails with `RuntimeError: memory access out of bounds`. Before the step the
+    instance was still usable after 200,000.
+
+Resolved when the export declarations of the built `.d.ts` equal those of the build before the step
+(the full diff is empty), a throwing array-like gives an ordinary error and leaves the instance
+usable, pinned by a test, and the WASM suite stays green.
+
+## `@iscc/wasm` converts byte inputs and traps on a non-string `low` [review]
+
+**Triage:** untriaged. A plain-JavaScript caller who passes a string or a plain array where a
+`Uint8Array` is declared gets a different valid code and no error; the `.d.ts` stops TypeScript
+callers.
+
+Measured on a `--target nodejs` release build in iteration 268. `gen_data_code_v0("abc")` returns
+the code of three zero bytes, and `gen_data_code_v0([1, "2", null, 300])` the code of
+`[1, 2, 0, 44]`. A number where a string is declared (`gen_text_code_v0(5)`,
+`gen_meta_code_v0("a", 7)`) throws `RuntimeError: memory access out of bounds` instead of an error
+that names the parameter. `gen_audio_code_v0({})` reads a plain object as an empty list.
+Pre-existing: the glue converts every `&[u8]` and `&str` parameter before Rust runs. No
 `data-edge.json` vector is owed (`edge-vectors.md` → Rules: wrong argument types).
 
-Resolved when either each numeric parameter of `crates/iscc-wasm/src/lib.rs` rejects a non-number,
-pinned by a Node test on a built package, or `docs/howto/wasm.md` → "Error handling" states the
-conversion.
+Resolved when either byte and string parameters reject a wrong type with an error that names the
+parameter, or `docs/howto/wasm.md` → "Error handling" states the conversion.
 
 ## JNI `NativeLoader` rejects an unknown OS or architecture before the `java.library.path` fallback `normal` [review]
 
@@ -172,7 +197,7 @@ Verified by the iteration-249 and iteration-260 audits (3040298).
 - `gen_instance_code_v0` (`crates/iscc-lib/src/lib.rs:907-908`) calls `blake3::hash(data)` and then
     `utils::multi_hash_blake3(data)`, which hashes the same bytes again (`utils.rs:164`): two full
     BLAKE3 passes per call. The multihash format is also written in `streaming.rs:39-56`.
-- `gen_sum_code_v0` in `crates/iscc-wasm/src/lib.rs:258-285` copies `SumHasher::update`/`finalize`
+- `gen_sum_code_v0` in `crates/iscc-wasm/src/lib.rs` copies `SumHasher::update`/`finalize`
     (`streaming.rs:172-203`), comment included; the same file already wraps `SumHasher`.
 - `gen_meta_code_v0` parses `meta` twice (`lib.rs:372` via `parse_meta_json`, then `:406-408`), and
     `json_to_data_url` (`:322-328`) repeats the parse+canonicalize body with another error string.
@@ -209,6 +234,9 @@ Verified by the iteration-260 audit at 3040298. CID-fixable (decision of 2026-11
 - `specs/go-bindings.md`: the IDv1 rename "exists only on `develop`" (it shipped in 0.6.0);
     "Streaming functions also accept `io.Reader`" and the two `io.Reader` bullets (no such API in
     `packages/go`).
+- `specs/wasm-bindings.md` → "Rust Bridge Layer": the sketch shows `js_name = "genMetaCodeV0"`,
+    `bits: Option<u32>` and a serde `JsValue` result; the exports are snake_case, take scalars as
+    `JsValue` and return the `iscc` string.
 - `crates/iscc-napi/CLAUDE.md:36,66`, `crates/iscc-py/CLAUDE.md:66`, `crates/iscc-wasm/CLAUDE.md:43`
     name `iscc_lib::Error`; the type is `IsccError`.
 - `packages/go/CLAUDE.md`: :95-121 keeps a test-file list (missing three files) that the 2026-11-21
@@ -217,6 +245,6 @@ Verified by the iteration-260 audit at 3040298. CID-fixable (decision of 2026-11
 
 **Why it matters:** define-next and advance read these as truth, so stale claims become scoped work.
 **Suggested fix:** rewrite each statement in the present tense to match the code. **Scope
-estimate:** 7 files, needs audit-scope step (≤8 files).
+estimate:** 8 files, needs audit-scope step (≤8 files).
 
 Resolved when each cited statement matches the tree.

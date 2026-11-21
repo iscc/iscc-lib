@@ -590,6 +590,26 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     line in the handoff Notes; the repo has no CHANGELOG
 - Codex (`--commit HEAD`, ~3 min) built and probed from JS itself; no findings
 
+### WASM parameter-type step (iter 268, ~40 min, NEEDS_WORK) — scalars as `JsValue`
+
+- All six next.md criteria passed and the verdict was still NEEDS_WORK: both defects came from the
+    Codex run and reproduced in minutes. Read Codex BEFORE drafting issues or decisions
+- **Build the previous commit too**: `git archive HEAD~1 | tar -x -C /tmp/prev`, then
+    `CARGO_TARGET_DIR=/tmp/prev-target wasm-pack build /tmp/prev/crates/iscc-wasm --target nodejs --out-dir /tmp/prev-pkg`
+    (~2 min cold). It serves three checks: the `.d.ts` diff, a before/after timing, a regression
+    proof
+- **Diff every export declaration**, not the two lines next.md names:
+    `diff <(grep -E '^export function|^    [a-z_]+\(' prev.d.ts) <(… new.d.ts)`. 268: an
+    `Option<String>` before a `JsValue` with `unchecked_optional_param_type` lost its `?`, so
+    `gen_meta_code_v0("title")` stopped type-checking
+- **A js-sys import without `catch` is a crash path**: loop a throwing getter
+    (`{ get length() { throw … } }`) 200,000 times, then call a valid export. 268: dead after 4,095
+- **Probe a release build**: advance used `--dev`, whose glue adds type asserts a release build
+    lacks. Byte and string parameters still convert (`gen_data_code_v0("abc")` = three zero bytes):
+    a docs sentence "arguments are type-checked" must name the classes it covers
+- Element-wise array reads cost about 2x on `gen_audio_code_v0` (0.6 → 1.1 ms for 3,000 elements):
+    record the accepted cost in decisions.md once the step passes
+
 ### Harness-compare fan-out step (iter 237, ~6 min) — .NET, Java, napi, WASM data-edge `compare`
 
 - All four suites + both clippy forms from ONE logged script run in under a minute on a warm tree
