@@ -50,7 +50,8 @@ Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`)
     `uv run prek run mdformat --files <f>` → `review-patterns.md` "Moved from the index (239)"
 - **No-op / human-handoff iteration** (111/173): verdict PASS; `low`-only + human spec work or an
     upstream-gated `normal` → HUMAN REVIEW REQUESTED, never `**IDLE**`. Verify an advance "only low
-    issues remain" claim independently → `review-patterns.md`
+    issues remain" claim independently; all-`low` `Step: NONE` → PASS + `**IDLE**` (248, ~5 min) →
+    `review-patterns.md`
 - **Push message "GitHub found N vulnerabilities" is about `main`** (234), not `develop` →
     `review-patterns.md` "Moved from the index (239)"
 - **Unicode freeze rule REMOVED 2026-07-30** — reintroducing any freeze mechanism = NEEDS_WORK

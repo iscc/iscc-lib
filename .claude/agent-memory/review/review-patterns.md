@@ -499,6 +499,12 @@ Full text of entries compacted out of `MEMORY.md`.
     HUMAN-REVIEW spec amendments + `low` left → **HUMAN REVIEW REQUESTED**, never `**IDLE**`
     (all-`low` only). Verdict still PASS. Same call when the only `normal` left is trigger-gated on
     an upstream release (173, go1.27): escalate rather than burn a `Step: NONE` cycle
+- **`Step: NONE` with all-`low` issues (248, ~5 min)** → PASS + `**IDLE**`. Checks: advance diff is
+    `handoff.md` only; `grep '^## ' issues.md | grep -vc '`low`'` is 0 (the `untriaged` grep also
+    matches the file header: entries = count − 1); `gh run list --branch develop` green on
+    `origin/develop`; one probe of a next.md claim about external state (248: the Dependabot alerts
+    API vs the `develop` lockfiles). A side note for the human in next.md is lost when next.md is
+    rewritten: file it as a `low` entry if it is a real defect
 - **Unicode freeze rule REMOVED 2026-07-30** (decisions.md): `utils/unicode16*`,
     `unicode_boundary.json`, the sweep gate and the `U+FFFF` sentinel are gone. A diff that
     reintroduces any freeze mechanism without a new human decision is a NEEDS_WORK

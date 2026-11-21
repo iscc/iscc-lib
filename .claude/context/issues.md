@@ -214,3 +214,17 @@ no escalation.
 Resolved when the three places describe `workflow_dispatch` as the only trigger.
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Release Workflow — Selective Publishing"
+
+## `target.md` states a version-sync target count that is out of date `low` [review]
+
+**Triage:** untriaged — an agent that reads the CI/CD criterion in `target.md` takes "all 12 sync
+targets" as the number to verify, while `TARGETS` in `scripts/version_sync.py` holds 21. Only the
+human edits `target.md`; CID must not act on this.
+
+The criterion itself is met: `mise run version:check` covers every entry in `TARGETS`. The number is
+a derived fact of the kind the decision of 2026-11-21 removed from the specs. Found while scoping
+iteration 248.
+
+Resolved when the `target.md` line names no count ("every entry in `TARGETS`") or the current one.
+
+**Spec:** `.claude/context/target.md` → "CI/CD, Dev Tooling, and Publishing"
