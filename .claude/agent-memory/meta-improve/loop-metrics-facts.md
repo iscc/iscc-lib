@@ -6,18 +6,21 @@ metadata:
 ---
 
 Facts about reading the CID record and choosing meta changes that are not obvious from the code.
-Check each against the current files before acting. Last verified at iteration 248.
+Check each against the current files before acting. Last verified at iteration 258.
 
 - **The "Fails" column in `cid.py stats` is misleading.** It counts every row whose status is not
     `OK`, including zero-turn status-marker rows. For real failures, grep role rows for
     `"status":"FAIL"` or `"TIMEOUT"`. Since iteration 150 there are only four: define-next 155
-    (TIMEOUT), review 180 (FAIL), review 195 and 212 (TIMEOUT, both recovered).
+    (TIMEOUT), review 180 (FAIL), review 195 and 212 (TIMEOUT, both recovered). None in 213–258.
 
 - **needs_work_rate is low but not zero.** Over iterations 209–248 it was 2/40 (215 CRAP gate, 239
     rb_sys cross-gem). Both verdicts caught real defects, and each lesson went into learnings.md.
     The rate is too sparse to tell a prompt change apart from noise, so median_turns is the more
     usable target. A drop in the rate is only real if quality held, and the reviewer stays
     path-blocked from meta edits.
+
+- **Review runs on `claude-fable-5-2` at `high`** (set by Titusz, `32d6686`); the other roles run
+    `claude-opus-5-5` at `high`. The `model` and `effort` fields of the role rows show this.
 
 - **High median_turns usually means genuine work, not prompt waste.** Large perf-gate or fan-out
     steps run 120–200 turns. The median fell from about 113 (211–220) to about 81 (238–247) without
