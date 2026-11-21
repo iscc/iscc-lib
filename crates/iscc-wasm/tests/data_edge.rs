@@ -34,6 +34,8 @@ const SECTIONS: &[(&str, Caller)] = &[
     ("gen_mixed_code_v0", call_mixed),
     ("gen_iscc_code_v0", call_iscc_code),
     ("alg_simhash", call_simhash),
+    ("gen_meta_code_v0", call_meta),
+    ("gen_video_code_v0", call_video),
 ];
 
 /// Parse the embedded `data-edge.json`.
@@ -90,6 +92,25 @@ fn bytes_list_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
         .map(|v| bytes_item(v, index))
         .collect::<Result<Vec<_>, _>>()?;
     serde_wasm_bindgen::to_value(&digests).map_err(|e| format!("input {index}: {e}"))
+}
+
+/// Read the input at `index` as a `meta` argument: a JSON object is serialized,
+/// a string is passed as is.
+fn meta_arg(inputs: &[Value], index: usize) -> Result<String, String> {
+    match inputs.get(index) {
+        Some(Value::String(s)) => Ok(s.clone()),
+        Some(v @ Value::Object(_)) => Ok(v.to_string()),
+        _ => Err(format!("input {index} is not a meta object or string")),
+    }
+}
+
+/// Read the input at `index` as a list of integer frame signatures, converted to a JS array.
+fn frames_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
+    let frames: Vec<Vec<i32>> = inputs
+        .get(index)
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .ok_or_else(|| format!("input {index} is not a list of i32 lists"))?;
+    serde_wasm_bindgen::to_value(&frames).map_err(|e| format!("input {index}: {e}"))
 }
 
 /// Read the input at `index` as a `u32`.
@@ -170,6 +191,30 @@ fn call_simhash(inputs: &[Value]) -> Result<Outcome, String> {
     Ok(to_outcome(iscc_wasm::alg_simhash(digests), seq_json))
 }
 
+/// Run `gen_meta_code_v0` (an empty description means none).
+fn call_meta(inputs: &[Value]) -> Result<Outcome, String> {
+    let name = str_arg(inputs, 0)?;
+    let description = Some(str_arg(inputs, 1)?)
+        .filter(|d| !d.is_empty())
+        .map(str::to_owned);
+    let meta = meta_arg(inputs, 2)?;
+    let bits = u32_arg(inputs, 3)?;
+    Ok(to_outcome(
+        iscc_wasm::gen_meta_code_v0(name, description, Some(meta), Some(bits)),
+        iscc_json,
+    ))
+}
+
+/// Run `gen_video_code_v0` on the vector's frame signatures and bits.
+fn call_video(inputs: &[Value]) -> Result<Outcome, String> {
+    let frames = frames_arg(inputs, 0)?;
+    let bits = u32_arg(inputs, 1)?;
+    Ok(to_outcome(
+        iscc_wasm::gen_video_code_v0(frames, Some(bits)),
+        iscc_json,
+    ))
+}
+
 /// Look up the caller of a function section; `None` for an unknown section.
 fn find_caller(section: &str) -> Option<Caller> {
     SECTIONS
@@ -180,11 +225,12 @@ fn find_caller(section: &str) -> Option<Caller> {
 
 /// Expected output keys each section's WASM result does not carry, which are
 /// therefore not compared (an absent section compares every key). The gen
-/// functions here return a bare ISCC string, so text drops `characters` and
-/// mixed drops `parts`.
+/// functions here return a bare ISCC string, so text drops `characters`, mixed
+/// drops `parts` and meta drops `name`, `meta` and `metahash`.
 const UNCOMPARED: &[(&str, &[&str])] = &[
     ("gen_text_code_v0", &["characters"]),
     ("gen_mixed_code_v0", &["parts"]),
+    ("gen_meta_code_v0", &["name", "meta", "metahash"]),
 ];
 
 /// Look up the static uncompared output keys of a section (empty if none).
