@@ -1,90 +1,91 @@
 # Next Work Package
 
-## Step: Docs accuracy batch — architecture.md covers every surface, no "10 standard functions" or Sum-Code-as-string claims
+## Step: Go `GenMetaCodeV0` enforces the 128,000-byte meta limit, pinned by a shared vector
 
 ## Goal
 
-Close two `normal` docs issues in one docs-only step: "`docs/architecture.md` sections below the
-graph cover half the surfaces" and "Six docs pages count 10 standard functions or give Sum-Code a
-string result". Both block v0.8.0 and touch overlapping pages.
+Fix the `normal` `[audit]` issue "Go `GenMetaCodeV0` never enforces the 128,000-byte meta payload
+limit": the pure-Go port must reject an oversized meta payload the way the Rust core and iscc-core
+do. Per the collecting rule, the divergence is pinned by one `data-edge.json` vector that all 12
+harnesses run.
 
 ## Alternatives Considered
 
-- **Chosen:** the docs batch — handoff "Next", fully specified by the two issues, no probe or
-    decision needed, and it shares `architecture.md` between both issues.
-- **Rejected:** `@iscc/wasm` Node.js docs (`[audit]`) — needs a packed `--target web` release build
-    probe; better as its own step next. One-shot/streaming dedup — a core hot-path change with the
-    iai baseline in play; `alg_minhash_256([])` needs a behaviour decision first.
+- **Chosen:** Go meta limit. A correctness divergence on a Tier 1 function (Go returns a code where
+    every other surface and the reference raise), one source file, and it closes a "Go port behaves
+    differently" gap with a shared vector
+- **Rejected:** `@iscc/wasm` Node docs (handoff "Next"). They are docs only and need a packed-build
+    probe first. A wrong result from a conformance-tested port matters more; the docs come next
 
 ## Scope
 
-- **Modify**: `docs/architecture.md`, `docs/ecosystem.md`, `docs/howto/nodejs.md`,
-    `docs/howto/java.md`, `docs/java-api.md`, `docs/c-ffi-api.md` (docs only, outside the file cap)
-- **Reference**: `.github/workflows/ci.yml` (each job's test command),
-    `.github/workflows/release.yml` (release assets, registries), `crates/iscc-ffi/src/lib.rs:905`
-    (`iscc_gen_sum_code_v0` → `IsccSumCodeResult`),
-    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java:161`,
-    `crates/iscc-napi/index.d.ts:193`, each crate/package `CLAUDE.md` for streaming/test layout
+- **Modify**: `packages/go/code_meta.go`
+- **Modify (test data / generated, outside the cap)**: `crates/iscc-lib/tests/data-edge.json` and
+    its 4 vendored copies (`packages/{dotnet/Iscc.Lib.Tests/testdata,go/testdata}/data-edge.json`,
+    `packages/kotlin/src/test/resources/data-edge.json`,
+    `packages/swift/Tests/IsccLibTests/data-edge.json`); the regenerated
+    `crates/iscc-ffi/tests/data_edge_vectors.h`
+- **Tests**: `packages/go/code_meta_test.go`
+- **Reference**: `crates/iscc-lib/src/lib.rs` (`gen_meta_code_v0`, pre-decode + post-decode checks
+    near :363-385), `reference/iscc-core/iscc_core/code_meta.py:62-76`,
+    `scripts/gen_data_edge_vectors.py`, `.claude/context/specs/edge-vectors.md`
 
 ## Not In Scope
 
-- `docs/howto/wasm.md:82` and `crates/iscc-wasm/README.md` — they belong to the `[audit]` WASM
-    Node.js docs issue (next step, needs a probe)
-- The "All 10" sentences in `howto/{dotnet,go,kotlin,python,ruby,rust,swift}.md`, `ruby-api.md` and
-    `tutorials/getting-started.md` — library-wide counts that already say "typed results"; leave
-    them
-- `notes/` (never updated in sweeps), `README.md`, per-crate READMEs
-- Any change to code, tests, or the doc gates
+- Any Rust core or binding change: all Rust-backed surfaces already reject. If a binding harness
+    fails on the new vector, that is a finding to report, not a reason to edit the harness to skip
+    it (only `except` in the file may deviate, and none should be needed)
+- A passing boundary vector at exactly 128,000 bytes in `data-edge.json`. Its `outputs.meta` would
+    add another ~170 KB data URL to all 5 copies. The 128,000-byte pass stays a Go unit test
+- The `docs/howto/dotnet.md:430` wording of `MetaTrimMeta`, and the duplicate-parser `[audit]` issue
+    (`code_meta_test.go` `metaArg` copy): separate issues
+- Changing `MetaTrimMeta` docs in `packages/go/README.md` / `docs/howto/go.md`: they already state
+    the limit correctly; after the fix they are true
 
 ## Implementation Notes
 
-**`architecture.md`**
-
-- "Crate Summary": add rows for `iscc-rb` (RubyGems), `iscc-uniffi` (not published itself; feeds
-    Swift/Kotlin), `packages/dotnet` (NuGet), `packages/cpp` (vcpkg/Conan + FFI tarballs),
-    `packages/swift` (SPM via Git tag + XCFramework release asset), `packages/kotlin` (Maven Central
-    `io.iscc:iscc-lib-kotlin`). `iscc-ffi` → "GitHub Release assets" (prebuilt
-    `iscc-ffi-v*-<target>` archives — confirm the name pattern in `release.yml`), not "Source".
-- "Workspace Layout" tree: add one line per missing directory (`iscc-rb/`, `iscc-uniffi/`,
-    `packages/{cpp,dotnet,kotlin,swift}/`); you may collapse the long Go file list to one line. Fix
-    the `release.yml` comment (it publishes to every registry, not three). If you keep it partial
-    anywhere, say "excerpt" in the prose above the tree.
-- "Per-Binding Adaptation": add Ruby, C#, C++, Swift, Kotlin rows. State only what the code shows
-    (class names, method names, disposal/RAII); do not claim GIL/GVL release or async support
-    without reading the binding source.
-- "How It Works": 9 `gen_*_v0` sections in `data.json` (iscc-core has no `gen_sum_code_v0`). Item 2
-    ("via relative path or `include_str!`") must stay true for C/C++ (generated header) — reword if
-    not. Mention `data-edge.json` in one sentence if it fits naturally.
-- "Cross-Language Test Matrix": add Ruby, C#, C++, Swift, Kotlin rows; WASM runner is
-    `wasm-pack test --node` (from `ci.yml:124`), Rust/C rows checked against `ci.yml` too. Vector
-    access per row from the actual test sources (C/C++ read `data_edge_vectors.h`; check how they
-    get `data.json`).
-
-**`ecosystem.md`**: iscc-core Coverage → the 9 `gen_*_v0` functions with `data.json` vectors;
-iscc-core-ts → "all 9 standard `gen_*_v0` functions" (drop "9 of the 10"); "Contributing" item 1 → 9
-functions. iscc-lib section: intro and Language row name all 11 surfaces (Python, Node.js, WASM, C,
-C++, Java, Go, Ruby, C#, Swift, Kotlin); Packages row lists every registry (or says "among others");
-Coverage → 9 standard functions plus `gen_sum_code_v0`.
-
-**Return-type sentences**: rewrite so the nine string-returning functions are named as such and
-Sum-Code's type is named: Node `NapiSumCodeResult`, Java `SumCodeResult` (both `howto/java.md` and
-`java-api.md`), C `iscc_IsccSumCodeResult` freed with `iscc_free_sum_code_result` (C names keep the
-`iscc_` prefix — `tests/test_c_ffi_docs.py` gates it). Verify `gen_iscc_id_v1`'s return type on each
-surface before any sentence lumps it in. Line-wrap at 100 (mdformat reflows).
+- Mirror the core exactly, in this order, inside `GenMetaCodeV0` when `meta != nil`:
+    1. **Pre-decode bound** on the raw meta string (both forms, as Rust does):
+        `MetaTrimMeta*4/3 + 256` (= 170,922). Reject when `len(metaStr)` exceeds it, before
+        `decodeDataURL`/`parseMetaJSON`
+    2. **Post-decode bound**: reject when `len(metaPayload) > MetaTrimMeta`, for both the Data-URL
+        payload and the canonical JSON bytes
+- Error text follows the Go style (`iscc: ` prefix) with the core's wording, e.g.
+    `iscc: decoded meta payload exceeds size limit (%d > %d bytes)` and
+    `iscc: meta string exceeds size limit (%d > %d bytes)`
+- Go tests (table style is fine): for the JSON form and the Data-URL form each, a payload of exactly
+    128,000 bytes succeeds and 128,001 bytes errors. Build the JSON form as `{"a":"xxx…"}`: the
+    canonical length is `len(value) + 8`. Add one pre-decode case: a JSON meta string longer than
+    170,922 bytes whose canonical form is tiny (mostly whitespace) is rejected. The Rust core
+    rejects that too, so Go matches it
+- **Shared vector**: add `gen_meta_code_v0` → `test_0004_meta_payload_over_limit` with inputs
+    `["Hello", "", {"a": "<127,993 x>"}, 64]` (canonical JSON = 128,001 bytes; check the length with
+    a quick Python `json.dumps(obj, separators=(",", ":"), ensure_ascii=False)` count), an `error`
+    key, a `note` naming the Go port, and **no** `diverges` (iscc-core raises `ValueError` on the
+    dict input). Before committing, probe iscc-core on both builds
+    (`uv run --no-project --python 3.10 --with iscc-core==1.5.0` and the same with `3.15`) and
+    confirm both raise. Then copy the file to the 4 vendored paths and regenerate the header with
+    `uv run --script scripts/gen_data_edge_vectors.py`
+- The header gets one ~128 KB C string literal. No C/C++ build in CI uses `-pedantic`/`-Werror`, so
+    gcc/clang accept it. If a local C or C++ build warns or fails on it, stop and report it in the
+    handoff. Do not split the vector or change the generator in this step
+- No hot-path Rust code changes, so neither the iai baseline nor CRAP is affected
 
 ## Verification
 
-- `git grep -nE '10 .gen_' -- docs/ecosystem.md docs/architecture.md` prints nothing
-- `git grep -nE 'All 10 .*(return a .String|as a string|heap-allocated ISCC string|return an ISCC string)' -- docs/howto/nodejs.md docs/howto/java.md docs/java-api.md docs/c-ffi-api.md`
-    prints nothing, and each of those four "Code generation" paragraphs names its Sum-Code result
-    type
-- `docs/architecture.md` "Crate Summary", "Per-Binding Adaptation" and "Cross-Language Test Matrix"
-    each have a row for Ruby, C#/.NET, C++, Swift and Kotlin; no `iscc-ffi` row says `Source`; the
-    WASM matrix row names `wasm-pack test`
-- `uv run pytest tests/test_c_ffi_docs.py` passes and `uv run scripts/check_tier1_docs.py` exits 0
-- `uv run zensical build` exits 0
+- In `packages/go`: `CGO_ENABLED=0 go test ./...` passes (the data-edge suite runs the new vector),
+    `GOARCH=386 go test ./...` passes, and `go vet ./...` is clean
+- `grep -n 'MetaTrimMeta' packages/go/code_meta.go` shows the constant used in both the pre-decode
+    and the post-decode check
+- `cargo test -p iscc-lib` passes (the Rust data-edge harness rejects the new vector)
+- `uv run pytest tests/test_data_edge.py tests/test_vendored_fixtures.py tests/test_gen_data_edge_vectors.py`
+    passes. That covers iscc-core agreeing with no `diverges`, 5 identical copies, and a fresh
+    header
+- The C FFI and C++ test programs build and pass with the regenerated header (as the `c-ffi` and
+    `cpp` CI jobs run them)
 - `mise run check` exits 0
 
 ## Done When
 
-All six verification criteria pass with only the six listed docs files modified.
+An oversized meta payload is an error in Go as it is in the core, Go tests pin the 128,000/128,001
+boundary for both meta forms, and every harness that runs `data-edge.json` rejects the new vector.

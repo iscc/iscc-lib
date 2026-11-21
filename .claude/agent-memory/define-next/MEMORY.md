@@ -3,11 +3,14 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 280):** v0.8.0 features done; 279 JNI release-layout fix PASSED. 280 =
-docs batch (architecture.md coverage + six pages' "10 gen" / Sum-Code-string sentences; docs only,
-no file cap). Remaining normals after it: WASM Node docs (probe a packed `--target web` build),
-one-shot dedup (core, iai), minhash `[]` (needs decision → HUMAN). **Any Java test needing a library
-outside the bundle must pass in BOTH layouts.** Per-iteration traps for 259-269 →
+**Status 2026-11-21 (iter 281):** v0.8.0 features done; 280 docs batch PASSED; audit 280 filed 5
+normals. 281 = Go `GenMetaCodeV0` meta limit (1 src file) + a 128 KB `data-edge.json` error vector
+(collecting rule binds even for big inputs; only a passing boundary vector was kept out, its
+`outputs.meta` would add 170 KB ×5). Remaining normals: WASM Node docs (probe a packed
+`--target web` build), vcpkg hashes (release step + gate), Rust tier docs (4-5 files), dup
+`data.json` parsers (Rust/Go split), one-shot dedup (core, iai), minhash `[]` + WASM `finalize()`
+(both need a behaviour decision → HUMAN). **Any Java test needing a library outside the bundle must
+pass in BOTH layouts.** Per-iteration traps for 259-269 →
 [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
 py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
 estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
