@@ -1,15 +1,14 @@
-<!-- assessed-at: 8641acef38bf6f23b7d58e0674f8de520607f27a -->
+<!-- assessed-at: 566abdd1ae5528c67fa7e352f25ab00920a1a2db -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; CI green; 13 `normal` issues block the release
+## Phase: v0.8.0 — features done; CI green; 12 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 266 made the Go
-port write canonical `meta` JSON the same way as the core (UTF-16 key order, `-0`, lone surrogates)
-and added two shared vectors for it; that issue is closed. CI is green; 13 `normal` and 2 `low`
-issues remain open.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 267 added a 32-bit
+(`GOARCH=386`) run of the Go suite to the `go` CI job; that issue is closed. CI is green; 12
+`normal` and 2 `low` issues remain open.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -84,14 +83,14 @@ issues remain open.
 
 ## Go Bindings
 
-**Status**: partially met (one `normal` issue)
+**Status**: met (v0.8.0 scope; shares the audit spec-staleness issue)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
     sections incl. the three meta vectors and the ragged video vector
 - `code_meta.go` writes RFC 8785 JSON itself (`writeCanonical*`, `checkSurrogateEscapes`): UTF-16
     key order at every depth, `-0` as `0`, lone surrogate escapes rejected (fixed 266)
-- `normal` (decided): add one `GOARCH=386` step to the `go` CI job — the 32-bit `algCdcParams`
-    handling is untested in CI
+- The `go` CI job reruns `go test` + `go vet` as a `GOARCH=386` build (267), so the 32-bit
+    `algCdcParams` handling is now CI-tested; `ci-cd.md` and `packages/go/CLAUDE.md` say so
 - `TextTrim` clamps `nbytes <= 0`; hashers error after `Finalize` (API break, release-notes item)
 
 ## C# / .NET Bindings
@@ -158,20 +157,20 @@ issues remain open.
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
 - `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates — binding marshalling is not gated
-- No 32-bit CI leg for the Go port yet (`normal`, decided, see Go)
+- The Go port has a 32-bit `GOARCH=386` step in the `go` job (267); Rust has no 32-bit leg (decided)
 - `low`: no CI job runs a test suite on Windows — 21 Linux jobs, one macOS; in `release.yml` only
     `test-nuget` runs on `windows-latest`
-- **Latest CI: PASSING** on `origin/develop` = `e195294`:
-    https://github.com/iscc/iscc-lib/actions/runs/44924695693 — all jobs `success`; HEAD adds only
+- **Latest CI: PASSING** on `origin/develop` = `bc01c26`:
+    https://github.com/iscc/iscc-lib/actions/runs/44926209534 — all jobs `success`; HEAD adds only
     the `cid(log)` commit, so green CI covers the code at HEAD
 
 ## Open Issues
 
-15 open in issues.md: 0 critical, 13 `normal`, 2 `low`; none blocked on the human or upstream. The
-Go canonical `meta` issue closed in 266. 7 sit in `postponed.md`.
+14 open in issues.md: 0 critical, 12 `normal`, 2 `low`; none blocked on the human or upstream. The
+Go 32-bit CI issue closed in 267. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the 13 `normal` issues that block v0.8.0, correctness first: WASM coercion and the Go 32-bit
-CI step. Then the Ruby floor, the FFI padding removal, the JNI loader, the one-shot duplication and
-docs/spec alignment. Titusz then cuts v0.8.0 via `/release`.
+Clear the 12 `normal` issues that block v0.8.0, correctness first: the WASM numeric coercion. Then
+the Ruby floor, the FFI padding removal, the JNI loader, the one-shot duplication and docs/spec
+alignment. Titusz then cuts v0.8.0 via `/release`.
