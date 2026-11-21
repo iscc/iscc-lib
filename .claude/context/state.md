@@ -1,4 +1,4 @@
-<!-- assessed-at: 5d392aebecdfa0edbe3491801eeb95eff085f069 -->
+<!-- assessed-at: 5aa8414b3b285ac738b5490eb9147eafa9477bbf -->
 
 # Project State
 
@@ -6,10 +6,10 @@
 
 ## Phase: v0.8.0 — features complete; six `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 250 fixed the
-video panic: the Rust core and the Go port now reject frame signatures of unequal length. What is
-left of that issue is a shared error vector. Six `normal` issues remain open, none blocked on the
-human or upstream. CI on the pushed tip `2c87dfe` is still running.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 251 made Go's
+canonical `meta` JSON emit `&`, `<`, `>`, U+2028/9 raw, matching the core; that issue is now reduced
+to its shared vector, like the ragged-video one. Six `normal` issues remain open, none blocked on
+the human or upstream. CI is green on the pushed tip `837e884`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -17,9 +17,9 @@ human or upstream. CI on the pushed tip `2c87dfe` is still running.
 
 - `crates/iscc-lib/tests/data-edge.json` has 6 sections; harnesses on all 12 surfaces; the 5 tracked
     copies are byte-identical and match `VENDORED_COPIES`
-- **Missing (collecting rule, 2 `normal` issues):** no `gen_meta_code_v0` vector with `&`, `<`, `>`,
-    U+2028/9 in `meta` (Go diverges), and no `gen_video_code_v0` ragged-`frame_sigs` error vector
-    (needs a `diverges` marker, since iscc-core truncates and returns a digest)
+- **Missing (collecting rule, 2 `normal` issues):** no `gen_meta_code_v0` vector with raw `&`, `<`,
+    `>`, U+2028/9 in `meta`, and no `gen_video_code_v0` ragged-`frame_sigs` error vector (needs a
+    `diverges` marker, since iscc-core truncates and returns a digest)
 - Not filed: the `parts` entry is untested on any surface; the WASM `compare` has no explicit
     non-object branch
 
@@ -29,9 +29,8 @@ human or upstream. CI on the pushed tip `2c87dfe` is still running.
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
     `conformance_selftest` runs the seq vectors; 308 lib tests
-- `soft_hash_video_v0` / `gen_video_code_v0` call `check_frame_sig_lengths` (`lib.rs:726`) and
-    return `InvalidInput` on ragged input; `.crap-baseline.json` updated in the same step
-- No binding test covers ragged video input yet; only the planned shared vector will pin it
+- `soft_hash_video_v0` / `gen_video_code_v0` reject ragged input via `check_frame_sig_lengths`
+    (`lib.rs:726`); no binding test pins it until the shared vector lands
 - **Missing (human-gated, not v0.8.0):** crate `>= 1.0.0`; MSRV verification (both `low`)
 
 ## Python Bindings
@@ -79,14 +78,14 @@ human or upstream. CI on the pushed tip `2c87dfe` is still running.
 
 ## Go Bindings
 
-**Status**: partially met
+**Status**: met (v0.8.0 scope, pending the shared vectors)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green
-- `SoftHashVideoV0` / `GenVideoCodeV0` reject ragged frame signatures (`code_content_video.go:43`)
-    with 6 named video tests
-- **Bug (`normal`, conformance parity):** `parseMetaJSON` canonicalizes with `json.Marshal`
-    (`code_meta.go:243`), which escapes `&`, `<`, `>`, U+2028/9 — Meta-Code, metahash and
-    `JsonToDataUrl` differ from every other surface; published 0.7.0 is affected
+- `parseMetaJSON` (`code_meta.go:242`) encodes with `SetEscapeHTML(false)` and writes U+2028/9 raw;
+    no `json.Marshal(` left in the file; 4 escaping tests pin it — published 0.7.0 still escapes
+- Ragged frame signatures rejected (`code_content_video.go:43`) with 6 named tests
+- `low` (new): Go canonical `meta` differs from the core on UTF-16 key order, `-0` and lone
+    surrogates (contrived input only)
 
 ## C# / .NET Bindings
 
@@ -123,8 +122,7 @@ human or upstream. CI on the pushed tip `2c87dfe` is still running.
 **Status**: partially met
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
-    section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (20 `FULL`, 2 `EXACT`);
-    `docs/rust-api.md` documents the ragged-video error
+    section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (20 `FULL`, 2 `EXACT`)
 - **Bug (`normal`):** published docs contradict what ships — README prints `result.iscc` from a
     string return, WASM snippet lacks `await init()`, Java/Kotlin/Swift docs deny shipped
     distribution, `architecture.md` and `development.md` carry stale claims (~11 files)
@@ -146,20 +144,18 @@ human or upstream. CI on the pushed tip `2c87dfe` is still running.
     toggles; 21 version-sync targets at 0.7.0
 - `normal` (audit): the pytest gate rose 25.6 → 44.1 s; `tests/test_benchmarks.py` runs timing loops
     every gate and the Tier 1 doc tests copy the docs tree per case
-- **Latest CI: IN PROGRESS** on `origin/develop` = `2c87dfe` (the video fix):
-    https://github.com/iscc/iscc-lib/actions/runs/44881209346 — last completed run green on
-    `fe20717`: https://github.com/iscc/iscc-lib/actions/runs/44870213446
-- HEAD is ahead of origin only by the `cid(log)` commit; the video fix is not yet covered by a
-    finished CI run
+- **Latest CI: PASSING** on `origin/develop` = `837e884` (Go escaping fix):
+    https://github.com/iscc/iscc-lib/actions/runs/44882682839
+- HEAD is ahead of origin only by the `cid(log)` commit; green CI covers all code at HEAD
 
 ## Open Issues
 
-19 open: 0 critical, 6 normal (2 `[human]`, 4 `[audit]`, all CID-workable), 13 low (human-directed;
-8 `untriaged`). issues.md is at 298 of 300 lines.
+20 open: 0 critical, 6 normal (2 `[human]`, 4 `[audit]`, all CID-workable), 14 low (human-directed;
+9 `untriaged`). issues.md is at its 300-line budget.
 
 ## Next Milestone
 
-Close the six `normal` issues that block v0.8.0: Go Meta-Code JCS parity, the two missing shared
-`data-edge.json` vectors (JCS and ragged video) on every surface, the FFI NULL handling, the
-integer-range bugs, the published-docs corrections and the pytest gate time. Confirm the running CI
-on `2c87dfe` goes green. The release itself stays with Titusz.
+Close the six `normal` issues that block v0.8.0: the two missing shared `data-edge.json` vectors
+(raw JCS characters in `meta`, ragged video) on every surface, the FFI NULL handling, the
+integer-range bugs, the published-docs corrections and the pytest gate time. The release itself
+stays with Titusz.
