@@ -138,35 +138,27 @@ conversion and the doc comment matches it.
 
 Counts, file lists and symbol lists are repeated across `docs/`, the READMEs, `CLAUDE.md` files and
 the specs with nothing checking them. Rule: `.claude/context/README.md` → "Hygiene rules" → "Derived
-facts are checked or not written". The Tier 1 symbol list is gated since iteration 233
-(`scripts/check_tier1_docs.py`: registered docs must name every symbol derived from `lib.rs`, and
-the `lib.rs` parse fails closed). Two parts of the problem are left:
+facts are checked or not written". The Tier 1 symbol list is gated (`scripts/check_tier1_docs.py`:
+registered docs must name every symbol derived from `lib.rs`, the `lib.rs` parse fails closed, and
+every per-language how-to and API reference under `docs/` is in the registry). One part of the
+problem is left: unchecked counts, file lists and line numbers remain in `.claude/context/specs/`
+and the per-crate `CLAUDE.md` files.
 
-- **`docs/howto/c-cpp.md` is not in the gate's registry.** It enumerates the C and C++ API, is
-    incomplete, and names too few symbols for the gate's discovery threshold to notice it
-- **Unchecked counts, file lists and line numbers** remain in `.claude/context/specs/` and the
-    per-crate `CLAUDE.md` files
+Resolved when counts, file lists and line numbers that no check covers are gone from
+`.claude/context/specs/` and the per-crate `CLAUDE.md` files, replaced by wording that cannot go
+stale ("all Tier 1 functions") or brought under a check.
 
-Resolved when both hold:
+## The pkg-config example in the C/C++ how-to says `Version: 0.2.0` `low` [review]
 
-- every per-language how-to and API reference under `docs/` is in the gate's registry: `FULL` once
-    complete, or `EXEMPT` with a reason
-- counts, file lists and line numbers that no check covers are gone from `.claude/context/specs/`
-    and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
-    functions") or brought under a check
+**Triage:** untriaged — a reader who copies the `iscc-ffi.pc` example from `docs/howto/c-cpp.md` →
+"pkg-config" gets a file that reports 0.2.0 for whatever release they installed, so
+`pkg-config --modversion` and `--atleast-version` answer wrongly.
 
-## The minimal-build snippet pins `iscc-lib` to 0.4 `normal` [review]
+The line is typed by hand and is not a `scripts/version_sync.py` target, which covers only the
+Maven, Gradle and SPM snippets in docs (0.7.0 is current). Pre-existing, found in iteration 244.
 
-`docs/howto/rust.md` → "Feature flags" and `crates/iscc-lib/README.md` both show
-`iscc-lib = { version = "0.4", default-features = false }`. Cargo reads `"0.4"` as `^0.4`, which
-resolves to 0.4.0 while 0.7.0 is current (crates.io, read 2026-11-21). A reader who copies the line
-and then follows the same how-to gets an unresolved import for `encode_seq` and `gen_iscc_id_v1`:
-the published 0.4.0 has neither (measured in iteration 243). `scripts/version_sync.py` does not
-cover the two lines. Pre-existing.
-
-Resolved when neither file shows a crate version that no check keeps current: the snippet is
-version-free (`cargo add iscc-lib --no-default-features`), or both lines are `version_sync.py`
-targets.
+Resolved when the example shows no version that no check keeps current: a placeholder the reader
+fills in, or the line is a `version_sync.py` target.
 
 ## Published Ruby source gems up to 0.7.0 do not build `low` [review]
 

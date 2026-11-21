@@ -627,6 +627,18 @@ Full text of entries compacted out of `MEMORY.md`.
 - **A `zensical build` "page does not exist" warning during a background Codex run was a race**
     (243: both wipe `site/`); it exits 0 either way, so re-run it once Codex is done and read the
     output. **A count word hides from a digit grep**: "The three `META_TRIM_*` constants" (243)
+- **C++ how-to completion step (244 PASS, ~8 min, Codex clean)**: (1) a 10-line extractor writes
+    every ```` ```cpp ```` block to `/tmp`, tagged `main`/`frag`; each `main` block builds alone
+    with
+    `g++ -std=c++17 -Wall -Wextra -I packages/cpp/include -I crates/iscc-ffi/include f.cpp   -L target/debug -liscc_ffi`
+    after `cargo build -p iscc-ffi` and runs with `LD_LIBRARY_PATH=target/debug`; pipe the output
+    through `cat -A` and compare with the comments. (2) Registration mutant = the page's previous
+    version in a `git archive` copy (must list exactly next.md's missing symbols). (3) A prose claim
+    like "wraps the C function of the same name with an `iscc_` prefix": count `iscc_<name>(` in
+    `iscc.h` per function (false for `iscc::iscc_decode` / `iscc_decompose`). (4) **Grep the touched
+    page for hand-typed versions** (`git grep -nE '[0-9]+\.[0-9]+\.[0-9]+'`): `version_sync.py`
+    covers only Maven/Gradle/SPM snippets (244 found `Version: 0.2.0` in the pkg-config example,
+    filed `low`). In zsh a subshell's `${PIPESTATUS[0]}` is empty: use bash
 
 ## Install-claim probe (238)
 

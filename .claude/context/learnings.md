@@ -71,8 +71,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 ## ISCC Algorithm Knowledge
 
 - **Unicode 16.0.0 pin REMOVED 2026-07-30** (decisions.md, human): `text_clean`/`text_collapse`
-    mirror the reference on whatever tables dependencies ship; every freeze-era mechanism and note
-    (sentinel, frozen `Final_Sigma`, boundary vectors, sweep gate) is historical — never resurrect
+    mirror the reference on whatever tables dependencies ship; never resurrect a freeze mechanism
 - **A data-driven fixture is self-referential — assert CONTENT, not shape** (141): ungate guards on
     version, case counts, code points + skip-list keys (ASCII no-op swaps stay green forever). A
     test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin it
@@ -94,8 +93,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `find_class`) CLEAR the JVM exception (OOM → `NoMemory`), `post_check_ex` ones (`new_object`)
     leave it pending. HotSpot 17 `-Xcheck:jni` is SILENT on `ThrowNew` over a pending exception:
     assert the class. Trigger: shadow result class with a throwing ctor first on a child `-cp`
-- **Release pipeline** + `version_sync.py`'s 21 targets → `learnings-archive.md`. `@iscc/wasm`
-    metadata = wasm-pack 0.13.1 output of its `Cargo.toml` (214); no `description` → badge line
+- **Release pipeline** + `version_sync.py`'s 21 targets → `learnings-archive.md`. Its doc targets
+    are the Maven/Gradle/SPM snippets only: any other version in docs is hand-typed, so write none
+    (244). `@iscc/wasm` metadata = wasm-pack 0.13.1 output of its `Cargo.toml` (214)
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
     (guard shape, artifact wiring, `needs:` graph; prek hook +
@@ -196,5 +196,5 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **Tier 1 doc parity is gated** (233): `scripts/check_tier1_docs.py` derives the symbols from
     `lib.rs`, NAMES only; an unparsable crate-root `pub` fails (242): add a derive rule or an
     `EXCLUDED_ITEMS` entry. `rust-api.md` signatures: `tests/test_rust_api_signatures.py`; doc
-    examples compile in a `/tmp` cargo project, path dep (243). **`#[wasm_bindgen_test]` skips the
-    JS glue** (234): prove a JS shape from Node + the `.d.ts` (`wasm-pack build --target nodejs`)
+    examples compile in a `/tmp` cargo project, path dep (243), C++ `main()` blocks with `g++`
+    (244). **`#[wasm_bindgen_test]` skips the JS glue** (234): prove a JS shape from Node + `.d.ts`

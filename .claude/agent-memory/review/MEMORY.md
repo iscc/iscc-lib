@@ -114,6 +114,9 @@ Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`)
     from a `git archive` copy → `binding-reviews.md`
 - **Docs install/packaging-claim step (238, ~12 min)**: install the PUBLISHED artifact in a clean
     prefix → `review-patterns.md` "Install-claim probe (238)"
+- **C++ how-to / doc-example step (244, ~8 min)**: extract + `g++` each `main()` block, previous
+    page as gate mutant, grep the page for hand-typed versions → `review-patterns.md` "Doc-parity
+    gate (233)"
 - **Ruby gem packaging step (239 NEEDS_WORK, 240/241 PASS, ~12–25 min)**: run the action's real
     unanchored lookup; criteria from one logged script with the mise Ruby 3.4 `bin/` on PATH. Codex
     caught BOTH early misses (lookup, dropped `[profile.release]`): for any generated manifest, diff
