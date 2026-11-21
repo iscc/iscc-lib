@@ -86,15 +86,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 7a64034, iter 262 — incremental)
+## Current State (assessed-at: 6566550, iter 263 — incremental)
 
-- **CI on `origin/develop` = `332373c` RED — Kotlin only**, an external failure: plugins.gradle.org
-    could not serve `kotlin-gradle-plugins-bom:2.4.10`; no `pluginManagement` fallback repo is
-    declared. Last fully green run: `28a1f46` (44904982105). For job logs, call the
-    `actions/jobs/<id>/logs` API with `--allow-escape-sequences` and strip the ANSI codes, or the
-    output comes back empty.
-- 17 open (16 `normal` + 1 `low`); 6 in `postponed.md` (do NOT block DONE-for-v0.8.0). 261 closed
-    the Go TextTrim/hashers issue. Go has 290 `Test*` funcs.
+- **CI on `origin/develop` = `d31695f` GREEN** (run 44909977285, 24 check-runs success). 262 fixed
+    Kotlin via `pluginManagement` (mavenCentral first) + .NET `skip-lts-prepass: true`. For job
+    logs, call the `actions/jobs/<id>/logs` API with `--allow-escape-sequences` and strip ANSI.
+- 16 open (15 `normal` + 1 `low`); 6 in `postponed.md` (do NOT block DONE-for-v0.8.0). 262 closed
+    the .NET LTS issue. Go has 290 `Test*` funcs.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.

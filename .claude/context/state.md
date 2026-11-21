@@ -1,15 +1,14 @@
-<!-- assessed-at: 7a64034d38bbdebdc6e70daa329665770f957ca1 -->
+<!-- assessed-at: 6566550377a70dd588cbccde2759b01078e1de8b -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; CI red on the Kotlin leg (external); 16 `normal` issues block the release
+## Phase: v0.8.0 — features done; CI green; 15 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 261 fixed the Go
-`TextTrim` panic and the Go hashers' use-after-`Finalize`, and closed that audit issue. CI on the
-`develop` tip `332373c` is red. Only the Kotlin job failed: Gradle could not resolve the Kotlin
-plugin BOM from plugins.gradle.org. No Kotlin code changed. 16 `normal` issues are still open.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 262 got CI green
+again: Kotlin resolves Gradle plugins from Maven Central first, and the .NET legs skip
+setup-dotnet's LTS pre-pass, which closed the .NET LTS issue. 15 `normal` issues remain open.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -87,20 +86,18 @@ plugin BOM from plugins.gradle.org. No Kotlin code changed. 16 `normal` issues a
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green incl.
     the raw-JCS meta vector and the ragged video vector; 290 `Test*` functions
-- `TextTrim` returns `""` for `nbytes <= 0`. `DataHasher`/`InstanceHasher` carry a `finalized` flag:
-    `Push` returns `error`, and every call after the first `Finalize` errors (API break, v0.8.0
-    release-notes item, decisions.md 2026-11-21). The audit issue is closed
+- `TextTrim` returns `""` for `nbytes <= 0`; hashers error on every call after `Finalize` and `Push`
+    returns `error` (API break, v0.8.0 release-notes item, decisions.md 2026-11-21)
 - `normal`: Go canonical `meta` differs from the core on UTF-16 key order, `-0` and lone surrogates
 - Published 0.7.0 still escapes `&`, `<`, `>`, U+2028/9 in canonical `meta` (fixed on develop)
 
 ## C# / .NET Bindings
 
-**Status**: partially met (two `normal` issues)
+**Status**: partially met (one `normal` issue)
 
 - `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 8 sections strictly; 0.7.0 on NuGet
-- CI: `dotnet-test` 8.0/10.0 legs and the `dotnet` aggregator green; private `DOTNET_INSTALL_DIR`
-- `normal`: setup-dotnet's LTS pre-pass installs the latest LTS into the private dir, so the 10.0
-    leg (`LatestMajor`) turns red when .NET 12 ships
+- CI: `dotnet-test` 8.0/10.0 legs use a private `DOTNET_INSTALL_DIR` plus `skip-lts-prepass: true`
+    (`ci.yml:183`), so a leg holds only the runtimes it lists; the LTS issue is closed
 - `normal`: the `PinnedRows` padding (and C++ `safe_data`) guard a NULL rejection the FFI no longer
     has — removal decided
 - .NET 8 reached end of support 2026-11-10; the `net8.0` floor is the human's call
@@ -126,14 +123,12 @@ plugin BOM from plugins.gradle.org. No Kotlin code changed. 16 `normal` issues a
 
 ## Swift and Kotlin Bindings
 
-**Status**: met (v0.8.0 scope), but the Kotlin CI job is red on the tip
+**Status**: met (v0.8.0 scope)
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
-    all 8 data-edge sections; the macOS `swift` job is green; shipped 0.7.0
-- Kotlin job on `332373c` failed at configuration: plugins.gradle.org returned no
-    `kotlin-gradle-plugins-bom:2.4.10` POM. The plugin resolves only through the plugin portal; no
-    `pluginManagement` repository fallback is declared. Nothing under `packages/kotlin` or
-    `crates/iscc-uniffi` changed since the green `28a1f46`
+    all 8 data-edge sections; shipped 0.7.0
+- `packages/kotlin/settings.gradle.kts` declares `pluginManagement` with `mavenCentral()` before
+    `gradlePluginPortal()`; `.kotlin/` is gitignored. Kotlin and macOS `swift` jobs green on the tip
 
 ## Documentation
 
@@ -144,9 +139,8 @@ plugin BOM from plugins.gradle.org. No Kotlin code changed. 16 `normal` issues a
 - `normal`: `architecture.md` lower sections cover half the surfaces; how-to Sum-Code comments show
     `KAA`; docs overstate language coverage and what ISO 24138 specifies (audit)
 - `normal`: `docs/development.md` "Publish" says a tag push triggers the release
-- `normal` (audit): spec/`CLAUDE.md` staleness, which now also covers `go-bindings.md` claiming an
-    `io.Reader` API that `packages/go` lacks
-- `docs/howto/go.md` documents the hasher "already finalized" errors
+- `normal` (audit): spec/`CLAUDE.md` staleness, including `go-bindings.md` claiming an `io.Reader`
+    API that `packages/go` lacks
 
 ## Benchmarks
 
@@ -157,30 +151,24 @@ plugin BOM from plugins.gradle.org. No Kotlin code changed. 16 `normal` issues a
 
 ## CI/CD and Publishing
 
-**Status**: partially met — CI red (Kotlin, external); the v1.0.0 semver gate is human-gated
+**Status**: partially met — CI green; the v1.0.0 semver gate is human-gated
 
 - `ci.yml` has 22 job keys (`dotnet-test` matrix + `if: always()` `dotnet` aggregator);
     `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21 version-sync targets at
     0.7.0
 - `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates — binding marshalling is not gated
-- **Latest CI: FAILING** on `origin/develop` = `332373c`:
-    https://github.com/iscc/iscc-lib/actions/runs/44908416407 — only `Kotlin (gradle build, test)`
-    failed (plugin BOM resolution); every other job, Go included, passed
-- The last fully green run is `28a1f46` (run 44904982105). The only code that changed since then is
-    the Go diff, and the Go job passed on the tip. HEAD is 1 commit ahead (`cid(log)`, `.claude`
-    only)
+- **Latest CI: PASSING** on `origin/develop` = `d31695f`:
+    https://github.com/iscc/iscc-lib/actions/runs/44909977285 — all 24 check-runs `success`
+- HEAD is 1 commit ahead (`cid(log)`, `.claude` only), so green CI covers the code at HEAD
 
 ## Open Issues
 
-17 open in issues.md: 0 critical, 16 `normal`, 1 `low`; none blocked on the human or upstream.
-Iteration 261 closed the Go `TextTrim`/hashers audit issue and filed none. Review appended the
-`go-bindings.md` `io.Reader` drift to the existing spec-staleness issue. 6 more sit in
-`postponed.md`.
+16 open in issues.md: 0 critical, 15 `normal`, 1 `low`; none blocked on the human or upstream.
+Iteration 262 closed the .NET LTS pre-pass issue and filed none. 6 more sit in `postponed.md`.
 
 ## Next Milestone
 
-Get CI green on `develop` again: the Kotlin job fails on Gradle plugin resolution, not on code. Then
-clear the 16 `normal` issues that block v0.8.0, with correctness defects first: the Rust
-`alg_cdc_chunks` overflow, Go canonical `meta`, the Python video exception class and WASM coercion.
-After those come the Ruby floor, CI robustness and docs/spec alignment. Titusz then cuts v0.8.0 via
-`/release`.
+Clear the 15 `normal` issues that block v0.8.0, correctness defects first: the Rust `alg_cdc_chunks`
+overflow (with a `data-edge.json` vector), Go canonical `meta`, the Python video exception class and
+WASM coercion. Then the Ruby floor, the FFI padding removal, the JNI loader and docs/spec alignment.
+Titusz then cuts v0.8.0 via `/release`.
