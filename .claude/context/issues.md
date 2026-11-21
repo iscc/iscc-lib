@@ -101,17 +101,6 @@ Resolved when the "Publish" section describes the dispatch with a `version` inpu
 registry chain or says the table is an excerpt, tells the reader not to push the tag by hand, and
 the Swift heading and intro match the flow.
 
-## Go canonical `meta` JSON differs from the core in key order, `-0` and lone surrogates `normal` [review]
-
-`parseMetaJSON` (`packages/go/code_meta.go`) keeps three differences from RFC 8785, measured against
-`iscc_lib` in iteration 251. `encoding/json` sorts keys by UTF-8 bytes, JCS by UTF-16 code units:
-for `{"\ue000":1,"\ud83d\ude00":2}` Go keeps this key order, the core swaps it. Go writes `-0.0` as
-`-0`, the core as `0`. Go turns a lone surrogate escape into U+FFFD, the core rejects the input.
-Pre-existing. The other numbers probed match (`1.0`, `1e21`, `1e-7`, `9007199254740993`).
-
-Resolved when Go returns the core's result for the three inputs and each is a `data-edge.json`
-vector.
-
 ## C++ `safe_data` and .NET `PinnedRows` padding guard a NULL rejection the FFI no longer has `normal` [review]
 
 The C FFI reads a NULL pointer with length 0 as an empty input on every pointer+length parameter

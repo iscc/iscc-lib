@@ -865,6 +865,16 @@ A step that changes how the Go port serializes something the core also serialize
     script that builds the backslash the same way
 - When the step fixes part of an issue, rewrite the entry to the remainder and keep its priority.
     `issues.md` sat at 298 of 300 lines: a new entry needed cuts in other `low` `[review]` entries
+- 266 (structural rewrite: key order, `-0`, lone surrogates; PASS in about 15 minutes): the same
+    differential with 4,000 seeded random documents added (random 64-bit doubles, integers up to
+    2^70, a key pool mixing astral and high-BMP characters) gave 0 differences. Check the probe's
+    power by copying `git show HEAD~1:packages/go/code_meta.go` into the `/tmp` tree and re-running:
+    it must print differences. Go's `encoding/json` float output equals the ECMAScript form
+- New vectors in an existing `data-edge.json` section: `node --test __tests__/data_edge.test.mjs` in
+    `crates/iscc-napi` and `mvn -o -B -q test -f crates/iscc-jni/java/pom.xml` run them in seconds
+    on the existing artifacts when the core did not change
+- A lone surrogate escape cannot be a vector (serde_json fails on the fixture file): accept a Go
+    unit test and delete the issue; the `edge-vectors.md` rule on JSON-expressible inputs covers it
 
 ## Pytest config / test-fixture speed step (254)
 

@@ -69,8 +69,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     `version_sync.py --check`, a shell script `bash -n <script>`
 - **Core + Go behaviour / integer-width fix (250/263)**: boundary differential, bare `rustc` =
     edition 2015, host-type check for a follow-up vector → `review-patterns.md` "Core + Go … (250)"
-- **Go-only canonicalizer / serializer fix (251, ~8 min)**: Go criteria + ONE differential against
-    `iscc_lib` from a `git archive` copy (`go test -v`, or the output is hidden) →
+- **Go-only canonicalizer / serializer fix (251/266, ~8–15 min)**: Go criteria + ONE differential
+    against `iscc_lib` from a `git archive` copy (`go test -v`, or the output is hidden) →
     `review-patterns.md` "Go-only serializer fix (251)"
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
     `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go`; API-shape (261) → topic

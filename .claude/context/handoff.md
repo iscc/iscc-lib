@@ -1,59 +1,62 @@
-## 2026-11-21 — Go canonical `meta` JSON matches the core on UTF-16 key order, `-0` and lone surrogates
+## 2026-11-21 — Review of: Go canonical `meta` JSON matches the core on UTF-16 key order, `-0` and lone surrogates
 
-**Done:** `parseMetaJSON` in the Go port now writes RFC 8785 JSON itself, recursively: object keys
-sorted by UTF-16 code units at every depth, float64 `-0` written as `0`, and scalars still on the
-`SetEscapeHTML(false)` + `unescapeLineSeparators` path. `checkSurrogateEscapes` runs after
-`json.Unmarshal` and rejects any lone `\uD800`–`\uDFFF` escape (pairwise walk, so `\\ud800` stays
-literal text), with the error in the `iscc: invalid JSON in meta:` form. Two vectors
-(`test_0002_utf16_key_order`, `test_0003_negative_zero`) were added to the `gen_meta_code_v0`
-section of `data-edge.json`.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/go/code_meta.go`: `parseMetaJSON` rewritten; added `checkSurrogateEscapes`,
-    `escapeUnit`, `writeCanonical`, `writeCanonicalObject`, `writeCanonicalArray`,
-    `writeCanonicalScalar`, `sortedKeysUTF16`; doc comment updated; imports `slices`, `strconv`,
-    `unicode/utf16`
-- `packages/go/code_meta_test.go`: `jcsStructureCases` (8 payload cases: key order, `-0.0`, `-0`,
-    nested in an array, nested objects, a surrogate pair value, `\\ud800` literal, numbers),
-    `TestParseMetaJSONLoneSurrogate` (7 inputs), `TestGenMetaCodeV0LoneSurrogate` (both public entry
-    points), `TestGenMetaCodeV0Structure`. Every expected value comes from the Rust core via
-    `iscc_lib.json_to_data_url` / `gen_meta_code_v0("Hello", None, m, 64)`. Non-ASCII written as
-    JSON escapes inside raw strings
-- `crates/iscc-lib/tests/data-edge.json` and its 4 vendored copies: 2 vectors, each with a `note`
-    naming the Go defect; key-order input written with escapes; `metahash` taken from iscc_lib
-- `crates/iscc-ffi/tests/data_edge_vectors.h`: regenerated (count 1→3, total 24→26)
-- `packages/go/CLAUDE.md`: "JSON canonicalization" bullet describes the writer, the UTF-16 order,
-    `-0`, the surrogate check, and numbers otherwise left to Go's formatting
+**Summary:** `parseMetaJSON` in the Go port now writes RFC 8785 JSON itself: keys sorted by UTF-16
+code units at every depth, `-0` written as `0`, and a lone surrogate escape rejected. Two shared
+vectors (`test_0002_utf16_key_order`, `test_0003_negative_zero`) pin the first two on all surfaces.
+The diff stays in scope (one Go source file, tests, fixture copies, the regenerated C header, the Go
+`CLAUDE.md`), and a differential against the Rust core found no difference.
 
 **Verification:**
 
-- `cd packages/go && CGO_ENABLED=0 go test ./... && go vet ./...`: ok, vet clean
-- Old `code_meta.go` (`git show HEAD:`) in a `/tmp` copy with the new tests and fixture: all 4 new
-    tests FAIL, and `TestDataEdgeVectorsPass` fails on exactly `test_0002` (got
-    `ISCC:AAAWKLHFXPTYLTYX`) and `test_0003` (got `ISCC:AAAWKLHFXMCEEUNP`). Copy removed
-- `uv run pytest tests/test_data_edge.py tests/test_vendored_fixtures.py tests/test_gen_data_edge_vectors.py`:
-    162 passed (iscc-core cross-check included, no `diverges`)
-- `cargo test -p iscc-lib`: all suites ok (data-edge harness included)
-- C harness (CI's gcc line): 147 passed, 0 failed. Other surfaces not run locally; they canonicalize
-    in the core, which the Rust and C runs exercise
-- `python3 -c "...assert len(s)==3"`: exits 0
-- `uv run --script scripts/gen_data_edge_vectors.py` after the commit: `git status --porcelain`
-    shows only the runner's `iterations.jsonl`
-- `mise run check`: exit 0, no file modified
+- [x] `cd packages/go && CGO_ENABLED=0 go test ./... && go vet ./...` — ok, vet and `gofmt -l`
+    clean; the four new tests and `TestDataEdgeVectorsPass` pass by name (`-v`)
+- [x] `uv run pytest tests/test_data_edge.py tests/test_vendored_fixtures.py tests/test_gen_data_edge_vectors.py`
+    — 162 passed, iscc-core agrees on both vectors without `diverges`
+- [x] `cargo test -p iscc-lib` — all suites ok (data-edge harness: 7 passed)
+- [x] `uv run --script scripts/gen_data_edge_vectors.py` — `git status --porcelain` for the header
+    is empty
+- [x] `python3 -c "...assert len(s)==3"` — exit 0
+- [x] `mise run check` — exit 0, no file modified
 
-**Next:** the Go `GOARCH=386` CI step (issue "No CI job runs the Go port as a 32-bit build"); it
-will also run this step's code on 386.
+Probes beyond next.md:
+
+- Differential of Go `JsonToDataUrl` against `iscc_lib.json_to_data_url` over 4,205 JSON texts (22
+    surrogate forms in values and keys, 59 number literals, 25 keys in both orders, duplicate keys,
+    invalid JSON, 4,000 random documents with random 64-bit doubles and integers up to 2^70): 0
+    differences. The same probe on the previous `code_meta.go` reports differences in the key,
+    number and random rows, so it can see the defect
+- `GOARCH=386 CGO_ENABLED=0 go test ./...` passes
+- The napi (`node --test __tests__/data_edge.test.mjs`) and JNI (`mvn -o test`) harnesses pass on
+    the two new vectors. Advance ran Rust, Python, C and Go. Codex reports .NET, Kotlin and Swift
+    green
+
+**Issues found:**
+
+- (none). The issue "Go canonical `meta` JSON differs from the core in key order, `-0` and lone
+    surrogates" is resolved and deleted
+- The lone surrogate has no vector, and none is owed: serde_json fails on the fixture file itself,
+    so the input is not one "every language can express in JSON" (`edge-vectors.md` → Rules). The Go
+    unit tests cover it (7 inputs, both public entry points, message asserted). Recorded in
+    learnings.md
+- Style notes, not filed: `writeCanonicalScalar` builds one encoder per scalar, and
+    `checkSurrogateEscapes` scans the input a second time. Both are fine for `meta` sizes
+
+**Codex review:** no actionable findings. It ran the Go suite (amd64 and 386), the Rust tests, the
+fixture checks, and the C, .NET, Kotlin and Swift edge-vector tests; all passed.
+
+**Next:** the Go `GOARCH=386` CI step (issue "No CI job runs the Go port as a 32-bit build", decided
+2026-11-21). It is one step in the `go` job of `ci.yml`, and it also runs this step's canonicalizer
+on 386. The suite passes on 386 locally today.
 
 **Notes:**
 
-- **Lone surrogate is a Go unit test only, not a vector.** serde_json (Rust harness, C generator)
-    rejects `\ud800` while parsing the fixture, and the JSON-text-in-a-string form fails because
-    iscc-core reads a string `meta` as a data URL (`AttributeError`, not in `REJECTIONS`). Review
-    should rewrite the issue's "each is a vector" clause or record this
-- Rust core probed on raw JSON text (`json_to_data_url`): `\ud800`, `\udc00`, `\ud800A`,
-    `\ud800\ud800`, `\ud800` in a key all raise `invalid JSON`; `\\ud800` is accepted as literal
-    text. The Go tests mirror those inputs
-- Number output: Go already matched the core for `1.0`, `1e21`, `1e-7`, `9007199254740993`, `0.1`,
-    `-1.5e300` (case `numbers`, bytes from the core). No ECMAScript formatter was written
-- Go-only change: no CRAP, iai or semver impact; no Rust or binding code touched
+- Go's `encoding/json` float64 output matched the core's ECMAScript number form on every probed
+    number, random doubles included. No hand-written number formatter is needed; do not scope one
+    without a failing input
+- The two vectors run on Ruby, WASM, C++ and UniFFI for the first time in CI after this push. Those
+    harnesses canonicalize in the core, so a failure there would be a harness JSON round-trip
+    defect, not a core defect
+- issues.md: 234 lines. learnings.md is at its 200-line budget: a new bullet needs an equal cut.
+    decisions.md is at 398 of 400; no entry was added this iteration
