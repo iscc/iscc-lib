@@ -19,6 +19,8 @@ import {
     gen_mixed_code_v0,
     gen_iscc_code_v0,
     alg_simhash,
+    gen_meta_code_v0,
+    gen_video_code_v0,
 } from '../index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -42,6 +44,15 @@ function decodeBytes(value) {
 /** Decode the `alg_simhash` digest list from `bytes:<hex>` strings into Buffers. */
 function prepareSimhash([digests, ...rest]) {
     return [digests.map(decodeBytes), ...rest];
+}
+
+/**
+ * Prepare `gen_meta_code_v0` inputs: an empty description becomes `undefined` and a
+ * meta object is serialized to the JSON string the binding takes.
+ */
+function prepareMeta([name, description, meta, ...rest]) {
+    const metaArg = typeof meta === 'string' ? meta : JSON.stringify(meta);
+    return [name, description || undefined, metaArg, ...rest];
 }
 
 /** Return a vector's raw JSON inputs unchanged. */
@@ -72,6 +83,8 @@ const SECTIONS = {
     gen_mixed_code_v0: [gen_mixed_code_v0, convertIscc, identity],
     gen_iscc_code_v0: [gen_iscc_code_v0, convertIscc, identity],
     alg_simhash: [alg_simhash, bytesValue, prepareSimhash],
+    gen_meta_code_v0: [gen_meta_code_v0, convertIscc, prepareMeta],
+    gen_video_code_v0: [gen_video_code_v0, convertIscc, identity],
 };
 
 /** Load and parse data-edge.json. */
@@ -82,11 +95,13 @@ function loadDoc() {
 /**
  * Section name -> expected output keys its napi result does not carry, which are
  * therefore not compared (an absent section compares every key). The gen functions
- * here return a bare ISCC string, so text drops `characters` and mixed drops `parts`.
+ * here return a bare ISCC string, so text drops `characters`, mixed drops `parts` and
+ * meta drops `name`, `meta` and `metahash`.
  */
 const UNCOMPARED = {
     gen_text_code_v0: ['characters'],
     gen_mixed_code_v0: ['parts'],
+    gen_meta_code_v0: ['name', 'meta', 'metahash'],
 };
 
 /**
