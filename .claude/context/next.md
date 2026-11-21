@@ -1,91 +1,94 @@
 # Next Work Package
 
-## Step: Go `GenMetaCodeV0` enforces the 128,000-byte meta limit, pinned by a shared vector
+## Step: Generated C edge header keeps every string literal within 4,095 bytes
 
 ## Goal
 
-Fix the `normal` `[audit]` issue "Go `GenMetaCodeV0` never enforces the 128,000-byte meta payload
-limit": the pure-Go port must reject an oversized meta payload the way the Rust core and iscc-core
-do. Per the collecting rule, the divergence is pinned by one `data-edge.json` vector that all 12
-harnesses run.
+Fix the `normal` issue "Generated `data_edge_vectors.h` holds a 128 KB string literal that MSVC
+cannot compile". The generator writes any string over the ISO C99 literal minimum (4,095 bytes) into
+a buffer that a header-provided init function fills at runtime. That keeps the C and C++ test
+programs portable to MSVC, and a later large vector cannot break them again.
 
 ## Alternatives Considered
 
-- **Chosen:** Go meta limit. A correctness divergence on a Tier 1 function (Go returns a code where
-    every other surface and the reference raise), one source file, and it closes a "Go port behaves
-    differently" gap with a shared vector
-- **Rejected:** `@iscc/wasm` Node docs (handoff "Next"). They are docs only and need a packed-build
-    probe first. A wrong result from a conformance-tested port matters more; the docs come next
+- **Chosen:** header-literal fix. It is left over from iteration 281, touches only test tooling, and
+    gcc can check it here (`-Woverlength-strings`) although no MSVC is available.
+- **Rejected:** `[audit]` "`@iscc/wasm` docs show a Node.js setup the published package cannot run"
+    (handoff option 2). It is equally small and goes next. This fix comes first because the next
+    data-edge vector would make it bigger.
+- **Rejected:** a decisions.md entry limiting the test programs to gcc/clang. It gives up
+    portability that a small generator change keeps.
 
 ## Scope
 
-- **Modify**: `packages/go/code_meta.go`
-- **Modify (test data / generated, outside the cap)**: `crates/iscc-lib/tests/data-edge.json` and
-    its 4 vendored copies (`packages/{dotnet/Iscc.Lib.Tests/testdata,go/testdata}/data-edge.json`,
-    `packages/kotlin/src/test/resources/data-edge.json`,
-    `packages/swift/Tests/IsccLibTests/data-edge.json`); the regenerated
-    `crates/iscc-ffi/tests/data_edge_vectors.h`
-- **Tests**: `packages/go/code_meta_test.go`
-- **Reference**: `crates/iscc-lib/src/lib.rs` (`gen_meta_code_v0`, pre-decode + post-decode checks
-    near :363-385), `reference/iscc-core/iscc_core/code_meta.py:62-76`,
-    `scripts/gen_data_edge_vectors.py`, `.claude/context/specs/edge-vectors.md`
+- **Modify**: `scripts/gen_data_edge_vectors.py`; `crates/iscc-ffi/tests/data_edge_vectors.h`
+    (regenerated, not hand-edited); `crates/iscc-ffi/tests/test_iscc.c`;
+    `packages/cpp/tests/test_iscc.cpp`
+- **Modify (tests/docs)**: `tests/test_gen_data_edge_vectors.py`; `crates/iscc-ffi/CLAUDE.md` (:145)
+    and `packages/cpp/CLAUDE.md` (:97): one sentence each on the init call
+- **Reference**: MSVC C2026 (16,380 bytes per literal piece) and C1091 (65,535 after concatenation):
+    https://learn.microsoft.com/en-us/cpp/error-messages/compiler-errors-1/compiler-error-c2026,
+    https://learn.microsoft.com/en-us/cpp/error-messages/compiler-errors-1/fatal-error-c1091
 
 ## Not In Scope
 
-- Any Rust core or binding change: all Rust-backed surfaces already reject. If a binding harness
-    fails on the new vector, that is a finding to report, not a reason to edit the harness to skip
-    it (only `except` in the file may deviate, and none should be needed)
-- A passing boundary vector at exactly 128,000 bytes in `data-edge.json`. Its `outputs.meta` would
-    add another ~170 KB data URL to all 5 copies. The 128,000-byte pass stays a Go unit test
-- The `docs/howto/dotnet.md:430` wording of `MetaTrimMeta`, and the duplicate-parser `[audit]` issue
-    (`code_meta_test.go` `metaArg` copy): separate issues
-- Changing `MetaTrimMeta` docs in `packages/go/README.md` / `docs/howto/go.md`: they already state
-    the limit correctly; after the fix they are true
+- Do not change `data-edge.json`, its 5 copies or any other harness. The fixture stays
+    byte-identical.
+- Do not change `struct iscc_edge_str`/`iscc_edge_list` or the per-section check functions.
+- Do not render short strings any differently: all rows under the threshold stay byte-identical.
+- No Windows/MSVC CI job (separate `low` issue "No CI job runs a test suite on Windows").
 
 ## Implementation Notes
 
-- Mirror the core exactly, in this order, inside `GenMetaCodeV0` when `meta != nil`:
-    1. **Pre-decode bound** on the raw meta string (both forms, as Rust does):
-        `MetaTrimMeta*4/3 + 256` (= 170,922). Reject when `len(metaStr)` exceeds it, before
-        `decodeDataURL`/`parseMetaJSON`
-    2. **Post-decode bound**: reject when `len(metaPayload) > MetaTrimMeta`, for both the Data-URL
-        payload and the canonical JSON bytes
-- Error text follows the Go style (`iscc: ` prefix) with the core's wording, e.g.
-    `iscc: decoded meta payload exceeds size limit (%d > %d bytes)` and
-    `iscc: meta string exceeds size limit (%d > %d bytes)`
-- Go tests (table style is fine): for the JSON form and the Data-URL form each, a payload of exactly
-    128,000 bytes succeeds and 128,001 bytes errors. Build the JSON form as `{"a":"xxx…"}`: the
-    canonical length is `len(value) + 8`. Add one pre-decode case: a JSON meta string longer than
-    170,922 bytes whose canonical form is tiny (mostly whitespace) is rejected. The Rust core
-    rejects that too, so Go matches it
-- **Shared vector**: add `gen_meta_code_v0` → `test_0004_meta_payload_over_limit` with inputs
-    `["Hello", "", {"a": "<127,993 x>"}, 64]` (canonical JSON = 128,001 bytes; check the length with
-    a quick Python `json.dumps(obj, separators=(",", ":"), ensure_ascii=False)` count), an `error`
-    key, a `note` naming the Go port, and **no** `diverges` (iscc-core raises `ValueError` on the
-    dict input). Before committing, probe iscc-core on both builds
-    (`uv run --no-project --python 3.10 --with iscc-core==1.5.0` and the same with `3.15`) and
-    confirm both raise. Then copy the file to the 4 vendored paths and regenerate the header with
-    `uv run --script scripts/gen_data_edge_vectors.py`
-- The header gets one ~128 KB C string literal. No C/C++ build in CI uses `-pedantic`/`-Werror`, so
-    gcc/clang accept it. If a local C or C++ build warns or fails on it, stop and report it in the
-    handoff. Do not split the vector or change the generator in this step
-- No hot-path Rust code changes, so neither the iai baseline nor CRAP is affected
+Design (no struct change, no per-call-site accessor):
+
+- Threshold `C_LITERAL_MAX = 4095` (the C99 minimum literal length; gcc's `-Woverlength-strings`
+    warns above it in C mode, which serves as the local stand-in for MSVC). Measure the decoded byte
+    length, not the escaped text.
+- A string longer than that is rendered as `static char <ident>_<field>_buf[<len + 1>];`
+    (zero-initialised, so it ends in NUL for `strlen`). Its row field is `{<ident>_..._buf, <len>}`:
+    the address of a static array is a constant initialiser in C and C++.
+- The header ends (before the postamble) with `static void iscc_edge_init(void)`, which `memcpy`s
+    each buffer from literal pieces of at most 4,095 bytes, using explicit byte counts so an
+    embedded NUL survives. Emit the function even when no buffer exists (an empty body) so both
+    harnesses can always call it. Add `#include <string.h>`.
+- Route **every** string the generator emits through this rule (`c_str`, `byte_list_arrays` items,
+    row names): one form per surface, not a meta-only special case. Unique identifiers per field:
+    the row `ident` plus a field or item suffix.
+- `test_iscc.c` and `test_iscc.cpp` call `iscc_edge_init()` once in `main`, before the first edge
+    section runs. A missing call fails closed in C (`strlen` mismatch), but C++ would read 128 KB of
+    NUL, which the core also rejects as an error. So add a pytest asserting that both harness
+    sources contain the call.
+- Update the preamble comment that describes the row layout so it mentions the buffers.
+
+Tests to add to `tests/test_gen_data_edge_vectors.py`:
+
+- Tokenise the tracked header's string literals, join adjacent pieces, decode the escapes (reuse
+    `c_escape_chars`-style scanning) and assert each is at most `C_LITERAL_MAX` bytes. Count the
+    literals that were checked and assert the count is non-zero.
+- On a `tmp_path` fixture with an oversized meta that contains non-ASCII text, assert that the
+    rendered init pieces, unescaped and joined, equal the original UTF-8 bytes and that the declared
+    buffer length is `len + 1`.
+
+Ordering trap: `test_tracked_header_matches_fresh_render` stays the regeneration gate. Regenerate
+with `uv run --script scripts/gen_data_edge_vectors.py`. No Rust code changes, so CRAP/iai are not
+affected.
 
 ## Verification
 
-- In `packages/go`: `CGO_ENABLED=0 go test ./...` passes (the data-edge suite runs the new vector),
-    `GOARCH=386 go test ./...` passes, and `go vet ./...` is clean
-- `grep -n 'MetaTrimMeta' packages/go/code_meta.go` shows the constant used in both the pre-decode
-    and the post-decode check
-- `cargo test -p iscc-lib` passes (the Rust data-edge harness rejects the new vector)
-- `uv run pytest tests/test_data_edge.py tests/test_vendored_fixtures.py tests/test_gen_data_edge_vectors.py`
-    passes. That covers iscc-core agreeing with no `diverges`, 5 identical copies, and a fresh
-    header
-- The C FFI and C++ test programs build and pass with the regenerated header (as the `c-ffi` and
-    `cpp` CI jobs run them)
+- `uv run pytest tests/test_gen_data_edge_vectors.py tests/test_data_edge.py tests/test_vendored_fixtures.py`
+    passes, including the new literal-length, oversized-render and harness-init-call tests
+- `gcc -std=c99 -Woverlength-strings -Werror -fsyntax-only -x c crates/iscc-ffi/tests/data_edge_vectors.h`
+    exits 0 (it fails on the current header)
+- The C test program, built and run as in the `c-ffi` job of `ci.yml`, reports 0 failed, and
+    `test_0004_meta_payload_over_limit` reports PASS
+- The C++ suite (`uv run --with cmake cmake` Debug + ASAN build of `packages/cpp/tests`, as in the
+    `cpp` job) reports 0 failed, with the oversized row PASS
+- `grep -c 'iscc_edge_init()' crates/iscc-ffi/tests/test_iscc.c packages/cpp/tests/test_iscc.cpp`
+    shows at least 1 for each file
 - `mise run check` exits 0
 
 ## Done When
 
-An oversized meta payload is an error in Go as it is in the core, Go tests pin the 128,000/128,001
-boundary for both meta forms, and every harness that runs `data-edge.json` rejects the new vector.
+All six verification criteria pass, and the regenerated header contains no string literal over 4,095
+bytes.
