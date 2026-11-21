@@ -1,101 +1,86 @@
 # Next Work Package
 
-## Step: Register the Rust docs and the Python API page with the Tier 1 doc gate
+## Step: Complete the C/C++ how-to, register it FULL, and drop the 0.4 crate pin
 
 ## Goal
 
-Part 1 of the `normal` issue "Derived facts in guidance and docs are written by hand and drift", for
-the docs whose truth lives in `crates/iscc-lib/src/lib.rs`: complete `docs/rust-api.md`,
-`docs/howto/rust.md` and `docs/architecture.md` → "Tier 1" and register them `FULL`. Also register
-`docs/api.md` `EXEMPT`. Two of these pages carry false claims: `rust-api.md` and `architecture.md`
-say gen functions return `IsccResult<String>`, and `api.md` says Python returns JSON strings.
+Close the docs part of "Derived facts in guidance and docs are written by hand and drift":
+`docs/howto/c-cpp.md`, the last how-to outside the Tier 1 doc gate's registry, documents every Tier
+1 symbol and is registered `FULL`. In the same step, close "The minimal-build snippet pins
+`iscc-lib` to 0.4" by making both snippets version-free.
 
 ## Alternatives Considered
 
-- **Chosen:** the three Rust-sourced docs plus `docs/api.md`. They share one source of truth
-    (`lib.rs`, plus the `iscc_lib` module for `api.md`), and the same false `IsccResult<String>`
-    claim sits in two of them, so the pattern rule says fix both in one step. The `api.md` fix is a
-    few lines, and its example crashes for every reader today.
-- **Rejected:** `docs/howto/c-cpp.md` now. It is missing 17 symbols that come from different sources
-    (`iscc.h`, `iscc.hpp`), and whether it is `FULL` or `EXEMPT` depends on `c-ffi-dx.md` /
-    `cpp-bindings.md`. It is the next step. Part 3 of the issue (counts in specs and `CLAUDE.md`
-    files) comes after that.
+- **Chosen:** c-cpp.md completion + registration, with the two-line 0.4 fix folded in. Both are
+    docs-only `normal` v0.8.0 blockers with no open decision, and the 0.4 fix alone is too small to
+    fill an iteration. `FULL` over `EXEMPT`: all 17 missing symbols exist in `iscc.hpp` and
+    `iscc.h`, and no C++ API page is in the registry, so `EXEMPT` would leave the C++ wrappers for
+    those symbols documented nowhere
+- **Rejected:** part 3 of the drift issue (counts, file lists and line numbers in specs and
+    per-crate `CLAUDE.md`). It is a wide sweep and needs its own step. Next after this one
 
 ## Scope
 
-- **Modify**: `scripts/check_tier1_docs.py` (registry only: 3 paths to `FULL`, `docs/api.md` to
-    `EXEMPT` with a reason)
-- **Modify (docs)**: `docs/rust-api.md`, `docs/howto/rust.md`, `docs/architecture.md`, `docs/api.md`
-- **Reference**: `crates/iscc-lib/src/lib.rs`, `crates/iscc-lib/src/types.rs`,
-    `crates/iscc-lib/src/codec.rs` (`encode_base64`, `iscc_decompose`), `streaming.rs`, `utils.rs`,
-    `cdc.rs`, `minhash.rs`, `simhash.rs`, `conformance.rs`; `docs/howto/go.md` (an already-`FULL`
-    how-to, for layout only, never for types)
+- **Create**: none
+- **Modify**: `scripts/check_tier1_docs.py` (add `docs/howto/c-cpp.md` to `FULL`, keep alphabetical
+    order); `docs/howto/c-cpp.md`; `docs/howto/rust.md` ("Feature flags" snippet);
+    `crates/iscc-lib/README.md` (same snippet)
+- **Reference**: `packages/cpp/include/iscc/iscc.hpp` (C++ names and signatures),
+    `crates/iscc-ffi/include/iscc.h`, `docs/howto/dotnet.md` (section layout to mirror: Text
+    utilities, Encoding utilities, Algorithm primitives, Constants), `docs/c-ffi-api.md` (the C
+    reference to link), `.claude/context/specs/c-ffi-dx.md` §1 (sections the guide must keep)
 
 ## Not In Scope
 
-- `docs/howto/c-cpp.md`: that is the next step
-- Part 3 of the issue (counts, file lists, line numbers in specs and per-crate `CLAUDE.md`)
-- Any change to the gate's matching or parsing logic, or to the per-crate READMEs (already correct:
-    they print `result.iscc`)
-- Rewriting the rest of `architecture.md` (the Tier 2 text and the module table) beyond the "Tier 1"
-    subsection
-
-## Missing symbols (measured with `named_symbols` against the derived set)
-
-- `rust-api.md`: the 5 constants, `alg_cdc_chunks`, `alg_minhash_256`, `alg_simhash`,
-    `sliding_window`, `conformance_selftest`, `encode_base64`, `iscc_decompose`, `json_to_data_url`,
-    `soft_hash_video_v0`, the 4 `text_*` utilities
-- `howto/rust.md`: the 5 constants, `encode_base64`, `encode_component`, `iscc_decompose`,
-    `soft_hash_video_v0`
-- `architecture.md`: 22 symbols. It currently names only the gen functions and the hashers
+- Editing `iscc.hpp`, `iscc.h` or any binding source. This step is docs plus one registry line
+- The `ISCC:KAA…` Sum-Code comment fix (a `low` issue) and `howto/rust.md`'s "All 10 `gen_*_v0`
+    functions" line
+- Part 3 of the drift issue (specs and per-crate `CLAUDE.md` counts)
+- Making the 0.4 lines `version_sync.py` targets: that adds a derived fact the issue wants gone
+- A C++ signature-pinning test in the style of `tests/test_rust_api_signatures.py`
 
 ## Implementation Notes
 
-- **Every signature and return type is read from the source, never typed from memory or copied from
-    a sibling doc** (iteration 190 shipped a made-up return type this way). Each gen function
-    returns its own `*CodeResult` struct (`lib.rs` lines 339–1078). `json_to_data_url` and
-    `encode_component` really do return `IsccResult<String>`, and `encode_base64` returns a plain
-    `String`. Video takes a generic `S: AsRef<[i32]> + Ord`: copy that bound as written.
-- **`rust-api.md`:** fix the intro sentence (line 9), every gen signature (including the multi-line
-    `gen_meta_code_v0`), the "Returns" prose, the `IsccError` paragraph (line 357) and "Error
-    Handling" (line 436). No result type implements `Display`, so `println!("{result}")` (line 19)
-    and `iscc.starts_with(...)` in the per-function examples do not compile: use `result.iscc`. Add
-    a full-signature section for each missing symbol, grouped like the target's categories (text
-    utilities, algorithm primitives, encoding, codec, constants, diagnostics). For anything less
-    obvious than "returns `.iscc`", check the example by running it in a throwaway test you then
-    delete. Do not commit scratch files.
-- **`howto/rust.md`:** add usage-level mentions (a short example or a sentence) inside the existing
-    sections ("Codec operations", "Algorithm primitives") plus a short constants section. It is a
-    how-to, so it does not need full signatures.
-- **`architecture.md` → "Tier 1":** drop the pseudo-signature block and the sentence saying the gen
-    functions are *the* Tier 1 entrypoints. Replace them with a names-only, grouped list of every
-    crate-root Tier 1 symbol and keep the SemVer sentence. Do not hand-type any more signatures
-    there.
-- **`api.md`:** the bindings return `dict` subclasses (`MetaCodeResult` → `IsccResult` → `dict`,
-    probed), so `json.loads(...)` raises `TypeError`. Rewrite the intro sentence and the example to
-    use `result["iscc"]` (attribute access works as well, as in the Python how-to). In the `EXEMPT`
-    reason, say the page renders the API from the `iscc_lib` module via `::: iscc_lib`
-    (mkdocstrings), so its source lists nothing by hand.
-- **No new hand-written counts** ("35 symbols", "10 gen functions") in any added text. Counts are
-    part 3 of the issue and are banned by the hygiene rule. Use "all Tier 1 symbols" or "every gen
-    function".
-- `docs/` pages and the registry tuple only: no Rust source changes, so CRAP, iai and semver are
-    unaffected.
+- The gate currently reports these 17 symbols missing from c-cpp.md: `META_TRIM_NAME`,
+    `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `TEXT_NGRAM_SIZE`, `encode_base64`,
+    `encode_component`, `json_to_data_url`, `gen_audio_code_v0`, `gen_image_code_v0`,
+    `gen_instance_code_v0`, `gen_mixed_code_v0`, `gen_video_code_v0`, `soft_hash_video_v0`,
+    `text_clean`, `text_collapse`, `text_remove_newlines`, `text_trim`. Re-derive the list with the
+    gate after registering, since the doc must pass `check_full`
+- Add them inside "C++ wrapper (`iscc.hpp`)": extend "Gen functions" with the missing gen calls and
+    add subsections for text utilities, encoding utilities, algorithm primitives (with
+    `soft_hash_video_v0`) and constants, in the `dotnet.md` style. In C++ the constants are
+    functions (`iscc::meta_trim_name()`, `iscc::text_ngram_size()`, …). One sentence plus a link to
+    `../c-ffi-api.md` covers the matching C functions
+- Do not write new counts ("the four text utilities", "all 35") or hand-typed signature lists. Show
+    usage through examples. Unchecked derived facts are the defect this issue tracks
+- Every new or extended C++ block must compile and run. Wrap it in `main()`, then
+    `cargo build -p iscc-ffi`, then
+    `g++ -std=c++17 -I packages/cpp/include -I crates/iscc-ffi/include … -liscc_ffi`, linked against
+    the cargo target dir with `LD_LIBRARY_PATH` set. Every output comment (`// "helloworld"`) must
+    be the measured output, not a guess. Use the reference-style sample inputs from `dotnet.md`
+    where they fit
+- Any C type named in prose must carry its `iscc_` prefix (`tests/test_c_ffi_docs.py` enforces this,
+    e.g. `iscc_IsccByteBuffer`). C++ class names such as `iscc::DataHasher` are fine
+- 0.4 fix: in both files, replace the ```` ```toml ```` block with a ```` ```bash ```` block holding
+    `cargo add iscc-lib --no-default-features` (flag confirmed in `cargo add --help`). Adjust the
+    sentence before it if it no longer reads right
+- No Rust source changes, so the CRAP, iai and semver gates are unaffected
 
 ## Verification
 
 - `uv run scripts/check_tier1_docs.py` exits 0
-- `uv run python -c "import sys; sys.path.insert(0, 'scripts'); import check_tier1_docs as c; assert {'docs/rust-api.md', 'docs/howto/rust.md', 'docs/architecture.md'} <= set(c.FULL); assert 'docs/api.md' in c.EXEMPT"`
-    exits 0
-- `uv run pytest tests/test_check_tier1_docs.py` passes
-- `grep -n "json.loads" docs/api.md` prints nothing. Every `IsccResult<String>` hit in
-    `docs/rust-api.md` and `docs/architecture.md` belongs to a `json_to_data_url` or
-    `encode_component` signature (reviewer reads the `grep -n -B3` output)
-- Every return type in a `rust-api.md` signature equals the one in the source (reviewer diffs the
-    `-> …` of each documented `pub fn` against `lib.rs` / `codec.rs`)
+- Registry one-liner exits 0:
+    `uv run python -c "import sys,glob; sys.path.insert(0,'scripts'); import check_tier1_docs as c; assert 'docs/howto/c-cpp.md' in c.FULL; assert all(p in c.FULL or p in c.EXEMPT for p in sorted(glob.glob('docs/howto/*.md')))"`
+- `uv run pytest tests/test_check_tier1_docs.py tests/test_c_ffi_docs.py` passes
+- `git grep -nE 'version = "0\.' -- docs crates/iscc-lib/README.md` prints nothing, and both files
+    contain `cargo add iscc-lib --no-default-features`
+- Every new or changed C++ block in `docs/howto/c-cpp.md` compiles with `g++ -std=c++17` and runs
+    against a fresh `libiscc_ffi`, printing what its comments claim (the handoff lists each block
+    and its result)
 - `uv run zensical build` exits 0 and `mise run check` exits 0
 
 ## Done When
 
-All four docs are registered, the gate and its tests pass, and no page claims a gen function returns
-a string or that Python returns JSON.
+All six verification criteria pass, and `docs/howto/c-cpp.md` is registered `FULL` and names every
+Tier 1 symbol.

@@ -120,4 +120,10 @@ so api.md's `json.loads` example crashes; no Rust result type implements `Displa
 `encode_component` really return `IsccResult<String>` → never ban the string by grep. The gate exits
 0 with docs unregistered, so assert registry membership directly. Next: `docs/howto/c-cpp.md` (17
 missing; read c-ffi-dx.md / cpp-bindings.md to decide FULL vs EXEMPT), then part 3 count sweep in
-specs + per-crate CLAUDE.md.
+specs + per-crate CLAUDE.md. 244 = c-cpp.md completed + registered FULL (all 17 missing symbols
+exist in `iscc.hpp`/`iscc.h`; EXEMPT would leave C++ wrappers documented nowhere) + 0.4 pin folded
+in as version-free `cargo add iscc-lib --no-default-features` (docs outside budget; a version_sync
+target would add a derived fact). C++ constants are functions (`iscc::meta_trim_name()`); doc C++
+snippets are top-level statements → compile by wrapping in `main()`; `tests/test_c_ffi_docs.py` bans
+unprefixed header type names in c-cpp.md. Next: part 3 count sweep (specs + per-crate CLAUDE.md),
+then v0.8.0 should have no normal blocker left.

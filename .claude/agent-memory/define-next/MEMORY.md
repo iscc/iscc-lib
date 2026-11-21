@@ -3,7 +3,7 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 243):** v0.7.0 shipped 2026-10-17; active milestone **v0.8.0** (ISCC-SEQ +
+**Status 2026-11-21 (iter 244):** v0.7.0 shipped 2026-10-17; active milestone **v0.8.0** (ISCC-SEQ +
 data-edge landed on all surfaces). Remaining blockers are `normal` issues only. Per-iteration
 ledger, traps, probe kit and next-step plan → [v0.8.0 iteration ledger](v080-iteration-ledger.md);
 slice history → [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md).
