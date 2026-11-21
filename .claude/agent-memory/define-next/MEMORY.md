@@ -31,9 +31,14 @@ no harness change). **A lone surrogate cannot be a data-edge vector**: serde_jso
 in the file, and a JSON-text string `meta` makes iscc-core raise `AttributeError` (outside pytest
 `REJECTIONS`) → Go unit test only, flagged for review. 267: scoped the Go `GOARCH=386` CI step (one
 `ci.yml` step + spec/CLAUDE.md docs); next = WASM non-number coercion (code fix = `JsValue` on ~15
-params, or docs-only branch). **An issue's own "Scope estimate" can over-count — apply the
-docs-excluded rule yourself** (257). **Collecting rule vs "core first and alone":** land the
-behaviour first, then batch pending sections into one fan-out. Ledger/traps →
+params, or docs-only branch). 268: scoped WASM scalar type-check as the CODE branch (not docs):
+every `f64`/`bool` param → `JsValue` + `as_f64()`/`as_bool()` in Rust; wasm-bindgen 0.2.126 has
+`unchecked_optional_param_type` so `.d.ts` keeps `bits?: number | null` (read in macro-support
+`parser.rs`). Booleans included (glue truthiness = same pattern). With `JsValue` params
+`wasm_bindgen_test` DOES exercise the check (no glue left); serde_wasm_bindgen path already strict.
+Next small items: Ruby 3.3 floor, FFI padding removal, docs fixes. **An issue's own "Scope estimate"
+can over-count — apply the docs-excluded rule yourself** (257). **Collecting rule vs "core first and
+alone":** land the behaviour first, then batch pending sections into one fan-out. Ledger/traps →
 [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
 [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
 track `main`, not `develop`** — check the lockfile on `develop` before scoping.
