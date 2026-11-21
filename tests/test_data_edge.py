@@ -137,6 +137,8 @@ CONVERTERS = {
     "gen_mixed_code_v0": dict,
     "gen_iscc_code_v0": dict,
     "alg_simhash": convert_encode_seq,
+    "gen_meta_code_v0": dict,
+    "gen_video_code_v0": dict,
 }
 
 
