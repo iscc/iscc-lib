@@ -86,15 +86,16 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 9ff44ec, iter 269 — incremental)
+## Current State (assessed-at: e5ebca4, iter 270 — incremental)
 
-- **CI on `origin/develop` = `bc01c26` GREEN** (run 44926209534; codecov/cursor suites sit `queued`
+- **CI on `origin/develop` = `799dc2d` GREEN** (run 44930626782; codecov/cursor suites sit `queued`
     forever — judge by the github-actions suite). A `null` check-run conclusion = still running;
     `gh run view <id> --json status,conclusion,jobs` settles it. Job logs: `actions/jobs/<id>/logs`
     API with `--allow-escape-sequences`, strip ANSI.
-- 15 open (1 `critical` + 11 `normal` + 3 `low`); 7 in `postponed.md`. 268 = WASM type-check step
-    NEEDS_WORK: advance `8560f6a` sits UNPUSHED at HEAD (green `bc01c26` does NOT cover it). WASM
-    regressed to "not met". data-edge.json = 9 sections. iscc-lib `src/` `#[test]` sum = 311.
+- 15 open (0 `critical` + 11 `normal` + 4 `low`); 7 in `postponed.md`. 269 repaired the WASM type
+    checks (PASS_WITH_NOTES), WASM back to met; HEAD code fully covered by green `799dc2d`. WASM
+    tests 11+8+126. Fast suite check: `gh api .../commits/<sha>/check-suites` (one call).
+    data-edge.json = 9 sections. iscc-lib `src/` `#[test]` sum = 311.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.

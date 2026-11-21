@@ -1,15 +1,14 @@
-<!-- assessed-at: 9ff44ec9f8ac503df9e11c27bc3d62f3dddd824a -->
+<!-- assessed-at: e5ebca4 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; a `critical` WASM regression sits unpushed at HEAD
+## Phase: v0.8.0 — features done; 11 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 268 moved every
-WASM number and boolean parameter to a Rust-side type check; review returned NEEDS_WORK and filed a
-`critical` issue for two defects it introduced. That code is at HEAD, unpushed, and not covered by
-CI. 15 issues are open: 1 `critical`, 11 `normal`, 3 `low`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 269 repaired the
+two `@iscc/wasm` type-check defects; the `critical` issue is closed and CI is green on the pushed
+tip, which covers all code at HEAD. 15 issues are open: 0 `critical`, 11 `normal`, 4 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -54,18 +53,18 @@ CI. 15 issues are open: 1 `critical`, 11 `normal`, 3 `low`.
 
 ## WASM Bindings
 
-**Status**: not met at HEAD (one `critical` issue, one `low`, plus the shared duplication issue)
+**Status**: met (v0.8.0 scope; two `low` issues, plus the shared duplication issue)
 
-- 35 Tier 1 symbols; SIMD release build met. At HEAD (`8560f6a`, unpushed) number and boolean
-    parameters arrive as `JsValue` and are type-checked in Rust; the glue no longer coerces them
-- `critical`: `gen_meta_code_v0` keeps `description: Option<String>` / `meta: Option<String>` before
-    a `JsValue` `bits`, so the built `.d.ts` makes them required (README call no longer
-    type-checks); `number_vec` calls `js_sys::Array::from` with no `catch`, so a throwing array-like
-    corrupts the instance after ~4,095 calls
-- `low` (untriaged): byte and string parameters are still glue-converted (`"abc"` hashes as three
-    zero bytes; a number for a string traps)
-- Release-notes items: `alg_cdc_chunks` returns `Uint8Array[]` (234); plain-JS callers passing
-    numeric strings, `null` for a required number or non-boolean flags now get an error
+- 35 Tier 1 symbols; SIMD release build met; number and boolean parameters arrive as `JsValue` and
+    are type-checked in Rust; `number_vec` reads elements through `catch` imports (no
+    `Array::from`); `gen_meta_code_v0` declares `description?` / `meta?` again
+- Tests: 11 conformance + 8 data-edge + 126 unit; the `wasm` CI job passed on `799dc2d`
+- `low`: byte and string parameters are still glue-converted (`"abc"` hashes as three zero bytes; a
+    number for a string traps)
+- `low`: list inputs read through serde (`gen_video_code_v0`, `gen_mixed_code_v0`,
+    `gen_iscc_code_v0`, `encode_seq`, …) let a throwing element kill the instance (predates 268)
+- Release-notes items: `alg_cdc_chunks` returns `Uint8Array[]`; numeric strings, `null` for a
+    required number, non-boolean flags, and a `Set`/generator for `cv`/`features` now raise errors
 
 ## C FFI
 
@@ -138,7 +137,6 @@ CI. 15 issues are open: 1 `critical`, 11 `normal`, 3 `low`.
     `KAA`; docs overstate language coverage and what ISO 24138 specifies (audit)
 - `normal`: `docs/development.md` "Publish" says a tag push triggers the release
 - `normal` (audit): spec/`CLAUDE.md` staleness
-- `docs/howto/wasm.md` "Error handling" now limits the type-check claim to number/boolean arguments
 
 ## Benchmarks
 
@@ -150,26 +148,25 @@ CI. 15 issues are open: 1 `critical`, 11 `normal`, 3 `low`.
 
 ## CI/CD and Publishing
 
-**Status**: partially met — CI green on the pushed tip, but HEAD carries unverified WASM code
+**Status**: partially met (one `low` issue; release criteria otherwise met)
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
 - `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates; no check diffs the built WASM
-    `.d.ts` against an expected declaration list (review gate idea)
+    `.d.ts` against a committed snapshot (review gate idea)
 - `low`: no CI job runs a test suite on Windows
-- **Latest CI: PASSING** on `origin/develop` = `bc01c26`:
-    https://github.com/iscc/iscc-lib/actions/runs/44926209534 — **does NOT cover HEAD**: 4 local
-    commits unpushed, including the NEEDS_WORK advance commit `8560f6a` (6 non-`.claude` files under
-    `crates/iscc-wasm/` and `docs/howto/wasm.md`)
+- **Latest CI: PASSING** on `origin/develop` = `799dc2d`:
+    https://github.com/iscc/iscc-lib/actions/runs/44930626782 — `WASM (wasm-pack test)` and `Semver`
+    both green; the only unpushed commit (`e5ebca4`) touches `.claude/` alone
 
 ## Open Issues
 
-15 open in issues.md: 1 `critical`, 11 `normal`, 3 `low`; none blocked on the human or upstream. The
-WASM coercion issue was rewritten into the `critical` regression entry; a `low` byte/string
-conversion issue was filed. 7 sit in `postponed.md`.
+15 open in issues.md: 0 `critical`, 11 `normal`, 4 `low`; none blocked on the human or upstream. The
+`critical` WASM entry was closed; a `low` serde-list exception issue was filed. 7 sit in
+`postponed.md`.
 
 ## Next Milestone
 
-Resolve the `critical` `@iscc/wasm` regression so the unpushed step can pass review and reach CI —
-the built `.d.ts` must match the pre-step declarations and a throwing array-like must leave the
-instance usable. Then clear the 11 `normal` issues blocking v0.8.0; Titusz cuts it via `/release`.
+Clear the 11 `normal` issues that block v0.8.0 — Ruby floor, FFI padding cleanup, JNI loader
+fallback, Ruby Float docs, gen/streaming duplication, and the docs/spec accuracy entries. Then
+Titusz cuts v0.8.0 via `/release`.
