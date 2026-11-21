@@ -86,17 +86,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: d4d4d59, iter 279 — incremental)
+## Current State (assessed-at: b5d43e0, iter 280 — incremental)
 
-- **Tip `c6bc616` run 44952542030 GREEN** (github-actions suite `success`). Local HEAD carries
-    UNPUSHED code commit `8a99a3c` (JNI loader, NEEDS_WORK at 278) — not covered by green CI.
-    codecov/cursor suites sit `queued` forever — judge by the github-actions suite.
-- 15 open (1 `critical` JNI release-layout test regression + 5 `normal` + 9 `low`, 8 untriaged); 7
-    postponed. A NEEDS_WORK review can file a `critical` replacing the issue it resolved — count
-    holds-ish, composition flips. iscc-lib `src/` 315 `#[test]`; iscc-uniffi 30.
-- **JNI gotcha:** CI `java` job builds `target/debug` first; `release.yml` → `test-jni` has only the
-    bundled `META-INF/native/` resource — tests leaning on `java.library.path` pass CI, fail
-    release.
+- All code pushed; run 44955385494 (`363d8c5`) GREEN on every job; tip `ef754ed` (`.claude`-only
+    review commit) in progress. codecov/cursor suites sit `queued` forever — judge by the
+    github-actions suite.
+- 14 open (0 `critical` + 5 `normal` + 9 `low`, 8 untriaged); 7 postponed. iscc-lib `src/` 315
+    `#[test]`; iscc-uniffi 30; JNI `IsccLibTest.java` 65 `@Test`.
+- **JNI layouts:** CI `java` job runs Maven twice since 279 — `target/debug` layout, then
+    bundled-resource-only (mirrors `release.yml` → `test-jni`).
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.

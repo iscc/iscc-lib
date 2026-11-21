@@ -1,16 +1,15 @@
-<!-- assessed-at: d4d4d593f6028106f80e54e94cf5ae12b030ce37 -->
+<!-- assessed-at: b5d43e0254f7d40182f7dba6ab909329c9899a9e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; a `critical` JNI test regression and 5 `normal` issues block it
+## Phase: v0.8.0 — features done; 5 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 278 rewrote the
-JNI `NativeLoader` fallback (review: loader correct) but its three new child-JVM tests fail in the
-`release.yml` → `test-jni` layout, so the next Maven publish would be blocked; the commit is local
-and unpushed (NEEDS_WORK). CI on the pushed tip `c6bc616` is fully green. 15 issues are open: 1
-`critical`, 5 `normal`, 9 `low`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 279 fixed the JNI
+loader tests for the release layout and added a CI step that runs the Java suite with the library
+bundled only; the `critical` issue is closed and all code is pushed and covered by green CI. 14
+issues are open: 5 `normal` (two Rust core, three user docs), 9 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -71,17 +70,16 @@ and unpushed (NEEDS_WORK). CI on the pushed tip `c6bc616` is fully green. 15 iss
 
 ## Java Bindings
 
-**Status**: partially met (one `critical` release regression at local HEAD, one `low`)
+**Status**: met (v0.8.0 scope; one `low`)
 
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 9 sections strictly; 0.7.0 on Maven Central
     with five bundled native libraries
-- Local HEAD (`8a99a3c`, unpushed): `NativeLoader` no longer throws on an unknown OS/arch; it falls
-    back to `System.loadLibrary` and attaches the bundled-library error as suppressed; docs, README
-    and crate CLAUDE.md updated
-- `critical`: the three `loaderFallsBack*` child-JVM tests pass the parent's `java.library.path`
-    (`target/debug`), which is absent in the `test-jni` release layout, so `publish-maven` would be
-    blocked; the CI `java` job stays green because it builds the library first
-- `low` (untriaged): each bundled load leaves an empty `iscc-jni-*` temp directory (pre-existing)
+- `NativeLoader` falls back to `System.loadLibrary` on an unknown OS/arch or an unloadable bundled
+    library, keeping the bundled error as suppressed; 65 `@Test` in `IsccLibTest.java`, including
+    the three `loaderFallsBack*` child-JVM tests and `loaderReportsBothFailures`
+- Child-JVM tests take their library directory from `runLoaderProbe`, so they pass in both the CI
+    layout and the `release.yml` → `test-jni` layout
+- `low` (untriaged): each bundled load leaves an empty `iscc-jni-*` temp directory
 
 ## Go Bindings
 
@@ -130,10 +128,10 @@ and unpushed (NEEDS_WORK). CI on the pushed tip `c6bc616` is fully green. 15 iss
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (20 `FULL`, 2 `EXACT`)
-- `normal`: `architecture.md` lower sections cover half the surfaces; `docs/ecosystem.md`,
-    `architecture.md` and `howto/nodejs.md` still count 10 standard functions; WASM Node.js setup
-    (see WASM)
-- `docs/howto/java.md` describes the loader fallback at local HEAD (unpushed)
+- `normal`: `architecture.md` lower sections cover half the surfaces
+- `normal`: six pages count 10 standard functions or give Sum-Code a string result (`ecosystem.md`,
+    `architecture.md`, `howto/nodejs.md`, `howto/java.md`, `java-api.md`, `c-ffi-api.md`)
+- `normal`: WASM Node.js setup (see WASM)
 
 ## Benchmarks
 
@@ -145,25 +143,25 @@ and unpushed (NEEDS_WORK). CI on the pushed tip `c6bc616` is fully green. 15 iss
 
 ## CI/CD and Publishing
 
-**Status**: partially met (one `low`; the JNI `critical` would break `test-jni`)
+**Status**: partially met (one `low`)
 
-- `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
-    version-sync targets at 0.7.0
-- No CI job runs the Java suite in the release layout (library bundled as a resource only), which is
-    why the JNI regression is invisible to CI
+- `ci.yml` has 22 job keys; the `java` job now runs the Maven suite twice, the second time with the
+    library only under `META-INF/native/linux-x86_64/` (the `test-jni` release layout)
+- `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21 version-sync targets at
+    0.7.0
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING** on the pushed tip `c6bc616`:
-    https://github.com/iscc/iscc-lib/actions/runs/44952542030 (github-actions suite `success`).
-    **Not covered:** local HEAD carries unpushed code commit `8a99a3c` (JNI loader, tests, docs)
+- **Latest CI: PASSING** for all code. Run 44955385494 on `363d8c5` is green on every job:
+    https://github.com/iscc/iscc-lib/actions/runs/44955385494. The tip `ef754ed` (review commit,
+    `.claude` only) is in progress, 23/24 green so far; local HEAD adds only the `cid(log)` commit
 
 ## Open Issues
 
-15 open in issues.md: 1 `critical`, 5 `normal`, 9 `low` (8 `low` untriaged). Only the
+14 open in issues.md: 5 `normal`, 9 `low` (8 `low` untriaged), no `critical`. Only the
 `alg_minhash_256` entry needs a decision; none is blocked on upstream. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Repair the `critical` JNI release-layout test regression so the local loader work can be pushed with
-Maven publishing intact, then clear the 5 `normal` issues that block v0.8.0 (`alg_minhash_256([])`
-decision, one-shot gen duplication, three user-docs accuracy entries). Then Titusz cuts v0.8.0 via
+Clear the 5 `normal` issues that block v0.8.0: the three user-docs accuracy entries (architecture
+coverage, the "10 functions / Sum-Code string" sentences, the WASM Node.js setup), the one-shot vs
+streaming duplication, and the `alg_minhash_256([])` decision. Then Titusz cuts v0.8.0 via
 `/release`.
