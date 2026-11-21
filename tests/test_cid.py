@@ -366,7 +366,7 @@ def test_process_output_reports_peak_context(tmp_path):
         out = cid._process_output(fh, "review")
     assert (out["cost"], out["turns"], out["is_error"]) == (1.5, 3, False)
     assert out["peak_context"] == 90_000  # the largest prompt, not the last or sum
-    assert (out["subtype"], out["denials"]) == ("", 0)
+    assert (out["subtype"], out["denials"], out["refusals"]) == ("", 0, 0)
 
 
 def test_process_output_reports_subtype_and_denials(tmp_path):
@@ -386,6 +386,29 @@ def test_process_output_reports_subtype_and_denials(tmp_path):
     assert out["subtype"] == "error_max_budget_usd"
     assert out["denials"] == 2
     assert out["is_error"] is True
+
+
+def test_process_output_counts_refusals_once_per_message(tmp_path):
+    # A safety block ends a turn with stop_reason "refusal" while the result row still
+    # reads "success"; the CLI emits one assistant event per content block, so two
+    # events of the same message are one refusal.
+    def assistant(msg_id, stop_reason):
+        message = {"id": msg_id, "stop_reason": stop_reason, "content": []}
+        return {"type": "assistant", "message": message}
+
+    rows = (
+        assistant("m1", "tool_use"),
+        assistant("m2", "refusal"),
+        assistant("m2", "refusal"),
+        assistant("m3", "refusal"),
+        {"type": "result", "subtype": "success", "total_cost_usd": 1.0, "num_turns": 3},
+    )
+    fake = tmp_path / "stream.jsonl"
+    fake.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    with fake.open() as fh:
+        out = cid._process_output(fh, "audit")
+    assert out["refusals"] == 2
+    assert out["subtype"] == "success"
 
 
 def test_model_costs_splits_spend_and_skips_malformed_entries():
@@ -1234,7 +1257,24 @@ def test_run_agent_clean_run_logs_no_subtype_or_denials(tmp_path, monkeypatch):
     row = json.loads((repo / cid.LOG_FILE).read_text(encoding="utf-8").strip())
     assert "subtype" not in row
     assert "denials" not in row
+    assert "refusals" not in row
     assert "model_costs" not in row  # a single-model run needs no split
+
+
+def test_role_entry_records_refusals(capsys):
+    out = {
+        "cost": 1.0,
+        "turns": 3,
+        "peak_context": 1000,
+        "subtype": "success",
+        "denials": 0,
+        "refusals": 2,
+        "model_costs": {},
+    }
+    row = cid._role_entry("audit", 250, "OK", out, 12.0, {})
+    assert row["refusals"] == 2
+    assert cid.is_role_entry(row)
+    assert "audit had 2 model refusal(s)" in capsys.readouterr().out
 
 
 def test_run_agent_recovers_when_deliverable_committed(tmp_path, monkeypatch):

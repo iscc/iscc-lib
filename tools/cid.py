@@ -233,7 +233,9 @@ def _process_output(stdout, role):
     Returns a dict with cost, turns, is_error, peak_context (the largest prompt the
     role sent), subtype (the result subtype, e.g. `error_max_budget_usd`), denials
     (tool calls the permission layer refused — in a `-p` run, bypass mode denies the
-    few calls that would otherwise prompt, and the role carries on without them) and
+    few calls that would otherwise prompt, and the role carries on without them),
+    refusals (assistant messages that ended with stop_reason `refusal`, counted once
+    per message id — a safety block the role otherwise reports as a clean run) and
     model_costs (USD per model, which separates fallback-model spend).
     """
     out = {
@@ -243,9 +245,11 @@ def _process_output(stdout, role):
         "peak_context": 0,
         "subtype": "",
         "denials": 0,
+        "refusals": 0,
         "model_costs": {},
     }
     peak_context = 0
+    refused_ids = set()
 
     for line in iter(stdout.readline, ""):
         line = line.rstrip("\n")
@@ -266,6 +270,8 @@ def _process_output(stdout, role):
             usage = message.get("usage")
             if isinstance(usage, dict):
                 peak_context = max(peak_context, int(_prompt_tokens(usage)))
+            if message.get("stop_reason") == "refusal":
+                refused_ids.add(message.get("id") or len(refused_ids))
             for item in message.get("content", []):
                 if item.get("type") == "text":
                     text = item.get("text", "").strip()
@@ -289,6 +295,7 @@ def _process_output(stdout, role):
             out["model_costs"] = _model_costs(data.get("modelUsage"))
 
     out["peak_context"] = peak_context
+    out["refusals"] = len(refused_ids)
     return out
 
 
@@ -1216,9 +1223,9 @@ def _role_entry(role, iteration, status, out, elapsed, flags):
     """Print a finished role's summary and return its iteration-log row.
 
     The row records the model/effort the role ran with, plus the result subtype, the
-    permission-denial count and the per-model cost split when they deviate from a
-    clean single-model run, so a budget stop, a refused tool call or a fallback model
-    is visible in iterations.jsonl.
+    permission-denial count, the refusal count and the per-model cost split when they
+    deviate from a clean single-model run, so a budget stop, a refused tool call, a
+    safety refusal or a fallback model is visible in iterations.jsonl.
     """
     print(
         f"  {role} {status} ({out['turns']} turns, ${out['cost']:.4f}, {elapsed:.0f}s)"
@@ -1245,6 +1252,9 @@ def _role_entry(role, iteration, status, out, elapsed, flags):
     if out["denials"]:
         entry["denials"] = out["denials"]
         print(f"  WARN: {role} had {out['denials']} tool call(s) denied")
+    if out["refusals"]:
+        entry["refusals"] = out["refusals"]
+        print(f"  WARN: {role} had {out['refusals']} model refusal(s)")
     if len(out["model_costs"]) > 1:
         entry["model_costs"] = out["model_costs"]
     return entry
