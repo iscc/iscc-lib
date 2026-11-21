@@ -104,14 +104,16 @@ static int same_buf_result(struct iscc_IsccByteBuffer a, struct iscc_IsccByteBuf
 }
 
 /* Check that a (NULL, 0) call matches the same call with a non-NULL pointer and that it
- * never fails with "must not be NULL". `null_call` runs first, so the error is its own. */
+ * never fails with "must not be NULL". `null_call` runs first, so the error is its own.
+ * The comparison frees both results, so it runs once and ASSERT_EQ gets its value. */
 #define CHECK_NULL_EMPTY_STR(null_call, ptr_call, test_name) \
     do { \
         char *null_res = (null_call); \
         int null_ok = last_error_not_null_rejection(); \
         char *ptr_res = (ptr_call); \
+        int same = same_str_result(null_res, ptr_res); \
         ASSERT_EQ(null_ok, 1, test_name " — no NULL rejection"); \
-        ASSERT_EQ(same_str_result(null_res, ptr_res), 1, test_name " — matches non-NULL"); \
+        ASSERT_EQ(same, 1, test_name " — matches non-NULL"); \
     } while (0)
 
 #define CHECK_NULL_EMPTY_BUF(null_call, ptr_call, test_name) \
@@ -119,8 +121,9 @@ static int same_buf_result(struct iscc_IsccByteBuffer a, struct iscc_IsccByteBuf
         struct iscc_IsccByteBuffer null_res = (null_call); \
         int null_ok = last_error_not_null_rejection(); \
         struct iscc_IsccByteBuffer ptr_res = (ptr_call); \
+        int same = same_buf_result(null_res, ptr_res); \
         ASSERT_EQ(null_ok, 1, test_name " — no NULL rejection"); \
-        ASSERT_EQ(same_buf_result(null_res, ptr_res), 1, test_name " — matches non-NULL"); \
+        ASSERT_EQ(same, 1, test_name " — matches non-NULL"); \
     } while (0)
 
 /* Return 1 if an edge-vector string reaches C intact: non-NULL and no embedded NUL,

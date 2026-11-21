@@ -236,15 +236,20 @@ Pre-existing. The other numbers probed match (`1.0`, `1e21`, `1e-7`, `9007199254
 Resolved when Go returns the core's result for the three inputs and each is a `data-edge.json`
 vector.
 
-## C FFI treats `(NULL, 0)` two opposite ways and never checks inner pointers `normal` [audit]
+## C++ `safe_data` and .NET `PinnedRows` padding guard a NULL rejection the FFI no longer has `low` [review]
 
-`crates/iscc-ffi/src/lib.rs` rejects NULL with len 0 in image/audio/data/instance/`encode_base64`
-(357-360, 513-516) but accepts it in `encode_component`, `decode_seq`, `alg_cdc_chunks`, … (799-807,
-1311-1320); tests pin both (`tests.rs:131` vs `:629`). Pointer-array loops (438-445, 1232-1239,
-1403-1410) pass inner pointers to `from_raw_parts` unchecked (UB on NULL). The split cost 7 .NET
-sentinel branches (`IsccLib.cs:131…502`) and C++ `detail::safe_data`. **Fix:** one `slice_or_empty`
-helper (len 0 → `&[]`, NULL + len > 0 → error) used everywhere, incl. inner pointers; flip the len-0
-null tests. **Scope estimate:** 2-4 non-test files.
+**Triage:** untriaged — a maintainer of the C++ or .NET wrapper keeps two workarounds and a source
+gate for a condition that cannot occur. Callers see no difference.
+
+The C FFI reads a NULL pointer with length 0 as an empty input on every pointer+length parameter
+(decision of 2026-11-21). `detail::safe_data` in `packages/cpp/include/iscc/iscc.hpp`, its gate
+`tests/test_cpp_safe_data.py`, and the `max(Count, 1)` padding of `PinnedRows` in
+`packages/dotnet/Iscc.Lib/IsccLib.cs` now only keep pointers non-null and change no result. Dropping
+the padding supersedes that half of the 2026-11-20 decision on .NET jagged arrays (its null check
+stays). Keeping both on purpose is a valid outcome too.
+
+Resolved when both are removed with the C++ and .NET empty-input tests still green, or a
+decisions.md entry keeps them on purpose.
 
 ## Out-of-range integer arguments wrap silently on JS, raise undocumented classes elsewhere `normal` [audit]
 

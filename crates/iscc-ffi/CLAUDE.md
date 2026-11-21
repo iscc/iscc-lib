@@ -136,7 +136,8 @@ LD_LIBRARY_PATH=target/debug /tmp/test_iscc
 
 - Links against the shared library and `#include "iscc.h"`
 - Uses assertion macros: `ASSERT_STR_EQ`, `ASSERT_STR_STARTS_WITH`, `ASSERT_NULL`,
-    `ASSERT_NOT_NULL`, `ASSERT_EQ`
+    `ASSERT_NOT_NULL`, `ASSERT_EQ`. A macro evaluates its `actual` argument again when it prints a
+    failure: pass a stored value, never a call that frees its inputs
 - Mirrors the Rust unit test cases with identical expected values
 - Reports pass/fail counts and exits non-zero on any failure
 - Every returned string/buffer is freed to validate the free functions
@@ -152,6 +153,10 @@ LD_LIBRARY_PATH=target/debug /tmp/test_iscc
 - All `unsafe` is confined to the FFI boundary; the `iscc-lib` core remains safe
 - Every `unsafe` block must have a `// SAFETY:` comment explaining the invariant
 - NULL-check all incoming pointers before dereferencing
+- Borrow every pointer+length input through `slice_or_empty` (parallel row arrays through
+    `rows_or_empty`) in `src/lib.rs`: length 0 is an empty input whatever the pointer is, NULL with
+    a non-zero length is an error. A test in `src/tests.rs` fails on any other
+    `slice::from_raw_parts` call
 - Validate UTF-8 for all `*const c_char` inputs via `CStr::from_ptr` + `.to_str()`
 - Use `#[unsafe(no_mangle)]` (Rust 2024 edition syntax) on all exported functions
 - Use `#[repr(C)]` only on types returned across the FFI boundary (`IsccByteBuffer`,

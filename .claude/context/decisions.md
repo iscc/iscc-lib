@@ -29,23 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-10-17 — npm publishes via OIDC trusted publishing, direct publish (not staged)
-
-**Decision:** `@iscc/lib` and `@iscc/wasm` publish through npm trusted publishing: one trusted
-publisher per package on npmjs.com (GitHub Actions, `iscc/iscc-lib`, workflow `release.yml`, no
-environment, "Allow npm publish" on). The two publish jobs carry no `NPM_TOKEN`, run Node 24 (npm
-
-> = 11.5.1) and set no `registry-url` in `setup-node`. **Why:** granular npm write tokens expire
-> after at most 90 days and the token broke or blocked the v0.5.0 and v0.7.0 releases; OIDC has
-> nothing to expire, matching crates.io/PyPI/RubyGems. `registry-url` is omitted because
-> `setup-node@v7` no longer exports a dummy `NODE_AUTH_TOKEN`, so its generated `.npmrc` would
-> reference an unset variable. **Alternatives:** keep rotating tokens — rejected (recurring release
-> failures); staged publishing (CI stages, a human approves each version on npmjs.com with 2FA) —
-> npm's recommended mode, deferred because it adds a manual step to every release; it can be
-> switched on later without touching the workflow's auth. **Context:** interactive session
-> 2026-10-17, first validated by the v0.7.0 publish. Changing a trusted-publisher entry needs the
-> human's npm 2FA passkey.
-
 ## 2026-11-17 — The runner passes each role's frontmatter model and effort as CLI flags
 
 **Decision:** `tools/cid.py` reads `model:` and `effort:` from `.claude/agents/<role>.md` and passes
@@ -388,3 +371,16 @@ signature and returns a digest (measured at 64 bits for `[380, 381]`, `[381, 380
 `[380, 379]`), so a ragged input is a `diverges` case in `data-edge.json`. **Alternatives:**
 truncating like the reference (hashes malformed input silently); requiring exactly 380 (changes
 equal-length inputs). **Context:** iteration 250.
+
+## 2026-11-21 — The C FFI reads `(NULL, 0)` as an empty input on every pointer+length parameter
+
+**Decision:** Every pointer+length input of `iscc-ffi` is borrowed through `slice_or_empty` (row
+arrays through `rows_or_empty`). Length 0 is an empty slice whatever the pointer is. NULL with a
+non-zero length is the error "<name> must not be NULL", inner rows included (`frame_sigs[1]`). A
+count of 0 therefore reaches the core, and the caller sees the core's own error or result. A NULL
+`const char*` string stays an error. **Why:** audit issue. Half the exports rejected `(NULL, 0)` and
+half accepted it, a NULL inner row was undefined behaviour, and because `fixed` over an empty span
+and `std::vector::data()` yield NULL, each wrapper needed sentinels. **Alternatives:** rejecting
+NULL everywhere (keeps sentinels in every wrapper and hides the core's error); deciding per export
+(the split that existed). **Context:** iteration 255. The review made the indexed row name lazy
+(`format_args!`) after measuring 2x on `iscc_alg_simhash` with 1,000 rows.

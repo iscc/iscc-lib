@@ -1,11 +1,10 @@
 """Pin the single pointer form for vector inputs in the C++ wrapper.
 
-``std::vector::data()`` may be NULL for an empty vector, and several C FFI functions
-reject a NULL pointer before they look at the count, which hides the core's own error.
-``iscc.hpp`` therefore passes every input vector through ``detail::safe_data``. Some
-wrappers (``alg_simhash``, ``alg_minhash_256``, the hasher ``update`` overloads) behave
-the same with either pointer form, so only a check on the source can hold the rule for
-them. Pure Python, no compiler.
+``std::vector::data()`` may be NULL for an empty vector. ``iscc.hpp`` passes every input
+vector through ``detail::safe_data``, so the C FFI always gets a non-null pointer. The
+FFI reads a NULL pointer with a count of 0 as an empty input, so every wrapper behaves
+the same with either pointer form and only a check on the source can hold the rule.
+Pure Python, no compiler.
 """
 
 from pathlib import Path

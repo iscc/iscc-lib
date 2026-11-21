@@ -146,9 +146,9 @@ cleanup even if an exception is thrown during field copying.
     `cargo build -p iscc-ffi` before CMake configure, and regenerate the header if FFI exports
     changed:
     `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h`
-- **Empty vector data pointers**: `std::vector::data()` may return `nullptr` for an empty vector,
-    and several C FFI functions reject a NULL pointer before checking the count, which hides the
-    core's own error. Always pass an input vector as `detail::safe_data()` (a single template that
+- **Empty vector data pointers**: `std::vector::data()` may return `nullptr` for an empty vector.
+    The C FFI reads a NULL pointer with a count of 0 as an empty input, so both pointer forms give
+    the same result. Always pass an input vector as `detail::safe_data()` (a single template that
     returns a static read-only sentinel address for empty vectors), never as `.data()`. This
     includes the pointer and length arrays built inside list wrappers. `tests/test_cpp_safe_data.py`
     (pytest, repo root) fails on any other `.data()` in `iscc.hpp`.

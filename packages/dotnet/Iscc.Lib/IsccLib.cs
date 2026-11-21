@@ -589,8 +589,8 @@ public static partial class IsccLib
     /// </summary>
     /// <remarks>
     /// <see cref="Pointers"/> and <see cref="Lengths"/> hold at least one slot, so <c>fixed</c>
-    /// never yields a NULL pointer for an empty input and the core's own error surfaces instead of
-    /// the FFI's "must not be NULL". The real element count is <see cref="Count"/>.
+    /// never yields a NULL pointer for an empty input. The native side reads a NULL pointer with
+    /// a count of 0 as an empty input as well. The real element count is <see cref="Count"/>.
     /// </remarks>
     private sealed class PinnedRows : IDisposable
     {

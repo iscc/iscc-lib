@@ -34,6 +34,10 @@ cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates
 - Functions returning `iscc_IsccByteBufferArray` produce heap-allocated buffer arrays. Free with
     `iscc_free_byte_buffer_array()`.
 - On error, pointer-returning functions return `NULL`. Check `iscc_last_error()` for the message.
+- An input buffer or array passed as a pointer plus its length (`data` + `data_len`, `codes` +
+    `num_codes`, a row of `frame_sigs` + its `frame_lens` entry) may be `NULL` when that length is
+    0: the call reads it as an empty input. `NULL` with a non-zero length is an error. A
+    `const char*` string must not be `NULL` unless its parameter is documented as optional.
 - Streaming hashers return opaque pointers. Free with the corresponding `_free()` function.
 
 ## Types
@@ -685,8 +689,8 @@ iscc_IsccByteBuffer iscc_encode_seq(const char *const *units, uintptr_t num_unit
 Returns the header and body bytes of each unit, concatenated in the given order. Units may omit the
 `ISCC:` prefix and may be lowercase or contain hyphens. Base32 decoding is strict: no padding, zero
 spare bits, and ASCII-only case folding. On error `.data` is `NULL` (check `iscc_last_error()`):
-`units` is NULL, the list is empty, or a unit is NULL, not UTF-8, malformed, or of an excluded
-MainType (ISCC-CODE, ID, FLAKE). Free with `iscc_free_byte_buffer()`.
+`units` is NULL with `num_units > 0`, the list is empty, or a unit is NULL, not UTF-8, malformed, or
+of an excluded MainType (ISCC-CODE, ID, FLAKE). Free with `iscc_free_byte_buffer()`.
 
 ---
 

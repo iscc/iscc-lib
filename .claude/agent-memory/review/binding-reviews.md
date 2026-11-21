@@ -679,3 +679,25 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     the step's own proof left out
 - `dotnet test packages/dotnet` (no project at that level) = MSB1003; next.md wrote it as a
     criterion
+
+### C FFI marshalling-helper step (iter 255, ~35 min) — PASS_WITH_NOTES, Codex found both defects
+
+- One logged script covers it: `cargo test -p iscc-ffi`, workspace clippy, `cargo build -p iscc-ffi`
+    \+ cbindgen + `git status` on `iscc.h` / `NativeMethods.g.cs`, the C test (`-Wall -Wextra`, add
+    `-fsanitize=address`), `dotnet test … -e LD_LIBRARY_PATH=$(pwd)/target/debug`, C++ via
+    `uv run --with cmake cmake -S packages/cpp -B /tmp/cppbuildNNN … -DSANITIZE_ADDRESS=ON`
+- **`iscc-ffi` is outside iai and CRAP**: a helper called per row must not `format!` its error name
+    on the success path (2x on `iscc_alg_simhash`, 1,000 rows). Read every per-row closure for an
+    allocation; time it with a throwaway C program against `target/release` (release build ≈ 15 s),
+    copying the `.so` aside for the before/after pair. Fix shape: `name: impl Display` +
+    `format_args!`
+- **The C test macros evaluate `actual` twice on failure**: a new macro that passes a freeing call
+    to `ASSERT_EQ` double-frees on the failure path only. Probe: `sed` one expected value wrong in a
+    `/tmp` copy (needs `-Icrates/iscc-ffi/tests` for `data_edge_vectors.h`), build with ASAN, expect
+    FAIL lines and `grep -c AddressSanitizer` = 0
+- **A behaviour change on the FFI makes wrapper comments false**:
+    `git grep -n -i 'must not be   NULL\|sentinel\|reject'` over `packages/cpp`, `packages/dotnet`,
+    `tests/`, `docs/` after any change to what the FFI accepts. Comment-only truth fixes are step-9
+    work; removing the redundant workaround is a `low` untriaged issue
+- learnings.md and decisions.md both sat at their budget: an in-place bullet rewrite can still add a
+    line after mdformat, so `wc -l` after formatting

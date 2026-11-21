@@ -39,9 +39,9 @@ namespace detail {
 
 /// Return a non-null data pointer for any input vector, using a static read-only
 /// sentinel address when `v` is empty. `std::vector::data()` may return NULL for an
-/// empty vector, and several C FFI functions reject a NULL pointer before checking the
-/// count, which would hide the core's own error. The FFI never dereferences the
-/// sentinel because the count passed alongside it is 0.
+/// empty vector. The C FFI reads a NULL pointer with a count of 0 as an empty input, so
+/// the sentinel only keeps every pointer passed to the FFI non-null. The FFI never
+/// dereferences the sentinel because the count passed alongside it is 0.
 template <typename T>
 inline const T* safe_data(const std::vector<T>& v) {
     static const T sentinel{};

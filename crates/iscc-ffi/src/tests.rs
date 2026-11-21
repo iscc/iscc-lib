@@ -1395,3 +1395,12 @@ fn test_gen_sum_code_v0_units_content() {
     unsafe { iscc_free_sum_code_result(result) };
     let _ = std::fs::remove_file(&path);
 }
+
+// ── pointer+length inputs go through slice_or_empty ─────────────────────
+
+#[test]
+fn test_slices_are_built_only_in_slice_or_empty() {
+    // A pointer+length input borrowed anywhere else skips the (NULL, 0) rule
+    let source = include_str!("lib.rs");
+    assert_eq!(source.matches("slice::from_raw_parts(").count(), 1);
+}

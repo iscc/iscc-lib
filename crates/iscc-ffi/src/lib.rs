@@ -255,7 +255,11 @@ unsafe fn ptr_to_str<'a>(ptr: *const c_char, param_name: &str) -> Option<&'a str
 ///
 /// If `len > 0` and `ptr` is non-null, `ptr` must be valid for reads of `len`
 /// elements of `T` for the lifetime `'a`.
-unsafe fn slice_or_empty<'a, T>(ptr: *const T, len: usize, name: &str) -> Option<&'a [T]> {
+unsafe fn slice_or_empty<'a, T>(
+    ptr: *const T,
+    len: usize,
+    name: impl std::fmt::Display,
+) -> Option<&'a [T]> {
     if len == 0 {
         return Some(&[]);
     }
@@ -293,8 +297,9 @@ unsafe fn rows_or_empty<'a, T>(
         .zip(row_lens)
         .enumerate()
         .map(|(i, (&ptr, &len))| {
-            // SAFETY: caller guarantees each non-null row is valid for its length
-            unsafe { slice_or_empty(ptr, len, &format!("{rows_name}[{i}]")) }
+            // SAFETY: caller guarantees each non-null row is valid for its length.
+            // `format_args!` builds the indexed name only if the row is rejected
+            unsafe { slice_or_empty(ptr, len, format_args!("{rows_name}[{i}]")) }
         })
         .collect()
 }

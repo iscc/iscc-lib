@@ -93,6 +93,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     function's `data.json` keys (252: Codex caught a missed key)**, **validator / C-generator
     (236)**, **harness-compare fan-out (237)**, **throwaway-vector proof (253)** →
     `binding-reviews.md`
+- **C FFI marshalling-helper step (255, ~35 min)**: read per-row closures for allocations (no perf
+    gate covers `iscc-ffi`), ASAN-probe new C macros with a forced mismatch → `binding-reviews.md`
 - **C++ wrapper-only (227)**, **JNI error-path (230)**, **verbatim code-move (231)**,
     **test-harness-only (232)**, **WASM return-shape (234)**, **Ruby gem packaging (239–241)** →
     `binding-reviews.md`

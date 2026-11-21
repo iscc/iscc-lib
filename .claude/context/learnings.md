@@ -14,11 +14,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     **The FFI's `CStr` truncates at an embedded NUL**, so both C-FFI wrappers reject it first (213):
     .NET strings go through `ToNativeUtf8`, C++ through `detail::checked_c_str`; probe
     `x + "\0junk"` on every string input. JNI, Ruby + UniFFI keep the NUL, the core rejects. **An
-    EMPTY container marshals to NULL** (`fixed` over `[]`, `.data()` on `{}`), so the FFI's "must
-    not be NULL" hides the core's error: .NET jagged inputs pin only via `PinnedRows` (220), C++
-    vectors only via `detail::safe_data` (227, `tests/test_cpp_safe_data.py`). **Never take `Vec<T>`
-    from Ruby**: Magnus `to_vec` holds a slice, so a shrinking `to_str` segfaulted (212); use
-    `array_to_vec`. `RBignum::to_i32` truncates negative Bignums: `i32` only via `array_to_i32_vec`
+    EMPTY container marshals to NULL** (`fixed` over `[]`, `.data()` on `{}`); the FFI reads
+    `(NULL, 0)` as empty via `slice_or_empty` (255): `PinnedRows` padding and C++ `safe_data` are
+    redundant. **Never take `Vec<T>` from Ruby**: Magnus `to_vec` holds a slice, so a shrinking
+    `to_str` segfaulted (212); use `array_to_vec`. `RBignum::to_i32` truncates negative Bignums:
+    `i32` only via `array_to_i32_vec`
 - **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
     `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
     modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an

@@ -509,3 +509,20 @@ reference. **Supersedes** the 2026-07-25 to 07-27 freeze-rule rulings. Those ent
 memories describing the freeze design were deleted on 2026-11-19; git history keeps them. Do not
 reintroduce any freeze mechanism without a new human decision. **Context:** interactive session
 2026-07-30, this commit.
+
+## 2026-10-17 — npm publishes via OIDC trusted publishing, direct publish (not staged)
+
+**Decision:** `@iscc/lib` and `@iscc/wasm` publish through npm trusted publishing: one trusted
+publisher per package on npmjs.com (GitHub Actions, `iscc/iscc-lib`, workflow `release.yml`, no
+environment, "Allow npm publish" on). The two publish jobs carry no `NPM_TOKEN`, run Node 24 (npm
+
+> = 11.5.1) and set no `registry-url` in `setup-node`. **Why:** granular npm write tokens expire
+> after at most 90 days and the token broke or blocked the v0.5.0 and v0.7.0 releases; OIDC has
+> nothing to expire, matching crates.io/PyPI/RubyGems. `registry-url` is omitted because
+> `setup-node@v7` no longer exports a dummy `NODE_AUTH_TOKEN`, so its generated `.npmrc` would
+> reference an unset variable. **Alternatives:** keep rotating tokens — rejected (recurring release
+> failures); staged publishing (CI stages, a human approves each version on npmjs.com with 2FA) —
+> npm's recommended mode, deferred because it adds a manual step to every release; it can be
+> switched on later without touching the workflow's auth. **Context:** interactive session
+> 2026-10-17, first validated by the v0.7.0 publish. Changing a trusted-publisher entry needs the
+> human's npm 2FA passkey.
