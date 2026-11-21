@@ -87,16 +87,18 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: b555563, iter 245 — incremental)
+## Current State (assessed-at: 32c2f75, iter 246 — incremental)
 
-- **CI GREEN on `origin/develop` = `f09041d`**. HEAD ahead only by `.claude`. Check-suites API:
+- **CI GREEN on `origin/develop` = `8e7541c`**. HEAD ahead only by `.claude`. Check-suites API:
     `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor suites sit `queued`
     forever — judge by `github-actions`). `gh run view <id> --json jobs` per-job.
 - Tier 1 doc gate registry: `FULL` / `EXACT` / `EXEMPT` near top of `scripts/check_tier1_docs.py`
-    (244: 20 FULL, 2 EXACT, 2 EXEMPT; every docs how-to/API page registered, `c-cpp.md` last).
-    `tests/test_rust_api_signatures.py` pins `rust-api.md` signatures.
-- **12 open: 1 normal** (`[human]` derived-fact drift — last part: specs + per-crate `CLAUDE.md`
-    counts/file lists/line numbers), 11 low. issues.md 213/300.
+    (20 FULL, 2 EXACT, 2 EXEMPT). `tests/test_rust_api_signatures.py` pins `rust-api.md` signatures.
+- **12 open: 1 normal** (`[human]` derived-fact drift — remainder is FILE LISTS only: trees/module
+    tables in 12 per-crate `CLAUDE.md` unchecked; spec trees existence-only via
+    `scripts/check_spec_paths.py`). Counts/line numbers removed at 245. 11 low. issues.md 217/300.
+- Spec diffs at 245 were count removals only — a digit-free `grep -E '^[-+]'` skim of the diff is a
+    fast way to confirm no criterion changed.
 - data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`.
 
