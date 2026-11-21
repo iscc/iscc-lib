@@ -148,6 +148,23 @@ static int edge_bytes_eq(const uint8_t *data, size_t len, struct iscc_edge_str e
     return len == expected.len && (len == 0 || memcmp(data, expected.ptr, len) == 0);
 }
 
+/* Return 1 if returned chunks equal an expected edge-vector byte-string list. */
+static int edge_chunks_eq(struct iscc_IsccByteBufferArray arr, struct iscc_edge_list expected) {
+    size_t i;
+    if (arr.count != expected.count) {
+        return 0;
+    }
+    for (i = 0; i < arr.count; i++) {
+        struct iscc_edge_str item;
+        item.ptr = expected.items[i];
+        item.len = expected.lens[i];
+        if (!edge_bytes_eq(arr.buffers[i].data, arr.buffers[i].len, item)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 /* Return 1 if a returned gen string meets the row expectation (rejection = NULL). */
 static int edge_gen_result_ok(int expect, const char *actual, struct iscc_edge_str iscc) {
     if (expect == ISCC_EDGE_ERROR) {
@@ -276,6 +293,22 @@ static int check_edge_gen_video_code_v0(const struct iscc_edge_gen_video_code_v0
                                     v->frame_sigs.count, v->bits);
     passed = edge_gen_result_ok(v->c, actual, v->iscc);
     iscc_free_string(actual);
+    return passed;
+}
+
+/* Check one alg_cdc_chunks edge row against its c expectation (rejection = NULL
+ * buffers). The data is binary with an explicit length, so no C-string fit check applies. */
+static int check_edge_alg_cdc_chunks(const struct iscc_edge_alg_cdc_chunks_vector *v) {
+    struct iscc_IsccByteBufferArray arr;
+    int passed;
+    arr = iscc_alg_cdc_chunks((const uint8_t *)v->data.ptr, v->data.len, v->utf32 != 0,
+                              v->avg_chunk_size);
+    if (v->c == ISCC_EDGE_ERROR) {
+        passed = arr.buffers == NULL;
+    } else {
+        passed = v->c == ISCC_EDGE_OK && arr.buffers != NULL && edge_chunks_eq(arr, v->chunks);
+    }
+    iscc_free_byte_buffer_array(arr);
     return passed;
 }
 
@@ -755,6 +788,8 @@ int main(void) {
         RUN_EDGE_SECTION("gen_video_code_v0", iscc_edge_gen_video_code_v0,
                          ISCC_EDGE_GEN_VIDEO_CODE_V0_COUNT, check_edge_gen_video_code_v0,
                          edge_seen);
+        RUN_EDGE_SECTION("alg_cdc_chunks", iscc_edge_alg_cdc_chunks,
+                         ISCC_EDGE_ALG_CDC_CHUNKS_COUNT, check_edge_alg_cdc_chunks, edge_seen);
         ASSERT_EQ(edge_seen, ISCC_EDGE_TOTAL_COUNT,
                   "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
     }
