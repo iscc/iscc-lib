@@ -1,94 +1,91 @@
 # Next Work Package
 
-## Step: Generated C edge header keeps every string literal within 4,095 bytes
+## Step: `@iscc/wasm` docs show a Node.js setup that runs on the published web-target package
 
 ## Goal
 
-Fix the `normal` issue "Generated `data_edge_vectors.h` holds a 128 KB string literal that MSVC
-cannot compile". The generator writes any string over the ISO C99 literal minimum (4,095 bytes) into
-a buffer that a header-provided init function fills at runtime. That keeps the C and C++ test
-programs portable to MSVC, and a later large vector cannot break them again.
+Fix the `[audit]` issue "`@iscc/wasm` docs show a Node.js setup the published package cannot run":
+the how-to and the npm README show a Node path that works on the `--target web` package that
+`release.yml` publishes, and both pages state what `gen_sum_code_v0` returns.
 
 ## Alternatives Considered
 
-- **Chosen:** header-literal fix. It is left over from iteration 281, touches only test tooling, and
-    gcc can check it here (`-Woverlength-strings`) although no MSVC is available.
-- **Rejected:** `[audit]` "`@iscc/wasm` docs show a Node.js setup the published package cannot run"
-    (handoff option 2). It is equally small and goes next. This fix comes first because the next
-    data-edge vector would make it bigger.
-- **Rejected:** a decisions.md entry limiting the test programs to gcc/clang. It gives up
-    portability that a small generator change keeps.
+- **Chosen:** WASM Node.js docs — a user-facing gap on the npm registry page, 2 files, no behaviour
+    decision, and the handoff's pick.
+- **Rejected:** vcpkg portfile hashes — also user-facing, but it needs a `release.yml` step plus a
+    gate. It is a good next pick. `alg_minhash_256([])` and WASM `finalize()` need a behaviour
+    decision first.
 
 ## Scope
 
-- **Modify**: `scripts/gen_data_edge_vectors.py`; `crates/iscc-ffi/tests/data_edge_vectors.h`
-    (regenerated, not hand-edited); `crates/iscc-ffi/tests/test_iscc.c`;
-    `packages/cpp/tests/test_iscc.cpp`
-- **Modify (tests/docs)**: `tests/test_gen_data_edge_vectors.py`; `crates/iscc-ffi/CLAUDE.md` (:145)
-    and `packages/cpp/CLAUDE.md` (:97): one sentence each on the init call
-- **Reference**: MSVC C2026 (16,380 bytes per literal piece) and C1091 (65,535 after concatenation):
-    https://learn.microsoft.com/en-us/cpp/error-messages/compiler-errors-1/compiler-error-c2026,
-    https://learn.microsoft.com/en-us/cpp/error-messages/compiler-errors-1/fatal-error-c1091
+- **Create**: `tests/test_wasm_docs.py`
+- **Modify**: `docs/howto/wasm.md`, `crates/iscc-wasm/README.md`, `.github/workflows/release.yml`
+    (only the `test-wasm` smoke script)
+- **Reference**: `.github/workflows/release.yml` (`build-wasm` around :427, `test-wasm`),
+    `crates/iscc-wasm/src/lib.rs` (`WasmSumCodeResult`, `SumHasher`, crate-root exports),
+    `tests/test_ruby_gem_docs.py` (pattern for a docs-claim test)
 
 ## Not In Scope
 
-- Do not change `data-edge.json`, its 5 copies or any other harness. The fixture stays
-    byte-identical.
-- Do not change `struct iscc_edge_str`/`iscc_edge_list` or the per-section check functions.
-- Do not render short strings any differently: all rows under the threshold stay byte-identical.
-- No Windows/MSVC CI job (separate `low` issue "No CI job runs a test suite on Windows").
+- Changing the build target, adding a second `--target nodejs` npm package, or adding an `exports`
+    map to the package.json in `build-wasm`.
+- The `low` WASM issues (byte conversion, serde getter unwinding) and the `normal` hasher
+    `finalize()` rule: leave the `wasm.md` streaming and error-handling text as it is.
+- `crates/iscc-wasm/CLAUDE.md`: its `--target nodejs` lines describe local dev builds and stay.
 
 ## Implementation Notes
 
-Design (no struct change, no per-call-site accessor):
-
-- Threshold `C_LITERAL_MAX = 4095` (the C99 minimum literal length; gcc's `-Woverlength-strings`
-    warns above it in C mode, which serves as the local stand-in for MSVC). Measure the decoded byte
-    length, not the escaped text.
-- A string longer than that is rendered as `static char <ident>_<field>_buf[<len + 1>];`
-    (zero-initialised, so it ends in NUL for `strlen`). Its row field is `{<ident>_..._buf, <len>}`:
-    the address of a static array is a constant initialiser in C and C++.
-- The header ends (before the postamble) with `static void iscc_edge_init(void)`, which `memcpy`s
-    each buffer from literal pieces of at most 4,095 bytes, using explicit byte counts so an
-    embedded NUL survives. Emit the function even when no buffer exists (an empty body) so both
-    harnesses can always call it. Add `#include <string.h>`.
-- Route **every** string the generator emits through this rule (`c_str`, `byte_list_arrays` items,
-    row names): one form per surface, not a meta-only special case. Unique identifiers per field:
-    the row `ident` plus a field or item suffix.
-- `test_iscc.c` and `test_iscc.cpp` call `iscc_edge_init()` once in `main`, before the first edge
-    section runs. A missing call fails closed in C (`strlen` mismatch), but C++ would read 128 KB of
-    NUL, which the core also rejects as an error. So add a pytest asserting that both harness
-    sources contain the call.
-- Update the preamble comment that describes the row layout so it mentions the buffers.
-
-Tests to add to `tests/test_gen_data_edge_vectors.py`:
-
-- Tokenise the tracked header's string literals, join adjacent pieces, decode the escapes (reuse
-    `c_escape_chars`-style scanning) and assert each is at most `C_LITERAL_MAX` bytes. Count the
-    literals that were checked and assert the count is non-zero.
-- On a `tmp_path` fixture with an oversized meta that contains non-ASCII text, assert that the
-    rendered init pieces, unescaped and joined, equal the original UTF-8 bytes and that the declared
-    buffer length is `len + 1`.
-
-Ordering trap: `test_tracked_header_matches_fresh_render` stays the regeneration gate. Regenerate
-with `uv run --script scripts/gen_data_edge_vectors.py`. No Rust code changes, so CRAP/iai are not
-affected.
+- Facts: `release.yml` builds with `wasm-pack build --target web --release`. The published 0.7.0
+    `package.json` (`npm view @iscc/wasm@0.7.0 --json`) has `main: iscc_wasm.js`, `type: module`,
+    and no `exports`, so `import … from "@iscc/wasm"` resolves in Node, and so does the subpath
+    `@iscc/wasm/iscc_wasm_bg.wasm`. Called with no argument, `init()` builds
+    `new URL('iscc_wasm_bg.wasm', import.meta.url)` and `fetch`es it, and Node's `fetch` rejects
+    `file:` URLs.
+- wasm-bindgen (0.2.126 in Cargo.lock) takes one options object: `init({ module_or_path })` and
+    `initSync({ module })`. A positional argument still works but logs
+    `using deprecated parameters for the initialization function; pass a single object instead`. The
+    `test-wasm` smoke script calls `init(wasmBytes)` positionally: switch it to the object form.
+    Source: https://github.com/wasm-bindgen/wasm-bindgen/blob/main/crates/cli-support/src/js/mod.rs
+- The Node example to probe and then document (hypothesis, adjust to what the probe shows):
+    `import { readFileSync } from "node:fs";` `import { createRequire } from "node:module";`, then
+    `initSync({ module: readFileSync(createRequire(import.meta.url).resolve("@iscc/wasm/iscc_wasm_bg.wasm")) })`.
+    An `import.meta.resolve` variant is fine if it runs on Node 22.
+- **Probe (required, evidence in the handoff):** build as `build-wasm` does (`RUSTFLAGS` simd128,
+    `--target web --release --features conformance`). Set `name` to `@iscc/wasm` in a COPY of `pkg/`
+    and `npm pack` it. `npm install` the tarball into a fresh `/tmp` project, and run the Node
+    snippets from both pages verbatim as `.mjs` files. They must print a code and log no deprecation
+    warning. Clean up `/tmp` and leave `crates/iscc-wasm/pkg/` untracked as it is.
+- `wasm.md` → Setup: the published package is one web-target build. Bundler: keep `await init()` and
+    drop "Most bundlers handle WASM initialization automatically". Browser: it can serve the
+    installed package, so drop "build with `--target web`". Node: the probed snippet. Keep the
+    "Prefer @iscc/lib" tip.
+- `wasm.md:82` and README "All code generators return ISCC strings directly": 9 return a string,
+    `gen_sum_code_v0` returns a `WasmSumCodeResult` (`iscc`, `datahash`, `filesize`, plus `units`
+    when asked; read the fields from `lib.rs`). README Streaming line: add `SumHasher`. While in
+    that list, fill the Codec/Encoding lines from the crate-root exports in `lib.rs`.
+- Replace README "Both browser and Node.js targets are supported." with a Node quick-start line or
+    block (the same snippet). Run `git grep -n -- '--target nodejs'` and
+    `git grep -n 'Both browser and Node'` repo-wide: no user-facing page (`docs/`, READMEs) may keep
+    the claim. `notes/` and `crates/iscc-wasm/CLAUDE.md` are exempt.
+- `tests/test_wasm_docs.py` (plain pytest functions): neither page contains `--target nodejs` or
+    "Both browser and Node.js targets"; the `wasm.md` Node section and the README use `initSync(` or
+    `init({`; both pages name `WasmSumCodeResult`; the `test-wasm` script in `release.yml` uses no
+    positional `init(wasmBytes)`. Read `release.yml` with PyYAML, as other tests do.
+- Docs/workflow-only step: no Rust change, so no CRAP, iai or semver effect.
 
 ## Verification
 
-- `uv run pytest tests/test_gen_data_edge_vectors.py tests/test_data_edge.py tests/test_vendored_fixtures.py`
-    passes, including the new literal-length, oversized-render and harness-init-call tests
-- `gcc -std=c99 -Woverlength-strings -Werror -fsyntax-only -x c crates/iscc-ffi/tests/data_edge_vectors.h`
-    exits 0 (it fails on the current header)
-- The C test program, built and run as in the `c-ffi` job of `ci.yml`, reports 0 failed, and
-    `test_0004_meta_payload_over_limit` reports PASS
-- The C++ suite (`uv run --with cmake cmake` Debug + ASAN build of `packages/cpp/tests`, as in the
-    `cpp` job) reports 0 failed, with the oversized row PASS
-- `grep -c 'iscc_edge_init()' crates/iscc-ffi/tests/test_iscc.c packages/cpp/tests/test_iscc.cpp`
-    shows at least 1 for each file
-- `mise run check` exits 0
+- The handoff carries the probe: `npm pack` of the web release build, installed in a scratch
+    project, runs both pages' Node snippets and prints an ISCC code with no deprecation warning
+- `uv run pytest tests/test_wasm_docs.py tests/test_check_docs_nav.py tests/test_check_tier1_docs.py`
+    passes
+- `git grep -nE -- '--target nodejs|Both browser and Node' -- docs README.md crates/iscc-wasm/README.md`
+    prints nothing
+- `grep -c WasmSumCodeResult crates/iscc-wasm/README.md` is at least 1
+- `uv run zensical build` exits 0
+- `mise run check` exits 0 (includes the release-workflow static check)
 
 ## Done When
 
-All six verification criteria pass, and the regenerated header contains no string literal over 4,095
-bytes.
+All six verification criteria pass, and the Node snippet on both pages has been run against a packed
+`--target web` release build.

@@ -3,21 +3,20 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 282):** v0.8.0 features done; 281 (Go meta limit + 128 KB vector) PASSED
-but put a 128 KB C literal in `data_edge_vectors.h` (MSVC limit). 282 = generator renders strings
-
-> 4,095 bytes as a static buffer filled by `iscc_edge_init()` (no struct change); local MSVC proxy:
-> `gcc -std=c99 -Woverlength-strings -Werror -fsyntax-only -x c <header>` (fails pre-fix, probed).
-> Remaining normals: WASM Node docs (probe a packed `--target web` build), vcpkg hashes (release
-> step + gate), Rust tier docs (4-5 files), dup `data.json` parsers (Rust/Go split), one-shot dedup
-> (core, iai), minhash `[]` + WASM `finalize()` (both need a behaviour decision → HUMAN). **Any Java
-> test needing a library outside the bundle must pass in BOTH layouts.** Per-iteration traps for
-> 259-269 → [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds
-> (py3.10 + py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's
-> "Scope estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track
-> `main`, not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints
-> nothing. **Compiler-limit issues with no compiler here: find a gcc warning that encodes the same
-> standard limit and make it the criterion** (282).
+**Status 2026-11-21 (iter 283):** v0.8.0 features done; 282 (C header split literals) PASSED. 283 =
+WASM Node docs (`initSync({ module })` on the web build; probe = `npm pack` of a release
+`--target web` build into `/tmp`). Published `@iscc/wasm` 0.7.0 has `main`, `type: module`, no
+`exports` (checked via `npm view --json`). Remaining normals: vcpkg hashes (release step + gate),
+Rust tier docs (4-5 files), dup `data.json` parsers (Rust/Go split), one-shot dedup (core, iai),
+minhash `[]` + WASM `finalize()` (both need a behaviour decision → HUMAN). **Any Java test needing a
+library outside the bundle must pass in BOTH layouts.** Per-iteration traps for 259-269 →
+[v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
+py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
+estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
+not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints nothing.
+**Compiler-limit issues with no compiler here: find a gcc warning that encodes the same standard
+limit** (282). **wasm-bindgen generated-JS facts: cli-support is not in the cargo registry
+(wasm-pack downloads the binary) — read `crates/cli-support/src/js/mod.rs` upstream** (283).
 
 ## Scope Calibration Principles
 
