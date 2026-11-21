@@ -62,6 +62,8 @@ scripts/
 └── build_xcframework.sh                # Portable build script (macOS + CI)
 ```
 
+The tree lists the load-bearing entries, not every file.
+
 ## Root Package.swift — Variable Toggle Pattern
 
 The root `Package.swift` serves both development and distribution using a variable toggle, following

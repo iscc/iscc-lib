@@ -4,11 +4,13 @@ Continuous integration, quality gates, developer tooling, and selective package 
 
 ## Workflow Files
 
-| Workflow    | File          | Trigger                                | Purpose                       |
-| ----------- | ------------- | -------------------------------------- | ----------------------------- |
-| **CI**      | `ci.yml`      | push to `main`/`develop`, PR to `main` | Quality gates for all targets |
-| **Release** | `release.yml` | `v*.*.*` tag or `workflow_dispatch`    | Build and publish packages    |
-| **Docs**    | `docs.yml`    | push to `main`                         | Build and deploy docs site    |
+| Workflow    | File                            | Trigger                                | Purpose                       |
+| ----------- | ------------------------------- | -------------------------------------- | ----------------------------- |
+| **CI**      | `.github/workflows/ci.yml`      | push to `main`/`develop`, PR to `main` | Quality gates for all targets |
+| **Release** | `.github/workflows/release.yml` | `v*.*.*` tag or `workflow_dispatch`    | Build and publish packages    |
+| **Docs**    | `.github/workflows/docs.yml`    | push to `main`                         | Build and deploy docs site    |
+
+The table names the workflows this spec requires, not every file in `.github/workflows/`.
 
 ## CI Workflow — Quality Gates
 

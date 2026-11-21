@@ -29,11 +29,10 @@ crates/iscc-wasm/
 ├── tests/
 │   └── conformance.rs      # wasm-pack test conformance against data.json
 └── pkg/                    # wasm-pack build output (generated)
-    ├── iscc_wasm.js
-    ├── iscc_wasm.d.ts
-    ├── iscc_wasm_bg.wasm
-    └── package.json
 ```
+
+The tree lists the load-bearing entries, not every file. `pkg/` is wasm-pack build output and is not
+tracked.
 
 ## Rust Bridge Layer
 

@@ -37,6 +37,8 @@ crates/iscc-napi/
     └── conformance.test.mjs  # node:test conformance tests against data.json
 ```
 
+The tree lists the load-bearing entries, not every file.
+
 ## Rust Bridge Layer
 
 All functions use `#[napi]` attribute macros. Result types are returned as JavaScript objects:

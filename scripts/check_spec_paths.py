@@ -18,7 +18,13 @@ Rules:
   stack. An entry line is `[│ ]*` indentation, a `├── `/`└── ` connector, and a
   first token: depth = indentation // 4, path = root + the stack up to that depth.
   An entry with no root line before it in its fence is an error.
-- Backticked paths match `` `(crates|packages|scripts|docs|tests)/…` `` anywhere
+- A tree lists the load-bearing entries, not every file, and says so: a fence
+  holding at least one tree entry must be followed by a paragraph containing
+  `not every file`. The paragraph starts at the first non-blank line after the
+  closing fence and runs to the next blank line, heading or fence; its lines are
+  joined with single spaces, so a phrase wrapped across lines still matches. A
+  heading or fence right after the tree means the note is missing.
+- Backticked paths match `` `(crates|packages|scripts|docs|tests|.github)/…` `` anywhere
   in the file; a `:…` suffix (line number, symbol) and a trailing `/` are dropped.
 - A path containing `*` resolves when it matches some tracked path in full: `**`
   matches any run of characters including `/`, while `*` stays inside one path
@@ -68,7 +74,8 @@ NOT_PATHS = {
 
 FENCE_RE = re.compile(r"^\s*```")
 ENTRY_RE = re.compile(r"^([│ ]*)(?:├── |└── )(\S+)")
-BACKTICK_RE = re.compile(r"`((?:crates|packages|scripts|docs|tests)/[^`\s]+)`")
+BACKTICK_RE = re.compile(r"`((?:crates|packages|scripts|docs|tests|\.github)/[^`\s]+)`")
+TREE_NOTE = "not every file"
 
 
 def tracked_paths(root: Path) -> set[str]:
@@ -143,6 +150,48 @@ def tree_entries(text: str) -> tuple[int, list[tuple[int, str | None]]]:
     return roots, entries
 
 
+def fences(lines: list[str]) -> list[tuple[int, int]]:
+    """Return (opening index, closing index) for every closed fenced block in `lines`."""
+    found, start = [], None
+    for index, line in enumerate(lines):
+        if not FENCE_RE.match(line):
+            continue
+        if start is None:
+            start = index
+        else:
+            found.append((start, index))
+            start = None
+    return found
+
+
+def paragraph_after(lines: list[str], index: int) -> str:
+    """Return the paragraph following line `index`, its lines joined by single spaces.
+
+    Blank lines right after `index` are skipped; the paragraph ends at the next
+    blank line, heading or fence. An immediate heading or fence gives "".
+    """
+    words: list[str] = []
+    for line in lines[index + 1 :]:
+        text = line.strip()
+        if not text and not words:
+            continue
+        if not text or text.startswith("#") or FENCE_RE.match(line):
+            break
+        words.extend(text.split())
+    return " ".join(words)
+
+
+def trees_without_note(text: str) -> list[int]:
+    """Return the opening-fence line number of every tree with no partial-list note."""
+    lines = text.splitlines()
+    return [
+        start + 1
+        for start, end in fences(lines)
+        if any(ENTRY_RE.match(line) for line in lines[start + 1 : end])
+        and TREE_NOTE not in paragraph_after(lines, end)
+    ]
+
+
 def backticked_paths(text: str) -> list[tuple[int, str]]:
     """Return (line number, path) for every backticked repository path."""
     found = []
@@ -163,6 +212,10 @@ def check_spec(spec: Path, known: set[str]) -> tuple[list[str], tuple[int, int, 
             errors.append(f"{spec.name}:{lineno}: tree entry with no root line")
         elif not resolves(path, known):
             errors.append(f"{spec.name}:{lineno}: tree entry `{path}` is not tracked")
+    for lineno in trees_without_note(text):
+        errors.append(
+            f'{spec.name}:{lineno}: tree has no "{TREE_NOTE}" note after its fence'
+        )
     for lineno, path in spans:
         if path not in NOT_PATHS and not resolves(path, known):
             errors.append(f"{spec.name}:{lineno}: backticked `{path}` is not tracked")

@@ -51,14 +51,6 @@ packages/kotlin/
 │   ├── main/kotlin/uniffi/iscc_uniffi/
 │   │   └── iscc_uniffi.kt            # UniFFI-generated Kotlin bindings (DO NOT EDIT)
 │   ├── main/resources/               # Bundled native libraries (release JAR only)
-│   │   ├── linux-x86-64/             # JNA resource path for Linux x86_64
-│   │   ├── linux-aarch64/            # JNA resource path for Linux ARM64
-│   │   ├── darwin-aarch64/           # JNA resource path for macOS ARM64
-│   │   ├── darwin-x86-64/            # JNA resource path for macOS x86_64
-│   │   ├── win32-x86-64/            # JNA resource path for Windows x86_64
-│   │   ├── android-aarch64/          # JNA resource path for Android ARM64
-│   │   ├── android-arm/              # JNA resource path for Android ARM32
-│   │   └── android-x86-64/           # JNA resource path for Android x86_64
 │   └── test/
 │       ├── kotlin/uniffi/iscc_uniffi/
 │       │   └── ConformanceTest.kt    # data.json conformance vectors
@@ -67,6 +59,9 @@ packages/kotlin/
 ├── README.md
 └── CLAUDE.md
 ```
+
+The tree lists the load-bearing entries, not every file. The JNA native library directories under
+`main/resources/` are listed in "Native Library Targets" below.
 
 ## Native Library Targets
 

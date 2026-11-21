@@ -42,6 +42,8 @@ crates/iscc-rb/
     └── test_conformance.rb # Minitest against data.json
 ```
 
+The tree lists the load-bearing entries, not every file.
+
 ## Rust Bridge Layer
 
 The Rust bridge follows the same patterns as `iscc-py`:

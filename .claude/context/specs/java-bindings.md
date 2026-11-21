@@ -42,6 +42,8 @@ crates/iscc-jni/
             └── IsccLibTest.java            # JUnit 5 conformance tests
 ```
 
+The tree lists the load-bearing entries, not every file.
+
 ## Rust JNI Bridge Layer
 
 ### JNI Function Naming

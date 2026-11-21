@@ -37,6 +37,8 @@ packages/cpp/
 └── README.md                       # Per-package README
 ```
 
+The tree lists the load-bearing entries, not every file.
+
 ## API Surface
 
 ### RAII String Wrapper

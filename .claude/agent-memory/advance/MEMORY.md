@@ -146,7 +146,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - Guidance docs carry no counts/`path:NN` (245): write "every binding", "all Tier 1 symbols". Line
     greps miss wrapped counts — also grep each file joined via `tr '\n' ' '`
 - Spec path gate `scripts/check_spec_paths.py`: `*` one segment, `**` crosses `/`; `NOT_PATHS`
-    backticked spans only (228). Fix phantoms in the spec, never by adding a file
+    backticked spans only (228). Fix phantoms in the spec, never by adding a file. Every spec tree
+    needs a following paragraph with `not every file` (247); fixture line numbers shift with notes
 
 ## Bindings detail → [bindings-detail.md](bindings-detail.md)
 

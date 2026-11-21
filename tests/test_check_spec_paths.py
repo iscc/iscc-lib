@@ -6,7 +6,8 @@ prek) and catches deletions the ``files:``-scoped hook never sees. The mutation
 tests write a spec into ``tmp_path`` and inject a known-path set, one bad case per
 call. A real-regression test replays the Go structure tree the specs carried before
 the check existed against a frozen snapshot of the ``packages/go/`` files that tree
-names and that exist, and asserts exactly its 11 phantom files light up.
+names and that exist, and asserts exactly its 11 phantom files light up. Every
+fixture tree carries the "not every file" note the gate demands after its fence.
 """
 
 import importlib.util
@@ -23,8 +24,12 @@ _loader.exec_module(csp)
 
 FENCE = "```"
 
+# The partial-list note every tree needs after its closing fence, as a paragraph.
+NOTE = "\nThe tree lists the load-bearing entries, not every file.\n"
+
 # The Go "Package Structure" tree as committed before this gate (go-bindings.md).
-OLD_GO_TREE = """```
+OLD_GO_TREE = (
+    """```
 packages/go/
 ├── go.mod                  # Module: github.com/iscc/iscc-lib/packages/go
 ├── go.sum
@@ -48,6 +53,8 @@ packages/go/
 └── README.md               # Per-package README
 ```
 """
+    + NOTE
+)
 
 OLD_GO_PHANTOMS = [
     "iscc.go",
@@ -79,6 +86,7 @@ KNOWN = _known(
     "packages/demo/testdata/data.json",
     "packages/demo/code_meta.go",
     "scripts/tool.py",
+    ".github/workflows/ci.yml",
 )
 
 # A consistent tree: nesting, a multi-segment name, a glob entry, a GENERATED child.
@@ -91,13 +99,13 @@ packages/demo/
 │   └── data.json
 └── back/
 {FENCE}
-
+{NOTE}
 {FENCE}
 crates/iscc-wasm/
 └── pkg/
     └── iscc_wasm.js        # generated, untracked
 {FENCE}
-"""
+{NOTE}"""
 
 # The packages/go/ files the old tree names that exist — a frozen snapshot, so the
 # replay tests do not depend on the live index.
@@ -117,7 +125,10 @@ OLD_GO_KNOWN = _known(
     )
 )
 
-GOOD_PROSE = "Run `scripts/tool.py:12` on `packages/demo/` per `packages/go/vX.Y.Z`.\n"
+GOOD_PROSE = (
+    "Run `scripts/tool.py:12` on `packages/demo/` per `packages/go/vX.Y.Z`"
+    " in `.github/workflows/ci.yml` under `.github/workflows/`.\n"
+)
 
 
 def _spec_file(tmp_path, text):
@@ -191,23 +202,23 @@ def test_phantom_nested_tree_entry_fires(tmp_path):
 def test_phantom_backticked_path_fires(tmp_path):
     prose = GOOD_PROSE + "See `crates/ghost/lib.rs`.\n"
     assert _errors(tmp_path, GOOD_TREE + prose) == [
-        "demo.md:17: backticked `crates/ghost/lib.rs` is not tracked"
+        "demo.md:21: backticked `crates/ghost/lib.rs` is not tracked"
     ]
 
 
 def test_non_matching_glob_fires(tmp_path):
     prose = GOOD_PROSE + "Every `packages/demo/*.rs` file.\n"
     assert _errors(tmp_path, GOOD_TREE + prose) == [
-        "demo.md:17: backticked `packages/demo/*.rs` is not tracked"
+        "demo.md:21: backticked `packages/demo/*.rs` is not tracked"
     ]
 
 
 def test_entry_without_root_fires(tmp_path):
     # The root resets at each fence, so an entry in a later fence with no root
     # line of its own is an error rather than a child of the previous root.
-    orphan = f"{FENCE}\n├── go.mod\n{FENCE}\n"
+    orphan = f"{FENCE}\n├── go.mod\n{FENCE}\n{NOTE}"
     assert _errors(tmp_path, GOOD_TREE + orphan + GOOD_PROSE) == [
-        "demo.md:17: tree entry with no root line"
+        "demo.md:21: tree entry with no root line"
     ]
 
 
@@ -215,14 +226,14 @@ def test_generated_prefix_needs_exact_segment(tmp_path):
     # `pkg` exempts `pkg/…` but not a sibling that merely shares the prefix.
     tree = GOOD_TREE.replace("└── pkg/", "└── pkgx/")
     assert _errors(tmp_path, tree + GOOD_PROSE) == [
-        "demo.md:13: tree entry `crates/iscc-wasm/pkgx` is not tracked",
-        "demo.md:14: tree entry `crates/iscc-wasm/pkgx/iscc_wasm.js` is not tracked",
+        "demo.md:15: tree entry `crates/iscc-wasm/pkgx` is not tracked",
+        "demo.md:16: tree entry `crates/iscc-wasm/pkgx/iscc_wasm.js` is not tracked",
     ]
 
 
 def test_floor_zero_roots(tmp_path):
     # Entries but no root line anywhere: the orphan error plus the root floor.
-    assert _errors(tmp_path, f"{FENCE}\n├── go.mod\n{FENCE}\n" + GOOD_PROSE) == [
+    assert _errors(tmp_path, f"{FENCE}\n├── go.mod\n{FENCE}\n{NOTE}" + GOOD_PROSE) == [
         "demo.md:2: tree entry with no root line",
         "floor: zero tree root lines found — parse failure or moved specs?",
     ]
@@ -271,16 +282,16 @@ def test_single_star_stays_in_one_segment(tmp_path):
     assert _errors(tmp_path, GOOD_TREE + good) == []
     bad = GOOD_PROSE + "Every `packages/demo/*.json` file.\n"
     assert _errors(tmp_path, GOOD_TREE + bad) == [
-        "demo.md:17: backticked `packages/demo/*.json` is not tracked"
+        "demo.md:21: backticked `packages/demo/*.json` is not tracked"
     ]
 
 
 def test_not_paths_does_not_exempt_tree_entry(tmp_path):
     # A NOT_PATHS string exempts a backticked span only: as a tree entry it
     # claims a file exists, so it must resolve against the tracked set.
-    tree = f"{FENCE}\nscripts/\n└── gen_ffi_boundary_vectors.py\n{FENCE}\n"
+    tree = f"{FENCE}\nscripts/\n└── gen_ffi_boundary_vectors.py\n{FENCE}\n{NOTE}"
     assert _errors(tmp_path, GOOD_TREE + tree + GOOD_PROSE) == [
-        "demo.md:18: tree entry `scripts/gen_ffi_boundary_vectors.py` is not tracked"
+        "demo.md:22: tree entry `scripts/gen_ffi_boundary_vectors.py` is not tracked"
     ]
     prose = GOOD_PROSE + "History: `scripts/gen_ffi_boundary_vectors.py`.\n"
     assert _errors(tmp_path, GOOD_TREE + prose) == []
@@ -297,3 +308,39 @@ def test_glob_double_star_crosses_segments_single_star_does_not():
     assert not csp.resolves("packages/*.go", known)
     # Regex metacharacters in a glob are literal: `.` must not match the `o` of `.go`.
     assert not csp.resolves("packages/go/code_*.g.", known)
+
+
+# A one-entry tree whose fence opens on line 1 of the spec, for the note tests.
+SMALL_TREE = f"{FENCE}\npackages/demo/\n└── go.mod\n{FENCE}\n"
+
+
+def test_tree_followed_by_heading_fires(tmp_path):
+    # A heading right after the fence means the note is missing, even when a
+    # note paragraph follows the heading.
+    text = SMALL_TREE + "\n## Next\n" + NOTE + GOOD_PROSE
+    assert _errors(tmp_path, text) == [
+        'demo.md:1: tree has no "not every file" note after its fence'
+    ]
+
+
+def test_note_one_paragraph_late_fires(tmp_path):
+    # Only the first paragraph after the fence counts.
+    text = SMALL_TREE + "\nThe module file comes first.\n" + NOTE + GOOD_PROSE
+    assert _errors(tmp_path, text) == [
+        'demo.md:1: tree has no "not every file" note after its fence'
+    ]
+
+
+def test_note_wrapped_across_lines_passes(tmp_path):
+    # mdformat wraps at 100 columns; the paragraph's lines are joined, so a
+    # phrase split across lines (in the second sentence) still counts.
+    note = "\nThe module file comes first. The tree lists the load-bearing entries, not\nevery file.\n"
+    assert _errors(tmp_path, SMALL_TREE + note + GOOD_PROSE) == []
+
+
+def test_phantom_github_backticked_path_fires(tmp_path):
+    # `.github/` spans are checked like the other prefixes.
+    prose = GOOD_PROSE + "Run `.github/workflows/x.yml`.\n"
+    assert _errors(tmp_path, GOOD_TREE + prose) == [
+        "demo.md:21: backticked `.github/workflows/x.yml` is not tracked"
+    ]

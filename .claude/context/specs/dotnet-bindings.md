@@ -35,11 +35,6 @@ packages/dotnet/
 │   ├── IsccException.cs           # Exception type
 │   ├── NativeMethods.g.cs         # csbindgen-generated P/Invoke
 │   └── runtimes/                  # NuGet RID-specific native libraries (release.yml)
-│       ├── linux-x64/native/libiscc_ffi.so
-│       ├── linux-arm64/native/libiscc_ffi.so
-│       ├── osx-arm64/native/libiscc_ffi.dylib
-│       ├── osx-x64/native/libiscc_ffi.dylib
-│       └── win-x64/native/iscc_ffi.dll
 ├── Iscc.Lib.Tests/
 │   ├── Iscc.Lib.Tests.csproj      # xUnit test project
 │   ├── ConformanceTests.cs        # Tests against data.json
@@ -47,6 +42,10 @@ packages/dotnet/
 │       └── data.json              # Vendored conformance vectors
 └── README.md                      # Package overview (NuGet README)
 ```
+
+The tree lists the load-bearing entries, not every file. `runtimes/` is staged by release.yml as
+`runtimes/<rid>/native/<lib>` for the RIDs linux-x64, linux-arm64, osx-arm64, osx-x64 and win-x64
+(`libiscc_ffi.so`, `libiscc_ffi.dylib` or `iscc_ffi.dll`).
 
 ## Idiomatic C# API
 
