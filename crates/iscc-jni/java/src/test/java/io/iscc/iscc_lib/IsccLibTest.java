@@ -20,14 +20,17 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.File;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -672,20 +675,25 @@ class IsccLibTest {
 
     // ── Native library loading ───────────────────────────────────────────────
 
+    /** Exit code, stdout and stderr of a finished child JVM. */
+    private record ProbeRun(int exit, String stdout, String stderr) {}
+
     /**
-     * Run {@link LoaderProbe} in a child JVM and assert it loaded the library and the selftest passed.
+     * Run {@link LoaderProbe} in a child JVM and return what it printed.
      *
      * @param classpath the child's classpath
      * @param property a {@code -D} system property override for the child, or {@code null}
+     * @param libraryDir the child's {@code java.library.path}
      */
-    private static void assertLoaderProbePasses(String classpath, String property) throws Exception {
+    private static ProbeRun runLoaderProbe(String classpath, String property, Path libraryDir)
+            throws Exception {
         Path javaBin = Path.of(System.getProperty("java.home"), "bin", "java");
         List<String> cmd = new ArrayList<>();
         cmd.add(javaBin.toString());
         if (property != null) {
             cmd.add(property);
         }
-        cmd.add("-Djava.library.path=" + System.getProperty("java.library.path"));
+        cmd.add("-Djava.library.path=" + libraryDir);
         cmd.add("-cp");
         cmd.add(classpath);
         cmd.add(LoaderProbe.class.getName());
@@ -696,12 +704,115 @@ class IsccLibTest {
             Process proc = pb.start();
             String stdout = new String(proc.getInputStream().readAllBytes()).trim();
             int exit = proc.waitFor();
-            String stderr = Files.readString(stderrFile);
-            assertEquals(0, exit, "probe exit code; stdout:\n" + stdout + "\nstderr:\n" + stderr);
-            assertEquals("true", stdout, "probe stderr:\n" + stderr);
+            return new ProbeRun(exit, stdout, Files.readString(stderrFile));
         } finally {
             Files.deleteIfExists(stderrFile);
         }
+    }
+
+    /**
+     * Return the first entry of this JVM's {@code java.library.path} that holds the iscc_jni library.
+     *
+     * @return the directory, or {@code null} if no entry holds the library
+     */
+    private static Path libraryPathEntryWithLibrary() {
+        String libName = System.mapLibraryName("iscc_jni");
+        for (String entry : System.getProperty("java.library.path", "").split(File.pathSeparator)) {
+            if (!entry.isEmpty() && Files.isRegularFile(Path.of(entry, libName))) {
+                return Path.of(entry);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Copy the library bundled for this host into a fresh temp directory under its
+     * {@code System.loadLibrary} name.
+     *
+     * <p>Reads the resource through this JVM's classpath, which never holds a broken test library.
+     *
+     * @return the temp directory, or {@code null} if no library is bundled for this host
+     */
+    private static Path extractBundledLibrary() throws Exception {
+        String os = NativeLoader.detectOs();
+        String arch = NativeLoader.detectArch();
+        if (os == null || arch == null) {
+            return null;
+        }
+        String resource = "/META-INF/native/" + os + "-" + arch + "/" + NativeLoader.libraryFileName(os);
+        try (InputStream stream = NativeLoader.class.getResourceAsStream(resource)) {
+            if (stream == null) {
+                return null;
+            }
+            Path dir = Files.createTempDirectory("iscc-fallback-native");
+            Files.copy(stream, dir.resolve(System.mapLibraryName("iscc_jni")));
+            return dir;
+        }
+    }
+
+    /**
+     * Delete a file or a directory tree, if it exists.
+     *
+     * @param root the file or directory to delete, or {@code null} for nothing
+     */
+    private static void deleteTree(Path root) throws Exception {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+        try (Stream<Path> paths = Files.walk(root)) {
+            for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.delete(p);
+            }
+        }
+    }
+
+    /**
+     * Run {@link LoaderProbe} in a child JVM whose {@code java.library.path} holds a real library,
+     * and assert it loaded the library and the selftest passed.
+     *
+     * <p>The fallback directory is the {@code java.library.path} entry that holds the library (the
+     * CI layout), or else a temp copy of the library bundled as a resource (the release layout).
+     * Neither found fails the test: skipping would leave the release job testing nothing.
+     *
+     * @param classpath the child's classpath
+     * @param property a {@code -D} system property override for the child, or {@code null}
+     */
+    private static void assertLoaderProbePasses(String classpath, String property) throws Exception {
+        Path extracted = null;
+        Path libraryDir = libraryPathEntryWithLibrary();
+        if (libraryDir == null) {
+            extracted = extractBundledLibrary();
+            libraryDir = extracted;
+        }
+        assertNotNull(libraryDir, "no " + System.mapLibraryName("iscc_jni")
+                + " on java.library.path (" + System.getProperty("java.library.path")
+                + ") and no library bundled under /META-INF/native/ for this host");
+        try {
+            ProbeRun run = runLoaderProbe(classpath, property, libraryDir);
+            assertEquals(0, run.exit(),
+                    "probe exit code; stdout:\n" + run.stdout() + "\nstderr:\n" + run.stderr());
+            assertEquals("true", run.stdout(), "probe stderr:\n" + run.stderr());
+        } finally {
+            deleteTree(extracted);
+        }
+    }
+
+    /**
+     * Write garbage bytes where the JAR would bundle the library for this host.
+     *
+     * @return the classpath root holding the broken library
+     */
+    private static Path writeBrokenBundledLibrary() throws Exception {
+        String os = NativeLoader.detectOs();
+        String arch = NativeLoader.detectArch();
+        assumeTrue(os != null && arch != null,
+                "host platform has no bundled-library slot");
+        Path root = Files.createTempDirectory("iscc-broken-native");
+        Path lib = root.resolve("META-INF/native/" + os + "-" + arch + "/"
+                + NativeLoader.libraryFileName(os));
+        Files.createDirectories(lib.getParent());
+        Files.write(lib, "not a shared library".getBytes());
+        return root;
     }
 
     /** Verify an unrecognized architecture falls back to {@code java.library.path}. */
@@ -719,29 +830,49 @@ class IsccLibTest {
     /**
      * Verify a bundled library that fails to load falls back to {@code java.library.path}.
      *
-     * <p>Writes garbage bytes where the JAR would bundle the library for this host and puts that
-     * directory first on the child's classpath, so strategy 1 finds and rejects it.
+     * <p>Puts a garbage library first on the child's classpath, so strategy 1 finds and rejects it.
      */
     @Test
     void loaderFallsBackOnBrokenBundledLibrary() throws Exception {
-        String os = NativeLoader.detectOs();
-        String arch = NativeLoader.detectArch();
-        assumeTrue(os != null && arch != null,
-                "host platform has no bundled-library slot");
-        Path root = Files.createTempDirectory("iscc-broken-native");
-        Path lib = root.resolve("META-INF/native/" + os + "-" + arch + "/"
-                + NativeLoader.libraryFileName(os));
+        Path root = writeBrokenBundledLibrary();
         try {
-            Files.createDirectories(lib.getParent());
-            Files.write(lib, "not a shared library".getBytes());
             String classpath = root + File.pathSeparator
                     + System.getProperty("java.class.path");
             assertLoaderProbePasses(classpath, null);
         } finally {
-            Files.deleteIfExists(lib);
-            for (Path dir = lib.getParent(); !dir.equals(root.getParent()); dir = dir.getParent()) {
-                Files.deleteIfExists(dir);
-            }
+            deleteTree(root);
+        }
+    }
+
+    /**
+     * Verify the error when both strategies fail.
+     *
+     * <p>A garbage bundled library and an empty {@code java.library.path}: the child must throw an
+     * {@code UnsatisfiedLinkError} that names the resource tried, has the
+     * {@code System.loadLibrary} error as its cause, and carries the bundled-library error as its
+     * one suppressed exception.
+     */
+    @Test
+    void loaderReportsBothFailures() throws Exception {
+        Path root = writeBrokenBundledLibrary();
+        Path emptyDir = Files.createTempDirectory("iscc-empty-libpath");
+        try {
+            String classpath = root + File.pathSeparator
+                    + System.getProperty("java.class.path");
+            ProbeRun run = runLoaderProbe(classpath, null, emptyDir);
+            assertEquals(0, run.exit(), "probe stderr:\n" + run.stderr());
+            List<String> lines = run.stdout().lines().toList();
+            assertEquals(3, lines.size(), "probe stdout:\n" + run.stdout());
+            String resource = "META-INF/native/" + NativeLoader.detectOs() + "-"
+                    + NativeLoader.detectArch() + "/"
+                    + NativeLoader.libraryFileName(NativeLoader.detectOs());
+            assertTrue(lines.get(0).startsWith("java.lang.UnsatisfiedLinkError: "), lines.get(0));
+            assertTrue(lines.get(0).contains("'/" + resource + "'"), lines.get(0));
+            assertEquals("cause: java.lang.UnsatisfiedLinkError", lines.get(1));
+            assertEquals("suppressed: java.lang.UnsatisfiedLinkError", lines.get(2));
+        } finally {
+            deleteTree(root);
+            deleteTree(emptyDir);
         }
     }
 

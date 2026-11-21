@@ -5,7 +5,9 @@
  * {@code os.name} or {@code os.arch}, or with a broken bundled library on the classpath, so the
  * test JVM keeps its already-loaded library. The probe triggers the native library load through
  * {@link IsccLib#conformanceSelftest()} and prints {@code true}/{@code false}, or the class name
- * and message of whatever the load or the call threw, on stdout.
+ * and message of whatever the load or the call threw, on stdout. A throwable is followed by one
+ * {@code cause: <class>} line if it has a cause and one {@code suppressed: <class>} line per
+ * suppressed exception.
  */
 package io.iscc.iscc_lib;
 
@@ -19,6 +21,12 @@ final class LoaderProbe {
             System.out.println(IsccLib.conformanceSelftest());
         } catch (Throwable t) {
             System.out.println(t.getClass().getName() + ": " + t.getMessage());
+            if (t.getCause() != null) {
+                System.out.println("cause: " + t.getCause().getClass().getName());
+            }
+            for (Throwable s : t.getSuppressed()) {
+                System.out.println("suppressed: " + s.getClass().getName());
+            }
         }
     }
 }

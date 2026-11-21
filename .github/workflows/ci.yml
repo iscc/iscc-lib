@@ -224,6 +224,12 @@ jobs:
         run: cargo build -p iscc-jni
       - name: Run Maven tests
         run: mvn test -f crates/iscc-jni/java/pom.xml
+      - name: 'Run Maven tests (release layout: bundled library only)'
+        run: |
+          mkdir -p crates/iscc-jni/java/src/main/resources/META-INF/native/linux-x86_64
+          cp target/debug/libiscc_jni.so crates/iscc-jni/java/src/main/resources/META-INF/native/linux-x86_64/
+          mv target/debug/libiscc_jni.so "$RUNNER_TEMP/"
+          mvn test -f crates/iscc-jni/java/pom.xml
   go:
     name: Go (go test, go vet)
     runs-on: ubuntu-latest
