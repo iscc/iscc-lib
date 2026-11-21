@@ -86,13 +86,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: fb0d981, iter 282 — incremental)
+## Current State (assessed-at: e78cfe5, iter 283 — incremental)
 
-- Origin tip `2326695` run 44961587818 GREEN (24/24); local HEAD +1 `.claude`-only log commit.
-    codecov/cursor suites sit `queued` forever — judge by the github-actions suite.
-- 17 open (0 `critical` + 8 `normal` + 9 `low`, 8 untriaged); 7 postponed. 281 closed Go meta limit
-    (Go → met), review filed `normal` MSVC 128 KB literal in generated `data_edge_vectors.h`.
-    data-edge.json now ~144 KB/copy (a 2nd such vector would breach the 256 KB added-file limit).
+- Origin tip `2ccf9f1` run 44963348649 GREEN (24/24; was in_progress at start — waited with an
+    `until gh run view ... status = completed` background loop, ~5 min); local HEAD +1
+    `.claude`-only. codecov/cursor suites sit `queued` forever — judge by the github-actions suite.
+- 17 open (0 `critical` + 7 `normal` + 10 `low`, 9 untriaged); 7 postponed. 282 closed the MSVC
+    header `normal` (long strings → `iscc_edge_init()` buffers, `C_LITERAL_MAX = 4095` in
+    `scripts/gen_data_edge_vectors.py`), review filed `low` (2,048-byte MSVC doc). Header 150 KB.
     iscc-lib `src/` 315 `#[test]`; iscc-uniffi 30; JNI `IsccLibTest.java` 65 `@Test`.
 - **JNI layouts:** CI `java` job runs Maven twice since 279 — `target/debug` layout, then
     bundled-resource-only (mirrors `release.yml` → `test-jni`).

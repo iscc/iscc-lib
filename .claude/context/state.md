@@ -1,28 +1,28 @@
-<!-- assessed-at: fb0d9813e7bb3b00e6e3a9eee7df3fb1717332a0 -->
+<!-- assessed-at: e78cfe529a70b29606c3a7e738ac3973005a7cac -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 8 `normal` issues block the release
+## Phase: v0.8.0 — features done; 7 `normal` issues block the release
 
 ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings, and all code is pushed and
-covered by green CI. Iteration 281 made Go enforce the 128,000-byte meta limit and added a shared
-vector for it; review filed a new `normal` issue because that vector puts a 128 KB string literal
-into the generated C header, which MSVC cannot compile. 17 issues are open: 8 `normal`, 9 `low`.
+covered by green CI. Iteration 282 made the generated C edge header split long strings into
+4,095-byte literals, closing the MSVC `normal` issue; review filed a `low` follow-up because one
+Microsoft page documents a 2,048-byte limit. 17 issues are open: 7 `normal`, 10 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
-**Status**: met (one `normal` follow-up)
+**Status**: met
 
 - `crates/iscc-lib/tests/data-edge.json` has 9 sections; the 5 tracked copies are byte-identical
-    (now about 144 KB each); C/C++ read the generated `data_edge_vectors.h`; all 12 harnesses run
-    every section
-- `test_0004_meta_payload_over_limit` pins the meta size limit on every surface
-- `normal`: the generated header carries a 128 KB string literal, over MSVC's 65,535-byte limit
+    (about 144 KB each); all 12 harnesses run every section
+- C/C++ read the generated `data_edge_vectors.h` (150 KB); strings over 4,095 bytes become static
+    buffers filled by `iscc_edge_init()`, which both test programs call
+- `low`: 4,095-byte pieces exceed the 2,048 bytes one MSVC reference page allows; unmeasured (no
+    MSVC in CI)
 - The ragged video vector carries a `diverges` marker; napi, WASM, JNI and .NET leave `name`,
-    `description`, `meta`, `metahash` uncompared for meta. No vector from 2^29 up (decision
-    2026-11-21); no `alg_minhash_256` section
+    `description`, `meta`, `metahash` uncompared for meta. No `alg_minhash_256` section
 
 ## Rust Core Crate
 
@@ -67,10 +67,11 @@ into the generated C header, which MSVC cannot compile. 17 issues are open: 8 `n
 
 ## C FFI
 
-**Status**: met (MSVC portability of the test header tracked under data-edge)
+**Status**: met
 
 - 51 exports incl. `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with freshness check;
     `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
+- The test program builds against the split-literal edge header (MSVC doubt: see data-edge)
 
 ## Java Bindings
 
@@ -87,8 +88,7 @@ into the generated C header, which MSVC cannot compile. 17 issues are open: 8 `n
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
     sections; `go` CI job also runs as `GOARCH=386`
-- `GenMetaCodeV0` now rejects meta over `MetaTrimMeta` (`code_meta.go:72`) plus a 170,922-byte
-    pre-decode bound; boundary tests in `code_meta_test.go` for both meta forms
+- `GenMetaCodeV0` rejects meta over `MetaTrimMeta`, with boundary tests for both meta forms
 - Go per-function tests re-read `data.json` beside `conformance.go` (tracked under Rust core)
 
 ## C# / .NET Bindings
@@ -103,10 +103,10 @@ into the generated C header, which MSVC cannot compile. 17 issues are open: 8 `n
 
 **Status**: partially met (one `normal`)
 
-- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job
+- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run (test calls
+    `iscc_edge_init()`); ASAN `cpp` job
 - `normal`: `packages/cpp/portfile.cmake` still pins the five v0.2.0 tarball SHA512s while the URL
     follows `vcpkg.json` 0.7.0, so the vcpkg port cannot install; no gate checks it
-- MSVC cannot build the C++ test program against the generated header (see data-edge)
 
 ## Ruby Bindings
 
@@ -149,21 +149,20 @@ into the generated C header, which MSVC cannot compile. 17 issues are open: 8 `n
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0; the vcpkg hashes are not a release step (see C++)
-- `low`: no CI job runs a test suite on Windows (so the MSVC header limit goes unseen); `iscc-ffi`,
-    napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 44961587818 on the origin tip `2326695` is green on all 24 jobs:
-    https://github.com/iscc/iscc-lib/actions/runs/44961587818. Local HEAD adds one unpushed
+- `low`: no CI job runs a test suite on Windows (so MSVC header limits go unseen); `iscc-ffi`, napi
+    and WASM sit outside iai/CRAP
+- **Latest CI: PASSING.** Run 44963348649 on the origin tip `2ccf9f1` is green on all 24 jobs:
+    https://github.com/iscc/iscc-lib/actions/runs/44963348649. Local HEAD adds one unpushed
     `.claude`-only log commit; no code is uncovered
 
 ## Open Issues
 
-17 open in issues.md: 8 `normal`, 9 `low` (8 untriaged), no `critical`. Two need a behaviour
+17 open in issues.md: 7 `normal`, 10 `low` (9 untriaged), no `critical`. Two need a behaviour
 decision first (`alg_minhash_256([])`, WASM `finalize()`); none is blocked on upstream. 7 sit in
 `postponed.md`.
 
 ## Next Milestone
 
-Clear the 8 `normal` issues that block v0.8.0 — the vcpkg hashes and the MSVC-incompatible generated
-header are user-/portability-facing gaps; the WASM docs, Rust API tier docs, duplicate `data.json`
-parsers, one-shot/streaming duplication and the two behaviour decisions follow. Then Titusz cuts
-v0.8.0 via `/release`.
+Clear the 7 `normal` issues that block v0.8.0 — the vcpkg hashes and the WASM Node.js docs are
+user-facing gaps; the Rust API tier docs, duplicate `data.json` parsers, one-shot/streaming
+duplication and the two behaviour decisions follow. Then Titusz cuts v0.8.0 via `/release`.
