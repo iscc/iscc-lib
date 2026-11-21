@@ -156,4 +156,9 @@ the tag-trigger realignment, then NONE/IDLE. 248-252 → git log. 253 = review i
 valid meta vectors": a reduced-result harness's uncompared set = every `data.json` output key minus
 `iscc` (napi/WASM/JNI/.NET lacked `description`); generator test accepted only object `meta`.
 Test-only, 5 files. Trap: `call_meta` (Rust test helper) sits at CRAP 30.0 — forbid any branch added
-there.
+there. 254 = pytest gate time (audit, 1 config + 1 doc + 1 test): `addopts = --benchmark-disable`
+BREAKS the documented `pytest benchmarks/python/ --benchmark-only` command (pytest-benchmark
+UsageError on disable+only unless `--benchmark-enable`) — an ini-wide pytest option reaches every
+pytest command in docs; grep docs for them. Tier 1 doc tests: 14 early-return cases copy lib.rs
+only, rest read docs once per session. Next: FFI `(NULL, 0)` core change alone, then integer wrap,
+then docs (audit 8-file).
