@@ -392,6 +392,42 @@ let refs: Vec<&str> = units.iter().map(String::as_str).collect();
 assert_eq!(encode_seq(&refs)?, data);
 ```
 
+### Decoding and decomposing
+
+`iscc_decode` returns the header fields and the digest of an ISCC-UNIT as
+`(maintype, subtype, version, length_index, digest)`. `iscc_decompose` splits a composite ISCC-CODE
+into its unit strings (without the `ISCC:` prefix):
+
+```rust
+use iscc_lib::{iscc_decode, iscc_decompose};
+
+let (maintype, _subtype, _version, _length_index, digest) = iscc_decode("ISCC:GAAW53FRSZTRHOFE")?;
+assert_eq!(maintype, 3); // Data-Code
+assert_eq!(digest.len(), 8);
+
+let units = iscc_decompose("ISCC:KUAG53FRSZTRHOFEIH4DSQIR5NYTU")?;
+assert_eq!(units, ["GAAW53FRSZTRHOFE", "IAAUD6BZIEI6W4J2"]);
+```
+
+### Encoding
+
+`encode_component` wraps a raw digest in an ISCC header and returns the base32 unit string; the type
+fields take the integer values of `codec::MainType`, `codec::SubType` and `codec::Version`.
+`encode_base64` produces base64url without padding, and `json_to_data_url` turns a JSON string into
+a canonical `data:` URL suitable for the `meta` parameter of `gen_meta_code_v0`:
+
+```rust
+use iscc_lib::{encode_base64, encode_component, json_to_data_url};
+
+let unit = encode_component(3, 0, 0, 64, &[0u8; 8])?; // Data-Code, 64 bits
+assert_eq!(unit, "GAAQAAAAAAAAAAAA");
+
+assert_eq!(encode_base64(b"Hello World"), "SGVsbG8gV29ybGQ");
+
+let url = json_to_data_url(r#"{"key": "value"}"#)?;
+assert_eq!(url, "data:application/json;base64,eyJrZXkiOiJ2YWx1ZSJ9");
+```
+
 ## Algorithm primitives
 
 iscc-lib exposes low-level algorithm functions as part of the public Rust API. These are building
@@ -409,6 +445,31 @@ blocks used internally by `gen_*_v0` functions.
 
 - **`alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> IsccResult<Vec<&[u8]>>`** —
     Split data into content-defined chunks using a rolling hash. Used by Data-Code generation.
+
+- **`soft_hash_video_v0(frame_sigs, bits) -> IsccResult<Vec<u8>>`** — Compute the raw
+    `bits / 8`-byte video digest that `gen_video_code_v0` wraps in an ISCC header. Takes the same
+    frame signatures as `gen_video_code_v0`.
+
+## Constants
+
+The crate exports the algorithm parameters it shares with the reference implementation:
+
+| Constant                | Value       | Meaning                                           |
+| ----------------------- | ----------- | ------------------------------------------------- |
+| `META_TRIM_NAME`        | `128`       | Max UTF-8 bytes of the Meta-Code `name`           |
+| `META_TRIM_DESCRIPTION` | `4096`      | Max UTF-8 bytes of the Meta-Code `description`    |
+| `META_TRIM_META`        | `128_000`   | Max decoded bytes of the Meta-Code `meta` payload |
+| `IO_READ_SIZE`          | `4_194_304` | Buffer size for streaming file reads (4 MB)       |
+| `TEXT_NGRAM_SIZE`       | `13`        | Character n-gram width for Text-Code features     |
+
+The `META_TRIM_*` constants require the `meta-code` feature. For example, size your read buffer with
+`IO_READ_SIZE`:
+
+```rust
+use iscc_lib::IO_READ_SIZE;
+
+let mut buf = vec![0u8; IO_READ_SIZE];
+```
 
 ## Conformance testing
 

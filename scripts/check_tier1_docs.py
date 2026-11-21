@@ -57,6 +57,7 @@ DISCOVERY_THRESHOLD = 30
 FULL = (
     "crates/iscc-ffi/CLAUDE.md",
     "crates/iscc-wasm/CLAUDE.md",
+    "docs/architecture.md",
     "docs/c-ffi-api.md",
     "docs/java-api.md",
     "docs/howto/dotnet.md",
@@ -66,9 +67,11 @@ FULL = (
     "docs/howto/nodejs.md",
     "docs/howto/python.md",
     "docs/howto/ruby.md",
+    "docs/howto/rust.md",
     "docs/howto/swift.md",
     "docs/howto/wasm.md",
     "docs/ruby-api.md",
+    "docs/rust-api.md",
     "packages/go/CLAUDE.md",
     "packages/go/README.md",
 )
@@ -80,6 +83,10 @@ EXACT = (
 
 EXEMPT = {
     ".claude/context/target.md": "human-owned; enumerates the API by category count",
+    "docs/api.md": (
+        "renders the API from the `iscc_lib` module via `::: iscc_lib` (mkdocstrings);"
+        " its source lists nothing by hand"
+    ),
 }
 
 # Agent-written logs and design history: rewritten each cycle or frozen, never docs.

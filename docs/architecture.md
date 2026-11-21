@@ -114,22 +114,23 @@ downstream Rust consumers.
 
 ### Tier 1 — Stable Public API
 
-The 10 `gen_*_v0` functions are the stable entrypoints, bound in all languages. They are `pub`
-functions in the crate root (`lib.rs`). Changes require a SemVer MAJOR bump.
+Tier 1 is everything `lib.rs` makes public at the crate root, bound in all languages. Changes
+require a SemVer MAJOR bump.
 
-```rust
-// All gen_*_v0 functions are pub in the crate root
-pub fn gen_meta_code_v0(name, description, meta, bits) -> IsccResult<String>
-pub fn gen_text_code_v0(text, bits) -> IsccResult<String>
-pub fn gen_image_code_v0(pixels, bits) -> IsccResult<String>
-pub fn gen_audio_code_v0(cv, bits) -> IsccResult<String>
-pub fn gen_video_code_v0(frame_sigs, bits) -> IsccResult<String>
-pub fn gen_mixed_code_v0(codes, bits) -> IsccResult<String>
-pub fn gen_data_code_v0(data, bits) -> IsccResult<String>
-pub fn gen_instance_code_v0(data, bits) -> IsccResult<String>
-pub fn gen_iscc_code_v0(codes, wide) -> IsccResult<String>
-pub fn gen_sum_code_v0(path, bits, wide, add_units) -> IsccResult<SumCodeResult>
-```
+- **Code generation:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
+    `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
+    `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`, `gen_iscc_id_v1` (experimental)
+- **Text utilities:** `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
+- **Algorithm primitives:** `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`,
+    `soft_hash_video_v0`
+- **Encoding:** `encode_base64`, `json_to_data_url`
+- **Codec:** `iscc_decompose`, `encode_component`, `iscc_decode`, `encode_seq`, `decode_seq`
+- **Constants:** `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
+    `TEXT_NGRAM_SIZE`
+- **Streaming:** `DataHasher`, `InstanceHasher`
+- **Diagnostics:** `conformance_selftest`
+
+See the [Rust API reference](rust-api.md) for signatures.
 
 ### Tier 2 — Public Rust API
 

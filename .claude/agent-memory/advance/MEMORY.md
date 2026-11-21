@@ -135,6 +135,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     symbols). New API symbol → update every FULL doc + both `tier1:begin` blocks in the same step.
     Fail-closed lib.rs parse (242): `scan_lib` classifies each column-0 `pub` by offset; a new
     non-derived crate-root item needs an `EXCLUDED_ITEMS` entry (named, never kind-wide)
+- Doc example check (243): extract non-signature \`\`\`rust blocks into a throwaway
+    `crates/iscc-lib/tests/zz_*.rs` (`#[test]` + `-> Result<(), Box<dyn Error>>` wrapper), run,
+    delete; examples that write files (`example.bin`) land in `crates/iscc-lib/` — remove them
 - Spec path gate `scripts/check_spec_paths.py`: `*` one segment, `**` crosses `/`; `NOT_PATHS`
     backticked spans only (228). Fix phantoms in the spec, never by adding a file
 
