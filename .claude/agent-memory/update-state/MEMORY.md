@@ -87,16 +87,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 1b71421, iter 242 — incremental)
+## Current State (assessed-at: 94c3f76, iter 243 — incremental)
 
-- **CI GREEN on `origin/develop` = `0670d31`** (22 jobs incl. `Ruby source gem` with the release
-    profile). HEAD ahead only by `.claude`. Check-suites API:
-    `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (local-only SHA → 422, use the pushed
-    tip). `gh run view <id> --json jobs` lists per-job conclusions.
-- Ruby source gem DONE (241): `release_profile` in `scripts/build_ruby_source_gem.py` copies root
-    `[profile.release]`. rb_sys cross-gem lookup reads 0.9.123 — re-probe if gemspec/lock change.
-- **11 open: 1 normal** (`[human]` derived-fact drift, 3 parts: gate fails open on unparsed lib.rs
-    forms; 4 unregistered docs; unchecked counts in specs/CLAUDE.md), 10 low. issues.md 215/300.
+- **CI GREEN on `origin/develop` = `2551069`** (22 jobs). HEAD ahead only by `.claude`. Check-suites
+    API: `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor suites sit
+    `queued` forever — judge by `github-actions`). `gh run view <id> --json jobs` per-job.
+- Tier 1 doc gate fail-closed (242): `scan_lib` + `EXCLUDED_ITEMS` in `scripts/check_tier1_docs.py`;
+    registry = `FULL` / `EXEMPT` tuples near the top.
+- **11 open: 1 normal** (`[human]` derived-fact drift, 2 parts left: 4 unregistered docs; unchecked
+    counts in specs/CLAUDE.md), 10 low. issues.md 210/300.
 - data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`.
 

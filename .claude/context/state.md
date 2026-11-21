@@ -1,15 +1,15 @@
-<!-- assessed-at: 1b71421ddc8a99c8a21e94345242ec03918e1044 -->
+<!-- assessed-at: 94c3f76c854bca02460a839947dc4188bab1f308 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed; 1 normal issue owed (derived-fact drift)
+## Phase: v0.8.0 — all features landed; 1 normal issue owed (derived-fact drift, 2 parts left)
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 241 gave the Ruby source gem the workspace release profile, and CI is
-green on that commit. One `normal` issue still blocks v0.8.0: derived facts in docs, specs and
-guidance are hand-written and drift.
+all 11 bindings. Iteration 242 made the Tier 1 doc gate fail closed on crate-root items it does not
+parse, and CI is green on that commit. One `normal` issue still blocks v0.8.0: derived facts in
+docs, specs and guidance drift, with two of its three parts still open.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -101,11 +101,8 @@ guidance are hand-written and drift.
 - `encode_seq` / `decode_seq` in `test_conformance.rb`; `test_data_edge.rb` runs all 6 sections
     strictly; 0.7.0 on RubyGems; `tests/test_ruby_gem_docs.py` ties the documented Ruby range to the
     `release.yml` cross-gem list
-- Source gem: `scripts/build_ruby_source_gem.py` stages a standalone manifest, the core crate and
-    `Cargo.lock`, and copies the root `[profile.release]` key lines into it (`release_profile`,
-    fails closed on a missing/empty table or a sub-table); `rb_sys ~> 0.9` only when `core/` is
-    staged
-- `ruby-source-gem` CI job (clean-gem-home install + selftest) green on `0670d31`
+- Source gem: `scripts/build_ruby_source_gem.py` stages a standalone manifest, the core crate,
+    `Cargo.lock` and the root `[profile.release]`; the `ruby-source-gem` CI job is green
 - `low`: published source gems up to 0.7.0 do not build (needs a release; yank is Titusz's call);
     Ruby 3.1 floor EOL (human-only); integer list elements accept a Float
 
@@ -118,16 +115,18 @@ guidance are hand-written and drift.
 
 ## Documentation
 
-**Status**: partially met — 1 `normal` `[human]` issue
+**Status**: partially met — 1 `normal` `[human]` issue (2 of 3 parts left)
 
 - 22 docs pages, 11 how-to guides, Diátaxis navigation, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs
-- Tier 1 doc gate `scripts/check_tier1_docs.py` (prek hook + pytest) checks registered docs name
-    every symbol derived from `lib.rs`
-- **Remaining in the drift issue (3 parts):** the gate fails open on column-0 `lib.rs` forms it does
-    not parse; `docs/howto/rust.md`, `docs/howto/c-cpp.md`, `docs/rust-api.md` and
-    `docs/architecture.md` are unregistered and incomplete (`rust-api.md` still claims
-    `IsccResult<String>` returns); unchecked counts remain in specs and per-crate `CLAUDE.md` files
+- Tier 1 doc gate `scripts/check_tier1_docs.py` (prek hook + pytest): registered docs (`FULL` /
+    `EXEMPT`) must name every symbol derived from `lib.rs`; since 242 one `scan_lib` pass classifies
+    every column-0 `pub` item as derived, a named `EXCLUDED_ITEMS` entry, or a gate failure
+    (fail-closed part of the issue resolved, 20 test functions)
+- **Left in the drift issue:** `docs/howto/rust.md`, `docs/howto/c-cpp.md`, `docs/rust-api.md` and
+    `docs/architecture.md` → "Tier 1" are unregistered and incomplete (`rust-api.md` still claims
+    `IsccResult<String>` returns); unchecked counts, file lists and line numbers remain in specs and
+    per-crate `CLAUDE.md` files
 - `low` issue: Sum-Code example comments show `ISCC:KAA…` where the call returns `ISCC:KUA…`
 
 ## Benchmarks
@@ -144,19 +143,18 @@ guidance are hand-written and drift.
 - `ci.yml` has 21 jobs (incl. `ruby-source-gem`; the `specs/ci-cd.md` job table matches);
     `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21 version-sync targets at
     0.7.0
-- `publish-rubygems` builds the source gem via the staging script; `release.yml` never runs in CI
 - Security criterion met except the exempt EOL floors (Python 3.10, .NET 8, Ruby 3.1 — `low`, for
     Titusz); only Rust has a standing advisory gate (`cargo deny`)
-- **Latest CI: PASSING** on `origin/develop` = `0670d31` (all 22 jobs green, incl. the Ruby source
-    gem job): https://github.com/iscc/iscc-lib/actions/runs/44845443547
+- **Latest CI: PASSING** on `origin/develop` = `2551069` (all 22 jobs green):
+    https://github.com/iscc/iscc-lib/actions/runs/44849660940
 - HEAD is ahead only by a `.claude` log commit — green CI covers all code at HEAD
 
 ## Open Issues
 
-11 open: 0 critical, **1 normal** (derived-fact drift `[human]`), 10 low. issues.md is at 215 of 300
+11 open: 0 critical, **1 normal** (derived-fact drift `[human]`), 10 low. issues.md is at 210 of 300
 lines.
 
 ## Next Milestone
 
-Resolve the last open `normal` issue — derived facts written by hand and drifting — so v0.8.0 meets
-its release criteria.
+Resolve the remaining two parts of the open `normal` issue — unregistered, incomplete API docs and
+unchecked hand-written counts in specs and guidance — so v0.8.0 meets its release criteria.
