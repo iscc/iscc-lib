@@ -259,6 +259,20 @@ static bool check_edge_gen_video_code_v0(const iscc_edge_gen_video_code_v0_vecto
     return v.cpp == ISCC_EDGE_OK && iscc == edge_string(v.iscc);
 }
 
+/// Check one alg_cdc_chunks edge row against its cpp expectation (rejection = IsccError).
+static bool check_edge_alg_cdc_chunks(const iscc_edge_alg_cdc_chunks_vector& v) {
+    const std::vector<uint8_t> data = edge_bytes(v.data);
+    std::vector<std::vector<uint8_t>> chunks;
+    try {
+        chunks = iscc::alg_cdc_chunks(data, v.utf32 != 0, v.avg_chunk_size);
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && chunks == edge_byte_lists(v.chunks);
+}
+
 /// Run every row of one data-edge section: skip rows marked cpp skip, check the rest,
 /// print PASS/FAIL per row, and return the number of rows visited (run or skipped).
 template <typename Row, typename Check>
@@ -786,6 +800,8 @@ int main() {
                                  ISCC_EDGE_GEN_META_CODE_V0_COUNT, check_edge_gen_meta_code_v0);
         seen += run_edge_section("gen_video_code_v0", iscc_edge_gen_video_code_v0,
                                  ISCC_EDGE_GEN_VIDEO_CODE_V0_COUNT, check_edge_gen_video_code_v0);
+        seen += run_edge_section("alg_cdc_chunks", iscc_edge_alg_cdc_chunks,
+                                 ISCC_EDGE_ALG_CDC_CHUNKS_COUNT, check_edge_alg_cdc_chunks);
         assert_eq(seen, ISCC_EDGE_TOTAL_COUNT, "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
     }
 
