@@ -232,3 +232,10 @@ macros-backend default-handling on every major bump, not just compiler warnings.
     `&[Vec<i32>]`
 - Tier 1 `encode_component` wrapper in `lib.rs` takes `u8` enum fields + validates with
     `TryFrom<u8>`; delegates to `codec::encode_component`
+
+## Archived from MEMORY.md (iter 276)
+
+- Published-artifact probe (257): Kotlin = `/tmp` Gradle project reusing `packages/kotlin/gradlew` +
+    `gradle/`, `implementation("io.iscc:iscc-lib-kotlin:X")` only, `./gradlew -q run` (~3 min,
+    background). JARs bundle native libs (JNI `META-INF/native/`, Kotlin JNA prefixes); JNA is a
+    runtime-scope POM dep; Swift SPM fetches the release XCFramework. Docs say so

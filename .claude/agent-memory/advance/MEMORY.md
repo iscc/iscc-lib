@@ -49,6 +49,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     (`checked_shl`, ≥32 bits → `u32::MAX`). Go: `clampInt` for max/center (386 int32)
 - Go 386 CI step (267): `go` job runs `GOARCH=386 CGO_ENABLED=0 go test` + vet (`run: |`; yamlfix
     wraps long `&&` lines). Real failures: grep `--- FAIL` (runner self-test prints `FAILED:` lines)
+- Conformance selftest (276): ONE runner per language — Rust `run_section` + generic `report_case`
+    over `Case<T> = Option<(IsccResult<T>, T)>` (section logic in closures: not CRAP-counted); Go
+    `runSection[V any]` + `run<X>Case(tc) (got, want, err)`, `errUnparsable`, `unmarshalInputs`. A
+    new section = one closure/case fn. rustfmt reflow shifts lines → regen CRAP baseline AFTER check
 - Go hashers (261): `Push(...) error` + `finalized` flag set at `Finalize` ENTRY (any first call
     consumes, like Rust `finalize(self)` / Python `take()`); every in-package `Push` error checked
 
@@ -158,10 +162,6 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     symbols). New API symbol → update every FULL doc + both `tier1:begin` blocks in the same step.
     Fail-closed lib.rs parse (242): `scan_lib` classifies each column-0 `pub` by offset; a new
     non-derived crate-root item needs an `EXCLUDED_ITEMS` entry (named, never kind-wide)
-- Published-artifact probe (257): Kotlin = `/tmp` Gradle project reusing `packages/kotlin/gradlew` +
-    `gradle/`, `implementation("io.iscc:iscc-lib-kotlin:X")` only, `./gradlew -q run` (~3 min,
-    background). JARs bundle native libs (JNI `META-INF/native/`, Kotlin JNA prefixes); JNA is a
-    runtime-scope POM dep; Swift SPM fetches the release XCFramework. Docs say so
 - Per-crate `CLAUDE.md` files carry no file trees/tables (246): a rule goes in prose against a file
     name. Line-range edits via an anchored `/tmp` Python script; mdformat reflows inserted lines
 - Spec drift sweeps (259): mdformat also reformats \`\`\`js blocks; release-trigger truth =

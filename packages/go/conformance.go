@@ -5,13 +5,12 @@
 package iscc
 
 import (
-	"bytes"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 )
 
@@ -62,24 +61,30 @@ func ConformanceSelftest() (bool, error) {
 	}
 
 	passed := true
-	passed = runMetaTests(data) && passed
-	passed = runTextTests(data) && passed
-	passed = runImageTests(data) && passed
-	passed = runAudioTests(data) && passed
-	passed = runVideoTests(data) && passed
-	passed = runMixedTests(data) && passed
-	passed = runDataTests(data) && passed
-	passed = runInstanceTests(data) && passed
-	passed = runIsccTests(data) && passed
-	passed = runEncodeSeqTests(seqData) && passed
-	passed = runDecodeSeqTests(seqData) && passed
+	passed = runSection(data, "gen_meta_code_v0", runMetaCase) && passed
+	passed = runSection(data, "gen_text_code_v0", runTextCase) && passed
+	passed = runSection(data, "gen_image_code_v0", runImageCase) && passed
+	passed = runSection(data, "gen_audio_code_v0", runAudioCase) && passed
+	passed = runSection(data, "gen_video_code_v0", runVideoCase) && passed
+	passed = runSection(data, "gen_mixed_code_v0", runMixedCase) && passed
+	passed = runSection(data, "gen_data_code_v0", runDataCase) && passed
+	passed = runSection(data, "gen_instance_code_v0", runInstanceCase) && passed
+	passed = runSection(data, "gen_iscc_code_v0", runIsccCase) && passed
+	passed = runSection(seqData, "encode_seq", runEncodeSeqCase) && passed
+	passed = runSection(seqData, "decode_seq", runDecodeSeqCase) && passed
 
 	return passed, nil
 }
 
-// runMetaTests validates gen_meta_code_v0 conformance vectors.
-func runMetaTests(data map[string]map[string]vectorEntry) bool {
-	funcName := "gen_meta_code_v0"
+// errUnparsable marks a conformance case whose inputs or expected outputs
+// cannot be parsed.
+var errUnparsable = errors.New("unparsable conformance case")
+
+// runSection runs every case of one data.json section through runCase and
+// reports each failure on stderr. runCase parses a case, calls the function
+// under test and returns its actual and expected output rendered as strings.
+// Returns false if the section is missing or any case fails.
+func runSection[V any](data map[string]map[string]V, funcName string, runCase func(V) (got, want string, err error)) bool {
 	cases, ok := data[funcName]
 	if !ok {
 		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
@@ -88,283 +93,176 @@ func runMetaTests(data map[string]map[string]vectorEntry) bool {
 
 	passed := true
 	for tcName, tc := range cases {
-		if !runMetaCase(funcName, tcName, tc) {
-			passed = false
-		}
+		got, want, err := runCase(tc)
+		passed = reportCase(funcName, tcName, got, want, err) && passed
 	}
 	return passed
+}
+
+// reportCase prints the failure of one conformance case, if any, and returns
+// whether the case passed.
+func reportCase(funcName, tcName, got, want string, err error) bool {
+	switch {
+	case errors.Is(err, errUnparsable):
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
+	case err != nil:
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
+	case got != want:
+		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %s, got %s\n", funcName, tcName, want, got)
+	default:
+		return true
+	}
+	return false
+}
+
+// unmarshalInputs decodes the leading test inputs into targets, in order.
+// Returns errUnparsable if an input is missing or does not decode.
+func unmarshalInputs(inputs []json.RawMessage, targets ...any) error {
+	if len(inputs) < len(targets) {
+		return errUnparsable
+	}
+	for i, target := range targets {
+		if json.Unmarshal(inputs[i], target) != nil {
+			return errUnparsable
+		}
+	}
+	return nil
+}
+
+// expectedISCC returns the expected "iscc" output of a gen_* case.
+func expectedISCC(tc vectorEntry) string {
+	iscc, _ := tc.Outputs["iscc"].(string)
+	return iscc
+}
+
+// metaArg converts a raw gen_meta_code_v0 meta input (null, string, or JSON
+// object) into the meta argument of GenMetaCodeV0.
+func metaArg(raw json.RawMessage) (*string, error) {
+	text := string(raw)
+	if text == "null" {
+		return nil, nil
+	}
+	if raw[0] != '"' {
+		return &text, nil
+	}
+	var meta string
+	if json.Unmarshal(raw, &meta) != nil {
+		return nil, errUnparsable
+	}
+	return &meta, nil
 }
 
 // runMetaCase runs a single gen_meta_code_v0 test case.
-func runMetaCase(funcName, tcName string, tc vectorEntry) bool {
-	var inputName string
-	if err := json.Unmarshal(tc.Inputs[0], &inputName); err != nil {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-		return false
-	}
-
-	// Description: string or null
-	var desc *string
-	var descStr string
-	if string(tc.Inputs[1]) != "null" {
-		if err := json.Unmarshal(tc.Inputs[1], &descStr); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			return false
-		}
-		if descStr != "" {
-			desc = &descStr
-		}
-	}
-
-	// Meta: null, string, or JSON object
-	var meta *string
-	rawMeta := string(tc.Inputs[2])
-	if rawMeta != "null" {
-		if rawMeta[0] == '"' {
-			var metaStr string
-			if err := json.Unmarshal(tc.Inputs[2], &metaStr); err != nil {
-				fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-				return false
-			}
-			meta = &metaStr
-		} else {
-			metaStr := rawMeta
-			meta = &metaStr
-		}
-	}
-
+func runMetaCase(tc vectorEntry) (got, want string, err error) {
+	var name, descStr string
+	var rawMeta json.RawMessage
 	var bits float64
-	if err := json.Unmarshal(tc.Inputs[3], &bits); err != nil {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-		return false
+	if err := unmarshalInputs(tc.Inputs, &name, &descStr, &rawMeta, &bits); err != nil {
+		return "", "", err
 	}
-
-	expectedISCC, _ := tc.Outputs["iscc"].(string)
-	result, err := GenMetaCodeV0(inputName, desc, meta, uint32(bits))
+	meta, err := metaArg(rawMeta)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-		return false
+		return "", "", err
 	}
-	if result.Iscc != expectedISCC {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %s, got %s\n", funcName, tcName, expectedISCC, result.Iscc)
-		return false
+	// Description: an empty string or null means no description
+	var desc *string
+	if descStr != "" {
+		desc = &descStr
 	}
-	return true
+
+	result, err := GenMetaCodeV0(name, desc, meta, uint32(bits))
+	if err != nil {
+		return "", "", err
+	}
+	return result.Iscc, expectedISCC(tc), nil
 }
 
-// runTextTests validates gen_text_code_v0 conformance vectors.
-func runTextTests(data map[string]map[string]vectorEntry) bool {
-	funcName := "gen_text_code_v0"
-	cases, ok := data[funcName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
-		return false
+// runTextCase runs a single gen_text_code_v0 test case.
+func runTextCase(tc vectorEntry) (got, want string, err error) {
+	var text string
+	var bits float64
+	if err := unmarshalInputs(tc.Inputs, &text, &bits); err != nil {
+		return "", "", err
 	}
-
-	passed := true
-	for tcName, tc := range cases {
-		var text string
-		if err := json.Unmarshal(tc.Inputs[0], &text); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-
-		var bits float64
-		if err := json.Unmarshal(tc.Inputs[1], &bits); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-
-		expectedISCC, _ := tc.Outputs["iscc"].(string)
-		result, err := GenTextCodeV0(text, uint32(bits))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-			passed = false
-			continue
-		}
-		if result.Iscc != expectedISCC {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %s, got %s\n", funcName, tcName, expectedISCC, result.Iscc)
-			passed = false
-		}
+	result, err := GenTextCodeV0(text, uint32(bits))
+	if err != nil {
+		return "", "", err
 	}
-	return passed
+	return result.Iscc, expectedISCC(tc), nil
 }
 
-// runImageTests validates gen_image_code_v0 conformance vectors.
-func runImageTests(data map[string]map[string]vectorEntry) bool {
-	funcName := "gen_image_code_v0"
-	cases, ok := data[funcName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
-		return false
+// runImageCase runs a single gen_image_code_v0 test case.
+func runImageCase(tc vectorEntry) (got, want string, err error) {
+	var pixelsJSON []float64
+	var bits float64
+	if err := unmarshalInputs(tc.Inputs, &pixelsJSON, &bits); err != nil {
+		return "", "", err
+	}
+	pixels := make([]byte, len(pixelsJSON))
+	for i, v := range pixelsJSON {
+		pixels[i] = byte(v)
 	}
 
-	passed := true
-	for tcName, tc := range cases {
-		var pixelsJSON []float64
-		if err := json.Unmarshal(tc.Inputs[0], &pixelsJSON); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-		pixels := make([]byte, len(pixelsJSON))
-		for i, v := range pixelsJSON {
-			pixels[i] = byte(v)
-		}
-
-		var bits float64
-		if err := json.Unmarshal(tc.Inputs[1], &bits); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-
-		expectedISCC, _ := tc.Outputs["iscc"].(string)
-		result, err := GenImageCodeV0(pixels, uint32(bits))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-			passed = false
-			continue
-		}
-		if result.Iscc != expectedISCC {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %s, got %s\n", funcName, tcName, expectedISCC, result.Iscc)
-			passed = false
-		}
+	result, err := GenImageCodeV0(pixels, uint32(bits))
+	if err != nil {
+		return "", "", err
 	}
-	return passed
+	return result.Iscc, expectedISCC(tc), nil
 }
 
-// runAudioTests validates gen_audio_code_v0 conformance vectors.
-func runAudioTests(data map[string]map[string]vectorEntry) bool {
-	funcName := "gen_audio_code_v0"
-	cases, ok := data[funcName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
-		return false
+// runAudioCase runs a single gen_audio_code_v0 test case.
+func runAudioCase(tc vectorEntry) (got, want string, err error) {
+	var cvJSON []float64
+	var bits float64
+	if err := unmarshalInputs(tc.Inputs, &cvJSON, &bits); err != nil {
+		return "", "", err
+	}
+	cv := make([]int32, len(cvJSON))
+	for i, v := range cvJSON {
+		cv[i] = int32(v)
 	}
 
-	passed := true
-	for tcName, tc := range cases {
-		var cvJSON []float64
-		if err := json.Unmarshal(tc.Inputs[0], &cvJSON); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-		cv := make([]int32, len(cvJSON))
-		for i, v := range cvJSON {
-			cv[i] = int32(v)
-		}
-
-		var bits float64
-		if err := json.Unmarshal(tc.Inputs[1], &bits); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-
-		expectedISCC, _ := tc.Outputs["iscc"].(string)
-		result, err := GenAudioCodeV0(cv, uint32(bits))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-			passed = false
-			continue
-		}
-		if result.Iscc != expectedISCC {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %s, got %s\n", funcName, tcName, expectedISCC, result.Iscc)
-			passed = false
-		}
+	result, err := GenAudioCodeV0(cv, uint32(bits))
+	if err != nil {
+		return "", "", err
 	}
-	return passed
+	return result.Iscc, expectedISCC(tc), nil
 }
 
-// runVideoTests validates gen_video_code_v0 conformance vectors.
-func runVideoTests(data map[string]map[string]vectorEntry) bool {
-	funcName := "gen_video_code_v0"
-	cases, ok := data[funcName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
-		return false
+// runVideoCase runs a single gen_video_code_v0 test case.
+func runVideoCase(tc vectorEntry) (got, want string, err error) {
+	var framesJSON [][]float64
+	var bits float64
+	if err := unmarshalInputs(tc.Inputs, &framesJSON, &bits); err != nil {
+		return "", "", err
+	}
+	frameSigs := make([][]int32, len(framesJSON))
+	for i, frame := range framesJSON {
+		frameSigs[i] = make([]int32, len(frame))
+		for j, v := range frame {
+			frameSigs[i][j] = int32(v)
+		}
 	}
 
-	passed := true
-	for tcName, tc := range cases {
-		var framesJSON [][]float64
-		if err := json.Unmarshal(tc.Inputs[0], &framesJSON); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-		frameSigs := make([][]int32, len(framesJSON))
-		for i, frame := range framesJSON {
-			frameSigs[i] = make([]int32, len(frame))
-			for j, v := range frame {
-				frameSigs[i][j] = int32(v)
-			}
-		}
-
-		var bits float64
-		if err := json.Unmarshal(tc.Inputs[1], &bits); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-
-		expectedISCC, _ := tc.Outputs["iscc"].(string)
-		result, err := GenVideoCodeV0(frameSigs, uint32(bits))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-			passed = false
-			continue
-		}
-		if result.Iscc != expectedISCC {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %s, got %s\n", funcName, tcName, expectedISCC, result.Iscc)
-			passed = false
-		}
+	result, err := GenVideoCodeV0(frameSigs, uint32(bits))
+	if err != nil {
+		return "", "", err
 	}
-	return passed
+	return result.Iscc, expectedISCC(tc), nil
 }
 
-// runMixedTests validates gen_mixed_code_v0 conformance vectors.
-func runMixedTests(data map[string]map[string]vectorEntry) bool {
-	funcName := "gen_mixed_code_v0"
-	cases, ok := data[funcName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
-		return false
+// runMixedCase runs a single gen_mixed_code_v0 test case.
+func runMixedCase(tc vectorEntry) (got, want string, err error) {
+	var codes []string
+	var bits float64
+	if err := unmarshalInputs(tc.Inputs, &codes, &bits); err != nil {
+		return "", "", err
 	}
-
-	passed := true
-	for tcName, tc := range cases {
-		var codes []string
-		if err := json.Unmarshal(tc.Inputs[0], &codes); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-
-		var bits float64
-		if err := json.Unmarshal(tc.Inputs[1], &bits); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-
-		expectedISCC, _ := tc.Outputs["iscc"].(string)
-		result, err := GenMixedCodeV0(codes, uint32(bits))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-			passed = false
-			continue
-		}
-		if result.Iscc != expectedISCC {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %s, got %s\n", funcName, tcName, expectedISCC, result.Iscc)
-			passed = false
-		}
+	result, err := GenMixedCodeV0(codes, uint32(bits))
+	if err != nil {
+		return "", "", err
 	}
-	return passed
+	return result.Iscc, expectedISCC(tc), nil
 }
 
 // decodeStream decodes a "stream:<hex>" value into bytes.
@@ -376,130 +274,59 @@ func decodeStream(s string) ([]byte, error) {
 	return hex.DecodeString(hexData)
 }
 
-// runDataTests validates gen_data_code_v0 conformance vectors.
-func runDataTests(data map[string]map[string]vectorEntry) bool {
-	funcName := "gen_data_code_v0"
-	cases, ok := data[funcName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
-		return false
+// streamInputs decodes the "stream:<hex>" and bits inputs of a gen_data_code_v0
+// or gen_instance_code_v0 case.
+func streamInputs(tc vectorEntry) ([]byte, uint32, error) {
+	var streamStr string
+	var bits float64
+	if err := unmarshalInputs(tc.Inputs, &streamStr, &bits); err != nil {
+		return nil, 0, err
 	}
-
-	passed := true
-	for tcName, tc := range cases {
-		var streamStr string
-		if err := json.Unmarshal(tc.Inputs[0], &streamStr); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-		inputBytes, err := decodeStream(streamStr)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not decode stream: %v\n", funcName, tcName, err)
-			passed = false
-			continue
-		}
-
-		var bits float64
-		if err := json.Unmarshal(tc.Inputs[1], &bits); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-
-		expectedISCC, _ := tc.Outputs["iscc"].(string)
-		result, err := GenDataCodeV0(inputBytes, uint32(bits))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-			passed = false
-			continue
-		}
-		if result.Iscc != expectedISCC {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %s, got %s\n", funcName, tcName, expectedISCC, result.Iscc)
-			passed = false
-		}
+	inputBytes, err := decodeStream(streamStr)
+	if err != nil {
+		return nil, 0, errUnparsable
 	}
-	return passed
+	return inputBytes, uint32(bits), nil
 }
 
-// runInstanceTests validates gen_instance_code_v0 conformance vectors.
-func runInstanceTests(data map[string]map[string]vectorEntry) bool {
-	funcName := "gen_instance_code_v0"
-	cases, ok := data[funcName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
-		return false
+// runDataCase runs a single gen_data_code_v0 test case.
+func runDataCase(tc vectorEntry) (got, want string, err error) {
+	inputBytes, bits, err := streamInputs(tc)
+	if err != nil {
+		return "", "", err
 	}
-
-	passed := true
-	for tcName, tc := range cases {
-		var streamStr string
-		if err := json.Unmarshal(tc.Inputs[0], &streamStr); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-		inputBytes, err := decodeStream(streamStr)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not decode stream: %v\n", funcName, tcName, err)
-			passed = false
-			continue
-		}
-
-		var bits float64
-		if err := json.Unmarshal(tc.Inputs[1], &bits); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-
-		expectedISCC, _ := tc.Outputs["iscc"].(string)
-		result, err := GenInstanceCodeV0(inputBytes, uint32(bits))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-			passed = false
-			continue
-		}
-		if result.Iscc != expectedISCC {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %s, got %s\n", funcName, tcName, expectedISCC, result.Iscc)
-			passed = false
-		}
+	result, err := GenDataCodeV0(inputBytes, bits)
+	if err != nil {
+		return "", "", err
 	}
-	return passed
+	return result.Iscc, expectedISCC(tc), nil
 }
 
-// runIsccTests validates gen_iscc_code_v0 conformance vectors.
-func runIsccTests(data map[string]map[string]vectorEntry) bool {
-	funcName := "gen_iscc_code_v0"
-	cases, ok := data[funcName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
-		return false
+// runInstanceCase runs a single gen_instance_code_v0 test case.
+func runInstanceCase(tc vectorEntry) (got, want string, err error) {
+	inputBytes, bits, err := streamInputs(tc)
+	if err != nil {
+		return "", "", err
 	}
-
-	passed := true
-	for tcName, tc := range cases {
-		var codes []string
-		if err := json.Unmarshal(tc.Inputs[0], &codes); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-			passed = false
-			continue
-		}
-
-		expectedISCC, _ := tc.Outputs["iscc"].(string)
-		// Conformance vectors use default (non-wide) mode
-		result, err := GenIsccCodeV0(codes, false)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-			passed = false
-			continue
-		}
-		if result.Iscc != expectedISCC {
-			fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %s, got %s\n", funcName, tcName, expectedISCC, result.Iscc)
-			passed = false
-		}
+	result, err := GenInstanceCodeV0(inputBytes, bits)
+	if err != nil {
+		return "", "", err
 	}
-	return passed
+	return result.Iscc, expectedISCC(tc), nil
+}
+
+// runIsccCase runs a single gen_iscc_code_v0 test case.
+func runIsccCase(tc vectorEntry) (got, want string, err error) {
+	var codes []string
+	if err := unmarshalInputs(tc.Inputs, &codes); err != nil {
+		return "", "", err
+	}
+	// Conformance vectors use default (non-wide) mode
+	result, err := GenIsccCodeV0(codes, false)
+	if err != nil {
+		return "", "", err
+	}
+	return result.Iscc, expectedISCC(tc), nil
 }
 
 // seqVector holds a single ISCC-SEQ conformance test case from data.json.
@@ -545,94 +372,43 @@ func decodeBytesValue(s string) ([]byte, error) {
 	return hex.DecodeString(hexData)
 }
 
-// runEncodeSeqTests validates encode_seq conformance vectors
-// (inputs [[str…]], output "bytes:<hex>").
-func runEncodeSeqTests(data map[string]map[string]seqVector) bool {
-	funcName := "encode_seq"
-	cases, ok := data[funcName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
-		return false
-	}
-
-	passed := true
-	for tcName, tc := range cases {
-		if !runEncodeSeqCase(funcName, tcName, tc) {
-			passed = false
-		}
-	}
-	return passed
-}
-
-// runEncodeSeqCase runs a single encode_seq test case.
-func runEncodeSeqCase(funcName, tcName string, tc seqVector) bool {
+// runEncodeSeqCase runs a single encode_seq test case
+// (inputs [[str…]], output "bytes:<hex>"). Both sides render as lower-case hex.
+func runEncodeSeqCase(tc seqVector) (got, want string, err error) {
 	var units []string
 	var outputStr string
-	if len(tc.Inputs) < 1 || json.Unmarshal(tc.Inputs[0], &units) != nil ||
-		json.Unmarshal(tc.Outputs, &outputStr) != nil {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-		return false
+	if unmarshalInputs(tc.Inputs, &units) != nil || json.Unmarshal(tc.Outputs, &outputStr) != nil {
+		return "", "", errUnparsable
 	}
 	expected, err := decodeBytesValue(outputStr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not decode output: %v\n", funcName, tcName, err)
-		return false
+		return "", "", errUnparsable
 	}
 
 	seq, err := EncodeSeq(units)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-		return false
+		return "", "", err
 	}
-	if !bytes.Equal(seq, expected) {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %x, got %x\n", funcName, tcName, expected, seq)
-		return false
-	}
-	return true
+	return hex.EncodeToString(seq), hex.EncodeToString(expected), nil
 }
 
-// runDecodeSeqTests validates decode_seq conformance vectors
-// (inputs ["bytes:<hex>"], output [str…]).
-func runDecodeSeqTests(data map[string]map[string]seqVector) bool {
-	funcName := "decode_seq"
-	cases, ok := data[funcName]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "FAILED: %s section missing from conformance data\n", funcName)
-		return false
-	}
-
-	passed := true
-	for tcName, tc := range cases {
-		if !runDecodeSeqCase(funcName, tcName, tc) {
-			passed = false
-		}
-	}
-	return passed
-}
-
-// runDecodeSeqCase runs a single decode_seq test case.
-func runDecodeSeqCase(funcName, tcName string, tc seqVector) bool {
+// runDecodeSeqCase runs a single decode_seq test case
+// (inputs ["bytes:<hex>"], output [str…]). Both unit lists render with %q, so
+// the comparison is exact and a nil list equals an empty one.
+func runDecodeSeqCase(tc seqVector) (got, want string, err error) {
 	var inputStr string
 	var expected []string
-	if len(tc.Inputs) < 1 || json.Unmarshal(tc.Inputs[0], &inputStr) != nil ||
-		json.Unmarshal(tc.Outputs, &expected) != nil {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not parse test inputs\n", funcName, tcName)
-		return false
+	if unmarshalInputs(tc.Inputs, &inputStr) != nil || json.Unmarshal(tc.Outputs, &expected) != nil {
+		return "", "", errUnparsable
 	}
 	seq, err := decodeBytesValue(inputStr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — could not decode input: %v\n", funcName, tcName, err)
-		return false
+		return "", "", errUnparsable
 	}
 
 	units, err := DecodeSeq(seq)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — error: %v\n", funcName, tcName, err)
-		return false
+		return "", "", err
 	}
-	if !slices.Equal(units, expected) {
-		fmt.Fprintf(os.Stderr, "FAILED: %s.%s — expected %v, got %v\n", funcName, tcName, expected, units)
-		return false
-	}
-	return true
+	return fmt.Sprintf("%q", units), fmt.Sprintf("%q", expected), nil
 }
