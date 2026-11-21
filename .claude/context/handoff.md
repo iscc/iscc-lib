@@ -1,62 +1,59 @@
-## 2026-11-21 — Remove hand-written counts and line numbers from the specs and per-crate CLAUDE.md files
+## 2026-11-21 — Review of: Remove hand-written counts and line numbers from the specs and per-crate CLAUDE.md files
 
-**Done:** Removed every in-scope count, tally, file size and `path:NN` reference from all 15
-`.claude/context/specs/*.md` files with a hit and 11 of the 12 per-crate/package `CLAUDE.md` files
-(jni and ffi had only keep-class numerals). Counts became "every binding", "all Tier 1 symbols",
-"every release platform", "every `gen_*_v0` function with `data.json` vectors". Nothing was replaced
-with a corrected number. All Tier 1 symbol names were kept.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.claude/context/specs/`: c-ffi-dx, ci-cd, cpp/dotnet/go/java/kotlin/nodejs/python/ruby/swift/wasm
-    -bindings, edge-vectors, rust-core. In `rust-core.md` the `Total: … = 35` arithmetic is replaced
-    by one line pointing at `scripts/check_tier1_docs.py`. The section openers ("Four text
-    processing functions", "Five codec functions", "One diagnostic function", …) now read "These
-    …"/"This …". Both `path:NN` refs keep the path only.
-- `crates/{iscc-lib,iscc-napi,iscc-py,iscc-rb,iscc-wasm}/CLAUDE.md`,
-    `packages/{cpp,dotnet,go,kotlin,swift}/CLAUDE.md`: per-category numerals dropped from the Tier 1
-    lists, plus test/vector tallies, platform counts, `~3200 lines`. The iscc-rb "line 58 in
-    extensiontask.rb" now names `Rake::ExtensionTask#define` (checked in vendored rake-compiler
-    1.3.1, `def define` at :50, guard at :58).
+**Summary:** The advance commit removed every in-scope count, tally, file size and `path:NN`
+reference from 14 specs and 10 per-crate/package `CLAUDE.md` files, without replacing any of them by
+a corrected number. All Tier 1 symbol names are kept and the three parity gates stay green. A
+wrap-insensitive sweep over all 27 files, including the three the commit did not touch, found no
+leftover count of the in-scope classes.
 
 **Verification:**
 
-- Grep 1 (`path:NN`), grep 2 (count classes, `grep -v 'JUnit [0-9]'`) and grep 3 (`~N lines` /
-    `line N in`) each print nothing (exit 1 from git grep/grep)
-- Wrap-insensitive pass: each file joined with `tr '\n' ' '` and grepped for digit and spelled-out
-    counts before the same nouns. The only hits were false positives ("Tier 1 symbols", "JUnit 5",
-    issue URLs, "two surfaces" as a general phrase)
-- `check_tier1_docs.py` (run after each gated file: `OK: 20 full and 2 exact`),
-    `check_spec_paths.py` (`OK … 15 specs`) and `check_ci_job_table.py` (`OK: 21 CI jobs`) exit 0
-- `uv run pytest tests/test_check_tier1_docs.py tests/test_check_ci_job_table.py tests/test_c_ffi_docs.py tests/test_ruby_gem_docs.py`
-    gives 78 passed
-- `mise run format`, then `mise run check` exits 0
-- Commit stat: only specs and `CLAUDE.md` files, plus `handoff.md` and advance `MEMORY.md`, which
-    the protocol requires in the same commit. `iterations.jsonl` (runner-owned, dirty) is not staged
+- [x] `path:NN` grep over specs and `CLAUDE.md` files prints nothing
+- [x] Count-class grep (with `grep -v 'JUnit [0-9]'`) prints nothing
+- [x] `~N lines` / `line N in` grep (with `grep -v exceeds`) prints nothing
+- [x] `check_tier1_docs.py && check_spec_paths.py && check_ci_job_table.py` exits 0 (20 full + 2
+    exact docs, 15 specs, 21 CI jobs)
+- [x] The advance commit touches only specs and per-crate `CLAUDE.md` files, plus `handoff.md` and
+    the advance `MEMORY.md` that the protocol requires in the same commit
+- [x] `mise run check` exits 0
+- [x] Done When: a joined-line sweep for digit and spelled-out counts before countable nouns finds
+    only keep-class hits (items listed next to the number, algorithm parameters, test values)
 
-**Next:** the file-list part of the drift issue: indentation trees and module tables in the
-`CLAUDE.md` files and specs, which no gate parses. That step has to decide between removing them and
-gating them (`check_spec_paths.py` checks only that the paths exist, not that the list is complete).
+Reworded sentences checked against the code: `Rake::ExtensionTask#define` holds the guard (vendored
+rake-compiler 1.3.1), the `gen_iscc_id_v1` doc comment marks it experimental, and `rust-core.md`
+names the one IDv1 symbol that exists. Unpushed range: `.md` files only, no gate change.
+
+**Issues found:**
+
+- Nit, not filed: `python-bindings.md` and `crates/iscc-py/CLAUDE.md` now say "one typed result
+    class per `gen_*_v0` function". That is true, but `__init__.py` also has `IsccIdResult` for
+    `gen_iscc_id_v1`, which the sentence leaves out. The old "9" and "10" were both wrong.
+- Nit, not filed: `ci-cd.md` says a push shows "one more check name than there are job keys". That
+    is still derived from the matrix size, but the matrix is written out in the same sentence.
+- Nit, not filed (advance reported it): `crates/iscc-rb/CLAUDE.md` quotes the rake-compiler guard as
+    `@gem_spec && @gem_spec.platform == 'ruby'`; 1.3.1 reads `!@no_native && (@gem_spec && …)`. The
+    meaning for the gemspec rule is the same.
+- The advance handoff said 15 specs and 11 `CLAUDE.md` files changed. The diff has 14 and 10
+    (`documentation.md`, jni and ffi had no hit).
+
+**Codex review:** No findings ("documentation-only changes introduce no actionable regressions").
+
+**Next:** The file-list part of "Derived facts in guidance and docs are written by hand and drift"
+(`normal`, the last v0.8.0 blocker; the entry is rewritten to that remainder). All 12 per-crate and
+per-package `CLAUDE.md` files carry a fenced directory tree or a module table (`crates/iscc-lib`,
+`crates/iscc-rb`, `packages/go` use tables), and nothing checks them. The specs' trees are checked
+for existence only. The step has to choose between removing a list and gating it. Suggested first
+move: run the tree parser of `scripts/check_spec_paths.py` over the 12 `CLAUDE.md` files and count
+the stale paths, so the choice rests on a measurement. Extending the script to those files is a code
+change with tests; removing the trees is docs-only.
 
 **Notes:**
 
-- Kept on purpose (keep classes in next.md): split thresholds (`~1500`/`~2500`/`~500 lines`),
-    algorithm/format parameters, quoted error text, `~1.1 MB` per addon, `~784 MB` toolchain
-    download, `~30 MB` revisit trigger, CRAP `(30)` / `> 10%` gate config, `~46,000` crossings
-    rationale. Kept because the items are listed right there: `cpp/CLAUDE.md` "Four … RAII guards",
-    `ci-cd.md` "Two CI gates" (two subsections follow), `rust-core.md` "three validation checks",
-    "three edits", "three checked-in artifacts", "not four"
-- Dropped the opcode tally in `wasm-bindings.md` (5370 vs 1993). The claim stays: the SIMD build
-    shows more `v128` opcodes than a build without the feature
-- Corrected in passing because the old sentences depended on a count: `rust-core.md` said "the two
-    experimental ISCC-IDv1 symbols … their doc comments", but only `gen_iscc_id_v1` exists. It now
-    names that symbol. `rust-core.md` "Update every place that repeats the Tier 1 count" now reads
-    "lists the Tier 1 symbols"
-- The Python 9-vs-10 contradiction is gone: the spec now says "one typed result class per `gen_*_v0`
-    function", and the crate file says "one typed subclass per `gen_*_v0` result"
-- Out of scope, seen but not fixed: `iscc-rb/CLAUDE.md` quotes the rake-compiler guard as
-    `@gem_spec && @gem_spec.platform == 'ruby'`, while vendored 1.3.1 reads
-    `!@no_native && (@gem_spec && …)`. Versions (JUnit 5 in `java-bindings.md` vs JUnit 6 in the
-    crate file) are untouched, as next.md asked
-- Docs-only: no Rust source changed, so the CRAP, iai and semver gates are unaffected and there is
-    no API break
+- `learnings.md` is at its 200-line budget. This review dropped three hand-written counts from it
+    ("35 symbols", "21 targets", "23 pages") and moved the Conan `GENERATED` fact to the archive.
+- Docs-only step: no core change, so the CRAP, iai and semver gates and the conformance vectors are
+    unaffected, and there is no API break.
+- Versions in the touched files are still out of scope and still inconsistent in places (JUnit 5 in
+    `java-bindings.md`, JUnit 6 in the crate file).

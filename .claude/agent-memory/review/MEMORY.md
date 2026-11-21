@@ -106,6 +106,9 @@ Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`)
     **parser-only step (242, ~6 min)**: old-vs-new derive, form sweep, mutants; **Rust docs
     completion step (243, ~20 min)**: compile every example in a `/tmp` cargo project →
     `review-patterns.md` "Doc-parity gate (233)"
+- **Derived-fact removal step (245, ~10 min)**: wrap-insensitive sweep incl. untouched files; each
+    reworded sentence is a new claim to check → `review-patterns.md` "Derived-fact removal step
+    (245)"
 - **WASM return-shape step (234, ~10 min)**: `#[wasm_bindgen_test]` never crosses the JS glue —
     probe the built `--target nodejs` pkg from Node + read the `.d.ts` → `binding-reviews.md`
 - **data-edge rule / validator / C-generator step (236, ~8 min)**: two pytest files, regen +

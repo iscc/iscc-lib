@@ -136,17 +136,21 @@ conversion and the doc comment matches it.
 
 ## Derived facts in guidance and docs are written by hand and drift `normal` [human]
 
-Counts, file lists and symbol lists are repeated across `docs/`, the READMEs, `CLAUDE.md` files and
-the specs with nothing checking them. Rule: `.claude/context/README.md` → "Hygiene rules" → "Derived
-facts are checked or not written". The Tier 1 symbol list is gated (`scripts/check_tier1_docs.py`:
-registered docs must name every symbol derived from `lib.rs`, the `lib.rs` parse fails closed, and
-every per-language how-to and API reference under `docs/` is in the registry). One part of the
-problem is left: unchecked counts, file lists and line numbers remain in `.claude/context/specs/`
-and the per-crate `CLAUDE.md` files.
+File lists in guidance repeat what `git ls-files` says, and nothing checks them for completeness.
+Rule: `.claude/context/README.md` → "Hygiene rules" → "Derived facts are checked or not written".
+Counts, test tallies, file sizes and line numbers are gone from `.claude/context/specs/` and the
+per-crate `CLAUDE.md` files, and the Tier 1 symbol list is gated (`scripts/check_tier1_docs.py`).
+One part of the problem is left: the directory trees and module tables.
 
-Resolved when counts, file lists and line numbers that no check covers are gone from
-`.claude/context/specs/` and the per-crate `CLAUDE.md` files, replaced by wording that cannot go
-stale ("all Tier 1 functions") or brought under a check.
+- In the specs, `scripts/check_spec_paths.py` checks that a listed path exists. It does not check
+    that a tree lists every file, so a new file is missing from the tree without a failure.
+- In the per-crate and per-package `CLAUDE.md` files nothing checks the fenced directory trees or
+    the module tables (`crates/iscc-lib`, `crates/iscc-rb`, `packages/go`). A renamed or deleted
+    file stays listed.
+
+Resolved when every file list in `.claude/context/specs/` and the per-crate `CLAUDE.md` files is
+either removed in favour of wording that cannot go stale, or covered by a check that fails on a
+listed path that does not exist and, where the list claims to be complete, on a missing entry.
 
 ## The pkg-config example in the C/C++ how-to says `Version: 0.2.0` `low` [review]
 

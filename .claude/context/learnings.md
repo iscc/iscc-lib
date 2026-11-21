@@ -7,9 +7,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 ## Architecture
 
 - Hub-and-spoke: `iscc-lib` (pure Rust core) → binding crates (py, napi, wasm, ffi, jni, rb,
-    uniffi), each depending only on the core. Tier 1 = 35 symbols `pub use`d at crate root (IDv1
-    177, `encode_seq`/`decode_seq` 195); Tier 2 is `pub(crate)`, never crosses FFI. `packages/go` is
-    NOT a binding — a pure-Go reimplementation
+    uniffi), each depending only on the core. Tier 1 = the symbols `pub use`d at crate root; Tier 2
+    is `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
 - **Binding input-marshalling traps**: WASM `serde_wasm_bindgen` `Vec<T>` accepts ANY iterable (napi
     `Vec<String>` throws `ArrayExpected`): never document "throws on non-array" for WASM (204).
     **The FFI's `CStr` truncates at an embedded NUL**, so both C-FFI wrappers reject it first (213):
@@ -33,8 +32,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so output tracks
     `unicodedata.unidata_version`; iscc-core#137). Always name the interpreter (`--python 3.13`)
 - A dependency shipping DATA TABLES (Unicode, locale, tz) can change output without any `data.json`
-    vector catching it (every vector predates Unicode 16) — call out table-version changes in dep
-    bumps explicitly
+    vector catching it (every vector predates Unicode 16) — name table-version changes in dep bumps
 - **String-input divergences from iscc-core** hit any differential on *string* inputs (`encode_seq`,
     `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
     \+ Go pinned (199); a padding negative must be validly padded (`ISCC:GAAAAAAAAA======`:
@@ -64,8 +62,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **Perf-gate tooling installs on demand, NOT in the devcontainer**: `mise run bench:iai:check` dies
     until `apt-get install valgrind` + `cargo binstall iai-callgrind-runner@0.16.1` (pin-matched)
 - **A docs page lives in FOUR places** — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
-    `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`
-    (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
+    `nav`, `ORDERED_PAGES`, `docs/llms.txt` — all gated by `scripts/check_docs_nav.py` (145/146).
+    **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
 - **Devcontainer push**: `git -c credential.helper='!gh auth git-credential' push`
 
 ## ISCC Algorithm Knowledge
@@ -93,8 +91,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `find_class`) CLEAR the JVM exception (OOM → `NoMemory`), `post_check_ex` ones (`new_object`)
     leave it pending. HotSpot 17 `-Xcheck:jni` is SILENT on `ThrowNew` over a pending exception:
     assert the class. Trigger: shadow result class with a throwing ctor first on a child `-cp`
-- **Release pipeline** + `version_sync.py`'s 21 targets → `learnings-archive.md`. Its doc targets
-    are the Maven/Gradle/SPM snippets only: any other version in docs is hand-typed, so write none
+- **Release pipeline** + `version_sync.py`'s targets → `learnings-archive.md`. Its doc targets are
+    the Maven/Gradle/SPM snippets only: any other version in docs is hand-typed, so write none
     (244). `@iscc/wasm` metadata = wasm-pack 0.13.1 output of its `Cargo.toml` (214)
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
@@ -190,9 +188,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
     "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)
 - **Spec paths are gated** (224/228): `scripts/check_spec_paths.py` checks tree entries + backticked
-    paths against `git ls-files` (never disk); `*` stays in one segment, `**` crosses `/`. Fix the
-    spec, or list build output in `GENERATED`. Conan generates `iscc.pc` / `find_package(iscc)` at
-    install time. **A negative assertion must reach the branch it names** (228: no `*`, no regex)
+    paths against `git ls-files` (never disk) — specs only, existence only; `CLAUDE.md` trees are
+    ungated. `*` stays in one segment, `**` crosses `/`. Fix the spec, or list build output in
+    `GENERATED`. **A negative assertion must reach the branch it names** (228). **Removing a derived
+    fact (245)**: a count grep is a floor; join lines (`tr '\n' ' '`) for wrapped + spelled-out
+    counts and check each reworded sentence against the code
 - **Tier 1 doc parity is gated** (233): `scripts/check_tier1_docs.py` derives the symbols from
     `lib.rs`, NAMES only; an unparsable crate-root `pub` fails (242): add a derive rule or an
     `EXCLUDED_ITEMS` entry. `rust-api.md` signatures: `tests/test_rust_api_signatures.py`; doc

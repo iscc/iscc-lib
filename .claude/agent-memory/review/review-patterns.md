@@ -708,3 +708,21 @@ Detail of index entries that were cut to one or two lines when the index was com
 - **Codex finds what a green run does not prove**: matching/parsing rules, exception contracts,
     user-facing factual claims, build-config lines (154), declared-but-ungated facts such as MSRV
     (172), and a third-party action's real behaviour (239)
+
+## Derived-fact removal step (245 — counts out of specs + per-crate `CLAUDE.md`, ~10 min, PASS)
+
+Docs-only guidance sweep, 24 files. The three grep criteria in next.md are a floor. What found the
+rest:
+
+- **Wrap-insensitive sweep**: per file `tr '\n' ' ' | sed -E 's/ +/ /g' | grep -oE` for a digit or
+    spelled-out number before a countable noun (functions, bindings, platforms, tests, vectors,
+    targets, methods, classes). Run it over the UNTOUCHED files too (`documentation.md`, jni, ffi).
+- **Each reworded sentence is a new claim**: read the code it names. Found: "one typed result class
+    per `gen_*_v0` function" is true but leaves out `IsccIdResult` (11 classes); a method name that
+    replaced a line number (`Rake::ExtensionTask#define`) was checked in the vendored gem under
+    `crates/iscc-rb/vendor/bundle`.
+- **"N more than M" is still a derived number** ("one more check name than job keys"): accept only
+    when the items it derives from sit in the same sentence.
+- The gates that must stay green are `check_tier1_docs.py`, `check_spec_paths.py`,
+    `check_ci_job_table.py`: all in `mise run check`, so no extra run is needed.
+- Codex finishes a docs-only review in about 3 minutes and adds nothing here.
