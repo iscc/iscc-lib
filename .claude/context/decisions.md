@@ -396,3 +396,14 @@ of the Rust, C, C++, Go, .NET, Swift and Kotlin harnesses: to them it is a wrong
 which `edge-vectors.md` → Rules leaves to per-binding tests. **Alternatives:** a vector with
 `except` entries for seven surfaces (mostly exceptions); wrapping Python/Ruby errors into
 `ValueError`/`RuntimeError` (hides the host's own class). **Context:** iteration 256.
+
+## 2026-11-21 — Triage: Python 3.10 and .NET 8 floors stay, Ruby moves to 3.3; CI adds 3.15 and .NET 10
+
+**Decision:** the Python floor stays 3.10 (abi3-py310) and the .NET floor stays `net8.0`; the Ruby
+floor rises to 3.3 (`normal` issue). CI tests Python 3.10 and 3.15 (floor and newest), and runs the
+net8.0 build on the .NET 8 and .NET 10 runtimes (`dotnet-test` matrix, `dotnet` aggregator). Ruby
+keeps Magnus' implicit `to_int` for integer lists (host idiom; docs fixed instead), and the C++
+`safe_data` and .NET `PinnedRows` padding workarounds are removed. **Why:** human decision. A floor
+that is forward-compatible (one abi3 wheel, one net8.0 assembly) costs nothing to keep once CI also
+tests a supported runtime; Ruby needs a precompiled gem per series, so an end-of-life floor costs
+build work. **Context:** human decision (Titusz, interactive session, 2026-11-21), low-issue triage.

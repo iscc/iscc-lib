@@ -126,21 +126,11 @@ var sum = IsccLib.GenSumCodeV0("path/to/file.bin");
 
 ## CI Integration
 
-```yaml
-dotnet:
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0'
-    - run: cargo build -p iscc-ffi
-    - run: dotnet test
-      working-directory: packages/dotnet
-      env:
-        LD_LIBRARY_PATH: ${{ github.workspace }}/target/debug
-```
+The `dotnet-test` job in `ci.yml` builds `iscc-ffi`, restores in locked mode and runs `dotnet test`
+with `LD_LIBRARY_PATH` pointing at `target/debug`. The package targets `net8.0` (the supported
+floor); the job runs that build on the .NET 8 runtime and, with `DOTNET_ROLL_FORWARD=LatestMajor`,
+on the .NET 10 runtime, as a consumer on .NET 10 does. `ISCC_EXPECT_DOTNET_MAJOR` makes a smoke test
+fail if a leg runs on another runtime than it names.
 
 ## Binding Regeneration
 

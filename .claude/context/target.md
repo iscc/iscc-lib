@@ -476,7 +476,7 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
     reason next to the pin; every language runtime CI or the devcontainer tests on is a supported
     release, except a supported-version floor, which only the human raises
 - All packages share coordinated version from root `Cargo.toml`
-- `mise run version:sync` propagates version to all 12 sync targets
+- `mise run version:sync` propagates version to every entry in `TARGETS` (`scripts/version_sync.py`)
 - `mise run version:check` validates consistency (run in CI)
 
 ## Key Resources

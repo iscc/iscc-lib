@@ -86,10 +86,6 @@ Resolved when either the job exists and passes, or `rust-version` is dropped/rai
 
 ## JNI pending-exception guard has no test `low` [review]
 
-**Triage:** untriaged — a maintainer who drops the `exception_check()` guard from the JNI throw
-helpers gets no failing test; Java callers would then see a constructor or JVM exception replaced by
-`IllegalArgumentException: Java exception was thrown`.
-
 `throw_and_default` and `throw_state_error` in `crates/iscc-jni/src/lib.rs` return without throwing
 while an exception is pending (iter 230). No committed test reaches the guard: with it removed,
 `mvn clean test` stays green. A deterministic trigger exists: `new_object` leaves a constructor's
@@ -113,10 +109,7 @@ Unverified fixes: a napi release that frees the reference, or `#[napi(strict)]`.
 Resolved when repeated `ArrayBuffer` calls to a `Buffer`-taking export show no reference or heap
 growth, and every existing Buffer/Uint8Array input still works.
 
-## Ruby integer list elements accept a Float and truncate it `low` [review]
-
-**Triage:** untriaged — a Ruby caller who passes Float elements where integers are expected gets the
-code of the truncated values instead of an error.
+## Ruby integer list elements accept a Float and truncate it `normal` [review]
 
 Magnus' integer conversions apply Ruby's implicit `to_int`. So `IsccLib.gen_audio_code_v0([1.9])`
 returns the code of `[1]`, and `alg_minhash_256` does the same, where Python raises `TypeError`. It
@@ -125,15 +118,12 @@ Pre-existing, measured in iter 229. The doc comment on `array_to_i32_vec` in
 `crates/iscc-rb/src/lib.rs` says "`TypeError` for a non-Integer", which does not hold for a Float.
 No `data-edge.json` vector is owed (`edge-vectors.md` → Rules: wrong-typed elements).
 
-Resolved when either a Float element raises `TypeError` in every integer-list parameter, pinned in
-`crates/iscc-rb/test/test_array_args.rb`, or `docs/ruby-api.md` → Error Handling states the implicit
-conversion and the doc comment matches it.
+**Decided (Titusz, 2026-11-21):** keep the implicit conversion as Ruby host idiom; fix the docs.
 
-## The pkg-config example in the C/C++ how-to says `Version: 0.2.0` `low` [review]
+Resolved when `docs/ruby-api.md` → Error Handling states the implicit conversion and the doc comment
+on `array_to_i32_vec` matches it.
 
-**Triage:** untriaged — a reader who copies the `iscc-ffi.pc` example from `docs/howto/c-cpp.md` →
-"pkg-config" gets a file that reports 0.2.0 for whatever release they installed, so
-`pkg-config --modversion` and `--atleast-version` answer wrongly.
+## The pkg-config example in the C/C++ how-to says `Version: 0.2.0` `normal` [review]
 
 The line is typed by hand and is not a `scripts/version_sync.py` target, which covers only the
 Maven, Gradle and SPM snippets in docs (0.7.0 is current). Pre-existing, found in iteration 244.
@@ -142,10 +132,6 @@ Resolved when the example shows no version that no check keeps current: a placeh
 fills in, or the line is a `version_sync.py` target.
 
 ## Published Ruby source gems up to 0.7.0 do not build `low` [review]
-
-**Triage:** untriaged — a user who runs `gem install iscc-lib` on Ruby 3.4 or newer, or on a
-platform without a precompiled gem, gets a build failure until a release ships the repaired source
-gem.
 
 The source gem on rubygems.org was built with a bare `gem build` up to 0.7.0: it declares no
 `rb_sys` dependency and ships a workspace-inheriting `Cargo.toml` without the core (measured for
@@ -157,10 +143,7 @@ Resolved when a release with the repaired source gem is on rubygems.org and it i
 registry into a clean gem home on a Ruby series without a precompiled gem
 (`GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install iscc-lib`, then `IsccLib.conformance_selftest`).
 
-## How-to examples show the Sum-Code prefix as `KAA` `low` [review]
-
-**Triage:** untriaged — a reader who compares their own output with the comment in a how-to sees
-`ISCC:KUA…` where the docs say `"ISCC:KAA..."`.
+## How-to examples show the Sum-Code prefix as `KAA` `normal` [review]
 
 `gen_sum_code_v0` composes a Data-Code and an Instance-Code, so without `wide` its result has
 SubType SUM and starts with `ISCC:KUA` (measured in iteration 238). The Sum-Code examples in the
@@ -170,31 +153,25 @@ how-tos under `docs/howto/` and in `docs/java-api.md` carry the comment `"ISCC:K
 
 Resolved when each Sum-Code example comment shows a prefix the call can return.
 
-## Three supported-version floors are past end of life `low` [review]
+## The Ruby floor is past end of life and current Rubies get no precompiled gem `normal` [human]
 
-**Triage:** untriaged — a decision for Titusz: CI tests these surfaces only on runtimes that no
-longer get security fixes, and the packages promise to support them. CID must not raise a floor.
+**Decided (Titusz, 2026-11-21):** raise the Ruby floor from 3.1 to 3.3. Ruby 3.1 reached end of life
+on 2025-03-26 and 3.2 on 2026-03-31 (endoflife.date). The Python 3.10 and .NET 8 floors stay
+(decisions.md, 2026-11-21).
 
-End-of-life dates from endoflife.date, read 2026-11-20:
+The floor is in `crates/iscc-rb/iscc-lib.gemspec` (`required_ruby_version`), the `ruby` job in
+`ci.yml` (`ruby-version: '3.1'`), the minitest hold in `crates/iscc-rb/Gemfile`, and the docs
+(`crates/iscc-rb/README.md`, `docs/howto/ruby.md`, `crates/iscc-rb/CLAUDE.md`,
+`specs/ruby-bindings.md`). The cross-gem step in `release.yml` builds precompiled gems for 3.1, 3.2
+and 3.3 only, so a user on Ruby 3.4 or newer always compiles from source.
 
-- **Python 3.10** (abi3-py310; `python-version: '3.10'` in `ci.yml` and `release.yml`): 2026-10-01
-- **.NET 8** (`dotnet-version: '8.0'`, devcontainer `--channel 8.0`): 2026-11-10
-- **Ruby 3.1** (gemspec `>= 3.1.0`, CI `ruby-version: '3.1'`, devcontainer apt `ruby`): 2025-03-26.
-    Ruby 3.2 in the cross-gem list: 2026-03-31
+Resolved when the gemspec, CI and docs say `>= 3.3`, CI tests the floor, and the cross-gem list
+covers every supported Ruby series from 3.3 up that the cross-gem image can build (the docs name the
+list).
 
-Not end-of-life: Java 17, MSRV 1.85, the Go `go 1.26.1` directive (CI tests on the `toolchain`
-line). Raising the Python floor changes the abi3 tag of the wheel; raising .NET or Ruby changes the
-target framework or the gemspec.
+**Spec:** `.claude/context/specs/ruby-bindings.md`
 
-Resolved when each of the three floors is either raised by the human or kept on purpose (a
-decisions.md entry), and CI tests on a supported runtime wherever the floor moved.
-
-**Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness" → Policy
-
-## `ci-cd.md` describes a tag trigger the release workflow does not have `low` [review]
-
-**Triage:** untriaged — a contributor or agent who reads `ci-cd.md` expects a pushed `v*.*.*` tag to
-publish every registry. Nothing happens, or someone adds the trigger to match the spec.
+## `ci-cd.md` describes a tag trigger the release workflow does not have `normal` [review]
 
 `.github/workflows/release.yml` has `workflow_dispatch` as its only trigger, and `target.md` says "a
 tag push does not trigger the workflow". Three places in `.claude/context/specs/ci-cd.md` say
@@ -207,25 +184,7 @@ Resolved when the three places describe `workflow_dispatch` as the only trigger.
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Release Workflow — Selective Publishing"
 
-## `target.md` states a version-sync target count that is out of date `low` [review]
-
-**Triage:** untriaged — an agent that reads the CI/CD criterion in `target.md` takes "all 12 sync
-targets" as the number to verify, while `TARGETS` in `scripts/version_sync.py` holds 21. Only the
-human edits `target.md`; CID must not act on this.
-
-The criterion itself is met: `mise run version:check` covers every entry in `TARGETS`. The number is
-a derived fact of the kind the decision of 2026-11-21 removed from the specs. Found while scoping
-iteration 248.
-
-Resolved when the `target.md` line names no count ("every entry in `TARGETS`") or the current one.
-
-**Spec:** `.claude/context/target.md` → "CI/CD, Dev Tooling, and Publishing"
-
-## Go canonical `meta` JSON differs from the core in key order, `-0` and lone surrogates `low` [review]
-
-**Triage:** untriaged — a Go caller whose `meta` JSON has an emoji key next to a key from
-U+E000–U+FFFF, a `-0.0` value or a lone `\ud800` escape gets a different Meta-Code, metahash and
-data-URL than the other surfaces return (for the third input they return an error).
+## Go canonical `meta` JSON differs from the core in key order, `-0` and lone surrogates `normal` [review]
 
 `parseMetaJSON` (`packages/go/code_meta.go`) keeps three differences from RFC 8785, measured against
 `iscc_lib` in iteration 251. `encoding/json` sorts keys by UTF-8 bytes, JCS by UTF-16 code units:
@@ -236,25 +195,19 @@ Pre-existing. The other numbers probed match (`1.0`, `1e21`, `1e-7`, `9007199254
 Resolved when Go returns the core's result for the three inputs and each is a `data-edge.json`
 vector.
 
-## C++ `safe_data` and .NET `PinnedRows` padding guard a NULL rejection the FFI no longer has `low` [review]
-
-**Triage:** untriaged — a maintainer of the C++ or .NET wrapper keeps two workarounds and a source
-gate for a condition that cannot occur. Callers see no difference.
+## C++ `safe_data` and .NET `PinnedRows` padding guard a NULL rejection the FFI no longer has `normal` [review]
 
 The C FFI reads a NULL pointer with length 0 as an empty input on every pointer+length parameter
 (decision of 2026-11-21). `detail::safe_data` in `packages/cpp/include/iscc/iscc.hpp`, its gate
 `tests/test_cpp_safe_data.py`, and the `max(Count, 1)` padding of `PinnedRows` in
 `packages/dotnet/Iscc.Lib/IsccLib.cs` now only keep pointers non-null and change no result. Dropping
 the padding supersedes that half of the 2026-11-20 decision on .NET jagged arrays (its null check
-stays). Keeping both on purpose is a valid outcome too.
+stays). **Decided (Titusz, 2026-11-21):** remove both, in the release whose FFI change made them
+dead.
 
-Resolved when both are removed with the C++ and .NET empty-input tests still green, or a
-decisions.md entry keeps them on purpose.
+Resolved when both are removed with the C++ and .NET empty-input tests still green.
 
-## `@iscc/wasm` converts non-number values to numbers instead of rejecting them `low` [review]
-
-**Triage:** untriaged — a JavaScript caller without TypeScript who passes `null`, a string or a
-boolean where a number is expected gets a result for the converted value instead of an error.
+## `@iscc/wasm` converts non-number values to numbers instead of rejecting them `normal` [review]
 
 The wasm-bindgen glue applies JavaScript number conversion before the range check runs. Measured on
 a `--target nodejs` build in iteration 256: `gen_audio_code_v0([1, null, 3])` returns the code of
@@ -267,10 +220,7 @@ Resolved when either each numeric parameter of `crates/iscc-wasm/src/lib.rs` rej
 pinned by a Node test on a built package, or `docs/howto/wasm.md` → "Error handling" states the
 conversion.
 
-## JNI `NativeLoader` rejects an unknown OS or architecture before the `java.library.path` fallback `low` [review]
-
-**Triage:** untriaged — a Java user outside Linux, macOS and Windows on x86_64 or aarch64 (Linux
-riscv64, FreeBSD) cannot use `io.iscc:iscc-lib` even with their own build of `libiscc_jni`.
+## JNI `NativeLoader` rejects an unknown OS or architecture before the `java.library.path` fallback `normal` [review]
 
 `NativeLoader.load()` calls `detectOs()` and `detectArch()` first, and both throw
 `UnsatisfiedLinkError` for a value they do not know, so `System.loadLibrary("iscc_jni")` is never
@@ -284,11 +234,7 @@ Pre-existing; the Java how-to and the JNI README describe it.
 Resolved when either an unknown OS or architecture reaches the `System.loadLibrary` fallback, pinned
 by a Java test, and the two docs say so, or a decisions.md entry keeps the limit on purpose.
 
-## `docs/architecture.md` sections below the graph cover half the surfaces `low` [review]
-
-**Triage:** untriaged — a reader of the architecture page finds no Ruby, UniFFI, .NET, C++, Swift or
-Kotlin in "Workspace Layout", "Crate Summary" and "Cross-Language Test Matrix", and reads that
-`iscc-ffi` is published as "Source".
+## `docs/architecture.md` sections below the graph cover half the surfaces `normal` [review]
 
 "Crate Summary" gives `iscc-ffi` → "Source", while each GitHub release attaches prebuilt
 `iscc-ffi-v*-<target>` archives. The test matrix names `cargo test` as the WASM runner, which runs

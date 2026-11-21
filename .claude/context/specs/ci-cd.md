@@ -26,7 +26,8 @@ merge.
 | `nodejs`           | `npm install`, `napi build --platform`, `npm test` in `crates/iscc-napi`                                                           |
 | `wasm`             | `wasm-pack test --node crates/iscc-wasm --features conformance` with `+simd128`                                                    |
 | `c-ffi`            | cbindgen header freshness (`git diff --exit-code`), gcc compile + run of the C test program                                        |
-| `dotnet`           | `cargo build -p iscc-ffi`, then `dotnet build` + `dotnet test` for `packages/dotnet`                                               |
+| `dotnet-test`      | `cargo build -p iscc-ffi`, then `dotnet build` + `dotnet test` for `packages/dotnet`, the net8.0 build on each matrix runtime      |
+| `dotnet`           | Asserts `needs.dotnet-test.result == "success"` (aggregator, see note below)                                                       |
 | `java`             | `cargo build -p iscc-jni`, then `mvn test -f crates/iscc-jni/java/pom.xml`                                                         |
 | `go`               | `CGO_ENABLED=0 go test` + `go vet` in `packages/go` (pure Go, no Rust toolchain)                                                   |
 | `ruby`             | `standardrb`, `cargo clippy -p iscc-rb`, `rake compile`, `rake test`                                                               |
@@ -41,11 +42,14 @@ merge.
 | `audit`            | `cargo deny check` per root `deny.toml` (advisories, bans, licenses, sources)                                                      |
 | `release-workflow` | `check_release_workflow.py --check-action-inputs`: `release.yml` `with:` keys vs published `action.yml`s                           |
 
-`python-test` is a `['3.10', '3.14']` matrix and `python` is its `if: always()` aggregator (one
-stable required-check name), so a push shows one more check name than there are job keys. The first
-column is the literal `ci.yml` job key; `scripts/check_ci_job_table.py` (prek hook
-`check-ci-job-table` plus the `tests/test_check_ci_job_table.py` anchor) keeps this table in exact
-parity with the workflow's `jobs:` keys.
+`python-test` is a `['3.10', '3.15']` (floor and newest) matrix and `python` is its `if: always()`
+aggregator (one stable required-check name). `dotnet-test` runs the net8.0 build on the .NET 8 and
+.NET 10 runtimes (`DOTNET_ROLL_FORWARD=LatestMajor`; a smoke test asserts the runtime major through
+`ISCC_EXPECT_DOTNET_MAJOR`), and `dotnet` is its aggregator. So a push shows more check names than
+there are job keys. The first column is the literal `ci.yml` job key;
+`scripts/check_ci_job_table.py` (prek hook `check-ci-job-table` plus the
+`tests/test_check_ci_job_table.py` anchor) keeps this table in exact parity with the workflow's
+`jobs:` keys.
 
 CI does NOT use `mise` — it calls `cargo`, `uv`, and tools directly. Standard action set:
 `dtolnay/rust-toolchain` (stable channel), `Swatinem/rust-cache`, `astral-sh/setup-uv`,
@@ -290,7 +294,7 @@ that re-runs `prepare-release`, which force-pushes the release tags.
 | macos-15         | universal2-apple-darwin | abi3-py310 |
 | windows-latest   | x64                     | abi3-py310 |
 
-One wheel per platform covers Python 3.10 through 3.14+ (abi3 stable ABI).
+One wheel per platform covers Python 3.10 and every later version (abi3 stable ABI).
 
 The aarch64 wheel builds on a **native ARM runner** (`ubuntu-24.04-arm`, free for public repos) —
 not QEMU cross-compilation — so the existing maturin-action step with `manylinux: auto` picks the
