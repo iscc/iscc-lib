@@ -133,6 +133,12 @@ jobs:
         run: cargo install cbindgen
       - name: Build FFI crate
         run: cargo build -p iscc-ffi
+      # crates/iscc-ffi/build.rs (csbindgen) rewrites NativeMethods.g.cs on every
+      # build, so any diff now means the committed copy is stale
+      - name: Check C# bindings freshness
+        run: |
+          git diff --exit-code packages/dotnet/Iscc.Lib/NativeMethods.g.cs || \
+            (echo "::error::NativeMethods.g.cs is stale. Run: cargo build -p iscc-ffi, then commit packages/dotnet/Iscc.Lib/NativeMethods.g.cs" && exit 1)
       - name: Check C header freshness
         run: |
           cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h
@@ -352,6 +358,32 @@ jobs:
           java-version: '17'
       - name: Build UniFFI native library
         run: cargo build -p iscc-uniffi
+      # Regenerate the Kotlin and Swift bindings into a temp dir and diff them
+      # against the committed copies. uniffi-bindgen is third-party: its output has
+      # trailing whitespace and EOF blank lines that the hygiene hooks rewrite, so
+      # both sides are compared modulo those. module.modulemap is hand-edited and
+      # not compared.
+      - name: Check UniFFI bindings freshness
+        run: |
+          out="$RUNNER_TEMP/uniffi"
+          gen="cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate"
+          lib=target/debug/libiscc_uniffi.so
+          $gen --language kotlin --no-format --out-dir "$out/kotlin" "$lib"
+          $gen --library "$lib" --language swift --out-dir "$out/swift"
+          kt_fix="$gen --language kotlin --no-format --out-dir packages/kotlin/src/main/kotlin/ $lib"
+          sw_fix="$gen --library $lib --language swift --out-dir packages/swift/Sources/IsccLib/"
+          norm() { sed 's/[[:space:]]*$//' "$1" | awk '/^$/ { n++; next } { for (; n; n--) print ""; print }'; }
+          stale=0
+          check() {
+            if [ -s "$1" ] && [ -s "$2" ] && diff <(norm "$1") <(norm "$2"); then return 0; fi
+            echo "::error::$2 is stale. Regenerate: $3"
+            stale=1
+          }
+          check "$out/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt" packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt "$kt_fix"
+          check "$out/swift/iscc_uniffi.swift" packages/swift/Sources/IsccLib/iscc_uniffi.swift "$sw_fix"
+          check "$out/swift/iscc_uniffiFFI.h" packages/swift/Sources/iscc_uniffiFFI/iscc_uniffiFFI.h \
+            "$sw_fix (then move iscc_uniffiFFI.h to packages/swift/Sources/iscc_uniffiFFI/)"
+          exit "$stale"
       - name: Run Gradle tests
         run: ./gradlew test
         working-directory: packages/kotlin

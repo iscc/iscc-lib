@@ -75,6 +75,9 @@ Generated files: `iscc_uniffi.swift` (Swift source), `iscc_uniffiFFI.h` (C heade
 
 - Swift CI job runs on `macos-15` (Apple Silicon) — Swift is not available on Linux CI runners
 - Steps: `cargo build -p iscc-uniffi` -> `swift build` -> `swift test` with `-Xlinker` flags
+- The ubuntu `kotlin` CI job regenerates `iscc_uniffi.swift` and `iscc_uniffiFFI.h` into a temp dir
+    and diffs them against the committed copies (modulo trailing whitespace and EOF blank lines), so
+    a stale committed copy fails CI. `module.modulemap` is hand-edited and not compared
 - Swift tests also run locally in the Linux devcontainer via the swift.org Debian 12 toolchain (see
     Common Pitfalls for the recipe)
 

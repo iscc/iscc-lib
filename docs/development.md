@@ -178,7 +178,9 @@ Runs on every `git push`. Blocks the push if any check fails.
 - `ty check` — Python type checking
 - Ruff security scan (`S` rules) — focused re-run of rules already enforced by `ruff check`
 - Ruff complexity check (`C901`) — focused re-run of rules already enforced by `ruff check`
-- `pytest` — full Python test suite (120 s per-test timeout)
+- `pytest` — full Python test suite (120 s per-test timeout), after rebuilding the Python extension
+    with `mise run py:develop` (`maturin develop`, as CI does) so it never tests a stale
+    `_lowlevel.abi3.so`; `mise run test` rebuilds it the same way
 
 ### Manual Commands
 

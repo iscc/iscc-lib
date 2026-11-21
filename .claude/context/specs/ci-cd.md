@@ -25,7 +25,7 @@ merge.
 | `python`           | Asserts `needs.python-test.result == "success"` (aggregator, see note below)                                                       |
 | `nodejs`           | `npm install`, `napi build --platform`, `npm test` in `crates/iscc-napi`                                                           |
 | `wasm`             | `wasm-pack test --node crates/iscc-wasm --features conformance` with `+simd128`                                                    |
-| `c-ffi`            | cbindgen header freshness (`git diff --exit-code`), gcc compile + run of the C test program                                        |
+| `c-ffi`            | `NativeMethods.g.cs` + cbindgen header freshness (`git diff --exit-code` after the build), gcc compile + run of the C test program |
 | `dotnet-test`      | `cargo build -p iscc-ffi`, then `dotnet build` + `dotnet test` for `packages/dotnet`, the net8.0 build on each matrix runtime      |
 | `dotnet`           | Asserts `needs.dotnet-test.result == "success"` (aggregator, see note below)                                                       |
 | `java`             | `cargo build -p iscc-jni`, then `mvn test -f crates/iscc-jni/java/pom.xml`                                                         |
@@ -34,7 +34,7 @@ merge.
 | `ruby-source-gem`  | `scripts/build_ruby_source_gem.py` builds the source gem; Ruby 3.4 installs it into an empty gem home, runs `conformance_selftest` |
 | `cpp`              | CMake Debug + ASAN build of `packages/cpp` against `iscc-ffi`, runs the C++ test binary                                            |
 | `swift`            | On macOS: root `Package.swift` dump, `cargo build -p iscc-uniffi`, `swift build` + `swift test`                                    |
-| `kotlin`           | `cargo build -p iscc-uniffi`, then `./gradlew test` in `packages/kotlin`                                                           |
+| `kotlin`           | `cargo build -p iscc-uniffi`, UniFFI Kotlin + Swift outputs regenerated and diffed (modulo trailing whitespace), `./gradlew test`  |
 | `bench`            | `cargo bench --no-run` compile-only benchmark verification                                                                         |
 | `perf`             | `iai-callgrind` benches, non-zero-instruction assert, `iai_regression.py --check` vs `.iai-baseline.json`                          |
 | `semver`           | `cargo-semver-checks` for `iscc-lib` (informational via `continue-on-error` pre-1.0)                                               |

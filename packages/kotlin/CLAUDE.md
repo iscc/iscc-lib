@@ -72,7 +72,9 @@ when the Rust API surface changes.
 ## CI
 
 - Kotlin CI job runs on `ubuntu-latest` with JDK 17
-- Steps: `cargo build -p iscc-uniffi` -> `./gradlew test`
+- Steps: `cargo build -p iscc-uniffi` -> regenerate the UniFFI bindings into a temp dir and diff
+    `iscc_uniffi.kt` (and the Swift outputs) against the committed copies, modulo trailing
+    whitespace and EOF blank lines -> `./gradlew test`. A stale committed `iscc_uniffi.kt` fails CI
 - Gradle wrapper is checked in (no separate Gradle install needed)
 
 ## Common Pitfalls

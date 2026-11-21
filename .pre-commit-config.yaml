@@ -174,7 +174,11 @@ repos:
         pass_filenames: false
       - id: pytest
         name: Python tests
-        entry: uv run pytest --timeout=120
+        # pytest imports the gitignored _lowlevel.abi3.so, which goes stale on any
+        # change under crates/iscc-py or crates/iscc-lib, and a checkout resets
+        # mtimes: rebuild it (mise task py:develop, shared with `mise run test`)
+        # instead of comparing timestamps
+        entry: bash -c 'mise run py:develop && uv run pytest --timeout=120'
         language: system
         always_run: true
         stages: [pre-push]

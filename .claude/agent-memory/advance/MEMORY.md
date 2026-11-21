@@ -96,6 +96,11 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - pytest (254): `addopts = "--benchmark-disable"` in pyproject —
     `benchmarks/python/ --benchmark-only` needs `--benchmark-enable` too. Tier 1 doc tests cache
     repo bytes once (`_tree_bytes`). Gate ~19 s
+- Generated-artifact gates (274): pre-push `pytest` + `mise run test` rebuild the `.so` via mise
+    task `py:develop`; CI `c-ffi` diffs `NativeMethods.g.cs`, `kotlin` regenerates UniFFI
+    kt/swift/.h into `$RUNNER_TEMP` + diffs modulo trailing ws/EOF blanks. Pinned by
+    `tests/test_generated_artifact_gates.py`. Prove a step: extract `run` via PyYAML, run with
+    `bash --noprofile --norc -eo pipefail` (zsh does not word-split `$G`/`set -- $p`)
 - Python dev builds: `uv run maturin develop -m crates/iscc-py/Cargo.toml` (always via uv run).
     Single `cp310-abi3` wheel. GOTCHA: `uv sync` uninstalls the editable ext — re-run maturin after
 - PyO3 pin = single source: root `Cargo.toml` (`pyo3` "0.29", `abi3-py310`); ONLY `crates/iscc-py`
