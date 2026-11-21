@@ -29,7 +29,7 @@ merge.
 | `dotnet-test`      | `cargo build -p iscc-ffi`, then `dotnet build` + `dotnet test` for `packages/dotnet`, the net8.0 build on each matrix runtime      |
 | `dotnet`           | Asserts `needs.dotnet-test.result == "success"` (aggregator, see note below)                                                       |
 | `java`             | `cargo build -p iscc-jni`, then `mvn test -f crates/iscc-jni/java/pom.xml`                                                         |
-| `go`               | `CGO_ENABLED=0 go test` + `go vet` in `packages/go` (pure Go, no Rust toolchain)                                                   |
+| `go`               | `CGO_ENABLED=0 go test` + `go vet` in `packages/go`, then both again with `GOARCH=386` (pure Go, no Rust toolchain)                |
 | `ruby`             | `standardrb`, `cargo clippy -p iscc-rb`, `rake compile`, `rake test`                                                               |
 | `ruby-source-gem`  | `scripts/build_ruby_source_gem.py` builds the source gem; Ruby 3.4 installs it into an empty gem home, runs `conformance_selftest` |
 | `cpp`              | CMake Debug + ASAN build of `packages/cpp` against `iscc-ffi`, runs the C++ test binary                                            |
@@ -475,7 +475,8 @@ compatibility promises that only the human raises.
 - WASM job runs wasm-pack tests
 - C FFI job generates headers, compiles, and runs C test program
 - Java job builds JNI crate and runs Maven tests
-- Go job runs CGO_ENABLED=0 go test and go vet (pure Go, no Rust toolchain)
+- Go job runs CGO_ENABLED=0 go test and go vet (pure Go, no Rust toolchain), then repeats both as a
+    32-bit build (`GOARCH=386`) on the same amd64 runner
 - Ruby job compiles native extension and runs conformance tests
 - Version job runs scripts/version_sync.py --check for manifest consistency
 - Bench job runs cargo bench --no-run for compile-only benchmark verification

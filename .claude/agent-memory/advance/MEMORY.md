@@ -40,6 +40,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     caveat → go-idv1.md
 - CDC params (263): `alg_cdc_params` max in u64 → saturate usize; masks via `low_bits_mask`
     (`checked_shl`, ≥32 bits → `u32::MAX`). Go: `clampInt` for max/center (386 int32)
+- Go 386 CI step (267): `go` job runs `GOARCH=386 CGO_ENABLED=0 go test` + vet (`run: |`; yamlfix
+    wraps long `&&` lines). Real failures: grep `--- FAIL` (runner self-test prints `FAILED:` lines)
 - Go hashers (261): `Push(...) error` + `finalized` flag set at `Finalize` ENTRY (any first call
     consumes, like Rust `finalize(self)` / Python `take()`); every in-package `Push` error checked
 
