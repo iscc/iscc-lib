@@ -24,12 +24,14 @@ py3.15 leg builds the sdist pure → accepts. Any data-edge vector where builds 
 pytest leg whatever `diverges` says → scoped the fan-out with build-stable vectors only, large
 values left for a decision. Ref utf32 loops forever on a cut point < 4. **Probe the ref on BOTH
 builds (`uv run --no-project --python 3.15 --with iscc-core==1.5.0`) before scoping a vector.** NONE
-verification (when it returns): `grep -E '^## .*(critical|normal)' issues.md` prints nothing. **An
-issue's own "Scope estimate" can over-count — apply the docs-excluded rule yourself** (257).
-**Collecting rule vs "core first and alone":** land the behaviour first, then batch pending sections
-into one fan-out. Ledger/traps → [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history
-→ [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
-track `main`, not `develop`** — check the lockfile on `develop` before scoping.
+verification (when it returns): `grep -E '^## .*(critical|normal)' issues.md` prints nothing. 265:
+scoped Python video `OverflowError` (`PyLong_AsLong` = 32-bit `long` on Windows → class differs; fix
+= `AsLongLong` + `PyOverflowError`); next ready small items: Go `GOARCH=386` CI step, Ruby 3.3
+floor. **An issue's own "Scope estimate" can over-count — apply the docs-excluded rule yourself**
+(257). **Collecting rule vs "core first and alone":** land the behaviour first, then batch pending
+sections into one fan-out. Ledger/traps → [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice
+history → [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot
+alerts track `main`, not `develop`** — check the lockfile on `develop` before scoping.
 
 ## Scope Calibration Principles
 
