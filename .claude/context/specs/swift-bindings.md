@@ -245,17 +245,18 @@ Ferrostar's **force-update tag** approach.
 4. **`sed` updates `Package.swift`** — writes the input version to `releaseTag` and the
     `swift package compute-checksum` result to `releaseChecksum`
 5. **Auto-commit** the updated `Package.swift` and push it to `main` (skipped when unchanged)
-6. **Tag the checksum commit** and force-push the tags, so a stale remote tag of the same name is
-    overwritten:
+6. **Tag the checksum commit** and push the tags. A tag that already exists is not moved: the
+    checkout fetches every tag, `git tag` fails on the existing name, and the step logs it and
+    continues, so a release must not be tagged by hand beforehand:
     ```bash
-    git tag "v0.5.0"
-    git tag "packages/go/v0.5.0"
+    git tag "v0.5.0" 2>/dev/null || echo "Tag v0.5.0 already exists"
+    git tag "packages/go/v0.5.0" 2>/dev/null || echo "Tag packages/go/v0.5.0 already exists"
     git push origin "v0.5.0" "packages/go/v0.5.0" --force
     ```
 7. **Create the GitHub Release** for `v0.5.0` with `IsccLib.xcframework.zip` attached
 
-Because the tag is created after the checksum commit, it points to a commit with the correct
-checksum, and the release asset URL is deterministic from the tag name. SPM consumers see a
+Because a tag the workflow creates is made after the checksum commit, it points to a commit with the
+correct checksum, and the release asset URL is deterministic from the tag name. SPM consumers see a
 self-consistent state.
 
 ### Release Workflow Integration

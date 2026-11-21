@@ -59,8 +59,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     each helper the step adds** (228) → `review-patterns.md` "Moved from the index (239)"
 - **Spec-hygiene (223), docs fan-out (211), uncommitted human edits (212)** → `review-patterns.md`
     "Moved from the index (223)"
-- **Budgets**: learnings.md sits AT 200 lines and issues.md AT 300 (251) — every new bullet or entry
-    needs an equal cut in the same commit; check `wc -l` after mdformat. This index: under 140 lines
+- **Budgets**: learnings.md sits AT 200 lines (259) — every new bullet needs an equal cut in the
+    same commit; issues.md budget is 400; check `wc -l` after mdformat. This index: under 140 lines
     (a hook enforces it) — move the long form to a topic file
 
 ## Review Shortcuts (detail in the topic files named above)
@@ -108,7 +108,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     `bench:iai:check` + generator no-op + pre-push gates on new `.py` (203) → `gate-reviews.md`
 - **Doc-parity gate / doc-listing (233)**, **parser-only (242)**, **Rust docs completion (243)**,
     **C++ how-to / doc-example (244)** → `review-patterns.md` "Doc-parity gate (233)"
-- **Derived-fact removal (245)**, **file-list removal (246)**, **spec-list gate (247)** →
+- **Derived-fact removal (245)**, **file-list removal (246)**, **spec-list gate (247)**, **spec
+    drift realignment (259: every "so that" clause is its own claim; sweep the claim repo-wide)** →
     `review-patterns.md`, sections of the same names
 - **Docs install/packaging-claim step (238, 257)**: install the PUBLISHED artifact in a clean
     prefix; simulate a foreign platform for any fallback sentence (`java -Dos.arch=…`) →

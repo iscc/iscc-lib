@@ -97,10 +97,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     the Maven/Gradle/SPM snippets only: any other version in docs is hand-typed, so write none
     (244). `@iscc/wasm` metadata = wasm-pack 0.13.1 output of its `Cargo.toml` (214)
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
-    invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
-    (guard shape, artifact wiring, `needs:` graph; prek hook +
-    `tests/test_check_release_workflow.py`) plus the CI-only bidirectional `--check-action-inputs`.
-    Never hand-retype either into a heredoc
+    invariants are gated: `scripts/check_release_workflow.py` (prek hook + tests) and the CI-only
+    `--check-action-inputs`; never hand-retype either. **`prepare-release` never moves an existing
+    tag** (259): `fetch-depth: 0` fetches every tag, `git tag … || echo` keeps it and the
+    `push --force` is a no-op, so a hand-pushed tag stays on the pre-checksum commit
 - **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): source gems
     up to 0.7.0 do not build. Probe: `gem fetch iscc-lib --platform ruby`, then
     `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`. **A platform-fallback claim needs

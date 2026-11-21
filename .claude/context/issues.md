@@ -81,23 +81,25 @@ list).
 
 **Spec:** `.claude/context/specs/ruby-bindings.md`
 
-## `ci-cd.md` describes a tag trigger the release workflow does not have `normal` [review]
+## `docs/development.md` tells maintainers to release by pushing a tag `normal` [review]
 
-`.github/workflows/release.yml` has `workflow_dispatch` as its only trigger, and `target.md` says "a
-tag push does not trigger the workflow". Three places in `.claude/context/specs/ci-cd.md` say
-otherwise: the Trigger cell of the Release row in "Workflow Files", the "Tag trigger as convenience"
-bullet under "Release Workflow — Selective Publishing" → Design Principles, and the
-`push: tags: [v*.*.*]` lines in the "Trigger Configuration" YAML block. Pre-existing. Realign the
-spec without escalation (decision of 2026-11-20).
+`docs/development.md` → "Publish" says to run `git tag vX.Y.Z` and `git push origin vX.Y.Z` on
+`main`, and that "the tag push triggers `.github/workflows/release.yml`". The workflow has
+`workflow_dispatch` as its only trigger, so the push starts nothing. It also does harm:
+`prepare-release` does not move a tag that already exists (its checkout fetches every tag, `git tag`
+fails and the step continues), so a later dispatch leaves the hand-pushed tag on the commit before
+the `Package.swift` checksum commit. The registry table under the same heading lists five of the
+packages the workflow publishes, and the checkbox sentence four of the eight checkboxes.
+Pre-existing, found in iteration 259 while the same claim was removed from the specs.
 
-The same claim appears in four more places (iteration-249 audit, re-checked 2026-11-21):
-`specs/swift-bindings.md:239` (a GitHub Release creates the tag that publishes),
-`specs/c-ffi-dx.md:128` ("Tag push triggers FFI builds"), `crates/iscc-py/CLAUDE.md:134` and
-`crates/iscc-wasm/CLAUDE.md:124`.
+In `.claude/context/specs/swift-bindings.md`, the heading "Release Process — Force-Update Tag
+Pattern" and its intro paragraph still name Ferrostar's force-update approach. The Release Flow
+below it creates the tag once, after the checksum commit, and moves none. Realign without escalation
+(decision of 2026-11-20).
 
-Resolved when these seven places describe `workflow_dispatch` as the only trigger.
-
-**Spec:** `.claude/context/specs/ci-cd.md` → "Release Workflow — Selective Publishing"
+Resolved when the "Publish" section describes the dispatch with a `version` input, names every
+registry chain or says the table is an excerpt, tells the reader not to push the tag by hand, and
+the Swift heading and intro match the flow.
 
 ## Go canonical `meta` JSON differs from the core in key order, `-0` and lone surrogates `normal` [review]
 
@@ -157,25 +159,6 @@ no `#[wasm_bindgen_test]` (CI runs `wasm-pack test --node`). Pre-existing.
 
 Resolved when each of the three sections covers every surface the graph shows or says it is an
 excerpt, and the `iscc-ffi` and WASM rows match the release assets and the CI command.
-
-## Specs and the core `CLAUDE.md` contradict the code in four places `normal` [audit]
-
-Verified by the iteration-249 audit, re-checked against the tree 2026-11-21. Agents read these files
-as instructions, so each wrong statement can be implemented or "fixed back" into the code.
-
-- `specs/python-bindings.md:274`: compute is wrapped in `py.allow_threads(...)`; the code uses
-    PyO3's `py.detach(...)` (12 sites in `crates/iscc-py/src/lib.rs`)
-- `specs/rust-core.md:485`: the JS recipe destructures `iscc_decode` as an array
-    (`const [mt, st, …] =`); napi and WASM return an object
-- `specs/swift-bindings.md:147`: "Named parameters with defaults"; the UniFFI exports in
-    `crates/iscc-uniffi/src/lib.rs` declare no defaults, so Swift and Kotlin callers pass every
-    argument
-- `crates/iscc-lib/CLAUDE.md:7-8` lists the binding crates without `iscc-uniffi`, and its Tier 2
-    list (lines 40-44) lacks `read_unit` and `SEQ_MAINTYPES`
-
-**Suggested fix:** correct each statement against the code. **Scope estimate:** 4 non-test files.
-
-Resolved when the four places match the code.
 
 ## Docs overstate language coverage and what ISO 24138 specifies `normal` [audit]
 

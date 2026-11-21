@@ -788,6 +788,24 @@ Docs-only, no gate covers what matters. Three probes did the work, all from the 
 - Codex said "no actionable regressions" and did not see the table: it reviews the diff, not what
     the diff left out.
 
+## Spec / CLAUDE.md drift realignment step (259 — release-trigger claims, ~20 min, PASS_WITH_NOTES)
+
+- Checks that paid off: one `git grep -n -E` over `release.yml` for `if:`, `needs:`, `git tag`,
+    `npm publish`, `wasm-pack build` (every condition and command on one screen), then each
+    rewritten sentence read against it. The JS recipe run in Node on the built napi addon.
+- **A purpose clause is an invented mechanism.** advance copied the commands correctly and then
+    explained them: "force-push the tags, so a stale remote tag is overwritten". False:
+    `fetch-depth: 0` makes `actions/checkout` fetch every tag (`getRefSpecForAllHistory` in its
+    `src/ref-helper.ts`, read with `gh api repos/actions/checkout/contents/…?ref=v7`), so `git tag`
+    fails and the push is a no-op. Read every "so that / because" in a rewritten spec as a separate
+    claim. Codex found the same one.
+- **Sweep the false claim repo-wide before closing the issue**, with no pathspec limit taken from
+    next.md: `docs/development.md` → "Publish" still told maintainers to push a tag. next.md's grep
+    covered specs and `CLAUDE.md` files only. Filed `normal`.
+- A reviewer may correct a sub-spec sentence when the code states the fact (`git tag … || echo`). A
+    heading or intro that names a design pattern is rationale: file it, do not rewrite it.
+- `decisions.md` over budget: `cid.archive_overflow` moved two entries (422 → 396) in one call.
+
 ## Core + Go behaviour fix (250)
 
 A step that makes the Rust core and the Go port reject an input (250: ragged video frame
