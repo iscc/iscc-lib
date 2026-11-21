@@ -87,14 +87,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 4d0d949, iter 256 — incremental)
+## Current State (assessed-at: e3c7960, iter 257 — incremental)
 
-- **CI GREEN on `origin/develop` = `7538396`** (FFI NULL review). HEAD ahead by `cid(log)` only.
-    Check-suites API: `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit
-    `queued` forever — judge by `github-actions`).
-- **v0.8.0 UNMET (256):** 2 `normal` open, both `[audit]` — JS integer wrap (next planned),
-    published-docs drift. FFI NULL split CLOSED 255 (`slice_or_empty`; C FFI now met). 15 `low` (10
-    untriaged; `grep -c '^\*\*Triage:\*\* untriaged'`). issues.md 273/300.
+- **CI on `origin/develop` = `870bbe6`**: 21/22 jobs green, Perf (iai) running at assessment; last
+    FULLY green `7538396`. Check-suites API:
+    `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit `queued` forever —
+    judge by `github-actions`). In-progress run → list jobs with `gh run view <id> --json jobs`.
+- **v0.8.0 UNMET (257):** 1 `normal` open — published-docs drift `[audit]`. JS integer-range issue
+    CLOSED 256 (napi/WASM numeric params are `f64` + `opt_u32`-style helpers; grep exported fns for
+    `: u32|i32` should hit only private helpers). 16 `low` (11 untriaged). issues.md 278/300.
 - FFI extern count: `grep -c '#\[unsafe(no_mangle)\]'` = 51; a `pub ... extern "C" fn` regex gives
     50 (misses one) — use the attribute grep.
 - JNI test path is `crates/iscc-jni/java/src/test/...` (note the `java/` level) — use

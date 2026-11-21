@@ -1,15 +1,16 @@
-<!-- assessed-at: 4d0d94920f5255691ecba042506b3aca56f7ff8d -->
+<!-- assessed-at: e3c79602f21c6e28a975c892a9251fe652e51487 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features complete; two `normal` issues block the release
+## Phase: v0.8.0 — features complete; one `normal` issue blocks the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 255 closed the C
-FFI `(NULL, 0)` issue: every pointer+length input goes through one `slice_or_empty` helper. Two
-`normal` `[audit]` issues remain (integer range, published docs), none blocked on the human or
-upstream. CI is green on `7538396`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 256 closed the
+integer-range issue: napi and WASM narrow every numeric input through range-checked helpers, JNI
+rejects negative counts, and the Python/Ruby docs name the real error classes. One `normal`
+`[audit]` issue remains (published docs contradict what ships). CI on `870bbe6` is green on every
+finished job; the iai Perf job was still running at assessment time.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -27,8 +28,7 @@ upstream. CI is green on `7538396`.
 **Status**: partially met
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
-    `conformance_selftest` runs the seq vectors; 308 lib tests
-- Ragged frame signatures rejected via `check_frame_sig_lengths`; pinned by the shared vector
+    `conformance_selftest` runs the seq vectors; 308 lib tests; untouched since iteration 252
 - `call_meta` in `tests/test_data_edge.rs` sits at CRAP 30.0, exactly the `--fail-above` limit
 - **Missing (human-gated, not v0.8.0):** crate `>= 1.0.0`; MSRV verification (both `low`)
 
@@ -38,25 +38,27 @@ upstream. CI is green on `7538396`.
 
 - 35 Tier 1 symbols with `.pyi` stubs and `__all__`; abi3-py310 wheels for 4 platforms; 12
     `py.detach` sites; 0.7.0 on PyPI; data-edge harness with the iscc-core cross-check is green
-- Integer-range issue: raises `OverflowError` where `docs/howto/python.md` documents `ValueError`
+- `docs/howto/python.md` documents `OverflowError` for out-of-range integers, pinned by
+    `tests/test_int_range.py`
 - Python 3.10 floor is past end of life — `low` issue, human-only decision
 
 ## Node.js Bindings
 
-**Status**: partially met
+**Status**: met (v0.8.0 scope)
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and strict data-edge tests green;
     `@iscc/lib` 0.7.0 on npm (OIDC)
-- **Bug (`normal`):** `u32`/`i32` parameters wrap silently on out-of-range input; only
-    `gen_iscc_id_v1` runs `checked()`
+- Every exported numeric parameter is `f64` narrowed by range-checked helpers (`opt_u32` etc.);
+    out-of-range, negative and fractional values throw, with tests in `functions.test.mjs`
 - `low` issue: the napi `Buffer` reference leak
 
 ## WASM Bindings
 
-**Status**: partially met
+**Status**: met (v0.8.0 scope)
 
 - 35 Tier 1 symbols; conformance, unit and strict data-edge tests green; SIMD release build met
-- **Bug (`normal`):** same silent integer wrap as napi
+- Same `f64` + range-check pattern as napi; `cv`/`features` typed `ArrayLike<number>`
+- `low` (untriaged): the wasm-bindgen glue coerces `null`, strings and booleans to numbers
 - `alg_cdc_chunks` returns `Uint8Array[]` since 234 — needs a v0.8.0 release-notes line
 
 ## C FFI
@@ -65,10 +67,9 @@ upstream. CI is green on `7538396`.
 
 - 51 exports incl. `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with freshness check;
     `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
-- `(NULL, 0)` is an empty input on every pointer+length export; NULL inner rows are a named error;
-    `std::slice::from_raw_parts` appears only inside `slice_or_empty` (pinned by a Rust test); 121
-    tests in `src/tests.rs`; rule documented in `docs/c-ffi-api.md` and `crates/iscc-ffi/CLAUDE.md`
-- `low` (untriaged): C++ `safe_data` and .NET `PinnedRows` padding now guard a rejection the FFI no
+- `(NULL, 0)` is an empty input on every pointer+length export via `slice_or_empty`; NULL inner rows
+    are a named error
+- `low` (untriaged): C++ `safe_data` and .NET `PinnedRows` padding guard a rejection the FFI no
     longer makes — redundant but correct
 
 ## Java Bindings
@@ -76,7 +77,8 @@ upstream. CI is green on `7538396`.
 **Status**: met (v0.8.0 scope)
 
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 8 sections strictly; 0.7.0 on Maven Central
-- Integer-range issue: JNI casts `bits as u32` unchecked; `low`: pending-exception guard untested
+- JNI rejects negative `bits`, `nbytes`, `width` before the unsigned cast (`non_negative` helper)
+- `low`: pending-exception guard untested
 
 ## Go Bindings
 
@@ -92,7 +94,6 @@ upstream. CI is green on `7538396`.
 **Status**: met (v0.8.0 scope)
 
 - `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 8 sections strictly; 0.7.0 on NuGet
-- The 7 empty-input sentinel branches in `IsccLib.cs` are gone (FFI accepts `(NULL, 0)`)
 - No .NET test passes an empty span to `GenImageCodeV0`, `EncodeBase64` or `AlgMinhash256`
 - .NET 8 floor past end of life — `low`, human-only
 
@@ -109,7 +110,8 @@ upstream. CI is green on `7538396`.
 **Status**: met (v0.8.0 scope)
 
 - `encode_seq` / `decode_seq`; `test_data_edge.rb` runs all 8 sections strictly; 0.7.0 on RubyGems
-- Integer-range issue: raises `RangeError` where `docs/ruby-api.md` documents `RuntimeError`
+- `docs/ruby-api.md` documents `RangeError` for out-of-range integers (pinned in
+    `test_array_args.rb`)
 - `low`: source gems up to 0.7.0 do not build; Ruby 3.1 floor EOL; Float accepted for integers
 
 ## Swift and Kotlin Bindings
@@ -125,9 +127,9 @@ upstream. CI is green on `7538396`.
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (20 `FULL`, 2 `EXACT`)
-- **Bug (`normal`):** published docs contradict what ships — README prints `result.iscc` from a
-    string return, WASM snippet lacks `await init()`, Java/Kotlin/Swift docs deny shipped
-    distribution, `architecture.md` and `development.md` carry stale claims (~11 files)
+- **Bug (`normal`, last v0.8.0 blocker):** published docs contradict what ships — README prints
+    `result.iscc` from a string return, WASM snippet lacks `await init()`, Java/Kotlin/Swift docs
+    deny shipped distribution, `architecture.md` and `development.md` carry stale claims (~11 files)
 - `low`: Sum-Code comments show `KAA`; pkg-config example says `Version: 0.2.0`; `ci-cd.md`
     describes a tag trigger `release.yml` does not have
 
@@ -144,17 +146,19 @@ upstream. CI is green on `7538396`.
 
 - `ci.yml` has 21 jobs (job table gated); `release.yml` is `workflow_dispatch`-only with 8 registry
     toggles; 21 version-sync targets at 0.7.0
-- `iscc-ffi` sits outside the iai and CRAP gates — FFI marshalling regressions are not gated
-- **Latest CI: PASSING** on `origin/develop` = `7538396` (FFI `(NULL, 0)` review):
-    https://github.com/iscc/iscc-lib/actions/runs/44891435114
-- HEAD is ahead of origin only by the `cid(log)` commit; green CI covers all code at HEAD
+- `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates — binding marshalling is not gated
+- **Latest CI: IN PROGRESS** on `origin/develop` = `870bbe6` (integer-range review): 21 of 22 jobs
+    `success`, only Perf (iai) still running; the core is untouched, so it is not at risk:
+    https://github.com/iscc/iscc-lib/actions/runs/44893698709 — last fully green run is `7538396`
+- HEAD is ahead of origin only by the `cid(log)` commit; no unpushed code
 
 ## Open Issues
 
-17 open: 0 critical, 2 normal (both `[audit]`, both CID-workable), 15 low (human-directed; 10
-`untriaged`). issues.md is at 273 of 300 lines.
+17 open: 0 critical, 1 normal (`[audit]`, CID-workable), 16 low (human-directed; 11 `untriaged`).
+issues.md is at 278 of 300 lines.
 
 ## Next Milestone
 
-Close the two `normal` issues that block v0.8.0: the out-of-range integer handling across the
-bindings and the published-docs corrections. The release itself stays with Titusz.
+Close the last `normal` issue blocking v0.8.0: make the published docs and READMEs match what the
+packages actually ship. Confirm the iai Perf job on `870bbe6` finishes green. The release itself
+stays with Titusz.
