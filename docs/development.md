@@ -164,8 +164,10 @@ can review and re-stage.
     crate root from `crates/iscc-lib/src/lib.rs` and fails when a registered doc that enumerates the
     Tier 1 API misses one (any binding casing matches), or when a `<!-- tier1:begin -->` block in
     the Rust spec or the crate's `CLAUDE.md` lists a different set. An unregistered tracked Markdown
-    file that names 30 or more Tier 1 symbols fails too, so a new API listing cannot go unchecked.
-    Also enforced in CI via `tests/test_check_tier1_docs.py`
+    file that names 30 or more Tier 1 symbols fails too, so a new API listing cannot go unchecked. A
+    column-0 `pub` item in `lib.rs` that the parser neither derives nor lists in the script's
+    explicit exclusions (for example `pub struct` or `pub use x as y`) fails the gate. Also enforced
+    in CI via `tests/test_check_tier1_docs.py`
 
 ### Pre-push (thorough, run before code leaves the machine)
 

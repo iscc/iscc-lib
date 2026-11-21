@@ -132,33 +132,12 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 
 - Docs page = disk + `zensical.toml` nav + `ORDERED_PAGES` + `docs/llms.txt` (`check_docs_nav.py`)
 - Tier 1 doc gate (233) `scripts/check_tier1_docs.py`: FULL/EXACT/EXEMPT registry + discovery (≥30
-    symbols). New API symbol → update every FULL doc + both `tier1:begin` blocks in the same step
+    symbols). New API symbol → update every FULL doc + both `tier1:begin` blocks in the same step.
+    Fail-closed lib.rs parse (242): `scan_lib` classifies each column-0 `pub` by offset; a new
+    non-derived crate-root item needs an `EXCLUDED_ITEMS` entry (named, never kind-wide)
 - Spec path gate `scripts/check_spec_paths.py`: `*` one segment, `**` crosses `/`; `NOT_PATHS`
     backticked spans only (228). Fix phantoms in the spec, never by adding a file
 
-## Ruby Bindings (Magnus) → MEMORY-archive.md (Magnus 0.8 API, never `Vec<T>` params)
+## Bindings detail → [bindings-detail.md](bindings-detail.md)
 
-- Ruby source gem (239): ONLY via `scripts/build_ruby_source_gem.py --out DIR` (standalone manifest
-    \+ `cargo package` core under `core/` + workspace Cargo.lock); gemspec `rb_sys ~> 0.9`.
-    Clean-home probe: from /tmp, `GEM_HOME=GEM_PATH=/tmp/x gem install` (~40 s). `rb_sys` dep is
-    conditional on `__dir__/core` (240): never unconditional — breaks cross-gem's unanchored lock
-    grep. Root `[profile.release]` copied as verbatim key lines (241, no tomllib: py3.10); clean
-    install on 3.4 ≈55 s, `.so` stripped
-- ruff RUF100 strips `# noqa: S603` in `tests/` (S rules off there) — no noqa on test subprocess
-- Ruby `i32` elements (229): only via `array_to_i32_vec` (i64 then `i32::try_from`); Magnus
-    `RBignum::to_i32` truncates negative Bignums. Rebuild: `bundle exec rake compile:dev`
-
-## Other Bindings — pointers
-
-- .NET `packages/dotnet/` (P/Invoke over `iscc_ffi`, `dotnet-version: 8.0`); C++ `packages/cpp/`
-    (header-only C++17, CMake + ASAN; no system cmake but `uv run --with cmake` works — build into
-    gitignored `build-uv/`). Detail → MEMORY-archive.md
-- Embedded NUL (213): .NET `ToNativeUtf8` / C++ `detail::checked_c_str` throw; route every new
-    string input through them (bare `.c_str()` / `GetBytes` truncates at NUL)
-- C++ empty vectors (227): every vector input → `detail::safe_data` (one template, read-only
-    sentinel); never `.data()` (`{}` → FFI "must not be NULL" hides the core error)
-- .NET jagged arrays (220): `PinnedRows` in `IsccLib.cs` (`fixed` on `T[0]` is NULL → pad). Filter
-    tests: `--filter FullyQualifiedName~X`
-- npm metadata (214): `@iscc/wasm` package.json comes from `crates/iscc-wasm/Cargo.toml` via
-    wasm-pack (0.13.1 resolves `license.workspace`); `@iscc/lib` package.json is committed as-is.
-    taplo aligns trailing comments to the longest line in a block — put comments on their own line
+- Ruby source gem / Ruby `i32` / .NET jagged + NUL / C++ `safe_data` / npm metadata gotchas

@@ -8,9 +8,12 @@ and compares every registered doc against it.
 
 Source of truth (parsed, never typed out): column-0 `pub fn NAME`, `pub const NAME`
 (and `pub const fn NAME`) and named `pub use path::{a, b}` / `pub use path::name`
-items. Globs (`types::*`), `pub mod`, `pub enum` and `pub type` are not Tier 1
-symbols. A floor rejects a parse that collapses: the derived set must contain
-`FLOOR_SYMBOLS`.
+items, whose group members must be bare identifiers. The parse is fail-closed: every
+column-0 `pub` item must either derive symbols or match `EXCLUDED_ITEMS` (restricted
+`pub(...)` visibility, `pub mod NAME;` and a few named items such as
+`pub use types::*;`); any other form (`pub struct`, `pub static`, `pub unsafe fn`,
+`pub use x as y`, a nested or renaming group, another glob) fails the gate. A floor
+rejects a parse that collapses: the derived set must contain `FLOOR_SYMBOLS`.
 
 Matching a symbol in a doc: identifier tokens are compared after lowercasing and
 dropping `_`, so `gen_sum_code_v0`, `genSumCodeV0` and `GenSumCodeV0` all match, as
@@ -93,24 +96,85 @@ SKIP_FILES = {
     ".claude/context/state.md",
 }
 
+# Column-0 `pub` items in lib.rs that are recognised but are not Tier 1 symbols.
+# Named items only: a kind-wide entry (any glob, any enum) would let a new public
+# item reach the crate root without the gate seeing it. Adding one is a choice.
+EXCLUDED_ITEMS = {
+    r"pub\(": "restricted visibility: not public at the crate root",
+    r"pub mod [A-Za-z_]\w*;": "a module is a namespace, not a symbol",
+    r"pub use types::\*;": "result structs, named per binding, not Tier 1 symbols",
+    r"pub enum IsccError\b": "the error type every binding maps to its own idiom",
+    r"pub type IsccResult\b": "the `Result` alias over `IsccError`",
+}
+
 BEGIN_MARKER = "<!-- tier1:begin -->"
 END_MARKER = "<!-- tier1:end -->"
 
-PUB_ITEM_RE = re.compile(r"^pub (?:const fn|fn|const) ([A-Za-z_]\w*)", re.MULTILINE)
-PUB_USE_RE = re.compile(
-    r"^pub use ([\w:]+?)(?:::\{([^}]*)\}|::(\w+|\*));", re.MULTILINE
+PUB_START_RE = re.compile(r"^pub\b", re.MULTILINE)
+# Derive patterns are applied with `.match(text, pos)` at a `PUB_START_RE` offset;
+# each ends at a terminator so a longer form (`pub use a::b as c;`) cannot match.
+PUB_ITEM_RE = re.compile(
+    r"pub (?:const )?fn ([A-Za-z_]\w*)\s*[<(]|pub const ([A-Za-z_]\w*)\s*:"
 )
+PUB_USE_RE = re.compile(
+    r"pub use [A-Za-z_]\w*(?:::[A-Za-z_]\w*)*::(?:\{([^{}]*)\}|([A-Za-z_]\w*));"
+)
+IDENT_RE = re.compile(r"[A-Za-z_]\w*")
 TOKEN_RE = re.compile(r"[A-Za-z_]\w*")
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 
 
+def group_members(group: str) -> list[str] | None:
+    """Return the names of a `pub use path::{...}` group, or None if any is not bare.
+
+    One trailing comma is allowed; a renamed (`b as c`), nested (`b::c`), `self` or
+    `*` member, or an empty member anywhere else, makes the group unrecognised.
+    """
+    members = [m.strip() for m in group.split(",")]
+    if len(members) > 1 and members[-1] == "":
+        members.pop()
+    if all(IDENT_RE.fullmatch(m) and m != "self" for m in members):
+        return members
+    return None
+
+
+def item_symbols(lib_text: str, pos: int) -> list[str] | None:
+    """Return the symbols the `pub` item at `pos` derives, or None if it derives none."""
+    if item := PUB_ITEM_RE.match(lib_text, pos):
+        return [item[1] or item[2]]
+    if use := PUB_USE_RE.match(lib_text, pos):
+        return group_members(use[1]) if use[1] is not None else [use[2]]
+    return None
+
+
+def is_excluded(lib_text: str, pos: int) -> bool:
+    """Return True if the `pub` item at `pos` matches an `EXCLUDED_ITEMS` entry."""
+    return any(re.compile(p).match(lib_text, pos) for p in EXCLUDED_ITEMS)
+
+
+def scan_lib(lib_text: str) -> tuple[set[str], list[tuple[int, str]]]:
+    """Classify every column-0 `pub` item of `lib_text`.
+
+    Return the derived Tier 1 symbols and the unrecognised items as
+    `(line number, first line)` pairs: items that neither derive symbols nor match
+    `EXCLUDED_ITEMS`.
+    """
+    symbols: set[str] = set()
+    unrecognised = []
+    for start in PUB_START_RE.finditer(lib_text):
+        pos = start.start()
+        names = item_symbols(lib_text, pos)
+        if names is not None:
+            symbols.update(names)
+        elif not is_excluded(lib_text, pos):
+            line = lib_text.count("\n", 0, pos) + 1
+            unrecognised.append((line, lib_text[pos:].split("\n", 1)[0].rstrip()))
+    return symbols, unrecognised
+
+
 def derive_symbols(lib_text: str) -> set[str]:
     """Return the Tier 1 symbol names declared at the crate root in `lib_text`."""
-    symbols = set(PUB_ITEM_RE.findall(lib_text))
-    for _path, group, single in PUB_USE_RE.findall(lib_text):
-        names = group.split(",") if group else [single]
-        symbols.update(n.strip() for n in names if n.strip() and n.strip() != "*")
-    return symbols
+    return scan_lib(lib_text)[0]
 
 
 def norm(name: str) -> str:
@@ -209,7 +273,12 @@ def tracked_markdown(root: Path) -> list[str]:
 
 def run_checks(root: Path, tracked: list[str]) -> list[str]:
     """Run every check against the docs under `root`; return all errors."""
-    symbols = derive_symbols((root / LIB_RS).read_text(encoding="utf-8"))
+    symbols, unrecognised = scan_lib((root / LIB_RS).read_text(encoding="utf-8"))
+    if unrecognised:
+        return [
+            f"{LIB_RS}:{line}: unrecognised crate-root item: {first_line}"
+            for line, first_line in unrecognised
+        ]
     if lost := sorted(FLOOR_SYMBOLS - symbols):
         return [f"floor: {LIB_RS} parse lost {', '.join(lost)} — parse failure?"]
     registered = {*FULL, *EXACT, *EXEMPT}

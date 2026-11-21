@@ -12,6 +12,8 @@ import re
 import shutil
 from pathlib import Path
 
+import pytest
+
 # Load scripts/check_tier1_docs.py by path — it is a repo gate script, not a package.
 _SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "check_tier1_docs.py"
 _spec = importlib.util.spec_from_file_location("check_tier1_docs", _SCRIPT_PATH)
@@ -233,6 +235,72 @@ def test_floor_rejects_collapsed_parse(tmp_path):
     errors = ct.run_checks(root, TRACKED)
     assert len(errors) == 1
     assert errors[0].startswith(f"floor: {ct.LIB_RS} parse lost ")
+
+
+UNRECOGNISED_FORMS = (
+    "pub use codec::x as y;",
+    "pub use a::{b::{c}};",
+    "pub struct S;",
+    "pub static X: u8 = 1;",
+    "pub unsafe fn f() {}",
+    "pub async fn g() {}",
+    "pub use codec::*;",
+    "pub use a::{b as c, d};",
+    "pub use a::{self, b};",
+    "pub use a::{b::c, d};",
+    "pub const unsafe fn h() {}",
+    "pub enum Other {}",
+    "pub type Other = u8;",
+)
+
+EXCLUDED_FORMS = (
+    "pub(crate) mod cdc;",
+    "pub mod codec;",
+    "pub enum IsccError { InvalidInput(String) }",
+    "pub type IsccResult<T> = Result<T, IsccError>;",
+    "pub use types::*;",
+)
+
+
+@pytest.mark.parametrize("form", UNRECOGNISED_FORMS)
+def test_fire_unrecognised_crate_root_item(tmp_path, form):
+    # One column-0 form the gate neither derives nor excludes fails it on its own,
+    # before the floor and before any doc is read.
+    root = _copy_tree(tmp_path)
+    anchor = "/// Max UTF-8 byte length for name metadata trimming."
+    _edit(root, ct.LIB_RS, anchor, f"{form}\n\n{anchor}")
+    lines = (root / ct.LIB_RS).read_text(encoding="utf-8").split("\n")
+    line = lines.index(form) + 1
+    assert ct.run_checks(root, TRACKED) == [
+        f"{ct.LIB_RS}:{line}: unrecognised crate-root item: {form}"
+    ]
+
+
+def test_real_lib_rs_has_no_unrecognised_items():
+    symbols, unrecognised = ct.scan_lib(
+        (ct.ROOT / ct.LIB_RS).read_text(encoding="utf-8")
+    )
+    assert unrecognised == []
+    assert symbols == _symbols()
+
+
+@pytest.mark.parametrize("form", EXCLUDED_FORMS)
+def test_excluded_form_is_recognised_without_symbol(form):
+    # Scanned alone, so a scan that finds no `pub` item at all cannot pass vacuously.
+    assert form in SYNTHETIC_LIB
+    assert ct.PUB_START_RE.match(form)
+    assert ct.scan_lib(f"{form}\n") == (set(), [])
+
+
+def test_synthetic_lib_has_no_unrecognised_items():
+    assert ct.scan_lib(SYNTHETIC_LIB)[1] == []
+
+
+def test_group_members_reject_non_bare_names():
+    assert ct.group_members("a, b,") == ["a", "b"]
+    assert ct.group_members("\n    DataHasher,\n") == ["DataHasher"]
+    for group in ("b as c, d", "self, b", "b::c, d", "*", "", "a,,b"):
+        assert ct.group_members(group) is None
 
 
 def test_main_exits_nonzero_on_finding(tmp_path, monkeypatch, capsys):
