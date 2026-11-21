@@ -1,15 +1,15 @@
-<!-- assessed-at: 67b380f5a7c1dd14fd3f77e64a1b8567a0e53308 -->
+<!-- assessed-at: 24ae20ac2957ce015d3b4a10085b452bb37b9fed -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 14 `normal` issues block the release
+## Phase: v0.8.0 — features done; 13 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 272 made UniFFI
-`text_trim` saturate `nbytes` on 32-bit targets and fixed its doc comment, closing that issue. CI is
-green on the pushed tip `06238f6`, which covers all code at HEAD. 20 issues are open: 0 `critical`,
-14 `normal`, 6 `low`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 273 removed the
+C++ `safe_data` sentinel and the .NET `PinnedRows` padding, closing that issue. CI is green on the
+pushed tip `621bd77`, which covers all code at HEAD. 19 issues are open: 0 `critical`, 13 `normal`,
+6 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -88,20 +88,22 @@ green on the pushed tip `06238f6`, which covers all code at HEAD. 20 issues are 
 
 ## C# / .NET Bindings
 
-**Status**: partially met (one `normal` issue)
+**Status**: met (v0.8.0 scope)
 
 - `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 9 sections strictly; 0.7.0 on NuGet;
     `dotnet-test` 8.0/10.0 legs
-- `normal`: remove the `PinnedRows` padding (and C++ `safe_data`) — decided
+- `PinnedRows` sizes arrays to `Count` (no `Math.Max` padding); `ArrayInputTests` covers an empty
+    inner row
 - .NET 8 reached end of support 2026-11-10; the `net8.0` floor is the human's call
 
 ## C++ Bindings
 
-**Status**: partially met (one `normal` issue, shared with .NET)
+**Status**: met (v0.8.0 scope)
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job; 0.7.0
     vcpkg/Conan
-- `normal`: remove the redundant `safe_data` padding
+- `safe_data` is gone (no match in `packages/`, `tests/`, `docs/`); `iscc.hpp` passes `.data()`, so
+    empty vectors reach the FFI as `(NULL, 0)`; `tests/test_cpp_safe_data.py` deleted
 
 ## Ruby Bindings
 
@@ -154,19 +156,18 @@ green on the pushed tip `06238f6`, which covers all code at HEAD. 20 issues are 
     `_lowlevel.abi3.so` under pre-push pytest; `NativeMethods.g.cs` and UniFFI outputs undiffed —
     UniFFI outputs are in a known-clean state as of `06238f6`)
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING** on `origin/develop` = `06238f6`:
-    https://github.com/iscc/iscc-lib/actions/runs/44943160407 — github-actions suite `success`;
+- **Latest CI: PASSING** on `origin/develop` = `621bd77`:
+    https://github.com/iscc/iscc-lib/actions/runs/44944695726 — github-actions suite `success`;
     HEAD's only unpushed commit is `.claude/` only
 
 ## Open Issues
 
-20 open in issues.md: 0 `critical`, 14 `normal`, 6 `low`; none blocked on the human or upstream (the
-`alg_minhash_256` entry needs a decision). The UniFFI `text_trim` issue was closed this iteration. 7
+19 open in issues.md: 0 `critical`, 13 `normal`, 6 `low`; none blocked on the human or upstream (the
+`alg_minhash_256` entry needs a decision). The C++/.NET padding issue was closed this iteration. 7
 sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the 14 `normal` issues that block v0.8.0 — the code defects (FFI-consumer padding, JNI loader
-fallback, Ruby Float coercion docs, `alg_minhash_256` decision, duplication), the undiffed
-generated-artifacts gate, and the docs/spec accuracy entries. Then Titusz cuts v0.8.0 via
-`/release`.
+Clear the 13 `normal` issues that block v0.8.0 — the code defects (JNI loader fallback, Ruby Float
+coercion docs, `alg_minhash_256` decision, duplication), the undiffed generated-artifacts gate, and
+the docs/spec accuracy entries. Then Titusz cuts v0.8.0 via `/release`.
