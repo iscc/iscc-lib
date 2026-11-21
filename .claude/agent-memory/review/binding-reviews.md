@@ -739,3 +739,18 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - A `normal` issue that ends up blocked on a human decision with an upstream defect behind it:
     verdict stays PASS, the handoff opens with HUMAN REVIEW REQUESTED, the entry gets
     `**Upstream:**`
+
+### PyO3 marshalling step (iter 265, ~8 min) — PASS, Codex clean
+
+- Order: `uv run maturin develop -m crates/iscc-py/Cargo.toml` (5 s warm), the named test file,
+    `uv run pytest`, `cargo clippy -p iscc-py --all-targets -- -D warnings`, `mise run check`
+- ONE probe script covers the unstated edges of an integer-conversion change: both entry points ×
+    just past `i32`, `2**63 - 1`, beyond `i64` (CPython's own message), a bad value in the LAST
+    position of a later frame, tuple-of-tuples (the non-list path), `float`/`None` (stay
+    `TypeError`), empty and ragged (stay `ValueError`). Print class AND message per row
+- **CI has no Windows job** (21 ubuntu, 1 macOS; `release.yml` `test-wheels` is Linux-only): a
+    Windows claim is proven from the declared C type (`c_longlong`), never from a green run. Filed
+    `low` untriaged in 265: do not re-file, do not escalate
+- `PyLong_AsLongLong` is in the stable ABI, so `abi3-py310` holds; a clean build proves it
+- decisions.md over budget from `cid(human)` commits in the unpushed range: rotate first, then check
+    the rotated titles are not ones the current step leans on

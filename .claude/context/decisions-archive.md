@@ -581,3 +581,27 @@ a new OS/Xcode (the existing `release.yml` `macos-latest` job is left as is); `m
 rejected, it would turn the x86_64 rows into native builds, a design change. The `release.yml` half
 is verified statically only (`workflow_dispatch`-only). **Context:** iteration 196, CI-restore step
 chosen by define-next; Titusz may overrule.
+
+## 2026-11-18 — Codec input is upper-cased ASCII-only, `encode_seq` included
+
+**Decision:** `decode_base32`, the `iscc_normalize` prefix check and `encode_seq` upper-case ASCII
+letters only (Go: `asciiUpper`), so `ı`/`ſ`/`ß`/`ﬁ` fail as invalid base32 symbols. For
+`iscc_decode` this matches iscc-core (`b32decode` rejects non-ASCII). For `encode_seq` it diverges:
+iscc-core calls Unicode `unit.upper()` first (`codec.py:503`) and accepts all four. **Why:** extends
+"Base32 decoding stays strict" (2026-11-18), which rejected a lenient `encode_seq`; these strings
+alias canonical codes. Unicode case mapping is also unportable: Go's `strings.ToUpper` maps `ſ`/`ı`
+but not `ß`/`ﬁ`, so no Unicode rule gives Rust and Go one reject set. **Alternatives:** Unicode
+upper-casing in `encode_seq` only (reference-exact, but two casing rules in one codec — rejected).
+ASCII-only also keeps the codec independent of each runtime's Unicode case tables, the version drift
+parked on 2026-07-30. **Context:** iteration 201 review; confirmed by Titusz in an interactive
+session, 2026-11-18, and written into `rust-core.md` "Base32 input is strict".
+
+## 2026-11-18 — `encode_seq` reads a multibase-ambiguous string as a bare unit, like iscc-core
+
+**Decision:** a bare string that is both lowercase multibase (`b` + base32 of `cc01` + unit) and,
+once upper-cased, a valid unit (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20-byte `0e6008…`) encodes as
+the bare unit on every surface. **Why:** iscc-core 1.5.0 `encode_seq` returns the same bytes (it
+upper-cases before `iscc_clean`), the spec mandates upper-casing first so `faaa-aaaaaaaa` works, and
+Rust (195) and Go (202) agree. **Alternatives:** detect a complete multicodec-wrapped unit before
+case folding (Codex, iteration 202) — rejected: a reference divergence with no observed real input,
+to be mirrored on 11 surfaces. **Context:** iteration 202 review; Codex will re-flag it per surface.

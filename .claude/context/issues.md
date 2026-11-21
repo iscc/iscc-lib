@@ -207,21 +207,19 @@ step needs. **Scope estimate:** 3 non-test files; mind the iai-callgrind baselin
 
 Resolved when each computation exists once and the conformance and perf gates stay green.
 
-## Python video frame values raise a platform-dependent exception class `normal` [audit]
+## No CI job runs a test suite on Windows `low` [review]
 
-Verified by the iteration-260 audit at 3040298. `extract_frame_sigs`
-(`crates/iscc-py/src/lib.rs:86-95`) reads each value with `PyLong_AsLong` (32-bit `long` on Windows,
-64-bit elsewhere) and maps a failed `i32::try_from` to `ValueError`. So
-`gen_video_code_v0([[2**31, ...]])` and `soft_hash_video_v0` raise `ValueError` on Linux/macOS and
-`OverflowError` on Windows, while `gen_audio_code_v0` raises `OverflowError` everywhere, the class
-the 2026-11-21 decision keeps for Python integer conversion failures. `tests/test_int_range.py` has
-no video case.
+**Triage:** untriaged. A Windows user of any binding would hit a defect that depends on the platform
+(C `long` width, path handling, line endings), because no run before publishing can see it.
 
-**Suggested fix:** read with `PyLong_AsLongLong` and raise `OverflowError` outside the `i32` range;
-add video cases to `tests/test_int_range.py`. **Scope estimate:** 1 non-test file.
+`ci.yml` has 21 jobs on `ubuntu-latest` and one on `macos-15` (the Swift job). `release.yml` builds
+Windows artifacts (Python wheel, napi, JNI, C FFI, Kotlin native among them), but only `test-nuget`
+runs on `windows-latest`, and it calls `conformance_selftest` alone; `test-wheels` runs the Python
+wheel on Linux only. The video exception class fixed in iteration 265 differed on Windows only and
+was found by reading the code. Pre-existing, measured 2026-11-21.
 
-Resolved when an out-of-range frame value raises `OverflowError` on every platform, pinned by a
-test.
+Resolved when either CI runs at least the Python suite on `windows-latest`, or a decisions.md entry
+keeps CI on Linux and macOS on purpose.
 
 ## Specs and crate CLAUDE.md files describe shipped work as pending and name missing items `normal` [audit]
 

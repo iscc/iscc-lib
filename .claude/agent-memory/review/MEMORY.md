@@ -79,7 +79,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **Docs-only**: `mise run check` + clippy + `mise run version:check` + `uv run zensical build`;
     green gates say NOTHING about truth (143) → `review-patterns.md` "Moved from the index (239)"
 - **Python-only**: `mise run check` + `pytest`; a new `.py` adds pre-push `ty`/ruff; rebuild with
-    `maturin develop` before any `__doc__` test (222)
+    `maturin develop` before any test; PyO3 marshalling step (265, ~8 min) → `binding-reviews.md`
 - **New gate script / gate hardening / parity gate (142–146/163, ~10 min)**: write your OWN
     mutations, probe equal-empty and duplicated-row blind spots → `review-patterns.md`
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if

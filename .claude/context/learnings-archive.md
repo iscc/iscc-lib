@@ -1121,3 +1121,8 @@ runs on `opus`. Deliberate — do not "unify" them.
 
 - A dependency shipping DATA TABLES (Unicode, locale, tz) can change output without any `data.json`
     vector catching it (every vector predates Unicode 16) — name table-version changes in dep bumps
+
+## Archived from learnings.md (review 265)
+
+- A **bench-harness** major (171): `cargo bench --no-run` only links —
+    `cargo bench -p iscc-lib --bench benchmarks -- --test` runs each body once

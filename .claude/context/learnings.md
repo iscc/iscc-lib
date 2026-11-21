@@ -77,8 +77,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin it
     **Per-algorithm internals**, normalization order, `data.json` counts, API-parameter facts,
     **ISCC-IDv1** details, the three codec rules → `learnings-archive.md`
-- **A Go size derived from a `uint32` goes negative on 32-bit** (263): `int(x)` wraps on 386, so
-    subtract unsigned, then clamp (`clampInt`). `GOARCH=386 go test` runs on amd64; CI lacks it
+- **Integer widths differ per platform and CI cannot see it**: Go `int(x)` of a `uint32` wraps on
+    386 (263: subtract unsigned, then `clampInt`; `GOARCH=386 go test` runs on amd64). C `long` is
+    32 bits on Windows (265: read a Python `int` with `PyLong_AsLongLong`). CI has no Windows job:
+    prove a Windows claim from the type (`c_longlong`), never from a green run
 
 ## CI/CD
 
@@ -153,9 +155,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     of parameterized rows (164: xunit v2/v3 both gave 104), so demand the SAME total as the pre-bump
     tree (`git archive HEAD~1`) or derive it from the FIXTURE (166: `data.json` vector counts +
     static `@Test` count). **`mvn test` reuses stale test classes** ("Nothing to compile"), so only
-    `mvn clean test` proves the new framework compiles. A **bench-harness** major:
-    `cargo bench --no-run` only links — `cargo bench -p iscc-lib --bench benchmarks -- --test` runs
-    each body once (171)
+    `mvn clean test` proves the new framework compiles
 
 ## CID Process
 

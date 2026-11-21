@@ -1,46 +1,53 @@
-## 2026-11-21 — Python video frame values out of `i32` range raise `OverflowError` on every platform
+## 2026-11-21 — Review of: Python video frame values out of `i32` range raise `OverflowError` on every platform
 
-**Done:** `extract_frame_sigs` reads each frame value with `PyLong_AsLongLong` (64 bits on every
-platform) instead of `PyLong_AsLong` (C `long`, 32 bits on Windows), and maps the `i32::try_from`
-failure to `PyOverflowError` (same message). Both `gen_video_code_v0` and `soft_hash_video_v0` go
-through it; tests pin both.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-py/src/lib.rs`: import `PyOverflowError`; `extract_frame_sigs` doc comment, SAFETY
-    comment, `PyLong_AsLongLong` call, `PyOverflowError` mapping. Empty/ragged/non-sequence errors
-    untouched (`ValueError`)
-- `tests/test_int_range.py`: module docstring sentence on video; 4 parametrized tests — both entry
-    points × `2**31`, `-(2**31) - 1`, `2**63` raise `OverflowError` (raw call alone inside
-    `pytest.raises`, one bad value per call); both entry points × `2**31 - 1`, `-(2**31)` accepted
-    (dict with `ISCC:` iscc / 8-byte `bytes`)
-- `docs/howto/python.md`: "in a feature list" → "in a feature list or a frame signature" (mdformat
-    reflowed the paragraph; code example unchanged)
+**Summary:** `extract_frame_sigs` in `crates/iscc-py/src/lib.rs` reads each frame value with
+`PyLong_AsLongLong` and maps a failed `i32::try_from` to `OverflowError`, so `gen_video_code_v0` and
+`soft_hash_video_v0` raise the same class whatever the width of the C `long`. The diff is 1 code
+file, 1 docs sentence and 1 test file, exactly the scope of next.md. The issue "Python video frame
+values raise a platform-dependent exception class" is resolved and deleted.
 
 **Verification:**
 
-- `uv run maturin develop -m crates/iscc-py/Cargo.toml` then
-    `uv run pytest tests/test_int_range.py`: 16 passed
-- Mutation: reverting the mapping to `PyValueError` (rebuilt) → 4 failed (`2147483648` and
-    `-2147483649` on both functions), 12 passed. Restored and rebuilt. `2**63` stays green on Linux
-    under the mutation because CPython raises `OverflowError` itself there; it pins the beyond-`i64`
-    path
-- `uv run pytest`: 794 passed
-- `grep -n "PyLong_AsLong(" crates/iscc-py/src/lib.rs`: no output
-- `grep -n PyOverflowError`: import line + the `i32::try_from` mapping in `extract_frame_sigs`
-- `cargo clippy -p iscc-py --all-targets -- -D warnings`: clean
-- `mise run check`: rc=0 (first run reflowed docs/howto/python.md via mdformat, second run clean)
+- [x] `uv run pytest tests/test_int_range.py` passes — 16 passed after
+    `uv run maturin develop -m crates/iscc-py/Cargo.toml`; the video cases cover both functions
+- [x] `uv run pytest` passes — 794 passed
+- [x] `grep -n "PyLong_AsLong(" crates/iscc-py/src/lib.rs` prints nothing
+- [x] `grep -n "PyOverflowError" crates/iscc-py/src/lib.rs` shows the mapping — line 93, inside
+    `extract_frame_sigs`, plus the import
+- [x] `cargo clippy -p iscc-py --all-targets -- -D warnings` clean
+- [x] `mise run check` exits 0, no file modified
 
-**Next:** the Go `GOARCH=386` CI step (decided `normal`, issues.md), or the Ruby floor move to 3.3 /
-stale spec + `CLAUDE.md` statements.
+One extra probe on the rebuilt extension, both entry points: `2**31`, `2**63 - 1` and a bad value in
+the last position of a second frame raise `OverflowError` with the binding's message; `-(2**63) - 1`
+raises CPython's own `OverflowError`; a tuple of tuples takes the same path; a `float` or `None`
+stays `TypeError`; empty and ragged input stay `ValueError`.
+
+**Issues found:**
+
+- Filed `low`, untriaged: "No CI job runs a test suite on Windows". CI is 21 Linux jobs and one
+    macOS job, and the release workflow runs the Python wheel on Linux only. This step's Windows
+    behaviour is therefore proven from the type (`c_longlong` is 64 bits on every platform), not
+    from a run
+- Not filed (wording nit): the how-to sentence "Python raises it while converting the argument" is
+    loose for frame values, where the binding raises it. The statement a caller relies on, that the
+    error comes before the library runs, holds
+
+**Codex review:** no actionable findings. Codex rebuilt the binding and ran its own integer-boundary
+probes. It reported unrelated Git-fixture test failures that passed once it disabled inherited
+commit signing; those are from its environment, the suite is green here.
+
+**Next:** the Go `GOARCH=386` CI step (issue "No CI job runs the Go port as a 32-bit build", decided
+`normal`, one `ci.yml` step). Other small candidates: the Ruby floor move to 3.3, or the stale spec
+and `CLAUDE.md` statements (audit-scope step, up to 8 files).
 
 **Notes:**
 
-- Not verified on Windows locally; the fix removes the platform dependence by construction (64-bit
-    `long long` on all three OSes, and every out-of-`i32` value now ends in `OverflowError` either
-    from CPython or from the mapping)
-- Binding-only change: no CRAP or iai impact. No hot-path bench run (Python marshalling only; the
-    per-value call cost of `PyLong_AsLongLong` matches `PyLong_AsLong`)
-- The docs sentence "Python raises it while converting the argument, before the call reaches the
-    library" stays accurate for frame values: the binding's conversion raises it before the core
-    runs
+- `decisions.md` was 422 lines. The runner's `archive_overflow` rotated the two oldest entries (both
+    of 2026-11-18, on `encode_seq` and ASCII-only upper-casing) into `decisions-archive.md`; the
+    file is at 398 lines. Both stay binding
+- `state.md` still lists the video exception class as open; update-state will drop it
+- No decisions.md entry from this review: the 2026-11-21 decision on out-of-range integers already
+    fixes `OverflowError` as the Python class
+- Binding-only change: no CRAP, iai or semver impact; no Tier 1 signature changed
