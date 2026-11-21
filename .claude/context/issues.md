@@ -134,22 +134,6 @@ Resolved when either a Float element raises `TypeError` in every integer-list pa
 `crates/iscc-rb/test/test_array_args.rb`, or `docs/ruby-api.md` → Error Handling states the implicit
 conversion and the doc comment matches it.
 
-## Derived facts in guidance and docs are written by hand and drift `normal` [human]
-
-File lists in guidance repeat what `git ls-files` says, and nothing checks them for completeness.
-Rule: `.claude/context/README.md` → "Hygiene rules" → "Derived facts are checked or not written".
-One part of the problem is left: the directory trees in `.claude/context/specs/`. Counts, the Tier 1
-symbol list and the per-crate `CLAUDE.md` files are not part of it.
-
-`scripts/check_spec_paths.py` checks that a path listed in a spec tree exists. It does not check
-that a tree lists every file, so a new file is missing from the tree without a failure. The script's
-floors fail when it finds zero trees, so removing the trees needs a change to the script and to
-`tests/test_check_spec_paths.py`.
-
-Resolved when every file list in `.claude/context/specs/` is either removed in favour of wording
-that cannot go stale, or covered by a check that fails on a listed path that does not exist and,
-where the list claims to be complete, on a missing entry.
-
 ## The pkg-config example in the C/C++ how-to says `Version: 0.2.0` `low` [review]
 
 **Triage:** untriaged — a reader who copies the `iscc-ffi.pc` example from `docs/howto/c-cpp.md` →
@@ -213,3 +197,20 @@ Resolved when each of the three floors is either raised by the human or kept on 
 decisions.md entry), and CI tests on a supported runtime wherever the floor moved.
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness" → Policy
+
+## `ci-cd.md` describes a tag trigger the release workflow does not have `low` [review]
+
+**Triage:** untriaged — a contributor or agent who reads `ci-cd.md` expects a pushed `v*.*.*` tag to
+publish every registry. Nothing happens, or someone adds the trigger to match the spec.
+
+`.github/workflows/release.yml` has `workflow_dispatch` as its only trigger, and `target.md` says "a
+tag push does not trigger the workflow". Three places in `.claude/context/specs/ci-cd.md` say
+otherwise: the Trigger cell of the Release row in "Workflow Files", the "Tag trigger as convenience"
+bullet under "Release Workflow — Selective Publishing" → Design Principles, and the
+`push: tags: [v*.*.*]` lines in the "Trigger Configuration" YAML block. Pre-existing. The decision
+of 2026-11-20 on spec criteria that name a mechanism that does not exist applies: realign the spec,
+no escalation.
+
+Resolved when the three places describe `workflow_dispatch` as the only trigger.
+
+**Spec:** `.claude/context/specs/ci-cd.md` → "Release Workflow — Selective Publishing"

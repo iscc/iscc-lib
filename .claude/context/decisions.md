@@ -29,20 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-29 — JS-number ISCC-IDv1 surfaces take all params as `f64` and validate before narrowing
-
-**Decision:** on the two JS-number surfaces (napi, wasm) `gen_iscc_id_v1` takes `timestamp`,
-`hub_id` and `realm` all as `f64` — not the core's `u16`/`u8` — and a per-file `checked()` rejects
-non-finite / non-integral / negative / out-of-range values before narrowing. **Why:** napi and wasm
-coerce a JS `number` into the declared integer type (ToUint32 / truncation) *before* the wrapper
-runs, so integer params make the low and non-integral end unvalidatable — an out-of-contract input
-would silently mint a valid-but-wrong ID (a collision hazard). Only `f64` preserves the original
-value for a range check. **Alternatives:** keep integer params and rely on core — rejected, core
-only guards the high end and never sees the pre-truncated value; a shared validation crate —
-rejected, ~5 duplicated lines beat a new crate boundary. **Scope:** JS-number surfaces only;
-ffi/jni/rb/uniffi are typed-int with no coercion hazard and must not copy the pattern. **Context:**
-iteration 181, #43 fan-out; resolves the napi coercion issue for both surfaces at once.
-
 ## 2026-07-29 — `bench_iscc_code.four_units` iai baseline raised 11,968 → 13,400 (accepted regression)
 
 **Decision:** the committed `.iai-baseline.json` four_units baseline is raised from 11,968 to 13,400
@@ -393,3 +379,17 @@ would have passed while fixing nothing. **Alternatives:** extending `scripts/che
 these files with a completeness check (needs a parser and an exemption list for three formats, and
 every new file would then need a `CLAUDE.md` edit); keeping the lists unchecked (breaks the "Derived
 facts are checked or not written" hygiene rule). **Context:** iteration 246.
+
+## 2026-11-21 — Spec trees stay as partial lists with a gated note; aggregate lists are removed
+
+**Decision:** the structure trees in `.claude/context/specs/` stay. Each is followed by a paragraph
+containing "not every file", and `scripts/check_spec_paths.py` fails on a tree without it. Entries
+below a `GENERATED` prefix are dropped. The version-sync target table in `ci-cd.md` is replaced by a
+pointer to `TARGETS` in `scripts/version_sync.py` (review edit: it listed 10 of 21 targets and said
+"all targets listed above"). The one- and two-row "Version Sync" tables in the binding specs stay:
+each states where that binding's version must live and claims no completeness. **Why:** a tree
+comment carries a requirement ("DO NOT EDIT", where SPM, JNA and NuGet files live) and the gate
+already fails on a stale entry, so only the claim of completeness had to go. **Alternatives:**
+removing all trees with the parser, its floors and about 8 tests (every requirement comment
+rewritten as prose in 9 specs); a completeness check per tree; completing the version-sync table
+with a parity test against `TARGETS`. **Context:** iteration 247.

@@ -359,18 +359,9 @@ automatically at build time; others require explicit synchronization.
 
 ### Manual propagation (sync script required)
 
-| Target                                   | What is synced                       |
-| ---------------------------------------- | ------------------------------------ |
-| `pyproject.toml`                         | Root project version (dev workspace) |
-| `crates/iscc-napi/package.json`          | npm package version                  |
-| `crates/iscc-rb/lib/iscc_lib/version.rb` | Ruby gem VERSION constant            |
-| `crates/iscc-jni/java/pom.xml`           | Maven artifact version               |
-| `mise.toml`                              | Default `--version` flag             |
-| `scripts/test_install.py`                | Registry check fallback version      |
-| `README.md`                              | Maven dependency snippet             |
-| `crates/iscc-jni/README.md`              | Maven dependency snippet             |
-| `docs/howto/java.md`                     | Maven dependency snippet             |
-| `docs/java-api.md`                       | Maven + Gradle dependency snippets   |
+The sync targets are the `TARGETS` list in `scripts/version_sync.py`: manifests, version constants
+and script defaults that do not derive the version at build time, and the dependency snippets in
+READMEs and docs that pin a version. The list is not repeated here.
 
 Go modules use git tags for versioning — no manifest version field to sync.
 
@@ -382,7 +373,7 @@ Go modules use git tags for versioning — no manifest version field to sync.
 | `version:check` | `mise run version:check` | Validate all targets match; fail if mismatch (run in CI) |
 
 The sync script (`scripts/version_sync.py`) reads the canonical version from root `Cargo.toml` and
-updates all targets listed above. It is called before every release commit (see Release Protocol
+updates every entry in `TARGETS`. It is called before every release commit (see Release Protocol
 above). CI runs `version:check` on every push to catch drift.
 
 ## Dev Tooling

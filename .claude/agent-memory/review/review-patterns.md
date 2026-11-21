@@ -741,3 +741,21 @@ Docs-only, no gate covers what matters. Three probes did the work, all from the 
     the removed heading names across the repo (nothing may link to a deleted section).
 - A sentence that next.md suggested word for word can still be wrong: "Tier 1 is what `lib.rs`
     re-exports" (the gen functions are defined there). Fixed in step 9.
+
+## Spec-list gate step (247 — "not every file" note gated in `check_spec_paths.py`, ~15 min, PASS_WITH_NOTES)
+
+- Checks that paid off: the five next.md criteria in one script; the new gate against the previous
+    specs in a `git archive` repo (restore each changed spec with `git show HEAD~1:<f>`, `git add`,
+    run the script: exactly the 8 unnoted trees failed); each reworded note against its source
+    (`TARGET_RID` in `release.yml`, the JNA tables).
+- **Before closing a list-drift issue, sweep for lists the issue text does not name.** The entry
+    said "only the trees are left" (my own narrowing in 246) and was wrong: a grep over the specs
+    for table rows and bullets that START with a backticked file path showed a 10-row version-sync
+    table in `ci-cd.md` against 21 `TARGETS` in `scripts/version_sync.py`, with "all targets listed
+    above" below it. Compare any such table with the code's own list.
+- A drifted file list in a sub-spec is reviewer-fixable (file list = mechanically checkable fact):
+    replace it with a pointer to the code's list, re-run the spec gate, record it in decisions.md
+    and say so in the handoff. Do not write a new universal claim into the pointer sentence ("every
+    hand-written version is a target" is false: the pkg-config example in `docs/howto/c-cpp.md`).
+- Codex said "no actionable regressions" and did not see the table: it reviews the diff, not what
+    the diff left out.

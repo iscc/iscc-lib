@@ -187,12 +187,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
     "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)
-- **Spec paths are gated** (224/228): `scripts/check_spec_paths.py` checks tree entries + backticked
-    paths against `git ls-files` (never disk) — specs only, existence only. Per-crate `CLAUDE.md`
-    files hold no file lists (246): a rule is prose against a file name. `*` = one segment, `**`
-    crosses `/`. Fix the spec, or list build output in `GENERATED`. **A negative assertion must
-    reach the branch it names** (228). **Removing a derived fact (245)**: a count grep is a floor;
-    join lines (`tr '\n' ' '`) for wrapped counts; check each reworded sentence against the code
+- **Spec paths are gated** (224/228/247): `scripts/check_spec_paths.py` checks tree entries +
+    backticked paths (`.github/` too) against `git ls-files` (never disk) and fails on a tree whose
+    next paragraph lacks "not every file". Specs and per-crate `CLAUDE.md` files hold NO complete
+    file list: point to the code's own list (`TARGETS`, 247). `*` = one segment, `**` crosses `/`.
+    **A negative assertion must reach the branch it names** (228). **Removing a derived fact**: join
+    lines (`tr '\n' ' '`); sweep for table rows that start with a backticked path (247: one missed)
 - **Tier 1 doc parity is gated** (233): `scripts/check_tier1_docs.py` derives the symbols from
     `lib.rs`, NAMES only; an unparsable crate-root `pub` fails (242): add a derive rule or an
     `EXCLUDED_ITEMS` entry. `rust-api.md` signatures: `tests/test_rust_api_signatures.py`; doc
