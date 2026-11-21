@@ -3,8 +3,9 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 273):** v0.8.0 features done; 14 `normal` left (273 scoped the decided C++
-`safe_data`/.NET `PinnedRows` padding removal; next likely the generated-artifacts gate).
+**Status 2026-11-21 (iter 274):** v0.8.0 features done; 13 `normal` left (274 scoped the
+generated-artifacts gate: maturin rebuild before pre-push/`mise run test` pytest + CI diffs of
+`NativeMethods.g.cs` and 3 UniFFI outputs; next candidates: docs entries, selftest refactor).
 Per-iteration traps for 259-269 (dotnet roll-forward, build-dependent iscc-core, lone-surrogate
 vectors, wasm-bindgen `.d.ts` `?` rule, uncaught js-sys imports) →
 [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
@@ -80,6 +81,7 @@ not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md
     dev-deps is locally testable: `cargo test -p <crate> --target i686-unknown-linux-musl` (272).
 - **rustup carries stable (1.97.1) *and* 1.85.0** → every MSRV claim is locally verifiable:
     `cargo +1.85.0 check -p <crate> --locked`. Never defer an MSRV assertion to a CI job.
+- **prek flag is `--stage pre-push`, not `--hook-stage`** (274: checked `prek run --help`).
 - **`mise run lint` is only `cargo fmt --check` + clippy + ruff**; taplo/mdformat/hygiene run in
     prek (`mise run check`). Never credit a TOML/Markdown format check to `lint`.
 
