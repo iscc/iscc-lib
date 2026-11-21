@@ -67,8 +67,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 
 - **Rust-only**: `cargo test -p iscc-lib` + clippy workspace + `mise run check`. Version sync adds
     `version_sync.py --check`, a shell script `bash -n <script>`
-- **Core + Go behaviour-fix step (250, ~10 min)** → `review-patterns.md` "Core + Go behaviour fix
-    (250)"
+- **Core + Go behaviour / integer-width fix (250/263)**: boundary differential, bare `rustc` =
+    edition 2015, host-type check for a follow-up vector → `review-patterns.md` "Core + Go … (250)"
 - **Go-only canonicalizer / serializer fix (251, ~8 min)**: Go criteria + ONE differential against
     `iscc_lib` from a `git archive` copy (`go test -v`, or the output is hidden) →
     `review-patterns.md` "Go-only serializer fix (251)"

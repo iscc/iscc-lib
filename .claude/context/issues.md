@@ -176,23 +176,37 @@ estimate:** 3 non-test files.
 
 Resolved when the three pages state the coverage and the standard's scope correctly.
 
-## `alg_cdc_chunks` accepts an `avg_chunk_size` whose parameter maths overflows `normal` [audit]
+## No shared vector pins `alg_cdc_chunks` for a large `avg_chunk_size` `normal` [audit]
 
-Verified by the iteration-260 audit at 3040298. `alg_cdc_chunks` (`crates/iscc-lib/src/cdc.rs:178`)
-rejects only `avg_chunk_size < 2`. `alg_cdc_params` (`cdc.rs:59-66`) computes `avg_size * 8` in
-`u32` (overflows from 2^29) and `1u32 << (bits + 1)` (overflows when `round(log2(avg)) = 31`). Debug
-builds panic, release builds wrap (`mask_s = 0`). Go's `algCdcParams` (`packages/go/cdc.go:50-58`)
-wraps too, but its shift by 32 gives `0xFFFFFFFF`, so Rust and Go cut differently for the same
-value, and the reference (Python integers) differs from both. Every binding passes the value
-through.
+Rust and Go compute the reference's CDC parameters for every `u32` since iteration 263 (decision of
+2026-11-21), unit-tested on both. Before that, `avg_chunk_size` from 2^29 up panicked in a debug
+build of the core. `data-edge.json` has no `alg_cdc_chunks` section, so nothing shows that each
+binding accepts such a value and returns the core's chunks.
 
-**Why it matters:** a public Tier 1 function panics or returns surface-dependent chunks for a value
-it accepts. **Suggested fix:** an upper bound in Rust and Go validation (e.g.
-`avg_chunk_size <= 2^28`) or u64 parameter maths that matches the reference, plus a `data-edge.json`
-vector at the boundary. **Scope estimate:** 2 non-test files.
+Facts for the vector. An input that fits in JSON is shorter than `min_size` (`avg / 4`, 2^27 bytes
+or more), so the expected output is one chunk equal to the input: the vector pins acceptance, and
+the masks stay pinned by the Rust and Go parameter tests. Java `algCdcChunks` takes a signed `int`,
+so 2^31 and 4294967295 cannot be passed there; 2147483647 is the largest value every surface takes
+and it reaches both former overflow sites (`avg * 8` and the 32-bit mask shift).
 
-Resolved when Rust and Go return the same result (or the same rejection) for `avg_chunk_size` 2^29
-and 2^31, pinned by a vector.
+**Scope estimate:** one fan-out (12 harnesses and the C generator, learnings 226).
+
+Resolved when `data-edge.json` has an `alg_cdc_chunks` section with `avg_chunk_size` 2^29 and
+2147483647, and every harness runs it.
+
+## No CI job executes the 32-bit code paths of the core or the Go port `low` [review]
+
+**Triage:** untriaged — a user on a 32-bit target (Go `386`/`arm`, Rust `wasm32`) would hit a later
+edit that breaks the integer-width handling, with CI green.
+
+`algCdcParams` subtracts in `uint32` and clamps to `math.MaxInt` because `int(avgSize)` is negative
+on a 32-bit `int` (iteration 263). CI's Go job runs amd64 only, where the old signed form is also
+correct, so reverting it fails no CI test. The Rust `max_size` saturation for a 32-bit `usize` is
+compiled by the `wasm32` check and executed nowhere. Measured locally:
+`GOARCH=386 CGO_ENABLED=0 go test ./...` runs on an amd64 host and passes.
+
+Resolved when CI runs the Go suite once with `GOARCH=386`, or a decisions.md entry leaves 32-bit
+targets untested on purpose.
 
 ## One-shot gen functions re-implement their streaming counterparts `normal` [audit]
 

@@ -29,17 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-18 — macOS CI and release jobs pin `macos-15` (arm64), not `macos-latest`
-
-**Decision:** Every macOS job in `ci.yml` and `release.yml` runs on `macos-15`, the arm64 successor
-of the retired `macos-14` (actions/runner-images#15226); the `x86_64-apple-darwin` rows keep
-cross-compiling from arm64 exactly as before. **Why:** a like-for-like swap keeps the build design
-unchanged and the label explicit. **Alternatives:** `macos-latest` — rejected, it drifts silently to
-a new OS/Xcode (the existing `release.yml` `macos-latest` job is left as is); `macos-15-intel` —
-rejected, it would turn the x86_64 rows into native builds, a design change. The `release.yml` half
-is verified statically only (`workflow_dispatch`-only). **Context:** iteration 196, CI-restore step
-chosen by define-next; Titusz may overrule.
-
 ## 2026-11-18 — Codec input is upper-cased ASCII-only, `encode_seq` included
 
 **Decision:** `decode_base32`, the `iscc_normalize` prefix check and `encode_seq` upper-case ASCII
@@ -389,3 +378,16 @@ own `interface{ Push([]byte) }`, accepted in 0.x. **Alternatives:** flag set onl
 a non-mutating feature list, and differs from every sibling); a panic or a silent no-op in `Push`;
 `TextTrim` taking `uint` or returning an error (breaks callers passing an `int`); an exported
 sentinel error (the package has none). **Context:** iteration 261.
+
+## 2026-11-21 — `alg_cdc_chunks` accepts every `avg_chunk_size` from 2 up; large parameters saturate
+
+**Decision:** Rust and Go compute iscc-core's CDC parameters for every `u32` and reject nothing new.
+`max_size` (in Go also `center_size`) saturates at the platform integer, and a mask of 32 or more
+bits is `u32::MAX`. **Why:** audit issue: from 2^29 the core panicked in debug builds and returned
+`mask_s = 0` in release. iscc-core accepts every value, so a bound would add an error and a
+`diverges` marker for no gain. Saturation changes no result: the sizes are only used as
+`min(size, len(buffer))`, and the gear pattern stays below 2^32 (every gear value is below 2^31), so
+the bits a wider mask adds are never set. Measured: both equal iscc-core on 210 values around each
+point where `bits` changes. **Alternatives:** an upper bound such as `avg_chunk_size <= 2^28` (the
+audit's other suggestion); a `u64` pattern and masks (slower hot loop, same chunks). **Context:**
+iteration 263.

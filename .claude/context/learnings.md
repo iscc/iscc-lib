@@ -6,9 +6,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## Architecture
 
-- Hub-and-spoke: `iscc-lib` (pure Rust core) → binding crates (py, napi, wasm, ffi, jni, rb,
-    uniffi), each depending only on the core. Tier 1 = the symbols `pub use`d at crate root; Tier 2
-    is `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
+- Hub-and-spoke, API tiers → the `CLAUDE.md` files. `packages/go` is a pure-Go port, NOT a binding
 - **Binding input-marshalling traps**: WASM `serde_wasm_bindgen` `Vec<T>` accepts ANY iterable (napi
     `Vec<String>` throws `ArrayExpected`): never document "throws on non-array" for WASM (204).
     **The FFI's `CStr` truncates at an embedded NUL**, so both C-FFI wrappers reject it first (213):
@@ -77,6 +75,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin it
     **Per-algorithm internals**, normalization order, `data.json` counts, API-parameter facts,
     **ISCC-IDv1** details, the three codec rules → `learnings-archive.md`
+- **A Go size derived from a `uint32` goes negative on 32-bit** (263): `int(x)` wraps on 386, so
+    subtract unsigned, then clamp (`clampInt`). `GOARCH=386 go test` runs on amd64; CI lacks it
 
 ## CI/CD
 

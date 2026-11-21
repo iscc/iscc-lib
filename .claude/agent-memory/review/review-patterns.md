@@ -825,6 +825,20 @@ signatures). PASS in about 10 minutes.
 - A deviation from iscc-core is a decisions.md entry. When the issue has a further "Resolved when"
     clause (a shared vector), rewrite the entry to that remainder; do not delete it
 - Codex needed under 5 minutes for a diff of this size
+- **Integer-width maths fix (263, ~15 min, PASS)**: after the logged script, ONE three-way
+    differential on boundary values (every 2^k ± 1 and every 2^(k+0.5) ± 2, where a rounded `log2`
+    flips): the reference via `uv run --no-project --with reference/iscc-core`, the Rust functions
+    cut verbatim with `sed -n 'A,Bp'` into a `/tmp` file, the Go package from a `git archive` copy
+    with a `zz_probe_test.go` that writes the tuples to a file. `diff` the three outputs
+- **Bare `rustc` compiles edition 2015** (263): `usize::try_from` fails with E0599 and the probe
+    binary is never written, so a following `diff` prints the whole reference file. Pass
+    `--edition 2021 -C overflow-checks=on` and check the line count before diffing
+- **Before suggesting a `data-edge.json` vector for a numeric boundary, read each binding's host
+    type** (263): Java `algCdcChunks` takes a signed `int`, so 2^31 cannot be a shared vector. Also
+    ask what the vector can observe: a JSON-sized input never reached the CDC masks
+- `GOARCH=386 CGO_ENABLED=0 go test` runs on the amd64 host; CI has no 32-bit job (issue filed 263)
+- iai readings 3 to 8% BELOW the July baseline on benchmarks the diff cannot reach are toolchain
+    drift (263, rustc 1.100): say so in the handoff, do not attribute them to the step
 
 ## Go-only serializer fix (251)
 
