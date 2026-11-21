@@ -169,6 +169,83 @@ def test_non_bytes_digest_fails_closed(tmp_path):
         gen.render(mutated)
 
 
+def test_frame_arrays_render_lengths_and_sentinels():
+    """Each frame renders as an int32 array with its own length; empties get sentinels."""
+    lines, init = gen.frame_arrays("ident", [[1, -2], []])
+    assert lines == [
+        "static const int32_t ident_f0[] = {",
+        "    1, -2,",
+        "};",
+        "static const int32_t ident_f1[] = {",
+        "    0,",
+        "};",
+        "static const int32_t *const ident_frames[] = {ident_f0, ident_f1};",
+        "static const uintptr_t ident_lens[] = {2, 0};",
+    ]
+    assert init == "{ident_frames, ident_lens, 2}"
+    empty_lines, empty_init = gen.frame_arrays("ident", [])
+    assert "static const uintptr_t ident_lens[] = {0};" in empty_lines
+    assert empty_init == "{ident_frames, ident_lens, 0}"
+
+
+def test_int32_array_wraps_values():
+    """A long frame wraps at INT32_PER_LINE values per line and keeps every value."""
+    values = list(range(gen.INT32_PER_LINE + 1))
+    lines = gen.int32_array("ident", values)
+    assert len(lines) == 4
+    body = " ".join(lines[1:-1]).replace(",", " ").split()
+    assert [int(v) for v in body] == values
+
+
+def test_video_rows_render_frames_with_their_lengths():
+    """The gen_video_code_v0 rows carry every frame with its length (ragged included)."""
+    fixture = load_fixture()
+    text = HEADER.read_text(encoding="utf-8")
+    section = fixture["gen_video_code_v0"]
+    for index, (name, vector) in enumerate(section.items()):
+        ident = f"iscc_edge_gen_video_code_v0_{index}"
+        lines, init = gen.frame_arrays(ident, vector["inputs"][0])
+        assert all(line in text for line in lines), name
+        assert f'{{"{name}", ' in text and init in text, name
+    lens = {tuple(len(f) for f in v["inputs"][0]) for v in section.values()}
+    assert any(len(set(row)) > 1 for row in lens), "no ragged video row"
+
+
+def test_meta_row_renders_object_as_json_text():
+    """A meta object input renders as its JSON text with an explicit byte length."""
+    fixture = load_fixture()
+    text = HEADER.read_text(encoding="utf-8")
+    for name, vector in fixture["gen_meta_code_v0"].items():
+        meta = vector["inputs"][2]
+        assert isinstance(meta, dict), name
+        rendered = gen.c_str(json.dumps(meta, ensure_ascii=False).encode("utf-8"))
+        assert rendered in text, name
+
+
+def test_non_int32_frame_value_fails_closed(tmp_path):
+    """A frame value outside the int32 range refuses to render."""
+
+    def mutate(fixture):
+        vector = next(iter(fixture["gen_video_code_v0"].values()))
+        vector["inputs"][0][0][0] = 2**31
+
+    mutated = write_mutated_fixture(tmp_path, mutate)
+    with pytest.raises(SystemExit, match="int32"):
+        gen.render(mutated)
+
+
+def test_non_object_meta_fails_closed(tmp_path):
+    """A meta input that is neither an object nor a string refuses to render."""
+
+    def mutate(fixture):
+        vector = next(iter(fixture["gen_meta_code_v0"].values()))
+        vector["inputs"][2] = 7
+
+    mutated = write_mutated_fixture(tmp_path, mutate)
+    with pytest.raises(SystemExit, match="expected a string"):
+        gen.render(mutated)
+
+
 def test_mutated_expected_value_renders_different_header(tmp_path):
     """A changed expected value changes the render, so the staleness gate fires."""
 

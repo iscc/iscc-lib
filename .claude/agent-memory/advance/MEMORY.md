@@ -33,6 +33,12 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `byte_list_arrays` (binary items, explicit lens). fixture =
     `json.dumps(indent=2,   ensure_ascii=False)`. Mutation-check by sed'ing an expected output in
     the copy a harness reads
+- Sections (252): 8 incl. `gen_meta_code_v0` (meta OBJECT input; harnesses serialize it, C/C++ get
+    `json.dumps(ensure_ascii=False)` text) + `gen_video_code_v0` (C struct `iscc_edge_frames`,
+    `uintptr_t` lens). napi/WASM/JNI/.NET meta return bare iscc → `UNCOMPARED` name/meta/metahash.
+    No cmake in container: `uvx cmake`. Swift toolchain persists in `/tmp/swifttc`. Reusable
+    mutation-check = a `/tmp` script that edits expected values in the copy each harness reads. Rust
+    harness `call_meta` sits at cc 5 (CRAP 30.0 = limit)
 - Output subset (236): gen `outputs` keys ⊆ `data.json` per-function keys, `iscc` required;
     validator `validate_vector(section, name, vector)` + generator `allowed_output_keys` derive it
     from data.json (gen = `gen_` prefix). Harnesses fix uncompared keys statically per result type

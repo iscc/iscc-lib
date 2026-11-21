@@ -79,6 +79,9 @@ HEADER_PREAMBLE = """\
  * Non-printable and non-ASCII bytes are 3-digit octal escapes (never hex: C
  * hex escapes are greedy and unbounded, octal escapes stop after 3 digits).
  * An empty list points at a one-element sentinel array with count 0.
+ * A frame signature is an int32 array with an explicit length; an empty
+ * frame points at a one-element sentinel array with length 0.
+ * A meta object is rendered as its JSON text (gen_meta_code_v0).
  * Error rows carry zeroed outputs.
  *
  * Regenerate with: uv run --script scripts/gen_data_edge_vectors.py
@@ -87,6 +90,7 @@ HEADER_PREAMBLE = """\
 #define ISCC_DATA_EDGE_VECTORS_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define ISCC_EDGE_OK 0
 #define ISCC_EDGE_ERROR 1
@@ -102,6 +106,13 @@ struct iscc_edge_str {
 struct iscc_edge_list {
     const char *const *items;
     const size_t *lens;
+    size_t count;
+};
+
+/* A list of int32 frame signatures: parallel frame and length arrays. */
+struct iscc_edge_frames {
+    const int32_t *const *frames;
+    const uintptr_t *lens;
     size_t count;
 };
 
@@ -165,11 +176,35 @@ struct iscc_edge_alg_simhash_vector {
     struct iscc_edge_list digests;
     struct iscc_edge_str simhash;
 };
+
+/* gen_meta_code_v0: name, description, meta JSON text, bits -> iscc. */
+struct iscc_edge_gen_meta_code_v0_vector {
+    const char *name;
+    int c;
+    int cpp;
+    struct iscc_edge_str input_name;
+    struct iscc_edge_str description;
+    struct iscc_edge_str meta;
+    unsigned int bits;
+    struct iscc_edge_str iscc;
+};
+
+/* gen_video_code_v0: frame signatures, bits -> iscc. */
+struct iscc_edge_gen_video_code_v0_vector {
+    const char *name;
+    int c;
+    int cpp;
+    struct iscc_edge_frames frame_sigs;
+    unsigned int bits;
+    struct iscc_edge_str iscc;
+};
 """
 
 HEADER_POSTAMBLE = "#endif /* ISCC_DATA_EDGE_VECTORS_H */\n"
 
 NULL_STR = "{0, 0}"
+# Frame values per line in a rendered int32 array.
+INT32_PER_LINE = 20
 
 
 def escape_c_bytes(data: bytes) -> str:
@@ -239,6 +274,36 @@ def require_bytes_list(value: object, where: str) -> list[bytes]:
             f"{where}: expected a list of bytes:<hex> values, got {value!r}"
         )
     return [fixture_bytes(item, where) for item in value]
+
+
+def require_int32(value: object, where: str) -> int:
+    """Return value if it is an int32 integer (not a bool), else fail closed."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise SystemExit(f"{where}: expected an int32 frame value, got {value!r}")
+    if not -(2**31) <= value < 2**31:
+        raise SystemExit(f"{where}: expected an int32 frame value, got {value!r}")
+    return value
+
+
+def require_int32_frame(value: object, where: str) -> list[int]:
+    """Return value as a list of int32 integers, else fail closed."""
+    if not isinstance(value, list):
+        raise SystemExit(f"{where}: expected an integer list, got {value!r}")
+    return [require_int32(item, where) for item in value]
+
+
+def require_int32_frames(value: object, where: str) -> list[list[int]]:
+    """Return value as a list of int32 frame signatures, else fail closed."""
+    if not isinstance(value, list):
+        raise SystemExit(f"{where}: expected a list of integer lists, got {value!r}")
+    return [require_int32_frame(frame, where) for frame in value]
+
+
+def meta_text(value: object, where: str) -> str:
+    """Return the meta argument text: a JSON object as its JSON text, a string as is."""
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False)
+    return require_str(value, where)
 
 
 def require_arity(inputs: object, allowed: tuple[int, ...], where: str) -> list:
@@ -324,6 +389,33 @@ def list_arrays(ident: str, items: list[str]) -> tuple[list[str], str]:
     return byte_list_arrays(ident, [item.encode("utf-8") for item in items])
 
 
+def int32_array(ident: str, values: list[int]) -> list[str]:
+    """Return the lines of one static int32 array, wrapped; empty gets a 0 sentinel."""
+    padded = values or [0]
+    chunks = [
+        padded[i : i + INT32_PER_LINE] for i in range(0, len(padded), INT32_PER_LINE)
+    ]
+    body = [f"    {', '.join(str(v) for v in chunk)}," for chunk in chunks]
+    return [f"static const int32_t {ident}[] = {{", *body, "};"]
+
+
+def frame_arrays(ident: str, frames: list[list[int]]) -> tuple[list[str], str]:
+    """Return the static frame/length array lines of one frame list and its initialiser.
+
+    Each frame carries an explicit length. An empty list gets a one-element sentinel
+    so the pointer is never NULL.
+    """
+    padded = frames or [[]]
+    lines = []
+    for index, frame in enumerate(padded):
+        lines.extend(int32_array(f"{ident}_f{index}", frame))
+    names = ", ".join(f"{ident}_f{index}" for index in range(len(padded)))
+    lens = ", ".join(str(len(frame)) for frame in padded)
+    lines.append(f"static const int32_t *const {ident}_frames[] = {{{names}}};")
+    lines.append(f"static const uintptr_t {ident}_lens[] = {{{lens}}};")
+    return lines, f"{{{ident}_frames, {ident}_lens, {len(frames)}}}"
+
+
 def row_iscc_decode(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
     """Return the list-array lines and fields of one `iscc_decode` row."""
     (code,) = require_arity(vector["inputs"], (1,), where)
@@ -384,6 +476,28 @@ def row_alg_simhash(vector: dict, where: str, ident: str) -> tuple[list[str], st
     return lines, f"{digests_init}, {c_str(fixture_bytes(vector['outputs'], where))}"
 
 
+def row_gen_meta_code_v0(vector: dict, where: str, ident: str) -> tuple[list[str], str]:
+    """Return the list-array lines and fields of one `gen_meta_code_v0` row."""
+    name, description, meta, bits = require_arity(vector["inputs"], (4,), where)
+    strs = [
+        c_str(require_str(name, where).encode("utf-8")),
+        c_str(require_str(description, where).encode("utf-8")),
+        c_str(meta_text(meta, where).encode("utf-8")),
+    ]
+    iscc = gen_iscc(vector, where, "gen_meta_code_v0")
+    return [], f"{', '.join(strs)}, {require_int(bits, where)}, {iscc}"
+
+
+def row_gen_video_code_v0(
+    vector: dict, where: str, ident: str
+) -> tuple[list[str], str]:
+    """Return the frame-array lines and fields of one `gen_video_code_v0` row."""
+    frames, bits = require_arity(vector["inputs"], (2,), where)
+    lines, frames_init = frame_arrays(ident, require_int32_frames(frames, where))
+    iscc = gen_iscc(vector, where, "gen_video_code_v0")
+    return lines, f"{frames_init}, {require_int(bits, where)}, {iscc}"
+
+
 # Section name -> row renderer; the section order is the header order.
 RENDERERS = {
     "iscc_decode": row_iscc_decode,
@@ -392,6 +506,8 @@ RENDERERS = {
     "gen_mixed_code_v0": row_gen_mixed_code_v0,
     "gen_iscc_code_v0": row_gen_iscc_code_v0,
     "alg_simhash": row_alg_simhash,
+    "gen_meta_code_v0": row_gen_meta_code_v0,
+    "gen_video_code_v0": row_gen_video_code_v0,
 }
 
 

@@ -11,6 +11,9 @@
  * Non-printable and non-ASCII bytes are 3-digit octal escapes (never hex: C
  * hex escapes are greedy and unbounded, octal escapes stop after 3 digits).
  * An empty list points at a one-element sentinel array with count 0.
+ * A frame signature is an int32 array with an explicit length; an empty
+ * frame points at a one-element sentinel array with length 0.
+ * A meta object is rendered as its JSON text (gen_meta_code_v0).
  * Error rows carry zeroed outputs.
  *
  * Regenerate with: uv run --script scripts/gen_data_edge_vectors.py
@@ -19,6 +22,7 @@
 #define ISCC_DATA_EDGE_VECTORS_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define ISCC_EDGE_OK 0
 #define ISCC_EDGE_ERROR 1
@@ -34,6 +38,13 @@ struct iscc_edge_str {
 struct iscc_edge_list {
     const char *const *items;
     const size_t *lens;
+    size_t count;
+};
+
+/* A list of int32 frame signatures: parallel frame and length arrays. */
+struct iscc_edge_frames {
+    const int32_t *const *frames;
+    const uintptr_t *lens;
     size_t count;
 };
 
@@ -96,6 +107,28 @@ struct iscc_edge_alg_simhash_vector {
     int cpp;
     struct iscc_edge_list digests;
     struct iscc_edge_str simhash;
+};
+
+/* gen_meta_code_v0: name, description, meta JSON text, bits -> iscc. */
+struct iscc_edge_gen_meta_code_v0_vector {
+    const char *name;
+    int c;
+    int cpp;
+    struct iscc_edge_str input_name;
+    struct iscc_edge_str description;
+    struct iscc_edge_str meta;
+    unsigned int bits;
+    struct iscc_edge_str iscc;
+};
+
+/* gen_video_code_v0: frame signatures, bits -> iscc. */
+struct iscc_edge_gen_video_code_v0_vector {
+    const char *name;
+    int c;
+    int cpp;
+    struct iscc_edge_frames frame_sigs;
+    unsigned int bits;
+    struct iscc_edge_str iscc;
 };
 
 #define ISCC_EDGE_ISCC_DECODE_COUNT 5
@@ -182,6 +215,109 @@ static const struct iscc_edge_alg_simhash_vector iscc_edge_alg_simhash[ISCC_EDGE
      {iscc_edge_alg_simhash_1_items, iscc_edge_alg_simhash_1_lens, 2}, {"\374\?", 2}},
 };
 
-#define ISCC_EDGE_TOTAL_COUNT 18
+#define ISCC_EDGE_GEN_META_CODE_V0_COUNT 1
+static const struct iscc_edge_gen_meta_code_v0_vector iscc_edge_gen_meta_code_v0[ISCC_EDGE_GEN_META_CODE_V0_COUNT] = {
+    {"test_0001_raw_jcs_characters", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     {"Hello", 5}, {"", 0}, {"{\"title\": \"Tom & Jerry <3 > \342\200\250 \342\200\251\", \"note\": \"a\\\\u2028b \\b\\f\\u001f\"}", 69}, 64, {"ISCC:AAAWKLHFXO3IKDKI", 21}},
+};
+
+static const int32_t iscc_edge_gen_video_code_v0_0_f0[] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+    20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+    40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+    60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+    80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99,
+    100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
+    120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139,
+    140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159,
+    160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179,
+    180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199,
+    200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219,
+    220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239,
+    240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259,
+    260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279,
+    280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 297, 298, 299,
+    300, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
+    320, 321, 322, 323, 324, 325, 326, 327, 328, 329, 330, 331, 332, 333, 334, 335, 336, 337, 338, 339,
+    340, 341, 342, 343, 344, 345, 346, 347, 348, 349, 350, 351, 352, 353, 354, 355, 356, 357, 358, 359,
+    360, 361, 362, 363, 364, 365, 366, 367, 368, 369, 370, 371, 372, 373, 374, 375, 376, 377, 378, 379,
+};
+static const int32_t iscc_edge_gen_video_code_v0_0_f1[] = {
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+};
+static const int32_t *const iscc_edge_gen_video_code_v0_0_frames[] = {iscc_edge_gen_video_code_v0_0_f0, iscc_edge_gen_video_code_v0_0_f1};
+static const uintptr_t iscc_edge_gen_video_code_v0_0_lens[] = {380, 380};
+static const int32_t iscc_edge_gen_video_code_v0_1_f0[] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+    20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+    40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+    60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+    80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99,
+    100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
+    120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139,
+    140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159,
+    160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179,
+    180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199,
+    200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219,
+    220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239,
+    240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259,
+    260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279,
+    280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 297, 298, 299,
+    300, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
+    320, 321, 322, 323, 324, 325, 326, 327, 328, 329, 330, 331, 332, 333, 334, 335, 336, 337, 338, 339,
+    340, 341, 342, 343, 344, 345, 346, 347, 348, 349, 350, 351, 352, 353, 354, 355, 356, 357, 358, 359,
+    360, 361, 362, 363, 364, 365, 366, 367, 368, 369, 370, 371, 372, 373, 374, 375, 376, 377, 378, 379,
+};
+static const int32_t iscc_edge_gen_video_code_v0_1_f1[] = {
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0,
+    1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2,
+    0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1,
+    2,
+};
+static const int32_t *const iscc_edge_gen_video_code_v0_1_frames[] = {iscc_edge_gen_video_code_v0_1_f0, iscc_edge_gen_video_code_v0_1_f1};
+static const uintptr_t iscc_edge_gen_video_code_v0_1_lens[] = {380, 381};
+#define ISCC_EDGE_GEN_VIDEO_CODE_V0_COUNT 2
+static const struct iscc_edge_gen_video_code_v0_vector iscc_edge_gen_video_code_v0[ISCC_EDGE_GEN_VIDEO_CODE_V0_COUNT] = {
+    {"test_0001_equal_length", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     {iscc_edge_gen_video_code_v0_0_frames, iscc_edge_gen_video_code_v0_0_lens, 2}, 64, {"ISCC:EMAVFD4RIMPXYQWS", 21}},
+    {"test_0002_ragged_frame_sigs", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
+     {iscc_edge_gen_video_code_v0_1_frames, iscc_edge_gen_video_code_v0_1_lens, 2}, 64, {0, 0}},
+};
+
+#define ISCC_EDGE_TOTAL_COUNT 21
 
 #endif /* ISCC_DATA_EDGE_VECTORS_H */
