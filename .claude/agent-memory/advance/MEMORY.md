@@ -51,6 +51,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     c-ffi, dotnet, java, go, ruby, ruby-source-gem, cpp, swift, kotlin, bench, perf, semver,
     coverage, audit, release-workflow). `bench`=`cargo bench --no-run`; `swift` macos-15 (macos-14
     retired 2026-11-02, iter 196); `kotlin` ubuntu JDK17
+- Kotlin plugins (262): `packages/kotlin/settings.gradle.kts` `pluginManagement` = mavenCentral
+    first, portal fallback (portal BOM hop failed CI). Gradle run leaves untracked `.kotlin/` —
+    delete. .NET `dotnet-test` sets `skip-lts-prepass: true`
 - .NET CI (260): `dotnet-test` legs install into private `DOTNET_INSTALL_DIR` (runner.temp) —
     `/usr/share/dotnet` preinstalls newer majors that `LatestMajor` would pick. Verify action claims
     via `gh api 'repos/<o>/<r>/contents/<path>?ref=<tag>' --jq .content | base64 -d`

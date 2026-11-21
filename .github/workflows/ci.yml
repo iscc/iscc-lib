@@ -156,9 +156,10 @@ jobs:
       matrix:
         # The package targets net8.0, the supported floor. The 10.0 leg runs the
         # same net8.0 build on the .NET 10 runtime, as a consumer on .NET 10 does.
-        # setup-dotnet installs the SDKs into a private DOTNET_INSTALL_DIR, so a
-        # leg sees only the runtimes it lists, never the newer majors the runner
-        # image preinstalls; LatestMajor then resolves to the newest listed major.
+        # setup-dotnet installs the SDKs into a private DOTNET_INSTALL_DIR and
+        # skips its latest-LTS runtime pre-pass, so a leg holds only the runtimes
+        # it lists, never the newer majors the runner image preinstalls or the
+        # current LTS; LatestMajor then resolves to the newest listed major.
         include:
           - runtime: '8.0'
             major: 8
@@ -179,6 +180,7 @@ jobs:
           DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
         with:
           dotnet-version: ${{ matrix.sdks }}
+          skip-lts-prepass: true
       - name: Build FFI native library
         run: cargo build -p iscc-ffi
       - name: Restore .NET packages (locked mode)
