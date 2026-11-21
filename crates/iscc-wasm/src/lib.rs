@@ -32,19 +32,44 @@ fn opt_number(value: &JsValue, name: &str) -> Result<Option<f64>, JsError> {
 
 /// Read a JS array-like of numbers, naming a non-number element by index.
 ///
-/// Rejects any non-object (a string, `null`, a bare number); arrays, typed
-/// arrays and other array-likes or iterables are read via `Array.from`.
+/// Rejects any non-object (a string, `null`, a bare number). Accepts arrays,
+/// typed arrays and other array-likes: reads `length`, then each index
+/// `0..length`. An iterable without `length` (a `Set`, a generator) is
+/// rejected, as its `length` reads `undefined`. Every JS access goes through a
+/// `catch` import (`Reflect.get`), so a throwing getter becomes a `JsError`
+/// instead of unwinding through Rust frames. A missing index reads
+/// `undefined` and fails at the first gap, so a huge fake `length` costs
+/// nothing.
 fn number_vec(value: &JsValue, name: &str) -> Result<Vec<f64>, JsError> {
     if !value.is_object() {
         return Err(JsError::new(&format!(
             "Invalid {name}: expected an array of numbers"
         )));
     }
-    js_sys::Array::from(value)
-        .iter()
-        .enumerate()
-        .map(|(i, v)| number(&v, format_args!("{name}[{i}]")))
+    let length =
+        js_sys::Reflect::get(value, &JsValue::from_str("length")).map_err(|e| thrown(&e, name))?;
+    let length = to_u32(
+        number(&length, format_args!("{name}.length"))?,
+        format_args!("{name}.length"),
+    )?;
+    (0..length)
+        .map(|i| {
+            let v = js_sys::Reflect::get_u32(value, i).map_err(|e| thrown(&e, name))?;
+            number(&v, format_args!("{name}[{i}]"))
+        })
         .collect()
+}
+
+/// Map a caught JS exception from reading `name` to a `JsError`.
+///
+/// The message is read via `Reflect.get` (a `catch` import), so even an
+/// exception object with a throwing `message` getter cannot escape.
+fn thrown(exception: &JsValue, name: &str) -> JsError {
+    let message = js_sys::Reflect::get(exception, &JsValue::from_str("message"))
+        .ok()
+        .and_then(|m| m.as_string())
+        .unwrap_or_else(|| "exception thrown".to_string());
+    JsError::new(&format!("Invalid {name}: {message}"))
 }
 
 /// Read a JS value as a boolean, rejecting every non-boolean (`"false"`, `0`, …).
@@ -156,8 +181,8 @@ pub fn text_ngram_size() -> u32 {
 #[wasm_bindgen]
 pub fn gen_meta_code_v0(
     name: &str,
-    description: Option<String>,
-    meta: Option<String>,
+    #[wasm_bindgen(unchecked_optional_param_type = "string | null")] description: Option<String>,
+    #[wasm_bindgen(unchecked_optional_param_type = "string | null")] meta: Option<String>,
     #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
 ) -> Result<String, JsError> {
     let bits = opt_u32(&bits, 64, "bits")?;
@@ -614,7 +639,7 @@ pub fn alg_cdc_chunks(
     let chunks = iscc_lib::alg_cdc_chunks(data, utf32, avg)
         .map_err(|e| JsError::new(&e.to_string()))?
         .into_iter()
-        .map(js_sys::Uint8Array::from)
+        .map(js_sys::Uint8Array::new_from_slice)
         .collect();
     Ok(chunks)
 }

@@ -548,7 +548,15 @@ numeric string such as `"2"`, or a boolean. This applies to every element of a n
 (`Invalid cv[1]: expected a number`). For an optional number such as `bits`, `null` and `undefined`
 both select the default. Boolean flags (`wide`, `add_units`, `utf32`) must be `true` or `false`. Any
 other value, such as the string `"false"` or `0`, throws `Invalid <name>: expected a boolean`, and
-`null` or `undefined` select the default of an optional flag:
+`null` or `undefined` select the default of an optional flag.
+
+Number-array parameters (`cv`, `features`) accept arrays, typed arrays such as `Int32Array`, and
+array-like objects with a `length`. An iterable without a `length`, such as a `Set` or a generator,
+throws `Invalid <name>.length: expected a number`. Convert it first with `Array.from`. An exception
+thrown while the array is read, for example by a getter, comes back as an error that names the
+parameter.
+
+Wrap calls in `try`/`catch` to handle invalid input:
 
 ```javascript
 import {

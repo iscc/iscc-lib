@@ -1465,6 +1465,80 @@ fn test_number_array_accepts_typed_array() {
     );
 }
 
+/// Evaluate a JS expression into a value (test fixtures only).
+fn js(expr: &str) -> JsValue {
+    js_sys::eval(expr).unwrap()
+}
+
+#[wasm_bindgen_test]
+fn test_number_array_accepts_array_like() {
+    let like = js("({ length: 3, 0: 1, 1: -2, 2: 3 })");
+    assert_eq!(
+        iscc_wasm::gen_audio_code_v0(like, JsValue::UNDEFINED).unwrap(),
+        iscc_wasm::gen_audio_code_v0(nums(&[1.0, -2.0, 3.0]), JsValue::UNDEFINED).unwrap()
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_number_array_throwing_length_keeps_instance_alive() {
+    let bad = js("({ get length() { throw new Error('boom') } })");
+    for _ in 0..5_000 {
+        assert_eq!(
+            err_message(iscc_wasm::gen_audio_code_v0(
+                bad.clone(),
+                JsValue::UNDEFINED
+            )),
+            "Invalid cv: boom"
+        );
+    }
+    assert_eq!(iscc_wasm::text_trim("abc", num(2.0)).unwrap(), "ab");
+}
+
+#[wasm_bindgen_test]
+fn test_number_array_throwing_element_getter() {
+    let bad = js("({ length: 1, get 0() { throw new Error('boom') } })");
+    assert_eq!(
+        err_message(iscc_wasm::alg_minhash_256(bad)),
+        "Invalid features: boom"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_number_array_throwing_non_error_value() {
+    let bad = js("({ get length() { throw 42 } })");
+    assert_eq!(
+        err_message(iscc_wasm::gen_audio_code_v0(bad, JsValue::UNDEFINED)),
+        "Invalid cv: exception thrown"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_number_array_rejects_iterable_without_length() {
+    let set = js("new Set([1, 2, 3])");
+    assert_eq!(
+        err_message(iscc_wasm::gen_audio_code_v0(set, JsValue::UNDEFINED)),
+        "Invalid cv.length: expected a number"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_number_array_rejects_bad_length() {
+    let bad = js("({ length: -1 })");
+    assert_eq!(
+        err_message(iscc_wasm::alg_minhash_256(bad)),
+        "Invalid features.length: -1"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_number_array_huge_length_fails_at_first_gap() {
+    let bad = js("({ length: 4294967295, 0: 1 })");
+    assert_eq!(
+        err_message(iscc_wasm::alg_minhash_256(bad)),
+        "Invalid features[1]: expected a number"
+    );
+}
+
 #[wasm_bindgen_test]
 fn test_required_boolean_rejects_non_boolean() {
     for bad in [JsValue::NULL, JsValue::from_str("false"), num(0.0)] {

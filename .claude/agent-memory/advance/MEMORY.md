@@ -102,9 +102,13 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - JS ints (256): napi numeric params are `f64` narrowed by `to_u32`-style helpers, never
     `u8`/`u32`/`i32`. WASM (268): every number/bool/number-array param is `JsValue` + `number`/
     `opt_number`/`number_vec`/`boolean`/`opt_bool` (lib.rs top), TS type kept via
-    `unchecked_param_type` / trailing `unchecked_optional_param_type = "number | null"`. Tests:
-    `num()`/`nums()` helpers in unit.rs; Node probe =
-    `wasm-pack build --target nodejs --dev   --out-dir /tmp/...` (keeps tracked tree clean)
+    `unchecked_param_type` / `unchecked_optional_param_type`; an `Option<String>` BEFORE such a
+    param needs its own `unchecked_optional_param_type = "string | null"` or loses `?` (269). JS
+    reads only via `catch` imports (`Reflect::get`/`get_u32`); never `Array::from`/`Array::get`/
+    `try_iter` on caller values (269, ~2x slower, flagged). Tests: `num()`/`nums()`/`js()` (eval) in
+    unit.rs. Probe from Node on a RELEASE
+    `wasm-pack build --release --target nodejs --out-dir   /tmp/...`; `.d.ts` check = diff
+    JSDoc-stripped files vs `git archive <base>` build
 - WASM SIMD (#42): `blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt `--enable-simd` →
     wasm-simd.md
 

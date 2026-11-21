@@ -1,80 +1,81 @@
-## 2026-11-21 — Review of: `@iscc/wasm` type-checks every scalar argument in Rust instead of letting the glue coerce it
+## 2026-11-21 — Repair the `@iscc/wasm` type checks — optional `gen_meta_code_v0` params and exception-safe number arrays
 
-**Verdict:** NEEDS_WORK
+**Done:** `gen_meta_code_v0`'s `description` and `meta` have their `?` back in the `.d.ts`. The fix
+is `#[wasm_bindgen(unchecked_optional_param_type = "string | null")]` on the two `Option<String>`
+parameters. The macro accepted it, so the `JsValue` fallback was not needed. `number_vec` now reads
+`length` and each index through `Reflect::get` / `Reflect::get_u32`, both `catch` imports. A caught
+exception becomes `Invalid <name>: <message>`. The message is itself read via `Reflect::get`, so a
+throwing `message` getter cannot escape either. `Array::from` is gone.
 
-**Summary:** The coercion is fixed. Every number, boolean and number-array parameter arrives as a
-`JsValue` and is type-checked in Rust, and all six next.md criteria pass on a release build. The
-step also introduced two defects that the criteria did not look for: the TypeScript signature of
-`gen_meta_code_v0` lost its optional parameters, and a JavaScript exception inside `Array.from` can
-make the WASM instance unusable. Nothing is pushed. The advance commit and this review commit stay
-local until the repair.
+**Files changed:**
+
+- `crates/iscc-wasm/src/lib.rs`: `number_vec` rewritten as an array-like read. Added a private
+    `thrown` helper, `string | null` optional overrides on `description`/`meta`, and
+    `alg_cdc_chunks` maps with `Uint8Array::new_from_slice` instead of `Uint8Array::from`. The
+    `From<&[u8]>` impl is an `#[inline]` call to `new_from_slice` (js-sys lib.rs:14116), so
+    behaviour is the same. I made that change only because the criterion's grep matched the
+    substring `Array::from` inside `Uint8Array::from`
+- `crates/iscc-wasm/tests/unit.rs`: a `js()` eval helper and 7 tests. They cover an array-like
+    accepted, a throwing `length` ×5,000 followed by `text_trim("abc", 2) == "ab"`, a throwing
+    element getter, a thrown non-Error (`throw 42` → `exception thrown`), a `Set` rejected, a
+    `length: -1` rejected, and `length: 4294967295` failing at index 1
+- `docs/howto/wasm.md`: "Error handling" has a number-array paragraph (accepted inputs, the iterable
+    rejection, caught exceptions). The dangling colon is now a sentence that introduces the example
 
 **Verification:**
 
-- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` passes: 11 (conformance), 8
-    (data_edge), 119 (unit), 0 failed
-- [x] `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings` is clean
-- [x] The grep prints only `opt_bool`, `checked`, `to_u8`, `to_u32`, `to_i32` and the `filesize`
-    result field
-- [x] Node probe on a release `wasm-pack build --target nodejs` in `/tmp`: `[1, null, 3]`, `"2"`,
-    `true`, `wide = "yes"` and the nested `null` each throw; `gen_text_code_v0("Hello", null)` and
-    `gen_text_code_v0("Hello")` return `ISCC:EAAWSPUDF7GJWQVD`. The advance probe used `--dev`,
-    whose glue differs, so I repeated it on a release build
-- [x] The `.d.ts` declares `gen_text_code_v0(text: string, bits?: number | null)` and
-    `gen_audio_code_v0(cv: ArrayLike<number>, bits?: number | null)`
-- [x] `mise run check` exits 0. `git status --porcelain` shows no build output
+- `wasm-pack test --node crates/iscc-wasm --features conformance`: 11 + 8 + 126 passed (unit was
+    119), 0 failed. I re-ran it after the `new_from_slice` edit: same counts
+- `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings`: clean (re-run after
+    the last edit)
+- `.d.ts`: release `--target nodejs` builds of `git archive 3ef83ce` and of the working tree, with
+    JSDoc lines stripped (`grep -Ev '^[[:space:]]*(/\*\*|\*|\*/)'`). `diff` printed nothing and
+    exited 0 (112 lines each). The new build declares
+    `gen_meta_code_v0(name: string, description?: string | null, meta?: string | null, bits?: number | null)`.
+    This build came before the `new_from_slice` edit, which touches only the inside of a function
+    that returns `Uint8Array[]`
+- Node, release build: the throwing-`length` loop ran 10,000/10,000 errors (`"Invalid cv: boom"`),
+    and so did the throwing-element loop for `alg_minhash_256` (`"Invalid features: elem"`). After
+    both, `text_trim('abc', 2)` returned `"ab"`. `gen_meta_code_v0('ISCC Test Document!')` returned
+    `ISCC:AAAT4EBWK27737D2`. `new Set([1,2])` and a generator both threw
+    `Invalid cv.length: expected a number`. The array-like gave the same code as `[1,-2,3]`
+- `grep -n 'Array::from' crates/iscc-wasm/src/lib.rs`: no output (exit 1)
+- `mise run check`: exit 0. `git status --porcelain` shows only the 3 scoped files and
+    `iterations.jsonl`. All `/tmp` build dirs, probes and scripts are removed
 
-**Issues found:**
+**Narrowing:** an iterable without `length` (`Set`, a generator) is now rejected. Iteration 268
+accepted it via `Array.from`, and 0.7.0 read it as empty. Arrays, typed arrays and array-likes
+behave as in 0.7.0, except that elements are now type-checked. This is stated in the `number_vec`
+doc comment and in the docs page.
 
-- **TypeScript regression (blocks the step).** The built `.d.ts` now declares
-    `gen_meta_code_v0(name: string, description: string | null | undefined, meta: string | null | undefined, bits?: number | null)`.
-    The build of the previous commit has `description?: string | null, meta?: string | null`. So
-    `gen_meta_code_v0("ISCC Test Document!")`, the README call, no longer type-checks. It is the
-    only export declaration that changed (full diff of both `.d.ts` files). The handoff claim "the
-    `.d.ts` types do not change" was false
-- **Instance can be killed (blocks the step).** `number_vec` calls `js_sys::Array::from`, which has
-    no `catch`. Measured:
-    `for (…) try { gen_audio_code_v0({ get length() { throw new Error("boom") } }) } catch {}` fails
-    with `RuntimeError: memory access out of bounds` after 4,095 calls, and then
-    `text_trim("abc", 2)` fails too. The previous commit survives 200,000 calls
-- Both are in issues.md as one `critical` entry
-- Filed `low`, untriaged: `@iscc/wasm` converts byte inputs and traps on a non-string
-    (`gen_data_code_v0("abc")` returns the code of three zero bytes). Pre-existing
-- Fixed in this commit: `docs/howto/wasm.md` said "Arguments are type-checked, not converted", which
-    is false for bytes and strings. It now says "Number and boolean arguments"
-- Nit: the new docs paragraph ends with a colon that leads into an unrelated code example
-- Added to the audit entry on stale specs: the bridge sketch in `specs/wasm-bindings.md`
+**Performance (flag):** `gen_audio_code_v0`, release builds, all measured on this machine in one
+session (ms per call):
 
-**Codex review:** Both blocking defects come from the Codex run. I reproduced each one against a
-build of the previous commit before accepting it. Codex suggested a catch-enabled conversion for the
-array and explicit optional declarations for `description` and `meta`.
+| input              | `3ef83ce` (glue copy) | HEAD `8560f6a` (`Array.from`) | working tree (`Reflect.get`) |
+| ------------------ | --------------------- | ----------------------------- | ---------------------------- |
+| plain array, 3,000 | 0.62                  | 0.69                          | 1.43                         |
+| plain array, 1M    | 242                   | 218                           | 512                          |
+| Int32Array, 3,000  | 0.65                  | 0.68                          | 1.39                         |
+| Int32Array, 1M     | 247                   | 216                           | 463                          |
 
-**Next:** Repair the step, WASM surface only. The `critical` issues.md entry has the "Resolved
-when".
+Each `Reflect.get` goes through the glue's `handleError` try/apply wrapper, and that costs about 2×
+the `Array.from` read. The reviewer's 350 ms for HEAD was from another run. On this machine HEAD
+measured 218 ms. A Chromaprint vector of a few thousand elements costs about 0.8 ms more per call.
+This is binding marshalling, not a core hot path, but it is more than the ~10% threshold, so it
+needs a decision.
 
-- `gen_meta_code_v0`: restore `description?` and `meta?` in the `.d.ts`. Untested idea: put
-    `unchecked_optional_param_type = "string | null"` on the two `Option<String>` parameters, or
-    read them as `JsValue` with a string check. Check the macro source first
-- `number_vec`: no JavaScript exception may cross a Rust frame. Use a catch-enabled read
-    (`js_sys::try_iter`, `Reflect::get`), or accept only real arrays and typed arrays, which cannot
-    throw in `Array.from`. The second choice narrows what the function accepts, so say which one you
-    picked and why
-- Verify with the full `.d.ts` diff against a build of `3ef83ce` (the commit before the advance
-    commit), not with quoted lines, and with the throwing-getter loop from Node
-- Gate idea for a later step: no check compares the built `.d.ts` with an expected set of
-    declarations. The CI `wasm` job could build once and diff the export lines against a committed
-    list
+**Next:** decide whether ~2× on number arrays is acceptable. If not, a cheaper catch-safe read could
+use a crate-local `catch` import of `Array.prototype.slice` in bounded chunks (one crossing per
+chunk) and read the fresh chunk by index. That index read uses `Array::get` without `catch`. A hole
+in a sliced array falls through to `Array.prototype`, so it is not strictly exception-proof. I have
+not measured it.
 
 **Notes:**
 
-- Unpushed: `3ef83ce` (define-next), `8560f6a` (advance) and this review commit
-- Measured cost of the element-wise array read, release build, `gen_audio_code_v0`: 3,000 elements
-    0.6 ms → 1.1 ms, 1,000,000 elements 213 ms → 350 ms (plain array), 196 ms → 381 ms
-    (`Int32Array`). I consider that acceptable. It gets a decisions.md entry when the step passes,
-    because the repair may change the read
-- Release notes (v0.8.0), from the advance handoff: plain-JS callers that passed numeric strings,
-    `null` for a required number, or non-booleans for `wide`/`add_units`/`utf32` now get an error
-- Other inputs I probed that behave as intended: a missing required argument throws,
-    `new Number(64)` and a `BigInt64Array` element throw, `Uint32Array` and `Int32Array` work
-- learnings.md: the string-input divergence bullet moved to `learnings-archive.md` to make room (the
-    three decisions of 2026-11-18 cover it)
+- I did not probe the `serde_wasm_bindgen::from_value` paths (`frame_sigs`, `codes`, `units`,
+    `hash_digests`) with throwing elements. They are out of scope and still open
+- `crates/iscc-wasm/CLAUDE.md` is outside this step's scope. Two parts of it are now stale. The type
+    table row `Option<String>` → `string | undefined` does not mention that an `Option` before a
+    `JsValue` override needs its own `unchecked_optional_param_type`. The pitfall "Never take … a
+    `Vec` of numbers" does not mention the `catch`-only rule for JS reads
+- Unpushed: `3ef83ce`, `8560f6a`, the review commit, and this commit
