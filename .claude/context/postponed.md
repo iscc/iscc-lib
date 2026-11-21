@@ -117,3 +117,38 @@ Unverified fixes: a napi release that frees the reference, or `#[napi(strict)]`.
 
 Resolved when repeated `ArrayBuffer` calls to a `Buffer`-taking export show no reference or heap
 growth, and every existing Buffer/Uint8Array input still works.
+
+## The Rust core does not build for bare-metal (`no_std`) targets `normal` [human]
+
+**Postponed:** 2026-11-21, not relevant to v0.8.0; revisit when Titusz sets the milestone after
+v0.8.0.
+
+`iscc-lib` needs `std`, so it cannot be used on microcontrollers. A spike on 2026-11-21 (scratch
+copy of `b94e095`, interactive session) showed the change is small: with it the core builds for
+`thumbv7em-none-eabihf`, and all 442 core tests still pass on the host. What the spike did:
+
+- A `std` feature, on by default, that forwards to `blake3`, `data-encoding`, `hex`, `serde_json`,
+    `thiserror` and `unicode-normalization` (each declared with `default-features = false`, the
+    middle three with `alloc`). Every binding crate uses the default features and is unaffected.
+- `#![cfg_attr(not(any(feature = "std", test)), no_std)]`, `extern crate alloc`, and one `alloc`
+    import line per module (46 lines added, 11 changed across the 11 files in `src/`).
+- `libm` for `log2`/`round` in `cdc.rs` and `cos` in `dct.rs`. The conformance vectors and the
+    210-value CDC parameter test match with it.
+- `gen_sum_code_v0` (file path) and the `eprintln!` output of `conformance_selftest` only with
+    `std`.
+
+Not solved by the spike: `meta-code` needs `std`, because `serde_json_canonicalizer` uses `std::io`.
+`gen_meta_code_v0` and `json_to_data_url` on bare metal need an own JCS serializer or an upstream
+change. Nothing was executed on a device or an emulator. A heap allocator is required (`alloc`), and
+16-bit targets stay out (the code assumes `usize` of 32 bits or more).
+
+Open choices for the real change: keep the `std` float functions when `std` is on, so the current
+code path stays as it is; whether Meta-Code on bare metal is in scope. A Rust user with
+`default-features = false` loses `gen_sum_code_v0` until they add `std` (accepted in 0.x, needs a
+release note).
+
+Resolved when `cargo build -p iscc-lib --no-default-features --target thumbv7em-none-eabihf` (also
+with `--features text-processing`) is a CI step, the feature is documented in the crate README and
+`specs/rust-core.md`, and a decisions.md entry records the choice on Meta-Code.
+
+**Spec:** `.claude/context/specs/rust-core.md`

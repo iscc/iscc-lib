@@ -411,12 +411,12 @@ decision (Titusz, interactive session, 2026-11-21), answering the iteration 264 
 ## 2026-11-21 — 32-bit coverage: a Go `GOARCH=386` CI step, no native 32-bit Rust leg
 
 **Decision:** CI runs the Go suite once with `GOARCH=386`. The Rust core gets no native 32-bit test
-leg, and bare-metal (`no_std`) targets stay out of scope (the core needs `std`). **Why:** the Go
-port is separate code that CI executes on amd64 only. The Rust core already runs on a 32-bit target
-on every push: the WASM job executes the conformance and data-edge suites on `wasm32`. Measured
-2026-11-21: all 442 core tests pass on `i686-unknown-linux-musl` (debug build, overflow checks on),
-and `GOARCH=386 CGO_ENABLED=0 go test ./...` passes. A native Rust leg needs extra setup, because
-the bench dev-dependencies do not build there as they are: `alloca` (via `criterion`) needs a C
+leg. Bare-metal (`no_std`) support is postponed past v0.8.0 (postponed.md). **Why:** the Go port is
+separate code that CI executes on amd64 only. The Rust core already runs on a 32-bit target on every
+push: the WASM job executes the conformance and data-edge suites on `wasm32`. Measured 2026-11-21:
+all 442 core tests pass on `i686-unknown-linux-musl` (debug build, overflow checks on), and
+`GOARCH=386 CGO_ENABLED=0 go test ./...` passes. A native Rust leg needs extra setup, because the
+bench dev-dependencies do not build there as they are: `alloca` (via `criterion`) needs a C
 cross-compiler, and `iai-callgrind-runner` does not compile for `wasm32-wasip1`. **Alternatives:**
 an `i686` `cargo test` leg with a C cross toolchain; leaving the Go port untested on 32-bit.
 **Context:** human decision (Titusz, interactive session, 2026-11-21).
