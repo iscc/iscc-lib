@@ -193,6 +193,63 @@ enum DataEdge {
         return ["iscc": r.iscc] as [String: Any]
     }
 
+    /// Read a meta input: a JSON object is serialized, a string is passed as is.
+    static func metaArg(_ inputs: [Any], _ index: Int) throws -> String {
+        guard index < inputs.count else { throw EdgeHarnessError(description: "input \(index) is missing") }
+        if let meta = inputs[index] as? String { return meta }
+        let object = try arg(inputs, index, as: [String: Any].self)
+        guard JSONSerialization.isValidJSONObject(object),
+              let text = String(data: try JSONSerialization.data(withJSONObject: object), encoding: .utf8) else {
+            throw EdgeHarnessError(description: "input \(index) is not a serializable meta object")
+        }
+        return text
+    }
+
+    /// Prepare `genMetaCodeV0` (an empty description means none).
+    static func prepareMeta(_ inputs: [Any]) throws -> () throws -> Any {
+        let name = try arg(inputs, 0, as: String.self)
+        let description = try arg(inputs, 1, as: String.self)
+        let meta = try metaArg(inputs, 2)
+        let bits = try bits(inputs, 3)
+        let desc: String? = description.isEmpty ? nil : description
+        return { try genMetaCodeV0(name: name, description: desc, meta: meta, bits: bits) }
+    }
+
+    /// Convert a `MetaCodeResult` to a dictionary of its fields; an absent option has no key.
+    static func convertMeta(_ result: Any) -> Any {
+        guard let r = result as? MetaCodeResult else { return "not a MetaCodeResult: \(result)" }
+        var fields: [String: Any] = ["iscc": r.iscc, "name": r.name, "metahash": r.metahash]
+        fields["description"] = r.description
+        fields["meta"] = r.meta
+        return fields
+    }
+
+    /// Read one frame signature as `[Int32]`; every value must be a JSON integer.
+    static func frame(_ item: Any, _ index: Int) throws -> [Int32] {
+        guard let values = item as? [Any] else {
+            throw EdgeHarnessError(description: "input \(index) holds a non-list frame")
+        }
+        return try values.map { value in
+            guard case .int(let number) = scalar(value), let int32 = Int32(exactly: number) else {
+                throw EdgeHarnessError(description: "input \(index) holds a non-Int32 frame value")
+            }
+            return int32
+        }
+    }
+
+    /// Prepare `genVideoCodeV0` on the vector's frame signatures and bits.
+    static func prepareVideo(_ inputs: [Any]) throws -> () throws -> Any {
+        let frames = try arg(inputs, 0, as: [Any].self).map { try frame($0, 0) }
+        let bits = try bits(inputs, 1)
+        return { try genVideoCodeV0(frameSigs: frames, bits: bits) }
+    }
+
+    /// Convert a `VideoCodeResult` to a dictionary of all its fields.
+    static func convertVideo(_ result: Any) -> Any {
+        guard let r = result as? VideoCodeResult else { return "not a VideoCodeResult: \(result)" }
+        return ["iscc": r.iscc] as [String: Any]
+    }
+
     /// Section name -> caller for every function section this harness handles.
     static let sections: [String: EdgeCaller] = [
         "iscc_decode": EdgeCaller(prepare: prepareDecode, convert: convertDecode),
@@ -201,6 +258,8 @@ enum DataEdge {
         "gen_mixed_code_v0": EdgeCaller(prepare: prepareMixed, convert: convertMixed),
         "gen_iscc_code_v0": EdgeCaller(prepare: prepareIsccCode, convert: convertIsccCode),
         "alg_simhash": EdgeCaller(prepare: prepareSimhash, convert: convertSeq),
+        "gen_meta_code_v0": EdgeCaller(prepare: prepareMeta, convert: convertMeta),
+        "gen_video_code_v0": EdgeCaller(prepare: prepareVideo, convert: convertVideo),
     ]
 
     /// Load and parse the vendored data-edge.json.
