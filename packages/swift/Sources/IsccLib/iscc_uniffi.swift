@@ -2451,7 +2451,11 @@ public func textRemoveNewlines(text: String) -> String  {
 })
 }
 /**
- * Trim text to a maximum number of UTF-8 bytes on a word boundary.
+ * Trim text so its UTF-8 encoded size does not exceed `nbytes`.
+ *
+ * Keeps the longest valid UTF-8 prefix within `nbytes` bytes, dropping any
+ * character that would be split, then strips leading and trailing whitespace.
+ * Text of at most `nbytes` bytes is returned whole, apart from that strip.
  */
 public func textTrim(text: String, nbytes: UInt64) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
@@ -2574,7 +2578,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_iscc_uniffi_checksum_func_text_remove_newlines() != 55449) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_text_trim() != 46357) {
+    if (uniffi_iscc_uniffi_checksum_func_text_trim() != 61011) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_iscc_uniffi_checksum_method_datahasher_finalize() != 26196) {

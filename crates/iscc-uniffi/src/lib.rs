@@ -325,10 +325,14 @@ pub fn text_remove_newlines(text: String) -> String {
     iscc_lib::text_remove_newlines(&text)
 }
 
-/// Trim text to a maximum number of UTF-8 bytes on a word boundary.
+/// Trim text so its UTF-8 encoded size does not exceed `nbytes`.
+///
+/// Keeps the longest valid UTF-8 prefix within `nbytes` bytes, dropping any
+/// character that would be split, then strips leading and trailing whitespace.
+/// Text of at most `nbytes` bytes is returned whole, apart from that strip.
 #[uniffi::export]
 pub fn text_trim(text: String, nbytes: u64) -> String {
-    iscc_lib::text_trim(&text, nbytes as usize)
+    iscc_lib::text_trim(&text, usize::try_from(nbytes).unwrap_or(usize::MAX))
 }
 
 /// Collapse text for similarity processing (NFD, lowercase, filter).
@@ -645,6 +649,18 @@ mod tests {
 
         let collapsed = text_collapse("Hello World".into());
         assert!(!collapsed.is_empty());
+    }
+
+    #[test]
+    fn test_text_trim_nbytes_max_returns_whole_text() {
+        assert_eq!(text_trim(" Hello World ".into(), u64::MAX), "Hello World");
+    }
+
+    #[test]
+    fn test_text_trim_nbytes_above_u32_does_not_wrap() {
+        // On a 32-bit `usize` a truncating cast would turn this into 5.
+        let nbytes = (1u64 << 32) | 5;
+        assert_eq!(text_trim("Hello World".into(), nbytes), "Hello World");
     }
 
     #[test]

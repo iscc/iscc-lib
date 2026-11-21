@@ -1070,7 +1070,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_iscc_uniffi_checksum_func_text_remove_newlines() != 55449) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_iscc_uniffi_checksum_func_text_trim() != 46357) {
+    if (lib.uniffi_iscc_uniffi_checksum_func_text_trim() != 61011) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_iscc_uniffi_checksum_method_datahasher_finalize() != 26196) {
@@ -3444,7 +3444,11 @@ public object FfiConverterSequenceSequenceInt: FfiConverterRustBuffer<List<List<
 
 
         /**
-         * Trim text to a maximum number of UTF-8 bytes on a word boundary.
+         * Trim text so its UTF-8 encoded size does not exceed `nbytes`.
+         *
+         * Keeps the longest valid UTF-8 prefix within `nbytes` bytes, dropping any
+         * character that would be split, then strips leading and trailing whitespace.
+         * Text of at most `nbytes` bytes is returned whole, apart from that strip.
          */ fun `textTrim`(`text`: kotlin.String, `nbytes`: kotlin.ULong): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->

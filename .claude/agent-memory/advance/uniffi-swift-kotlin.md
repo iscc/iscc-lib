@@ -89,3 +89,15 @@ Detail moved out of MEMORY.md index. See also [[ci-gates]] for the swift/kotlin 
     (iter 210).
 - Full generate command, Gradle/JNA versions, gitignore quirks, Maven Central publishing →
     MEMORY-archive.md.
+
+## Regeneration + 32-bit (iter 272)
+
+- A `///` edit on an export changes its `uniffi_..._checksum_func_*` constant in BOTH generated
+    files (doc text feeds the checksum) — expected; regenerate both together.
+- Kotlin output ends in `\n\n\n` + trailing spaces: `mise run check` needs TWO passes (whitespace
+    trim, then end-of-file-fixer) before it exits 0. Swift bindgen also drops untracked
+    `iscc_uniffiFFI.h` + `.modulemap` in `Sources/IsccLib/` — delete them.
+- `u64` → `usize` params: `usize::try_from(x).unwrap_or(usize::MAX)` (saturate). Prove on
+    `cargo test -p iscc-uniffi --target i686-unknown-linux-musl` (target installed, ~50 s build).
+- Swift toolchain cached at `/tmp/swifttc/swift-6.1.2-RELEASE-debian12/usr/bin/swift` (may vanish).
+    Kotlin: `packages/kotlin/gradlew -p packages/kotlin test` after `cargo build -p iscc-uniffi`.
