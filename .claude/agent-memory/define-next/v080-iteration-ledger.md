@@ -134,4 +134,14 @@ the numerals go; `check_ci_job_table.py` gates rows, not the "21 job keys / 22 c
 Trap: a backtick inside a regex in next.md breaks the inline code span (mdformat escapes `_`/`\b`).
 Use `.?` or a fenced block. Next: part 3b, the file lists (indentation trees, not box-drawing) in
 the `CLAUDE.md` files. No gate parses them, so remove them or extend `check_spec_paths.py`. Then
-v0.8.0 has no normal blocker left.
+v0.8.0 has no normal blocker left. 246 = drift part 3b, CLAUDE.md half: REMOVE the trees +
+File/Module tables from the 12 per-crate `CLAUDE.md` files (docs-only). Measured: zero stale listed
+paths (only gitignored build output the tree labels as such); the drift is MISSING entries (go
+`iscc_id.go`, napi seq/id tests, cpp conanfile/vcpkg), so an existence gate would be green and fix
+nothing; completeness needs per-format universes. Removing the lists drops no Tier 1 name (probed
+with `check_tier1_docs.named_symbols`). Spec half split off: `check_spec_paths.py` fails on zero
+trees (floors), so removing or completeness-gating spec trees changes the script +
+`tests/test_check_spec_paths.py`. Spec trees sit under `## Package/Crate Structure`, no
+Verified-when names them; go lists 7 of ~50 files, so they are clearly key files, not complete
+lists. Next: spec half (remove trees + drop tree floors, or mark them key files only and keep the
+existence check), then v0.8.0 has no normal blocker.
