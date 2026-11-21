@@ -86,14 +86,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 7766b59, iter 264 — incremental)
+## Current State (assessed-at: 2961611, iter 265 — incremental)
 
-- **CI on `origin/develop` = `d5a15b9` GREEN** (run 44911781227, 24 check-runs success; was
-    in_progress at first probe — re-poll check-runs, a `null` conclusion = still running). For job
-    logs, call the `actions/jobs/<id>/logs` API with `--allow-escape-sequences` and strip ANSI.
-- 17 open (15 `normal` + 2 `low`); 6 in `postponed.md`. 263 rewrote CDC overflow issue → vector
-    remainder, filed 32-bit CI `low`. Go 294 `Test*`; `grep -c '#\[test\]' crates/iscc-lib/src/*.rs`
-    sum = 311.
+- **CI on `origin/develop` = `774f82c` GREEN** (run 44915088729, 24 check-runs success; codecov/
+    cursor suites sit `queued` forever — judge by the github-actions suite). A `null` check-run
+    conclusion = still running. For job logs, call the `actions/jobs/<id>/logs` API with
+    `--allow-escape-sequences` and strip ANSI.
+- 16 open (15 `normal` + 1 `low`); 7 in `postponed.md` (no_std added 265 by `cid(human)`). Human
+    closed the 2^29 CDC vector issue (no such vectors, decision), Go 386 CI step now `normal`.
+    data-edge.json = 9 sections. `grep -c '#\[test\]' crates/iscc-lib/src/*.rs` sum = 311.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
@@ -111,7 +112,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     always diff issues.md after an audit iteration (249 filed 4, 260 filed 5).
 - Spec trees carry a "not every file" note gated by `scripts/check_spec_paths.py` (247).
 - Tier 1 doc gate registry near top of `scripts/check_tier1_docs.py` (20 FULL, 2 EXACT, 2 EXEMPT).
-- data-edge.json sections (8 since 252; list via `uv run python` json keys). C/C++ read generated
+- data-edge.json sections (9 since 264; list via `uv run python` json keys). C/C++ read generated
     `crates/iscc-ffi/tests/data_edge_vectors.h`. Vendored check:
     `md5sum $(git ls-files -- '*data-edge.json')`.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`.

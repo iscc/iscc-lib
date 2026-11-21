@@ -1,4 +1,4 @@
-<!-- assessed-at: 7766b597690c103a55b31bb27341b34648011c89 -->
+<!-- assessed-at: 296161198a7ffa77e90221db3d20fb4d4109aa27 -->
 
 # Project State
 
@@ -6,20 +6,21 @@
 
 ## Phase: v0.8.0 — features done; CI green; 15 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 263 made the Rust
-and Go CDC parameter maths match iscc-core for every `avg_chunk_size`. The audit issue was rewritten
-to what is left: a shared vector. CI is green; 15 `normal` and 2 `low` issues remain open.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 264 added an
+`alg_cdc_chunks` section (3 vectors) to `data-edge.json` and all 12 harnesses. Titusz then ruled
+that no vector with `avg_chunk_size` of 2^29 or more is added, closed that issue, and moved the
+32-bit Go CI issue to `normal`. CI is green; 15 `normal` and 1 `low` issues remain open.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
 **Status**: met
 
-- `crates/iscc-lib/tests/data-edge.json` has 8 sections; the ragged video vector carries a
-    `diverges` marker; the 5 tracked copies are byte-identical; C/C++ read the generated
-    `data_edge_vectors.h`
-- napi, WASM, JNI and .NET leave `name`, `description`, `meta`, `metahash` uncompared for meta
-- `normal` (audit): no `alg_cdc_chunks` section yet, so `avg_chunk_size` 2^29 and 2147483647 are not
-    run by the 12 harnesses (one fan-out step incl. the C generator)
+- `crates/iscc-lib/tests/data-edge.json` has 9 sections, now including `alg_cdc_chunks` (3 vectors);
+    the 5 tracked copies are byte-identical; C/C++ read the regenerated `data_edge_vectors.h`; all
+    12 harnesses gained an `alg_cdc_chunks` handler
+- The ragged video vector carries a `diverges` marker; napi, WASM, JNI and .NET leave `name`,
+    `description`, `meta`, `metahash` uncompared for meta
+- No vector from 2^29 up, on purpose (decision of 2026-11-21; mismatch is iscc/iscc-core#141)
 
 ## Rust Core Crate
 
@@ -27,14 +28,12 @@ to what is left: a shared vector. CI is green; 15 `normal` and 2 `low` issues re
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
     `conformance_selftest` runs the seq vectors; 311 `#[test]` in `src/`
-- `alg_cdc_params` saturates instead of overflowing for every `u32` from 2 up (decision of
-    2026-11-21); 3 new `cdc::tests`; CRAP baseline updated
+- `alg_cdc_params` saturates for every `u32` from 2 up; no upper bound (decision of 2026-11-21)
 - `normal` (audit): one-shot gen functions re-implement streaming — `gen_instance_code_v0` hashes
     BLAKE3 twice, `gen_meta_code_v0` parses `meta` twice, WASM `gen_sum_code_v0` copies `SumHasher`
 - `normal` (audit): specs and crate `CLAUDE.md` files are stale — `rust-core.md` says `Version` has
     only V0, napi/py/wasm `CLAUDE.md` name `iscc_lib::Error` (type is `IsccError`)
-- `low`: the 32-bit `max_size` saturation is compiled by the wasm32 check, executed nowhere.
-    **Missing (human-gated, postponed):** crate `>= 1.0.0`; MSRV verification
+- **Postponed (human):** crate `>= 1.0.0`; MSRV verification; `no_std` support (filed 2026-11-21)
 
 ## Python Bindings
 
@@ -76,27 +75,27 @@ to what is left: a shared vector. CI is green; 15 `normal` and 2 `low` issues re
 
 **Status**: partially met (one `normal` issue)
 
-- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 8 sections strictly; 0.7.0 on Maven Central
+- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 9 sections strictly; 0.7.0 on Maven Central
     with five bundled native libraries
 - `normal`: `NativeLoader` throws on an unknown OS/arch before trying `java.library.path`
 - `algCdcChunks` takes a signed `int` — 2147483647 is the largest CDC average it can pass
 
 ## Go Bindings
 
-**Status**: partially met (one `normal` issue)
+**Status**: partially met (two `normal` issues)
 
-- Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green incl.
-    the raw-JCS meta vector and the ragged video vector; 294 `Test*` functions
-- `algCdcParams` uses `uint32` subtraction and clamps to `math.MaxInt` (32-bit safe); `low`: CI runs
-    Go on amd64 only, so no CI test fails if the 32-bit handling is reverted
-- `TextTrim` clamps `nbytes <= 0`; hashers error after `Finalize` (API break, release-notes item)
+- Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
+    sections incl. the raw-JCS meta vector and the ragged video vector
+- `normal` (decided): add one `GOARCH=386` step to the `go` CI job — the 32-bit `algCdcParams`
+    handling is untested in CI (runs locally)
 - `normal`: Go canonical `meta` differs from the core on UTF-16 key order, `-0` and lone surrogates
+- `TextTrim` clamps `nbytes <= 0`; hashers error after `Finalize` (API break, release-notes item)
 
 ## C# / .NET Bindings
 
 **Status**: partially met (one `normal` issue)
 
-- `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 8 sections strictly; 0.7.0 on NuGet
+- `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 9 sections strictly; 0.7.0 on NuGet
 - CI: `dotnet-test` 8.0/10.0 legs on a private `DOTNET_INSTALL_DIR` with `skip-lts-prepass: true`
 - `normal`: the `PinnedRows` padding (and C++ `safe_data`) guard a NULL rejection the FFI no longer
     has — removal decided
@@ -106,8 +105,8 @@ to what is left: a shared vector. CI is green; 15 `normal` and 2 `low` issues re
 
 **Status**: partially met (one `normal` issue, shared with .NET)
 
-- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job; 0.7.0
-    vcpkg/Conan
+- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run incl.
+    `alg_cdc_chunks`; ASAN `cpp` job; 0.7.0 vcpkg/Conan
 - `normal`: remove the redundant `safe_data` padding
 - The C++ examples in `docs/howto/c-cpp.md` have no committed compile or output check
 
@@ -115,7 +114,7 @@ to what is left: a shared vector. CI is green; 15 `normal` and 2 `low` issues re
 
 **Status**: partially met (two `normal` issues)
 
-- `encode_seq` / `decode_seq`; `test_data_edge.rb` runs all 8 sections strictly; 0.7.0 on RubyGems
+- `encode_seq` / `decode_seq`; `test_data_edge.rb` runs all 9 sections strictly; 0.7.0 on RubyGems
 - `normal` (human, decided): raise the floor from 3.1 to 3.3 in gemspec, CI, Gemfile, docs, and
     extend the `release.yml` cross-gem list to every supported series
 - `normal`: document the implicit Float→Integer `to_int` conversion (kept as host idiom)
@@ -126,7 +125,7 @@ to what is left: a shared vector. CI is green; 15 `normal` and 2 `low` issues re
 **Status**: met (v0.8.0 scope)
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
-    all 8 data-edge sections; shipped 0.7.0
+    all 9 data-edge sections; shipped 0.7.0
 - Kotlin resolves Gradle plugins from `mavenCentral()` first; Kotlin and macOS `swift` jobs green
 
 ## Documentation
@@ -155,20 +154,23 @@ to what is left: a shared vector. CI is green; 15 `normal` and 2 `low` issues re
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
     version-sync targets at 0.7.0
-- `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates — binding marshalling is not gated
-- **Latest CI: PASSING** on `origin/develop` = `d5a15b9`:
-    https://github.com/iscc/iscc-lib/actions/runs/44911781227 — all 24 check-runs `success`
-- HEAD is 1 commit ahead (`cid(log)`, `.claude` only), so green CI covers the code at HEAD
+- `iscc-ffi`, napi and WASM sit outside the iai and CRAP gates — binding marshalling is not gated;
+    CRAP baseline refreshed in 264
+- No 32-bit CI leg for the Go port yet (`normal`, decided, see Go)
+- **Latest CI: PASSING** on `origin/develop` = `774f82c`:
+    https://github.com/iscc/iscc-lib/actions/runs/44915088729 — all 24 check-runs `success`
+- HEAD is 3 commits ahead (`cid(log)` + two `cid(human)`, `.claude` only), so green CI covers the
+    code at HEAD
 
 ## Open Issues
 
-17 open in issues.md: 0 critical, 15 `normal`, 2 `low`; none blocked on the human or upstream.
-Iteration 263 rewrote the CDC overflow issue to its vector remainder and filed the 32-bit CI `low`
-issue. 6 more sit in `postponed.md`.
+16 open in issues.md: 0 critical, 15 `normal`, 1 `low`; none blocked on the human or upstream.
+Titusz closed the large-CDC-vector issue (no such vectors) and raised the Go 32-bit CI issue to
+`normal`. 7 sit in `postponed.md`, incl. `no_std` support filed 2026-11-21.
 
 ## Next Milestone
 
-Clear the 15 `normal` issues that block v0.8.0, correctness first: the `alg_cdc_chunks` shared
-vector, Go canonical `meta`, the Python video exception class and WASM coercion. Then the Ruby
-floor, the FFI padding removal, the JNI loader and docs/spec alignment. Titusz then cuts v0.8.0 via
-`/release`.
+Clear the 15 `normal` issues that block v0.8.0, correctness first: Go canonical `meta`, the Python
+video exception class, WASM coercion and the Go 32-bit CI step. Then the Ruby floor, the FFI padding
+removal, the JNI loader, the one-shot duplication and docs/spec alignment. Titusz then cuts v0.8.0
+via `/release`.
