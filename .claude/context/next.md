@@ -1,86 +1,79 @@
 # Next Work Package
 
-## Step: Reject video frame signatures of unequal length in the Rust core and the Go port
+## Step: Make Go's canonical meta JSON emit `&`, `<`, `>`, U+2028 and U+2029 raw, as RFC 8785 does
 
 ## Goal
 
-Fix the behaviour behind the `normal` issue "Core video hashing panics or returns a wrong digest on
-frame signatures of unequal length": `soft_hash_video_v0` (and so `gen_video_code_v0`) returns
-`InvalidInput` instead of panicking (which aborts the host process in release builds) or returning a
-digest that depends on input order. The Go port has the same defect and is fixed in the same step.
+Fix issue "Go Meta-Code differs from every other surface when metadata contains `&`, `<`, `>` or
+U+2028/9": `parseMetaJSON` must produce the same canonical bytes as the Rust core, so
+`GenMetaCodeV0` (iscc, metahash) and `JsonToDataUrl` match every other surface. The shared
+`data-edge.json` vector comes in the next step's fan-out, together with the ragged-video vector.
 
 ## Alternatives Considered
 
-- **Chosen:** core + Go video-length fix. It is the only open bug that kills the host process, and
-    the core changes behaviour, so it lands alone and first, before any vector fan-out.
-- **Rejected:** Go JCS escaping fix (`code_meta.go`). It is also a correctness bug, but a soft one
-    (wrong Meta-Code, no crash). It comes next. After it, ONE fan-out step adds the two new
-    `data-edge.json` sections (`gen_video_code_v0` error vector + `gen_meta_code_v0` JCS vector) to
-    all 12 harnesses. A new section is an unsplittable 12-surface fan-out (learnings 226), and core
-    and Go behaviour changes are never combined with a fan-out, so the vector is deliberately left
-    for that step.
+- **Chosen:** Go JCS escaping fix — a published conformance defect on one surface, and the behaviour
+    must land before the fan-out step adds its shared vector (a new section fails closed on all 12
+    harnesses, so both pending sections go out in one fan-out).
+- **Rejected:** the fan-out of the ragged-video vector alone now — it would need a second 12-surface
+    fan-out for the JCS vector one iteration later.
+- **Rejected:** pytest gate time (`--benchmark-disable`) — small and independent; it does not
+    unblock the fan-out.
 
 ## Scope
 
-- **Modify**: `crates/iscc-lib/src/lib.rs` (`soft_hash_video_v0`, its doc comment and unit tests),
-    `packages/go/code_content_video.go` (`SoftHashVideoV0` + doc comment), `docs/rust-api.md`
-    (`soft_hash_video_v0` / `gen_video_code_v0` error sentence), `.crap-baseline.json` (regenerated)
-- **Tests**: `crates/iscc-lib/tests/test_algorithm_primitives.rs` and/or `lib.rs` `mod tests`;
-    `packages/go/code_content_video_test.go`
-- **Reference**: `reference/iscc-core/iscc_core/code_content_video.py`,
-    `crates/iscc-lib/src/wtahash.rs` (`alg_wtahash` already rejects < 380 columns),
-    `crates/iscc-py/src/lib.rs` `extract_frame_sigs` (the existing Python-side check)
+- **Modify**: `packages/go/code_meta.go` (`parseMetaJSON` and its doc comment)
+- **Modify (docs)**: `packages/go/CLAUDE.md` (the "JSON canonicalization" bullet, about line 172)
+- **Tests**: `packages/go/code_meta_test.go` and/or `packages/go/codec_test.go`
+- **Reference**: `packages/go/codec.go` (`JsonToDataUrl`, line 465, shares `parseMetaJSON`); RFC
+    8785 section 3.2.2.2 (string serialization)
 
 ## Not In Scope
 
-- Adding the `data-edge.json` vector or touching any binding harness. That is the follow-up fan-out
-    step (see Alternatives). Do not add a section to `data-edge.json` here: every harness fails
-    closed on an unknown section.
-- Changing the Python binding's `extract_frame_sigs` length check. It has to stay, because it builds
-    a flat buffer with `chunks_exact(frame_len)`, and it already raises `ValueError` like the core
-    error. Error text is never matched across surfaces (`edge-vectors.md`).
-- Requiring exactly 380 columns, or changing the empty-input or `bits` handling.
-- The other `normal` issues (Go JCS, FFI NULL, integer wrap, docs, pytest time).
+- Adding a `gen_meta_code_v0` or `json_to_data_url` section to `data-edge.json` — the next step adds
+    it to all 12 harnesses at once; adding it here breaks the other 11 harnesses.
+- Full JCS number serialization (floats, large integers) or invalid-UTF-8 handling in Go — no issue
+    names them; do not widen the canonicalizer beyond string escaping.
+- Removing or changing Python's or any binding's JSON handling.
+- Touching the Rust core.
 
 ## Implementation Notes
 
-- Validate **before** deduplication: walk all of `frame_sigs` (input order) and compare each `len()`
-    with `frame_sigs[0]`. On the first mismatch return
-    `IsccError::InvalidInput(format!("frame_sigs[{i}] has length {n}, expected {first}"))`. Then the
-    dedup and sum code can keep `cols = frame_sigs[0].len()` safely. Go mirrors this with
-    `fmt.Errorf` and the same wording.
-- This deliberately deviates from iscc-core. The reference `zip(*sigs)` truncates to the shortest
-    signature, so `[380-long, 381-long]` gives a digest there and a shorter-than-380 one raises
-    `IndexError`. The human issue makes rejection the resolution. Say so in the doc comment in one
-    line. The follow-up vector will carry a `diverges` marker.
-- Tests, Rust and Go each, **one bad case per call** (learnings): (a) a longer later signature
-    (`[vec![0;380], vec![0;381]]`) → `Err`, no panic; (b) a shorter later signature (`[380, 379]`) →
-    `Err`; (c) the same pair in reversed order → `Err` (proves the result no longer depends on
-    order); (d) `gen_video_code_v0` with a ragged input → `Err`; (e) equal-length duplicates still
-    produce the existing conformance result (existing tests cover this; keep them green). Assert the
-    `InvalidInput` variant on the raw call.
-- **CRAP (CI-only gate):** the new branch in `soft_hash_video_v0` and the lines it moves in `lib.rs`
-    re-score functions. Regenerate the baseline in this step with `mise run crap:baseline` (it runs
-    `mise run coverage` first) and commit `.crap-baseline.json`. Never widen epsilon/threshold.
-- **iai:** `bench_video_code.frames_10x380` (baseline 27,801 Ir) runs `gen_video_code_v0`. A
-    10-element length pass costs a few dozen Ir, far below 10 %. Still run the gate locally (needs
-    valgrind + `iai-callgrind-runner@0.16.1`, see learnings), and do not touch `.iai-baseline.json`
-    unless the gate fails.
-- `docs/rust-api.md` lines ~157 and ~467 say which inputs give `InvalidInput`. Add the ragged case.
+- `json.Marshal` escapes `&` `<` `>` as `\u0026` `\u003c` `\u003e` and U+2028/U+2029 as
+    `\u2028`/`\u2029`. `json.Encoder` with `SetEscapeHTML(false)` drops the first three escapes
+    only, still escapes U+2028/9, and appends a trailing `\n` that must be trimmed.
+- U+2028/9 then need a post-pass that rewrites the 6-byte escapes `\u2028` / `\u2029` to the raw
+    UTF-8 bytes. Trap: a naive `bytes.ReplaceAll` corrupts a string that contains a literal
+    backslash followed by `u2028` text (marshalled as `\\u2028`). Only replace an escape preceded by
+    an even number of backslashes — or write a small string encoder instead; choose the simpler one
+    that is correct, one helper, no nested functions.
+- Everything else Go already emits like JCS (Go ≥ 1.22: `\b`, `\f`, `\n`, `\r`, `\t`, lowercase
+    `\u00xx` for other control chars, `/` raw, sorted keys, compact). Keep that unchanged.
+- Expected values must come from the Rust core, not from Go: compute them with
+    `uv run python -c "import iscc_lib; …"` (`iscc_lib.json_to_data_url`,
+    `iscc_lib.gen_meta_code_v0`) and hard-code them in the Go test. Cross-check one with iscc-core
+    if handy (name the interpreter).
+- Suggested test input (one JSON object, Go raw string with JSON escapes):
+    `{"title":"Tom & Jerry <3 > \u2028 \u2029","note":"a\\u2028b \b\f\u001f"}` — covers the five
+    characters, the literal-backslash trap and the control-char forms. Also test each of the five
+    characters in its own input, so one broken mapping fails one named case (one bad case per call).
+- Assert the exact canonical bytes (decode the data-URL payload) plus `iscc` and `metahash` of
+    `GenMetaCodeV0(name, nil, &meta, 64)` equal the Rust values.
+- Update the `parseMetaJSON` doc comment and the CLAUDE.md bullet to say what it now guarantees
+    (string escaping per RFC 8785) and what it still does not (number serialization).
+- Go-only step: the Rust CRAP and iai gates are not affected.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes, including the new ragged-input tests (a)–(d), and none of them
-    panics
-- `(cd packages/go && go test ./... && go vet ./...)` passes, including Go tests for (a)–(d)
-- `cargo clippy -p iscc-lib -- -D warnings` and `cargo fmt -p iscc-lib --check` are clean
-- `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info && cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
-    exits 0 against the committed baseline
-- `mise run bench:iai:check` exits 0
-- `grep -n "frame_sigs\[" crates/iscc-lib/src/lib.rs packages/go/code_content_video.go` shows the
-    length-mismatch error in both files
+- `cd packages/go && CGO_ENABLED=0 go test ./... && go vet ./...` passes, including tests that
+    assert Rust-derived canonical bytes, data-URL, `iscc` and `metahash` for inputs with `&`, `<`,
+    `>`, U+2028 and U+2029, and for the literal `\\u2028` input
+- `gofmt -l packages/go` prints nothing
+- `grep -n "json.Marshal(" packages/go/code_meta.go` prints nothing
+- `JsonToDataUrl` for `{"title":"Tom & Jerry <3"}` returns exactly what `iscc_lib.json_to_data_url`
+    returns for the same string (asserted in a Go test)
+- `mise run check` exits 0
 
 ## Done When
 
-Ragged frame signatures make both the Rust core and the Go port return an error (no panic, no
-digest), and every verification command above exits 0.
+All verification criteria pass with Go's canonical meta bytes matching the Rust core for the five
+characters and no `data-edge.json` change in the diff.

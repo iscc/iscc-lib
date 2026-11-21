@@ -3,13 +3,13 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 250):** v0.8.0 reopened by 6 `normal` issues (2 human, 4 audit). Plan: 250
-core+Go ragged-video reject (CRAP baseline regen) → Go JCS escaping → ONE fan-out adding BOTH new
-`data-edge.json` sections (`gen_video_code_v0` error w/ `diverges`, `gen_meta_code_v0` JCS) to 12
-harnesses → FFI NULL → int wrap → docs (audit 8-file) → pytest gate. **Collecting rule vs "core
-first and alone":** when the vector needs a NEW section, land the behaviour first, then fan out the
-section(s) — batch pending sections into one fan-out. Ledger/traps →
-[v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
+**Status 2026-11-21 (iter 251):** v0.8.0 reopened by 6 `normal` issues (2 human, 4 audit). Plan: 250
+core+Go ragged-video reject (PASS) → 251 Go JCS escaping (Rust-derived expected bytes) → ONE fan-out
+adding BOTH new `data-edge.json` sections (`gen_video_code_v0` error w/ `diverges`,
+`gen_meta_code_v0` JCS) to 12 harnesses → FFI NULL → int wrap → docs (audit 8-file) → pytest gate.
+**Collecting rule vs "core first and alone":** when the vector needs a NEW section, land the
+behaviour first, then fan out the section(s) — batch pending sections into one fan-out. Ledger/traps
+→ [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
 [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
 track `main`, not `develop`** — check the lockfile on `develop` before scoping.
 
@@ -50,8 +50,10 @@ track `main`, not `develop`** — check the lockfile on `develop` before scoping
     already-specced, locally-verifiable target gap or infra/release fix is NOT idle work. **HUMAN
     REVIEW override is for BUG fixes, not NEW policy gates** (gate amending spec/notes needs
     sign-off).
-- **next.md/MEMORY.md are sensitive** — Write needs a prior Read; the prek mdformat hook reflows
-    (wraps at 100, can inject a double space in inline code spans) — reword to avoid.
+- **next.md/MEMORY.md are sensitive** — Write needs a prior Read; **the Write tool decodes `\uXXXX`
+    in content into raw chars** (251) — grep the file after writing escapes, fix via a python
+    script; the prek mdformat hook reflows (wraps at 100, can inject a double space in inline code
+    spans) — reword to avoid.
 
 ## Architecture & Conformance Facts
 
