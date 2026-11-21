@@ -13,6 +13,9 @@ gem. This script stages a gem tree that builds on its own:
 - a standalone ``Cargo.toml`` for ``iscc-rb``: concrete package keys and the ``magnus``
   requirement from ``cargo metadata``, the core as ``path = "core"``, and an empty
   ``[workspace]`` table so cargo never walks up into an enclosing workspace
+- the workspace ``[profile.release]`` table, copied as key lines from the root
+  ``Cargo.toml`` (never retyped), so a source install builds stripped, with LTO and
+  ``panic = "abort"`` like the platform gems
 - the core crate under ``core/``, extracted from ``cargo package -p iscc-lib`` (whose
   manifest cargo has already normalized), minus ``Cargo.toml.orig``
 - the workspace ``Cargo.lock``, so an install resolves the crate versions CI tested
@@ -51,6 +54,9 @@ Never ``vendor/`` or ``tmp/``: both are gitignored Bundler/rake directories in
 that ``cross-gem`` builds from the repository directory.
 """
 DROPPED_CORE_FILES = frozenset({"Cargo.toml.orig"})
+RELEASE_PROFILE = "profile.release"
+TOML_HEADER = re.compile(r"^\s*\[\[?([^\[\]]+)\]\]?\s*(?:#.*)?$")
+"""A TOML table or array-of-tables header line; group 1 is the table name."""
 
 
 def run(cmd: list[str], cwd: Path) -> str:
@@ -97,12 +103,54 @@ def render_registry_dependency(dep: dict) -> str:
     return "{ " + ", ".join(fields) + " }"
 
 
-def render_manifest(rb_package: dict, core_dir: str = CORE_DIR) -> str:
+def header_name(line: str) -> str | None:
+    """Return the table name of a TOML header line without spaces, or None for other lines."""
+    match = TOML_HEADER.match(line)
+    return None if match is None else re.sub(r"\s+", "", match.group(1))
+
+
+def is_key_line(line: str) -> bool:
+    """Return True for a line that is neither blank nor a comment."""
+    stripped = line.strip()
+    return bool(stripped) and not stripped.startswith("#")
+
+
+def release_profile(cargo_toml: str) -> str:
+    """Return the key lines of the ``[profile.release]`` table in ``cargo_toml`` text.
+
+    A verbatim text slice (no ``tomllib``: CI's ``python-test`` matrix includes 3.10):
+    the lines after the header up to the next header line, minus blanks and comments.
+    Fails closed when the table is missing, duplicated or empty, and when any
+    ``[profile.release.<x>]`` sub-table exists, which the slice would drop silently.
+    """
+    lines = cargo_toml.splitlines()
+    names = [header_name(line) for line in lines]
+    sub_tables = sorted({n for n in names if n and n.startswith(RELEASE_PROFILE + ".")})
+    if sub_tables:
+        raise SystemExit(f"release_profile: unhandled sub-tables {sub_tables}")
+    starts = [i for i, name in enumerate(names) if name == RELEASE_PROFILE]
+    if len(starts) != 1:
+        raise SystemExit(f"release_profile: expected one [{RELEASE_PROFILE}] table")
+    body = []
+    for line, name in zip(lines[starts[0] + 1 :], names[starts[0] + 1 :]):
+        if name is not None:
+            break
+        body.append(line)
+    keys = [line.rstrip() for line in body if is_key_line(line)]
+    if not keys:
+        raise SystemExit(f"release_profile: [{RELEASE_PROFILE}] has no keys")
+    return "\n".join(keys) + "\n"
+
+
+def render_manifest(
+    rb_package: dict, release_profile_keys: str, core_dir: str = CORE_DIR
+) -> str:
     """Render the standalone ``Cargo.toml`` of ``iscc-rb`` for the source gem.
 
     Keeps the package and lib names the gem's ``extconf.rb`` builds (``iscc_rb``
     cdylib), pins the workspace-inherited keys to concrete values and points the core at
-    the in-gem ``core_dir``. Any normal dependency other than the core and ``magnus``
+    the in-gem ``core_dir``. ``release_profile_keys`` (from ``release_profile``) becomes
+    the ``[profile.release]`` table. Any normal dependency other than the core and ``magnus``
     fails closed, so a dependency added to ``crates/iscc-rb`` cannot silently go missing.
     """
     deps = {dep["name"] for dep in rb_package["dependencies"] if dep["kind"] is None}
@@ -128,6 +176,10 @@ def render_manifest(rb_package: dict, core_dir: str = CORE_DIR) -> str:
         "[dependencies]\n"
         f"{CORE_CRATE} = {{ path = {toml_string(core_dir)} }}\n"
         f"magnus = {magnus}\n"
+        "\n"
+        "# Workspace release profile, copied from the root Cargo.toml\n"
+        "[profile.release]\n"
+        f"{release_profile_keys}"
         "\n"
         "# Empty workspace: cargo must never walk up into an enclosing workspace\n"
         "[workspace]\n"
@@ -224,8 +276,13 @@ def stage_gem_tree(stage: Path, metadata: dict) -> str:
         target = stage / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(GEM_DIR / name, target)
-    (stage / "Cargo.toml").write_text(render_manifest(rb_package), encoding="utf-8")
-    shutil.copy2(Path(metadata["workspace_root"]) / "Cargo.lock", stage / "Cargo.lock")
+    workspace_root = Path(metadata["workspace_root"])
+    profile = release_profile(
+        (workspace_root / "Cargo.toml").read_text(encoding="utf-8")
+    )
+    manifest = render_manifest(rb_package, profile)
+    (stage / "Cargo.toml").write_text(manifest, encoding="utf-8")
+    shutil.copy2(workspace_root / "Cargo.lock", stage / "Cargo.lock")
     core_version = find_package(metadata, CORE_CRATE)["version"]
     crate_file = package_core(Path(metadata["target_directory"]), core_version)
     extract_crate(crate_file, stage / CORE_DIR)

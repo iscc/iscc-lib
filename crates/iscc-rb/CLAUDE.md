@@ -109,7 +109,9 @@ permission. The trusted publisher is registered on rubygems.org for `iscc/iscc-l
 inherits workspace keys and depends on `../iscc-lib`, so it cannot build after install. Build it
 with `uv run --script scripts/build_ruby_source_gem.py --out DIR`, which stages a standalone tree in
 a temp dir: a generated `Cargo.toml` (concrete keys, core as `path = "core"`, empty `[workspace]`),
-the core from `cargo package -p iscc-lib` under `core/`, and the workspace `Cargo.lock`.
+the core from `cargo package -p iscc-lib` under `core/`, and the workspace `Cargo.lock`. A source
+install uses the workspace `[profile.release]`: the script copies its key lines from the root
+`Cargo.toml` into the generated manifest (fails closed on a missing table or a sub-table).
 `release.yml` (`publish-rubygems`) publishes that gem; the ci.yml `ruby-source-gem` job installs it
 on Ruby 3.4 into an empty gem home and runs `conformance_selftest`. The gemspec declares
 `rb_sys ~> 0.9` only when a `core/` directory sits next to it (`File.join(__dir__, "core")`), that

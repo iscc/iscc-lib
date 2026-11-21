@@ -1,7 +1,8 @@
 """Tests for the Ruby source-gem staging script ``scripts/build_ruby_source_gem.py``.
 
 The pure helpers (manifest rendering, version checks, crate extraction) run on synthetic
-input shaped like ``cargo metadata`` output, so no Rust toolchain is needed. Repository
+input shaped like ``cargo metadata`` output, so no Rust toolchain is needed; the release
+profile helper runs on the real root ``Cargo.toml`` and on fixture text. Repository
 anchors pin the wiring around the script: the gemspec globs the script's carried-core
 directory and declares ``rb_sys`` only in a tree that carries it (the staged source gem),
 ``ci.yml`` and ``release.yml`` both build the source gem with the script (never a bare
@@ -32,6 +33,8 @@ assert _loader is not None
 gem = importlib.util.module_from_spec(_spec)
 _loader.exec_module(gem)
 
+ROOT_CARGO_TOML = _REPO_ROOT / "Cargo.toml"
+PROFILE_KEYS = "lto = true\nstrip = true\n"
 WORKFLOWS = _REPO_ROOT / ".github" / "workflows"
 CI_WORKFLOW = WORKFLOWS / "ci.yml"
 RELEASE_WORKFLOW = WORKFLOWS / "release.yml"
@@ -84,6 +87,45 @@ def rb_package(dependencies=None):
         "rust_version": "1.85",
         "dependencies": dependencies,
     }
+
+
+def render(package):
+    """Render the standalone manifest of ``package`` with the fixture release profile."""
+    return gem.render_manifest(package, PROFILE_KEYS)
+
+
+def root_cargo_toml():
+    """Return the text of the real root ``Cargo.toml``."""
+    return ROOT_CARGO_TOML.read_text(encoding="utf-8")
+
+
+def scan_release_keys(text):
+    """Return the key lines of ``[profile.release]`` by an independent line scan.
+
+    Starts after the exact header line and stops at the next line that begins with
+    ``[``; blank and comment lines are skipped.
+    """
+    lines = text.splitlines()
+    start = lines.index("[profile.release]") + 1
+    keys = []
+    for line in lines[start:]:
+        if line.startswith("["):
+            break
+        if line.strip() and not line.lstrip().startswith("#"):
+            keys.append(line.strip())
+    return keys
+
+
+def manifest_release_table(manifest):
+    """Return the lines of the rendered manifest's ``[profile.release]`` table."""
+    lines = manifest.splitlines()
+    start = lines.index("[profile.release]") + 1
+    table = []
+    for line in lines[start:]:
+        if line.startswith("["):
+            break
+        table.append(line.strip())
+    return table
 
 
 def workflow_runs(workflow):
@@ -157,7 +199,7 @@ def cross_gem_step():
 
 def test_render_manifest_is_standalone():
     """The rendered manifest pins every inherited key and never points outside the gem."""
-    manifest = gem.render_manifest(rb_package())
+    manifest = render(rb_package())
     assert 'version = "1.2.3"' in manifest
     assert 'edition = "2024"' in manifest
     assert 'rust-version = "1.85"' in manifest
@@ -168,9 +210,67 @@ def test_render_manifest_is_standalone():
     assert "../" not in manifest
 
 
+def test_release_profile_copies_root_table():
+    """Every key line of the root ``[profile.release]`` lands in the staged table."""
+    text = root_cargo_toml()
+    keys = scan_release_keys(text)
+    assert keys
+    table = manifest_release_table(
+        gem.render_manifest(rb_package(), gem.release_profile(text))
+    )
+    for key in keys:
+        assert key in table, key
+
+
+def test_release_profile_stops_at_bench_profile():
+    """The slice ends at ``[profile.bench]``: its ``strip``/``debug`` keys never leak."""
+    text = root_cargo_toml()
+    assert "[profile.bench]" in text.splitlines()
+    manifest = gem.render_manifest(rb_package(), gem.release_profile(text))
+    assert "strip = false" not in manifest
+    assert "debug = true" not in manifest
+
+
+def test_release_profile_requires_table():
+    """Cargo.toml text without a ``[profile.release]`` table stops the build."""
+    text = '[workspace]\nmembers = ["a"]\n\n[profile.bench]\ndebug = true\n'
+    with pytest.raises(SystemExit, match="expected one"):
+        gem.release_profile(text)
+
+
+def test_release_profile_rejects_sub_table():
+    """A ``[profile.release.<x>]`` sub-table stops the build instead of being dropped."""
+    text = (
+        "[profile.release]\nlto = true\n\n"
+        '[profile.release.package."iscc-lib"]\nopt-level = 3\n'
+    )
+    with pytest.raises(SystemExit, match="sub-tables"):
+        gem.release_profile(text)
+
+
+def test_release_profile_requires_keys():
+    """An empty ``[profile.release]`` table stops the build."""
+    text = "[profile.release]\n# nothing\n\n[profile.bench]\ndebug = true\n"
+    with pytest.raises(SystemExit, match="no keys"):
+        gem.release_profile(text)
+
+
+def test_release_profile_is_derived():
+    """A key removed from the root text is absent from the manifest: nothing is retyped."""
+    text = root_cargo_toml()
+    keys = scan_release_keys(text)
+    removed = keys[-1]
+    trimmed = "\n".join(line for line in text.splitlines() if line.strip() != removed)
+    table = manifest_release_table(
+        gem.render_manifest(rb_package(), gem.release_profile(trimmed))
+    )
+    assert removed not in table
+    assert set(keys) - {removed} <= set(table)
+
+
 def test_render_manifest_keeps_extension_names():
     """``extconf.rb`` builds ``iscc_lib/iscc_rb``: package, lib name and crate type stay put."""
-    manifest = gem.render_manifest(rb_package())
+    manifest = render(rb_package())
     assert 'name = "iscc-rb"' in manifest
     assert 'name = "iscc_rb"' in manifest
     assert 'crate-type = ["cdylib"]' in manifest
@@ -188,7 +288,7 @@ def test_render_manifest_rejects_unknown_dependency():
         }
     ]
     with pytest.raises(SystemExit, match="serde"):
-        gem.render_manifest(rb_package(deps))
+        render(rb_package(deps))
 
 
 def test_render_manifest_ignores_dev_dependencies():
@@ -202,7 +302,7 @@ def test_render_manifest_ignores_dev_dependencies():
             "uses_default_features": True,
         }
     ]
-    assert "criterion" not in gem.render_manifest(rb_package(deps))
+    assert "criterion" not in render(rb_package(deps))
 
 
 def test_render_registry_dependency_without_default_features():
