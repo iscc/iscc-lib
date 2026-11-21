@@ -87,16 +87,17 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 3069e39, iter 253 — incremental)
+## Current State (assessed-at: 1ca63c2, iter 254 — incremental)
 
-- **CI GREEN on `origin/develop` = `20df958`** (meta/video data-edge sections, macOS swift green).
-    HEAD ahead by `cid(log)` only. Check-suites API:
+- **CI GREEN on `origin/develop` = `f2861f2`** (meta harness fix; data-edge section now MET). HEAD
+    ahead by `cid(log)` only. Check-suites API:
     `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit `queued` forever —
     judge by `github-actions`).
-- **v0.8.0 UNMET (253):** 5 `normal` open — data-edge harness gaps for future meta vectors
-    (`[review]`), FFI NULL split, JS integer wrap, published-docs drift, pytest gate time. Both
-    `[human]` vector issues CLOSED 252. 14 `low` (9 untriaged;
-    `grep -c '^\*\*Triage:\*\* untriaged'`). issues.md 295/300.
+- **v0.8.0 UNMET (254):** 4 `normal` open, all `[audit]` — pytest gate time (next planned), FFI NULL
+    split, JS integer wrap, published-docs drift. 14 `low` (9 untriaged;
+    `grep -c '^\*\*Triage:\*\* untriaged'`). issues.md 276/300.
+- JNI test path is `crates/iscc-jni/java/src/test/...` (note the `java/` level) — use
+    `git ls-files '*DataEdgeTest.java'`.
 - **A fixed issue is often REWRITTEN to its remainder, not closed** (250, 251) — title changes,
     count holds; diff issues.md bodies.
 - **An audit or `cid(human)` commit can flip DONE-adjacent → workable with zero code change** —

@@ -1,26 +1,25 @@
-<!-- assessed-at: 3069e39f8be28b786f9c8c00eded0c296a15e824 -->
+<!-- assessed-at: 1ca63c213c6080f986519facb613c30d1563aecb -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features complete; five `normal` issues block the release
+## Phase: v0.8.0 — features complete; four `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 252 added the
-`gen_meta_code_v0` (raw JCS characters) and `gen_video_code_v0` (equal-length and ragged) sections
-on all 12 surfaces, closing both `[human]` vector issues; review filed one `normal` harness-gap
-issue. Five `normal` issues remain, none blocked on the human or upstream. CI is green on `20df958`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 253 closed the
+data-edge harness-gap issue: every harness now accepts any valid `gen_meta_code_v0` vector shape.
+Four `normal` `[audit]` issues remain, none blocked on the human or upstream. CI is green on
+`f2861f2`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
-**Status**: partially met
+**Status**: met
 
-- `crates/iscc-lib/tests/data-edge.json` has 8 sections (adds `gen_meta_code_v0`,
-    `gen_video_code_v0`); the ragged vector carries a `diverges` marker; the 5 tracked copies are
+- `crates/iscc-lib/tests/data-edge.json` has 8 sections incl. `gen_meta_code_v0` and
+    `gen_video_code_v0`; the ragged vector carries a `diverges` marker; the 5 tracked copies are
     byte-identical; C/C++ consume the generated `data_edge_vectors.h`
-- **Bug (`normal`):** the napi, WASM, JNI and .NET harnesses lack `description` in their uncompared
-    sets, and `test_meta_row_renders_object_as_json_text` requires an object `meta` — a later valid
-    meta vector would need harness edits (against "a vector costs one edit")
+- napi, WASM, JNI and .NET leave `name`, `description`, `meta`, `metahash` uncompared for meta; the
+    generator test accepts a string `meta` (fixed 253)
 - Not filed: the `parts` entry is untested on any surface; the WASM `compare` has no explicit
     non-object branch
 
@@ -141,19 +140,18 @@ issue. Five `normal` issues remain, none blocked on the human or upstream. CI is
 
 - `ci.yml` has 21 jobs (job table gated); `release.yml` is `workflow_dispatch`-only with 8 registry
     toggles; 21 version-sync targets at 0.7.0
-- `normal` (audit): the pytest gate rose 25.6 → 44.1 s; `tests/test_benchmarks.py` runs timing loops
-    every gate and the Tier 1 doc tests copy the docs tree per case
-- **Latest CI: PASSING** on `origin/develop` = `20df958` (meta/video data-edge sections):
-    https://github.com/iscc/iscc-lib/actions/runs/44886121008
+- `normal` (audit, next planned): the pytest gate rose 25.6 → 44.1 s; `tests/test_benchmarks.py`
+    runs timing loops every gate and the Tier 1 doc tests copy the docs tree per case
+- **Latest CI: PASSING** on `origin/develop` = `f2861f2` (meta harness fix):
+    https://github.com/iscc/iscc-lib/actions/runs/44887979250
 - HEAD is ahead of origin only by the `cid(log)` commit; green CI covers all code at HEAD
 
 ## Open Issues
 
-19 open: 0 critical, 5 normal (1 `[review]`, 4 `[audit]`, all CID-workable), 14 low (human-directed;
-9 `untriaged`). issues.md is at 295 of 300 lines.
+18 open: 0 critical, 4 normal (all `[audit]`, all CID-workable), 14 low (human-directed; 9
+`untriaged`). issues.md is at 276 of 300 lines.
 
 ## Next Milestone
 
-Close the five `normal` issues that block v0.8.0: the data-edge harness gaps for future meta
-vectors, the FFI NULL handling, the integer-range bugs, the published-docs corrections and the
-pytest gate time. The release itself stays with Titusz.
+Close the four `normal` issues that block v0.8.0: the pytest gate time, the FFI NULL handling, the
+integer-range bugs and the published-docs corrections. The release itself stays with Titusz.
