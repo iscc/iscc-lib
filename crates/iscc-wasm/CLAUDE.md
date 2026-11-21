@@ -189,6 +189,16 @@ crate-root Tier 1 re-export) and its `finalize(bits?, wide?, add_units?)` return
     or, for a trailing optional parameter, `unchecked_optional_param_type` (`"number | null"`,
     `"boolean | null"`). Nested arrays (`gen_video_code_v0`) take `JsValue` +
     `serde_wasm_bindgen::from_value`, which rejects non-`i32` numbers itself.
+- **An `Option<T>` parameter before a `JsValue` override needs its own TypeScript override.**
+    wasm-bindgen marks an `Option<T>` optional only when every later parameter is, and a `JsValue`
+    with `unchecked_optional_param_type` does not count. Give it
+    `unchecked_optional_param_type = "string | null"` (`gen_meta_code_v0`), or it loses its `?` in
+    the `.d.ts`. After a signature change, diff the built `.d.ts` against a build of the previous
+    commit.
+- **Read a JS value in a helper only through an import marked `catch`** (`Reflect::get`,
+    `Reflect::get_u32`). A JS exception from a getter or a proxy must not cross a Rust frame:
+    `Array::from`, the `Array` index getter and `try_iter` have no `catch`, and a few thousand such
+    throws leave every export failing with `memory access out of bounds`.
 - **`#[wasm_bindgen_test]` calls the Rust function directly and skips the JS glue.** Prove a
     marshalling change from Node on a `wasm-pack build --target nodejs` package as well.
 - **Conformance test counts are hardcoded.** When upstream `data.json` adds test cases, update the

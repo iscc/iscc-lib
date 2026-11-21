@@ -95,8 +95,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     (253)** → `binding-reviews.md`
 - **C FFI marshalling-helper step (255, ~35 min)**: read per-row closures for allocations (no perf
     gate covers `iscc-ffi`), ASAN-probe new C macros with a forced mismatch → `binding-reviews.md`
-- **JS marshalling step (256, 268 NEEDS_WORK)**: Node probes on a RELEASE WASM build, **diff the
-    WHOLE `.d.ts` against a `git archive HEAD~1` build** → `binding-reviews.md` (268)
+- **JS marshalling step (256, 268, 269)**: Node probes on a RELEASE WASM build, whole-`.d.ts` diff
+    vs a `git archive` build, **one `CARGO_TARGET_DIR` PER tree** (269) → `binding-reviews.md`
 - **C++ wrapper-only (227)**, **JNI error-path (230)**, **verbatim code-move (231)**,
     **test-harness-only (232)**, **WASM return-shape (234)**, **Ruby gem packaging (239–241)** →
     `binding-reviews.md`

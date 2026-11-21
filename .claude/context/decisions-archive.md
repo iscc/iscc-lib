@@ -605,3 +605,16 @@ upper-cases before `iscc_clean`), the spec mandates upper-casing first so `faaa-
 Rust (195) and Go (202) agree. **Alternatives:** detect a complete multicodec-wrapped unit before
 case folding (Codex, iteration 202) — rejected: a reference divergence with no observed real input,
 to be mirrored on 11 surfaces. **Context:** iteration 202 review; Codex will re-flag it per surface.
+
+## 2026-11-18 — Go text utilities drop the `strings.Fields` / `TrimSpace` ASCII fast path
+
+**Decision:** `TextRemoveNewlines` / `TextTrim` call `strings.FieldsFunc` / `strings.TrimFunc` with
+`isPyStripChar` on every input. Measured on go1.26.1 (iteration 203 review): a 6-word title takes
+about 2× as long (502 → 1000 ns/op). Allocations stay equal up to 32 fields, then rise (40 fields: 2
+→ 3, 512 fields: 2 → 6), because `FieldsFunc` keeps a 32-entry span buffer. **Why:** this gives
+parity with iscc-core `str.split()` / `str.strip()` on U+001C–U+001F. The cost is under a
+microsecond on a Meta-Code path dominated by NFD/NFKC and hashing, and the Go port has no perf gate.
+**Alternatives:** keep `strings.Fields` when no U+001C–U+001F is present and fall back otherwise
+(Codex, iteration 203). Rejected: two code paths for a sub-µs gain on an ungated path. Re-open only
+with a Go benchmark showing a regression at the Meta-Code level. **Context:** iteration 203 review;
+next.md prescribed `FieldsFunc` verbatim.

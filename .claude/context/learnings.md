@@ -17,14 +17,14 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     redundant. **Never take `Vec<T>` from Ruby**: Magnus `to_vec` holds a slice, so a shrinking
     `to_str` segfaulted (212); use `array_to_vec`. `RBignum::to_i32` truncates negative Bignums:
     `i32` only via `array_to_i32_vec`
-- **WASM marshalling (268)**: the wasm-bindgen glue converts every typed parameter. Numbers and
-    `bool` now arrive as `JsValue` and are type-checked in Rust; `&[u8]` still converts (a string
-    reads as zero bytes) and a number for a `&str` traps. **An `Option<T>` before a `JsValue` with
-    `unchecked_optional_param_type` loses its `?` in the `.d.ts`**: diff the WHOLE built `.d.ts`
-    against the previous build, never two quoted lines. **A js-sys import without `catch`
-    (`Array::from`) lets a JS exception unwind through Rust frames**: 4,095 throws exhaust the stack
-    and every later call fails. Probe a RELEASE build from Node (`--dev` glue adds type asserts);
-    `#[wasm_bindgen_test]` skips the glue (234)
+- **WASM marshalling (268/269)**: the wasm-bindgen glue converts every typed parameter. Numbers and
+    `bool` arrive as `JsValue` and are type-checked in Rust; `&[u8]` still converts and a number for
+    a `&str` traps. **An `Option<T>` before a `JsValue` override loses its `?` in the `.d.ts`**
+    unless it has its own `unchecked_optional_param_type`: diff the WHOLE built `.d.ts` against the
+    previous build. **A js-sys import without `catch` lets a JS exception unwind through Rust
+    frames** (4,000 to 8,000 throws kill the instance): read via `Reflect::get` (2× marshalling
+    cost, decisions.md); `serde_wasm_bindgen::from_value` still has it. Probe a RELEASE build from
+    Node. **Two `git archive` trees on ONE `CARGO_TARGET_DIR` package the first tree's wasm twice**
 - **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
     `build.rs` rewrites tracked `NativeMethods.g.cs` on EVERY build** (pre-push clippy: "files were
     modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit on an

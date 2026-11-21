@@ -774,3 +774,20 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - `PyLong_AsLongLong` is in the stable ABI, so `abi3-py310` holds; a clean build proves it
 - decisions.md over budget from `cid(human)` commits in the unpushed range: rotate first, then check
     the rotated titles are not ones the current step leans on
+
+## WASM exception-safety repair step (269, ~25 min, PASS_WITH_NOTES)
+
+- **Two `git archive` trees must NOT share a `CARGO_TARGET_DIR`.** Cargo treated the second tree as
+    fresh (13 s "build") and wasm-pack packaged the FIRST tree's wasm again, so my `.d.ts` diff
+    compared base with base and exited 0. What exposed it: the error text was the old one (`boom`,
+    not `Invalid cv: boom`) and the timing showed no change. Always `cmp` the two `.wasm` files
+    (they must differ) before trusting a build-vs-build diff
+- Build both trees with `--features conformance` or neither: the feature adds `.d.ts` lines (114 vs
+    the handoff's 112), which is harmless only when both sides match
+- Probe scripts live in `/tmp/r<iter>-probe/`, one hostile case per `node` process: after the first
+    case kills the instance every later case in the same process reports the same `RuntimeError`
+- A probe's own `catch` handler must not read `e.message` unguarded when the thrown value is hostile
+    (a throwing `message` getter crashed my script, which looked like an escaped exception)
+- `serde_wasm_bindgen::from_value` paths die after 5,000 to 8,200 throwing-element calls, on the
+    0.7.0-line build too (filed `low`, untriaged). `number_vec` paths are safe
+- decisions.md sat at 398 before my 13-line entry: rotate with `cid.archive_overflow` right away

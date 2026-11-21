@@ -113,27 +113,6 @@ dead.
 
 Resolved when both are removed with the C++ and .NET empty-input tests still green.
 
-## `@iscc/wasm` type checks broke a TypeScript signature and let a JS exception kill the instance `critical` [review]
-
-Iteration 268 moved every number and boolean parameter to `JsValue` with type checks in Rust. The
-coercion is fixed (verified from Node on a release build). The step is unpushed because it
-introduced two defects, both reproduced against a build of the commit before it:
-
-- The built `.d.ts` now declares
-    `gen_meta_code_v0(name: string, description: string | null | undefined, meta: string | null | undefined, bits?: number | null)`.
-    Before, `description?` and `meta?` were optional. wasm-bindgen marks an `Option<T>` parameter
-    optional only when every later parameter is, and a `JsValue` with
-    `unchecked_optional_param_type` does not count. So `gen_meta_code_v0("ISCC Test Document!")`,
-    the README call, no longer type-checks. It is the only export declaration that changed.
-- `number_vec` calls `js_sys::Array::from`, an import without `catch`. A JavaScript exception inside
-    it (a throwing `length` getter or iterator) unwinds through the Rust frames. After 4,095 such
-    calls every export fails with `RuntimeError: memory access out of bounds`. Before the step the
-    instance was still usable after 200,000.
-
-Resolved when the export declarations of the built `.d.ts` equal those of the build before the step
-(the full diff is empty), a throwing array-like gives an ordinary error and leaves the instance
-usable, pinned by a test, and the WASM suite stays green.
-
 ## `@iscc/wasm` converts byte inputs and traps on a non-string `low` [review]
 
 **Triage:** untriaged. A plain-JavaScript caller who passes a string or a plain array where a
@@ -144,12 +123,28 @@ Measured on a `--target nodejs` release build in iteration 268. `gen_data_code_v
 the code of three zero bytes, and `gen_data_code_v0([1, "2", null, 300])` the code of
 `[1, 2, 0, 44]`. A number where a string is declared (`gen_text_code_v0(5)`,
 `gen_meta_code_v0("a", 7)`) throws `RuntimeError: memory access out of bounds` instead of an error
-that names the parameter. `gen_audio_code_v0({})` reads a plain object as an empty list.
-Pre-existing: the glue converts every `&[u8]` and `&str` parameter before Rust runs. No
-`data-edge.json` vector is owed (`edge-vectors.md` → Rules: wrong argument types).
+that names the parameter. Pre-existing: the glue converts every `&[u8]` and `&str` parameter before
+Rust runs. No `data-edge.json` vector is owed (`edge-vectors.md` → Rules: wrong argument types).
 
 Resolved when either byte and string parameters reject a wrong type with an error that names the
 parameter, or `docs/howto/wasm.md` → "Error handling" states the conversion.
+
+## `@iscc/wasm` list inputs read through serde let a throwing element kill the instance `low` [review]
+
+**Triage:** untriaged. Only a caller whose array holds an element getter (or a proxy) that throws,
+passed several thousand times to one instance, would hit it; ordinary arrays are unaffected.
+
+`serde_wasm_bindgen::from_value` reads array elements through js-sys getters without `catch`, so a
+JavaScript exception unwinds through the Rust frames. Measured in iteration 269 from Node on release
+builds, with an array whose index 1 is a throwing getter: after 5,000 to 8,200 such calls every
+export fails with `RuntimeError: memory access out of bounds`. Affected: `gen_video_code_v0` and
+`soft_hash_video_v0` (inner arrays), `gen_mixed_code_v0`, `gen_iscc_code_v0` and `encode_seq`.
+Pre-existing: the build of `3ef83ce` behaves the same. The number-array parameters (`cv`,
+`features`) are safe since iteration 269 (`number_vec` reads through `Reflect::get`). No
+`data-edge.json` vector is owed (a getter is not JSON-expressible).
+
+Resolved when a throwing element on each of these parameters gives an ordinary error and leaves the
+instance usable, pinned by a test per parameter, or a decisions.md entry keeps the limit on purpose.
 
 ## JNI `NativeLoader` rejects an unknown OS or architecture before the `java.library.path` fallback `normal` [review]
 

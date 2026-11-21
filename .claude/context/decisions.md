@@ -29,19 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-18 — Go text utilities drop the `strings.Fields` / `TrimSpace` ASCII fast path
-
-**Decision:** `TextRemoveNewlines` / `TextTrim` call `strings.FieldsFunc` / `strings.TrimFunc` with
-`isPyStripChar` on every input. Measured on go1.26.1 (iteration 203 review): a 6-word title takes
-about 2× as long (502 → 1000 ns/op). Allocations stay equal up to 32 fields, then rise (40 fields: 2
-→ 3, 512 fields: 2 → 6), because `FieldsFunc` keeps a 32-entry span buffer. **Why:** this gives
-parity with iscc-core `str.split()` / `str.strip()` on U+001C–U+001F. The cost is under a
-microsecond on a Meta-Code path dominated by NFD/NFKC and hashing, and the Go port has no perf gate.
-**Alternatives:** keep `strings.Fields` when no U+001C–U+001F is present and fall back otherwise
-(Codex, iteration 203). Rejected: two code paths for a sub-µs gain on an ungated path. Re-open only
-with a Go benchmark showing a regression at the Meta-Code level. **Context:** iteration 203 review;
-next.md prescribed `FieldsFunc` verbatim.
-
 ## 2026-11-19 — Embedded NUL is rejected at the .NET and C++ wrapper boundary
 
 **Decision:** the .NET and C++ wrappers reject any string input containing an embedded NUL before
@@ -396,3 +383,16 @@ bench dev-dependencies do not build there as they are: `alloca` (via `criterion`
 cross-compiler, and `iai-callgrind-runner` does not compile for `wasm32-wasip1`. **Alternatives:**
 an `i686` `cargo test` leg with a C cross toolchain; leaving the Go port untested on 32-bit.
 **Context:** human decision (Titusz, interactive session, 2026-11-21).
+
+## 2026-11-21 — `@iscc/wasm` reads number arrays element by element through `Reflect.get`
+
+**Decision:** `number_vec` reads `length` and each index through `Reflect::get` / `get_u32`, the
+js-sys imports marked `catch`. The cost is accepted: about 2× the marshalling time of 0.7.0
+(`gen_audio_code_v0`, release build, Node 22: 3,000 elements 0.79 → 1.65 ms, 1M elements 243 → 525
+ms). An iterable without `length` (`Set`, generator) is rejected; 0.7.0 read it as empty. **Why:** a
+JS exception that crosses a Rust frame without `catch` leaves the instance unusable after a few
+thousand throws, and no built-in does the type check in one crossing (`Float64Array.from` coerces
+`"2"` to 2). The extra 0.3 µs per element is small next to decoding audio. **Alternatives:** a
+typed-array fast path (`dyn_ref` + copy; more code for one input form); an `inline_js` helper that
+checks in JS (one crossing, but adds a `snippets/` directory to the published package). **Revisit:**
+when a user reports number-array throughput. **Context:** iteration 269.
