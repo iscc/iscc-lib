@@ -77,10 +77,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin it
     **Per-algorithm internals**, normalization order, `data.json` counts, API-parameter facts,
     **ISCC-IDv1** details, the three codec rules → `learnings-archive.md`
-- **Integer widths differ per platform and CI cannot see it**: Go `int(x)` of a `uint32` wraps on
-    386 (263: subtract unsigned, then `clampInt`; `GOARCH=386 go test` runs on amd64). C `long` is
-    32 bits on Windows (265: read a Python `int` with `PyLong_AsLongLong`). CI has no Windows job:
-    prove a Windows claim from the type (`c_longlong`), never from a green run
+- **Integer widths differ per platform**: Go `int(x)` of a `uint32` wraps on 386 (263: subtract
+    unsigned, then `clampInt`); the `go` CI job runs the suite as `GOARCH=386` too (267), 386 `vet`
+    does not see a wrap. C `long` is 32 bits on Windows (265: read a Python `int` with
+    `PyLong_AsLongLong`); no Windows CI job: prove it from the type (`c_longlong`), not a green run
 
 ## CI/CD
 

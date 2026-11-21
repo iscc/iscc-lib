@@ -207,3 +207,13 @@ to polling loops.
 - The background Codex run executes Gradle in the same tree too. `.kotlin/` is gitignored since 262.
 - Wait on named jobs with one loop over
     `gh run view <run> --json jobs --jq '[.jobs[] | select(.name|test("Kotlin|\\.NET")) | select(.status!="completed")] | length'`.
+
+### Iter 267: a plain `run:` step in an existing job (Go `GOARCH=386`, ~12 min, PASS)
+
+- No action source to read. Local proof first: same `=== RUN` count on both architectures
+    (`go test -v`), `file` on a `go test -c` binary, and the reverted fix failing on 386 only.
+- `gh run view <run> --job <id> --log` prints nothing while OTHER jobs of the run are still running.
+    Read a finished job's log at once with
+    `gh api --allow-escape-sequences repos/iscc/iscc-lib/actions/jobs/<job-id>/logs > /tmp/x.log`,
+    then `grep -a` (the log carries ANSI escapes).
+- The Go job finishes about 1 minute after the push; waiting for the whole run is not needed.

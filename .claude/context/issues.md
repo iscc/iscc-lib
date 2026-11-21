@@ -165,18 +165,6 @@ estimate:** 3 non-test files.
 
 Resolved when the three pages state the coverage and the standard's scope correctly.
 
-## No CI job runs the Go port as a 32-bit build `normal` [review]
-
-**Decided (Titusz, 2026-11-21):** add one CI step that runs the Go suite with `GOARCH=386`; the Rust
-core gets no native 32-bit leg (decisions.md, 2026-11-21).
-
-`algCdcParams` subtracts in `uint32` and clamps to `math.MaxInt` because `int(avgSize)` is negative
-on a 32-bit `int` (iteration 263). CI's Go job runs amd64 only, where the old signed form is also
-correct, so reverting it fails no CI test. `GOARCH=386 CGO_ENABLED=0 go test ./...` runs on an amd64
-host and passes (measured 2026-11-21).
-
-Resolved when the `go` job in `ci.yml` runs the suite once with `GOARCH=386`.
-
 ## One-shot gen functions re-implement their streaming counterparts `normal` [audit]
 
 Verified by the iteration-249 and iteration-260 audits (3040298).
@@ -223,8 +211,8 @@ Verified by the iteration-260 audit at 3040298. CID-fixable (decision of 2026-11
     `packages/go`).
 - `crates/iscc-napi/CLAUDE.md:36,66`, `crates/iscc-py/CLAUDE.md:66`, `crates/iscc-wasm/CLAUDE.md:43`
     name `iscc_lib::Error`; the type is `IsccError`.
-- `packages/go/CLAUDE.md`: :91-117 keeps a test-file list (missing three files) that the 2026-11-21
-    decision removed; :142 says most packages wrap `iscc-ffi` (only C++ and .NET do); :129-131 omits
+- `packages/go/CLAUDE.md`: :95-121 keeps a test-file list (missing three files) that the 2026-11-21
+    decision removed; :146 says most packages wrap `iscc-ffi` (only C++ and .NET do); :133-135 omits
     the `packages/go/vX.Y.Z` tag the module proxy needs (`release.yml:115-116`).
 
 **Why it matters:** define-next and advance read these as truth, so stale claims become scoped work.

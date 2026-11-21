@@ -70,8 +70,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **Core + Go behaviour / integer-width fix (250/263)**: boundary differential, bare `rustc` =
     edition 2015, host-type check for a follow-up vector → `review-patterns.md` "Core + Go … (250)"
 - **Go-only canonicalizer / serializer fix (251/266, ~8–15 min)**: Go criteria + ONE differential
-    against `iscc_lib` from a `git archive` copy (`go test -v`, or the output is hidden) →
-    `review-patterns.md` "Go-only serializer fix (251)"
+    against `iscc_lib` from a `git archive HEAD packages/go crates/iscc-lib/tests` copy (267:
+    without the vectors ten tests fail) → `review-patterns.md` "Go-only serializer fix (251)"
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
     `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go`; API-shape (261) → topic
 - **Test-fixture / vector-file only (141/149, ~5 min)**: Rust-only + feature matrix + the four
@@ -119,8 +119,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **Action pin / release.yml / any GHA bump**: static-verify only via the committed gates
     (`check_release_workflow.py` + `--check-action-inputs`); `always()` = NEEDS_WORK →
     `gha-workflow-reviews.md`
-- **ci.yml fix only CI can prove (260/262, ~15 min)**: read the action's source at the tag, push the
-    advance commits FIRST, read the job LOG, then write the handoff → `gha-workflow-reviews.md`
+- **ci.yml fix only CI can prove (260/262/267, ~15 min)**: read the action's source at the tag, push
+    the advance commits FIRST, read the job LOG, then write the handoff → `gha-workflow-reviews.md`
 - **Pre-flight `uv run prek run --hook-stage pre-push --all-files` before pushing never-CI'd code**
     (~15 min, background, last) → `review-patterns.md` "Moved from the index (239)"
 - **Per-binding commands + traps** ("not locally verifiable" claims: all FALSE so far) →
