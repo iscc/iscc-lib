@@ -1,97 +1,89 @@
 # Next Work Package
 
-## Step: Range-check every JS integer argument, reject negative JNI counts, document the Python/Ruby classes
+## Step: Make the published-package docs match what 0.7.0 ships
 
 ## Goal
 
-Fixes the `normal` `[audit]` issue "Out-of-range integer arguments wrap silently on JS, raise
-undocumented classes elsewhere". Today napi and WASM silently turn an out-of-range JS number into a
-different valid integer, so the caller gets a wrong code back with no error. After this step every
-binding rejects such input, and the docs name the error class each binding actually raises.
+Close the `normal` `[audit]` issue "Published-package docs contradict what ships", the last open
+v0.8.0 blocker. Every install, distribution, return-shape and gate claim in the files below must
+describe the artifact as it is published and the code as it runs.
 
 ## Alternatives Considered
 
-- **Chosen:** integer range — silent wrong output is a correctness bug. It touches 3 non-test code
-    files (fits the 6-file default, no audit valve needed) and the handoff points here
-- **Rejected:** "Published-package docs contradict what ships" — docs only, ~11 files. It is the
-    last blocker and comes next; this step's doc edits (python.md, ruby-api.md) do not overlap it
+- **Chosen:** the whole issue in one step. Every file is documentation, and the default rule does
+    not count docs against the 6-file cap. The edits are small text corrections, so splitting the
+    issue across two iterations would only double its cost
+- **Rejected:** a `low` doc issue such as the Sum-Code `KAA` comments or the pkg-config `0.2.0` line
+    — `low` items are for the human to direct. No other unmet target criterion is reachable by CID:
+    v1.0.0, MSRV and the EOL floors are human-gated
 
 ## Scope
 
-- **Modify**: `crates/iscc-napi/src/lib.rs`, `crates/iscc-wasm/src/lib.rs`,
-    `crates/iscc-jni/src/lib.rs`; docs: `docs/howto/python.md` (Error handling), `docs/ruby-api.md`
-    (error statement near line 82). Also any napi/WASM/Java doc page or crate `CLAUDE.md` that
-    describes the IDv1-only `checked()` rule or integer error behaviour (grep for `checked` and
-    `ValueError`/`RuntimeError`)
-- **Tests**: `crates/iscc-napi/__tests__/functions.test.mjs`, `crates/iscc-wasm/tests/unit.rs`,
-    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`, a Python test under
-    `tests/`, `crates/iscc-rb/test/test_array_args.rb`
-- **Reference**: `checked()` in napi (lib.rs ~330) and WASM (~378); decision 2026-07-29 "JS-number
-    ISCC-IDv1 surfaces take all params as `f64` and validate before narrowing"; `narrow_to_i32` in
-    `crates/iscc-rb/src/lib.rs`; JNI `encode_component` range checks (~755)
+- **Modify** (all docs, 9 files): `README.md`, `docs/howto/java.md`, `docs/howto/kotlin.md`,
+    `docs/architecture.md`, `docs/development.md`, `crates/iscc-jni/README.md`,
+    `packages/kotlin/README.md`, `packages/swift/README.md`, `CLAUDE.md` (root)
+- **Reference**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`,
+    `Package.swift` (root), `crates/iscc-napi/src/lib.rs`, `crates/iscc-wasm/src/lib.rs`,
+    `crates/iscc-wasm/README.md` + `docs/howto/wasm.md` (the `await init()` pattern that is already
+    correct), `.github/workflows/release.yml:427`, `.pre-commit-config.yaml` (pytest hook)
 
 ## Not In Scope
 
-- No `data-edge.json` vector. A value like `2**32+64` for `bits` cannot be passed through the typed
-    signatures of the Rust, C, C++, Go, .NET, Swift and Kotlin harnesses. To them it is a wrong
-    argument type, which `edge-vectors.md` → Rules leaves to per-binding tests. Append a short
-    decisions.md entry that records this reading
-- Python and Ruby keep their exceptions (`OverflowError`, `RangeError`). Each is the class the host
-    language raises itself when an integer conversion fails. Fix the docs, not the bindings
-- JNI `alg_minhash_256` keeps reading `int[]` elements as unsigned (`v as u32`, the commented Java
-    idiom). Its `avg_chunk_size`, `encode_component` and `gen_iscc_id_v1` checks already exist
-- WASM `gen_video_code_v0` / `soft_hash_video_v0` deserialize through `serde_wasm_bindgen`, which
-    already rejects non-safe and out-of-range integers. Leave them alone unless a probe shows
-    wrapping
-- Go, C FFI, C++, .NET, Swift and Kotlin take typed unsigned/signed integers and are unaffected. Do
-    not touch the core
+- The `low` doc issues: Sum-Code `KAA` comments, pkg-config `Version: 0.2.0`, the `ci-cd.md` tag
+    trigger, the `target.md` count. Leave them for the human
+- `notes/` (historical, never swept) and the per-crate `CLAUDE.md` files. Their `java.library.path`
+    lines describe the dev/CI fallback and are correct
+- Adding pytest coverage enforcement. Fix the claim, not the gate
+- Any code, workflow or version change
 
 ## Implementation Notes
 
-- **Why it wraps:** napi converts `u8`/`u32` with `napi_get_value_uint32` and `i32` with
-    `napi_get_value_int32` (napi-3.11.0 `js_values/number.rs:63-69`). Both apply ToUint32/ToInt32,
-    so `256` becomes `u8` 0 and `2**40` becomes `i32` 0. The wasm-bindgen glue does `>>> 0` for
-    `u32` and copies `Vec<i32>`/`Vec<u32>` into typed arrays, which wrap the same way
-- **Fix on both JS surfaces (finish the pattern):** every numeric parameter of an exported fn or
-    method becomes `f64` / `Option<f64>` / `Vec<f64>` / `Vec<Vec<f64>>` and is narrowed through one
-    range-checked helper. Generalise the existing `checked` to take a minimum, or add thin
-    `to_u8`/`to_u32`/`to_i32` wrappers over it, and keep `gen_iscc_id_v1` on the same helper.
-    Bounds: `u8` \[0, 256), `u32` \[0, 2^32), `i32` \[-2^31, 2^31); reject non-finite and fractional
-    values. `-0.0` maps to 0. `undefined` stays `None`. Sites: `bits` on every gen fn and on the
-    streaming `finalize`/`finalize_code`, `gen_sum_code_v0` `bits`, `text_trim` `nbytes`,
-    `sliding_window` `width`, `alg_cdc_chunks` `avg_chunk_size`, `encode_component`
-    (`mtype`/`stype`/`version`/`bit_length`), and the elements of `gen_audio_code_v0` `cv`,
-    `alg_minhash_256` `features` and napi's `gen_video_code_v0`/`soft_hash_video_v0` frames. Name
-    the parameter in the error message, and an element by its index
-- Constants and result fields (`META_TRIM_*`, `IsccDecodeResult`) are outputs; leave them. The napi
-    `.d.ts` is generated, not committed: `f64` and `u32` both map to `number`
-- `#[wasm_bindgen_test]` bypasses the JS glue (learnings 234). Prove the WASM fix from Node as well:
-    `wasm-pack build crates/iscc-wasm --target nodejs --out-dir /tmp/wasm-int` and call it
-- **JNI:** one helper that rejects a negative `jint` with `IllegalArgumentException` (via
-    `throw_and_default`) before the unsigned cast. Use it at every `bits as u32` site (all gen fns,
-    `gen_sum_code_v0` and any hasher finalize), `text_trim` `nbytes` and `sliding_window` `width`
-- Tests: per surface, one negative case and one `2**32 + 64`-style case (where the host type can
-    hold it) per parameter kind. Assert on the raw call (learnings: one bad case per call)
-- Binding-only change: CRAP and iai gates are not affected
+Facts measured at define time on the published 0.7.0 artifacts:
+
+- `repo1.maven.org/.../io/iscc/iscc-lib/0.7.0/iscc-lib-0.7.0.jar` contains
+    `META-INF/native/{linux-x86_64,linux-aarch64,macos-aarch64,macos-x86_64,windows-x86_64}/` libs.
+    `IsccLib` calls `NativeLoader.load()` in its static initializer. It extracts the bundled lib and
+    falls back to `System.loadLibrary`. So Java needs only the Maven dependency. `java.library.path`
+    is an optional override or dev fallback, not a requirement
+- `iscc-lib-kotlin-0.7.0.jar` bundles `libiscc_uniffi` under JNA resource prefixes (`android-*`,
+    `darwin-*`, `linux-*`, `win32-x86-64`). Its POM declares `net.java.dev.jna:jna:5.19.1`. Read
+    that dependency's `<scope>` in the POM before you decide whether docs still tell users to add
+    JNA explicitly. Kotlin is on Maven Central, so drop the "Not yet published" note. Keep "Build
+    from source" as an optional collapsed tip
+- The GitHub release v0.7.0 has `IsccLib.xcframework.zip`, and root `Package.swift` fetches it by
+    default (`useLocalFramework = false`). So the Swift notes in `README.md:143` and
+    `packages/swift/README.md:19-21` are wrong. SPM needs no Rust toolchain, and building from
+    source is optional
+- napi and WASM `gen_meta_code_v0` return a **string** (`.map(|r| r.iscc)`), so `README.md:190` and
+    `:285` must print `result` itself (or rename it `iscc`). Check every other JS snippet in
+    `README.md` for the same pattern. `@iscc/wasm` is built `--target web`, so the README WASM
+    snippet needs `import init, {...}` + `await init();`. Mirror `crates/iscc-wasm/README.md`
+- `docs/architecture.md`: the mermaid graph and the "five binding crates" sentence (line 30) must
+    list every binding crate (`iscc-rb`, `iscc-uniffi` too). Mention that the .NET and C++ packages
+    wrap the C FFI, and that Swift and Kotlin wrap `iscc-uniffi`. Do not write a count you would
+    have to keep current. Line 178: napi has **no** `AsyncTask` (0 matches in `lib.rs`), and its
+    exports are sync. Describe the real strategy, and add rows for the missing bindings only if the
+    table claims to be complete
+- `docs/development.md:181` and `CLAUDE.md:207`: the pytest pre-push hook is
+    `uv run pytest --timeout=120` with no `--cov`, so drop "coverage enforcement"
+- Do not hand-type a version anywhere. `version_sync.py` only keeps the Maven, Gradle and SPM
+    snippets current (learnings, 244)
+- Use the doc-example casing rules: JNI `genMetaCodeV0` returns a `String`, and Kotlin and Swift
+    take named args. Run `uv run zensical build`, then `gen_llms_full.py` (zensical wipes `site/`)
 
 ## Verification
 
-- `cd crates/iscc-napi && npm run build:debug && npm test` passes. New tests show that `bits`
-    `2**32+64` and `-1`, `text_trim(…, -1)`, `gen_audio_code_v0([2**40])`, `alg_minhash_256([-1])`,
-    a video frame holding `2**31`, `encode_component(256, …)` and `bits` `64.5` each throw
-- `wasm-pack test --node crates/iscc-wasm` passes with the same cases in `tests/unit.rs`, and a Node
-    call on the built `/tmp/wasm-int` package shows `gen_text_code_v0("x", 2**32+64)` and
-    `gen_audio_code_v0([2**40])` throwing
-- `grep -nE '(\(|^\s+)[a-z_]+: (Option<)?(u8|u32|i32|Vec<(Vec<)?(i32|u32)>)[,)>]' crates/iscc-napi/src/lib.rs crates/iscc-wasm/src/lib.rs`
+- `grep -rnE "not yet (available|included|published)|planned for a future release|must be built from source|AsyncTask|five binding crates|coverage enforcement" README.md docs/howto/java.md docs/howto/kotlin.md docs/architecture.md docs/development.md crates/iscc-jni/README.md packages/kotlin/README.md packages/swift/README.md CLAUDE.md`
     prints nothing
-- `mvn -f crates/iscc-jni/java/pom.xml clean test` passes, with tests showing that negative `bits`,
-    `nbytes` and `width` each raise `IllegalArgumentException`
-- `uv run pytest` passes with a test pinning `OverflowError` for `bits=-1` and `bits=2**32+64`, and
-    `bundle exec rake test` (in `crates/iscc-rb`) passes with a test pinning `RangeError`. The two
-    doc pages name these classes
-- `cargo clippy --workspace --all-targets -- -D warnings` and `mise run check` exit 0
+- `grep -n "result.iscc" README.md` prints no line from a JavaScript (Node.js or WASM) code block,
+    and the README WASM block contains `await init()`
+- `uv run zensical build` exits 0
+- `uv run pytest tests/` passes, including the docs gates (`test_check_docs_nav`, Tier 1 docs,
+    `test_rust_api_signatures`)
+- `mise run check` exits 0
+- `git diff --name-only HEAD` (plus any untracked files) lists only `.md` files
 
 ## Done When
 
-All six verification criteria pass. Every out-of-range integer throws on napi, WASM and JNI, and the
-Python and Ruby docs name the exception class each binding actually raises.
+All six verification criteria pass and each claim named in the issue matches the published artifact
+or the code.

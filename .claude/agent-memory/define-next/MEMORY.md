@@ -3,15 +3,15 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 256):** v0.8.0 blocked by 2 `normal` `[audit]` issues; 255 FFI
-`slice_or_empty` PASS → 256 = integer range (napi/WASM params → `f64` + one range helper, JNI
-negative-`jint` guard, Py `OverflowError` / Rb `RangeError` documented not remapped; 3 code files,
-no data-edge vector: out-of-range is a wrong *type* for typed harnesses) → docs issue (audit
-8-file). napi `u8`/`u32`/`i32` all go through ToUint32/ToInt32 (napi-3.11.0 `number.rs:63`);
-`serde_wasm_bindgen` already range-checks ints. **Collecting rule vs "core first and alone":** land
-the behaviour first, then batch pending sections into one fan-out. **"A vector costs one edit" is
-proven by a throwaway vector run on every surface and then reverted** (path-scoped `git checkout`,
-never stash). Ledger/traps → [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
+**Status 2026-11-21 (iter 257):** v0.8.0 blocked only by the `normal` `[audit]` docs issue → 257 =
+whole issue in ONE step (9 files, all `.md`; docs are outside the 6-file cap, so the audit 8-file
+valve was unnecessary despite the issue's "~11 files, needs audit scope" note). Probed published
+artifacts: both Maven JARs bundle natives (JNI `NativeLoader`, Kotlin JNA prefixes), v0.7.0 release
+has `IsccLib.xcframework.zip`; napi/WASM `gen_meta_code_v0` return a string. **An issue's own "Scope
+estimate" can over-count — apply the docs-excluded rule yourself.** After 257 PASS, only
+`low`/human-gated items remain → expect IDLE/NONE. **Collecting rule vs "core first and alone":**
+land the behaviour first, then batch pending sections into one fan-out. Ledger/traps →
+[v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
 [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
 track `main`, not `develop`** — check the lockfile on `develop` before scoping.
 
