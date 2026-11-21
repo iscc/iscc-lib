@@ -52,7 +52,7 @@ object DataEdge {
     /** Read the input at [index] as a list of `bytes:<hex>` values decoded into bytes. */
     fun bytesList(inputs: JsonArray, index: Int): List<ByteArray> = strList(inputs, index).map(::decodeBytes)
 
-    /** Read the input at [index] as a `UInt` bit length. */
+    /** Read the input at [index] as a `UInt` (a bit length or an average chunk size). */
     fun bits(inputs: JsonArray, index: Int): UInt {
         val value = inputs.get(index)
         require(value.isJsonPrimitive && value.asJsonPrimitive.isNumber) { "input $index is not a number" }
@@ -61,13 +61,15 @@ object DataEdge {
         return number.toUInt()
     }
 
-    /** Read the optional boolean input at [index], defaulting to false when absent. */
-    fun optBool(inputs: JsonArray, index: Int): Boolean {
-        if (index >= inputs.size()) return false
+    /** Read the input at [index] as a boolean. */
+    fun bool(inputs: JsonArray, index: Int): Boolean {
         val value = inputs.get(index)
         require(value.isJsonPrimitive && value.asJsonPrimitive.isBoolean) { "input $index is not a boolean" }
         return value.asBoolean
     }
+
+    /** Read the optional boolean input at [index], defaulting to false when absent. */
+    fun optBool(inputs: JsonArray, index: Int): Boolean = index < inputs.size() && bool(inputs, index)
 
     /** Encode bytes as a `bytes:<hex>` fixture value. */
     fun bytesValue(data: ByteArray): String = "bytes:" + HexFormat.of().formatHex(data)
@@ -98,6 +100,17 @@ object DataEdge {
         val digests = bytesList(inputs, 0)
         return { algSimhash(digests) }
     }
+
+    /** Prepare `algCdcChunks` on the vector's data, `utf32` flag and average size. */
+    fun prepareCdc(inputs: JsonArray): () -> Any {
+        val data = decodeBytes(str(inputs, 0))
+        val utf32 = bool(inputs, 1)
+        val avg = bits(inputs, 2)
+        return { algCdcChunks(data, utf32, avg) }
+    }
+
+    /** Convert `algCdcChunks` chunks to a list of `bytes:<hex>` values. */
+    fun convertChunks(result: Any): Any = (result as List<*>).map { bytesValue(it as ByteArray) }
 
     /** Prepare `genTextCodeV0` on the vector's text and bits. */
     fun prepareText(inputs: JsonArray): () -> Any {
@@ -190,6 +203,7 @@ object DataEdge {
         "alg_simhash" to EdgeCaller(::prepareSimhash, ::convertSeq),
         "gen_meta_code_v0" to EdgeCaller(::prepareMeta, ::convertMeta),
         "gen_video_code_v0" to EdgeCaller(::prepareVideo, ::convertVideo),
+        "alg_cdc_chunks" to EdgeCaller(::prepareCdc, ::convertChunks),
     )
 
     /** Load and parse the vendored data-edge.json from the test resources. */
