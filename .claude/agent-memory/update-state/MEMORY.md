@@ -86,13 +86,16 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: c87ec0e, iter 260 — incremental)
+## Current State (assessed-at: 00fc7cc, iter 261 — incremental)
 
-- **CI on `origin/develop` = `eb132d2` RED** (run 44903592630): `C# / .NET 10.0` fails at
-    `Run .NET tests`; 8.0 leg `cancelled` (matrix lacks `fail-fast: false`). Last green `1708d5e`. A
-    run in progress hides logs (`gh run view --log*` refuses) — use
-    `gh api "repos/iscc/iscc-lib/actions/jobs/<id>"` for per-step conclusions instead.
-- 12 open (11 `normal` + 1 `low`); 6 in `postponed.md` (do NOT block DONE-for-v0.8.0).
+- **CI on `origin/develop` = `28a1f46` GREEN** (run 44904982105); .NET legs fixed in 260 (private
+    `DOTNET_INSTALL_DIR`, `fail-fast: false`). An in-progress run hides logs — use
+    `gh api "repos/iscc/iscc-lib/actions/jobs/<id>"` for per-step conclusions.
+- 18 open (17 `normal` + 1 `low`); 6 in `postponed.md` (do NOT block DONE-for-v0.8.0). Audit 260
+    filed 5 `normal` and RE-FILED a spec/CLAUDE.md staleness issue right after 259 closed one.
+- **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
+    `` `low` ``.
+- **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
 - `ci.yml` = **22 job keys** (`dotnet-test` matrix .NET 8/10 + `dotnet` aggregator); Python
     3.10/3.15. issues.md budget 400 (`ARTIFACT_BUDGETS`).
 - **Untriaged count**: `awk '/^## /{t=$0} /untriaged/{print t}' issues.md | sort -u` — drop the
@@ -104,7 +107,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 - **A fixed issue is often REWRITTEN to its remainder, not closed** (250, 251) — title changes,
     count holds; diff issues.md bodies.
 - **An audit or `cid(human)` commit can flip DONE-adjacent → workable with zero code change** —
-    always diff issues.md after an audit iteration (249 filed 4 normal).
+    always diff issues.md after an audit iteration (249 filed 4, 260 filed 5).
 - Spec trees carry a "not every file" note gated by `scripts/check_spec_paths.py` (247).
 - Tier 1 doc gate registry near top of `scripts/check_tier1_docs.py` (20 FULL, 2 EXACT, 2 EXEMPT).
 - data-edge.json sections (8 since 252; list via `uv run python` json keys). C/C++ read generated
