@@ -1,15 +1,15 @@
-<!-- assessed-at: 850d022 -->
+<!-- assessed-at: 1b71421ddc8a99c8a21e94345242ec03918e1044 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — all features landed; 2 normal issues owed (Ruby source-gem profile, derived-fact drift)
+## Phase: v0.8.0 — all features landed; 1 normal issue owed (derived-fact drift)
 
 ISCC-SEQ is bound and documented on all 11 surfaces, and `data-edge.json` runs on the Rust core and
-all 11 bindings. Iteration 240 repaired the Ruby source gem (`rb_sys` declared only in the staged
-gem), and the `ruby-source-gem` CI job is green on its first run. 2 `normal` issues still block
-v0.8.0: the source gem compiles without the workspace release profile, and derived-fact drift.
+all 11 bindings. Iteration 241 gave the Ruby source gem the workspace release profile, and CI is
+green on that commit. One `normal` issue still blocks v0.8.0: derived facts in docs, specs and
+guidance are hand-written and drift.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -70,8 +70,6 @@ v0.8.0: the source gem compiles without the workspace release profile, and deriv
 
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 6 sections strictly, green in CI; 0.7.0 on
     Maven Central
-- `docs/howto/java.md` `genSumCodeV0` example now passes 4 arguments and uses field access (issue
-    closed in 238)
 - `low` issue: the pending-exception guard has no test
 
 ## Go Bindings
@@ -98,17 +96,16 @@ v0.8.0: the source gem compiles without the workspace release profile, and deriv
 
 ## Ruby Bindings
 
-**Status**: partially met — 1 `normal` issue (source-gem release profile)
+**Status**: met (v0.8.0 scope)
 
 - `encode_seq` / `decode_seq` in `test_conformance.rb`; `test_data_edge.rb` runs all 6 sections
     strictly; 0.7.0 on RubyGems; `tests/test_ruby_gem_docs.py` ties the documented Ruby range to the
     `release.yml` cross-gem list
 - Source gem: `scripts/build_ruby_source_gem.py` stages a standalone manifest, the core crate and
-    `Cargo.lock`; the gemspec adds `rb_sys ~> 0.9` only when `core/` is staged, so platform gems
-    carry no runtime dependency and the cross-gem lookup on `Gemfile.lock` reads `0.9.123` again
-- `ruby-source-gem` CI job (clean-gem-home install + selftest) green on `23a8b4c`
-- **Missing (`normal`):** the staged `Cargo.toml` has no `[profile.release]`, so a source install is
-    unstripped, has no LTO and unwinds on panic, unlike the platform gems
+    `Cargo.lock`, and copies the root `[profile.release]` key lines into it (`release_profile`,
+    fails closed on a missing/empty table or a sub-table); `rb_sys ~> 0.9` only when `core/` is
+    staged
+- `ruby-source-gem` CI job (clean-gem-home install + selftest) green on `0670d31`
 - `low`: published source gems up to 0.7.0 do not build (needs a release; yank is Titusz's call);
     Ruby 3.1 floor EOL (human-only); integer list elements accept a Float
 
@@ -127,10 +124,10 @@ v0.8.0: the source gem compiles without the workspace release profile, and deriv
     section; root README plus 12 per-crate/package READMEs
 - Tier 1 doc gate `scripts/check_tier1_docs.py` (prek hook + pytest) checks registered docs name
     every symbol derived from `lib.rs`
-- **Remaining in the `[human]` drift issue:** the gate fails open on `lib.rs` forms it does not
-    parse; `docs/howto/rust.md`, `docs/howto/c-cpp.md`, `docs/rust-api.md` and
-    `docs/architecture.md` are unregistered and incomplete; hand-written counts remain in specs and
-    per-crate `CLAUDE.md` files
+- **Remaining in the drift issue (3 parts):** the gate fails open on column-0 `lib.rs` forms it does
+    not parse; `docs/howto/rust.md`, `docs/howto/c-cpp.md`, `docs/rust-api.md` and
+    `docs/architecture.md` are unregistered and incomplete (`rust-api.md` still claims
+    `IsccResult<String>` returns); unchecked counts remain in specs and per-crate `CLAUDE.md` files
 - `low` issue: Sum-Code example comments show `ISCC:KAA…` where the call returns `ISCC:KUA…`
 
 ## Benchmarks
@@ -150,17 +147,16 @@ v0.8.0: the source gem compiles without the workspace release profile, and deriv
 - `publish-rubygems` builds the source gem via the staging script; `release.yml` never runs in CI
 - Security criterion met except the exempt EOL floors (Python 3.10, .NET 8, Ruby 3.1 — `low`, for
     Titusz); only Rust has a standing advisory gate (`cargo deny`)
-- **Latest CI: PASSING** on `origin/develop` = `23a8b4c` (`github-actions` suite `success`, every
-    job incl. `Ruby source gem` green): https://github.com/iscc/iscc-lib/actions/runs/44838418534
-- HEAD is ahead only by `.claude` log/metrics commits — green CI covers all code at HEAD
+- **Latest CI: PASSING** on `origin/develop` = `0670d31` (all 22 jobs green, incl. the Ruby source
+    gem job): https://github.com/iscc/iscc-lib/actions/runs/44845443547
+- HEAD is ahead only by a `.claude` log commit — green CI covers all code at HEAD
 
 ## Open Issues
 
-12 open: 0 critical, **2 normal**, 10 low. Normal: derived-fact drift `[human]`, Ruby source gem
-built without the workspace release profile. issues.md is at 235 of 300 lines.
+11 open: 0 critical, **1 normal** (derived-fact drift `[human]`), 10 low. issues.md is at 215 of 300
+lines.
 
 ## Next Milestone
 
-Clear the 2 open `normal` issues — the remaining v0.8.0 release blockers: give the Ruby source gem
-the same release build as the platform gems (or record why not), and the remaining derived-fact
-drift.
+Resolve the last open `normal` issue — derived facts written by hand and drifting — so v0.8.0 meets
+its release criteria.

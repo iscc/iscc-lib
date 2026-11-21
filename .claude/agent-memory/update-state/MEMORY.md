@@ -87,15 +87,16 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 850d022, iter 241 — incremental)
+## Current State (assessed-at: 1b71421, iter 242 — incremental)
 
-- **CI GREEN on `origin/develop` = `23a8b4c`** incl. the `Ruby source gem` job (first run). HEAD
-    ahead only by `.claude` commits. Check-suites API:
-    `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (judge github-actions).
-- rb_sys fixed (240): gemspec dep conditional on staged `core/`; cross-gem lookup
-    (`grep rb_sys Gemfile.lock | head -n 1`) yields 0.9.123 — re-probe if gemspec/lock change.
-- **12 open: 2 normal** (`[human]` drift; source gem lacks `[profile.release]`), 10 low. issues.md
-    235/300. Audit at 240 filed nothing (metrics snapshot only).
+- **CI GREEN on `origin/develop` = `0670d31`** (22 jobs incl. `Ruby source gem` with the release
+    profile). HEAD ahead only by `.claude`. Check-suites API:
+    `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (local-only SHA → 422, use the pushed
+    tip). `gh run view <id> --json jobs` lists per-job conclusions.
+- Ruby source gem DONE (241): `release_profile` in `scripts/build_ruby_source_gem.py` copies root
+    `[profile.release]`. rb_sys cross-gem lookup reads 0.9.123 — re-probe if gemspec/lock change.
+- **11 open: 1 normal** (`[human]` derived-fact drift, 3 parts: gate fails open on unparsed lib.rs
+    forms; 4 unregistered docs; unchecked counts in specs/CLAUDE.md), 10 low. issues.md 215/300.
 - data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`.
 
