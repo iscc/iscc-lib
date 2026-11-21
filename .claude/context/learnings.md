@@ -101,6 +101,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `--check-action-inputs`; never hand-retype either. **`prepare-release` never moves an existing
     tag** (259): `fetch-depth: 0` fetches every tag, `git tag … || echo` keeps it and the
     `push --force` is a no-op, so a hand-pushed tag stays on the pre-checksum commit
+- **`setup-dotnet` installs the latest LTS runtime before each requested version** (260), a private
+    `DOTNET_INSTALL_DIR` included; `skip-lts-prepass: true` stops it. Read the action's source
 - **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): source gems
     up to 0.7.0 do not build. Probe: `gem fetch iscc-lib --platform ruby`, then
     `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`. **A platform-fallback claim needs
@@ -123,14 +125,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     load-bearing (stripped → `summary: 0` false-green). **NOT in `mise run check`** — run
     `mise run bench:iai:check` on any benchmarked hot-path change (191's +36% reached red CI). A
     correctness change to a hot path can raise cost irreducibly: regen the baseline in the SAME step
-    (191/192 `iscc_clean` detail → `learnings-archive.md`)
 - **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, `ignore` list
     with a per-entry justification) + `audit` CI job (`cargo-deny@0.19.9`, not in the devcontainer —
     install the prebuilt release) + `mise run audit`; reads Cargo.lock so green locally is
     authoritative. A yanked crate/fresh RustSec advisory reds it on ANY push with no code change —
     try `cargo update -p <crate>` FIRST; ignore only when `cargo update --dry-run` keeps the crate
-    AND the feature edge pinning it is proven at the latest upstream (196: uniffi_bindgen 0.32.2
-    hard-enables askama `config` → `basic-toml`; crates.io `/dependencies` shows `features`)
+    AND the feature edge pinning it is proven at the latest upstream (196, reasons in `deny.toml`)
 - **`cargo deny` is not the only advisory source** (235): it was green with rustix 1.1.4 while osv
     listed RUSTSEC-2026-0486. One pass over the tracked lockfiles, run from an empty `/tmp` dir:
     `go run github.com/google/osv-scanner/v2/cmd/osv-scanner@latest scan source -r <repo>` (~1 min;

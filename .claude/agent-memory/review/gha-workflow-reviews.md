@@ -166,3 +166,31 @@ required-input omission is not caught (the check is one-directional); `except OS
 despite the documented fail-open contract; Docker-type actions' native `with: args`/`entrypoint`
 would false-positive; PyYAML YAML 1.1 booleans mangle an input named `on`/`off`/`yes`/`no`; and
 job-level `uses:` (reusable workflows) is not scanned at all — only `job.steps[*].uses`.
+
+## ci.yml fix that only a CI run can prove (iter 260, ~25 min)
+
+next.md said "review pushes and reads the run". Order that worked:
+
+1. Local criteria + `mise run check`, then read the ACTION'S SOURCE at the pinned tag before
+    believing next.md's account of it:
+    `gh api 'repos/<o>/<r>/contents/src/<file>?ref=<tag>' --jq .content | base64 -d` (also
+    `action.yml` and `README.md`). Read the whole install flow, not only the lines next.md cites.
+2. Push the define-next + advance commits FIRST:
+    `git -c credential.helper='!gh auth git-credential' push origin HEAD:develop` (pre-push gates
+    run, ~3 min). `concurrency: cancel-in-progress` is on, so do not push again before the jobs
+    under test finish.
+3. `gh run list --branch develop --workflow CI --limit 3 --json databaseId,headSha,status`, wait on
+    the named jobs, then read each job's step log:
+    `gh run view <run> --job <job-id> --log | grep -i "install-dotnet.sh\|dotnet-install:"`. A
+    green job proves the result, the LOG proves the mechanism.
+4. Write the handoff with the measured result, commit, push the review commit.
+
+What it found: next.md's Implementation Notes cited two real source lines and still drew a false
+conclusion ("a leg sees only the runtimes it lists"). `setup-dotnet` runs
+`install-dotnet.sh --runtime dotnet --channel LTS` before every requested version, so a private
+`DOTNET_INSTALL_DIR` also holds the latest LTS runtime, and `LatestMajor` follows it. Advance had
+"checked the action source" at exactly the cited lines; Codex missed it too. For any roll-forward or
+"newest installed" claim, ask what ELSE the installer puts in the directory.
+
+The `gh` CLI prints a long "hint: … gh event listen" block to stderr on each poll: add `2>/dev/null`
+to polling loops.

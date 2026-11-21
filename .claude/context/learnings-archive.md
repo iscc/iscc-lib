@@ -1111,3 +1111,8 @@ runs on `opus`. Deliberate — do not "unify" them.
 
 - A *concurrent* Gradle 9 build (a background Codex run in the same tree) makes `clean` fail "Unable
     to delete" (165): re-run sequentially
+
+## Archived from learnings.md (review 260)
+
+- `cargo deny` ignore for `basic-toml` (196): uniffi_bindgen 0.32.2 hard-enables askama `config` →
+    `basic-toml`; crates.io `/dependencies` shows the `features` of each edge
