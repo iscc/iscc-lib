@@ -124,7 +124,7 @@ change in a minor release).
 both halves differently:
 
 - `EncodeIsccID` → `GenIsccIDV1`, with the reference parameter order, matching `iscc_core`'s
-    `gen_iscc_id_v1` and the other 10 bindings
+    `gen_iscc_id_v1` and every other binding
 - `DecodeIsccID` and its `IsccIDv1Result` type are **deleted**, not renamed. `iscc-core` has no IDv1
     decoder; generic `IsccDecode` covers it. Go callers extract the fields directly:
     `n := binary.BigEndian.Uint64(body)`, then `timestamp := n >> 12`, `hubID := uint16(n & 0xFFF)`,
@@ -210,7 +210,7 @@ embeds no package-version string, so there is no sync target.
 - Package installs cleanly via `go get` with no external dependencies beyond Go modules
 - No cgo required (`CGO_ENABLED=0` works)
 - Cross-compilation works (`GOOS`/`GOARCH` combinations)
-- All 35 Tier 1 symbols accessible with idiomatic Go types and error handling
+- All Tier 1 symbols accessible with idiomatic Go types and error handling
 - API uses Go conventions: `PascalCase`, `error` returns, `[]byte`, `io.Reader`
 - No binary artifacts committed to the repository
 - `check-added-large-files` threshold at 256KB

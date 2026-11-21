@@ -40,7 +40,7 @@ merge.
 | `release-workflow` | `check_release_workflow.py --check-action-inputs`: `release.yml` `with:` keys vs published `action.yml`s                           |
 
 `python-test` is a `['3.10', '3.14']` matrix and `python` is its `if: always()` aggregator (one
-stable required-check name), so the 21 job keys surface as 22 check names on a push. The first
+stable required-check name), so a push shows one more check name than there are job keys. The first
 column is the literal `ci.yml` job key; `scripts/check_ci_job_table.py` (prek hook
 `check-ci-job-table` plus the `tests/test_check_ci_job_table.py` anchor) keeps this table in exact
 parity with the workflow's `jobs:` keys.
@@ -376,7 +376,7 @@ Go modules use git tags for versioning — no manifest version field to sync.
 
 | Task            | Command                  | Purpose                                                  |
 | --------------- | ------------------------ | -------------------------------------------------------- |
-| `version:sync`  | `mise run version:sync`  | Read workspace version, update all 9 sync targets        |
+| `version:sync`  | `mise run version:sync`  | Read workspace version, update every sync target         |
 | `version:check` | `mise run version:check` | Validate all targets match; fail if mismatch (run in CI) |
 
 The sync script (`scripts/version_sync.py`) reads the canonical version from root `Cargo.toml` and
@@ -519,9 +519,8 @@ compatibility promises that only the human raises.
 - Python wheel matrix includes manylinux aarch64, built on a native ARM runner (`ubuntu-24.04-arm`)
     and install-/import-tested on ARM before publish (see Build Matrices; plan:
     `.claude/plans/restore-linux-aarch64-python-wheels.md`)
-- Java JAR bundles 5-platform native libraries under `META-INF/native/`
-- Ruby precompiled gems available for 5 platforms (Linux x86_64/aarch64, macOS x86_64/arm64, Windows
-    x64)
+- Java JAR bundles native libraries for every release platform under `META-INF/native/`
+- Ruby precompiled gems available for Linux x86_64/aarch64, macOS x86_64/arm64 and Windows x64
 - Publishing an existing version skips gracefully instead of failing
 - All build artifacts uploaded via `actions/upload-artifact@v4`
 
@@ -531,5 +530,5 @@ compatibility promises that only the human raises.
 - All Cargo crates inherit version via `version.workspace = true`
 - Python version derived automatically via maturin `dynamic = ["version"]`
 - WASM version synced automatically via CI script in release.yml
-- `mise run version:sync` updates all 9 sync targets (manifests, docs, scripts)
+- `mise run version:sync` updates every sync target (manifests, docs, scripts)
 - `mise run version:check` validates all targets match (run in CI on every push)

@@ -31,9 +31,9 @@ Magnus 0.8 bridge between Rust `iscc-lib` core and Ruby. Compiled as a native ex
 
 ## Cross-Compilation (Critical Knowledge)
 
-The gem ships precompiled native extensions for 5 platforms: `x86_64-linux`, `aarch64-linux`,
-`x86_64-darwin`, `arm64-darwin`, `x64-mingw-ucrt`. Cross-compilation uses
-`oxidize-rb/actions/cross-gem@v1` with `rb-sys-dock` Docker containers.
+The gem ships precompiled native extensions for `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`,
+`arm64-darwin`, `x64-mingw-ucrt`. Cross-compilation uses `oxidize-rb/actions/cross-gem@v1` with
+`rb-sys-dock` Docker containers.
 
 ### Rakefile Must Pass Gemspec
 
@@ -45,7 +45,7 @@ end
 ```
 
 Without the gemspec, `rake-compiler`'s `Rake::ExtensionTask` skips `native:platform` task
-registration entirely (line 58 in extensiontask.rb:
+registration entirely (the guard in `Rake::ExtensionTask#define`:
 `define_native_tasks if @gem_spec && @gem_spec.platform == 'ruby'`). This causes
 `Don't know how to build task 'native:x86_64-linux'` inside the Docker container.
 

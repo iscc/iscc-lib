@@ -72,11 +72,11 @@ Surface ids: `rust`, `python`, `nodejs`, `wasm`, `c`, `cpp`, `java`, `go`, `ruby
 
 ## Rules
 
-- **Every surface runs every vector.** The Rust core and all 11 bindings run the whole file from
-    their conformance harness. A harness fails on a function section it does not handle. It never
-    skips or special-cases a vector in code: `except` in the file is the only per-vector deviation,
-    so every deviation is visible in one place. A harness compares every expected output key, except
-    the keys its result type lacks under "Output subset" below
+- **Every surface runs every vector.** The Rust core and every binding run the whole file from their
+    conformance harness. A harness fails on a function section it does not handle. It never skips or
+    special-cases a vector in code: `except` in the file is the only per-vector deviation, so every
+    deviation is visible in one place. A harness compares every expected output key, except the keys
+    its result type lacks under "Output subset" below
 - **Output subset.** In a `gen_*` section, `outputs` is an object that holds `iscc` and may hold
     only keys that the same function's vectors in `data.json` carry. The allowed keys are read from
     `data.json`, never kept as a hand-written list; a vector with any other key fails on every
@@ -129,8 +129,8 @@ The first version of the file holds at least the cases already found:
 - `crates/iscc-lib/tests/data-edge.json` exists with the seed set, and a test rejects a vector that
     lacks `inputs`, lacks `note`, or does not have exactly one of `outputs` / `error`
 - `tests/test_vendored_fixtures.py` covers the vendored copies of `data-edge.json`
-- The Rust core and all 11 bindings run every vector, honour `except`, and fail on a function
-    section their harness does not handle
+- The Rust core and every binding run every vector, honour `except`, and fail on a function section
+    their harness does not handle
 - No harness skips or special-cases a vector in code
 - The validator in `tests/test_data_edge.py` and `scripts/gen_data_edge_vectors.py` read each
     `gen_*` function's allowed output keys from `data.json` and reject a vector whose `outputs` is

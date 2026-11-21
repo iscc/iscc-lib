@@ -1,63 +1,62 @@
-## 2026-11-21 — Review of: Complete the C/C++ how-to, register it FULL, and drop the 0.4 crate pin
+## 2026-11-21 — Remove hand-written counts and line numbers from the specs and per-crate CLAUDE.md files
 
-**Verdict:** PASS
+**Done:** Removed every in-scope count, tally, file size and `path:NN` reference from all 15
+`.claude/context/specs/*.md` files with a hit and 11 of the 12 per-crate/package `CLAUDE.md` files
+(jni and ffi had only keep-class numerals). Counts became "every binding", "all Tier 1 symbols",
+"every release platform", "every `gen_*_v0` function with `data.json` vectors". Nothing was replaced
+with a corrected number. All Tier 1 symbol names were kept.
 
-**Summary:** `docs/howto/c-cpp.md` now names every Tier 1 symbol through runnable C++ examples and
-is registered `FULL` in `scripts/check_tier1_docs.py`. Both minimal-build snippets are version-free
-(`cargo add iscc-lib --no-default-features`). The diff is additions only, four files, no source or
-gate change. Every output comment in the new blocks matches what the code prints.
+**Files changed:**
+
+- `.claude/context/specs/`: c-ffi-dx, ci-cd, cpp/dotnet/go/java/kotlin/nodejs/python/ruby/swift/wasm
+    -bindings, edge-vectors, rust-core. In `rust-core.md` the `Total: … = 35` arithmetic is replaced
+    by one line pointing at `scripts/check_tier1_docs.py`. The section openers ("Four text
+    processing functions", "Five codec functions", "One diagnostic function", …) now read "These
+    …"/"This …". Both `path:NN` refs keep the path only.
+- `crates/{iscc-lib,iscc-napi,iscc-py,iscc-rb,iscc-wasm}/CLAUDE.md`,
+    `packages/{cpp,dotnet,go,kotlin,swift}/CLAUDE.md`: per-category numerals dropped from the Tier 1
+    lists, plus test/vector tallies, platform counts, `~3200 lines`. The iscc-rb "line 58 in
+    extensiontask.rb" now names `Rake::ExtensionTask#define` (checked in vendored rake-compiler
+    1.3.1, `def define` at :50, guard at :58).
 
 **Verification:**
 
-- [x] `uv run scripts/check_tier1_docs.py` exits 0 — `OK: 20 full and 2 exact Tier 1 docs match`
-- [x] Registry one-liner exits 0
-- [x] `uv run pytest tests/test_check_tier1_docs.py tests/test_c_ffi_docs.py` — 42 passed
-- [x] `git grep -nE 'version = "0\.' -- docs crates/iscc-lib/README.md` prints nothing; both files
-    hold one `cargo add iscc-lib --no-default-features` line (`cargo add --help` lists the flag)
-- [x] Every new C++ block compiles and runs — I extracted all ```` ```cpp ```` blocks with
-    `int main()` and built each alone with `g++ -std=c++17 -Wall -Wextra` against a fresh
-    `cargo build -p iscc-ffi`: no warnings, exit 0, output equal to the comments for all six new
-    blocks (Gen functions, `encode_component`, Text utilities, Encoding utilities, Algorithm
-    primitives, Constants). The three older `main()` blocks also run
-- [x] `uv run zensical build` exits 0 ("No issues found"); `mise run check` exits 0
+- Grep 1 (`path:NN`), grep 2 (count classes, `grep -v 'JUnit [0-9]'`) and grep 3 (`~N lines` /
+    `line N in`) each print nothing (exit 1 from git grep/grep)
+- Wrap-insensitive pass: each file joined with `tr '\n' ' '` and grepped for digit and spelled-out
+    counts before the same nouns. The only hits were false positives ("Tier 1 symbols", "JUnit 5",
+    issue URLs, "two surfaces" as a general phrase)
+- `check_tier1_docs.py` (run after each gated file: `OK: 20 full and 2 exact`),
+    `check_spec_paths.py` (`OK … 15 specs`) and `check_ci_job_table.py` (`OK: 21 CI jobs`) exit 0
+- `uv run pytest tests/test_check_tier1_docs.py tests/test_check_ci_job_table.py tests/test_c_ffi_docs.py tests/test_ruby_gem_docs.py`
+    gives 78 passed
+- `mise run format`, then `mise run check` exits 0
+- Commit stat: only specs and `CLAUDE.md` files, plus `handoff.md` and advance `MEMORY.md`, which
+    the protocol requires in the same commit. `iterations.jsonl` (runner-owned, dirty) is not staged
 
-Extra checks: with the previous `c-cpp.md` restored in a throwaway copy the gate fails and lists
-exactly the 17 symbols from next.md, so the registration is effective. Every C++ function the new
-sections use has one `iscc_<name>` export in `iscc.h` and an entry in `docs/c-ffi-api.md`.
-
-**Issues found:**
-
-- Filed `low`, untriaged: "The pkg-config example in the C/C++ how-to says `Version: 0.2.0`". A
-    hand-typed version in a copy-paste `.pc` file, pre-existing, same class as the removed 0.4 pin
-- Nit, not filed: the closing sentence "Each C++ function above wraps the C function of the same
-    name with an `iscc_` prefix" does not hold for `iscc::iscc_decode` and `iscc::iscc_decompose`
-    (C: `iscc_decode`, `iscc_decompose`). The examples it gives are right
-- Nit, not filed: `FULL` is not strictly alphabetical (`docs/java-api.md` sits before the
-    `docs/howto/` group). That order predates this step; the new line is in order within its group
-- Not filed: the older C++ blocks without `main()` (first Gen functions block, Codec and utilities,
-    ISCC-SEQ, ISCC-IDv1, Error handling) are fragments and were left untouched, as next.md asked
-
-**Issue resolution:**
-
-- "The minimal-build snippet pins `iscc-lib` to 0.4": resolved, entry deleted
-- "Derived facts in guidance and docs are written by hand and drift": the docs part is done. The
-    entry is rewritten to the one part left (counts, file lists and line numbers in
-    `.claude/context/specs/` and the per-crate `CLAUDE.md` files). It is the only `normal` issue
-
-**Codex review:** No actionable findings. Codex re-ran the gate, the 42 tests and the docs build,
-and compiled the six new C++ examples with matching output.
-
-**Next:** the last part of "Derived facts in guidance and docs are written by hand and drift":
-remove or gate the unchecked counts, file lists and line numbers in `.claude/context/specs/` and the
-per-crate `CLAUDE.md` files. It is a wide sweep. Start by measuring it (digit greps plus count words
-such as "three" or "all 35", which a digit grep misses), then pick a slice that fits one step:
-either one directory (`specs/` or the `CLAUDE.md` files) or one kind of fact. Sub-specs are
-correctable for mechanically checkable facts; `target.md` is not.
+**Next:** the file-list part of the drift issue: indentation trees and module tables in the
+`CLAUDE.md` files and specs, which no gate parses. That step has to decide between removing them and
+gating them (`check_spec_paths.py` checks only that the paths exist, not that the list is complete).
 
 **Notes:**
 
-- No Rust source changed: CRAP, iai and semver gates are unaffected, no API break
-- `scripts/version_sync.py` covers only the Maven, Gradle and SPM snippets in docs. Any other
-    version written into a doc is hand-typed and will drift
-- The C++ examples have no committed check. next.md excluded a C++ signature-pinning test, so their
-    output comments are verified by hand in this step only
+- Kept on purpose (keep classes in next.md): split thresholds (`~1500`/`~2500`/`~500 lines`),
+    algorithm/format parameters, quoted error text, `~1.1 MB` per addon, `~784 MB` toolchain
+    download, `~30 MB` revisit trigger, CRAP `(30)` / `> 10%` gate config, `~46,000` crossings
+    rationale. Kept because the items are listed right there: `cpp/CLAUDE.md` "Four … RAII guards",
+    `ci-cd.md` "Two CI gates" (two subsections follow), `rust-core.md` "three validation checks",
+    "three edits", "three checked-in artifacts", "not four"
+- Dropped the opcode tally in `wasm-bindings.md` (5370 vs 1993). The claim stays: the SIMD build
+    shows more `v128` opcodes than a build without the feature
+- Corrected in passing because the old sentences depended on a count: `rust-core.md` said "the two
+    experimental ISCC-IDv1 symbols … their doc comments", but only `gen_iscc_id_v1` exists. It now
+    names that symbol. `rust-core.md` "Update every place that repeats the Tier 1 count" now reads
+    "lists the Tier 1 symbols"
+- The Python 9-vs-10 contradiction is gone: the spec now says "one typed result class per `gen_*_v0`
+    function", and the crate file says "one typed subclass per `gen_*_v0` result"
+- Out of scope, seen but not fixed: `iscc-rb/CLAUDE.md` quotes the rake-compiler guard as
+    `@gem_spec && @gem_spec.platform == 'ruby'`, while vendored 1.3.1 reads
+    `!@no_native && (@gem_spec && …)`. Versions (JUnit 5 in `java-bindings.md` vs JUnit 6 in the
+    crate file) are untouched, as next.md asked
+- Docs-only: no Rust source changed, so the CRAP, iai and semver gates are unaffected and there is
+    no API break

@@ -9,7 +9,7 @@ core, with a pure Ruby wrapper layer for idiomatic API.
 **Two-layer design** (matching the Python binding pattern):
 
 1. **Rust bridge** (`crates/iscc-rb/src/lib.rs`): Magnus-annotated functions that call `iscc-lib`
-    core and return Ruby `Hash` objects. Single file, ~400–500 lines.
+    core and return Ruby `Hash` objects. Single file.
 2. **Pure Ruby wrapper** (`crates/iscc-rb/lib/iscc_lib.rb`): Typed result classes with attribute
     access, keyword arguments, streaming convenience methods. Provides idiomatic Ruby DX.
 
@@ -27,7 +27,7 @@ core, with a pure Ruby wrapper layer for idiomatic API.
 crates/iscc-rb/
 ├── Cargo.toml              # cdylib, depends on iscc-lib + magnus
 ├── src/
-│   └── lib.rs              # Magnus bridge (~400-500 lines)
+│   └── lib.rs              # Magnus bridge
 ├── extconf.rb              # rb_sys extension config
 ├── lib/
 │   ├── iscc_lib.rb         # Pure Ruby wrapper with result classes
@@ -225,7 +225,7 @@ ruby:
 ### Release Jobs (release.yml)
 
 Add `rubygems` boolean input to `workflow_dispatch` and a build matrix producing precompiled gems
-for all 5 platforms. Publish via `gem push` with OIDC or API key authentication.
+for every release platform. Publish via `gem push` with OIDC or API key authentication.
 
 ## Code Quality & Linting
 
@@ -255,11 +255,11 @@ plugins:
 
 ### What we explicitly skip (and why)
 
-| Tool               | Decision | Rationale                                                                    |
-| ------------------ | -------- | ---------------------------------------------------------------------------- |
-| Sorbet / Steep+RBS | Skip     | Type safety lives in the Rust core; Ruby layer is ~100 lines of thin wrapper |
-| Reek / RubyCritic  | Skip     | Code smell analysis targets large Ruby codebases, not small FFI wrappers     |
-| SimpleCov          | Skip     | Test coverage for a thin wrapper adds noise; Rust core has coverage          |
+| Tool               | Decision | Rationale                                                                |
+| ------------------ | -------- | ------------------------------------------------------------------------ |
+| Sorbet / Steep+RBS | Skip     | Type safety lives in the Rust core; Ruby layer is a thin wrapper         |
+| Reek / RubyCritic  | Skip     | Code smell analysis targets large Ruby codebases, not small FFI wrappers |
+| SimpleCov          | Skip     | Test coverage for a thin wrapper adds noise; Rust core has coverage      |
 
 ### Pre-commit / pre-push hooks
 
@@ -312,12 +312,12 @@ Ruby `VERSION` constant, which is synced by the version script.
 ## Verification Criteria
 
 - `gem install iscc-lib` succeeds (precompiled gem, no Rust toolchain needed)
-- All 10 `gen_*_v0` functions return `Hash` with the same keys/values as iscc-core
+- All `gen_*_v0` functions return `Hash`; those iscc-core shares carry the same keys/values
 - `result["iscc"]` and `result.iscc` both work (Hash + attribute access)
 - Streaming functions accept IO objects (anything with `.read`)
 - `gen_sum_code_v0` accepts path strings and `Pathname` objects
 - Conformance tests pass against vendored `data.json` vectors
-- All 35 Tier 1 symbols are accessible from Ruby
+- All Tier 1 symbols are accessible from Ruby
 - `DataHasher` and `InstanceHasher` streaming types work correctly
 - Precompiled gems available for Linux (x86_64, aarch64), macOS (x86_64, arm64), Windows (x64)
 - Source gem compiles on platforms without precompiled binaries (requires Rust)

@@ -20,7 +20,7 @@ crates/iscc-wasm/
   src/
     lib.rs            # All #[wasm_bindgen] exports (single file, flat)
   tests/
-    conformance.rs       # 9 gen_*_v0 functions vs canonical data.json vectors
+    conformance.rs       # gen_*_v0 functions vs canonical data.json vectors
     data_edge.rs         # every data-edge.json vector (except.wasm), unknown section fails
     unit.rs              # gen_sum_code_v0, text utils, encoding, codec, algorithm primitives, hashers
 ```
@@ -141,27 +141,28 @@ wasm-pack test --node crates/iscc-wasm --test unit
 
 ## Exported API Surface
 
-All 35 Tier 1 symbols are bound (including `gen_iscc_id_v1`), plus 2 result structs and 3 streaming
-types. Every `#[wasm_bindgen]` export in `lib.rs` maps 1:1 to an `iscc_lib` public symbol:
+All Tier 1 symbols are bound (including `gen_iscc_id_v1`), plus the result structs and streaming
+types listed below. Every `#[wasm_bindgen]` export in `lib.rs` maps 1:1 to an `iscc_lib` public
+symbol:
 
-- **10 gen functions:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
+- **Gen functions:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
     `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
-- **1 ISCC-IDv1 mint function (experimental):** `gen_iscc_id_v1` (returns the ISCC string directly,
+- **ISCC-IDv1 mint function (experimental):** `gen_iscc_id_v1` (returns the ISCC string directly,
     not a wrapper struct)
-- **4 text utils:** `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
-- **4 algorithm primitives:** `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`
-- **5 constants:** `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
+- **Text utils:** `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
+- **Algorithm primitives:** `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`
+- **Constants:** `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
     `TEXT_NGRAM_SIZE` (exposed as getter functions — wasm-bindgen does not support `#[wasm_bindgen]`
     on `pub const`)
-- **1 soft hash:** `soft_hash_video_v0`
-- **2 encoding:** `encode_base64`, `json_to_data_url`
-- **5 codec:** `encode_component`, `iscc_decode` (with `IsccDecodeResult` struct), `iscc_decompose`,
+- **Soft hash:** `soft_hash_video_v0`
+- **Encoding:** `encode_base64`, `json_to_data_url`
+- **Codec:** `encode_component`, `iscc_decode` (with `IsccDecodeResult` struct), `iscc_decompose`,
     `encode_seq` (`units` accepts any JS iterable of strings), `decode_seq`
-- **1 diagnostic:** `conformance_selftest` (feature-gated behind `conformance` Cargo feature)
-- **2 result structs:** `WasmSumCodeResult` (returned by `gen_sum_code_v0`, with `iscc`, `datahash`,
+- **Diagnostic:** `conformance_selftest` (feature-gated behind `conformance` Cargo feature)
+- **Result structs:** `WasmSumCodeResult` (returned by `gen_sum_code_v0`, with `iscc`, `datahash`,
     `filesize`, and optional `units` fields) and `IsccDecodeResult` (returned by `iscc_decode`)
-- **3 streaming types:** `DataHasher`, `InstanceHasher`, `SumHasher`
+- **Streaming types:** `DataHasher`, `InstanceHasher`, `SumHasher`
 
 `DataHasher`, `InstanceHasher`, and `SumHasher` are bound as `#[wasm_bindgen]` structs with
 `constructor`, `update()`, and `finalize()` methods. They use the `Option<Inner>` finalize-once

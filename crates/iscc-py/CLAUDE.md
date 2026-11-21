@@ -79,7 +79,7 @@ crates/iscc-py/
 ### IsccResult hierarchy
 
 - `IsccResult(dict)` base class with `__getattr__` for attribute-style access
-- 10 typed subclasses with class-level annotations for IDE completion
+- One typed subclass per `gen_*_v0` result, with class-level annotations for IDE completion
 - `isinstance(result, dict)` is `True` -- full dict protocol compatibility
 - `json.dumps(result)` works without custom serializer
 
@@ -92,7 +92,7 @@ crates/iscc-py/
 - Optional keys (`description`, `meta`) must be absent (not `None`) when not provided
 - Bindings must NOT define semantics -- they translate the core API only
 - Conformance vectors from `crates/iscc-lib/tests/data.json` are the correctness baseline
-- All 9 conformance `gen_*_v0` functions must match iscc-core output for every vector
+- Every `gen_*_v0` function with conformance vectors must match iscc-core output for every vector
 - `gen_sum_code_v0` is iscc-lib-only (not in iscc-core) and has no conformance vectors
 
 ## Build Commands
@@ -117,8 +117,7 @@ mise run format
 ## Test Patterns
 
 - Tests live in `/workspace/iscc-lib/tests/` (project root), not inside the crate
-- `test_conformance.py` -- parametrized tests for all 9 conformance `gen_*_v0` against `data.json`
-    vectors
+- `test_conformance.py` -- parametrized tests for every `gen_*_v0` function with `data.json` vectors
 - `test_smoke.py` -- basic functionality, IsccResult hierarchy, attribute access, BinaryIO streaming
 - `test_text_utils.py` -- text utility functions
 - `test_algo.py` -- algorithm primitives

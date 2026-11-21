@@ -141,6 +141,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - Doc example check (243): extract non-signature \`\`\`rust blocks into a throwaway
     `crates/iscc-lib/tests/zz_*.rs` (`#[test]` + `-> Result<(), Box<dyn Error>>` wrapper), run,
     delete; examples that write files (`example.bin`) land in `crates/iscc-lib/` — remove them
+- Guidance docs carry no counts/`path:NN` (245): write "every binding", "all Tier 1 symbols". Line
+    greps miss wrapped counts — also grep each file joined via `tr '\n' ' '`
 - Spec path gate `scripts/check_spec_paths.py`: `*` one segment, `**` crosses `/`; `NOT_PATHS`
     backticked spans only (228). Fix phantoms in the spec, never by adding a file
 

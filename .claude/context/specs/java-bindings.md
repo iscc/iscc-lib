@@ -174,7 +174,7 @@ Maven Surefire sets `java.library.path` to `target/debug` for CI testing.
 
 ### Release Jobs
 
-1. **`build-jni`**: Cross-compile native libraries for 5 platforms
+1. **`build-jni`**: Cross-compile native libraries for every release platform
 2. **`assemble-jar`**: Bundle all native libraries into JAR under `META-INF/native/`
 3. **`publish-maven`**: GPG sign and deploy to Maven Central (with version-already-published check)
 
@@ -201,13 +201,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ## Verification Criteria
 
-- `mvn test` passes (65 tests) with all conformance vectors
-- All 10 `gen_*_v0` functions return correct ISCC strings matching `data.json`
-- All 35 Tier 1 symbols accessible from Java
+- `mvn test` passes with all conformance vectors
+- Every `gen_*_v0` function with `data.json` vectors returns ISCC strings matching `data.json`
+- All Tier 1 symbols accessible from Java
 - `DataHasher` and `InstanceHasher` streaming types work correctly
 - Streaming hashers throw `IllegalStateException` after finalization
 - Invalid inputs throw `IllegalArgumentException` (not Rust panics)
-- `NativeLoader` extracts correct native library from JAR on all 5 platforms
+- `NativeLoader` extracts correct native library from JAR on every release platform
 - JAR published to Maven Central with source and Javadoc JARs + GPG signatures
 - Duplicate version publish detected and skipped gracefully
 - Version synced from root `Cargo.toml` via `mise run version:sync`

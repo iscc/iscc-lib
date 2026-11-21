@@ -106,7 +106,7 @@ std::string text_clean(const std::string& text);
 std::string text_collapse(const std::string& text);
 bool conformance_selftest();
 
-// ... all 35 Tier 1 symbols
+// ... all Tier 1 symbols
 
 } // namespace iscc
 ```
@@ -233,7 +233,7 @@ cpp:
 ## Verification Criteria
 
 - `#include <iscc/iscc.hpp>` compiles with C++17 on GCC, Clang, MSVC
-- All 10 `gen_*_v0` functions accessible with idiomatic C++ types
+- All `gen_*_v0` functions accessible with idiomatic C++ types
 - RAII ensures no memory leaks (valgrind/ASAN clean)
 - Conformance tests pass (C++ test program)
 - CMake `find_package(iscc)` works

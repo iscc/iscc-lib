@@ -125,7 +125,7 @@ Add to `release.yml`:
 
 - `release.yml` includes `build-ffi` and `publish-ffi` jobs
 - `workflow_dispatch` has `ffi` boolean input
-- Tag push triggers FFI builds for all 5 platform targets
+- Tag push triggers FFI builds for every release platform
 - Each platform produces a tarball with shared lib + static lib + header + LICENSE
 - Tarballs are uploaded as GitHub Release assets
 

@@ -27,7 +27,7 @@ distributes via standard `go get`.
 | `code_instance.go`        | `GenInstanceCodeV0` — Instance-Code via BLAKE3; `InstanceHasher` streaming                                                             |
 | `code_iscc.go`            | `GenIsccCodeV0` — composite ISCC-CODE assembly                                                                                         |
 | `code_sum.go`             | `GenSumCodeV0` — single-pass file ISCC-SUM (Data + Instance + compose)                                                                 |
-| `conformance.go`          | `ConformanceSelftest` — validates all 9 gen functions and the ISCC-SEQ codec against vendored vectors                                  |
+| `conformance.go`          | `ConformanceSelftest` — validates every gen function with vectors and the ISCC-SEQ codec against vendored vectors                      |
 | `utils.go`                | `TextClean`, `TextCollapse`, `TextTrim`, `TextRemoveNewlines`                                                                          |
 | `simhash.go`              | `AlgSimhash`, `SlidingWindow`                                                                                                          |
 | `minhash.go`              | `AlgMinhash256` — 64-dimensional MinHash with bit-interleaved compression                                                              |
@@ -118,8 +118,8 @@ CI confirms the package has no cgo dependencies.
 
 ### Conformance tests
 
-- **`conformance_test.go`** — calls `ConformanceSelftest()` which validates all 58 conformance
-    vectors (50 gen + 4 `encode_seq` + 4 `decode_seq`) from the embedded `testdata/data.json` in a
+- **`conformance_test.go`** — calls `ConformanceSelftest()` which validates every conformance vector
+    (`gen_*`, `encode_seq` and `decode_seq` sections) from the embedded `testdata/data.json` in a
     single call
 - **`data_edge_test.go`** — runs every vector of the vendored `testdata/data-edge.json`
     (`specs/edge-vectors.md`), honours `except.go`, and fails on an unknown section. A vector added

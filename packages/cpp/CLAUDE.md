@@ -145,9 +145,9 @@ cleanup even if an exception is thrown during field copying.
 
 ## Publishing / Distribution
 
-- **GitHub Releases**: pre-built tarballs per platform (5 targets: linux-x64, linux-arm64,
-    macos-arm64, macos-x64, windows-x64). Each tarball contains `iscc.h`, `iscc.hpp`, shared lib,
-    static lib, and LICENSE in a flat directory. Built by the `build-ffi` job in `release.yml`.
+- **GitHub Releases**: pre-built tarballs per platform (linux-x64, linux-arm64, macos-arm64,
+    macos-x64, windows-x64). Each tarball contains `iscc.h`, `iscc.hpp`, shared lib, static lib, and
+    LICENSE in a flat directory. Built by the `build-ffi` job in `release.yml`.
 - **vcpkg**: `portfile.cmake` downloads the GitHub Release tarball for the current platform,
     installs headers into `include/iscc/` and libraries into `lib/` (DLLs into `bin/` on Windows).
     SHA512 hashes are per-target and must be updated on each release.
@@ -169,7 +169,7 @@ cleanup even if an exception is thrown during field copying.
     On Linux, set `LD_LIBRARY_PATH` to the directory containing `libiscc_ffi.so`. On macOS, use
     `DYLD_LIBRARY_PATH`. On Windows, the DLL must be on `PATH` or in the working directory.
 - **vcpkg SHA512 updates**: after each release, the SHA512 hashes in `portfile.cmake` must be
-    updated for all 5 platform targets. Stale hashes cause vcpkg install failures.
+    updated for every platform target. Stale hashes cause vcpkg install failures.
 - **Header include order**: `iscc.hpp` wraps `iscc.h` via `extern "C" { #include "iscc.h" }`. Both
     headers must be on the include path. CMakeLists.txt sets both `packages/cpp/include` and
     `crates/iscc-ffi/include` as INTERFACE include directories.

@@ -26,7 +26,7 @@ packages/swift/
       module.modulemap                       # Simplified modulemap for SPM (manual, not generated)
   Tests/
     IsccLibTests/
-      ConformanceTests.swift                 # data.json vectors (9 gen_*_v0 functions, ISCC-SEQ) + gen_iscc_id_v1 golden test
+      ConformanceTests.swift                 # data.json vectors (gen_*_v0 functions, ISCC-SEQ) + gen_iscc_id_v1 golden test
       DataEdgeTests.swift                    # data-edge.json edge-case vectors (every vector, except["swift"])
       data.json                              # Vendored ISCC conformance test vectors (SPM resource)
       data-edge.json                         # Vendored edge-case vectors (SPM resource)
@@ -56,9 +56,9 @@ swift test \
 
 ### Conformance tests (`ConformanceTests.swift`)
 
-- 19 test methods: one per gen function (9 methods, 50 vectors; no `gen_sum_code_v0` vectors in
-    data.json), `testGenIsccIdV1`, and 9 ISCC-SEQ methods (4 `encode_seq` + 4 `decode_seq` vectors,
-    the bytes round trip, and one-bad-input-per-test negatives)
+- Test methods: one per gen function with `data.json` vectors (`gen_sum_code_v0` has none),
+    `testGenIsccIdV1`, and ISCC-SEQ methods (the `encode_seq` and `decode_seq` vectors, the bytes
+    round trip, and one-bad-input-per-test negatives)
 - `decodeStream` helper converts `"stream:<hex>"` format to `Data`
 - Asserts exact ISCC string equality against expected outputs
 

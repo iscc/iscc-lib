@@ -34,10 +34,10 @@ packages/dotnet/
     Iscc.Lib.Tests.csproj                # References Iscc.Lib, xunit.v3, Microsoft.NET.Test.Sdk (exact pinned versions)
     packages.lock.json                   # Committed NuGet lock file (CI restores with --locked-mode)
     SmokeTests.cs                        # End-to-end P/Invoke validation for every public method
-    ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions + encode_seq/decode_seq
+    ConformanceTests.cs                  # data.json conformance vectors for gen_*_v0 functions + encode_seq/decode_seq
     SeqTests.cs                          # EncodeSeq / DecodeSeq error surfacing and accepted input forms
     NulInputTests.cs                     # Embedded-NUL rejection across string-input methods
-    ArrayInputTests.cs                   # Empty / null inputs across the six jagged-array methods
+    ArrayInputTests.cs                   # Empty / null inputs across the jagged-array methods
     DataEdgeTests.cs                     # every data-edge.json vector (except.dotnet), unknown section fails
     testdata/data.json                   # Vendored ISCC conformance test vectors
     testdata/data-edge.json              # Vendored shared edge-case vectors
@@ -96,8 +96,8 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 ### Conformance tests (`ConformanceTests.cs`)
 
 - `[Theory]` + `[MemberData]` pattern for parameterized tests from `testdata/data.json`
-- One test method per gen function, all 9 gen functions covered (50 vectors total), plus `EncodeSeq`
-    / `DecodeSeq` (4 + 4 vectors) and `SeqRoundTripBytes` (`EncodeSeq(DecodeSeq(x)) == x`)
+- One test method per gen function with `data.json` vectors, plus `EncodeSeq` / `DecodeSeq` and
+    `SeqRoundTripBytes` (`EncodeSeq(DecodeSeq(x)) == x`)
 - Static `Lazy<JsonElement>` caches the parsed JSON across test methods
 - `DecodeStream` helper converts `"stream:<hex>"` format to `byte[]`
 - `PrepareMeta` helper handles null / string / JSON-object meta parameter variants
@@ -115,8 +115,8 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 - **Target framework:** `net8.0`
 - **Version source:** `<Version>` in `Iscc.Lib.csproj`, synced with workspace version via
     `mise run version:sync`
-- **Native library bundling:** CI downloads FFI artifacts for 5 targets, maps them to NuGet RID
-    directories under `runtimes/<rid>/native/`, then runs `dotnet pack`
+- **Native library bundling:** CI downloads the FFI artifact for every supported RID, maps them to
+    NuGet RID directories under `runtimes/<rid>/native/`, then runs `dotnet pack`
 - **Supported RIDs:** `linux-x64`, `linux-arm64`, `osx-arm64`, `osx-x64`, `win-x64`
 - **Smoke testing:** CI creates a fresh console project on ubuntu, macOS, and Windows, installs the
     packed `.nupkg` from a local source, runs `ConformanceSelftest()` as a sanity check
@@ -163,9 +163,9 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 
 ### Array parameter marshalling
 
-- **Jagged arrays** (`int[][] frameSigs`, `byte[][] digests`, `string[] codes`/`units`): all six
-    methods go through the private `PinnedRows` helper in `IsccLib.cs` (`Pin` for jagged arrays,
-    `PinStrings` converts via `ToNativeUtf8` first) inside a `using`. It throws
+- **Jagged arrays** (`int[][] frameSigs`, `byte[][] digests`, `string[] codes`/`units`): all
+    jagged-array methods go through the private `PinnedRows` helper in `IsccLib.cs` (`Pin` for
+    jagged arrays, `PinStrings` converts via `ToNativeUtf8` first) inside a `using`. It throws
     `ArgumentNullException` (parameter name + `name[i]` in the message) for a null array or element
     before pinning anything, pins each row with `GCHandle.Alloc(..., Pinned)`, frees already pinned
     handles if pinning fails, and frees all handles on `Dispose`. Call sites `fixed` its `Pointers`

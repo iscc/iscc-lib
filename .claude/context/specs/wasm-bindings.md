@@ -8,7 +8,7 @@ in any WASM-capable environment (browsers, Deno, Cloudflare Workers, Node.js via
 **Single-layer design:**
 
 1. **Rust bridge** (`crates/iscc-wasm/src/lib.rs`): wasm-bindgen annotated functions that call
-    `iscc-lib` core and return JavaScript types via WASM interop. All 35 Tier 1 symbols exported.
+    `iscc-lib` core and return JavaScript types via WASM interop. All Tier 1 symbols exported.
 2. **Generated JS glue** (`pkg/`): wasm-pack generates JavaScript wrapper and TypeScript
     declarations for the WASM module.
 
@@ -24,7 +24,7 @@ in any WASM-capable environment (browsers, Deno, Cloudflare Workers, Node.js via
 crates/iscc-wasm/
 ├── Cargo.toml              # cdylib, depends on iscc-lib + wasm-bindgen
 ├── src/
-│   └── lib.rs              # wasm-bindgen bridge (all 35 Tier 1 symbols)
+│   └── lib.rs              # wasm-bindgen bridge (all Tier 1 symbols)
 ├── README.md               # Per-crate README for npm
 ├── tests/
 │   └── conformance.rs      # wasm-pack test conformance against data.json
@@ -130,9 +130,9 @@ Build-flag + Cargo-feature change only, no source changes: conformance output is
 - Published `.wasm` binary contains SIMD instructions — the backend is definitively wired in
     (`cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"` shows blake3's
     `wasm32_simd` feature, so `Platform::detect()` returns `WASM32_SIMD` at compile time), and the
-    release `.wasm` disassembly shows `v128` opcodes (`wasm-tools print`: 5370, up from 1993 before
-    the Cargo feature was enabled). (`wasm-validate --enable-simd` is NOT sufficient evidence — it
-    merely permits SIMD and passes scalar modules too.)
+    release `.wasm` disassembly shows more `v128` opcodes (`wasm-tools print`) than a build without
+    the Cargo feature. (`wasm-validate --enable-simd` is NOT sufficient evidence — it merely permits
+    SIMD and passes scalar modules too.)
 
 ## Distribution / Publishing
 
@@ -173,7 +173,7 @@ package name and version" step patches `name`, `repository` and `version` (read 
 ## Verification Criteria
 
 - `wasm-pack test --node` passes all conformance vectors
-- All 35 Tier 1 symbols accessible from JavaScript/TypeScript
+- All Tier 1 symbols accessible from JavaScript/TypeScript
 - Package builds with `wasm-pack build`
 - `DataHasher` and `InstanceHasher` streaming types work in WASM
 - `SumHasher` streaming type works in WASM (single-pass ISCC-SUM, output matches two-hasher pattern)

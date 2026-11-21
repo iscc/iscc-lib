@@ -1,7 +1,7 @@
 # Spec: Rust Core Crate — Extended API Surface
 
-The `iscc-lib` Rust core crate exposes a Tier 1 public API that all 11 binding surfaces wrap. Beyond
-the 10 `gen_*_v0` functions, the crate provides text utilities, algorithm primitives, streaming
+The `iscc-lib` Rust core crate exposes a Tier 1 public API that every binding surface wraps. Beyond
+the `gen_*_v0` functions, the crate provides text utilities, algorithm primitives, streaming
 hashers, codec operations, and a conformance selftest — everything that `iscc/iscc-sdk` currently
 imports from `iscc-core`.
 
@@ -10,8 +10,8 @@ implementations.
 
 ## Structured Return Types
 
-All 10 `gen_*_v0` functions return structured result types (not plain strings). Each type carries
-the same fields as the corresponding iscc-core Python dict. See `specs/python-bindings.md` for the
+All `gen_*_v0` functions return structured result types (not plain strings). Each type carries the
+same fields as the corresponding iscc-core Python dict. See `specs/python-bindings.md` for the
 complete field listing per function.
 
 **Verified when:**
@@ -23,7 +23,7 @@ complete field listing per function.
 
 ## Text Utility Functions
 
-Four text processing functions are public Tier 1 API, callable from all bindings:
+These text processing functions are public Tier 1 API, callable from all bindings:
 
 | Function               | Signature (Rust)                          | Behavior                                                                                                         |
 | ---------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -72,14 +72,14 @@ implements the conditional mapping today — `packages/go`'s `TextCollapse` coll
 - `iscc_lib::text_trim("é", 1)` returns `""` (1-byte truncation splits 2-byte char)
 - `iscc_lib::text_collapse("Hello, World!")` returns `"helloworld"`
 - `iscc_lib::text_collapse("café")` returns `"cafe"`
-- All four functions are accessible from Python bindings as `iscc_lib.text_clean()` etc.
-- All four functions are accessible from Node.js, WASM, and C FFI bindings
+- All text utilities are accessible from Python bindings as `iscc_lib.text_clean()` etc.
+- All text utilities are accessible from Node.js, WASM, and C FFI bindings
 - `text_collapse` applies the conditional `Final_Sigma` mapping: `text_collapse("ΛΟΓΟΣ")` returns
     `"λογος"` (not `"λογοσ"`) in the Rust core and in `packages/go`
 
 ## Algorithm Primitives
 
-Four algorithm functions are public Tier 1 API, callable from all bindings. These are the building
+These algorithm functions are public Tier 1 API, callable from all bindings. These are the building
 blocks used by `iscc-sdk` for granular content processing (text chunking, text fingerprinting).
 
 | Function          | Signature (Rust)                                         | Behavior                                                                    |
@@ -103,14 +103,14 @@ Note: The bound `alg_simhash` takes `&[Vec<u8>]` (concrete type) rather than the
 - `iscc_lib::alg_cdc_chunks(data, false, 1024)` returns non-empty chunk list for non-empty input
 - `iscc_lib::alg_simhash(&[vec![0u8; 32]])` returns a 32-byte `Vec<u8>`
 - `iscc_lib::alg_simhash` returns `Err(IsccError::InvalidInput)` for an empty list
-- All four functions are accessible from Python bindings
-- All four functions are accessible from Node.js, WASM, and C FFI bindings
+- All algorithm primitives are accessible from Python bindings
+- All algorithm primitives are accessible from Node.js, WASM, and C FFI bindings
 - `alg_minhash_256` output matches iscc-core `alg_minhash_256` for identical input features
 - `alg_cdc_chunks` output matches iscc-core `alg_cdc_chunks` for identical input data
 
 ## Soft Hash Functions
 
-One soft hash function is public Tier 1 API. It is used by `iscc-sdk` directly for granular video
+This soft hash function is public Tier 1 API. It is used by `iscc-sdk` directly for granular video
 processing (generating per-segment simprints), independent of `gen_video_code_v0`.
 
 | Function             | Signature (Rust)                                    | Behavior                                                          |
@@ -125,7 +125,7 @@ processing (generating per-segment simprints), independent of `gen_video_code_v0
 
 ## Encoding Utilities
 
-Two encoding functions are public Tier 1 API.
+These encoding functions are public Tier 1 API.
 
 | Function           | Signature (Rust)            | Behavior                                                                                                                                                    |
 | ------------------ | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -145,7 +145,7 @@ serializing to JSON once (language-specific) then delegating encoding to Rust.
 
 ## Codec Operations
 
-Five codec functions are public Tier 1 API.
+These codec functions are public Tier 1 API.
 
 **Base32 input is strict.** Every codec entry point, in Rust and in the pure-Go port, rejects base32
 with `=` padding or with non-zero unused trailing bits in the last character, and upper-cases ASCII
@@ -291,16 +291,16 @@ language's natural types (list of strings in → bytes out, and the reverse), fo
 `iscc_decompose` and other byte/list-taking functions are already bound there.
 
 **Conformance data:** `data.json` (iscc-core 1.5.0, already vendored) has `encode_seq` and
-`decode_seq` sections, 4 vectors each. Their outputs are a `bytes:<hex>` string and a list (every
-other section's outputs are objects), and `bytes:<hex>` also appears in inputs. Every conformance
-harness must run both sections with `bytes:` decoding. Swift and Kotlin hard-code per-section
-counts; the Go loader `parseConformanceData` deliberately loads only `gen_*` sections today, so the
-Go seq tests need their own loader.
+`decode_seq` sections. Their outputs are a `bytes:<hex>` string and a list (every other section's
+outputs are objects), and `bytes:<hex>` also appears in inputs. Every conformance harness must run
+both sections with `bytes:` decoding. Swift and Kotlin hard-code per-section counts; the Go loader
+`parseConformanceData` deliberately loads only `gen_*` sections today, so the Go seq tests need
+their own loader.
 
 **Also in scope:** align the `iscc_decompose` doc comment (`codec.rs`) with iscc-core 1.5.0 — its
 input is the base32 form of concatenated unit bytes, which concatenated unit *strings* only yield
 for 64-bit units; point to `decode_seq` as the strict byte-level reader. Update every place that
-repeats the Tier 1 count (crate `CLAUDE.md`, `docs/architecture.md`, binding docs) in the step that
+lists the Tier 1 symbols (crate `CLAUDE.md`, `docs/architecture.md`, binding docs) in the step that
 makes it true.
 
 **Verified when:**
@@ -325,8 +325,8 @@ makes it true.
     rejects those and the test asserts that divergence explicitly (see "Base32 input is strict"
     above)
 - Every conformance harness (Rust, Python, Node, WASM, C, C++, Java, Go, Ruby, .NET, Swift, Kotlin)
-    runs the 4 `encode_seq` + 4 `decode_seq` vectors
-- `encode_seq` / `decode_seq` accessible from all 11 bindings with idiomatic names and types; the
+    runs every `encode_seq` and `decode_seq` vector
+- `encode_seq` / `decode_seq` accessible from every binding with idiomatic names and types; the
     pure-Go port carries its own implementation and test cases
 - Round trip `encode_seq(decode_seq(x)) == x` holds for every vector on every surface
 
@@ -391,7 +391,7 @@ pub struct IsccIdResult {
 
 **There is deliberately no `decode_iscc_id_v1`** (decided by Titusz, 2026-07-28). `iscc-core` has no
 IDv1 decoder — `iscc_decode` is generic and covers it once Part 1 lands — so a dedicated decoder
-would be an iscc-lib invention: permanent surface on 11 bindings, with no upstream to track as the
+would be an iscc-lib invention: permanent surface on every binding, with no upstream to track as the
 format evolves, in place of three lines of arithmetic. Callers decode like this:
 
 ```text
@@ -412,8 +412,8 @@ package's `DecodeIsccID` and its `IsccIDv1Result` type are **deleted**, not rena
 every other Tier 1 constructor uses. Each binding applies its own casing transform: `GenIsccIDV1` in
 Go, `genIsccIdV1` in Kotlin/Swift (UniFFI camel-cases), `gen_iscc_id_v1` in Python, Ruby **and both
 JS surfaces** — napi and WASM deliberately export snake_case
-(`#[napi(js_name = "gen_meta_code_v0")]` at `crates/iscc-napi/src/lib.rs:97`), so a camelCase name
-here would be the only one on those surfaces — and `iscc_gen_iscc_id_v1` in the C FFI.
+(`#[napi(js_name = "gen_meta_code_v0")]` in `crates/iscc-napi/src/lib.rs`), so a camelCase name here
+would be the only one on those surfaces — and `iscc_gen_iscc_id_v1` in the C FFI.
 
 **The core is clock-free: `timestamp` is a required argument.** The reference defaults it to
 `time.time_ns() // 1000`, but this crate has no time dependency and must not acquire one — the
@@ -433,7 +433,7 @@ unsigned types make the reference's unchecked-negative path (which raises `Overf
 
 Bindings keep their established error idiom and prefix rather than copying the string verbatim —
 Go's existing `"iscc: timestamp overflow: %d (must be < 2^52)"` is correct and its
-`strings.HasPrefix(err.Error(), "iscc:")` assertion (`packages/go/iscc_id_test.go:160`) stays green;
+`strings.HasPrefix(err.Error(), "iscc:")` assertion (`packages/go/iscc_id_test.go`) stays green;
 napi/WASM raise a JS `Error`, JNI throws, the C FFI fills its error-string out-param. Only the
 *which check fires first* ordering is asserted cross-surface.
 
@@ -445,8 +445,8 @@ napi/WASM raise a JS `Error`, JNI throws, the C FFI fills its error-string out-p
     variant cost a major bump.
 - `decode_header`, `encode_component` and `encode_header` accept Version 1 **only** when MainType is
     `Id`; every other MainType keeps rejecting Version > 0.
-- This changes the observable behaviour of the already-shipped Tier 1 `iscc_decode` on all 11
-    surfaces: inputs that previously failed with `invalid Version: 1` now succeed. The change is
+- This changes the observable behaviour of the already-shipped Tier 1 `iscc_decode` on every
+    surface: inputs that previously failed with `invalid Version: 1` now succeed. The change is
     additive-permissive (no signature change), and it is *intended* — `iscc/iscc-monitor` maintains
     a tripwire test (ADR-0011) that flips red exactly when a binding starts accepting Version 1, as
     the signal to delete its interim in-repo codec port.
@@ -490,7 +490,7 @@ const realm = st;
 ```
 
 No binding exposes the packed `u64` as a number. Returning bytes and letting the caller widen is
-what keeps the generic decode path portable across all 11 surfaces.
+what keeps the generic decode path portable across every surface.
 
 ### Where the tests live
 
@@ -523,8 +523,8 @@ and `VENDORED_COPIES` — miss any one and the copies drift unpoliced).
 
 **Verified when:**
 
-- Tier 1 `iscc_decode` and `iscc_decompose` accept MainType `ID` with Version 1 on every one of the
-    11 surfaces, and still reject Version > 0 for every other MainType
+- Tier 1 `iscc_decode` and `iscc_decompose` accept MainType `ID` with Version 1 on every surface,
+    and still reject Version > 0 for every other MainType
 - `iscc_decode("ISCC:MAIGHFECJMOPMIAB")` returns `(6, 0, 1, 0, <8 bytes>)`, matching
     `iscc_core.iscc_decode` exactly
 - `gen_iscc_id_v1(1751831876325218, 1, 0)` returns `ISCC:MAIGHFECJMOPMIAB`
@@ -545,11 +545,11 @@ and `VENDORED_COPIES` — miss any one and the copies drift unpoliced).
     a major break (`cargo-semver-checks` reports `enum_marked_non_exhaustive`), taken deliberately
     inside the 0.x window. The tool is not installed locally and the CI `semver` job is
     `continue-on-error: true`, so this is a written record, not a gate result.
-- Both functions are accessible from all 11 bindings with idiomatic names and types
+- Both functions are accessible from every binding with idiomatic names and types
 
 ## Single-Call ISCC-SUM Generation
 
-One combined code generation function is public Tier 1 API. It generates both Data-Code and
+This combined code generation function is public Tier 1 API. It generates both Data-Code and
 Instance-Code in a single pass with Rust-native file I/O, eliminating Python→Rust boundary crossing
 overhead.
 
@@ -586,7 +586,7 @@ pub struct SumCodeResult {
 
 ## Streaming Hashers
 
-Two streaming processor types are public Tier 1 API. They enable processing large files without
+These streaming processor types are public Tier 1 API. They enable processing large files without
 loading them entirely into memory. Used by `iscc-sdk` in `code_sum` to generate Data-Code and
 Instance-Code from file streams.
 
@@ -616,7 +616,7 @@ accumulates a BLAKE3 streaming hash and byte count.
 
 ## Algorithm Constants
 
-Five algorithm configuration constants are public Tier 1 API, defined as `pub const` in the Rust
+These algorithm configuration constants are public Tier 1 API, defined as `pub const` in the Rust
 core. These are standardized parameters from ISO 24138 — read-only by design.
 
 | Constant                | Type    | Value     | Description                                        |
@@ -654,7 +654,7 @@ object for iscc-core API parity.
 
 ## Conformance Selftest
 
-One diagnostic function is public Tier 1 API. Runs all vendored conformance vectors and reports
+This diagnostic function is public Tier 1 API. Runs all vendored conformance vectors and reports
 pass/fail.
 
 | Function               | Signature (Rust) | Behavior                                               |
@@ -693,9 +693,8 @@ The full public API surface bound in all languages:
 
 <!-- tier1:end -->
 
-Total: 10 gen functions + 4 text utils + 4 algorithm primitives + 1 soft hash + 2 encoding + 5 codec
-\+ 1 ISCC-IDv1 + 5 constants + 2 streaming types + 1 diagnostic = **35 public symbols** (+ the
-`codec` module remains Tier 2 Rust-only for header encode/decode internals).
+`scripts/check_tier1_docs.py` keeps the list above in parity with the crate-root exports in
+`lib.rs`. The `codec` module remains Tier 2 Rust-only for header encode/decode internals.
 
 `gen_iscc_id_v1` is Tier 1 for binding-surface purposes (every language exposes it) but is **exempt
 from the v1.0.0 stability lock** below while the upstream format is still evolving.
@@ -721,11 +720,11 @@ change is explicitly sanctioned by a human and reflected in the version number.
 - **Output compatibility** (already enforced): every `gen_*_v0` function must keep producing output
     identical to the conformance vectors and to `iscc-core`. This is the primary contract for
     downstream consumers and is covered by the existing conformance suite.
-- **API compatibility** (new gate): the public surface of `iscc-lib` (the 35 Tier 1 symbols + the
-    Tier 2 `codec` module) must not change in a backward-incompatible way without a major version
-    bump. Enforced by `cargo-semver-checks` in CI against the previously published release. The two
-    experimental ISCC-IDv1 symbols are carved out of this lock until the upstream format settles —
-    the carve-out is documented here and in their doc comments, not implied.
+- **API compatibility** (new gate): the public surface of `iscc-lib` (the Tier 1 symbols + the Tier
+    2 `codec` module) must not change in a backward-incompatible way without a major version bump.
+    Enforced by `cargo-semver-checks` in CI against the previously published release. The
+    experimental ISCC-IDv1 symbol `gen_iscc_id_v1` is carved out of this lock until the upstream
+    format settles — the carve-out is documented here and in its doc comment, not implied.
 - **SemVer contract:** the crate follows strict SemVer from v1.0.0 — breaking changes require a
     major bump (2.0.0), additive changes are minor, fixes are patch. The 0.4.0 → 1.0.0 transition is
     the one release allowed to break freely; after it, 1.x is locked.

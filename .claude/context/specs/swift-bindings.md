@@ -157,7 +157,7 @@ Prebuilt static libraries for Apple platforms, assembled via `xcodebuild -create
 | iOS (device)    | `aarch64-apple-ios`                            | arm64              |
 | iOS (simulator) | `aarch64-apple-ios-sim` + `x86_64-apple-ios`   | arm64 + x86_64 fat |
 
-5 Rust targets total, merged into 3 platform slices via `lipo`.
+The Rust targets are merged into one slice per platform row via `lipo`.
 
 ### Build Script (`scripts/build_xcframework.sh`)
 
@@ -309,7 +309,8 @@ build-xcframework:
 
 ## Caching Strategy
 
-XCFramework builds are expensive (5 cross-compilations on a macOS runner). Cache aggressively.
+XCFramework builds are expensive (one cross-compilation per Rust target on a macOS runner). Cache
+aggressively.
 
 ### CI Cache
 
@@ -419,8 +420,8 @@ Release asset (uses existing `contents: write` permission).
 
 - `swift test` passes conformance vectors (CI, development Package.swift)
 - Package resolves via SPM from Git tag using `.binaryTarget` (no Rust toolchain needed)
-- All 10 `gen_*_v0` functions accessible with idiomatic Swift types
-- All 35 Tier 1 symbols accessible from Swift
+- All `gen_*_v0` functions accessible with idiomatic Swift types
+- All Tier 1 symbols accessible from Swift
 - XCFramework bundles static libraries for macOS (arm64 + x86_64), iOS device (arm64), iOS simulator
     (arm64 + x86_64)
 - Root `Package.swift` uses variable toggle (`useLocalFramework`) with `releaseTag` +

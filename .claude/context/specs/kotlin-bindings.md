@@ -136,9 +136,9 @@ check(conformanceSelftest())
 Published alongside the existing `io.iscc:iscc-lib` (JNI). Uses the same Sonatype credentials and
 GPG signing infrastructure.
 
-The release JAR bundles native libraries for all 8-9 platforms as JNA classpath resources. Android
-consumers add the dependency to their `build.gradle.kts` and JNA handles native library extraction
-and loading automatically.
+The release JAR bundles native libraries for every desktop and Android target as JNA classpath
+resources. Android consumers add the dependency to their `build.gradle.kts` and JNA handles native
+library extraction and loading automatically.
 
 ### Supported consumer Kotlin version
 
@@ -233,9 +233,9 @@ RUN rustup target add aarch64-linux-android armv7-linux-androideabi \
 
 ## Release Workflow
 
-The release workflow cross-compiles `iscc-uniffi` for all target platforms (5 desktop + 3-4 Android
-ABIs), bundles the native libraries into the JAR's resource paths, and publishes to Maven Central
-via Sonatype Central Portal.
+The release workflow cross-compiles `iscc-uniffi` for every desktop target and Android ABI, bundles
+the native libraries into the JAR's resource paths, and publishes to Maven Central via Sonatype
+Central Portal.
 
 Android targets require the Android NDK in the build environment. Use `cargo-ndk` for ergonomic
 cross-compilation:
@@ -265,9 +265,9 @@ Uses the existing Sonatype/Maven Central credentials from the Java/JNI publishin
 
 - Kotlin tests pass conformance vectors on JVM target
 - Published to Maven Central as `io.iscc:iscc-lib-kotlin`
-- All 10 `gen_*_v0` functions return correct data classes
-- All 35 Tier 1 symbols accessible from Kotlin
-- Native libraries bundled for 5 desktop platforms (linux-x86-64, linux-aarch64, darwin-aarch64,
+- All `gen_*_v0` functions return correct data classes
+- All Tier 1 symbols accessible from Kotlin
+- Native libraries bundled for the desktop platforms (linux-x86-64, linux-aarch64, darwin-aarch64,
     darwin-x86-64, win32-x86-64)
 - Native libraries bundled for Android ABIs (arm64-v8a, armeabi-v7a, x86_64)
 - Android app can add Maven dependency and call ISCC functions without manual native lib setup

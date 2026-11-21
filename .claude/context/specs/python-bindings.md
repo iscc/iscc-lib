@@ -1,9 +1,9 @@
 # Spec: Python Bindings — Drop-in Compatibility with iscc-core
 
 The Python package `iscc_lib` is a drop-in replacement for `iscc-core`. Callers can replace
-`import iscc_core as ic` with `import iscc_lib as ic` and get identical behavior for all 9
-`gen_*_v0` functions. Use deepwiki MCP to query `iscc/iscc-core` for exact signatures and return
-values.
+`import iscc_core as ic` with `import iscc_lib as ic` and get identical behavior for every
+`gen_*_v0` function the two packages share. Use deepwiki MCP to query `iscc/iscc-core` for exact
+signatures and return values.
 
 ## Return Types
 
@@ -136,8 +136,8 @@ def gen_meta_code_v0(name, description=None, meta=None, bits=64) -> MetaCodeResu
 
 ### Exports
 
-`__init__.py` exports the 9 `gen_*_v0` wrapper functions, `IsccResult`, and the 9 typed result
-classes. All are listed in `__all__`.
+`__init__.py` exports every `gen_*_v0` wrapper function, `IsccResult`, and one typed result class
+per `gen_*_v0` function. All are listed in `__all__`.
 
 ## iscc-core Drop-in Compatibility Extensions
 
@@ -283,13 +283,13 @@ small-input size threshold to avoid GIL release/reacquire overhead regressing ti
 **Verified when:**
 
 - Streaming `update()` and one-shot byte-data hashing functions release the GIL around the pure-Rust
-    compute (no GIL held during CDC/BLAKE3/MinHash work) — 7 `py.allow_threads(...)` sites in
-    `crates/iscc-py/src/lib.rs` (4 one-shot fns + 3 `update()` methods)
+    compute (no GIL held during CDC/BLAKE3/MinHash work) — release sites in
+    `crates/iscc-py/src/lib.rs` cover the one-shot functions and the `update()` methods
 - Two Python threads each hashing a multi-GB buffer approach ~2× throughput vs. serialized
     (memory-bandwidth permitting) — mechanistically enabled by the GIL release; throughput is
     memory-bandwidth dependent and intentionally not CI-gated (non-deterministic on shared runners)
-- Conformance vectors and the self-test suite are unchanged (identical output) — `pytest   tests/`
-    286 passed, incl. 7 new `tests/test_gil.py` concurrency-correctness tests
+- Conformance vectors and the self-test suite are unchanged (identical output), and `pytest` passes
+    including the `tests/test_gil.py` concurrency-correctness tests
 
 ### GIL Release for Text/Video Compute Paths
 
@@ -314,11 +314,11 @@ already applied to the data/instance/image/sum functions. **Caveat:** `gen_video
 
 - `gen_text_code_v0` releases the GIL (`py.detach`) around the pure-Rust text compute
 - `gen_video_code_v0` and `soft_hash_video_v0` (incl. `*_flat` variants) release the GIL around the
-    WTA-hash compute, with the detach window opening only after frame-signature extraction — 12
-    total `py.detach(...)` sites in `crates/iscc-py/src/lib.rs` (7 from #39 + 5 new: text, video,
-    video_flat, soft_hash_video, soft_hash_video_flat)
-- Conformance vectors and the full test suite pass unchanged (identical output) — `pytest   tests/`
-    300 passed, incl. 3 new `tests/test_gil.py` text/video concurrency-correctness tests
+    WTA-hash compute, with the detach window opening only after frame-signature extraction — the
+    `py.detach(...)` sites in `crates/iscc-py/src/lib.rs` cover the #39 paths plus text, video,
+    video_flat, soft_hash_video and soft_hash_video_flat
+- Conformance vectors and the full test suite pass unchanged (identical output), and `pytest` passes
+    including the text/video concurrency-correctness tests in `tests/test_gil.py`
 
 ### core_opts Algorithm Constants
 
@@ -368,7 +368,7 @@ The `_lowlevel.pyi` type stubs reflect the internal return types (`dict[str, Any
 
 ## Verification Criteria
 
-- All 9 `gen_*_v0` return `dict` with correct keys matching iscc-core
+- Every shared `gen_*_v0` function returns a `dict` with correct keys matching iscc-core
 - `result["iscc"]` matches iscc-core output for all conformance vectors
 - `gen_meta_code_v0`: `result["metahash"]` and `result["name"]` match iscc-core
 - `gen_text_code_v0`: `result["characters"]` matches iscc-core
@@ -386,4 +386,4 @@ The `_lowlevel.pyi` type stubs reflect the internal return types (`dict[str, Any
 - `isinstance(result, dict)` is `True`
 - IDE code completion works via class-level type annotations (pyright/mypy clean)
 - `json.dumps(result)` works without custom serializer
-- `IsccResult` and all 9 typed result classes exported in `__all__`
+- `IsccResult` and all typed result classes exported in `__all__`
