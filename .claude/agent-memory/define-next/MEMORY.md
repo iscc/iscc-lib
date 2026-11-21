@@ -3,8 +3,8 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 270):** v0.8.0 features done; critical closed 269; 11 `normal` issues left
-(270 scoped the Ruby 3.3 floor). Per-iteration traps for 259-269 (dotnet roll-forward,
+**Status 2026-11-21 (iter 271):** v0.8.0 features done; 16 `normal` left (271 scoped the
+devcontainer Ruby pin in `mise.toml`). Per-iteration traps for 259-269 (dotnet roll-forward,
 build-dependent iscc-core, lone-surrogate vectors, wasm-bindgen `.d.ts` `?` rule, uncaught js-sys
 imports) → [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds
 (py3.10 + py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's
@@ -65,6 +65,10 @@ nothing.
 
 ## Dev Environment Constraints
 
+- **`.devcontainer/devcontainer.json` is `skip-worktree` locally** (Zed workaround: on-disk array
+    form → untracked `post-create.sh` in `.git/info/exclude`). A step editing the committed
+    `postCreateCommand` must stage via `git hash-object -w` + `update-index --cacheinfo`, re-set the
+    flag, and mirror the edit into the local script (271). `mise.toml` had no `[tools]` until 271.
 - **No shellcheck** (CI-only). `cmake` via `uv run --with cmake cmake …` (160); **Swift runs here**
     (swift.org debian12 tarball, ~5 min, no sudo). `uniffi-bindgen`:
     `cargo run -p iscc-uniffi   --features bindgen --bin uniffi-bindgen`; SPM module MUST be
