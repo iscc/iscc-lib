@@ -1,89 +1,106 @@
 # Next Work Package
 
-## Step: CDC parameter maths matches the reference for every `avg_chunk_size` (Rust core + Go)
+## Step: `alg_cdc_chunks` data-edge section on all 12 surfaces (reference-stable vectors)
 
 ## Goal
 
-Fix the `normal` [audit] issue "`alg_cdc_chunks` accepts an `avg_chunk_size` whose parameter maths
-overflows": Rust `alg_cdc_params` and Go `algCdcParams` compute the reference's
-`(min, max, center, mask_s, mask_l)` for every `u32` value, with no panic, no wrap, and the same
-result on both. This is the core half; the `data-edge.json` vector follows as its own fan-out step.
+Add an `alg_cdc_chunks` section to `data-edge.json` and run it on the Rust core and all 11 bindings.
+This lands the expensive part of the audit issue "No shared vector pins `alg_cdc_chunks` for a large
+`avg_chunk_size`". **Reframed:** the issue's own values (2^29, 2147483647) cannot pass the Python
+reference check on both CI legs (finding below), so this step ships only vectors on which every
+iscc-core 1.5.0 build agrees. The large values are left for a decision.
 
 ## Alternatives Considered
 
-- **Chosen:** reference-matching parameter maths in Rust and Go. It is a correctness defect in a
-    public Tier 1 function (debug panic, release `mask_s = 0`), and the handoff names it. Matching
-    the reference beats an upper-bound rejection: no `diverges` marker, no new error, no API change
-- **Rejected:** Python video frame `OverflowError` (1 file, Python-only). Smaller and independent,
-    but a binding-local exception class matters less than a core function that panics
-- **Rejected:** adding the `alg_cdc_chunks` section to `data-edge.json` in this step. A new section
-    makes all 12 harnesses and the C generator fail closed (learnings 226), and "core changes go
-    first and alone" forbids combining a core fix with a fan-out
+- **Chosen:** the section fan-out with build-independent vectors. No decision is open for these
+    vectors, all 12 harnesses have to learn the section anyway, and adding the large vectors later
+    is then one JSON edit plus whatever the decision says.
+- **Rejected:** the fan-out as the handoff scoped it (2^29 + 2147483647). Measured while scoping:
+    iscc-core's compiled wheel (cp310–cp314, built only under `CIBUILDWHEEL=1`, see the reference
+    `setup.py`) raises `OverflowError: value too large to convert to uint32_t` for
+    `avg_chunk_size >= 2^29` (`cdc.pxd` types `ma` as `uint32_t`). 536870911 still works. Python
+    3.15 has no wheel, so uv builds the sdist as pure Python, which returns one chunk
+    (`uv run --no-project --python 3.15 --with iscc-core==1.5.0` → `cdc.py`, `1 1`). CI runs pytest
+    on 3.10 (compiled) and 3.15 (pure). With or without `diverges`, one leg fails.
+- **Rejected:** Python video `OverflowError` (1 file). It is independent and stays next in line.
 
 ## Scope
 
-- **Modify**: `crates/iscc-lib/src/cdc.rs` (`alg_cdc_params` + its unit tests + the `alg_cdc_chunks`
-    doc comment if it mentions limits), `packages/go/cdc.go` (`algCdcParams`)
-- **Tests**: `crates/iscc-lib/src/cdc.rs` `mod tests`, `packages/go/cdc_test.go`
-- **Maybe**: `.crap-baseline.json` (only if `alg_cdc_params` changes score; via
-    `mise run coverage && mise run crap:baseline`), `.iai-baseline.json` (only if `bench:iai:check`
-    fails, which is not expected)
-- **Reference**: `reference/iscc-core/iscc_core/cdc.py` (`alg_cdc_params`, `alg_cdc_offset`)
+- **Fan-out:** the core's `alg_cdc_chunks` behaviour, applied to rust, python, nodejs, wasm, c, cpp,
+    java, go, ruby, dotnet, swift, kotlin (one commit per surface)
+- **Modify**: `crates/iscc-lib/tests/data-edge.json` and its 4 vendored copies
+    (`packages/dotnet/Iscc.Lib.Tests/testdata/`, `packages/go/testdata/`,
+    `packages/kotlin/src/test/resources/`, `packages/swift/Tests/IsccLibTests/`);
+    `scripts/gen_data_edge_vectors.py` + regenerated `crates/iscc-ffi/tests/data_edge_vectors.h`;
+    harnesses `crates/iscc-lib/tests/test_data_edge.rs`, `tests/test_data_edge.py`,
+    `crates/iscc-napi/__tests__/data_edge.test.mjs`, `crates/iscc-wasm/tests/data_edge.rs`,
+    `crates/iscc-ffi/tests/test_iscc.c`, `packages/cpp/tests/test_iscc.cpp`,
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java`,
+    `packages/go/data_edge_test.go`, `crates/iscc-rb/test/test_data_edge.rb`,
+    `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs`,
+    `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/DataEdgeTest.kt`,
+    `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift`; `tests/test_gen_data_edge_vectors.py`
+- **Reference**: commit `066a149` and its per-surface siblings (`git log --oneline -12 066a149`):
+    the `alg_simhash` section fan-out, the same shape. `specs/edge-vectors.md`.
+    `reference/iscc-core/iscc_core/cdc.py`
 
 ## Not In Scope
 
-- The `data-edge.json` `alg_cdc_chunks` section and its 12 harnesses: the next step, as a fan-out
-- An upper bound or any new rejection of large `avg_chunk_size`: the reference accepts every value
-    from 2 up, and so must we
-- The Rust `utf32` `cut_point == 0` fallback (`cut_point = remaining.len().min(4)`), and changes to
-    `gear_scan` / `alg_cdc_offset` or their `unsafe` blocks
-- Binding crates: they pass the `u32` through unchanged and need no edit
+- Vectors with `avg_chunk_size >= 2^29`, and any change to how the Python harness picks its
+    reference build. That is the open decision. Report it in the handoff, do not settle it
+- `utf32: true` vectors with a small average. The reference loops forever when a utf32 cut point is
+    under 4 bytes (Rust has a `cut_point == 0` guard in `cdc.rs`), so the Python reference call
+    would hang
+- Vectors for `avg_chunk_size` 0 or 1, and any library-code change on any surface
 
 ## Implementation Notes
 
-Reference (Python ints): `min = avg // 4`, `max = avg * 8`, `offset = min + ceil(min / 2)`,
-`center = avg - offset`, `bits = round(log2(avg))`, `mask_s = 2**(bits+1) - 1`,
-`mask_l = 2**(bits-1) - 1`. `bits` reaches 31 from avg ≈ 1518500250 and 32 from ≈ 3037000500.
+Vectors (input encoding as in `alg_simhash`: `["bytes:<hex>", <bool>, <int>]`; `outputs` is a list
+of `"bytes:<hex>"`). Compute each expected list from `iscc_lib` and let the Python cross-check
+confirm it against iscc-core:
 
-- **Masks:** `pattern` is `(pattern >> 1) + gear[b]` with every gear value < 2^31, so it stays below
-    2^32 in the reference too. A mask with 32 or more bits therefore tests `pattern == 0`, the same
-    as `u32::MAX`. Saturate: Rust `1u32.checked_shl(n).map_or(u32::MAX, |v| v - 1)` (`checked_shl`
-    returns `None` for `n >= 32`). `mask_l` needs at most 31 bits, but use the same helper for both.
-    **Go already saturates**: in `maskS = (1 << (bits+1)) - 1` the constant takes type `uint32`, and
-    a Go shift of 32 or more gives 0, so 0 − 1 = `0xFFFFFFFF`. Leave Go's masks alone; pin them with
-    a test
-- **`max_size`:** `avg * 8` overflows `u32` from 2^29 (Rust: debug panic; Go: wrap). Compute it in
-    `u64` and saturate to the platform int (Rust `usize::try_from(..).unwrap_or(usize::MAX)`; Go
-    `int64` clamped to `math.MaxInt`). `ma` is only ever used as `min(ma, size)` with
-    `size <= buffer.len()`, so saturation equals the reference on 32-bit targets (wasm32, Go 386)
-- `min`, `offset`, `center` cannot overflow; keep their formulas
-- Expected tuples `(min, max, center, mask_s, mask_l)`, computed from the reference formulas:
-    - 2^29 = 536870912 → (134217728, 4294967296, 335544320, 1073741823, 268435455)
-    - 2147483647 → (536870911, 17179869176, 1342177280, 4294967295, 1073741823)
-    - 2^31 = 2147483648 → (536870912, 17179869184, 1342177280, 4294967295, 1073741823)
-    - 4294967295 → (1073741823, 34359738360, 2684354560, 4294967295 saturated, 2147483647)
-- Tests, the same four values on both surfaces: a parameter test asserting the tuples above (gate
-    the `max` assertion on a 64-bit `usize`/`int`, e.g. `#[cfg(target_pointer_width = "64")]` /
-    `strconv.IntSize == 64`), and an `alg_cdc_chunks` / `AlgCdcChunks` call on a small input (say 64
-    bytes) returning exactly one chunk equal to the input. In a debug build that call panicked
-    before the fix, so the Rust test is the regression proof
-- Hot path: `alg_cdc_params` runs once per `alg_cdc_chunks` call. Run `mise run bench:iai:check`
-    (CI-only gate) and the CI CRAP lines; if either moves, regenerate the baseline in this step,
-    never widen epsilon or threshold
+- `test_0001_small_average_many_chunks`: bytes `00..1f` (32 bytes), `false`, `2`. Gives 17 chunks on
+    the compiled reference, so it pins the masks, which the large values cannot
+- `test_0002_largest_average_all_reference_builds`: same bytes, `false`, `536870911` (2^29 − 1, the
+    largest value the compiled reference accepts). Gives one chunk equal to the input
+- `test_0003_empty_input`: `"bytes:"`, `false`, `1024`. Gives `["bytes:"]`: the reference yields one
+    empty chunk. The C/C++ generator needs its sentinel pattern for a zero-length byte array (no
+    `{}` in C99). If a surface returns something else, drop this vector, keep the section, and
+    report the surface in the handoff (no `except` without a decision, no binding fix here)
+
+Per-harness facts: Java `algCdcChunks` takes an `int`, so 536870911 fits. napi/WASM pass an `f64`,
+.NET `uint`, Swift/Kotlin `UInt32`. Python: `iscc_core.alg_cdc_chunks` returns a lazy generator, so
+errors would surface in the converter, outside the `REJECTIONS` try. No vector here expects an
+error, so a converter that builds the list is enough. Do not add `OverflowError` to `REJECTIONS`.
+Rust `tests/*.rs` helpers score 0% coverage for CRAP: keep each helper at cyclomatic complexity ≤ 5
+(CI-only `--fail-above` trap, learnings). Swift: toolchain recipe in `packages/swift/CLAUDE.md`
+(`/tmp/swifttc` may be gone). Kotlin: check the JUnit XML, not the exit code.
+
+**Finding for review:** rewrite the audit issue to its remainder, the 2^29/2147483647 vectors. They
+are blocked on a decision about which iscc-core build is the reference when the builds disagree. The
+decision of 2026-11-21 says "iscc-core accepts every value", which holds only for the pure-Python
+build. This is also an upstream iscc-core defect: the compiled and pure builds disagree.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes, including the new tests for the four values above
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean and
-    `cargo check -p iscc-lib --target wasm32-unknown-unknown` exits 0
-- `go test ./...` and `go vet ./...` in `packages/go` exit 0, including the new tests;
-    `GOARCH=386 go vet ./...` exits 0
-- `mise run bench:iai:check` exits 0
-- `mise run coverage` then the CI `cargo crap` command (copied from `ci.yml`) exits 0 against the
-    committed `.crap-baseline.json`
-- `mise run check` exits 0
+- `cargo test -p iscc-lib --test test_data_edge` passes;
+    `cargo llvm-cov -p iscc-lib --lcov   --output-path lcov.info && cargo crap --lcov lcov.info --baseline .crap-baseline.json   --fail-regression --fail-above`
+    exits 0
+- `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py   tests/test_vendored_fixtures.py`
+    passes, with the iscc-core cross-check running the new section
+- `uv run python scripts/gen_data_edge_vectors.py` leaves
+    `git status --porcelain   crates/iscc-ffi/tests/data_edge_vectors.h` empty
+- nodejs `npm test` (crates/iscc-napi), wasm
+    `wasm-pack test --node crates/iscc-wasm --features   conformance`, java
+    `mvn test -f crates/iscc-jni/java/pom.xml`, go `CGO_ENABLED=0 go test   ./...` (packages/go),
+    ruby `bundle exec rake test` (crates/iscc-rb), dotnet `dotnet test   packages/dotnet` pass
+- c `test_iscc` and cpp `build/tests/test_iscc` pass (CI build lines in `ci.yml`), kotlin
+    `./gradlew test` JUnit XML shows `DataEdgeTest` with 0 failures, swift
+    `swift test --filter   DataEdge` passes
+- `python3 -c "import json;d=json.load(open('crates/iscc-lib/tests/data-edge.json'));assert   all(v['inputs'][2] < 2**29 for v in d['alg_cdc_chunks'].values())"`
+    exits 0; `mise run check` exits 0
 
 ## Done When
 
-Rust and Go return the reference's CDC parameters for 2^29, 2147483647, 2^31 and 4294967295 without
-a panic or wrap, all six criteria pass, and the handoff names the pending `data-edge.json` fan-out.
+The `alg_cdc_chunks` section runs green on all 12 surfaces and in the Python iscc-core cross-check,
+and the handoff reports the reference-build finding.
