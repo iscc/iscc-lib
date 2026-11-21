@@ -86,16 +86,16 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 2f9b703, iter 276 — incremental)
+## Current State (assessed-at: c8ccc72, iter 277 — incremental)
 
-- **CI on `81395df` GREEN** (run 44947460714); tip `f6a43b8` run in progress (only CLAUDE.md files
-    changed). codecov/cursor suites sit `queued` forever — judge by the github-actions suite. A
-    `null` check-run conclusion = still running; `gh run view <id> --json status,conclusion,jobs`
-    settles it. Job logs: `actions/jobs/<id>/logs` API with `--allow-escape-sequences`, strip ANSI.
-- 18 open (0 `critical` + 11 `normal` + 7 `low`; spec-staleness closed 275); 7 postponed.
-    iscc-uniffi 30 `#[test]`. 271 pinned dev Ruby 3.4.13 in `mise.toml` `[tools]` (only tools pin);
-    Ruby floor 3.3 (gemspec, ci.yml, release.yml). Fast suite check:
-    `gh api .../commits/<sha>/check-suites` (one call). iscc-lib `src/` has 311 `#[test]`.
+- **Tip `7bbb1f0` run 44950595748 IN PROGRESS** (22/24 green, Kotlin+Bench running); last fully
+    green = `f6a43b8` (predates the 276 selftest rewrite). codecov/cursor suites sit `queued`
+    forever — judge by the github-actions suite. A `null` check-run conclusion = still running;
+    `gh run view <id> --json status,conclusion,jobs` settles it.
+- 17 open (0 `critical` + 10 `normal` + 7 `low`; selftest-dup closed 276); 7 postponed. iscc-uniffi
+    30 `#[test]`. 271 pinned dev Ruby 3.4.13 in `mise.toml` `[tools]` (only tools pin); Ruby floor
+    3.3 (gemspec, ci.yml, release.yml). Fast suite check: `gh api .../commits/<sha>/check-suites`
+    (one call). iscc-lib `src/` has 315 `#[test]`.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
