@@ -103,8 +103,8 @@ No text hot path is touched, so neither the iai nor the CRAP gate is affected.
 - `grep -nE 'git (tag|push origin) v|tag push triggers' docs/development.md` prints nothing, and
     `grep -n 'Force-Update Tag Pattern' .claude/context/specs/swift-bindings.md` prints nothing
 - `docs/ruby-api.md` → Error Handling states the Float conversion; the `array_to_i32_vec` doc
-    comment no longer claims `TypeError` for every non-Integer; `git diff -- crates/` changes
-    comment lines only
+    comment no longer claims `TypeError` for every non-Integer; the only edits under `crates/` are
+    comment lines
 - `uv run zensical build` exits 0,
     `uv run pytest tests/test_check_docs_nav.py tests/test_c_ffi_docs.py` passes, and
     `mise run check` exits 0
