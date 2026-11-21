@@ -1,59 +1,59 @@
-## 2026-11-21 — Generated C edge header keeps every string literal within 4,095 bytes
+## 2026-11-21 — Review of: Generated C edge header keeps every string literal within 4,095 bytes
 
-**Done:** `scripts/gen_data_edge_vectors.py` routes every string it emits (`c_str` fields, list
-items, row names) through `c_text`: a string over `C_LITERAL_MAX = 4095` bytes becomes a zeroed
-`static char <ident>_<field>_buf[len + 1];` with row field `{<buf>, len}`, and the header ends with
-`static void iscc_edge_init(void)` that `memcpy`s each buffer from literal pieces of at most 4,095
-bytes with explicit counts (emitted with an empty body when no buffer exists; `<string.h>` added).
-Both harnesses call `iscc_edge_init()` at the top of their edge block.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `scripts/gen_data_edge_vectors.py`: `C_LITERAL_MAX`, `c_text`, `buffer_decl`, `init_function`;
-    renderers/`gen_iscc`/`byte_list_arrays`/`list_arrays` take a per-section `bufs` collector;
-    `render_section` returns `(text, bufs)` and declares its buffers first; preamble + docstring
-- `crates/iscc-ffi/tests/data_edge_vectors.h`: regenerated. Diff = 2 preamble lines, the include,
-    one buffer decl (`iscc_edge_gen_meta_code_v0_3_meta_buf[128003]`), that one meta field, and the
-    init function (32 `memcpy` pieces). Every other row is byte-identical
-- `crates/iscc-ffi/tests/test_iscc.c`, `packages/cpp/tests/test_iscc.cpp`: one init call each
-- `tests/test_gen_data_edge_vectors.py`: callers updated for the new signatures; new tests: literal
-    scanner self-test, tracked-header literals ≤ 4,095 (count non-zero), init always defined,
-    harnesses call init before the first section, oversized non-ASCII meta on `tmp_path` (buffer
-    `len + 1`, contiguous offsets, pieces rebuild the UTF-8, a piece boundary falls mid-sequence),
-    NUL-only oversized string, exactly-4,095-byte string stays a literal
-- `crates/iscc-ffi/CLAUDE.md`, `packages/cpp/CLAUDE.md`: one sentence each on the init call
+**Summary:** The generator now writes every string over 4,095 bytes as a static buffer that the
+header's `iscc_edge_init()` fills from literal pieces, and both test programs call it. All six
+criteria pass, every other row of the header is byte-identical, and the `normal` MSVC issue is
+closed. One note: the fix could not be run on MSVC, and Microsoft's own pages disagree on whether a
+4,095-byte piece is allowed (filed `low`).
 
 **Verification:**
 
-- `uv run pytest tests/test_gen_data_edge_vectors.py tests/test_data_edge.py tests/test_vendored_fixtures.py`
-    — 172 passed (generator file alone: 39 passed)
-- `gcc -std=c99 -Woverlength-strings -Werror -fsyntax-only -x c` on the header: exit 0 now; exit 1
-    on the HEAD header ("string length '128002' is greater than the length '4095'"). Also
-    `g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only -x c++` on the header: exit 0
-- C program built as the `c-ffi` job (`gcc … -liscc_ffi`, plus `-Wall -Wextra`, no warnings): 148
-    passed, 0 failed, `test_0004_meta_payload_over_limit` PASS. Probe with the init call deleted:
-    147 passed, 1 failed (that row) — the C side fails closed
-- C++ (`uv run --with cmake cmake` Debug + `SANITIZE_ADDRESS=ON`, as the `cpp` job): 119 passed, 0
-    failed, the oversized row PASS
-- `grep -c 'iscc_edge_init()'`: test_iscc.c 1, test_iscc.cpp 1
-- The test scanner finds 119 literals in the new header (max 4,095 bytes) and 88 in the HEAD header
-    (max 128,002); 119 matches an independent regex count
-- `mise run check` exit 0; `ruff --select S,C901` and `ty check` on both Python files clean
-- Generator re-run is a no-op; `data-edge.json` unchanged vs HEAD
+- [x] `uv run pytest tests/test_gen_data_edge_vectors.py tests/test_data_edge.py tests/test_vendored_fixtures.py`
+    — 172 passed on the advance commit, 173 after the review's added test. The new literal scanner
+    reports 128,002 bytes on the previous header, so the test fails on the old form
+- [x] `gcc -std=c99 -Woverlength-strings -Werror -fsyntax-only -x c crates/iscc-ffi/tests/data_edge_vectors.h`
+    — exit 0; exit 1 on the header of the define-next commit
+- [x] C test program built and run as the `c-ffi` job — 148 passed, 0 failed,
+    `test_0004_meta_payload_over_limit` PASS (also clean with `-Wall -Wextra`)
+- [x] C++ suite (`uv run --with cmake cmake`, Debug + ASAN) — 119 passed, 0 failed, oversized row
+    PASS
+- [x] `grep -c 'iscc_edge_init()'` — 1 in `test_iscc.c`, 1 in `test_iscc.cpp`
+- [x] `mise run check` — exit 0
+
+Beyond next.md: the generator re-run is a no-op and `data-edge.json` is unchanged. A `/tmp` fixture
+with an oversized list item, digest item and row name renders one buffer each, compiles under
+`gcc -std=c99 -pedantic -Werror` and `g++ -std=c++17 -Werror`, and reads back correctly under ASAN.
+
+**Issues found:**
+
+- **Filed `low`, untriaged:** "Generated C header fills long strings from 4,095-byte literals, over
+    one documented MSVC limit". The C2026 page allows 16,380 bytes per quoted piece; the C language
+    reference page "Maximum String Length" (2021) says 2,048. Unmeasured: no MSVC here or in CI.
+    Lowering `C_LITERAL_MAX` to 2,047 would satisfy both pages
+- Fixed in review: `escape_c_string` lost its last caller in this step and survived only through its
+    own unit test. Removed; the test now calls `escape_c_bytes`
+- Added in review: `test_oversized_list_item_and_row_name_render_buffers`. The advance tests covered
+    only the `c_str` path, not list items (`_i<k>_buf`) or row names (`_name_buf`)
+- Nit, not filed: without the init call the C++ program still passes, because the only long row
+    expects an error. The pytest that asserts the call in both sources is the guard (decisions.md)
+- Nit, not filed: both Microsoft URLs in next.md return 404 without `?view=msvc-170`
+
+**Codex review:** No actionable findings. Codex re-ran the 172 Python tests, the C program (148) and
+the C++ ASAN suite (119) and the header compiler checks, all green.
 
 **Next:** The `[audit]` issue "`@iscc/wasm` docs show a Node.js setup the published package cannot
-run" (handoff option 2 from iteration 281).
+run" (2 non-test files). Probe the Node example against a packed `--target web` release build, as
+the entry asks. Other open `normal` issues, any of which is a valid pick: the `alg_minhash_256([])`
+decision, the vcpkg portfile hashes, the WASM hasher `finalize()` rule, the Rust API docs tiers, the
+one-shot/streaming duplication, the Rust and Go `data.json` re-parsing.
 
 **Notes:**
 
-- Collector design: renderers append `(buf_name, bytes)` to a per-section list passed in, rather
-    than returning a third tuple element — fewer signature churns; `render_section` stays pure at
-    its boundary (returns its buffers). Ident suffixes: `_name`, `_input`, `_digest`, `_seq`,
-    `_text`, `_iscc`, `_input_name`, `_description`, `_meta`, `_simhash`, `_data`, list items
-    `_i<k>`
-- The literal check measures decoded bytes; a 4,095-byte limit also keeps each piece under MSVC's
-    16,380-byte C2026 limit. MSVC itself was not run (none available)
-- C++ without the init call would read 128 KB of NUL; the only oversized row expects an error, so it
-    would still pass there. The harness-call pytest is the guard for C++ (not probed by build)
-- Header grew 147,274 → 149,873 bytes (one octal-escaped copy per piece instead of one literal)
-- No Rust code changed: CRAP/iai unaffected, no API change
+- decisions.md has a new entry on why long strings are runtime-filled buffers (a `const` array
+    initializer would push the header over the 256 KB added-file limit). Two older entries rotated
+    into `decisions-archive.md`
+- A new data-edge vector with a long string now needs no special care in C: the generator handles
+    any string in any field. The header is 150 KB of the 256 KB hook limit
+- No Rust code changed: no CRAP, iai or API impact

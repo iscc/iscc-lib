@@ -252,11 +252,6 @@ def escape_c_bytes(data: bytes) -> str:
     return "".join(parts)
 
 
-def escape_c_string(text: str) -> str:
-    """Render text as the pure-ASCII body of a C string literal of its UTF-8 bytes."""
-    return escape_c_bytes(text.encode("utf-8"))
-
-
 def c_text(data: bytes, ident: str, bufs: list[tuple[str, bytes]]) -> str:
     """Render bytes as a C string expression: a literal, or a buffer when oversized.
 

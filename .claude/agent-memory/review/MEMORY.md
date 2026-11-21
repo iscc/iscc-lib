@@ -92,7 +92,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     data-edge SECTION = 12-surface script (226, 264: both iscc-core builds) + **diff each new
     `UNCOMPARED` row against the function's `data.json` keys (252: Codex caught a missed key)**,
     **validator / C-generator (236)**, **harness-compare fan-out (237)**, **throwaway-vector proof
-    (253)**, **new vector, MSVC literal cap (281)** → `binding-reviews.md`
+    (253)**, **new vector (281), C header literal fix (282)** → `binding-reviews.md`
 - **C FFI marshalling-helper step (255, ~35 min)**: read per-row closures for allocations (no perf
     gate covers `iscc-ffi`), ASAN-probe new C macros with a forced mismatch → `binding-reviews.md`
 - **JS marshalling step (256, 268, 269)**: Node probes on a RELEASE WASM build, whole-`.d.ts` diff

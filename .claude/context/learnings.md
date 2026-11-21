@@ -59,7 +59,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     over generated source tokenize escapes, split on lines, and tally visited rows. **A harness's
     uncompared set holds EVERY `data.json` output key its result type lacks** (252); a `meta` input
     is a JSON object (iscc-core reads a string `meta` as a data URL). A lone surrogate escape is no
-    vector (266). **No second string over 65,535 bytes: MSVC rejects the C literal** (281)
+    vector (266). **Over 4,095 bytes a string is a buffer `iscc_edge_init()` fills** (282)
 - **Perf-gate tooling is NOT in the devcontainer** (250): `mise run bench:iai:check` needs
     `apt-get install valgrind` + `cargo install --locked iai-callgrind-runner@0.16.1`
 - **A docs page lives in FOUR places**, all gated by `scripts/check_docs_nav.py` (145/146).

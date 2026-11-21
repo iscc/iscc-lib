@@ -213,21 +213,20 @@ Verification Criteria
 
 Resolved when both criteria say the workflow tags the checksum commit once and moves no tag.
 
-## Generated `data_edge_vectors.h` holds a 128 KB string literal that MSVC cannot compile `normal` [review]
+## Generated C header fills long strings from 4,095-byte literals, over one documented MSVC limit `low` [review]
 
-Introduced in iteration 281. The vector `gen_meta_code_v0/test_0004_meta_payload_over_limit` has a
-meta string of 128,002 bytes, and `scripts/gen_data_edge_vectors.py` (`escape_c_string`) writes it
-as one C string literal into `crates/iscc-ffi/tests/data_edge_vectors.h`. gcc and clang accept it (C
-148 passed, C++ ASAN 119 passed). MSVC limits a string literal to 16,380 bytes per piece and 65,535
-bytes after concatenation (errors C2026 and C1091), so neither `test_iscc.c` nor the C++
-`test_iscc.cpp` can be built with MSVC any more; both use standard headers only and had no such
-limit before. Not measured: the devcontainer and CI have no MSVC, and no CI job builds either test
-program on Windows. Found by the review and by Codex independently.
+**Triage:** untriaged. Someone who builds `test_iscc.c` with MSVC would get a compile error (C2026)
+if the older of two Microsoft pages is right; gcc and clang builds are unaffected.
 
-Resolved when either the generator writes a string over the MSVC limit in a form MSVC accepts (for
-example a `static const char` array initializer), with a generator test that fails on any string
-literal over 65,535 bytes, or a decisions.md entry states that the C and C++ test programs are built
-with gcc and clang only.
+`scripts/gen_data_edge_vectors.py` writes a string over `C_LITERAL_MAX` (4,095 bytes) as a static
+buffer that `iscc_edge_init()` fills from literal pieces of up to 4,095 bytes (iteration 282).
+Microsoft documents two limits for one quoted piece: 16,380 bytes on the error C2026 page, and 2,048
+bytes under "Maximum String Length" in its C language reference (last updated 2021). The pieces fit
+the first and exceed the second. Not measured: the devcontainer and CI have no MSVC.
+
+Resolved when either every literal in the header is at most 2,047 bytes (a lower `C_LITERAL_MAX`,
+which the literal-length test follows), or an MSVC build of `test_iscc.c` shows that 4,095-byte
+pieces compile.
 
 ## vcpkg portfile pins the SHA512 hashes of the v0.2.0 tarballs `normal` [audit]
 

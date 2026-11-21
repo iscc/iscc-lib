@@ -145,13 +145,13 @@ def test_every_vector_name_is_rendered_once():
             assert body.count(f'{{"{name}", ') == 1, f"{section}/{name}"
 
 
-def test_escape_c_string_emits_three_digit_octal():
+def test_escape_c_bytes_emits_three_digit_octal():
     """Non-ASCII and NUL bytes become 3-digit octal; quote, backslash, ? are escaped."""
     emoji = chr(0x1FAE9)
-    assert gen.escape_c_string(f"a{emoji}b") == "a\\360\\237\\253\\251b"
-    assert gen.escape_c_string('say "hi" \\ bye') == 'say \\"hi\\" \\\\ bye'
-    assert gen.escape_c_string("a\x001") == "a\\0001"
-    assert gen.escape_c_string("??=") == "\\?\\?="
+    assert gen.escape_c_bytes(f"a{emoji}b".encode()) == "a\\360\\237\\253\\251b"
+    assert gen.escape_c_bytes(b'say "hi" \\ bye') == 'say \\"hi\\" \\\\ bye'
+    assert gen.escape_c_bytes(b"a\x001") == "a\\0001"
+    assert gen.escape_c_bytes(b"??=") == "\\?\\?="
 
 
 def test_nul_text_row_resolves_c_skip_cpp_error():
@@ -536,3 +536,32 @@ def test_short_string_stays_a_literal():
     data = b"x" * gen.C_LITERAL_MAX
     assert gen.c_str(data, "id", bufs) == f'{{"{data.decode()}", {len(data)}}}'
     assert bufs == []
+
+
+def test_oversized_list_item_and_row_name_render_buffers(tmp_path):
+    """An oversized list item and an oversized row name each become a buffer of their own."""
+    bufs = []
+    big = b"x" * (gen.C_LITERAL_MAX + 1)
+    lines, init = gen.byte_list_arrays("id", [b"a", big], bufs)
+    assert lines == [
+        'static const char *const id_items[] = {"a", id_i1_buf};',
+        f"static const size_t id_lens[] = {{1, {len(big)}}};",
+    ]
+    assert init == "{id_items, id_lens, 2}"
+    assert bufs == [("id_i1_buf", big)]
+    long_name = "n" * (gen.C_LITERAL_MAX + 1)
+
+    def mutate(fixture):
+        section = fixture["iscc_decode"]
+        first = next(iter(section))
+        fixture["iscc_decode"] = {
+            (long_name if name == first else name): vector
+            for name, vector in section.items()
+        }
+
+    text = gen.render(write_mutated_fixture(tmp_path, mutate))
+    name = "iscc_edge_iscc_decode_0_name_buf"
+    assert f"static char {name}[{len(long_name) + 1}];\n" in text
+    assert f"    {{{name}, ISCC_EDGE_" in text
+    pieces = memcpy_pieces(text, name)
+    assert b"".join(piece for _, piece, _ in pieces) == long_name.encode()

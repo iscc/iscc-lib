@@ -29,27 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-19 — Review-found old defects are filed `low` until the human promotes them
-
-**Decision:** the review files a defect as `normal` only when the step caused it, ordinary
-documented use hits it, or an outside signal raised it (CI, a security advisory, an upstream
-release, a user report). Everything else is `low` with `**Triage:** untriaged`, and Titusz promotes
-what matters (`review.md` step 7). **Why:** `normal` blocks the release, and 10 of 16 open issues
-were review-filed, so the reviewer was setting the release bar from inside the loop.
-**Alternatives:** keep `normal` as the default. Rejected for that reason. **Context:** human
-decision (Titusz, interactive session, 2026-11-19), applied the same day to four open entries (napi
-`Buffer` leak, JNI pending exception, Ruby negative Bignum, `iscc-ffi` file split).
-
-## 2026-11-19 — A step that introduces a pattern on a surface covers all its call sites
-
-**Decision:** when a step introduces or changes how one surface does something (a guard, a helper,
-an error mapping, a conversion), it covers every sibling call site on that surface in the same step
-(`define-next.md` step 5, checked by the review). **Why:** minimal steps left the old form next to
-the new one and filed the rest as an issue: three .NET pin loops with two behaviours (iteration
-206), a NUL guard on 1 of 16 C++ call sites (207). **Alternatives:** keep minimal steps and track
-leftovers as issues. Rejected: the leftover is the defect. **Context:** human decision (Titusz,
-interactive session, 2026-11-19).
-
 ## 2026-11-19 — Steps are sized by outcome: 6-file default, fan-out by behaviour
 
 **Decision:** the default step cap rises from 3 to 6 non-test files, and the fan-out valve covers
@@ -398,3 +377,15 @@ apt repository, and the hooks would still need one named version); pinning Rust,
 any `to_int` object and truncates it toward zero; `docs/ruby-api.md` states it. **Why:** Ruby host
 idiom (`Array#[]` does the same), given by Magnus. **Rejected:** a strict Integer check to match
 Python's `TypeError`. No `data-edge.json` vector (wrong-typed element). **Context:** iteration 277.
+
+## 2026-11-21 — Long strings in the generated C edge header are buffers filled at runtime
+
+**Decision:** `gen_data_edge_vectors.py` writes every string over 4,095 bytes (the ISO C99 minimum
+literal length) as a zeroed `static char` buffer, and the header's `iscc_edge_init()` fills it with
+`memcpy` from literal pieces; both harnesses call it once. **Why:** MSVC rejects a long literal, and
+gcc `-Woverlength-strings` checks this limit locally. **Rejected:** a `static const char` array
+initializer (at least 4 characters per byte: the 128 KB meta vector alone would put the header over
+the 256 KB added-file hook limit); adjacent literal pieces (MSVC caps the joined literal at 65,535
+bytes); limiting the test programs to gcc and clang. **Accepted cost:** the buffers are not `const`,
+and a harness that forgets the call reads NUL bytes. C fails on that; C++ would not notice while the
+only long row expects an error, so a pytest asserts the call in both sources. **Context:** 282.

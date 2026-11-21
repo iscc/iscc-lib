@@ -896,3 +896,20 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     bytes (C2026/C1091). next.md checked only "no `-pedantic`/`-Werror` in CI". Codex found the same
     thing. Also watch the 256 KB added-file limit: the JSON copies stood at 144 KB afterwards
 - `cmake` is not on PATH: `uv run --with cmake cmake -S packages/cpp -B /tmp/<dir> …`
+
+## Generated C header literal fix (282, ~25 min, PASS_WITH_NOTES)
+
+- Criteria from one logged script. Prove the new gate on the REAL previous artifact:
+    `git show '<define-next>':crates/iscc-ffi/tests/data_edge_vectors.h > /tmp/old.h`, then the same
+    gcc line and the new test's scanner on it (both must fail)
+- Probe the generator paths the tracked fixture never reaches: render a `/tmp` fixture with an
+    oversized list item, digest item and row name, compile it (`gcc -std=c99 -pedantic -Werror`,
+    `g++ -std=c++17 -Werror`), then run a 3-line `main` under ASAN. `-fsyntax-only` reports no
+    `-Wunused-function`, so a clean syntax check says nothing about unused statics
+- **A vendor limit cited from one doc page is a hypothesis.** Microsoft has two pages on a quoted
+    string piece: C2026 says 16,380 bytes, "Maximum String Length" (C reference) says 2,048. `curl`
+    on learn.microsoft.com needs `?view=msvc-170`, otherwise 404
+- **A helper whose last caller the step removed lives on through its own unit test**
+    (`escape_c_string`): `git grep` every helper the diff stopped calling
+- An edit with backslash escapes in a test file: one Python script with `chr(92)` and
+    `assert text.count(old) == 1` per replacement
