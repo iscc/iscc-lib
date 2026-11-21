@@ -189,7 +189,7 @@ let result = try genIsccCodeV0(
     codes: [dataResult.iscc, instanceResult.iscc],
     wide: false
 )
-print(result.iscc) // "ISCC:KAA..."
+print(result.iscc) // "ISCC:KUA..."
 ```
 
 Parameters: `codes: [String]`, `wide: Bool` (`true` for 256-bit output, `false` for 128-bit).
@@ -201,7 +201,7 @@ Generate a composite ISCC-CODE from a file in a single pass:
 ```swift
 let result = try genSumCodeV0(path: "/path/to/file.bin",
                               bits: 64, wide: false, addUnits: false)
-print(result.iscc)     // "ISCC:KAA..."
+print(result.iscc)     // "ISCC:KUA..."
 print(result.datahash) // Multihash of the data
 print(result.filesize) // Size in bytes
 

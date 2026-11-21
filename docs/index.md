@@ -14,16 +14,18 @@ description: High-performance polyglot implementation of ISO 24138 International
 ## What is iscc-lib?
 
 iscc-lib is a Rust implementation of the ISCC standard with bindings for multiple programming
-languages. It provides all 10 `gen_*_v0` code generation functions specified by ISO 24138, fully
+languages. It implements all 9 `gen_*_v0` code generation functions that ISO 24138 specifies, fully
 conformant with the official [iscc-core](https://github.com/iscc/iscc-core) Python reference
-implementation.
+implementation. On top of these, `gen_sum_code_v0` is an iscc-lib convenience that computes the
+Data-Code and Instance-Code of a file in one pass and combines them into an ISCC-CODE.
 
 The [ISCC](https://iscc.codes) is a content-derived identifier for digital media assets. It enables
 decentralized, content-based identification without a central registry.
 
 ## Key Features
 
-- **Complete ISO 24138 coverage** — all 10 `gen_*_v0` functions implemented
+- **All ISO 24138 code generators** — the 9 standard `gen_*_v0` functions, plus the
+    `gen_sum_code_v0` convenience (10 functions implemented)
 - **Full conformance** — passes all official test vectors from iscc-core
 - **High performance** — pure Rust core delivers significant speedups over the Python reference
 - **Multi-language** — use from Rust, Python, Java, Go, Ruby, C#, C++, Swift, Kotlin, Node.js,

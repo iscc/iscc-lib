@@ -168,7 +168,7 @@ const data = Buffer.from("Hello World".repeat(1000));
 const dataCode = gen_data_code_v0(data);
 const instanceCode = gen_instance_code_v0(data);
 const iscc = gen_iscc_code_v0([dataCode, instanceCode]);
-console.log(iscc); // "ISCC:KAA..."
+console.log(iscc); // "ISCC:KUA..."
 ```
 
 ### Sum-Code
@@ -185,7 +185,7 @@ import {
 
 writeFileSync("example.bin", Buffer.from("Hello World".repeat(1000)));
 const result = gen_sum_code_v0("example.bin");
-console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.iscc); // "ISCC:KUA..."
 console.log(result.datahash); // Multihash of the data
 console.log(result.filesize); // Size in bytes
 ```

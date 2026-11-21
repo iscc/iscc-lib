@@ -178,7 +178,7 @@ var instanceResult = IsccLib.GenInstanceCodeV0(data);
 var result = IsccLib.GenIsccCodeV0(
     [dataResult.Iscc, instanceResult.Iscc]
 );
-Console.WriteLine(result.Iscc); // "ISCC:KAA..."
+Console.WriteLine(result.Iscc); // "ISCC:KUA..."
 ```
 
 Parameters: `string[] codes`, `bool wide = false` (`true` for 256-bit output, `false` for 128-bit).
@@ -193,7 +193,7 @@ File.WriteAllBytes("example.bin",
         string.Concat(Enumerable.Repeat("Hello World", 1000))));
 
 SumCodeResult result = IsccLib.GenSumCodeV0("example.bin");
-Console.WriteLine(result.Iscc);     // "ISCC:KAA..."
+Console.WriteLine(result.Iscc);     // "ISCC:KUA..."
 Console.WriteLine(result.Datahash); // Multihash of the data
 Console.WriteLine(result.Filesize); // Size in bytes
 

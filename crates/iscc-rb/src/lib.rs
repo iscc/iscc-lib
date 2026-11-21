@@ -38,7 +38,9 @@ fn to_magnus_err(e: iscc_lib::IsccError) -> Error {
 /// `Vec<T>` conversion walks a borrowed slice and segfaults in that case.
 /// The `TryConvertOwned` bound keeps Ruby handles (which the GC cannot see
 /// inside a Rust `Vec`) out of the result. Element errors are Magnus' own:
-/// `TypeError` for a wrong type, `RangeError` for an integer outside `T`.
+/// `TypeError` for an element with no implicit conversion to `T`, `RangeError`
+/// for an integer outside `T`. Integer elements convert through `to_int`, so a
+/// Float (or any object with `to_int`) is accepted and truncated toward zero.
 /// Never use it with `T = i32`: Magnus' `i32` conversion truncates negative
 /// Bignums on 64-bit Ruby, so `i32` elements go through [`array_to_i32_vec`].
 fn array_to_vec<T: TryConvertOwned>(ary: RArray) -> Result<Vec<T>, Error> {
@@ -47,8 +49,9 @@ fn array_to_vec<T: TryConvertOwned>(ary: RArray) -> Result<Vec<T>, Error> {
 
 /// Convert a Ruby Array of integers into a `Vec<i32>`.
 ///
-/// Converts each element to `i64` through [`array_to_vec`] (Magnus raises
-/// `TypeError` for a non-Integer and `RangeError` outside `i64`), then narrows
+/// Converts each element to `i64` through [`array_to_vec`] (Magnus truncates
+/// a Float or other `to_int` object toward zero, raises `TypeError` for an
+/// element without `to_int` and `RangeError` outside `i64`), then narrows
 /// it with `i32::try_from`, raising `RangeError` for anything outside `i32`.
 /// Magnus' own `RBignum::to_i32` checks only the upper bound, so a negative
 /// Bignum between `-(2**63)` and `-(2**62) - 1` would be silently truncated.

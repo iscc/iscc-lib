@@ -6,8 +6,9 @@ consumers need only add the SPM dependency, no Rust toolchain or manual library 
 Shares the UniFFI scaffolding crate (`crates/iscc-uniffi/`) with Kotlin bindings.
 
 **Reference model:** [Ferrostar](https://github.com/stadiamaps/ferrostar) — production-proven
-monorepo pattern with UniFFI, variable toggle in `Package.swift`, force-update tag for checksum.
-Also informed by Matrix/Element, Mozilla application-services, BDK, Sparkle, and Firebase XCF.
+monorepo pattern with UniFFI and a variable toggle in `Package.swift`. iscc-lib commits the checksum
+first and tags that commit once, so no tag is ever moved. Also informed by Matrix/Element, Mozilla
+application-services, BDK, Sparkle, and Firebase XCF.
 
 ## Core DX Goal
 
@@ -228,12 +229,12 @@ swift package compute-checksum target/ios/IsccLib.xcframework.zip
     verification; ensures hash matches what SPM expects
 - **`lipo`** for fat binaries — standard Apple tool for merging architectures
 
-## Release Process — Force-Update Tag Pattern
+## Release Process — Checksum Commit, Then Tag
 
 The checksum-before-tag problem: SPM reads `Package.swift` from the tag commit, so the checksum must
 be in the tag. But the checksum requires the built artifact, which requires the code to be final.
-Every production UniFFI-to-Swift project solves this. The cleanest solution for monorepos is
-Ferrostar's **force-update tag** approach.
+iscc-lib solves it by ordering: the release workflow builds the XCFramework, commits the updated
+`Package.swift` checksum, and only then creates the tag, once. It never moves an existing tag.
 
 ### Release Flow
 

@@ -191,7 +191,7 @@ String instanceCode = IsccLib.genInstanceCodeV0(data, 64);
 String code = IsccLib.genIsccCodeV0(
     new String[]{dataCode, instanceCode}, false
 );
-System.out.println(code); // "ISCC:KAA..."
+System.out.println(code); // "ISCC:KUA..."
 ```
 
 Parameters: `String[] codes`, `boolean wide` (`true` for 256-bit output, `false` for 128-bit).
@@ -207,7 +207,7 @@ java.nio.file.Files.write(
 );
 
 SumCodeResult result = IsccLib.genSumCodeV0("example.bin", 64, false, false);
-System.out.println(result.iscc);      // "ISCC:KAA..."
+System.out.println(result.iscc);      // "ISCC:KUA..."
 System.out.println(result.datahash);  // Multihash of the data
 System.out.println(result.filesize);  // Size in bytes
 ```

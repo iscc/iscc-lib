@@ -167,6 +167,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - Spec drift sweeps (259): mdformat also reformats \`\`\`js blocks; release-trigger truth =
     release.yml `on:` + each job's `if:` — grep `refs/tags`/`github.ref` too, next.md greps miss
     YAML conditions
+- Docs facts probed (277): Sum-Code / `gen_iscc_code_v0([data,inst])` 64-bit prefix = `KUA`; Ruby
+    integer params + list elements go through `to_int` (Float truncates toward zero, NaN →
+    `FloatDomainError`). Release auth per job: read `permissions`/`secrets.*` via a PyYAML dump of
+    release.yml jobs; `publish-ffi` is the only publish job without an exists-check
 - Release-history claims (275): verify with `git grep '<pattern>' <tag> -- <path>` per tag — next.md
     said Go IDv1 old symbols "removed in 0.6.0"; they were never tagged
 - Guidance docs carry no counts/`path:NN` (245): write "every binding", "all Tier 1 symbols". Line

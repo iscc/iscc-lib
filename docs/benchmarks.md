@@ -12,8 +12,10 @@ Performance comparison between **iscc-lib** (Rust) and the
 
 ## Methodology
 
-All benchmarks measure the 10 `gen_*_v0` code generation functions defined by ISO 24138. Two
-benchmark suites run with identical inputs to enable direct comparison:
+All benchmarks measure the 9 `gen_*_v0` code generation functions that ISO 24138 specifies.
+`gen_sum_code_v0`, an iscc-lib convenience that computes Data-Code and Instance-Code in one pass,
+has no iscc-core counterpart and is not compared here. Two benchmark suites run with identical
+inputs to enable direct comparison:
 
 - **Python comparison** — [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) runs both
     `iscc-core` (pure Python) and `iscc-lib` (Rust via PyO3 bindings) in the same process, measuring

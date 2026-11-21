@@ -182,7 +182,7 @@ data_result = IsccLib.gen_data_code_v0(data)
 instance_result = IsccLib.gen_instance_code_v0(data)
 
 result = IsccLib.gen_iscc_code_v0([data_result.iscc, instance_result.iscc])
-puts result.iscc # "ISCC:KAA..."
+puts result.iscc # "ISCC:KUA..."
 ```
 
 Parameters: `codes` (Array of Strings), `wide:` (Boolean, default `false` for 128-bit output, `true`
@@ -196,7 +196,7 @@ Generate a composite ISCC-CODE from a file in a single pass:
 File.binwrite("example.bin", "Hello World" * 1000)
 
 result = IsccLib.gen_sum_code_v0("example.bin")
-puts result.iscc     # "ISCC:KAA..."
+puts result.iscc     # "ISCC:KUA..."
 puts result.datahash # Multihash of the data
 puts result.filesize # Size in bytes
 

@@ -167,7 +167,7 @@ let instance_result = gen_instance_code_v0(&data, 64)?;
 
 let codes: Vec<&str> = vec![&data_result.iscc, &instance_result.iscc];
 let result = gen_iscc_code_v0(&codes, false)?;
-println!("{}", result.iscc);  // "ISCC:KAA..."
+println!("{}", result.iscc);  // "ISCC:KUA..."
 ```
 
 ### Sum-Code
@@ -180,7 +180,7 @@ use std::path::Path;
 
 std::fs::write("example.bin", b"Hello World".repeat(1000))?;
 let result = gen_sum_code_v0(Path::new("example.bin"), 64, false, false)?;
-println!("{}", result.iscc);       // "ISCC:KAA..."
+println!("{}", result.iscc);       // "ISCC:KUA..."
 println!("{}", result.datahash);   // Multihash of the data
 println!("{}", result.filesize);   // Size in bytes
 ```

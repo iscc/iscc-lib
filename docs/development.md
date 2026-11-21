@@ -256,7 +256,7 @@ iscc-lib/
 └── .github/workflows/
     ├── ci.yml                  # Test + lint
     ├── docs.yml                # Documentation deployment
-    └── release.yml             # Publish to crates.io, PyPI, npm, Maven Central
+    └── release.yml             # Release: tags + publish to all registries
 ```
 
 ### Crate Summary
@@ -355,28 +355,44 @@ Cargo workspace members (`Cargo.lock`) inherit the version automatically via
 mise run pr:main          # Create PR
 # Merge PR after CI passes
 
-# 2. Tag the release on main
-git checkout main && git pull
-git tag vX.Y.Z
-git push origin vX.Y.Z
+# 2. Dispatch the Release workflow on main with the version input
+gh workflow run release.yml --ref main -f version=X.Y.Z
 ```
 
-The tag push triggers `.github/workflows/release.yml`, which publishes to all registries in
-parallel:
+Instead of `gh`, you can open the
+[Release workflow](https://github.com/iscc/iscc-lib/actions/workflows/release.yml) page, choose "Run
+workflow" on `main`, and enter the version. The version must match the one in the root `Cargo.toml`,
+or the workflow stops.
 
-| Registry      | Package            | Auth Method                        |
-| ------------- | ------------------ | ---------------------------------- |
-| crates.io     | `iscc-lib`         | OIDC trusted publishing            |
-| PyPI          | `iscc-lib`         | OIDC trusted publishing            |
-| npm           | `@iscc/lib`        | OIDC trusted publishing            |
-| npm           | `@iscc/wasm`       | OIDC trusted publishing            |
-| Maven Central | `io.iscc:iscc-lib` | GPG signing + Sonatype credentials |
+Do not create or push the `vX.Y.Z` tag by hand. The `prepare-release` job builds the Swift
+XCFramework, commits the updated `Package.swift` checksum to `main`, and only then creates the
+`vX.Y.Z` and `packages/go/vX.Y.Z` tags and the GitHub Release. It never moves an existing tag, so a
+tag pushed by hand would stay on the commit before the checksum update.
 
-Each publish job checks if the version already exists on the registry and skips gracefully.
+Once `prepare-release` has finished, the workflow publishes every chain:
 
-You can also publish to individual registries via `workflow_dispatch` on the
-[Release workflow](https://github.com/iscc/iscc-lib/actions/workflows/release.yml) page (select the
-checkboxes for crates.io, PyPI, npm, or Maven).
+| Registry        | Package                                       | Auth Method                         |
+| --------------- | --------------------------------------------- | ----------------------------------- |
+| crates.io       | `iscc-lib`                                    | OIDC trusted publishing             |
+| PyPI            | `iscc-lib`                                    | OIDC trusted publishing             |
+| npm             | `@iscc/lib`                                   | OIDC trusted publishing             |
+| npm             | `@iscc/wasm`                                  | OIDC trusted publishing             |
+| Maven Central   | `io.iscc:iscc-lib`                            | GPG signing + Sonatype credentials  |
+| Maven Central   | `io.iscc:iscc-lib-kotlin`                     | GPG signing + Sonatype credentials  |
+| RubyGems        | `iscc-lib`                                    | OIDC trusted publishing             |
+| NuGet           | `Iscc.Lib`                                    | `NUGET_API_KEY` secret              |
+| GitHub Releases | FFI tarballs (`iscc-ffi-vX.Y.Z-*`)            | `GITHUB_TOKEN` (`contents: write`)  |
+| GitHub Releases | Swift XCFramework (`IsccLib.xcframework.zip`) | `GITHUB_TOKEN` (`contents: write`)  |
+| Swift (SPM)     | `Package.swift` at tag `vX.Y.Z`               | served from the tag, no publish job |
+| Go              | module tag `packages/go/vX.Y.Z`               | served from the tag, no publish job |
+
+Each registry publish job checks if the version already exists on the registry and skips gracefully.
+The FFI job has no such check: it uploads its tarballs to the `vX.Y.Z` GitHub Release.
+
+To re-publish to individual registries, dispatch the workflow with an empty `version` and select the
+checkboxes you need: `crates-io`, `pypi`, `npm` (both npm packages), `maven`, `ffi`, `rubygems`,
+`nuget`, and `maven-kotlin`. Without a `version`, `prepare-release` is skipped, so no tag or
+`Package.swift` change is made.
 
 ### Post-Release Verification
 

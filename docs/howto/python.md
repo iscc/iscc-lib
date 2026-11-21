@@ -172,7 +172,7 @@ data_result = gen_data_code_v0(data)
 instance_result = gen_instance_code_v0(data)
 
 result = gen_iscc_code_v0([data_result.iscc, instance_result.iscc])
-print(result.iscc)  # "ISCC:KAA..."
+print(result.iscc)  # "ISCC:KUA..."
 ```
 
 ### Sum-Code
@@ -185,7 +185,7 @@ from iscc_lib import gen_sum_code_v0
 
 Path("example.bin").write_bytes(b"Hello World" * 1000)
 result = gen_sum_code_v0("example.bin")
-print(result.iscc)  # "ISCC:KAA..."
+print(result.iscc)  # "ISCC:KUA..."
 print(result.datahash)  # Multihash of the data
 print(result.filesize)  # Size in bytes
 ```

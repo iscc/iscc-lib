@@ -193,7 +193,7 @@ result, err := iscc.GenIsccCodeV0(
 if err != nil {
 	log.Fatal(err)
 }
-fmt.Println(result.Iscc) // "ISCC:KAA..."
+fmt.Println(result.Iscc) // "ISCC:KUA..."
 ```
 
 ### Sum-Code
@@ -207,7 +207,7 @@ result, err := iscc.GenSumCodeV0("example.bin", 64, false, false)
 if err != nil {
 	log.Fatal(err)
 }
-fmt.Println(result.Iscc)      // "ISCC:KAA..."
+fmt.Println(result.Iscc)      // "ISCC:KUA..."
 fmt.Println(result.Datahash)  // Multihash of the data
 fmt.Println(result.Filesize)  // Size in bytes
 ```

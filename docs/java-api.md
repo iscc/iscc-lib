@@ -335,7 +335,7 @@ Throws `IllegalArgumentException` on invalid input or a file I/O error.
 
 ```java
 SumCodeResult result = IsccLib.genSumCodeV0("example.bin", 64, false, true);
-System.out.println(result.iscc);     // "ISCC:KAA..."
+System.out.println(result.iscc);     // "ISCC:KUA..."
 System.out.println(result.filesize); // size in bytes
 ```
 

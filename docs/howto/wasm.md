@@ -206,7 +206,7 @@ const data = encoder.encode("Hello World".repeat(1000));
 const dataCode = gen_data_code_v0(data);
 const instanceCode = gen_instance_code_v0(data);
 const iscc = gen_iscc_code_v0([dataCode, instanceCode]);
-console.log(iscc); // "ISCC:KAA..."
+console.log(iscc); // "ISCC:KUA..."
 ```
 
 ### Sum-Code
@@ -223,7 +223,7 @@ import {
 const encoder = new TextEncoder();
 const data = encoder.encode("Hello World".repeat(1000));
 const result = gen_sum_code_v0(data);
-console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.iscc); // "ISCC:KUA..."
 console.log(result.datahash); // Multihash of the data
 console.log(result.filesize); // Size in bytes
 ```
@@ -329,7 +329,7 @@ while (true) {
 
 // finalize(bits?, wide?, add_units?) — pass add_units=true to include units
 const result = hasher.finalize(undefined, undefined, true);
-console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.iscc); // "ISCC:KUA..."
 console.log(result.datahash); // Multihash of the data
 console.log(result.filesize); // Size in bytes
 console.log(result.units); // [dataCode, instanceCode]

@@ -83,10 +83,12 @@ includedir=${prefix}/include
 
 Name: iscc-ffi
 Description: ISCC (ISO 24138) shared library
-Version: 0.2.0
+Version: X.Y.Z
 Libs: -L${libdir} -liscc_ffi
 Cflags: -I${includedir}
 ```
+
+Replace `X.Y.Z` with the version of the iscc-lib release you installed.
 
 ## ISCC-SUM quick start
 

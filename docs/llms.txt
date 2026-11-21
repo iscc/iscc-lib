@@ -2,11 +2,13 @@
 
 > High-performance polyglot implementation of ISO 24138:2024 International Standard Content Code (ISCC).
 
-iscc-lib is a Rust library with Python, Node.js, WASM, Go, Java, and C FFI bindings implementing
-the ISCC standard for content identification. It provides all 10 gen_*_v0 functions, streaming
-hashers, text utilities, and algorithm primitives for generating ISCC codes from digital content.
+iscc-lib is a Rust library implementing the ISCC standard for content identification, usable from
+Rust, Python, Node.js, WebAssembly, Go, Java, Ruby, C# / .NET, C / C++, Swift, and Kotlin. It
+provides the 9 gen_*_v0 functions that ISO 24138 specifies, plus the gen_sum_code_v0 convenience
+(Data-Code and Instance-Code in one pass), streaming hashers, text utilities, and algorithm
+primitives for generating ISCC codes from digital content.
 
-Install: `pip install iscc-lib` (Python), `npm install @iscc/lib` (Node.js), `go get github.com/iscc/iscc-lib/packages/go` (Go)
+Install: `cargo add iscc-lib` (Rust), `pip install iscc-lib` (Python), `npm install @iscc/lib` (Node.js), `npm install @iscc/wasm` (WebAssembly), `go get github.com/iscc/iscc-lib/packages/go` (Go), `gem install iscc-lib` (Ruby), `dotnet add package Iscc.Lib` (C# / .NET). Java (Maven Central `io.iscc:iscc-lib`), Kotlin (Maven Central `io.iscc:iscc-lib-kotlin`), Swift (Swift Package Manager) and C / C++ (pre-built tarballs on GitHub Releases): see [Available Bindings](https://lib.iscc.codes/index.md#available-bindings).
 
 - [Source code](https://github.com/iscc/iscc-lib)
 - [Full documentation](https://lib.iscc.codes/llms-full.txt)

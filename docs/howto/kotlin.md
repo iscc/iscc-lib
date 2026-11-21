@@ -196,7 +196,7 @@ val result = genIsccCodeV0(
     codes = listOf(dataResult.iscc, instanceResult.iscc),
     wide = false
 )
-println(result.iscc) // "ISCC:KAA..."
+println(result.iscc) // "ISCC:KUA..."
 ```
 
 Parameters: `codes: List<String>`, `wide: Boolean` (`true` for 256-bit output, `false` for 128-bit).
@@ -212,7 +212,7 @@ val result = genSumCodeV0(
     wide = false,
     addUnits = false
 )
-println(result.iscc)     // "ISCC:KAA..."
+println(result.iscc)     // "ISCC:KUA..."
 println(result.datahash) // Multihash of the data
 println(result.filesize) // Size in bytes
 
