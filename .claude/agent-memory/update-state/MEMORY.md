@@ -54,11 +54,10 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 - `crates/` — **8 crates** (lib, py, napi, wasm, ffi, jni, rb, uniffi); iscc-uniffi has 21 tests,
     `publish=false`. `packages/` layout → `MEMORY-archive.md`; `packages/go` is the ONLY binding not
     inheriting the core's Unicode behaviour.
-- `ci.yml` — **21 YAML job entries** (`ruby-source-gem` since 239): `python-test` = 3.10/3.14
-    matrix, `python` (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job.
-    `release.yml` = 8 registry toggles (Swift XCFramework is a `prepare-release` step, NOT a
-    toggle). `specs/ci-cd.md` job table EXHAUSTIVE since 163 (rows==keys, gated); prose counts
-    unpinned (HAND edit).
+- `ci.yml` — **22 YAML job entries** (see Current State): `python-test` = 3.10/3.15 matrix, `python`
+    (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job. `release.yml` = 8
+    registry toggles (Swift XCFramework is a `prepare-release` step, NOT a toggle). `specs/ci-cd.md`
+    job table EXHAUSTIVE since 163 (rows==keys, gated); prose counts unpinned (HAND edit).
 - **Unicode freeze REMOVED 2026-07-30** (decisions.md): no pin, no sweep gate, no boundary fixture —
     `text_clean`/`text_collapse` use the dependencies' tables.
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`),
@@ -87,13 +86,16 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 033b085, iter 258 — incremental)
+## Current State (assessed-at: fb76ee4, iter 259 — incremental)
 
-- **CI on `origin/develop` = `844f8c4`**: check-suite `success` (run 44895258278). Check-suites API:
+- **CI on `origin/develop` = `1708d5e`**: check-suite `success` (run 44895981679). Check-suites API:
     `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit `queued` forever —
-    judge by `github-actions`). Run URL: `actions/runs?head_sha=<full sha>`.
-- **v0.8.0 RELEASE-READY (258):** 0 normal, 18 `low` (13 untriaged), issues.md 298/300. Not DONE
-    only because low issues + human-gated v1.0.0 criteria remain. Expect define-next `Step: NONE`.
+    judge by `github-actions`). HEAD 6 ahead: 3 unpushed `cid(human)` commits touch `ci.yml`.
+- **Human triage 2026-11-21 (`07fe690`) flipped release-ready → workable:** 12 `normal` + 1 `low`
+    open, 0 untriaged; 6 moved to NEW `.claude/context/postponed.md` (v1.0.0, MSRV, Unicode etc.).
+    Postponed issues do NOT block DONE-for-v0.8.0 per the release criterion, but check the file.
+- `ci.yml` = **22 job keys** since 259 (`dotnet-test` matrix .NET 8/10 + `dotnet` aggregator);
+    Python matrix 3.10/3.15. issues.md budget raised to 400 (`ARTIFACT_BUDGETS`).
 - **Untriaged count**: `awk '/^## /{t=$0} /untriaged/{print t}' issues.md | sort -u` — drop the
     blank first line (preamble legend mentions "untriaged").
 - FFI extern count: `grep -c '#\[unsafe(no_mangle)\]'` = 51; a `pub ... extern "C" fn` regex gives
