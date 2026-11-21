@@ -195,3 +195,99 @@ because later installs keep non-versioned files.
 Resolved when the result of the 10.0 leg does not depend on the latest LTS (the setup-dotnet log of
 a CI run shows no runtime outside the leg's list, or the roll-forward setting cannot pick one), the
 matrix comment matches, and the three .NET jobs are green.
+
+## Go `TextTrim` panics on a negative `nbytes` and Go hashers accept `Push` after `Finalize` `normal` [audit]
+
+Verified by the iteration-260 audit at 3040298.
+
+- `TextTrim(text string, nbytes int)` (`packages/go/utils.go:99-104`): for `nbytes < 0` the
+    `len(text) <= nbytes` check fails and `text[:nbytes]` panics, the empty string included. Every
+    other surface takes an unsigned type or rejects the value (decision of 2026-11-21);
+    `utils_test.go` has no negative case.
+- `DataHasher.Finalize` (`packages/go/code_data.go:61-66`) appends the tail feature but keeps the
+    tail and sets no finalized state, so `Push(a); Finalize; Push(b); Finalize` returns a Data-Code
+    that differs from `GenDataCodeV0(a+b)` with no error. `InstanceHasher`
+    (`code_instance.go:35-57`) has no finalized state either. `docs/howto/go.md:284` calls both
+    single-use, while Python, napi, WASM, UniFFI and JNI reject the misuse.
+
+**Why it matters:** a library panic and a silently wrong code on input that every sibling surface
+rejects. **Suggested fix:** reject or clamp a negative `nbytes`; give both hashers a finalized flag
+so `Push`/`Finalize` after `Finalize` return an "already finalized" error; Go tests for each case.
+**Scope estimate:** 3 non-test files.
+
+Resolved when `TextTrim(x, -1)` returns without a panic and both Go hashers reject use after
+`Finalize`, each pinned by a Go test.
+
+## `alg_cdc_chunks` accepts an `avg_chunk_size` whose parameter maths overflows `normal` [audit]
+
+Verified by the iteration-260 audit at 3040298. `alg_cdc_chunks` (`crates/iscc-lib/src/cdc.rs:178`)
+rejects only `avg_chunk_size < 2`. `alg_cdc_params` (`cdc.rs:59-66`) computes `avg_size * 8` in
+`u32` (overflows from 2^29) and `1u32 << (bits + 1)` (overflows when `round(log2(avg)) = 31`). Debug
+builds panic, release builds wrap (`mask_s = 0`). Go's `algCdcParams` (`packages/go/cdc.go:50-58`)
+wraps too, but its shift by 32 gives `0xFFFFFFFF`, so Rust and Go cut differently for the same
+value, and the reference (Python integers) differs from both. Every binding passes the value
+through.
+
+**Why it matters:** a public Tier 1 function panics or returns surface-dependent chunks for a value
+it accepts. **Suggested fix:** an upper bound in Rust and Go validation (e.g.
+`avg_chunk_size <= 2^28`) or u64 parameter maths that matches the reference, plus a `data-edge.json`
+vector at the boundary. **Scope estimate:** 2 non-test files.
+
+Resolved when Rust and Go return the same result (or the same rejection) for `avg_chunk_size` 2^29
+and 2^31, pinned by a vector.
+
+## One-shot gen functions re-implement their streaming counterparts `normal` [audit]
+
+Verified by the iteration-249 and iteration-260 audits (3040298).
+
+- `gen_instance_code_v0` (`crates/iscc-lib/src/lib.rs:907-908`) calls `blake3::hash(data)` and then
+    `utils::multi_hash_blake3(data)`, which hashes the same bytes again (`utils.rs:164`): two full
+    BLAKE3 passes per call. The multihash format is also written in `streaming.rs:39-56`.
+- `gen_sum_code_v0` in `crates/iscc-wasm/src/lib.rs:258-285` copies `SumHasher::update`/`finalize`
+    (`streaming.rs:172-203`), comment included; the same file already wraps `SumHasher`.
+- `gen_meta_code_v0` parses `meta` twice (`lib.rs:372` via `parse_meta_json`, then `:406-408`), and
+    `json_to_data_url` (`:322-328`) repeats the parse+canonicalize body with another error string.
+
+**Why it matters:** each pair can drift apart, and the instance hot path does twice the hashing.
+**Suggested fix:** derive `datahash` from the single digest (one shared multihash helper), call
+`SumHasher` from the WASM one-shot function, and have `parse_meta_json` return what the data URL
+step needs. **Scope estimate:** 3 non-test files; mind the iai-callgrind baseline.
+
+Resolved when each computation exists once and the conformance and perf gates stay green.
+
+## Python video frame values raise a platform-dependent exception class `normal` [audit]
+
+Verified by the iteration-260 audit at 3040298. `extract_frame_sigs`
+(`crates/iscc-py/src/lib.rs:86-95`) reads each value with `PyLong_AsLong` (32-bit `long` on Windows,
+64-bit elsewhere) and maps a failed `i32::try_from` to `ValueError`. So
+`gen_video_code_v0([[2**31, ...]])` and `soft_hash_video_v0` raise `ValueError` on Linux/macOS and
+`OverflowError` on Windows, while `gen_audio_code_v0` raises `OverflowError` everywhere, the class
+the 2026-11-21 decision keeps for Python integer conversion failures. `tests/test_int_range.py` has
+no video case.
+
+**Suggested fix:** read with `PyLong_AsLongLong` and raise `OverflowError` outside the `i32` range;
+add video cases to `tests/test_int_range.py`. **Scope estimate:** 1 non-test file.
+
+Resolved when an out-of-range frame value raises `OverflowError` on every platform, pinned by a
+test.
+
+## Specs and crate CLAUDE.md files describe shipped work as pending and name missing items `normal` [audit]
+
+Verified by the iteration-260 audit at 3040298. CID-fixable (decision of 2026-11-20: realign).
+
+- `specs/rust-core.md:360-371`: `Version` "has only V0" and every surface "fails on any ISCC-IDv1";
+    `codec.rs:105-131` defines `V1` and admits `(Id, V1)`.
+- `specs/python-bindings.md:301-304`: text and video paths "still hold the GIL";
+    `iscc-py/src/lib.rs` wraps them in `.detach(` (:138, :190, :217, :241).
+- `specs/go-bindings.md:122-136`: the IDv1 rename "exists only on `develop`"; it shipped in 0.6.0.
+- `crates/iscc-napi/CLAUDE.md:36,66`, `crates/iscc-py/CLAUDE.md:66`, `crates/iscc-wasm/CLAUDE.md:43`
+    name `iscc_lib::Error`; the type is `IsccError`.
+- `packages/go/CLAUDE.md`: :91-117 keeps a test-file list (missing three files) that the 2026-11-21
+    decision removed; :142 says most packages wrap `iscc-ffi` (only C++ and .NET do); :129-131 omits
+    the `packages/go/vX.Y.Z` tag the module proxy needs (`release.yml:115-116`).
+
+**Why it matters:** define-next and advance read these as truth, so stale claims become scoped work.
+**Suggested fix:** rewrite each statement in the present tense to match the code. **Scope
+estimate:** 7 files, needs audit-scope step (≤8 files).
+
+Resolved when each cited statement matches the tree.

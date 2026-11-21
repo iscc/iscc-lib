@@ -17,3 +17,6 @@ Do not file these:
 **Why:** finders surface these with plausible evidence; checking against the reference or the
 sibling tests refutes them. **How to apply:** before verifying a "surprising output" finding,
 compare with the reference output first.
+
+- **UniFFI (Swift/Kotlin) exports have no default arguments**: `specs/swift-bindings.md:147-148`
+    declares this on purpose (refuted iter 260).

@@ -1,48 +1,56 @@
 ---
 name: audit-watch-list
-description: Verified audit findings not filed yet (issues.md budget or ownership), first candidates for the next audit pass
+description: Verified audit findings not filed yet (5-per-pass cap or ownership), first candidates for the next audit pass
 metadata:
   type: project
 ---
 
-Verified true in the iter-249 sweep (HEAD deb5c5e). Not filed because issues.md hit its 300-line
-budget with 4 entries. Re-check against the tree before filing; drop any that a commit has fixed.
+Verified true in the iter-260 sweep (HEAD 3040298) unless marked. Re-check against the tree before
+filing; drop any that a commit has fixed.
 
-**Why:** every one survived a skeptic pass; only the issues.md budget kept them out. **How to
-apply:** file the top 1-2 next pass if issues.md has room; target.md/decisions items are `low` +
-`**Triage:** untriaged` (human-owned).
+**Why:** each survived a skeptic pass; only the 5-issue cap or ownership kept them out. **How to
+apply:** hand every item to the verify phase next pass; file the top ones first. target.md/decisions
+items are `low` + `**Triage:** untriaged` (human-owned).
 
-Context drift (CID-fixable specs / per-crate CLAUDE.md):
+Code (CID-fixable), ranked:
 
-- Tag-triggered release still claimed in `specs/swift-bindings.md:238-247`, `specs/c-ffi-dx.md:128`,
-    `crates/iscc-py/CLAUDE.md`, `crates/iscc-wasm/CLAUDE.md` (the ci-cd.md part is already filed).
-- `specs/python-bindings.md:274,302-305`: names `py.allow_threads` and says the GIL is "still held".
-    The code uses `.detach(` at 12 sites.
-- `specs/rust-core.md:485`: the JS recipe destructures `iscc_decode` as an array. napi/WASM return
-    an object.
-- `specs/swift-bindings.md:147` promises defaults; UniFFI exports have none (Kotlin/Swift).
-- `crates/iscc-lib/CLAUDE.md:7-8,40-44`: the Tier 2 codec list and the binding list (no uniffi) are
-    stale.
+- IDv1 range checks repeated in py/napi/wasm/rb/jni (`gen_iscc_id_v1`), four wordings (core/py, JS
+    `checked`, Ruby, JNI). On the list since iter 249 — file first.
+- GLD-4: pre-push `uv run pytest` tests a hand-built `_lowlevel.abi3.so` that nothing rebuilds (no
+    `[build-system]` in root pyproject, no conftest check); CI runs `maturin develop` first.
+- `crates/iscc-uniffi/src/lib.rs:328` text_trim doc says "on a word boundary" (shipped in
+    Swift/Kotlin generated sources).
+- `_lowlevel.pyi` docstrings contradict code (encode_component ranges, meta trim units).
+- .NET: null string -> IsccException, null array -> ArgumentNullException.
+- Go naming: hashers `Push` (spec/others `update`), `IsccIdResult.ISCC` vs `Iscc`; Ruby
+    `IdCodeResult` vs `IsccIdResult` everywhere else. API-break territory — likely v1.0.0 decisions.
+- Go `MetaTrimMeta` unused, Go GenMetaCodeV0 enforces no meta size limit.
+- napi alg_cdc_chunks tests "respects utf32 mode"/"accepts custom avg_chunk_size" can never fail.
+- Duplication: error-mapping closures (py ~26, wasm ~32, napi ~23); JNI nested new_string/throw x21;
+    napi/wasm JS number helpers copied; DataHasher/InstanceHasher wrapper pairs in FFI/.NET/C++;
+    Python stream-read loop x5; conformance.rs runners x9 (report_case used by 2), Go conformance
+    x8; soft_hash_meta_v0 repeats meta_name_simhash; bits_to_bytes twice (lib.rs, codec.rs);
+    iscc_decode re-decodes base32 up to 4x; gen_meta_code_v0 124 lines.
+- Dead: unused `serde` dep in iscc-wasm and iscc-lib dev-deps; ruff S/C901 pre-push hooks duplicate
+    pyproject-selected rules.
 
-Human-owned (target.md / decisions / agent prompts):
+Docs (CID-fixable):
 
-- decisions.md:90 and :260-264 still say "Fable 5.2 as advisor" and cite a missing `ADVISOR_ROLES`.
-    :397 reversed both.
-- decisions-archive.md:376 still calls the removed Unicode freeze "the complete intended response".
-- `.claude/agents/advance.md:153-154` and `review.md:342` say "stability-committed (v1.0.0+)". The
-    version is 0.7.0.
-- target.md hard-codes "35" Tier 1 symbols about 13 times, and the gen count disagrees (9 vs 10:
-    :92/:138 vs :342/:360/:394).
+- docs/development.md hook + mise task tables, project tree, tools table stale; prek link wrong repo
+    (the open "Publish" issue covers only that section).
+- Root CLAUDE.md: says mise pins tool versions (mise.toml has no [tools]); hook list misses 6.
+- Getting-started says Go 1.21+, module needs 1.26.1. README binding list omits Swift. Six registry
+    READMEs omit several Tier 1 functions. specs/documentation.md language lists stale.
+- Binding spec CI YAML snippets pin stale action/Go versions (8 files). iscc-wasm CLAUDE.md
+    flat-file threshold exceeded.
 
-Docs: `docs/llms.txt:5,9` lists 6 languages/3 installs; `docs/development.md` hook and task tables
-are stale; docs/index.md + benchmarks.md say all 10 gen functions are ISO-specified and benchmarked
-(gen_sum_code_v0 is neither).
+Human-owned (target.md / decisions / agent prompts), from iter 249, not re-checked at 260:
 
-Duplication (real, lower priority): IDv1 range checks copied into py/napi/wasm/rb/jni with 4 message
-vocabularies; error-mapping closures repeated (py 26, wasm 32, napi 23); WASM `gen_sum_code_v0`
-hand-rebuilds `SumHasher`; core parses the meta JSON twice in `gen_meta_code_v0`.
+- decisions.md "Fable 5.2 as advisor" / `ADVISOR_ROLES` entries reversed later but still listed.
+- `.claude/agents/advance.md`, `review.md` say "stability-committed (v1.0.0+)" at 0.7.0.
+- target.md hard-codes "35" Tier 1 symbols; gen count 9 vs 10 disagrees.
 
-Loop tooling (for meta-improve/human, not the CID queue): `tools/metrics.py` gate timings run
-warm-cache commands that differ from the pre-push hooks, so the cargo_test/clippy trend means
-nothing. TIMEOUT rows log cost 0.0 (`tools/cid.py:281-288`). 8 untriaged `low` entries wait on the
-human while the loop idles.
+Loop tooling (meta-improve/human, not the CID queue): `tools/metrics.py` times narrower warm-cache
+commands than the pre-push hooks, one sample each, so cargo_test/clippy seconds are noise; TIMEOUT
+rows log cost 0.0; `cid stats` Fails counts legacy PASS rows; metrics skip `scripts/` and ty
+suppressions; on-demand runs consume iteration numbers.
