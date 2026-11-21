@@ -602,7 +602,14 @@ Full text of entries compacted out of `MEMORY.md`.
 - **Threshold discovery is blind exactly where drift is worst**: print the per-file symbol count for
     every tracked `*.md` and read the 12–29 band (233: `docs/howto/rust.md` 26, `docs/rust-api.md`
     17 sit under 30). **Parser probes**: `pub use a::b as c;`, nested groups, `pub struct`,
-    `pub static`, `pub unsafe fn` all passed silently
+    `pub static`, `pub unsafe fn` all passed silently until 242 made the parse fail closed
+- **Fail-closed parser step (242 PASS, ~6 min)**: three probes were enough — (1) old script
+    (`git show <define-next>:scripts/…` to `/tmp`) vs new `derive_symbols` on the real input must be
+    equal; (2) one sweep script printing derive / excluded / UNRECOGNISED for ~35 forms the tests do
+    not list; (3) mutants from a `git archive` + `git init` + `git add -A` copy, run with
+    `/home/dev/.venvs/iscc-lib/bin/python -m pytest … --no-cov -p no:cacheprovider` (2 s each).
+    Codex returned in ~3 min with nothing. An equivalent mutant (the `[<(]` after a fn name) is not
+    a test gap: no valid Rust reaches it
 - **Python fixture writes need `encoding="utf-8"`**: re-run a new test file once under
     `LC_ALL=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0` (233: `write_text` of `lib.rs` raised there)
 - **Rewriting a part-done `[human]` issue**: keep its untouched "Resolved when" bullets verbatim and

@@ -194,7 +194,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     spec, or list build output in `GENERATED`. Conan generates `iscc.pc` / `find_package(iscc)` at
     install time. **A negative assertion must reach the branch it names** (228: no `*`, no regex)
 - **Tier 1 doc parity is gated** (233): `scripts/check_tier1_docs.py` derives the symbols from
-    `lib.rs`, so a new symbol fails every registered doc until it is named there. It checks NAMES
-    only: a return type still needs a run. **`#[wasm_bindgen_test]` calls the Rust fn, never the JS
-    export glue** (234): prove a JS return shape from Node (`require()`) and the `.d.ts`, built by
-    `wasm-pack build --target nodejs crates/iscc-wasm --out-dir /tmp/x`
+    `lib.rs`; NAMES only, a return type needs a run. A crate-root `pub` form it cannot parse fails
+    (242): add a derive rule or a named `EXCLUDED_ITEMS` entry. **`#[wasm_bindgen_test]` calls the
+    Rust fn, never the JS export glue** (234): prove a JS return shape from Node (`require()`) and
+    the `.d.ts`, built by `wasm-pack build --target nodejs crates/iscc-wasm --out-dir /tmp/x`

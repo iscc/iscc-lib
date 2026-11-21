@@ -139,25 +139,20 @@ conversion and the doc comment matches it.
 Counts, file lists and symbol lists are repeated across `docs/`, the READMEs, `CLAUDE.md` files and
 the specs with nothing checking them. Rule: `.claude/context/README.md` → "Hygiene rules" → "Derived
 facts are checked or not written". The Tier 1 symbol list is gated since iteration 233
-(`scripts/check_tier1_docs.py`: registered docs must name every symbol derived from `lib.rs`). Three
-parts of the problem are left:
+(`scripts/check_tier1_docs.py`: registered docs must name every symbol derived from `lib.rs`, and
+the `lib.rs` parse fails closed). Two parts of the problem are left:
 
 - **Docs below the discovery threshold are unchecked.** `docs/howto/rust.md`, `docs/howto/c-cpp.md`,
     `docs/rust-api.md` and `docs/architecture.md` → "Tier 1" enumerate the API, are incomplete, and
     are too incomplete for the gate to notice. `docs/rust-api.md` also still says all gen functions
     return `IsccResult<String>`
-- **The gate fails open on crate-root items it does not parse.** With `pub use codec::x as y;`, a
-    nested `pub use a::{b::{c}};`, `pub struct`, `pub static`, `pub unsafe fn` or `pub async fn`
-    added at column 0 of `lib.rs`, the gate still prints `OK` (measured in iteration 233)
 - **Unchecked counts, file lists and line numbers** remain in `.claude/context/specs/` and the
     per-crate `CLAUDE.md` files
 
-Resolved when all hold:
+Resolved when both hold:
 
 - every per-language how-to and API reference under `docs/` is in the gate's registry: `FULL` once
     complete, or `EXEMPT` with a reason
-- every column-0 `pub` item in `lib.rs` is either derived as a symbol or matched by an explicit
-    exclusion, and an unrecognised form fails the gate (pinned by a fire test)
 - counts, file lists and line numbers that no check covers are gone from `.claude/context/specs/`
     and the per-crate `CLAUDE.md` files, replaced by wording that cannot go stale ("all Tier 1
     functions") or brought under a check
