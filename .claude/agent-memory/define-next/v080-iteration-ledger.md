@@ -106,4 +106,10 @@ runs 3.10; same reason as `check_docs_nav.py`); fail closed on missing/empty tab
 `[profile.release.*]` sub-tables; trap = `[profile.bench]` (`strip = false`, `debug = true`) right
 after it. Behavioural check: `file` on the installed `.so` must lack `not stripped` (grep `stripped`
 matches both). Install timing = report-only. Next: drift gate holes (fail-closed lib.rs parser +
-register 4 sub-threshold docs), then part 3 count sweep.
+register 4 sub-threshold docs), then part 3 count sweep. 242 = Tier 1 gate fail-closed lib.rs parse
+(issue part 2): recognise by `^pub\b` OFFSET (multi-line `pub use {…}` groups), named exclusions
+only (`pub(…)`, `pub mod`, `types::*`, `IsccError`, `IsccResult` — a kind-wide `::*` exclusion would
+hide a new glob), group members bare idents (`{b as c}` derived junk `"b as c"` at HEAD), early
+return before the floor. Next: register + complete rust.md/c-cpp.md/rust-api.md/architecture.md AND
+`docs/api.md` (names 1 symbol; issue says every API reference) — 9-22 missing symbols each, maybe
+split; then part 3 count sweep.
