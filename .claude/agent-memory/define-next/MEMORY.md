@@ -3,11 +3,13 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 259): triage reopened v0.8.0** — Titusz promoted 12 `low` → `normal`
-(07fe690), moved 6 to `postponed.md`. Loop has work again; NONE no longer valid. 259 scoped the
-docs-only spec/CLAUDE.md drift bundle (2 issues) because 3 unpushed `cid(human)` CI commits were
-untested — keep the next diff CI-neutral until they go green, then Ruby 3.3 floor (touches ci.yml +
-release.yml). Go JCS `meta` issue: lone-surrogate vector needs every harness JSON parser to accept
+**Status 2026-11-21 (iter 260): triage reopened v0.8.0** — Titusz promoted 12 `low` → `normal`
+(07fe690), moved 6 to `postponed.md`. 259 pushed the human CI commits → red: the .NET 10 leg ran on
+.NET 11 (GA 2026-11-10, preinstalled in runner images; `LatestMajor` picks newest). 260 scoped a
+ci.yml-only fix (`DOTNET_INSTALL_DIR` private dir + `fail-fast: false`). **Runtime-matrix trap:**
+`setup-dotnet`/preinstalled dirs share `/usr/share/dotnet` — any roll-forward leg drifts when the
+image adds a major. Then Ruby 3.3 floor (touches ci.yml + release.yml); .NET 8 is EOL (floor =
+human). Go JCS `meta` issue: lone-surrogate vector needs every harness JSON parser to accept
 `\ud800` (serde_json rejects) — probe before scoping. NONE verification (when it returns):
 `grep -E '^## .*(critical|normal)' issues.md` prints nothing. **An issue's own "Scope estimate" can
 over-count — apply the docs-excluded rule yourself** (257). **Collecting rule vs "core first and
