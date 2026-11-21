@@ -95,8 +95,8 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     API with `--allow-escape-sequences`, strip ANSI.
 - 21 open (0 `critical` + 15 `normal` + 6 `low`); 7 in `postponed.md`. 271 pinned dev Ruby 3.4.13 in
     `mise.toml` `[tools]` (only tools pin); Ruby floor 3.3 (gemspec, ci.yml, release.yml). Fast
-    suite check: `gh api .../commits/<sha>/check-suites` (one call). iscc-lib `src/` `#[test]` sum =
-    311\.
+    suite check: `gh api .../commits/<sha>/check-suites` (one call). iscc-lib `src/` has 311
+    `#[test]`.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
