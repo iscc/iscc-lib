@@ -3,7 +3,11 @@
 The cross-gem step in ``.github/workflows/release.yml`` lists the Ruby series that get a
 precompiled platform gem (``ruby-versions``). Both ``docs/howto/ruby.md`` and
 ``crates/iscc-rb/README.md`` must state that range as ``Ruby {min} to {max}``, so a change
-to the release matrix fails here until the docs follow. No network, no mocks.
+to the release matrix fails here until the docs follow.
+
+The Ruby floor must also agree in three places: the gemspec ``required_ruby_version``, the
+``ruby-version`` the ``ci.yml`` ``ruby`` job tests, and the lowest series ``release.yml``
+precompiles. No network, no mocks.
 """
 
 import re
@@ -14,11 +18,18 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+GEMSPEC = ROOT / "crates" / "iscc-rb" / "iscc-lib.gemspec"
 RUBY_DOCS = [
     ROOT / "docs" / "howto" / "ruby.md",
     ROOT / "crates" / "iscc-rb" / "README.md",
 ]
 CROSS_GEM_ACTION = "oxidize-rb/actions/cross-gem"
+SETUP_RUBY_ACTION = "ruby/setup-ruby"
+GEMSPEC_FLOOR_RE = re.compile(
+    r"""^\s*spec\.required_ruby_version\s*=\s*["']>=\s*(\d+)\.(\d+)(?:\.\d+)?["']""",
+    re.MULTILINE,
+)
 
 
 def cross_gem_ruby_series(workflow):
@@ -61,6 +72,44 @@ def doc_names_range(text, phrase):
 def load_release_workflow():
     """Load ``release.yml`` as a dict."""
     return yaml.safe_load(RELEASE_WORKFLOW.read_text(encoding="utf-8"))
+
+
+def gemspec_floor(text):
+    """Return the ``major.minor`` floor of the gemspec ``required_ruby_version``.
+
+    Raises ``ValueError`` when the gemspec declares no ``>=`` floor.
+    """
+    match = GEMSPEC_FLOOR_RE.search(text)
+    if match is None:
+        raise ValueError("gemspec declares no required_ruby_version >= floor")
+    return f"{match.group(1)}.{match.group(2)}"
+
+
+def ci_ruby_job_version(workflow):
+    """Return the ``ruby-version`` the ``ruby`` job of ``ci.yml`` passes to setup-ruby.
+
+    Raises ``ValueError`` when the job or its setup-ruby version is missing.
+    """
+    job = (workflow.get("jobs") or {}).get("ruby")
+    if job is None:
+        raise ValueError("ci.yml has no ruby job")
+    for step in job.get("steps") or []:
+        if str(step.get("uses", "")).startswith(SETUP_RUBY_ACTION):
+            version = str((step.get("with") or {}).get("ruby-version", "")).strip()
+            if version:
+                return version
+    raise ValueError("ci.yml ruby job sets no setup-ruby ruby-version")
+
+
+def check_floor_parity(gemspec, ci, release):
+    """Raise ``ValueError`` unless the gemspec, CI and release floors are the same series."""
+    floors = {
+        "gemspec": gemspec,
+        "ci.yml ruby job": ci,
+        "release.yml cross-gem": release,
+    }
+    if len({version_key(value) for value in floors.values()}) != 1:
+        raise ValueError(f"Ruby floor mismatch: {floors}")
 
 
 def test_release_workflow_lists_ruby_series():
@@ -124,3 +173,58 @@ def test_empty_ruby_versions_raises():
     }
     with pytest.raises(ValueError, match="no ruby-versions"):
         cross_gem_ruby_series(workflow)
+
+
+def test_ruby_floor_parity():
+    """The gemspec floor, the CI-tested Ruby and the lowest precompiled series agree."""
+    gemspec = gemspec_floor(GEMSPEC.read_text(encoding="utf-8"))
+    ci = ci_ruby_job_version(yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8")))
+    release = min(cross_gem_ruby_series(load_release_workflow()), key=version_key)
+    check_floor_parity(gemspec, ci, release)
+
+
+def test_floor_parity_accepts_equal_trio():
+    """Three equal series pass the parity check."""
+    check_floor_parity("3.3", "3.3", "3.3")
+
+
+def test_floor_parity_rejects_gemspec_mismatch():
+    """A gemspec floor below the CI and release floors fails."""
+    with pytest.raises(ValueError, match="Ruby floor mismatch"):
+        check_floor_parity("3.1", "3.3", "3.3")
+
+
+def test_floor_parity_rejects_ci_mismatch():
+    """A CI-tested Ruby other than the floor fails."""
+    with pytest.raises(ValueError, match="Ruby floor mismatch"):
+        check_floor_parity("3.3", "3.4", "3.3")
+
+
+def test_floor_parity_rejects_release_mismatch():
+    """A lowest precompiled series other than the floor fails."""
+    with pytest.raises(ValueError, match="Ruby floor mismatch"):
+        check_floor_parity("3.3", "3.3", "3.1")
+
+
+def test_gemspec_floor_reads_major_minor():
+    """The gemspec floor drops the patch level."""
+    assert gemspec_floor('  spec.required_ruby_version = ">= 3.3.0"\n') == "3.3"
+
+
+def test_gemspec_floor_missing_raises():
+    """A gemspec without a floor is an error, not a pass."""
+    with pytest.raises(ValueError, match="no required_ruby_version"):
+        gemspec_floor('  spec.name = "iscc-lib"\n')
+
+
+def test_ci_ruby_job_without_version_raises():
+    """A ruby job whose setup-ruby step names no version is an error."""
+    workflow = {"jobs": {"ruby": {"steps": [{"uses": f"{SETUP_RUBY_ACTION}@v1"}]}}}
+    with pytest.raises(ValueError, match="no setup-ruby ruby-version"):
+        ci_ruby_job_version(workflow)
+
+
+def test_ci_without_ruby_job_raises():
+    """A ci.yml without a ruby job is an error."""
+    with pytest.raises(ValueError, match="no ruby job"):
+        ci_ruby_job_version({"jobs": {"go": {"steps": []}}})

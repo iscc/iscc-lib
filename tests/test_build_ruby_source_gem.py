@@ -6,7 +6,7 @@ profile helper runs on the real root ``Cargo.toml`` and on fixture text. Reposit
 anchors pin the wiring around the script: the gemspec globs the script's carried-core
 directory and declares ``rb_sys`` only in a tree that carries it (the staged source gem),
 ``ci.yml`` and ``release.yml`` both build the source gem with the script (never a bare
-``gem build``), the CI install runs on a Ruby series with no precompiled gem, and the
+``gem build``), the CI install takes the built source-gem file in an empty gem home, and the
 cross-gem action's own ``rb_sys`` lookup on ``Gemfile.lock`` finds the pinned version. The
 end-to-end build and clean install run in CI, not here: ``cargo package`` needs the
 crates.io index. No mocks.
@@ -458,12 +458,12 @@ def test_bare_gem_build_detector_fires():
     assert bare_gem_builds(workflow) == ["gem build iscc-lib.gemspec"]
 
 
-def test_ci_source_gem_install_uses_ruby_without_precompiled_gem():
-    """The CI install runs on a Ruby series outside the cross-gem list, in an empty gem home."""
-    cross_gem = cross_gem_step()
-    precompiled = {
-        s.strip() for s in str(cross_gem["with"]["ruby-versions"]).split(",")
-    }
+def test_ci_source_gem_install_takes_built_source_gem_file():
+    """The CI install takes the built source-gem file, never a registry lookup, in an empty gem home.
+
+    Installing the file is what makes it a source install on any Ruby: ``gem install iscc-lib``
+    by name would pick a precompiled platform gem on a Ruby the cross-gem step covers.
+    """
     ci = load_workflow(CI_WORKFLOW)
     (job_id,) = script_jobs(ci)
     steps = ci["jobs"][job_id]["steps"]
@@ -473,8 +473,11 @@ def test_ci_source_gem_install_uses_ruby_without_precompiled_gem():
         if str(s.get("uses", "")).startswith("ruby/setup-ruby")
     ]
     assert rubies
-    assert not set(rubies) & precompiled
+    build = next(s for s in steps if SCRIPT_CALL in s.get("run", ""))
+    out_dir = re.search(r"--out\s+(\S+)", build["run"].replace('"', "")).group(1)
     install = next(s for s in steps if "gem install" in s.get("run", ""))
+    install_run = install["run"].replace('"', "")
+    assert f"gem install {out_dir}/iscc-lib-*.gem" in install_run
     assert install["env"]["GEM_HOME"] == install["env"]["GEM_PATH"]
     assert "runner.temp" in install["working-directory"]
     assert "conformance_selftest" in install["run"]

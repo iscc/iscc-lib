@@ -4,8 +4,7 @@ source "https://rubygems.org"
 
 gemspec
 
-# held: minitest 6.x requires Ruby >= 3.2; the gem supports >= 3.1 (gemspec + CI ruby-version 3.1)
-gem "minitest", "~> 5.0"
+gem "minitest", "~> 6.0"
 gem "rake", "~> 13.0"
 gem "rake-compiler", "~> 1.2"
 # held: must match the oxidize-rb/actions/cross-gem `tag: 0.9.123` in release.yml — rb_sys bundles

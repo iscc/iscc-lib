@@ -119,8 +119,10 @@ repos:
         pass_filenames: false
       - id: standardrb-fix
         name: Ruby linting (fix)
-        entry: bash -c 'export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH" &&
-          cd crates/iscc-rb && bundle exec standardrb --fix'
+        # mise Ruby, not system ruby: the gemspec floor (>= 3.3) is above the
+        # devcontainer's Debian Ruby 3.1, which Bundler refuses
+        entry: bash -c 'cd crates/iscc-rb && mise exec ruby@3.4 -- bundle exec standardrb
+          --fix'
         language: system
         files: ^crates/iscc-rb/.*\.rb$
         stages: [pre-commit]
@@ -164,8 +166,9 @@ repos:
         pass_filenames: false
       - id: standardrb
         name: Ruby linting
-        entry: bash -c 'export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH" &&
-          cd crates/iscc-rb && bundle exec standardrb'
+        # mise Ruby, not system ruby: the gemspec floor (>= 3.3) is above the
+        # devcontainer's Debian Ruby 3.1, which Bundler refuses
+        entry: bash -c 'cd crates/iscc-rb && mise exec ruby@3.4 -- bundle exec standardrb'
         language: system
         files: ^crates/iscc-rb/.*\.rb$
         stages: [pre-push]

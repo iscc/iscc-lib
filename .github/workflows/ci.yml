@@ -250,7 +250,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libclang-dev
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.1'
+          ruby-version: '3.3'
           working-directory: crates/iscc-rb
           bundler-cache: true
       - name: Run standardrb
@@ -267,8 +267,9 @@ jobs:
   ruby-source-gem:
     name: Ruby source gem (build, clean install)
     runs-on: ubuntu-latest
-    # Ruby 3.4 has no precompiled gem (release.yml cross-gem builds 3.1 to 3.3), so
-    # this install takes the source-gem path the Ruby docs promise. It runs from a
+    # Installs the built source-gem file, not a platform gem, so it exercises the
+    # path the Ruby docs promise for a Ruby or platform without a precompiled gem
+    # (release.yml cross-gem builds 3.3 and 3.4). It runs from a
     # directory outside the checkout into an empty gem home, and needs network
     # access for the rb_sys gem and crates.io.
     steps:

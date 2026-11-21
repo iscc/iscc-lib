@@ -178,7 +178,7 @@ Gem::Specification.new do |spec|
   spec.summary       = "ISCC - International Standard Content Code (ISO 24138)"
   spec.homepage      = "https://github.com/iscc/iscc-lib"
   spec.license       = "Apache-2.0"
-  spec.required_ruby_version = ">= 3.1.0"
+  spec.required_ruby_version = ">= 3.3.0"
 
   spec.metadata["source_code_uri"] = "https://github.com/iscc/iscc-lib"
   spec.metadata["documentation_uri"] = "https://lib.iscc.codes"
@@ -290,8 +290,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 ```
 
-System Ruby from Debian Bookworm (Ruby 3.1) is sufficient for development. The CI matrix tests
-against Ruby 3.1–3.3+. `bundler` ships with Ruby 3.1+.
+System Ruby from Debian Bookworm (Ruby 3.1) is below the gem's `>= 3.3` floor, so development runs
+on a mise-managed Ruby (`mise exec ruby@3.4.13 -- bundle exec rake compile test`). CI tests the
+floor (Ruby 3.3) in the `ruby` job and installs the source gem on Ruby 3.4.
 
 ## Version Sync
 

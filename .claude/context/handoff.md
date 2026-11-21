@@ -1,72 +1,68 @@
-## 2026-11-21 — Review of: Repair the `@iscc/wasm` type checks — optional `gen_meta_code_v0` params and exception-safe number arrays
+## 2026-11-21 — Raise the Ruby floor to 3.3 and precompile gems for Ruby 3.3 and 3.4
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** The gemspec declares `>= 3.3.0`, the CI `ruby` job tests 3.3, and `release.yml` cross-gem
+builds `3.3, 3.4` on the unchanged `tag: 0.9.123` image (comment corrected to list
+3.4.5/3.3.9/3.2.9/3.1.7). minitest moved to `~> 6.0` (6.1.0) with no test edits. A floor-parity test
+ties the gemspec, CI and release floors. Two fixes outside the listed scope were needed to keep the
+gates green (see Notes).
 
-**Summary:** Both defects of iteration 268 are repaired and the `critical` issue is closed.
-`gen_meta_code_v0` has its optional `description?` and `meta?` back, and a throwing array-like now
-gives an ordinary error and leaves the instance usable. The price is about 2× marshalling time on
-number arrays, which I accepted and recorded in decisions.md. The diff stays inside the three scoped
-files.
+**Files changed:**
+
+- `crates/iscc-rb/iscc-lib.gemspec`: `required_ruby_version = ">= 3.3.0"`
+- `crates/iscc-rb/Gemfile`: hold comment dropped, `minitest "~> 6.0"`. `Gemfile.lock`: minitest
+    6.1.0 (+ `drb`), `rb_sys (0.9.123)` unchanged (`bundle update minitest --conservative`, Ruby
+    3.4.13)
+- `.github/workflows/ci.yml`: `ruby` job `ruby-version: '3.3'`. `ruby-source-gem` comment reworded:
+    it installs the built source-gem file, so it covers the source path on any Ruby
+- `.github/workflows/release.yml`: `ruby-versions: 3.3, 3.4`, image comment corrected
+- `.pre-commit-config.yaml` (**unscoped**): both standardrb hooks run
+    `mise exec ruby@3.4 -- bundle exec standardrb[ --fix]` instead of system `ruby`
+- `tests/test_ruby_gem_docs.py`: `gemspec_floor`, `ci_ruby_job_version`, `check_floor_parity` +
+    `test_ruby_floor_parity` (real files) + 8 unit tests (equal trio passes; one mismatch per
+    position, one per call; missing gemspec floor; missing ruby job; missing setup-ruby version)
+- `tests/test_build_ruby_source_gem.py` (**unscoped**): see Notes
+- Docs: `crates/iscc-rb/README.md`, `docs/howto/ruby.md` (`Ruby 3.3 to 3.4`, `>= 3.3`),
+    `crates/iscc-rb/CLAUDE.md` (3.3/3.4 loader paths; pitfall now gives the mise command),
+    `.claude/context/specs/ruby-bindings.md` (gemspec snippet, dev Ruby paragraph)
 
 **Verification:**
 
-- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` passes: 11 + 8 + 126, 0 failed
-    (the 7 new throwing-array-like tests included)
-- [x] `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings` is clean
-- [x] Comment-stripped `.d.ts` of a release build of HEAD equals that of `3ef83ce`: `diff` exits 0
-    (114 lines each, both built with `--features conformance`). The unstripped diff is one JSDoc
-    sentence. HEAD declares
-    `gen_meta_code_v0(name: string, description?: string | null, meta?: string | null, bits?: number | null)`
-- [x] Node, release `--target nodejs` build: 10,000 throwing-`length` calls give 10,000 errors
-    (`Invalid cv: boom`), and `text_trim("abc", 2)` then returns `"ab"`
-- [x] `grep -n 'Array::from' crates/iscc-wasm/src/lib.rs` prints nothing
-- [x] `mise run check` exits 0; `git status --porcelain` showed only `iterations.jsonl`
+- Ruby suite, `mise exec ruby@3.4.13 -- bundle exec rake compile test`: minitest 5.27.0 →
+    `168 runs, 481 assertions, 0 failures, 0 errors, 0 skips`. minitest 6.1.0 → the same counts
+- `mise exec ruby@3.4.13 -- bundle exec standardrb` exits 0 (no new cop findings)
+- `uv run pytest tests/test_ruby_gem_docs.py tests/test_build_ruby_source_gem.py`: 47 passed. Full
+    `uv run pytest`: 809 passed
+- Floor parsers checked against the HEAD (pre-change) files: they read `3.1 3.1 3.1`, and
+    `check_floor_parity('3.1','3.1','3.3')` raises `Ruby floor mismatch`
+- The four greps print one line each (release.yml:850, gemspec:16, ci.yml:253, Gemfile.lock:28). The
+    `3\.1 to 3\.3|>= 3\.1|3\.1, 3\.2` sweep prints nothing (exit 1)
+- `uv run scripts/check_release_workflow.py` exits 0. `mise run check` exits 0 (the first run
+    reformatted the hook YAML via yamlfix, the second was clean). Pre-push
+    `prek run standardrb --hook-stage pre-push --all-files` passes
+- Not verified: the suite on Ruby 3.3 (no mise 3.3 here; CI's `ruby` job is the first run) and the
+    cross-gem build for 3.4 (release.yml never runs in CI; image support is from next.md's sources)
 
-Probes beyond next.md (3):
-
-- Hostile exception shapes, 6,000 calls each, instance usable afterwards: a thrown object with a
-    throwing `message` getter, `throw null`, a proxy with a throwing `get` trap, a revoked proxy, a
-    sparse array, a string `length`. All give a named error
-- The `serde_wasm_bindgen::from_value` paths with a throwing element: the instance dies. See below
-- Timing, base `3ef83ce` against HEAD: the handoff's ~2× is correct (figures in decisions.md)
-
-**Issues found:**
-
-- Filed `low`, untriaged: "`@iscc/wasm` list inputs read through serde let a throwing element kill
-    the instance". `gen_video_code_v0`, `soft_hash_video_v0`, `gen_mixed_code_v0`,
-    `gen_iscc_code_v0` and `encode_seq` fail with `memory access out of bounds` after 5,000 to 8,200
-    calls with a throwing element getter. The build of `3ef83ce` behaves the same, so it is older
-    than iteration 268
-- Not filed (nit): `alg_cdc_chunks` changed `Uint8Array::from` to `new_from_slice` only because
-    next.md's grep matched the substring. The two are equivalent and the CDC tests pass
-- Fixed here: `crates/iscc-wasm/CLAUDE.md` → Common Pitfalls now states the two rules this step
-    established (an `Option<T>` before a `JsValue` override needs its own TypeScript override; read
-    JS values only through `catch` imports). The advance handoff reported both gaps
-- Trimmed: the `low` byte-input issue no longer says `gen_audio_code_v0({})` reads as an empty list.
-    It now throws `Invalid cv.length: expected a number`
-
-**Codex review:** no actionable findings. Codex ran the 145 WASM tests and its own release-build
-checks of the optional parameters, the array reads and the CDC chunk output.
-
-**Next:** no `critical` issue is left. Pick from the `normal` entries. Two carry a decision by
-Titusz and need no further input: "The Ruby floor is past end of life and current Rubies get no
-precompiled gem" (`[human]`) and "C++ `safe_data` and .NET `PinnedRows` padding guard a NULL
-rejection the FFI no longer has". I would take the Ruby floor first. Gate idea for a later step: a
-committed, comment-stripped `.d.ts` snapshot that the `wasm` CI job compares against the build. It
-would have caught the lost `?` of iteration 268 without a reviewer.
+**Next:** the decided `normal` cleanup "C++ `safe_data` and .NET `PinnedRows` padding". Ruby 4.0
+precompiled gems (rb_sys ≥ 0.9.124) stay a separate, verify-on-its-own step.
 
 **Notes:**
 
-- This push carries iterations 268 and 269 together. It is the first CI run of the WASM type checks,
-    so update-state should read the `wasm` job result
-- Decision recorded (2026-11-21, "`@iscc/wasm` reads number arrays element by element through
-    `Reflect.get`"): the 2× marshalling cost is accepted. Measured on Node 22, `gen_audio_code_v0`:
-    3,000 elements 0.79 → 1.65 ms, 1M elements 243 → 525 ms. Do not scope a faster read unless a
-    user reports it. Titusz can overrule by editing the entry
-- Narrowing confirmed: a `Set` or a generator is rejected for `cv` and `features` (0.7.0 read them
-    as empty). Arrays, typed arrays and array-likes give the same code as before
-- Review trap, now in learnings.md: two `git archive` trees that share one `CARGO_TARGET_DIR`
-    package the first tree's wasm twice. My first `.d.ts` diff compared base with base. `cmp` the
-    two `.wasm` files before trusting such a diff
-- decisions.md was over budget after the new entry. I rotated it with `cid.archive_overflow` (398
-    lines now)
+- **Unscoped hook change (6th non-doc file, within budget):** the floor alone breaks the standardrb
+    hooks on the devcontainer's system Ruby 3.1. Proved in a `/tmp` copy with minitest 5 kept:
+    Bundler fails with
+    `every version of iscc-lib depends on Ruby >= 3.3.0 ... current Ruby version   is = 3.1.2`. So
+    `mise run check` could not pass without it. The hooks now need mise's Ruby 3.4
+    (`mise exec ruby@3.4` uses an installed 3.4.x, else installs one). Ruby is NOT pinned in
+    `mise.toml`, so a fresh machine downloads Ruby on the first `.rb` commit. Titusz may prefer a
+    `mise.toml` pin or a devcontainer Ruby bump instead
+- **Unscoped test change:** `test_ci_source_gem_install_uses_ruby_without_precompiled_gem` asserted
+    the `ruby-source-gem` job's Ruby (3.4) has no precompiled gem. That is false by design now
+    (next.md keeps the job on 3.4). Replaced with
+    `test_ci_source_gem_install_takes_built_source_gem_file`: the install runs
+    `gem install <--out dir>/iscc-lib-*.gem` (the file, not a registry lookup), plus the unchanged
+    empty-gem-home/selftest assertions. The module docstring follows
+- **Devcontainer gap:** `.devcontainer/Dockerfile` still installs Debian's Ruby 3.1, below the
+    floor. It can no longer run the Ruby suite or `bundle exec` in `crates/iscc-rb`. Use
+    `mise exec ruby@3.4.13 -- …` with `LANG=C.UTF-8` (documented in `crates/iscc-rb/CLAUDE.md`)
+- Loader: `lib/iscc_lib.rb` derives `3.4` from `RUBY_VERSION` and tries `iscc_lib/3.4/iscc_rb`
+    first, so it needed no change

@@ -32,8 +32,8 @@ registration entirely (the guard in `Rake::ExtensionTask#define`:
 
 ### Version-Aware Native Extension Loader
 
-Cross-compilation for multiple Ruby versions (3.1, 3.2, 3.3) places `.so` files in version-specific
-subdirectories: `lib/iscc_lib/3.1/iscc_rb.so`, `lib/iscc_lib/3.2/iscc_rb.so`, etc. The loader in
+Cross-compilation for multiple Ruby versions (3.3, 3.4) places `.so` files in version-specific
+subdirectories: `lib/iscc_lib/3.3/iscc_rb.so`, `lib/iscc_lib/3.4/iscc_rb.so`. The loader in
 `lib/iscc_lib.rb` must try the versioned path first:
 
 ```ruby
@@ -134,4 +134,6 @@ Requires `libclang-dev` for rb-sys/bindgen compilation.
     name from the package name
 - **Root `.gitignore` has `lib/` pattern** — need `!lib/` negation in `crates/iscc-rb/.gitignore`
 - **`JSON.generate` ignores `sort_keys: true`** — use `meta_val.sort.to_h` before `JSON.generate`
-- **`bundler` not on PATH** in devcontainer — need `$HOME/.local/share/gem/ruby/3.1.0/bin` on PATH
+- **Devcontainer system Ruby (Debian 3.1) is below the gem's `>= 3.3` floor** — Bundler refuses it.
+    Run the suite on a supported Ruby via mise:
+    `mise exec ruby@3.4.13 -- bundle exec rake compile test` (export `LANG=C.UTF-8` first)
