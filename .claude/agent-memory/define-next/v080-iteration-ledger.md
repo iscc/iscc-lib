@@ -126,4 +126,12 @@ in as version-free `cargo add iscc-lib --no-default-features` (docs outside budg
 target would add a derived fact). C++ constants are functions (`iscc::meta_trim_name()`); doc C++
 snippets are top-level statements → compile by wrapping in `main()`; `tests/test_c_ffi_docs.py` bans
 unprefixed header type names in c-cpp.md. Next: part 3 count sweep (specs + per-crate CLAUDE.md),
-then v0.8.0 should have no normal blocker left.
+then v0.8.0 should have no normal blocker left. 245 = drift issue part 3a: counts + line numbers in
+`specs/` and the per-crate `CLAUDE.md` files, docs-only (about 107 grep hits in 24 files, one class
+rule: remove, never correct). Probed: `check_tier1_docs.py` registers `rust-core.md` and
+`iscc-lib/CLAUDE.md` EXACT and the ffi/wasm/go `CLAUDE.md` files FULL, so names are gated and only
+the numerals go; `check_ci_job_table.py` gates rows, not the "21 job keys / 22 check names" prose.
+Trap: a backtick inside a regex in next.md breaks the inline code span (mdformat escapes `_`/`\b`).
+Use `.?` or a fenced block. Next: part 3b, the file lists (indentation trees, not box-drawing) in
+the `CLAUDE.md` files. No gate parses them, so remove them or extend `check_spec_paths.py`. Then
+v0.8.0 has no normal blocker left.
