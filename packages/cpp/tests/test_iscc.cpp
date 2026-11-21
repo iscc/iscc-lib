@@ -131,6 +131,16 @@ static std::vector<std::vector<uint8_t>> edge_byte_lists(const iscc_edge_list& l
     return out;
 }
 
+/// Build one int32 vector per frame of an edge-vector frame list (an empty list stays empty).
+static std::vector<std::vector<int32_t>> edge_frames(const iscc_edge_frames& list) {
+    std::vector<std::vector<int32_t>> out;
+    for (size_t i = 0; i < list.count; ++i) {
+        const int32_t* frame = list.frames[i];
+        out.emplace_back(frame, frame + list.lens[i]);
+    }
+    return out;
+}
+
 /// Check one iscc_decode edge row against its cpp expectation (rejection = IsccError).
 static bool check_edge_iscc_decode(const iscc_edge_iscc_decode_vector& v) {
     const std::string input = edge_string(v.input);
@@ -208,6 +218,39 @@ static bool check_edge_gen_iscc_code_v0(const iscc_edge_gen_iscc_code_v0_vector&
     std::string iscc;
     try {
         iscc = iscc::gen_iscc_code_v0(codes, v.wide != 0).iscc;
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && iscc == edge_string(v.iscc);
+}
+
+/// Check one gen_meta_code_v0 edge row against its cpp expectation.
+/// An empty description is passed as std::nullopt (no description).
+static bool check_edge_gen_meta_code_v0(const iscc_edge_gen_meta_code_v0_vector& v) {
+    const std::string name = edge_string(v.input_name);
+    const std::string description = edge_string(v.description);
+    const std::optional<std::string> desc =
+        description.empty() ? std::nullopt : std::optional<std::string>(description);
+    const std::string meta = edge_string(v.meta);
+    std::string iscc;
+    try {
+        iscc = iscc::gen_meta_code_v0(name, desc, meta, v.bits).iscc;
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && iscc == edge_string(v.iscc);
+}
+
+/// Check one gen_video_code_v0 edge row against its cpp expectation.
+static bool check_edge_gen_video_code_v0(const iscc_edge_gen_video_code_v0_vector& v) {
+    const std::vector<std::vector<int32_t>> frames = edge_frames(v.frame_sigs);
+    std::string iscc;
+    try {
+        iscc = iscc::gen_video_code_v0(frames, v.bits).iscc;
     } catch (const iscc::IsccError&) {
         return v.cpp == ISCC_EDGE_ERROR;
     } catch (...) {
@@ -739,6 +782,10 @@ int main() {
                                  ISCC_EDGE_GEN_ISCC_CODE_V0_COUNT, check_edge_gen_iscc_code_v0);
         seen += run_edge_section("alg_simhash", iscc_edge_alg_simhash,
                                  ISCC_EDGE_ALG_SIMHASH_COUNT, check_edge_alg_simhash);
+        seen += run_edge_section("gen_meta_code_v0", iscc_edge_gen_meta_code_v0,
+                                 ISCC_EDGE_GEN_META_CODE_V0_COUNT, check_edge_gen_meta_code_v0);
+        seen += run_edge_section("gen_video_code_v0", iscc_edge_gen_video_code_v0,
+                                 ISCC_EDGE_GEN_VIDEO_CODE_V0_COUNT, check_edge_gen_video_code_v0);
         assert_eq(seen, ISCC_EDGE_TOTAL_COUNT, "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
     }
 
@@ -763,6 +810,20 @@ int main() {
             "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {digests, lens, 2}, {"0\014", 2}};
         assert_true(!check_edge_alg_simhash(tie_as_and),
                     "data_edge negative: alg_simhash output mismatch fails");
+    }
+    {
+        // The Meta-Code of a different object, against the raw-JCS row's expected code.
+        const iscc_edge_gen_meta_code_v0_vector meta_mismatch = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {"Hello", 5}, {"", 0},
+            {"{\"t\":\"a&b\"}", 11}, 64, {"ISCC:AAAWKLHFXO3IKDKI", 21}};
+        // A ragged frame list whose row expects the iscc-core truncation result.
+        const iscc_edge_gen_video_code_v0_vector ragged_ok = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK,
+            iscc_edge_gen_video_code_v0[1].frame_sigs, 64, {"ISCC:EMAVFD4RIMPXYQWS", 21}};
+        assert_true(!check_edge_gen_meta_code_v0(meta_mismatch),
+                    "data_edge negative: gen_meta_code_v0 output mismatch fails");
+        assert_true(!check_edge_gen_video_code_v0(ragged_ok),
+                    "data_edge negative: gen_video_code_v0 expected output that errors fails");
     }
 
     // Summary
