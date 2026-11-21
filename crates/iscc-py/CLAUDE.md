@@ -131,7 +131,8 @@ mise run format
 - One wheel per platform via `abi3-py310`
 - Build matrix: Linux (x86_64), macOS (universal2), Windows (x64)
 - sdist also published
-- Tag-triggered: `git tag v*.*.*` triggers `.github/workflows/release.yml`
+- Released by dispatching `.github/workflows/release.yml` (`workflow_dispatch` only); with a
+    `version` input the workflow creates the `vX.Y.Z` tag itself
 - Release profile: `lto = true`, `codegen-units = 1`, `strip = true`, `panic = "abort"`
 
 ## Common Pitfalls

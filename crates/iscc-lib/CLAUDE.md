@@ -5,7 +5,7 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 ## Crate Role
 
 - This is the **core crate** that all binding crates (`iscc-py`, `iscc-napi`, `iscc-wasm`,
-    `iscc-ffi`, `iscc-jni`, `iscc-rb`) depend on
+    `iscc-ffi`, `iscc-jni`, `iscc-rb`, `iscc-uniffi`) depend on
 - Must remain **pure Rust** -- zero binding dependencies (no PyO3, napi, wasm-bindgen)
 - Publishable to crates.io as `iscc-lib`
 - All ISCC algorithm logic lives here; binding crates only translate the API
@@ -42,6 +42,7 @@ require the `text-processing` feature. `gen_meta_code_v0`, `json_to_data_url`, `
 - `MainType`, `SubType`, `Version` enums
 - `encode_header`, `decode_header`, `encode_base32`, `decode_base32`
 - `encode_length`, `decode_length`, `encode_units`, `decode_units`
+- `read_unit`, `SEQ_MAINTYPES`
 
 **Internal -- `pub(crate)` or private, free to change:**
 

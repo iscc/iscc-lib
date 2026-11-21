@@ -7,7 +7,7 @@ Continuous integration, quality gates, developer tooling, and selective package 
 | Workflow    | File                            | Trigger                                | Purpose                       |
 | ----------- | ------------------------------- | -------------------------------------- | ----------------------------- |
 | **CI**      | `.github/workflows/ci.yml`      | push to `main`/`develop`, PR to `main` | Quality gates for all targets |
-| **Release** | `.github/workflows/release.yml` | `v*.*.*` tag or `workflow_dispatch`    | Build and publish packages    |
+| **Release** | `.github/workflows/release.yml` | `workflow_dispatch`                    | Build and publish packages    |
 | **Docs**    | `.github/workflows/docs.yml`    | push to `main`                         | Build and deploy docs site    |
 
 The table names the workflows this spec requires, not every file in `.github/workflows/`.
@@ -174,10 +174,10 @@ Single workflow supporting both coordinated full releases and selective per-regi
 ### Design Principles
 
 - **One workflow file** — all release logic lives in `release.yml`
-- **`workflow_dispatch` is the primary release mechanism** — manual trigger from the GitHub Actions
-    UI with checkboxes to select which registries to publish to
-- **Tag trigger as convenience** — pushing a `v*.*.*` tag publishes all registries (equivalent to
-    checking all boxes)
+- **`workflow_dispatch` is the only release trigger** — manual trigger from the GitHub Actions UI
+    with checkboxes to select which registries to publish to
+- **The workflow creates the release tags** — a run with a `version` input tags the release itself
+    and publishes every registry (see Job Conditions); pushing a tag starts nothing
 - **Shared version** — all packages share the workspace version from root `Cargo.toml`; version is
     bumped once in a single commit before releasing
 - **Independent jobs** — each registry's build+publish pipeline is a self-contained job chain; one
@@ -189,10 +189,15 @@ Single workflow supporting both coordinated full releases and selective per-regi
 
 ```yaml
 on:
-  push:
-    tags: [v*.*.*]
   workflow_dispatch:
     inputs:
+      version:
+        description: >-
+          Release version (e.g. 0.3.1). Triggers full release: builds Swift
+          XCFramework, updates Package.swift, creates tag, publishes all
+          registries. Leave empty to re-trigger individual registries.
+        type: string
+        default: ''
       crates-io:
         description: Publish iscc-lib to crates.io
         type: boolean
@@ -217,6 +222,7 @@ on:
         description: Publish Iscc.Lib to NuGet
         type: boolean
         default: false
+      # excerpt: the ffi and maven-kotlin checkboxes have the same shape
 ```
 
 ### Job Conditions

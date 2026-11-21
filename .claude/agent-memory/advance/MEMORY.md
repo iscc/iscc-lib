@@ -57,10 +57,7 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - Go toolchain (235): `go.mod` has `go 1.26.1` (consumer floor, human-only) + `toolchain go1.26.11`
     (setup-go `go-version-file` uses it); devcontainer `GO_VERSION` mirrors the toolchain line.
     `govulncheck@latest` via `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
-- Dependency refresh (iters 124-172; ALL authorized majors done through uniffi 0.32): manifests +
-    GHA action majors probed current 2026-07-28; ruff 0.16; prek ruff hooks carry `pyi` in
-    `types_or`; NEVER blanket `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`.
-    Detail + prek staged-probe gotcha → deps-refresh.md
+- Dependency refresh: NEVER blanket ruff `--fix` (deletes `# noqa: S603/S607`) → deps-refresh.md
 - GOTCHA (233): `prek run --all-files` (= `mise run check`) skips UNTRACKED files — `git add -N` new
     scripts/tests BEFORE the check, else ruff findings surface only at commit
 - Commit quirks (217): Ruby `standardrb --fix` hook takes minutes (long timeout); trust
@@ -96,10 +93,6 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 
 ## API Design
 
-- Video API `<S: AsRef<[i32]> + Ord>` generics — FFI passes `&[&[i32]]` (zero-copy), others
-    `&[Vec<i32>]`
-- Tier 1 `encode_component` wrapper in `lib.rs` takes `u8` enum fields + validates with
-    `TryFrom<u8>`; delegates to `codec::encode_component`
 - `iscc_decode` strips "ISCC:" + dashes, returns digest bytes `(u8,u8,u8,u8,Vec<u8>)`
 - Python strip set `codec::is_py_strip_char` (`pub(crate)`) / Go `isPyStripChar`: codec + text
     trim/split (203). Base32 strict (199) + ASCII-only casing (201)
@@ -132,6 +125,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     runtime-scope POM dep; Swift SPM fetches the release XCFramework. Docs say so
 - Per-crate `CLAUDE.md` files carry no file trees/tables (246): a rule goes in prose against a file
     name. Line-range edits via an anchored `/tmp` Python script; mdformat reflows inserted lines
+- Spec drift sweeps (259): mdformat also reformats \`\`\`js blocks; release-trigger truth =
+    release.yml `on:` + each job's `if:` — grep `refs/tags`/`github.ref` too, next.md greps miss
+    YAML conditions
 - Guidance docs carry no counts/`path:NN` (245): write "every binding", "all Tier 1 symbols". Line
     greps miss wrapped counts — also grep each file joined via `tr '\n' ' '`
 - Spec path gate `scripts/check_spec_paths.py`: `*` one segment, `**` crosses `/`; `NOT_PATHS`

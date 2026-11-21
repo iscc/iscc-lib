@@ -115,7 +115,8 @@ Add to `release.yml`:
     - `LICENSE`
 - A `publish-ffi` job (needs `build-ffi`) that creates/updates the GitHub Release and uploads the
     tarballs as release assets
-- Trigger: same as other release jobs (`startsWith(github.ref, 'refs/tags/v') || inputs.ffi`)
+- Condition: `build-ffi` runs for a full release or the `ffi`/`nuget` checkbox
+    (`inputs.version != '' || inputs.ffi || inputs.nuget`, NuGet packs the FFI tarballs)
 - Add `ffi` boolean input to `workflow_dispatch`
 
 **Naming convention:** `iscc-ffi-v{version}-{target}.tar.gz` (e.g.,
@@ -125,7 +126,8 @@ Add to `release.yml`:
 
 - `release.yml` includes `build-ffi` and `publish-ffi` jobs
 - `workflow_dispatch` has `ffi` boolean input
-- Tag push triggers FFI builds for every release platform
+- A full release (`workflow_dispatch` with a `version` input) runs the FFI builds for every release
+    platform
 - Each platform produces a tarball with shared lib + static lib + header + LICENSE
 - Tarballs are uploaded as GitHub Release assets
 

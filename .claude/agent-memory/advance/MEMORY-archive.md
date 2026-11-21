@@ -221,3 +221,14 @@ macros-backend default-handling on every major bump, not just compiler warnings.
 - `conformance` module always available; `conformance_selftest()` skips disabled types via `#[cfg]`;
     `serde_json` non-optional. When gating `pub(crate)` fns, gate their tests too (dead-code lint
     fires in library builds; `tests/test_text_utils.rs` needs per-function gating)
+
+## Archived from MEMORY.md (iter 259)
+
+- Dependency refresh (iters 124-172; ALL authorized majors done through uniffi 0.32): manifests +
+    GHA action majors probed current 2026-07-28; ruff 0.16; prek ruff hooks carry `pyi` in
+    `types_or`; NEVER blanket `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`.
+    Detail + prek staged-probe gotcha → deps-refresh.md
+- Video API `<S: AsRef<[i32]> + Ord>` generics — FFI passes `&[&[i32]]` (zero-copy), others
+    `&[Vec<i32>]`
+- Tier 1 `encode_component` wrapper in `lib.rs` takes `u8` enum fields + validates with
+    `TryFrom<u8>`; delegates to `codec::encode_component`

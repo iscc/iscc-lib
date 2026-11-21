@@ -482,7 +482,10 @@ Decoding is the asymmetric direction. `iscc_decode` returns the packed 64-bit bo
 `2^64 - 1` is not safe as a double, so the JS recipe must go through `BigInt` before narrowing:
 
 ```js
-const [mt, st, vs, ln, body] = iscc_decode("ISCC:MAIGHFECJMOPMIAB");
+const {
+    subtype: st,
+    digest: body
+} = iscc_decode("ISCC:MAIGHFECJMOPMIAB");
 const n = body.reduce((a, b) => (a << 8n) | BigInt(b), 0n);
 const timestamp = Number(n >> 12n); // safe: < 2^53 - 1
 const hubId = Number(n & 0xfffn);

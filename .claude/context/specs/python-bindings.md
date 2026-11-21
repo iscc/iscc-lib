@@ -271,8 +271,8 @@ GitHub: https://github.com/iscc/iscc-lib/issues/39
 
 The streaming hasher `update()` methods (`DataHasher`, `InstanceHasher`, `SumHasher`) and the
 one-shot byte-data hashing functions (`gen_data_code_v0`, `gen_instance_code_v0`,
-`gen_image_code_v0`, `gen_sum_code_v0`) wrap the pure-Rust compute in `py.allow_threads(...)` so
-CPU-bound hashing overlaps across Python threads instead of serializing on the GIL. Output bytes are
+`gen_image_code_v0`, `gen_sum_code_v0`) wrap the pure-Rust compute in `py.detach(...)` so CPU-bound
+hashing overlaps across Python threads instead of serializing on the GIL. Output bytes are
 identical, so conformance is unaffected; this is purely a concurrency improvement that benefits
 threaded consumers (e.g. `iscc-sdk`'s `ThreadPoolExecutor` overlap). Adding the injected
 `py: Python<'_>` parameter does not change the Python-facing signature. The borrow of the Python

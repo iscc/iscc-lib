@@ -144,7 +144,8 @@ assert(conformanceSelftest())
 - `camelCase` method names (auto-converted by UniFFI)
 - `throws` for fallible functions (mapped from `Result<T, IsccUniError>`)
 - `Data` for binary data (converted from `Vec<u8>`)
-- Named parameters with defaults: `genMetaCodeV0(name:description:meta:bits:)`
+- Named parameters without defaults: the UniFFI exports declare no `default(...)`, so Swift and
+    Kotlin callers pass every argument, e.g. `genMetaCodeV0(name:description:meta:bits:)`
 - Constants are getter functions (UniFFI limitation): `metaTrimName()`, `ioReadSize()`, etc.
 
 ## XCFramework Build
@@ -236,78 +237,33 @@ Ferrostar's **force-update tag** approach.
 
 ### Release Flow
 
-1. **Human creates a GitHub Release** (which creates a version tag like `v0.5.0`)
-2. **Release workflow triggers** (`on: release: types: [created]` or existing tag trigger)
-3. **macOS job builds XCFramework** — runs `build_xcframework.sh --release`
-4. **`sed` updates `Package.swift`** — writes new `releaseTag` and `releaseChecksum`
-5. **Auto-commit** the updated `Package.swift` to `main`
-6. **Force-move the tag** to the new commit:
+1. **Human dispatches `release.yml`** with a `version` input (e.g. `0.5.0`); `workflow_dispatch` is
+    its only trigger and no tag exists yet
+2. **`prepare-release` checks out `main`** and verifies that the root `Cargo.toml` version matches
+    the input
+3. **macOS job builds XCFramework** — runs `build_xcframework.sh --release` (skipped on a cache hit)
+4. **`sed` updates `Package.swift`** — writes the input version to `releaseTag` and the
+    `swift package compute-checksum` result to `releaseChecksum`
+5. **Auto-commit** the updated `Package.swift` and push it to `main` (skipped when unchanged)
+6. **Tag the checksum commit** and force-push the tags, so a stale remote tag of the same name is
+    overwritten:
     ```bash
-    git tag -fa v0.5.0 -m "Swift Package checksum update"
-    git push origin v0.5.0 --force
+    git tag "v0.5.0"
+    git tag "packages/go/v0.5.0"
+    git push origin "v0.5.0" "packages/go/v0.5.0" --force
     ```
-7. **Upload XCFramework zip** to the GitHub Release as `IsccLib.xcframework.zip`
+7. **Create the GitHub Release** for `v0.5.0` with `IsccLib.xcframework.zip` attached
 
-After step 6, the tag points to a commit with the correct checksum, and the release asset URL is
-deterministic from the tag name. SPM consumers see a self-consistent state.
+Because the tag is created after the checksum commit, it points to a commit with the correct
+checksum, and the release asset URL is deterministic from the tag name. SPM consumers see a
+self-consistent state.
 
 ### Release Workflow Integration
 
-Add to `release.yml`:
-
-```yaml
-# workflow_dispatch input:
-swift:
-  description: Build and publish Swift XCFramework to GitHub Releases
-  type: boolean
-  default: false
-
-# Job chain:
-build-xcframework:
-  name: Build XCFramework
-  if: startsWith(github.ref, 'refs/tags/v') || inputs.swift
-  runs-on: macos-15
-  permissions:
-    contents: write
-  steps:
-    - uses: actions/checkout@v4
-      with: {fetch-depth: 0, ref: main}
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: >-
-          aarch64-apple-darwin,x86_64-apple-darwin,
-          aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
-    - uses: actions/cache@v4
-      id: xcf-cache
-      with:
-        path: IsccLib.xcframework.zip
-        key: xcf-${{ hashFiles( 'crates/iscc-*/src/**', 'Cargo.lock') }}
-    - name: Build XCFramework
-      if: steps.xcf-cache.outputs.cache-hit != 'true'
-      run: ./scripts/build_xcframework.sh --release
-    - name: Update Package.swift checksum
-      id: swift-version
-      run: |
-        VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
-        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-        CHECKSUM=$(swift package compute-checksum target/ios/IsccLib.xcframework.zip)
-        sed -E -i '' \
-          "s/(let releaseTag = \")[^\"]+/\1$VERSION/" Package.swift
-        sed -E -i '' \
-          "s/(let releaseChecksum = \")[^\"]+/\1$CHECKSUM/" Package.swift
-    - uses: stefanzweifel/git-auto-commit-action@v5
-      with:
-        commit_message: 'chore: update Swift XCFramework checksum'
-    - name: Force-update tag
-      run: |
-        git tag -fa "v${{ steps.swift-version.outputs.version }}" -m "Swift Package checksum"
-        git push origin "v${{ steps.swift-version.outputs.version }}" --force
-    - name: Upload to release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: v${{ steps.swift-version.outputs.version }}
-        files: target/ios/IsccLib.xcframework.zip
-```
+The `prepare-release` job of `release.yml` (macos-15) implements the flow above. It runs only when
+the `version` input is set: there is no separate `swift` checkbox, and a registry-only re-trigger
+does not rebuild the XCFramework. Each registry chain starts with a job that has
+`needs: [prepare-release]`, so the tags exist before any publish job starts.
 
 ## Caching Strategy
 
