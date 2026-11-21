@@ -1,88 +1,98 @@
 # Next Work Package
 
-## Step: JNI `NativeLoader` reaches the `java.library.path` fallback on any platform
+## Step: JNI loader tests pass in the release layout, and CI runs the suite in that layout
 
 ## Goal
 
-Close the `normal` issue "JNI `NativeLoader` rejects an unknown OS or architecture before the
-`java.library.path` fallback": an unrecognized OS or architecture, and a bundled library that fails
-to load (musl Linux, broken binary), must fall through to `System.loadLibrary("iscc_jni")` instead
-of throwing first.
+Fix the `critical` issue "JNI loader tests fail in `release.yml` → `test-jni` and block the Maven
+publish". This is a repair of iteration 278's tests (the loader itself stays as it is). It also adds
+a CI step that runs the Java suite in the release layout, so the next test that needs the fallback
+library cannot break `publish-maven` without anyone seeing it.
 
 ## Alternatives Considered
 
-- **Chosen:** JNI loader fallback — a user-visible code defect on a published artifact (FreeBSD,
-    riscv64 and likely musl users cannot supply their own build); the handoff's first pick, and the
-    last iteration was docs-only.
-- **Rejected:** docs-only batch (`architecture.md` sections + `ecosystem.md` / `nodejs.md` counts) —
-    cheap and independent, good next step; no code risk to defer it by one iteration.
-- Also open: `@iscc/wasm` Node docs (needs a release-build probe), one-shot dedup (iai gate),
-    `alg_minhash_256([])` (needs a decision first).
+- **Chosen:** test repair + release-layout CI step — a `critical` issue takes priority, and without
+    it the unpushed loader commit `8a99a3c` cannot ship
+- **Rejected:** add a `cargo build`/copy to `target/debug` in `release.yml` → `test-jni` — no run
+    can prove it (`workflow_dispatch`-only), and the tests would still depend on a dev-only path
+- **Rejected:** docs batch (`architecture.md` + "10 `gen_`" leftovers) — `normal`; next after this
 
 ## Scope
 
-- **Modify**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`
-- **Modify** (tests): `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
-- **Create** (tests): `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/LoaderProbe.java`
-- **Modify** (docs): `docs/howto/java.md` (→ "Setup", the sentence on unsupported OS/arch),
-    `crates/iscc-jni/README.md` (:26-30), `crates/iscc-jni/CLAUDE.md` (→ "Native Library Loading")
-- **Reference**: `OomProbe.java` + `IsccLibTest.allocationFailureSurfacesAsOutOfMemoryError`
-    (child-JVM pattern), `.claude/context/specs/java-bindings.md` → "Native Library Loading"
+- **Modify**: `.github/workflows/ci.yml` (job `java`: one more step)
+- **Modify (tests, outside the budget)**:
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`,
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/LoaderProbe.java`
+- **Reference**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`,
+    `crates/iscc-jni/java/pom.xml` (`<argLine>` at :75), `.github/workflows/release.yml` →
+    `test-jni` (:598-623), `docs/howto/java.md` (both-fail error description)
 
 ## Not In Scope
 
-- Adding bundled libraries for more platforms (musl, riscv64, Windows aarch64) or changing
-    `release.yml`
-- Renaming resource directories or changing the resource path layout (the spec's table stays)
-- Any change to `IsccLib.java`, the Rust JNI crate, or the Kotlin/JNA loader
-- A `-Xcheck:jni` sweep or other unrelated JNI test cleanup
+- `NativeLoader.java` and the docs: review found them correct; no rework
+- The `low` temp-directory leak (`deleteOnExit` order) — human-directed only
+- Editing `release.yml`; the `(dev/CI)` label in `specs/java-bindings.md`
+- An `assumeTrue` skip when no fallback library is found — the release job would then test nothing
 
 ## Implementation Notes
 
-- `detectOs()` / `detectArch()` must no longer throw: return `null` (or `Optional`) for an unknown
-    value. `load()` skips strategy 1 when either is unknown and goes straight to
-    `System.loadLibrary`. `libraryFileName`'s `default` throw becomes unreachable — remove or keep
-    it consistent; no throw may precede strategy 2.
-- Strategy 1 must also fall through when `System.load` of the extracted file throws
-    `UnsatisfiedLinkError` (the musl/glibc case — today only `IOException` falls through). Keep that
-    first error: attach it via `addSuppressed` to the final `UnsatisfiedLinkError` if strategy 2
-    also fails, so a user sees why the bundled binary was rejected.
-- Final error message: when OS/arch is unknown, print the raw `os.name` / `os.arch` property values
-    and say no bundled library exists for them, instead of a resource path that was never tried.
-- Update the class/method Javadoc so it describes the new behaviour (evergreen wording).
-- `LoaderProbe` (test source, modelled on `OomProbe`): `main` calls `IsccLib.conformanceSelftest()`
-    and prints `true`/`false` or the thrown class name + message. Tests in `IsccLibTest` run it in a
-    child JVM with `-Djava.library.path=` + `System.getProperty("java.library.path")` and
-    `-cp System.getProperty("java.class.path")`:
-    1. `-Dos.arch=riscv64` → stdout `true`
-    2. `-Dos.name=FreeBSD` → stdout `true` (the issue measured that both overrides reach
-        `NativeLoader` on HotSpot 17)
-    3. broken bundled library: write garbage bytes to a temp dir at
-        `META-INF/native/<detectOs()>-<detectArch()>/<libraryFileName(os)>` (call the package-private
-        helpers from the test; skip with `assumeTrue` only if the host is unknown), PREPEND that dir
-        to the child classpath → stdout `true`. Against today's code this child throws. One child per
-        case; capture stderr into the assertion message like the OOM test.
-- Docs: state that an unrecognized platform, or a bundled library that fails to load, falls back to
-    `java.library.path`; drop "Any other operating system or architecture fails". Keep the README's
-    list of bundled platforms.
-- Binding-only change: trips neither the CRAP nor the iai gate.
-- Rebuild the debug JNI library before `mvn test` (`cargo build -p iscc-jni`): gitignored artifacts
-    go stale silently.
+**Fallback directory helper (`IsccLibTest`):** the child JVM's `-Djava.library.path` must hold a
+real library in both layouts. Write one helper that returns that directory:
+
+1. If some entry of the parent's `java.library.path` (split on `File.pathSeparator`) contains
+    `System.mapLibraryName("iscc_jni")`, use that entry.
+2. Otherwise read the bundled resource
+    `"/META-INF/native/" + NativeLoader.detectOs() + "-" + NativeLoader.detectArch() + "/" + NativeLoader.libraryFileName(os)`
+    through `NativeLoader.class.getResourceAsStream` in the parent (the parent classpath never
+    holds the broken-library temp root, so this is the real library). Copy it into a fresh temp dir
+    under the name `System.mapLibraryName("iscc_jni")` and return that dir. Delete the file and dir
+    in a `finally` after the child exits.
+3. Neither found → fail the test with a message naming both places. Never skip.
+
+`assertLoaderProbePasses` uses that directory in place of the parent's `java.library.path`. Every
+other test keeps its current child setup (`allocationFailureSurfacesAsOutOfMemoryError` passes in
+the release layout today, because its child loads the bundled resource).
+
+**Both-fail test (new):** garbage library on the classpath first (as in
+`loaderFallsBackOnBrokenBundledLibrary`), `-Djava.library.path=` an empty temp dir. Extend
+`LoaderProbe` so that on a throwable it also prints the cause class and each suppressed exception's
+class, e.g. one extra line per item. The probe still prints `true` on success, so the three existing
+tests stay unchanged. Assert: the exception is `UnsatisfiedLinkError`, the message names the
+resource path (`META-INF/native/<os>-<arch>/…`), the cause is an `UnsatisfiedLinkError`, and there
+is exactly one suppressed `UnsatisfiedLinkError`. Check this against what `docs/howto/java.md` says.
+Factor the child-JVM launch so both helpers share it; don't copy the ProcessBuilder block.
+
+**CI step (`ci.yml` → `java`, after "Run Maven tests"):** name it e.g. "Run Maven tests (release
+layout: bundled library only)". Body: `mkdir -p`
+`crates/iscc-jni/java/src/main/resources/META-INF/native/linux-x86_64`, copy
+`target/debug/libiscc_jni.so` there, then `mv` the original out of `target/debug` (e.g. to
+`$RUNNER_TEMP`), then `mvn test -f crates/iscc-jni/java/pom.xml`. `-DargLine` cannot remove the
+pom's library path (learnings), so moving the file is the mechanism. The `.so` under `resources/` is
+gitignored (`*.so`).
+
+**Local proof of both layouts** (handoff recipe, about 40 s): `git archive HEAD` doesn't include
+uncommitted edits, so commit first or copy the working-tree `crates/iscc-jni/java` into `$T`. Run
+the CI step body as CI does (extract `run` with PyYAML, `bash --noprofile --norc -eo pipefail`) in a
+throwaway copy, never in the dev tree, because it moves `target/debug/libiscc_jni.so`. After
+probing, `rmdir /tmp/iscc-jni-[0-9]*` (known leak).
+
+Binding-only Java + CI change: no CRAP, iai or core-API impact.
 
 ## Verification
 
-- `cargo build -p iscc-jni && mvn -q test -f crates/iscc-jni/java/pom.xml` exits 0, including the
-    three child-JVM loader tests
-- `grep -n 'throw new UnsatisfiedLinkError("Unsupported' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`
-    prints nothing
-- Each of the three loader tests fails against `git show HEAD:<NativeLoader.java path>` (advance
-    reports the mechanism, e.g. a throwaway `git archive` tree, and the failing output in the
-    handoff) — never via `git stash`/`reset` in the working tree
-- `git grep -nE 'other operating system or architecture fails|before it tries either strategy' -- docs crates/iscc-jni`
-    prints nothing
+- CI layout: `cargo build -p iscc-jni && mvn -q test -f crates/iscc-jni/java/pom.xml` exits 0;
+    surefire reports the three `loaderFallsBack*` tests and the both-fail test run, none skipped
+- Release layout (handoff recipe on a tree with this step's test files, library only under
+    `src/main/resources/META-INF/native/linux-x86_64/`, no `target/`) — `mvn test` exits 0 with the
+    same four tests run, none skipped
+- The both-fail test fails against a `LoaderProbe`/`NativeLoader` that drops `addSuppressed` (a
+    throwaway-tree mutation, reported in the handoff)
+- `ci.yml` job `java` has a step whose `run` copies the library into
+    `src/main/resources/META-INF/native/linux-x86_64/`, moves `target/debug/libiscc_jni.so` away,
+    and runs `mvn test`; that body exits 0 when run as CI runs it, in a throwaway copy
 - `mise run check` exits 0
 
 ## Done When
 
-All verification criteria pass and the docs describe the fallback for unrecognized platforms and
-unloadable bundled libraries.
+All verification criteria pass: the loader tests run green in both layouts, and CI runs the release
+layout on every push.
