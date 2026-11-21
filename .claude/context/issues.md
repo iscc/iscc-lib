@@ -259,3 +259,42 @@ iteration-240 audit and confirmed by reading the code 2026-11-21.
 Resolved when the core returns `InvalidInput` for signatures of unequal length (no panic, no
 digest), a shared error vector covers it on every surface, and the Python-only frame check is
 removed or reduced to the core's error.
+
+## C FFI treats `(NULL, 0)` two opposite ways and never checks inner pointers `normal` [audit]
+
+`crates/iscc-ffi/src/lib.rs` rejects NULL with len 0 in image/audio/data/instance/`encode_base64`
+(357-360, 513-516) but accepts it in `encode_component`, `decode_seq`, `alg_cdc_chunks`, … (799-807,
+1311-1320); tests pin both (`tests.rs:131` vs `:629`). Pointer-array loops (438-445, 1232-1239,
+1403-1410) pass inner pointers to `from_raw_parts` unchecked (UB on NULL). The split cost 7 .NET
+sentinel branches (`IsccLib.cs:131…502`) and C++ `detail::safe_data`. **Fix:** one `slice_or_empty`
+helper (len 0 → `&[]`, NULL + len > 0 → error) used everywhere, incl. inner pointers; flip the len-0
+null tests. **Scope estimate:** 2-4 non-test files.
+
+## Out-of-range integer arguments wrap silently on JS, raise undocumented classes elsewhere `normal` [audit]
+
+napi/WASM take `u32`/`i32` (`iscc-napi/src/lib.rs:138,162,292,373,397`); only `gen_iscc_id_v1` runs
+`checked()`. Measured: bits `2**32+64` gives the bits-64 code, `text_trim("abc",-1)` → `"abc"`,
+`gen_audio_code_v0([2**40])` wraps to 0. JNI casts `bits as u32` unchecked
+(`iscc-jni/src/lib.rs:230…`). Python raises `OverflowError` vs documented `ValueError`
+(`docs/howto/python.md:540`); Ruby `RangeError` (`iscc-rb/src/lib.rs:62-70`) vs documented
+`RuntimeError` (`docs/ruby-api.md:82`). **Fix:** route JS numerics through `checked()`, reject
+negative JNI `bits`, map or document Py/Rb classes; one negative + 2^32+x test per surface. **Scope
+estimate:** 5-6 non-test files.
+
+## Published-package docs contradict what ships `normal` [audit]
+
+`README.md:190,285` print `result.iscc` from a string return; WASM snippet lacks `await init()`
+(package is `--target web`, `release.yml:427`). Java/Kotlin docs say no Maven Central/no loader
+(`docs/howto/java.md:6,29`, `crates/iscc-jni/README.md:27`); Swift READMEs say build from source
+though `Package.swift:18-20` fetches an XCFramework; `docs/architecture.md:30,178` (five bindings,
+napi AsyncTask); `docs/development.md:181` + `CLAUDE.md:207` claim pytest coverage enforcement, no
+`--cov` exists. **Fix:** correct each claim against the code. **Scope estimate:** ~11 files — needs
+audit-scope step (≤8 files); do README + how-tos first.
+
+## Pytest gate spends ~25 s of ~44 s on benchmark loops and doc-tree copies `normal` [audit]
+
+Gate rose 25.6 → 44.1 s over four `metrics.jsonl` rows. `tests/test_benchmarks.py` runs timing loops
+every gate (13.8 s; 0.7 s with `--benchmark-disable`), duplicating `benchmarks/python/`.
+`tests/test_check_tier1_docs.py:54-60` copies lib.rs + 91 docs off 9p per test, incl. 13 cases that
+fire before any doc is read (`scripts/check_tier1_docs.py:282-289`). **Fix:**
+`addopts = "--benchmark-disable"`; copy only what each case reads. **Scope estimate:** 1-2 files.
