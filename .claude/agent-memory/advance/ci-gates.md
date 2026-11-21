@@ -98,3 +98,20 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
     `[profile.bench] strip = false, debug = true` (else stripped binary → `summary: 0` false green);
     `IAI_CALLGRIND_ALLOW_ASLR=true` (mise + ci.yml) skips iai's kernel-blocked `setarch -R` (ASLR =
     cache noise, not `Ir`).
+
+## Moved from MEMORY.md (iter 277)
+
+- Generated-artifact gates (274): pre-push `pytest` + `mise run test` rebuild the `.so` via mise
+    task `py:develop`; CI `c-ffi` diffs `NativeMethods.g.cs`, `kotlin` regenerates UniFFI
+    kt/swift/.h into `$RUNNER_TEMP` + diffs modulo trailing ws/EOF blanks. Pinned by
+    `tests/test_generated_artifact_gates.py`. Prove a step: extract `run` via PyYAML, run with
+    `bash --noprofile --norc -eo pipefail` (zsh does not word-split `$G`/`set -- $p`)
+- pytest (254): `addopts = "--benchmark-disable"` in pyproject —
+    `benchmarks/python/ --benchmark-only` needs `--benchmark-enable` too. Tier 1 doc tests cache
+    repo bytes once (`_tree_bytes`). Gate ~19 s
+- Kotlin plugins (262): `packages/kotlin/settings.gradle.kts` `pluginManagement` = mavenCentral
+    first, portal fallback (portal BOM hop failed CI). Gradle run leaves untracked `.kotlin/` —
+    delete. .NET `dotnet-test` sets `skip-lts-prepass: true`
+- .NET CI (260): `dotnet-test` legs install into private `DOTNET_INSTALL_DIR` (runner.temp) —
+    `/usr/share/dotnet` preinstalls newer majors that `LatestMajor` would pick. Verify action claims
+    via `gh api 'repos/<o>/<r>/contents/<path>?ref=<tag>' --jq .content | base64 -d`

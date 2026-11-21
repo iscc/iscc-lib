@@ -33,3 +33,28 @@ metadata:
 - npm metadata (214): `@iscc/wasm` package.json comes from `crates/iscc-wasm/Cargo.toml` via
     wasm-pack (0.13.1 resolves `license.workspace`); `@iscc/lib` package.json is committed as-is.
     taplo aligns trailing comments to the longest line in a block — put comments on their own line
+
+## JS / WASM marshalling (moved from MEMORY.md, iter 277)
+
+- WASM returns (234): byte chunks → `Vec<js_sys::Uint8Array>` (d.ts `Uint8Array[]`), never
+    `serde_wasm_bindgen::to_value` (gives `number[][]`/`any`). Probe d.ts via `wasm-pack build`
+- JS ints (256): napi numeric params are `f64` narrowed by `to_u32`-style helpers, never
+    `u8`/`u32`/`i32`. WASM (268): every number/bool/number-array param is `JsValue` + `number`/
+    `opt_number`/`number_vec`/`boolean`/`opt_bool` (lib.rs top), TS type kept via
+    `unchecked_param_type` / `unchecked_optional_param_type`; an `Option<String>` BEFORE such a
+    param needs its own `unchecked_optional_param_type = "string | null"` or loses `?` (269). JS
+    reads only via `catch` imports (`Reflect::get`/`get_u32`); never `Array::from`/`Array::get`/
+    `try_iter` on caller values (269, ~2x slower, flagged). Tests: `num()`/`nums()`/`js()` (eval) in
+    unit.rs. Probe from Node on a RELEASE
+    `wasm-pack build --release --target nodejs --out-dir   /tmp/...`; `.d.ts` check = diff
+    JSDoc-stripped files vs `git archive <base>` build
+
+## Moved from MEMORY.md (iter 277)
+
+- Ruby floor 3.3 (270): system Ruby 3.1 is refused by Bundler. Dev Ruby pinned ONCE in root
+    `mise.toml` `[tools] ruby` (271): `mise exec -- bundle exec rake compile test` (`LANG=C.UTF-8`);
+    hooks + docs name no `ruby@X` (pin test in `tests/test_ruby_gem_docs.py`, regex not `tomllib`:
+    CI python-test runs 3.10). minitest 6 = 168 runs / 481 assertions
+- Devcontainer (271): `devcontainer.json` is `skip-worktree` (disk = local array form); edit HEAD
+    copy in /tmp, `git update-index --cacheinfo` (CLEARS the flag), re-set `--skip-worktree` before
+    `mise run check`. Untracked `post-create.sh` mirrors the committed `postCreateCommand`

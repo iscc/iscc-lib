@@ -3,8 +3,9 @@
 Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edge.md),
 [doc-checks.md](doc-checks.md), UniFFI/Swift/Kotlin (Gradle+JNA):
 [uniffi-swift-kotlin.md](uniffi-swift-kotlin.md), [deps-refresh.md](deps-refresh.md),
-[wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md), [release-gate.md](release-gate.md), Archived
-phases: [MEMORY-archive.md](MEMORY-archive.md).
+[wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md), [release-gate.md](release-gate.md),
+[api-design.md](api-design.md), [bindings-detail.md](bindings-detail.md), Archived phases:
+[MEMORY-archive.md](MEMORY-archive.md).
 
 **Size budget:** Keep under 140 lines. Move detail to topic files; archive stale entries.
 
@@ -33,28 +34,17 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
 - Ruby: `crates/iscc-rb/` — src/lib.rs (Magnus), lib/iscc_lib.rb (wrapper); Cargo lib name `iscc_rb`
-- Ruby floor 3.3 (270): system Ruby 3.1 is refused by Bundler. Dev Ruby pinned ONCE in root
-    `mise.toml` `[tools] ruby` (271): `mise exec -- bundle exec rake compile test` (`LANG=C.UTF-8`);
-    hooks + docs name no `ruby@X` (pin test in `tests/test_ruby_gem_docs.py`, regex not `tomllib`:
-    CI python-test runs 3.10). minitest 6 = 168 runs / 481 assertions
-- Devcontainer (271): `devcontainer.json` is `skip-worktree` (disk = local array form); edit HEAD
-    copy in /tmp, `git update-index --cacheinfo` (CLEARS the flag), re-set `--skip-worktree` before
-    `mise run check`. Untracked `post-create.sh` mirrors the committed `postCreateCommand`
+- Ruby floor/dev-Ruby pin (270/271), devcontainer skip-worktree edit (271) → bindings-detail.md
 - UniFFI: `crates/iscc-uniffi/` — proc-macro interface for Swift/Kotlin, `publish = false`. Full
     detail → uniffi-swift-kotlin.md
 - Go pure: `packages/go/` — one `.go` per algorithm/code-type (codec, utils, cdc, minhash, simhash,
     dct, wtahash, xxh32, `code_*.go`, conformance.go); pure Go only. ISCC-IDv1, decode guards, gofmt
     caveat → go-idv1.md
-- CDC params (263): `alg_cdc_params` max in u64 → saturate usize; masks via `low_bits_mask`
-    (`checked_shl`, ≥32 bits → `u32::MAX`). Go: `clampInt` for max/center (386 int32)
-- Go 386 CI step (267): `go` job runs `GOARCH=386 CGO_ENABLED=0 go test` + vet (`run: |`; yamlfix
-    wraps long `&&` lines). Real failures: grep `--- FAIL` (runner self-test prints `FAILED:` lines)
+- Go 386 CI step (267), Go hashers (261), CDC params (263) → go-idv1.md
 - Conformance selftest (276): ONE runner per language — Rust `run_section` + generic `report_case`
     over `Case<T> = Option<(IsccResult<T>, T)>` (section logic in closures: not CRAP-counted); Go
     `runSection[V any]` + `run<X>Case(tc) (got, want, err)`, `errUnparsable`, `unmarshalInputs`. A
     new section = one closure/case fn. rustfmt reflow shifts lines → regen CRAP baseline AFTER check
-- Go hashers (261): `Push(...) error` + `finalized` flag set at `Finalize` ENTRY (any first call
-    consumes, like Rust `finalize(self)` / Python `take()`); every in-package `Push` error checked
 
 ## Build and Tooling
 
@@ -67,12 +57,6 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     c-ffi, dotnet, java, go, ruby, ruby-source-gem, cpp, swift, kotlin, bench, perf, semver,
     coverage, audit, release-workflow). `bench`=`cargo bench --no-run`; `swift` macos-15 (macos-14
     retired 2026-11-02, iter 196); `kotlin` ubuntu JDK17
-- Kotlin plugins (262): `packages/kotlin/settings.gradle.kts` `pluginManagement` = mavenCentral
-    first, portal fallback (portal BOM hop failed CI). Gradle run leaves untracked `.kotlin/` —
-    delete. .NET `dotnet-test` sets `skip-lts-prepass: true`
-- .NET CI (260): `dotnet-test` legs install into private `DOTNET_INSTALL_DIR` (runner.temp) —
-    `/usr/share/dotnet` preinstalls newer majors that `LatestMajor` would pick. Verify action claims
-    via `gh api 'repos/<o>/<r>/contents/<path>?ref=<tag>' --jq .content | base64 -d`
 - Enforcing gates: `coverage` (CRAP baseline `.crap-baseline.json`), `audit` (cargo-deny), `perf`
     (iai vs `.iai-baseline.json`); `semver` informational until v1.0.0. CRAP gate is CI-ONLY —
     refresh `mise run crap:baseline` in the SAME step as any branch-adding change → ci-gates.md
@@ -97,14 +81,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     pytest anchor; backticked first-column keys, count floor 10)
 - `version-check` job: `scripts/version_sync.py --check` (16 targets; exits 1 on mismatch). Go CI
     job has zero Rust deps
-- pytest (254): `addopts = "--benchmark-disable"` in pyproject —
-    `benchmarks/python/ --benchmark-only` needs `--benchmark-enable` too. Tier 1 doc tests cache
-    repo bytes once (`_tree_bytes`). Gate ~19 s
-- Generated-artifact gates (274): pre-push `pytest` + `mise run test` rebuild the `.so` via mise
-    task `py:develop`; CI `c-ffi` diffs `NativeMethods.g.cs`, `kotlin` regenerates UniFFI
-    kt/swift/.h into `$RUNNER_TEMP` + diffs modulo trailing ws/EOF blanks. Pinned by
-    `tests/test_generated_artifact_gates.py`. Prove a step: extract `run` via PyYAML, run with
-    `bash --noprofile --norc -eo pipefail` (zsh does not word-split `$G`/`set -- $p`)
+- Generated-artifact gates (274), pytest addopts (254), Kotlin plugins (262), .NET CI (260) →
+    ci-gates.md
 - Python dev builds: `uv run maturin develop -m crates/iscc-py/Cargo.toml` (always via uv run).
     Single `cp310-abi3` wheel. GOTCHA: `uv sync` uninstalls the editable ext — re-run maturin after
 - PyO3 pin = single source: root `Cargo.toml` (`pyo3` "0.29", `abi3-py310`); ONLY `crates/iscc-py`
@@ -113,18 +91,7 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     sites; video detach opens after frame-sig extraction. Recipe → MEMORY-archive.md
 - release.yml: static gate `scripts/check_release_workflow.py` (prek hook, opt-in
     `--check-action-inputs`) + shape (9 inputs, 97 `uses:` refs) — keep green → release-gate.md
-- WASM returns (234): byte chunks → `Vec<js_sys::Uint8Array>` (d.ts `Uint8Array[]`), never
-    `serde_wasm_bindgen::to_value` (gives `number[][]`/`any`). Probe d.ts via `wasm-pack build`
-- JS ints (256): napi numeric params are `f64` narrowed by `to_u32`-style helpers, never
-    `u8`/`u32`/`i32`. WASM (268): every number/bool/number-array param is `JsValue` + `number`/
-    `opt_number`/`number_vec`/`boolean`/`opt_bool` (lib.rs top), TS type kept via
-    `unchecked_param_type` / `unchecked_optional_param_type`; an `Option<String>` BEFORE such a
-    param needs its own `unchecked_optional_param_type = "string | null"` or loses `?` (269). JS
-    reads only via `catch` imports (`Reflect::get`/`get_u32`); never `Array::from`/`Array::get`/
-    `try_iter` on caller values (269, ~2x slower, flagged). Tests: `num()`/`nums()`/`js()` (eval) in
-    unit.rs. Probe from Node on a RELEASE
-    `wasm-pack build --release --target nodejs --out-dir   /tmp/...`; `.d.ts` check = diff
-    JSDoc-stripped files vs `git archive <base>` build
+- WASM returns (234) / JS ints (256, 268, 269) marshalling rules → bindings-detail.md
 - WASM SIMD (#42): `blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt `--enable-simd` →
     wasm-simd.md
 
@@ -139,21 +106,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - ISCC-SEQ #45: core (195) + all 11 surfaces bound (197-210, UniFFI last); docs swept 33→35 (211) →
     iscc-seq.md. iscc-ffi tests in `src/tests.rs` (231); exports MUST stay in lib.rs (csbindgen
     reads only it)
-- Video ragged input (250): `soft_hash_video_v0` / Go `SoftHashVideoV0` reject unequal frame-sig
-    lengths via private `check_frame_sig_lengths` (deliberate iscc-core deviation: ref truncates)
-- Python int range (265): out-of-range ints → `OverflowError` (decision 2026-11-21); video
-    `extract_frame_sigs` uses `PyLong_AsLongLong` (C `long` is 32-bit on Windows) +
-    `PyOverflowError`. Pinned in `tests/test_int_range.py`; IDv1 `checked_id_arg` stays `ValueError`
-- Go meta JCS (251, 266): `parseMetaJSON` writes canonical JSON itself (`writeCanonical*`): keys
-    sorted by UTF-16 units (`sortedKeysUTF16`), float `-0` → `0`, scalars via Encoder
-    `SetEscapeHTML(false)` + `unescapeLineSeparators`; `checkSurrogateEscapes` rejects lone
-    surrogates (runs after Unmarshal). Never `json.Marshal`. Lone surrogates cannot be a vector
-    (serde_json rejects the fixture). Write non-ASCII in Go tests as JSON `\uXXXX` escapes inside
-    raw strings; `grep -nP '[^\x00-\x7f]'` the test file. Probe Rust via `il.json_to_data_url`
-- `alg_simhash` rejects `[]` (225, core + Go); generators keep 32 zeros via Rust `alg_simhash_inner`
-    / Go unexported `algSimhash` — never call the public form from a generator
-- `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type
-    depends on `@context` key. 5 cross-binding constants → MEMORY-archive.md
+- Video ragged input (250), Python int range (265), Go meta JCS (251/266), `alg_simhash([])` (225),
+    `json_to_data_url` → api-design.md
 
 ## Documentation Files / Feature Flags / Spec path gate → MEMORY-archive.md
 
