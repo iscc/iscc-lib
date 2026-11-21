@@ -3,14 +3,14 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 272):** v0.8.0 features done; 15 `normal` left (272 scoped UniFFI
-`text_trim` saturation; next likely the decided C++/.NET padding removal). Per-iteration traps for
-259-269 (dotnet roll-forward, build-dependent iscc-core, lone-surrogate vectors, wasm-bindgen
-`.d.ts` `?` rule, uncaught js-sys imports) → [v0.8.0 iteration ledger](v080-iteration-ledger.md).
-**Probe the ref on BOTH builds (py3.10 + py3.15) before scoping a vector. External-flake red: still
-scope a hardening. An issue's "Scope estimate" can over-count — apply the docs-excluded rule
-yourself. Dependabot alerts track `main`, not `develop`.** NONE verification:
-`grep -E '^## .*(critical|normal)' issues.md` prints nothing.
+**Status 2026-11-21 (iter 273):** v0.8.0 features done; 14 `normal` left (273 scoped the decided C++
+`safe_data`/.NET `PinnedRows` padding removal; next likely the generated-artifacts gate).
+Per-iteration traps for 259-269 (dotnet roll-forward, build-dependent iscc-core, lone-surrogate
+vectors, wasm-bindgen `.d.ts` `?` rule, uncaught js-sys imports) →
+[v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
+py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
+estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
+not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints nothing.
 
 ## Scope Calibration Principles
 
