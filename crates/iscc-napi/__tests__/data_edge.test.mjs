@@ -21,6 +21,7 @@ import {
     alg_simhash,
     gen_meta_code_v0,
     gen_video_code_v0,
+    alg_cdc_chunks,
 } from '../index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -44,6 +45,16 @@ function decodeBytes(value) {
 /** Decode the `alg_simhash` digest list from `bytes:<hex>` strings into Buffers. */
 function prepareSimhash([digests, ...rest]) {
     return [digests.map(decodeBytes), ...rest];
+}
+
+/** Decode the `alg_cdc_chunks` data from a `bytes:<hex>` string into a Buffer. */
+function prepareCdc([data, ...rest]) {
+    return [decodeBytes(data), ...rest];
+}
+
+/** Convert `alg_cdc_chunks` chunks to a list of `bytes:<hex>` values. */
+function convertChunks(chunks) {
+    return chunks.map(bytesValue);
 }
 
 /**
@@ -85,6 +96,7 @@ const SECTIONS = {
     alg_simhash: [alg_simhash, bytesValue, prepareSimhash],
     gen_meta_code_v0: [gen_meta_code_v0, convertIscc, prepareMeta],
     gen_video_code_v0: [gen_video_code_v0, convertIscc, identity],
+    alg_cdc_chunks: [alg_cdc_chunks, convertChunks, prepareCdc],
 };
 
 /** Load and parse data-edge.json. */
