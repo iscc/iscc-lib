@@ -57,6 +57,7 @@ DISCOVERY_THRESHOLD = 30
 FULL = (
     "crates/iscc-ffi/CLAUDE.md",
     "crates/iscc-wasm/CLAUDE.md",
+    "crates/iscc-wasm/README.md",
     "docs/architecture.md",
     "docs/c-ffi-api.md",
     "docs/java-api.md",

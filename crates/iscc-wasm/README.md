@@ -34,7 +34,30 @@ const iscc = gen_meta_code_v0("ISCC Test Document!");
 console.log(`Meta-Code: ${iscc}`);
 ```
 
-Both browser and Node.js targets are supported.
+The package is a single `--target web` build. In browsers and bundlers, `await init()` loads the
+WASM file. In Node.js, `init()` cannot fetch a `file:` URL, so read the bytes and pass them to
+`initSync()`:
+
+```javascript
+import {
+    readFileSync
+} from "node:fs";
+import {
+    createRequire
+} from "node:module";
+import {
+    initSync,
+    gen_meta_code_v0
+} from "@iscc/wasm";
+
+const require = createRequire(import.meta.url);
+initSync({
+    module: readFileSync(require.resolve("@iscc/wasm/iscc_wasm_bg.wasm"))
+});
+
+const iscc = gen_meta_code_v0("ISCC Test Document!");
+console.log(`Meta-Code: ${iscc}`);
+```
 
 ## API Overview
 
@@ -53,17 +76,22 @@ Both browser and Node.js targets are supported.
 | `gen_iscc_code_v0`     | Generate a composite ISCC-CODE               |
 | `gen_sum_code_v0`      | Generate an ISCC-SUM from raw bytes          |
 
-All code generators return ISCC strings directly.
+Nine code generators return the ISCC string directly. `gen_sum_code_v0` returns a
+`WasmSumCodeResult` object with `iscc`, `datahash` and `filesize` fields, plus `units` (the
+Data-Code and Instance-Code strings) when called with `add_units` set to `true`.
 
 ### Utilities
 
 - **Text processing:** `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - **Algorithm primitives:** `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, `sliding_window`
 - **Soft hashing:** `soft_hash_video_v0`
-- **Encoding:** `encode_base64`
-- **Codec:** `iscc_decompose`
-- **Streaming:** `DataHasher`, `InstanceHasher` classes for incremental processing
+- **Encoding:** `encode_base64`, `json_to_data_url`
+- **Codec:** `encode_component`, `iscc_decode`, `iscc_decompose`, `encode_seq`, `decode_seq`,
+    `gen_iscc_id_v1` (experimental)
+- **Streaming:** `DataHasher`, `InstanceHasher`, `SumHasher` classes for incremental processing
 - **Diagnostics:** `conformance_selftest`
+- **Constants:** `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
+    `TEXT_NGRAM_SIZE` (getter functions)
 
 ## Engine Requirements
 

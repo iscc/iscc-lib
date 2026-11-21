@@ -58,3 +58,14 @@ metadata:
 - Devcontainer (271): `devcontainer.json` is `skip-worktree` (disk = local array form); edit HEAD
     copy in /tmp, `git update-index --cacheinfo` (CLEARS the flag), re-set `--skip-worktree` before
     `mise run check`. Untracked `post-create.sh` mirrors the committed `postCreateCommand`
+
+## WASM published package (283)
+
+- npm `@iscc/wasm` = ONE `--target web` build (no `exports`): bare `init()` in Node fails
+    (`fetch failed` on `file:`); docs use
+    `initSync({ module: readFileSync(createRequire(…)   .resolve("@iscc/wasm/iscc_wasm_bg.wasm")) })`.
+    Positional `init(bytes)` warns deprecated. Probe:
+    `wasm-pack build --target web --release --out-dir $exp/pkg crates/iscc-wasm --features   conformance`
+    (`--out-dir` BEFORE the crate path, else it goes to cargo), rename, `npm pack`, install in a
+    scratch project. `crates/iscc-wasm/README.md` is a Tier 1 `FULL` doc (283). Docs claims gated by
+    `tests/test_wasm_docs.py`

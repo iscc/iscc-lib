@@ -464,7 +464,7 @@ jobs:
           import { readFileSync } from 'fs';
           import init, { conformance_selftest } from './pkg/iscc_wasm.js';
           const wasmBytes = readFileSync('./pkg/iscc_wasm_bg.wasm');
-          await init(wasmBytes);
+          await init({ module_or_path: wasmBytes });
           if (!conformance_selftest()) { throw new Error('conformance failed'); }
           SCRIPT
           node smoke.mjs

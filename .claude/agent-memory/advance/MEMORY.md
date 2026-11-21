@@ -95,7 +95,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     sites; video detach opens after frame-sig extraction. Recipe → MEMORY-archive.md
 - release.yml: static gate `scripts/check_release_workflow.py` (prek hook, opt-in
     `--check-action-inputs`) + shape (9 inputs, 97 `uses:` refs) — keep green → release-gate.md
-- WASM returns (234) / JS ints (256, 268, 269) marshalling rules → bindings-detail.md
+- WASM returns (234) / JS ints (256, 268, 269) / published web pkg + Node init (283) →
+    bindings-detail.md
 - WASM SIMD (#42): `blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt `--enable-simd` →
     wasm-simd.md
 

@@ -19,7 +19,9 @@ npm install @iscc/wasm
 
 ## Setup
 
-The WASM package supports three build targets. Choose the setup that matches your environment.
+The published package is a single `--target web` build: an ES module that loads its
+`iscc_wasm_bg.wasm` file once at startup. Initialize it before calling any other function. How you
+initialize depends on your environment.
 
 ### Bundler (webpack, Vite)
 
@@ -39,17 +41,16 @@ const iscc = gen_text_code_v0("Hello World");
 console.log(iscc);
 ```
 
-Most bundlers handle WASM initialization automatically. If not, call `init()` once at application
-startup.
+Call `init()` once at application startup.
 
 ### Browser (native ESM)
 
-For direct use in browsers without a bundler, build the package with `--target web` and serve the
-files:
+For direct use in browsers without a bundler, serve the files of the installed package
+(`node_modules/@iscc/wasm/`) and import its entry module:
 
 ```html
 <script type="module">
- import init, { gen_text_code_v0 } from "./pkg/iscc_wasm.js";
+ import init, { gen_text_code_v0 } from "./node_modules/@iscc/wasm/iscc_wasm.js";
 
   await init();
   const iscc = gen_text_code_v0("Hello World");
@@ -59,13 +60,26 @@ files:
 
 ### Node.js
 
-For Node.js environments where native addons are not available, build with `--target nodejs`:
+Called without an argument, `init()` fetches the `.wasm` file by URL, and Node's `fetch` cannot read
+`file:` URLs. Read the file from disk and pass its bytes to `initSync()` instead:
 
 ```javascript
 import {
-    gen_text_code_v0,
-    gen_data_code_v0
+    readFileSync
+} from "node:fs";
+import {
+    createRequire
+} from "node:module";
+import {
+    initSync,
+    gen_text_code_v0
 } from "@iscc/wasm";
+
+// Node's fetch cannot read file: URLs, so load the WASM bytes from disk
+const require = createRequire(import.meta.url);
+initSync({
+    module: readFileSync(require.resolve("@iscc/wasm/iscc_wasm_bg.wasm"))
+});
 
 const iscc = gen_text_code_v0("Hello World");
 console.log(iscc);
@@ -79,8 +93,9 @@ console.log(iscc);
 
 ## Code generation
 
-All 10 `gen_*_v0` functions return the ISCC code as a string. Optional parameters use `undefined`
-for defaults.
+Nine of the 10 `gen_*_v0` functions return the ISCC code as a string. `gen_sum_code_v0` returns a
+`WasmSumCodeResult` object with `iscc`, `datahash` and `filesize` fields, plus `units` when
+`add_units` is `true` (see [Sum-Code](#sum-code)). Optional parameters use `undefined` for defaults.
 
 ### Meta-Code
 
