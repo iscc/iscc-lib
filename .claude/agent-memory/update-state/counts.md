@@ -20,7 +20,7 @@ command give a different number.
 | pytest collected                 | 441 (at 164) | `uv run pytest --collect-only -q`                                                                          |
 | pytest-benchmark fixtures        | 18           |                                                                                                            |
 | `packages/go` `^func Test`       | 264 (204)    | sum per-file `grep -c` with awk (sandbox has no `bc`)                                                      |
-| iscc-ffi externs                 | 49 (194)     | `'#\[unsafe(no_mangle)\]'`; bare `no_mangle` gives 48                                                      |
+| iscc-ffi externs                 | 51 (256)     | `'#\[unsafe(no_mangle)\]'`; bare `no_mangle` gives 48                                                      |
 | UniFFI exports                   | 33 (194)     | same Tier 1 surface as every other binding                                                                 |
 | CRAP baseline `entries`          | 118 (199)    | `.crap-baseline.json` `entries` key                                                                        |
 | iai baseline entries             | 16           | 11 bench fns                                                                                               |

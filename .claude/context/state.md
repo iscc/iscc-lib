@@ -1,14 +1,15 @@
-<!-- assessed-at: f4c8de1ecf0762621e6e3778faa6f4bfbc1e9a49 -->
+<!-- assessed-at: 4d0d94920f5255691ecba042506b3aca56f7ff8d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features complete; three `normal` issues block the release
+## Phase: v0.8.0 — features complete; two `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 254 closed the
-pytest gate-time issue (benchmarks disabled by default, Tier 1 doc tests cache their sources). Three
-`normal` `[audit]` issues remain, none blocked on the human or upstream. CI is green on `b12c94b`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 255 closed the C
+FFI `(NULL, 0)` issue: every pointer+length input goes through one `slice_or_empty` helper. Two
+`normal` `[audit]` issues remain (integer range, published docs), none blocked on the human or
+upstream. CI is green on `7538396`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -17,8 +18,7 @@ pytest gate-time issue (benchmarks disabled by default, Tier 1 doc tests cache t
 - `crates/iscc-lib/tests/data-edge.json` has 8 sections incl. `gen_meta_code_v0` and
     `gen_video_code_v0`; the ragged vector carries a `diverges` marker; the 5 tracked copies are
     byte-identical; C/C++ consume the generated `data_edge_vectors.h`
-- napi, WASM, JNI and .NET leave `name`, `description`, `meta`, `metahash` uncompared for meta; the
-    generator test accepts a string `meta` (fixed 253)
+- napi, WASM, JNI and .NET leave `name`, `description`, `meta`, `metahash` uncompared for meta
 - Not filed: the `parts` entry is untested on any surface; the WASM `compare` has no explicit
     non-object branch
 
@@ -28,7 +28,7 @@ pytest gate-time issue (benchmarks disabled by default, Tier 1 doc tests cache t
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
     `conformance_selftest` runs the seq vectors; 308 lib tests
-- Ragged frame signatures rejected via `check_frame_sig_lengths`; now pinned by the shared vector
+- Ragged frame signatures rejected via `check_frame_sig_lengths`; pinned by the shared vector
 - `call_meta` in `tests/test_data_edge.rs` sits at CRAP 30.0, exactly the `--fail-above` limit
 - **Missing (human-gated, not v0.8.0):** crate `>= 1.0.0`; MSRV verification (both `low`)
 
@@ -61,12 +61,15 @@ pytest gate-time issue (benchmarks disabled by default, Tier 1 doc tests cache t
 
 ## C FFI
 
-**Status**: partially met
+**Status**: met
 
 - 51 exports incl. `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with freshness check;
     `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
-- **Bug (`normal`):** `(NULL, 0)` is rejected by some exports and accepted by others (tests pin
-    both); pointer-array loops pass inner pointers to `from_raw_parts` unchecked (UB on NULL)
+- `(NULL, 0)` is an empty input on every pointer+length export; NULL inner rows are a named error;
+    `std::slice::from_raw_parts` appears only inside `slice_or_empty` (pinned by a Rust test); 121
+    tests in `src/tests.rs`; rule documented in `docs/c-ffi-api.md` and `crates/iscc-ffi/CLAUDE.md`
+- `low` (untriaged): C++ `safe_data` and .NET `PinnedRows` padding now guard a rejection the FFI no
+    longer makes — redundant but correct
 
 ## Java Bindings
 
@@ -89,6 +92,8 @@ pytest gate-time issue (benchmarks disabled by default, Tier 1 doc tests cache t
 **Status**: met (v0.8.0 scope)
 
 - `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 8 sections strictly; 0.7.0 on NuGet
+- The 7 empty-input sentinel branches in `IsccLib.cs` are gone (FFI accepts `(NULL, 0)`)
+- No .NET test passes an empty span to `GenImageCodeV0`, `EncodeBase64` or `AlgMinhash256`
 - .NET 8 floor past end of life — `low`, human-only
 
 ## C++ Bindings
@@ -112,7 +117,7 @@ pytest gate-time issue (benchmarks disabled by default, Tier 1 doc tests cache t
 **Status**: met (v0.8.0 scope)
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
-    all 8 data-edge sections; the macOS `swift` job is green on the new sections; shipped 0.7.0
+    all 8 data-edge sections; the macOS `swift` job is green; shipped 0.7.0
 
 ## Documentation
 
@@ -139,19 +144,17 @@ pytest gate-time issue (benchmarks disabled by default, Tier 1 doc tests cache t
 
 - `ci.yml` has 21 jobs (job table gated); `release.yml` is `workflow_dispatch`-only with 8 registry
     toggles; 21 version-sync targets at 0.7.0
-- pytest gate time fixed (254): `pyproject.toml` `addopts = "--benchmark-disable"`;
-    `docs/benchmarks.md` command passes `--benchmark-enable`; `tests/test_check_tier1_docs.py`
-    caches source bytes
-- **Latest CI: PASSING** on `origin/develop` = `b12c94b` (pytest gate fix):
-    https://github.com/iscc/iscc-lib/actions/runs/44889260317
+- `iscc-ffi` sits outside the iai and CRAP gates — FFI marshalling regressions are not gated
+- **Latest CI: PASSING** on `origin/develop` = `7538396` (FFI `(NULL, 0)` review):
+    https://github.com/iscc/iscc-lib/actions/runs/44891435114
 - HEAD is ahead of origin only by the `cid(log)` commit; green CI covers all code at HEAD
 
 ## Open Issues
 
-17 open: 0 critical, 3 normal (all `[audit]`, all CID-workable), 14 low (human-directed; 9
-`untriaged`). issues.md is at 268 of 300 lines.
+17 open: 0 critical, 2 normal (both `[audit]`, both CID-workable), 15 low (human-directed; 10
+`untriaged`). issues.md is at 273 of 300 lines.
 
 ## Next Milestone
 
-Close the three `normal` issues that block v0.8.0: the FFI NULL handling, the integer-range bugs and
-the published-docs corrections. The release itself stays with Titusz.
+Close the two `normal` issues that block v0.8.0: the out-of-range integer handling across the
+bindings and the published-docs corrections. The release itself stays with Titusz.

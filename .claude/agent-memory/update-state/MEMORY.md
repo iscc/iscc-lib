@@ -87,14 +87,16 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: f4c8de1, iter 255 — incremental)
+## Current State (assessed-at: 4d0d949, iter 256 — incremental)
 
-- **CI GREEN on `origin/develop` = `b12c94b`** (pytest gate fix). HEAD ahead by `cid(log)` only.
+- **CI GREEN on `origin/develop` = `7538396`** (FFI NULL review). HEAD ahead by `cid(log)` only.
     Check-suites API: `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit
     `queued` forever — judge by `github-actions`).
-- **v0.8.0 UNMET (255):** 3 `normal` open, all `[audit]` — FFI NULL split (next planned), JS integer
-    wrap, published-docs drift. 14 `low` (9 untriaged; `grep -c '^\*\*Triage:\*\* untriaged'`).
-    issues.md 268/300. pytest `addopts` disables benchmarks since 254.
+- **v0.8.0 UNMET (256):** 2 `normal` open, both `[audit]` — JS integer wrap (next planned),
+    published-docs drift. FFI NULL split CLOSED 255 (`slice_or_empty`; C FFI now met). 15 `low` (10
+    untriaged; `grep -c '^\*\*Triage:\*\* untriaged'`). issues.md 273/300.
+- FFI extern count: `grep -c '#\[unsafe(no_mangle)\]'` = 51; a `pub ... extern "C" fn` regex gives
+    50 (misses one) — use the attribute grep.
 - JNI test path is `crates/iscc-jni/java/src/test/...` (note the `java/` level) — use
     `git ls-files '*DataEdgeTest.java'`.
 - **A fixed issue is often REWRITTEN to its remainder, not closed** (250, 251) — title changes,
