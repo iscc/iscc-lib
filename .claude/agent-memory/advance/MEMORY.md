@@ -45,7 +45,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     after `isValidJSONObject`); synthetic Swift docs → `parsedDoc(#"json"#)`, never literals
 - Docs code check (238): wrap a Java doc block in a `/tmp` class (`import io.iscc.iscc_lib.*;`),
     `javac -cp crates/iscc-jni/java/target/classes` after `mvn compile`; run with
-    `-Djava.library.path=target/debug`. Ruby gem range pinned by `tests/test_ruby_gem_docs.py`
+    `-Djava.library.path=target/debug`. Ruby gem range pinned by `tests/test_ruby_gem_docs.py`. C++
+    (244): extract each ```` ```cpp ```` block with `int main()` to /tmp,
+    `g++ -std=c++17 -Wall   -I packages/cpp/include -I crates/iscc-ffi/include f.cpp -L target/debug -liscc_ffi`,
+    run with `LD_LIBRARY_PATH=target/debug`. zsh: `rm -f glob*` with no match aborts an `&&` chain
 - C FFI docs (221): C type names `iscc_`-prefixed, gated by `tests/test_c_ffi_docs.py`
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI

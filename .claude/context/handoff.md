@@ -1,69 +1,60 @@
-## 2026-11-21 — Review of: Register the Rust docs and the Python API page with the Tier 1 doc gate
+## 2026-11-21 — Complete the C/C++ how-to, register it FULL, and drop the 0.4 crate pin
 
-**Verdict:** PASS
+**Done:** `docs/howto/c-cpp.md` now names every Tier 1 symbol and is registered `FULL`. The 17
+missing symbols are covered by runnable C++ examples inside "C++ wrapper (`iscc.hpp`)": a second
+block under "Gen functions", an `encode_component` block under "Codec and utilities", and the
+subsections Text utilities, Encoding utilities, Algorithm primitives and Constants, plus one
+sentence linking `../c-ffi-api.md` for the C functions. Both minimal-build snippets now read
+`cargo add iscc-lib --no-default-features`.
 
-**Summary:** `docs/rust-api.md`, `docs/howto/rust.md` and `docs/architecture.md` → "Tier 1" are
-complete and registered `FULL`; `docs/api.md` is `EXEMPT`. The false claims are gone: no page says a
-gen function returns a string, and `api.md` no longer says Python returns JSON. Every claim the
-handoff made held up when re-measured. Diff touches the registry tuple and four docs only.
+**Files changed:**
+
+- `scripts/check_tier1_docs.py`: `docs/howto/c-cpp.md` added to `FULL`, before
+    `docs/howto/dotnet.md`
+- `docs/howto/c-cpp.md`: six new C++ blocks with output comments, plus short prose. No existing
+    block or section was edited or removed (every `c-ffi-dx.md` §1 section is still there)
+- `docs/howto/rust.md`, `crates/iscc-lib/README.md`: the ```` ```toml ```` `version = "0.4"` block
+    is now a ```` ```bash ```` `cargo add` block. The sentence before it still reads right, so it is
+    unchanged
 
 **Verification:**
 
-- [x] `uv run scripts/check_tier1_docs.py` exits 0 — `OK: 19 full and 2 exact Tier 1 docs match`
-- [x] Registry assertion one-liner exits 0
-- [x] `uv run pytest tests/test_check_tier1_docs.py` passes — 36 passed
-- [x] `grep -n "json.loads" docs/api.md` prints nothing; the only `IsccResult<String>` hits are the
-    `json_to_data_url` (rust-api:497) and `encode_component` (rust-api:559) signatures;
-    `architecture.md` has none
-- [x] Every return type in a `rust-api.md` signature equals the source — own script: all 39 printed
-    `pub fn` / `pub const` items occur in `crates/iscc-lib/src/*.rs` (whitespace-insensitive; the
-    one difference is `finalize(self` for the source's `finalize(mut self`, as rustdoc renders it)
-- [x] `uv run zensical build` exits 0 and `mise run check` exits 0
+- `uv run scripts/check_tier1_docs.py` → `OK: 20 full and 2 exact Tier 1 docs match` (before the doc
+    edit, with the registry line added, it listed exactly the 17 symbols from next.md)
+- Registry one-liner → exit 0
+- `uv run pytest tests/test_check_tier1_docs.py tests/test_c_ffi_docs.py` → 42 passed
+- `git grep -nE 'version = "0\.' -- docs crates/iscc-lib/README.md` → no output (exit 1). Each file
+    has one `cargo add iscc-lib --no-default-features` line
+- C++ blocks: a `/tmp` script pulled every ```` ```cpp ```` block that contains `int main()` out of
+    the doc. Each was compiled alone with
+    `g++ -std=c++17 -Wall -I packages/cpp/include -I crates/iscc-ffi/include … -L target/debug -liscc_ffi`
+    against the `cargo build -p iscc-ffi` library, then run with `LD_LIBRARY_PATH`. No warnings,
+    every run exited 0, and every output matched its comment:
+    - Gen functions (new block): `EEAYAAAAAAAAAAAA`, `EIAQABPGNYAADYSA`, `EMAQAAAAAAAAAAAA`,
+        `EQASDJINXFXA2SQX`, `IAA24FYDB5G4T7JW`, `KUABGAWXH2VYUQWIVYLQGD2NZH6TM` (each with the `ISCC:`
+        prefix)
+    - encode_component: `AAAQCAQDAQCQMBYI`, `1`, `1`
+    - Text utilities: `1`, `Hello World Foo`, `Hello`, `helloworld`
+    - Encoding utilities: `SGVsbG8`, `data:application/json;base64,eyJrZXkiOiJ2YWx1ZSJ9`
+    - Algorithm primitives: `Hell orld`, `255 0`, `32`, `1`, `8`
+    - Constants: `128`, `4096`, `128000`, `4194304`, `13`
+    - The existing Quick start, Streaming and Conformance blocks also compile and run (exit 0)
+    - mdformat rewrapped prose in the check run. A re-extract showed every code block byte-identical
+- `uv run zensical build` → exit 0, no warnings. `mise run check` → exit 0 (the first run failed
+    only because mdformat rewrapped prose; the second run was clean)
 
-Probes beyond next.md (3):
-
-- All 51 Rust example blocks of `rust-api.md` + `howto/rust.md` compiled and run in a `/tmp` cargo
-    project with a path dependency: 48 pass, 3 fail only on the placeholder files (`document.pdf`,
-    `large_file.bin`), as the handoff said
-- The 9 Rust examples of `README.md`, `crates/iscc-lib/README.md`, `docs/index.md` and the tutorial
-    compile too (one placeholder-file failure): no sibling page still treats a result as a string
-- Python: every `gen_*` function of `iscc_lib` returns a `dict` subclass with `r["iscc"] == r.iscc`
-
-**Reviewer fixes (step 9):**
-
-- `tests/test_rust_api_signatures.py` (5 tests): pins every item printed in `docs/rust-api.md` to
-    the crate source and requires a printed signature for each crate-root `gen_*` function. Proven
-    against the page's previous version (10 of 13 items stale). `ty` and ruff `S`/`C901` green
-- `docs/rust-api.md`: "The three `META_TRIM_*` constants" → no count (next.md banned new counts)
-- `docs/architecture.md`: "Tier 1 is everything `lib.rs` makes public at the crate root" → "the
-    functions, constants and streaming types that `lib.rs` exports": `pub mod codec` is public at
-    the crate root as well, and the next subsection calls it Tier 2
-
-**Issues found:**
-
-- Filed `normal` `[review]`: "The minimal-build snippet pins `iscc-lib` to 0.4" —
-    `docs/howto/rust.md` and `crates/iscc-lib/README.md` show `version = "0.4"`, which resolves to
-    the published 0.4.0; that release lacks `encode_seq` and `gen_iscc_id_v1` (measured). Not
-    touched by this step
-- Rewrote the "Derived facts" issue: of its docs part only `docs/howto/c-cpp.md` is left (measured:
-    it is the one how-to / API reference outside the registry)
-- Not filed: `rust-api.md` → "Types" says the `codec` module provides the types, but `IsccError`
-    lives in `lib.rs`; the new sections have no `---` separators while the gen sections do;
-    `howto/rust.md` keeps its old "All 10 `gen_*_v0` functions"
-
-**Codex review:** No actionable findings. It ran the gate, the 36 tests and the 51 Rust examples
-(with fixture files supplied for the file-reading ones) and all passed.
-
-**Next:** `docs/howto/c-cpp.md`: complete it and register it `FULL`, or `EXEMPT` with a reason
-(sources `iscc.h` / `iscc.hpp`; which one depends on `c-ffi-dx.md` / `cpp-bindings.md`). The
-two-line 0.4 snippet fix is small enough to weigh alongside it. After that, part 3 of the "Derived
-facts" issue (counts, file lists and line numbers in specs and per-crate `CLAUDE.md`).
+**Next:** part 3 of "Derived facts in guidance and docs are written by hand and drift": the counts,
+file lists and line numbers in the specs and the per-crate `CLAUDE.md` files.
 
 **Notes:**
 
-- The new signature test covers `docs/rust-api.md` only. `howto/rust.md` prints a few signatures
-    inside bold bullets ("Algorithm primitives"); nothing checks those
-- A `zensical build` run while Codex was building printed "page does not exist" for the new
-    `rust-api.md` link; a sequential re-run is clean and the built link is `../rust-api/`. It was a
-    race on `site/`, not a broken link
-- No Rust source changed: CRAP, iai and semver gates are unaffected
+- I left the existing "Gen functions" block alone and added a second runnable block under the same
+    heading. The old block still calls `gen_sum_code_v0("document.pdf")`, which throws at run time
+    (placeholder file), and it is not wrapped in `main()`. The same holds for the existing "Codec
+    and utilities" block (`"ISCC:KEC..."` placeholder) and the ISCC-SEQ / ISCC-IDv1 / Error handling
+    blocks: none of them have `main()`. I did not touch any of them
+- Measured: the ISCC-CODE of Data-Code + Instance-Code is `ISCC:KUA…`, not `KAA…`. The new block
+    shows the measured value. The `low` Sum-Code comment issue elsewhere is still out of scope
+- The C++ constants comments say "max bytes" rather than copying dotnet's wording, because the
+    values are UTF-8 byte limits
+- No Rust source changed, so the CRAP, iai and semver gates are unaffected

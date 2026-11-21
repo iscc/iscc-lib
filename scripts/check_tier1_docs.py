@@ -60,6 +60,7 @@ FULL = (
     "docs/architecture.md",
     "docs/c-ffi-api.md",
     "docs/java-api.md",
+    "docs/howto/c-cpp.md",
     "docs/howto/dotnet.md",
     "docs/howto/go.md",
     "docs/howto/java.md",
