@@ -162,3 +162,50 @@ UsageError on disable+only unless `--benchmark-enable`) — an ini-wide pytest o
 pytest command in docs; grep docs for them. Tier 1 doc tests: 14 early-return cases copy lib.rs
 only, rest read docs once per session. Next: FFI `(NULL, 0)` core change alone, then integer wrap,
 then docs (audit 8-file).
+
+## Iters 259-269 (moved from MEMORY.md 2026-11-21)
+
+**Status 2026-11-21 (iter 260): triage reopened v0.8.0** — Titusz promoted 12 `low` → `normal`
+(07fe690), moved 6 to `postponed.md`. 259 pushed the human CI commits → red: the .NET 10 leg ran on
+.NET 11 (GA 2026-11-10, preinstalled in runner images; `LatestMajor` picks newest). 260 scoped a
+ci.yml-only fix (`DOTNET_INSTALL_DIR` private dir + `fail-fast: false`). **Runtime-matrix trap:**
+`setup-dotnet`/preinstalled dirs share `/usr/share/dotnet` — any roll-forward leg drifts when the
+image adds a major. Then Ruby 3.3 floor (touches ci.yml + release.yml); .NET 8 is EOL (floor =
+human). 261 scoped Go `TextTrim`/hashers (Go-only correctness; adding an `error` return to a Go
+method keeps statement calls compiling — the non-breaking way to add rejection). 262: Kotlin red =
+transient plugin-portal 303→Central hop failing a BOM lookup (same POM 200 on Central); scoped
+`pluginManagement { mavenCentral(); gradlePluginPortal() }` + .NET `skip-lts-prepass` (setup-dotnet
+v6 input) as one CI-robustness step. **External-flake red: still scope a hardening, never just wait
+for a re-run.** 263: CI green → scoped `alg_cdc_params` u64/saturating maths (Rust+Go, core-only);
+the `data-edge.json` `alg_cdc_chunks` section is a NEW section = 12-surface fan-out, next step.
+Trap: the issue's own 2^31 test value is outside Java `int` — pick vector values ≤ 2^31-1. 264:
+**iscc-core's reference is build-dependent** — compiled wheels (cp310–314, `CIBUILDWHEEL` only) type
+CDC args `uint32_t` → `OverflowError` for avg ≥ 2^29; CI's py3.15 leg builds the sdist pure →
+accepts. Any data-edge vector where builds disagree fails one pytest leg whatever `diverges` says →
+scoped the fan-out with build-stable vectors only, large values left for a decision. Ref utf32 loops
+forever on a cut point < 4. **Probe the ref on BOTH builds
+(`uv run --no-project --python 3.15 --with iscc-core==1.5.0`) before scoping a vector.** NONE
+verification (when it returns): `grep -E '^## .*(critical|normal)' issues.md` prints nothing. 265:
+scoped Python video `OverflowError` (`PyLong_AsLong` = 32-bit `long` on Windows → class differs; fix
+= `AsLongLong` + `PyOverflowError`); next ready small items: Go `GOARCH=386` CI step, Ruby 3.3
+floor. 266: scoped Go JCS `meta` (UTF-16 key order + `-0` as vectors in the existing meta section,
+no harness change). **A lone surrogate cannot be a data-edge vector**: serde_json rejects `\ud800`
+in the file, and a JSON-text string `meta` makes iscc-core raise `AttributeError` (outside pytest
+`REJECTIONS`) → Go unit test only, flagged for review. 267: scoped the Go `GOARCH=386` CI step (one
+`ci.yml` step + spec/CLAUDE.md docs); next = WASM non-number coercion (code fix = `JsValue` on ~15
+params, or docs-only branch). 268: scoped WASM scalar type-check as the CODE branch (not docs):
+every `f64`/`bool` param → `JsValue` + `as_f64()`/`as_bool()` in Rust; wasm-bindgen 0.2.126 has
+`unchecked_optional_param_type` so `.d.ts` keeps `bits?: number | null` (read in macro-support
+`parser.rs`). Booleans included (glue truthiness = same pattern). With `JsValue` params
+`wasm_bindgen_test` DOES exercise the check (no glue left); serde_wasm_bindgen path already strict.
+268 bounced (my notes missed two traps): **TS `?` lives in cli-support `binding.rs`
+`typescript_signature` (reverse walk: a type override ends `omittable` for earlier params) — read
+the CLI, not just macro-support**; **js-sys imports without `catch` (`Array::from`, index getters,
+`IteratorNext::done/value` inside `try_iter`) unwind JS exceptions through Rust** → only
+`Reflect::get`/`get_u32` are safe. 269 scoped the repair (override on `description`/`meta`,
+array-like read via Reflect). Next small items: Ruby 3.3 floor, FFI padding removal, docs fixes.
+**An issue's own "Scope estimate" can over-count — apply the docs-excluded rule yourself** (257).
+**Collecting rule vs "core first and alone":** land the behaviour first, then batch pending sections
+into one fan-out. Ledger/traps → [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history
+→ [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
+track `main`, not `develop`** — check the lockfile on `develop` before scoping.
