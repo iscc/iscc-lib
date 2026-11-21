@@ -249,38 +249,15 @@ def test_process_output_echoes_non_json_lines(tmp_path, capsys):
     )
 
 
-def test_session_settings_enable_the_advisor_for_runner_sessions(monkeypatch):
-    monkeypatch.setattr(cid, "ADVISOR_MODEL", "claude-fable-5-2")
-    settings = cid.session_settings("define-next")
-    assert settings["advisorModel"] == "claude-fable-5-2"
-    # Any non-empty DISABLE_TELEMETRY suppresses the feature flags the advisor needs;
-    # only an empty override re-enables them ("0" and "false" were tried and fail).
-    assert settings["env"] == {"DISABLE_TELEMETRY": ""}
-
-
-def test_session_settings_without_advisor_leave_telemetry_alone(monkeypatch):
-    monkeypatch.setattr(cid, "ADVISOR_MODEL", None)
-    settings = cid.session_settings("define-next")
-    assert "advisorModel" not in settings
-    assert "env" not in settings
-
-
-def test_review_runs_without_the_advisor(monkeypatch):
-    # Codex gives review its independent opinion; the advisor doubled its cost.
-    monkeypatch.setattr(cid, "ADVISOR_MODEL", "claude-fable-5-2")
-    settings = cid.session_settings("review")
-    assert "advisorModel" not in settings
-    assert "env" not in settings
-    cmd = cid.build_agent_cmd("claude", "review", "go", skip_permissions=False)
-    assert "advisorModel" not in json.loads(cmd[cmd.index("--settings") + 1])
-
-
-def test_every_other_role_keeps_the_advisor(monkeypatch):
-    monkeypatch.setattr(cid, "ADVISOR_MODEL", "claude-fable-5-2")
-    roles = {"update-state", "define-next", "advance", cid.META_ROLE, cid.AUDIT_ROLE}
-    assert roles == cid.ADVISOR_ROLES
-    for role in roles:
-        assert cid.session_settings(role)["advisorModel"] == "claude-fable-5-2"
+def test_no_role_session_gets_the_advisor():
+    # Human decision 2026-11-21: the advisor is off for the whole loop, and telemetry
+    # stays as the user configured it (the advisor needed DISABLE_TELEMETRY blanked).
+    for role in (*cid.ROLES, cid.META_ROLE, cid.AUDIT_ROLE):
+        cmd = cid.build_agent_cmd("claude", role, "go", skip_permissions=False)
+        settings = json.loads(cmd[cmd.index("--settings") + 1])
+        assert "advisorModel" not in settings, role
+        assert "env" not in settings, role
+        assert not any("advisor" in arg for arg in cmd), role
 
 
 def test_agent_flags_reads_model_and_effort(tmp_path):

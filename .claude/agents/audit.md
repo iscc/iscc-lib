@@ -214,6 +214,3 @@ Read anything else on demand, once.
     `git clean`. Check the working tree as it is.
 - Respect prior clean verdicts in your memory: re-auditing a clean area is fine when its files
     changed since the recorded sha; re-litigating unchanged code wastes the pass.
-- **No advisor call after your deliverable is committed.** Consult the advisor while a decision is
-    still open; once your commit has landed nothing it says can change the outcome, and each call
-    re-reads the whole session at full price.

@@ -203,6 +203,3 @@ edge cases to handle, reference code to port from>
 - Do not modify any file other than `.claude/context/next.md` and your agent memory.
 - The reviewer runs the quality gates. Do not run test suites, benchmarks or `mise run check` to
     establish a baseline — the state is in state.md and the last verdict is in handoff.md.
-- **No advisor call after your deliverable is committed.** Consult the advisor while a decision is
-    still open; once your commit has landed nothing it says can change the outcome, and each call
-    re-reads the whole session at full price.

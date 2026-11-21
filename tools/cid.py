@@ -143,7 +143,9 @@ ROLE_BUDGET_USD = {
     "advance": 40.0,
     "review": 40.0,
     META_ROLE: 15.0,
-    AUDIT_ROLE: 15.0,
+    # The audit's finder/verify Workflow is billed to the audit session; iteration
+    # 240's run hit a 15.0 ceiling mid-verification and filed nothing.
+    AUDIT_ROLE: 30.0,
 }
 
 # Frontmatter fields of a role's agent file that the runner passes as CLI flags
@@ -159,23 +161,6 @@ AGENT_FLAG_KEYS = ("model", "effort")
 # replaced by a 2 KB preview plus a file path, so a file that outgrows it (target.md
 # is the closest) would reach the agent truncated while its prompt forbids re-reading.
 BASH_OUTPUT_MAX_CHARS = 128_000
-
-# Server-side advisor every role may consult at decision points (human decision,
-# 2026-11-17; set to None to turn it off). The advisor needs Claude Code's fetched
-# feature flags, which any non-empty DISABLE_TELEMETRY suppresses, so the runner blanks
-# that variable for its own sessions only. That also re-enables telemetry there — the
-# two cannot be separated. Each advisor call re-reads the whole transcript uncached;
-# its cost shows up in the log row's `model_costs`.
-ADVISOR_MODEL = "claude-fable-5-2"
-
-# Roles whose sessions get the advisor. review is left out (human decision,
-# 2026-11-20): it runs on claude-fable-5-2 itself (its agent file) and Codex gives it
-# an independent opinion. Roles that keep it do not call it after their deliverable is
-# committed (their agent files say so). The advisor is set only here: a project or
-# user `advisorModel` setting would reach every role session, review included.
-ADVISOR_ROLES = frozenset(
-    {"update-state", "define-next", "advance", META_ROLE, AUDIT_ROLE}
-)
 
 # Prompt size (in tokens) above which a role run is reported as at risk of
 # auto-compaction. The roles run with a 1M-token window and peak around 100-215k;
@@ -249,7 +234,7 @@ def _process_output(stdout, role):
     role sent), subtype (the result subtype, e.g. `error_max_budget_usd`), denials
     (tool calls the permission layer refused — in a `-p` run, bypass mode denies the
     few calls that would otherwise prompt, and the role carries on without them) and
-    model_costs (USD per model, which separates advisor and fallback spend).
+    model_costs (USD per model, which separates fallback-model spend).
     """
     out = {
         "cost": 0.0,
@@ -1162,18 +1147,14 @@ def agent_flags(cwd, role):
     return flags
 
 
-def session_settings(role):
-    """Return the settings a role session gets via `--settings`.
+def session_settings():
+    """Return the settings every role session gets via `--settings`.
 
-    Raises the shell-output limit so context packs stay inline and, when
-    ADVISOR_MODEL is set and the role is in ADVISOR_ROLES, enables the advisor for
-    that runner session only.
+    Raises the shell-output limit so context packs stay inline. No role gets the
+    server-side advisor (human decision, 2026-11-21): each call re-read the whole
+    transcript uncached, and in a Workflow every subagent consulted it.
     """
-    settings = {"bashOutputMaxChars": BASH_OUTPUT_MAX_CHARS}
-    if ADVISOR_MODEL and role in ADVISOR_ROLES:
-        settings["advisorModel"] = ADVISOR_MODEL
-        settings["env"] = {"DISABLE_TELEMETRY": ""}
-    return settings
+    return {"bashOutputMaxChars": BASH_OUTPUT_MAX_CHARS}
 
 
 def build_agent_cmd(
@@ -1196,7 +1177,7 @@ def build_agent_cmd(
         "--verbose",
         "--exclude-dynamic-system-prompt-sections",
         "--settings",
-        json.dumps(session_settings(role)),
+        json.dumps(session_settings()),
     ]
     for key, value in (flags or {}).items():
         cmd += [f"--{key}", value]
@@ -1236,8 +1217,8 @@ def _role_entry(role, iteration, status, out, elapsed, flags):
 
     The row records the model/effort the role ran with, plus the result subtype, the
     permission-denial count and the per-model cost split when they deviate from a
-    clean single-model run, so a budget stop, a refused tool call, advisor spend or a
-    fallback is visible in iterations.jsonl.
+    clean single-model run, so a budget stop, a refused tool call or a fallback model
+    is visible in iterations.jsonl.
     """
     print(
         f"  {role} {status} ({out['turns']} turns, ${out['cost']:.4f}, {elapsed:.0f}s)"

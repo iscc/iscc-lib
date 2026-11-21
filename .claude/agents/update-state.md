@@ -198,6 +198,3 @@ git commit -m "cid(update-state): <one-line summary of findings>"
     doing its own gap analysis.
 - For incremental reviews, re-verify affected sections thoroughly. Do not just parrot the diff.
 - Always record the assessed-at commit hash so the next run can be incremental.
-- **No advisor call after your deliverable is committed.** Consult the advisor while a decision is
-    still open; once your commit has landed nothing it says can change the outcome, and each call
-    re-reads the whole session at full price.

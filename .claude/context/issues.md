@@ -228,3 +228,34 @@ iteration 248.
 Resolved when the `target.md` line names no count ("every entry in `TARGETS`") or the current one.
 
 **Spec:** `.claude/context/target.md` → "CI/CD, Dev Tooling, and Publishing"
+
+## Go Meta-Code differs from every other surface when metadata contains `&`, `<`, `>` or U+2028/9 `normal` [human]
+
+`parseMetaJSON` (`packages/go/code_meta.go`) canonicalizes the `meta` JSON with `json.Marshal`. Go's
+encoder writes `&`, `<` and `>` as `\u0026`, `\u003c`, `\u003e`, and U+2028/U+2029 as
+`\u2028`/`\u2029` even with `SetEscapeHTML(false)`. RFC 8785 (JCS), which iscc-core and the Rust
+core use, emits all five raw. So for `{"title":"Tom & Jerry"}` the Go package hashes different
+bytes: `GenMetaCodeV0` returns a different Meta-Code and metahash, and `JsonToDataUrl` a different
+data-URL, than Rust, Python and the other bindings. Measured 2026-11-21: Go prints
+`{"title":"Tom \u0026 Jerry \u003c3"}`, `iscc_lib.json_to_data_url` encodes the raw `&` and `<`. The
+published Go 0.7.0 has the defect; no conformance vector carries these characters, so CI is green.
+Found by the iteration-240 audit (its workflow was killed before verification).
+
+Resolved when Go's canonical bytes match RFC 8785 for these characters and a shared vector
+(`data-edge.json` or equivalent) with `&`, `<`, `>`, U+2028 and U+2029 in `meta` passes on every
+surface, Go included.
+
+## Core video hashing panics or returns a wrong digest on frame signatures of unequal length `normal` [human]
+
+`soft_hash_video_v0` (`crates/iscc-lib/src/lib.rs`) sizes its column sum from `frame_sigs[0]` and
+indexes it with every deduplicated signature. A later signature longer than the first indexes out of
+bounds and panics; the release profile has `panic = "abort"`, so the host process (Node, JVM, .NET,
+Ruby, Go via FFI, ...) dies. A shorter one is silently summed into a wrong digest, and since the
+BTreeSet sorts signatures while `cols` comes from input position 0, the result depends on input
+order. Only the Python binding validates frame lengths before calling the core; every other surface
+reaches the core unchecked, through `soft_hash_video_v0` and `gen_video_code_v0`. Found by the
+iteration-240 audit and confirmed by reading the code 2026-11-21.
+
+Resolved when the core returns `InvalidInput` for signatures of unequal length (no panic, no
+digest), a shared error vector covers it on every surface, and the Python-only frame check is
+removed or reduced to the core's error.

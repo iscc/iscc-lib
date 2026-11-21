@@ -393,3 +393,14 @@ already fails on a stale entry, so only the claim of completeness had to go. **A
 removing all trees with the parser, its floors and about 8 tests (every requirement comment
 rewritten as prose in 9 specs); a completeness check per tree; completing the version-sync table
 with a parity test against `TARGETS`. **Context:** iteration 247.
+
+## 2026-11-21 — No role uses the advisor; the audit spend ceiling is 30 USD
+
+**Decision:** no CID role session gets the server-side advisor: `session_settings` in `tools/cid.py`
+sets no `advisorModel` (and so no longer blanks `DISABLE_TELEMETRY`), and the agent files carry no
+advisor guidance. The audit's `--max-budget-usd` ceiling rises from 15 to 30. **Why:** human
+decision. The iteration-240 audit hit its 15 USD ceiling at 15.03 USD in the middle of verification
+and filed nothing; 5.64 USD of it was the advisor, because each of the Workflow's 9 subagents
+consulted it 2-5 times, re-reading its transcript uncached. The advisor was also about 40-45% of
+each define-next run's cost. **Context:** human decision (Titusz, interactive session, 2026-11-21);
+supersedes the advisor parts of the 2026-11-17 and 2026-11-20 entries.
