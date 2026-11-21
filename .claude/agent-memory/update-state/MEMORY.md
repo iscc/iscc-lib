@@ -87,15 +87,17 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 68c9ab4, iter 250 — incremental)
+## Current State (assessed-at: 5d392ae, iter 251 — incremental)
 
-- **CI GREEN on `origin/develop` = `fe20717`**. HEAD ahead by loop-infra only (`tools/cid.py`,
-    `tests/test_cid.py`) — report as uncovered-but-not-product. Check-suites API:
+- **CI IN PROGRESS on `origin/develop` = `2c87dfe`** (video fix); last green `fe20717`. HEAD ahead
+    by the `cid(log)` commit only. Check-suites API:
     `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit `queued` forever).
-- **v0.8.0 criteria UNMET again (250):** 6 `normal` open (Go JCS escaping `code_meta.go:243`, video
-    ragged-frame panic `lib.rs:740`, FFI NULL split, JS integer wrap, published-docs drift, pytest
-    gate time). `[human]`-tagged normal issues are CID-WORKABLE, not "blocked on the human". 13
-    `low` (8 untriaged; count with `grep -c '^\*\*Triage:\*\* untriaged'`). issues.md 300/300.
+- **v0.8.0 UNMET (251):** 6 `normal` open — Go JCS escaping `code_meta.go:243`; ragged-video SHARED
+    VECTOR only (core+Go fixed 250, `check_frame_sig_lengths` `lib.rs:726`); FFI NULL split; JS
+    integer wrap; published-docs drift; pytest gate time. `[human]`-tagged normal issues are
+    CID-WORKABLE. 13 `low` (8 untriaged; `grep -c '^\*\*Triage:\*\* untriaged'`). issues.md 298/300.
+- **A fixed issue is often REWRITTEN to its remainder, not closed** (250) — title changes, count
+    holds; diff issues.md bodies.
 - **An audit or `cid(human)` commit can flip DONE-adjacent → workable with zero code change** —
     always diff issues.md after an audit iteration (249 filed 4 normal).
 - Spec trees carry a "not every file" note gated by `scripts/check_spec_paths.py` (247).
