@@ -45,6 +45,9 @@ Beyond the pack, read only the files next.md's `## Reference` section names. Do 
 1. **Understand the work package** — the injected next.md is your whole brief. Note the scope,
     implementation notes, and verification criteria.
 
+    **Spike:** if `## Scope` declares `**Spike:** <question>`, the experiment is the whole step: run
+    it under `## Experiments`, skip steps 3-6, and report the answer in the handoff.
+
 2. **Read reference material** — read ONLY the files listed in next.md's "Reference" section. For
     the iscc-core reference implementation, read files directly from `reference/iscc-core/` (see
     paths in CLAUDE.md). Do not explore broadly.
@@ -100,7 +103,25 @@ Beyond the pack, read only the files next.md's `## Reference` section names. Do 
     In a fan-out step, commit once per surface as soon as that surface is implemented and its own
     check is green (`cid(advance): <surface> — <what>`), and put handoff.md and agent memory in the
     last commit. Per-surface commits let the reviewer walk the work and let one surface be repaired
-    without touching the others.
+    without touching the others. After a spike, the commit carries only handoff.md and agent
+    memory.
+
+## Experiments
+
+A spike answers a question; it does not change the repository, and it leaves nothing behind.
+
+- Work in a fresh directory outside the checkout: `exp=$(mktemp -d)`. Running existing commands in
+    the checkout (builds, tests, `--help`, dry runs) is fine; editing it is not. When the experiment
+    needs changed repository files, make a throwaway copy with `git worktree add --detach "$exp/wt"`
+    and change only that.
+- Install tools only into `$exp` (`cargo install --root "$exp"`, `uv run --with`,
+    `npm --prefix "$exp"`, `gem install --install-dir "$exp"`), never globally.
+- Clean up before writing the handoff: `git worktree remove --force "$exp/wt"` if you made one, then
+    `rm -rf "$exp"`. `git worktree list` must show only the checkout and `git status --porcelain`
+    must be empty.
+- In the handoff, state the question, the answer, the decisive command with its output (trimmed),
+    and that cleanup was done. A question the experiment could not settle is reported as unsettled,
+    with what was tried.
 
 ## Output Format for handoff.md
 
@@ -145,6 +166,8 @@ technical debt introduced>
     working tree. Do not run `git stash`, `git reset`, `git checkout -- <path>`, or `git clean` to
     "get a clean tree" or to compare against HEAD; check the working tree as it is. If the tree
     looks unexpectedly clean, read `git stash list` and the reflog before concluding work was lost.
+    A throwaway `git worktree` under `## Experiments` is the one exception; it never touches the
+    checkout.
 - Do not modify `.claude/context/state.md`, `.claude/context/target.md`, `.claude/context/next.md`,
     `.claude/context/learnings.md`, or `.claude/context/issues.md`. You only write to handoff.md and
     source/test files.

@@ -6,7 +6,7 @@ description: >-
   ad-hoc delegation in interactive sessions.
 model: claude-opus-5-5
 effort: high
-tools: Read, Grep, Glob, Bash, Write
+tools: Read, Grep, Glob, Bash, Write, WebSearch, WebFetch
 memory: project
 ---
 
@@ -76,6 +76,14 @@ Read anything else on demand, once.
         - **Core changes go first and alone.** A step that changes the behaviour of the Rust core or
             the Go port, or that settles something the specs leave open, is never combined with a
             fan-out: land and verify the behaviour, then roll it out.
+        - **Spike:** when the best next step hinges on an assumption that reading the repo, the
+            reference or the web (step 6) cannot settle, that would waste an advance session if wrong,
+            and that a short experiment can settle, scope the experiment as the step. Write
+            `**Spike:** <the question>` in `## Scope` with no Create or Modify entries. The
+            deliverable is the answer with its evidence in the handoff; the experiment changes no file
+            in the repository and cleans up after itself (advance's `## Experiments`). The
+            verification criteria are the question answered with the decisive command and its output,
+            and a clean `git status --porcelain` after the commit.
     - Has clear, testable verification criteria (prefer boolean-testable: a command that exits 0 or
         an assertion that can be checked mechanically)
     - Builds on what already exists (don't skip ahead)
@@ -92,7 +100,11 @@ Read anything else on demand, once.
 
 6. **Research if needed** — if unsure about APIs, patterns, or reference implementation details,
     read the relevant spec under `.claude/context/specs/`, the crate's `CLAUDE.md`, or files from
-    `reference/iscc-core/` (see paths in CLAUDE.md).
+    `reference/iscc-core/` (see paths in CLAUDE.md). For behaviour outside the repository
+    (toolchains, build and packaging tools, registries, CI actions, upstream libraries), use
+    WebSearch and WebFetch on official documentation and source, and cite the URL in
+    `## Implementation Notes`. What neither reading nor the web settles is a spike (step 5), never
+    a guess.
 
 7. **Verify feasibility** — confirm that all files listed in "Reference" and "Modify" actually
     exist. If a file is missing or the code structure doesn't match expectations, adjust the
@@ -173,7 +185,8 @@ edge cases to handle, reference code to port from>
 - **Do not prototype.** You may read anything, and run read-only commands to confirm a file or
     symbol exists. Do not build, compile, patch or scaffold the step anywhere — including in `/tmp`
     or a scratch directory. Pre-building duplicates the implementer's work and verifies nothing that
-    survives your session.
+    survives your session. When only an experiment can settle a question, scope a spike; the advance
+    agent runs it and the review agent verifies it.
 - If the handoff suggests something that feels too large, break it down further.
 - If the handoff suggests something that conflicts with learnings, choose differently and explain
     why.

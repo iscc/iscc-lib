@@ -407,3 +407,16 @@ keeps Magnus' implicit `to_int` for integer lists (host idiom; docs fixed instea
 that is forward-compatible (one abi3 wheel, one net8.0 assembly) costs nothing to keep once CI also
 tests a supported runtime; Ruby needs a precompiled gem per series, so an end-of-life floor costs
 build work. **Context:** human decision (Titusz, interactive session, 2026-11-21), low-issue triage.
+
+## 2026-11-21 — Knowledge gaps: define-next researches on the web; experiments run as spikes
+
+**Decision:** define-next may use WebSearch/WebFetch for behaviour outside the repository. A gap
+that only an experiment can close becomes a `**Spike:**` step: advance runs the experiment as the
+whole step and reports the answer with its evidence. Experiments never change the repository: they
+run in a `mktemp -d` directory (a throwaway `git worktree` there when files must change), install
+tools only there, and remove it all before the handoff. Review checks the cleanup and records the
+answer in learnings.md. **Why:** human decision. A research role inside define-next would bypass
+review and lose its findings; routing experiments through advance and review keeps them verified and
+durable at no new runner cost. A riskiest-assumption section in every next.md was rejected: template
+headings get filled by default. **Revisit:** remove both if about 50 iterations pass with no spike
+and no web lookup. **Context:** human decision (Titusz, interactive session, 2026-11-21).

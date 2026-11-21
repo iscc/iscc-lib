@@ -97,6 +97,13 @@ context limits: run this protocol through to the push step.
             by surface along the advance agent's per-surface commits and run each surface's own check.
             If one surface fails, name it in the handoff so the next step repairs that surface only.
             An honest fan-out has no file-count limit; that is the point of the valve.
+    - **Experiments**: after a `**Spike:**` step, the advance commits change only handoff.md and
+        advance memory, `git worktree list` shows only the checkout, and the handoff carries the
+        decisive command and output; re-run that command when it takes a few minutes or less. A
+        spike that settles its question with evidence is PASS, whatever the answer. A spike that
+        changed repository files, left a worktree behind, or settled nothing is NEEDS_WORK. Record
+        the answer in learnings.md (in decisions.md when it settles a design question), and tell
+        define-next in the handoff what is now known.
     - **Pattern completeness**: when the diff introduces or changes how one surface does something
         (a guard, a helper, an error mapping, a conversion), search that surface for sibling call
         sites that still use the old form. define-next must scope all of them (its step 5), so a
