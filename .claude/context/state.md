@@ -1,25 +1,26 @@
-<!-- assessed-at: 5aa8414b3b285ac738b5490eb9147eafa9477bbf -->
+<!-- assessed-at: 3069e39f8be28b786f9c8c00eded0c296a15e824 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features complete; six `normal` issues block the release
+## Phase: v0.8.0 — features complete; five `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 251 made Go's
-canonical `meta` JSON emit `&`, `<`, `>`, U+2028/9 raw, matching the core; that issue is now reduced
-to its shared vector, like the ragged-video one. Six `normal` issues remain open, none blocked on
-the human or upstream. CI is green on the pushed tip `837e884`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 252 added the
+`gen_meta_code_v0` (raw JCS characters) and `gen_video_code_v0` (equal-length and ragged) sections
+on all 12 surfaces, closing both `[human]` vector issues; review filed one `normal` harness-gap
+issue. Five `normal` issues remain, none blocked on the human or upstream. CI is green on `20df958`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
 **Status**: partially met
 
-- `crates/iscc-lib/tests/data-edge.json` has 6 sections; harnesses on all 12 surfaces; the 5 tracked
-    copies are byte-identical and match `VENDORED_COPIES`
-- **Missing (collecting rule, 2 `normal` issues):** no `gen_meta_code_v0` vector with raw `&`, `<`,
-    `>`, U+2028/9 in `meta`, and no `gen_video_code_v0` ragged-`frame_sigs` error vector (needs a
-    `diverges` marker, since iscc-core truncates and returns a digest)
+- `crates/iscc-lib/tests/data-edge.json` has 8 sections (adds `gen_meta_code_v0`,
+    `gen_video_code_v0`); the ragged vector carries a `diverges` marker; the 5 tracked copies are
+    byte-identical; C/C++ consume the generated `data_edge_vectors.h`
+- **Bug (`normal`):** the napi, WASM, JNI and .NET harnesses lack `description` in their uncompared
+    sets, and `test_meta_row_renders_object_as_json_text` requires an object `meta` — a later valid
+    meta vector would need harness edits (against "a vector costs one edit")
 - Not filed: the `parts` entry is untested on any surface; the WASM `compare` has no explicit
     non-object branch
 
@@ -29,8 +30,8 @@ the human or upstream. CI is green on the pushed tip `837e884`.
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
     `conformance_selftest` runs the seq vectors; 308 lib tests
-- `soft_hash_video_v0` / `gen_video_code_v0` reject ragged input via `check_frame_sig_lengths`
-    (`lib.rs:726`); no binding test pins it until the shared vector lands
+- Ragged frame signatures rejected via `check_frame_sig_lengths`; now pinned by the shared vector
+- `call_meta` in `tests/test_data_edge.rs` sits at CRAP 30.0, exactly the `--fail-above` limit
 - **Missing (human-gated, not v0.8.0):** crate `>= 1.0.0`; MSRV verification (both `low`)
 
 ## Python Bindings
@@ -48,8 +49,8 @@ the human or upstream. CI is green on the pushed tip `837e884`.
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and strict data-edge tests green;
     `@iscc/lib` 0.7.0 on npm (OIDC)
-- **Bug (`normal`):** `u32`/`i32` parameters wrap silently on out-of-range input (e.g. bits
-    `2**32+64` yields a 64-bit code); only `gen_iscc_id_v1` runs `checked()`
+- **Bug (`normal`):** `u32`/`i32` parameters wrap silently on out-of-range input; only
+    `gen_iscc_id_v1` runs `checked()`
 - `low` issue: the napi `Buffer` reference leak
 
 ## WASM Bindings
@@ -73,25 +74,23 @@ the human or upstream. CI is green on the pushed tip `837e884`.
 
 **Status**: met (v0.8.0 scope)
 
-- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 6 sections strictly; 0.7.0 on Maven Central
+- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 8 sections strictly; 0.7.0 on Maven Central
 - Integer-range issue: JNI casts `bits as u32` unchecked; `low`: pending-exception guard untested
 
 ## Go Bindings
 
-**Status**: met (v0.8.0 scope, pending the shared vectors)
+**Status**: met (v0.8.0 scope)
 
-- Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green
-- `parseMetaJSON` (`code_meta.go:242`) encodes with `SetEscapeHTML(false)` and writes U+2028/9 raw;
-    no `json.Marshal(` left in the file; 4 escaping tests pin it — published 0.7.0 still escapes
-- Ragged frame signatures rejected (`code_content_video.go:43`) with 6 named tests
-- `low` (new): Go canonical `meta` differs from the core on UTF-16 key order, `-0` and lone
-    surrogates (contrived input only)
+- Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green incl.
+    the raw-JCS meta vector and the ragged video vector
+- Published 0.7.0 still escapes `&`, `<`, `>`, U+2028/9 in canonical `meta` (fixed on develop)
+- `low`: Go canonical `meta` differs from the core on UTF-16 key order, `-0` and lone surrogates
 
 ## C# / .NET Bindings
 
 **Status**: met (v0.8.0 scope)
 
-- `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 6 sections strictly; 0.7.0 on NuGet
+- `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 8 sections strictly; 0.7.0 on NuGet
 - .NET 8 floor past end of life — `low`, human-only
 
 ## C++ Bindings
@@ -106,7 +105,7 @@ the human or upstream. CI is green on the pushed tip `837e884`.
 
 **Status**: met (v0.8.0 scope)
 
-- `encode_seq` / `decode_seq`; `test_data_edge.rb` runs all 6 sections strictly; 0.7.0 on RubyGems
+- `encode_seq` / `decode_seq`; `test_data_edge.rb` runs all 8 sections strictly; 0.7.0 on RubyGems
 - Integer-range issue: raises `RangeError` where `docs/ruby-api.md` documents `RuntimeError`
 - `low`: source gems up to 0.7.0 do not build; Ruby 3.1 floor EOL; Float accepted for integers
 
@@ -114,8 +113,8 @@ the human or upstream. CI is green on the pushed tip `837e884`.
 
 **Status**: met (v0.8.0 scope)
 
-- `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both conformance suites run all 8 seq
-    vectors and all 6 data-edge sections; green in CI, shipped 0.7.0
+- `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
+    all 8 data-edge sections; the macOS `swift` job is green on the new sections; shipped 0.7.0
 
 ## Documentation
 
@@ -144,18 +143,17 @@ the human or upstream. CI is green on the pushed tip `837e884`.
     toggles; 21 version-sync targets at 0.7.0
 - `normal` (audit): the pytest gate rose 25.6 → 44.1 s; `tests/test_benchmarks.py` runs timing loops
     every gate and the Tier 1 doc tests copy the docs tree per case
-- **Latest CI: PASSING** on `origin/develop` = `837e884` (Go escaping fix):
-    https://github.com/iscc/iscc-lib/actions/runs/44882682839
+- **Latest CI: PASSING** on `origin/develop` = `20df958` (meta/video data-edge sections):
+    https://github.com/iscc/iscc-lib/actions/runs/44886121008
 - HEAD is ahead of origin only by the `cid(log)` commit; green CI covers all code at HEAD
 
 ## Open Issues
 
-20 open: 0 critical, 6 normal (2 `[human]`, 4 `[audit]`, all CID-workable), 14 low (human-directed;
-9 `untriaged`). issues.md is at its 300-line budget.
+19 open: 0 critical, 5 normal (1 `[review]`, 4 `[audit]`, all CID-workable), 14 low (human-directed;
+9 `untriaged`). issues.md is at 295 of 300 lines.
 
 ## Next Milestone
 
-Close the six `normal` issues that block v0.8.0: the two missing shared `data-edge.json` vectors
-(raw JCS characters in `meta`, ragged video) on every surface, the FFI NULL handling, the
-integer-range bugs, the published-docs corrections and the pytest gate time. The release itself
-stays with Titusz.
+Close the five `normal` issues that block v0.8.0: the data-edge harness gaps for future meta
+vectors, the FFI NULL handling, the integer-range bugs, the published-docs corrections and the
+pytest gate time. The release itself stays with Titusz.

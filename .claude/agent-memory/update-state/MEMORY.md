@@ -87,22 +87,25 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 5aa8414, iter 252 — incremental)
+## Current State (assessed-at: 3069e39, iter 253 — incremental)
 
-- **CI GREEN on `origin/develop` = `837e884`** (Go JCS escaping fix). HEAD ahead by `cid(log)` only.
-    Check-suites API: `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit
-    `queued` forever — judge by `github-actions`).
-- **v0.8.0 UNMET (252):** 6 `normal` open — 2 shared-vector-only remainders (Go JCS raw chars in
-    `meta`, ragged video; code fixed 250/251), FFI NULL split; JS integer wrap; published-docs
-    drift; pytest gate time. `[human]`-tagged normal issues are CID-WORKABLE. 14 `low` (9 untriaged;
-    `grep -c '^\*\*Triage:\*\* untriaged'`). issues.md 300/300.
+- **CI GREEN on `origin/develop` = `20df958`** (meta/video data-edge sections, macOS swift green).
+    HEAD ahead by `cid(log)` only. Check-suites API:
+    `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor sit `queued` forever —
+    judge by `github-actions`).
+- **v0.8.0 UNMET (253):** 5 `normal` open — data-edge harness gaps for future meta vectors
+    (`[review]`), FFI NULL split, JS integer wrap, published-docs drift, pytest gate time. Both
+    `[human]` vector issues CLOSED 252. 14 `low` (9 untriaged;
+    `grep -c '^\*\*Triage:\*\* untriaged'`). issues.md 295/300.
 - **A fixed issue is often REWRITTEN to its remainder, not closed** (250, 251) — title changes,
     count holds; diff issues.md bodies.
 - **An audit or `cid(human)` commit can flip DONE-adjacent → workable with zero code change** —
     always diff issues.md after an audit iteration (249 filed 4 normal).
 - Spec trees carry a "not every file" note gated by `scripts/check_spec_paths.py` (247).
 - Tier 1 doc gate registry near top of `scripts/check_tier1_docs.py` (20 FULL, 2 EXACT, 2 EXEMPT).
-- data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
+- data-edge.json sections (8 since 252; list via `uv run python` json keys). C/C++ read generated
+    `crates/iscc-ffi/tests/data_edge_vectors.h`. Vendored check:
+    `md5sum $(git ls-files -- '*data-edge.json')`.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`.
 
 ## Durable Facts (carried, not per-iteration)
