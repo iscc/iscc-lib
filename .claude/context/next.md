@@ -1,88 +1,98 @@
 # Next Work Package
 
-## Step: Remove the file trees and file tables from the per-crate and per-package CLAUDE.md files
+## Step: Mark every spec file list as partial and gate the note in check_spec_paths.py
 
 ## Goal
 
-Closes the `CLAUDE.md` half of "Derived facts in guidance and docs are written by hand and drift"
-(`normal`). Each of the 12 per-crate and per-package `CLAUDE.md` files has a hand-written file list:
-a fenced directory tree, or a `File`/`Module` table in `crates/iscc-lib`, `crates/iscc-rb` and
-`packages/go`. No check covers them. This step removes those lists. Keep a sentence only where a
-list entry states a rule. The issue stays open for the spec half (the trees in
-`.claude/context/specs/`), so review narrows the entry instead of deleting it.
+Close the last part of "Derived facts in guidance and docs are written by hand and drift" (`normal`,
+`[human]`). The trees in `.claude/context/specs/` stay as statements of where files must live. Each
+tree gets a note that it is not a complete list, and `scripts/check_spec_paths.py` fails on a tree
+that lacks the note. Existence is already checked, so this meets the issue's Resolved-when.
 
 ## Alternatives Considered
 
-- **Chosen:** remove the lists (docs only). Measured while scoping, every listed path exists apart
-    from build output that the tree itself marks as gitignored (napi `index.js`/`index.d.ts`/
-    `*.node`, `_lowlevel.abi3.so`, cpp `build*/`, dotnet `runtimes/`). The three tables are clean.
-    So the drift is missing entries, not stale ones: `packages/go/iscc_id.go`, napi
-    `seq.test.mjs`/`iscc_id_v1.test.mjs`, cpp `conanfile.py`/`vcpkg.json`, and README, LICENSE and
-    lockfiles almost everywhere.
-- **Rejected:** extend `scripts/check_spec_paths.py` to these files. An existence check would pass
-    today and fix nothing. A completeness check would need a list of expected files and exemptions
-    for each of three formats (indented trees, `File` tables, `Module` tables). Every new file would
-    then need an edit in its `CLAUDE.md`. The trees mostly repeat `git ls-files`.
+- **Chosen:** drop the claim of completeness, keep the trees and the existence check. The trees
+    carry requirements ("DO NOT EDIT", where SPM, JNA and NuGet files live), the gate already fails
+    on a stale entry, and `go-bindings.md` already has the wording.
+- **Rejected:** remove all spec trees and delete the tree parser, its floors and about 8 tests.
+    Every requirement-bearing tree comment would have to be rewritten as prose in 9 specs. That
+    costs more and closes nothing more than the chosen step.
 
 ## Scope
 
-- **Modify** (docs only, so outside the file budget): every `crates/*/CLAUDE.md` and
-    `packages/*/CLAUDE.md` file
-- **Reference**: `scripts/check_tier1_docs.py` (registers `crates/iscc-lib/CLAUDE.md` EXACT; ffi,
-    wasm and go `CLAUDE.md` FULL), `.claude/context/README.md` → "Hygiene rules" → "Derived facts
-    are checked or not written"
+- **Modify**: `scripts/check_spec_paths.py` (the only file counted against the budget; specs count
+    as docs, as in iterations 245/246)
+- **Modify (docs)**:
+    `.claude/context/specs/{cpp,dotnet,java,kotlin,nodejs,ruby,swift,wasm}-bindings.md`,
+    `.claude/context/specs/ci-cd.md` ("Workflow Files" table only)
+- **Modify (tests)**: `tests/test_check_spec_paths.py`
+- **Reference**: `.claude/context/specs/go-bindings.md` lines 27-41 (the model note),
+    `.claude/context/README.md` → "Hygiene rules"
 
 ## Not In Scope
 
-- The spec trees in `.claude/context/specs/*.md` and any change to `scripts/check_spec_paths.py`.
-    Its floors fail when it finds zero trees, so the spec half needs script and test changes and is
-    the next step
-- Checking backticked paths in `CLAUDE.md` prose. Most hits are crate-relative paths
-    (`tests/data.json`) that resolve. The only real stale path is listed below
-- Other tables: type mappings, the Go `Dependency` and `Function` tables, the Ruby code fences,
-    non-tree fences (JNI name pattern, streaming `new() -> update…` pattern, bash blocks). They stay
-- Rewording guidance outside the removed lists, and the root `CLAUDE.md`
+- Removing any tree, or the tree floors (zero roots / entries / backticked paths). The floors stay:
+    state.md and the handoff say they must change, but that is only true if the trees go.
+- Completeness checks for trees. Once each tree says it is partial, nothing needs one.
+- The tag trigger in `ci-cd.md`: the Release row's trigger cell, "Tag trigger as convenience" (about
+    line 173) and `tags: [v*.*.*]` (about line 187) contradict `target.md` and `release.yml`, which
+    is `workflow_dispatch`-only. Leave them and mention the conflict in the handoff so review can
+    file it.
+- `.claude/context/README.md`, `learnings.md`, per-crate `CLAUDE.md` files.
 
 ## Implementation Notes
 
-- **Remove the block and its heading.** The `## Module Layout` / `## File Layout` sections (rb uses
-    a file table under its own heading) go entirely. If the section has prose under the tree that
-    states a rule, keep that prose under a suitable heading. Example: the ffi paragraph "Keep every
-    export in `lib.rs`: `build.rs` passes only `src/lib.rs` to csbindgen…".
-- **Class rule for the per-entry comments:** keep a comment as a prose sentence only when it states
-    a **rule or the file's origin**, and only when the remaining text does not already say it.
-    Examples: "DO NOT EDIT" or "generated by X, regenerate after Y", "checked in", "gitignored,
-    populated by CI", "must be at crate root (next to Cargo.toml)", "manual, not generated",
-    "committed lock file, CI restores with `--locked-mode`", "read only by `data_edge_test.go`,
-    never embedded", "embedded via `//go:embed`", "rb_sys pin must match the Docker image". Drop
-    comments that only describe ("Smoke tests", "Public API", "Type stubs"). Write each kept fact
-    against a file name, never as a new list of files.
-- Counts inside the removed comments disappear with them, for example "30 #[pyfunction]s + 3
-    #[pyclass]es" (py) and "35+ test cases" (cpp). Do not carry any number over.
-- `crates/iscc-lib/CLAUDE.md`: its Visibility column repeats the `pub mod` / `mod` lines in
-    `lib.rs`. If the visibility rule matters, state it as a rule ("Tier 1 is what `lib.rs`
-    re-exports at the root; internal modules stay `pub(crate)`"), not as a module list. Keep the
-    `<!-- tier1:begin -->` block exactly as it is.
-- Probed while scoping: removing the lists makes no registered doc lose a Tier 1 name, so
-    `check_tier1_docs.py` stays green. Re-run it after editing anyway, because reworded prose can
-    drop a name.
-- Fold in the one stale prose path: `crates/iscc-jni/CLAUDE.md` names `scripts/sync_versions.py`.
-    The script is `scripts/version_sync.py` (`mise run version:sync`).
-- No core, binding or gate code changes, so the CRAP, iai and semver gates and the conformance
-    vectors are not affected.
+**Gate rule.** A fence that holds at least one tree entry (an `ENTRY_RE` match) must be followed by
+a paragraph containing `not every file`. Key the rule on entries, not root lines: `is_root_line`
+also matches a lone `target/`-style line in any code block. "Paragraph" means: skip blank lines
+after the closing fence, then join the following lines with single spaces up to the next blank line.
+A heading or another fence there means the note is missing. Joining matters because mdformat wraps
+at 100 columns and can split the phrase, and in Go the phrase is in the paragraph's second sentence.
+One note per fence: the swift fence has two roots (`packages/swift/`, `scripts/`) and needs one
+note. Error format, in the same style as the others:
+`<spec>:<fence line>: tree has no "not every file" note after its fence`. Update the module
+docstring Rules list to match.
+
+**Backticked prefixes.** Add `\.github` to the `BACKTICK_RE` prefix group. Today only
+`.github/workflows/` (ci-cd.md, about lines 440-441) matches, and it resolves as an ancestor
+directory.
+
+**Spec edits.**
+
+- After each tree in the 8 specs, add a one- or two-sentence note in Go's style that the tree lists
+    the load-bearing entries, not every file. Go already passes; leave it unchanged.
+- Remove entries below a `GENERATED` prefix: the gate exempts them, so it can never fail on them.
+    Keep the prefix line itself. Wasm: drop the 4 children of `pkg/`. Kotlin: drop the 8 children of
+    `main/resources/`; the "Native Library Targets" tables already list those JNA paths. Dotnet: the
+    5 RID lines under `runtimes/` appear nowhere else, so put the layout into the note or a prose
+    sentence (`runtimes/<rid>/native/<lib>` for linux-x64, linux-arm64, osx-arm64, osx-x64,
+    win-x64). The napi `index.js` / `index.d.ts` lines stay; `GENERATED` names each of them exactly.
+- Keep every tree comment that states a rule, such as "DO NOT EDIT" or "synced by version_sync.py".
+- ci-cd.md "Workflow Files": write the File cells as `.github/workflows/ci.yml` etc. so the gate
+    checks they exist. Add a sentence below the table saying it names the workflows this spec
+    requires, not every file in `.github/workflows/`.
+
+**Tests.** Every fixture that holds a tree needs the note appended after its closing fence. That
+covers `GOOD_TREE` (two fences) and `OLD_GO_TREE`. Keep the old-Go replay asserting exactly its 11
+phantoms and `counts == (1, 20, 0)`. Add one test per new failure arm, one bad case per call:
+
+1. A tree followed directly by a heading fires.
+2. A note one paragraph too late (a non-note paragraph between the fence and the note) fires.
+3. The phrase split across two wrapped lines passes.
+4. A phantom backticked `.github/workflows/x.yml` fires.
+
+The gate touches no Rust, so neither CRAP nor iai is affected.
 
 ## Verification
 
-- `grep -nE '^(crates|packages)/[A-Za-z0-9_.-]+/$' crates/*/CLAUDE.md packages/*/CLAUDE.md` prints
-    nothing. That pattern is a tree root line.
-- `grep -nE '^\| *(File|Module) *\|' crates/*/CLAUDE.md packages/*/CLAUDE.md` prints nothing
-- `grep -n 'sync_versions' crates/*/CLAUDE.md packages/*/CLAUDE.md` prints nothing
-- `uv run scripts/check_tier1_docs.py && uv run scripts/check_spec_paths.py` exits 0
-- `git status --porcelain` lists no file outside `crates/*/CLAUDE.md`, `packages/*/CLAUDE.md` and
-    `.claude/`
+- `uv run scripts/check_spec_paths.py` exits 0
+- `uv run pytest tests/test_check_spec_paths.py` passes, including the 4 tests listed in the notes
+- `grep -nE '(├──|└──) (linux|darwin|win32|android|osx|win)-|── iscc_wasm' .claude/context/specs/*.md`
+    prints nothing
+- `grep -n 'workflows/ci.yml' .claude/context/specs/ci-cd.md` finds the Workflow Files row
 - `mise run check` exits 0
 
 ## Done When
 
-The 12 `CLAUDE.md` files have no directory tree and no `File`/`Module` table, every rule or origin
-note they carried is still stated in prose, and all six checks pass.
+Every spec tree and the workflow table carry a "not every file" note, the gate fails on a tree
+without one, and all five checks pass.

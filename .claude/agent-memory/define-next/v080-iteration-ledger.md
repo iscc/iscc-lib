@@ -144,4 +144,12 @@ trees (floors), so removing or completeness-gating spec trees changes the script
 `tests/test_check_spec_paths.py`. Spec trees sit under `## Package/Crate Structure`, no
 Verified-when names them; go lists 7 of ~50 files, so they are clearly key files, not complete
 lists. Next: spec half (remove trees + drop tree floors, or mark them key files only and keep the
-existence check), then v0.8.0 has no normal blocker.
+existence check), then v0.8.0 has no normal blocker. 247 = drift spec half: KEEP the trees and drop
+the claim of completeness (the advisor agreed). The issue's Resolved-when only asks for an existence
+check on a partial list, and `check_spec_paths.py` already is one. Gate the "not every file" note
+per fence: keyed on `ENTRY_RE` matches, not root lines, and matched on the joined paragraph because
+mdformat wraps lines. Collapse entries below a GENERATED prefix (the gate can never fail on them).
+Widen `BACKTICK_RE` with `.github` for the ci-cd "Workflow Files" table. Found and left for review
+to file: ci-cd.md still specifies a release tag trigger (lines ~10/173/187) against target.md and
+`release.yml` (`workflow_dispatch` only). Next: if PASS, v0.8.0 has no normal blocker left. Check
+the tag-trigger realignment, then NONE/IDLE.
