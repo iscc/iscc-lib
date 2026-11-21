@@ -3,14 +3,16 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-21 (iter 258): `## Step: NONE`** — v0.8.0 release-ready, CI green on 844f8c4, 0
-critical/normal, 18 `low` (13 untriaged). Until Titusz cuts v0.8.0, promotes an untriaged `low`, or
-sets a post-0.8.0 milestone, re-check (`git log` for `human(...)` commits, issues.md priorities,
-`gh run list -b develop`) and write NONE again — cheap session, no probes needed. NONE verification:
-`grep -E '^## .*(critical|normal)' issues.md` prints nothing (no exact-count grep). **An issue's own
-"Scope estimate" can over-count — apply the docs-excluded rule yourself** (257). **Collecting rule
-vs "core first and alone":** land the behaviour first, then batch pending sections into one fan-out.
-Ledger/traps → [v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
+**Status 2026-11-21 (iter 259): triage reopened v0.8.0** — Titusz promoted 12 `low` → `normal`
+(07fe690), moved 6 to `postponed.md`. Loop has work again; NONE no longer valid. 259 scoped the
+docs-only spec/CLAUDE.md drift bundle (2 issues) because 3 unpushed `cid(human)` CI commits were
+untested — keep the next diff CI-neutral until they go green, then Ruby 3.3 floor (touches ci.yml +
+release.yml). Go JCS `meta` issue: lone-surrogate vector needs every harness JSON parser to accept
+`\ud800` (serde_json rejects) — probe before scoping. NONE verification (when it returns):
+`grep -E '^## .*(critical|normal)' issues.md` prints nothing. **An issue's own "Scope estimate" can
+over-count — apply the docs-excluded rule yourself** (257). **Collecting rule vs "core first and
+alone":** land the behaviour first, then batch pending sections into one fan-out. Ledger/traps →
+[v0.8.0 iteration ledger](v080-iteration-ledger.md); slice history →
 [ISCC-SEQ phase](iscc-seq-phase.md), [data-edge phase](data-edge-phase.md). **Dependabot alerts
 track `main`, not `develop`** — check the lockfile on `develop` before scoping.
 

@@ -1,46 +1,92 @@
 # Next Work Package
 
-## Step: NONE
+## Step: Realign agent-facing specs and CLAUDE.md files with the code
 
 ## Goal
 
-No CID-workable step remains. Every v0.8.0 criterion in target.md is met, CI is green on
-`origin/develop` (`844f8c4`, run conclusion `success`), and no `critical` or `normal` issue is open.
+Close two `normal` issues that both concern instruction files agents read as truth: "Specs and the
+core `CLAUDE.md` contradict the code in four places" [audit] and "`ci-cd.md` describes a tag trigger
+the release workflow does not have". Wrong statements there get implemented or "fixed back" into the
+code; both block v0.8.0.
 
 ## Alternatives Considered
 
-- **Chosen:** NONE. Every remaining gap is human-gated, and every open issue is `low`.
-- **Rejected:** picking up a `low` `[review]` doc issue, for example the `KAA` Sum-Code comments or
-    the pkg-config `Version: 0.2.0`. `low` issues are reserved for human-directed work, and the 13
-    untriaged ones wait on Titusz to triage them.
+- **Chosen:** spec/CLAUDE.md drift bundle — docs-only, so it adds nothing CI-risky on top of the
+    three unpushed `cid(human)` commits (Python 3.15 leg, .NET 8/10 matrix). If the next push goes
+    red, the cause is attributable to the human CI changes. Both issues share
+    `specs/swift-bindings.md` and the same fix shape.
+- **Rejected:** Ruby floor 3.1 → 3.3 — edits `ci.yml` and `release.yml` and needs cross-gem image
+    research. Stacking a second CI change on unverified CI changes muddies a red run. Take it after
+    the human CI changes have gone green.
+- **Rejected:** Go canonical `meta` (JCS key order, `-0`, lone surrogates) — the lone-surrogate
+    vector needs every harness's JSON parser to accept `\ud800` in `data-edge.json` (serde_json
+    rejects it). That is a multi-surface risk and gets its own step.
 
-## Reason
+## Scope
 
-Each remaining item is blocked on the human:
-
-- **Cut v0.8.0:** a human release through the `/release` skill. CID never cuts a release. The
-    release notes should mention that the `@iscc/wasm` `alg_cdc_chunks` return type is now
-    `Uint8Array[]`.
-- **v1.0.0 criteria** (crate `>= 1.0.0`, enforcing `cargo-semver-checks`, MSRV verification): the
-    `low` `[human]` issues "Release core as v1.0.0" and "The declared MSRV is asserted but never
-    verified". Titusz has set no milestone after v0.8.0.
-- **Upstream Unicode drift:** `low` `[human]`, parked on iscc/iscc-core#137.
-- **EOL runtime floors** (Python 3.10, .NET 8, Ruby 3.1): `low`. Only the human raises a floor.
-- **Published Ruby source gems up to 0.7.0:** yanking them is a registry action for Titusz.
-- **`target.md` sync-target count (12 vs 21):** only the human edits `target.md`.
-- **13 untriaged `low` review findings:** each one waits for Titusz to promote it to `normal` or
-    park it.
+- **Modify** (all docs/specs, none count toward the file cap):
+    - `.claude/context/specs/ci-cd.md` — Workflow Files table Release row (line ~10), "Tag trigger as
+        convenience" bullet (~179), `push: tags: [v*.*.*]` in the Trigger Configuration YAML
+        (~191-193)
+    - `.claude/context/specs/swift-bindings.md` — Release Flow steps 1-2 (~239-240) and "Named
+        parameters with defaults" (~147)
+    - `.claude/context/specs/c-ffi-dx.md` — "Tag push triggers FFI builds" (~128)
+    - `.claude/context/specs/python-bindings.md` — `py.allow_threads(...)` (~274) → `py.detach(...)`
+    - `.claude/context/specs/rust-core.md` — JS recipe `const [mt, st, …] = iscc_decode(…)` (~485)
+    - `crates/iscc-py/CLAUDE.md` — "Tag-triggered" bullet (~134)
+    - `crates/iscc-wasm/CLAUDE.md` — "tag-triggered CI … tag version" (~124)
+    - `crates/iscc-lib/CLAUDE.md` — binding crate list (lines 7-8) lacks `iscc-uniffi`; Tier 2 list
+        (~40-44) lacks `read_unit` and `SEQ_MAINTYPES`
+- **Reference**: `.github/workflows/release.yml` (trigger, `prepare-release` tag creation, Swift
+    checksum/force-tag job, WASM version patch), `crates/iscc-uniffi/src/lib.rs`,
+    `crates/iscc-napi/src/lib.rs` + `crates/iscc-wasm/src/lib.rs` (`iscc_decode` return shape),
+    `crates/iscc-lib/src/codec.rs` (`read_unit`, `SEQ_MAINTYPES`), the correct paragraph at
+    `specs/ci-cd.md` ~224-229
 
 ## Not In Scope
 
-- Any `low` issue, until the human promotes it to `normal`
-- Version bumps, tags or release-workflow dispatches
+- Any edit to `.github/workflows/*.yml` or code. This step describes the code; it changes none.
+- Other drift in these files (e.g. the iscc-py CLAUDE.md wheel matrix omitting aarch64): note it in
+    the handoff, do not fix it here
+- `notes/` — never updated in sweeps (root CLAUDE.md)
+- Adding file lists to the per-crate `CLAUDE.md` files (decision 2026-11-21: they carry none — the
+    binding-crate list in `iscc-lib/CLAUDE.md` is a role statement; keep it a short prose list)
+- Other open `normal` issues (architecture.md, llms.txt, KAA comments, pkg-config version)
+
+## Implementation Notes
+
+- Read `release.yml` before writing each replacement. Every replacement states what the workflow
+    does: `workflow_dispatch` is the only trigger; with a `version` input, `prepare-release` creates
+    the `vX.Y.Z` / `packages/go/vX.Y.Z` tags and the GitHub Release. Do not invent a mechanism.
+- ci-cd.md Trigger Configuration: drop the `push:` block and keep the `workflow_dispatch` inputs as
+    excerpted. Replace the "Tag trigger as convenience" bullet with the `version`-input behaviour or
+    remove it, whichever reads cleaner next to the ~224 paragraph. Do not duplicate that paragraph.
+- swift-bindings.md Release Flow: describe the dispatch → tag → XCFramework → `Package.swift` update
+    → force-update tag sequence as the Swift job implements it. Line ~147: say the UniFFI exports
+    declare no defaults, so Swift/Kotlin callers pass every argument (check the `#[uniffi::export]`
+    signatures for any `default(...)` first).
+- rust-core.md ~485: destructure the object the napi/WASM `iscc_decode` returns. Take the field
+    names from the `.d.ts` or the `#[napi(object)]` struct; do not guess.
+- python-bindings.md ~274: also sweep that spec for any other `allow_threads` mention.
+- After editing, sweep once for the same false claims elsewhere in `.claude/context/specs/` and the
+    per-crate `CLAUDE.md` files: `git grep -n -i -E 'tag[- ]trigger|tags: \[v|allow_threads'`. Fix
+    hits that state the false behaviour, and list them in the handoff.
+- `specs/*.md` edits trigger the `check_spec_paths` prek hook; keep every backticked path real.
 
 ## Verification
 
-- `grep -E '^## .*(critical|normal)' .claude/context/issues.md` prints nothing, which means no open
-    issue is `critical` or `normal`
+- `git grep -n -i -E 'tag[- ]triggered|tag trigger as|tags: \[v\*|Tag push triggers' -- .claude/context/specs crates/*/CLAUDE.md`
+    prints nothing
+- `git grep -n 'allow_threads' -- .claude/context/specs` prints nothing, and
+    `git grep -n 'const \[mt' -- .claude/context/specs` prints nothing
+- `grep -q iscc-uniffi crates/iscc-lib/CLAUDE.md && grep -q read_unit crates/iscc-lib/CLAUDE.md && grep -q SEQ_MAINTYPES crates/iscc-lib/CLAUDE.md`
+    exits 0
+- `git grep -n 'parameters with defaults' -- .claude/context/specs/swift-bindings.md` prints nothing
+- `uv run scripts/check_spec_paths.py` and `uv run scripts/check_tier1_docs.py` exit 0
+- `mise run check` passes; the step's commits touch only `.claude/context/specs/`,
+    `crates/*/CLAUDE.md` and CID context files
 
 ## Done When
 
-The advance agent no-ops on this NONE step.
+All seven trigger claims and the four audit contradictions describe the code as it is, and every
+verification check passes.
