@@ -636,3 +636,25 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     `uv run --project /workspace/iscc-lib pytest … --no-cov`. Six mutants of a text-slice helper (no
     stop at next header, retyped result, dropped key, each fail-closed arm off): all killed. Codex
     (~4 min): no findings
+
+### Two new data-edge sections, 12 surfaces (iter 252, ~35 min) — PASS_WITH_NOTES, Codex found both gaps
+
+- The 226 script still works as one background run (`step <name> <cmd…>` + summary file, ~3 min on a
+    warm tree): add `--no-default-features`, `--features text-processing` and `--all-features` runs
+    of the Rust harness, and both clippy forms. Kotlin goes in a second script after Codex exits,
+    together with the in-tree mutation (sed the canonical file + the Kotlin copy, run pytest /
+    `rake test` / `./gradlew test --rerun-tasks`, `git checkout --` both files)
+- **I skipped my own 237 rule and Codex caught it**: diff every new `UNCOMPARED` row against the
+    function's `data.json` output keys MINUS the result type's fields. 252 listed
+    `name, meta, metahash` for four bare-string meta surfaces and missed `description`, because no
+    vector carried it yet. One line of Python over `data.json` prints the allowed keys
+- **A generator test that loops over the real fixture must accept every input form the generator
+    renders** (252: `assert isinstance(meta, dict)` would fail a valid data-URL vector). Ask of each
+    new fixture-driven test: does a second valid vector need a test edit?
+- **Does an iscc-only surface see the defect a meta vector pins?** Pass the defective canonical
+    bytes as `data:application/json;base64,…` meta to `iscc_lib.gen_meta_code_v0`: the payload is
+    used as is, so the result is the ISCC a re-escaping surface would return. 252: each of the five
+    characters alone changed the `iscc`
+- Both findings were step-introduced but fail closed on a future vector, so: PASS_WITH_NOTES, one
+    `normal` issue, no step-9 fix (changing what a harness compares is behaviour, not a nit)
+- Codex (`--base <define-next sha>`, ~6 min) reproduced both by adding vectors itself

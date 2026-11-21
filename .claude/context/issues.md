@@ -221,17 +221,6 @@ Resolved when the `target.md` line names no count ("every entry in `TARGETS`") o
 
 **Spec:** `.claude/context/target.md` → "CI/CD, Dev Tooling, and Publishing"
 
-## No shared vector pins raw `&`, `<`, `>`, U+2028 and U+2029 in canonical `meta` JSON `normal` [human]
-
-RFC 8785 (JCS) emits these five characters raw. The Go package escaped them until iteration 251, so
-`GenMetaCodeV0` and `JsonToDataUrl` returned a different Meta-Code, metahash and data-URL than every
-other surface; the published Go 0.7.0 has the defect. Go now matches the Rust core, but only Go's
-own tests prove it: no conformance vector and no `data-edge.json` section carries these characters
-in `meta`, so a surface that escapes them again stays green.
-
-Resolved when a shared vector (`data-edge.json` or equivalent) with `&`, `<`, `>`, U+2028 and U+2029
-in `meta` passes on every surface, Go included.
-
 ## Go canonical `meta` JSON differs from the core in key order, `-0` and lone surrogates `low` [review]
 
 **Triage:** untriaged — a Go caller whose `meta` JSON has an emoji key next to a key from
@@ -247,18 +236,24 @@ Pre-existing. The other numbers probed match (`1.0`, `1e21`, `1e-7`, `9007199254
 Resolved when Go returns the core's result for the three inputs and each is a `data-edge.json`
 vector.
 
-## Ragged video frame signatures are rejected by the core but no shared vector pins it `normal` [human]
+## Four data-edge harnesses and a generator test reject valid `gen_meta_code_v0` vectors `normal` [review]
 
-The Rust core and the Go port return an error for frame signatures of unequal length
-(`soft_hash_video_v0`, `gen_video_code_v0`; decisions.md 2026-11-21). Only their own unit tests
-prove it. Every binding reaches the core through its own marshalling, and before the fix such input
-aborted the host process on all of them except Python (`panic = "abort"`), so a binding that stops
-mapping the error would go unnoticed. `data-edge.json` has no `gen_video_code_v0` section. The
-Python binding keeps its own frame check in `extract_frame_sigs`, because it flattens the frames
-before it calls the core; it raises `ValueError` with the core's wording.
+Introduced in iteration 252, reported by Codex and confirmed by reading the code. Both break the "A
+vector costs one edit" rule of `edge-vectors.md`; today's fixture is green.
 
-Resolved when a shared error vector with a ragged `frame_sigs` passes on every surface. It carries a
-`diverges` marker: iscc-core truncates to the shortest signature and returns a digest.
+- The uncompared sets for `gen_meta_code_v0` in the napi, WASM, JNI and .NET harnesses (`UNCOMPARED`
+    / `Uncompared`) hold `name`, `meta` and `metahash` but not `description`. These surfaces return
+    a bare ISCC string and `data.json` allows `description`, so the "Output subset" rule wants it
+    uncompared. A vector whose `outputs` carry `description` fails there with "missing field
+    description".
+- `test_meta_row_renders_object_as_json_text` in `tests/test_gen_data_edge_vectors.py` asserts that
+    every `meta` input is an object. The generator (`meta_text`) and every harness also take a
+    string, so a data-URL `meta` vector fails this test after a correct regeneration.
+
+Resolved when the four sets hold `description`, the test checks a string `meta` as passed through
+and still requires at least one object row, and a throwaway vector of each kind (a non-empty
+description with `outputs.description`; a data-URL `meta`) passes on all 12 surfaces without a
+harness edit. The throwaway vectors are not committed.
 
 ## C FFI treats `(NULL, 0)` two opposite ways and never checks inner pointers `normal` [audit]
 

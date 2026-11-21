@@ -1,71 +1,62 @@
-## 2026-11-21 — `gen_meta_code_v0` and `gen_video_code_v0` sections in `data-edge.json`, on all 12 surfaces
+## 2026-11-21 — Review of: `gen_meta_code_v0` and `gen_video_code_v0` sections in `data-edge.json`, on all 12 surfaces
 
-**Done:** Added `gen_meta_code_v0/test_0001_raw_jcs_characters` (the Go `combined` object, raw `&`,
-`<`, `>`, U+2028, U+2029, the literal text `\u2028`, `\b\f\u001f`) and `gen_video_code_v0`
-`test_0001_equal_length` / `test_0002_ragged_frame_sigs` (`error` + `diverges` decisions.md
-2026-11-21). Every harness and the C/C++ generator handle both sections. One commit per surface
-(12), fixture + 4 copies + generator + header in the last commit.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `crates/iscc-lib/tests/data-edge.json` + 4 vendored copies (byte-identical, `cmp` clean): two
-    sections appended; existing entries untouched (diff is 47 insertions only). U+2028/U+2029 are
-    written as `\u2028`/`\u2029` JSON escapes, frames one array per line
-- `crates/iscc-lib/tests/test_data_edge.rs`: `call_meta` (+ compiled-out twin for no `meta-code`),
-    `meta_arg` (gated), `call_video`, `frames_arg`/`frame_item`/`i32_item`, `meta_json`;
-    `.crap-baseline.json` refreshed
-- `tests/test_data_edge.py`: `dict` converters for both sections (no preparer/SEED_SET row needed)
-- napi / WASM / JNI / .NET harnesses: meta + video callers; `UNCOMPARED` gains
-    `gen_meta_code_v0: name, meta, metahash` (these bindings return a bare ISCC string)
-- Go / Ruby / Swift / Kotlin harnesses: meta + video callers comparing every result key
-- `crates/iscc-ffi/tests/test_iscc.c`, `packages/cpp/tests/test_iscc.cpp`: check functions,
-    `RUN_EDGE_SECTION` lines, one negative row each for meta (mismatch) and video (ragged expected
-    ok)
-- `scripts/gen_data_edge_vectors.py`: `iscc_edge_frames` (`const int32_t *const *frames`,
-    `const uintptr_t *lens`, `count`), meta/video row structs, `int32_array` (20 per line, `{0}`
-    sentinel for an empty frame), `frame_arrays`, `require_int32*`, `meta_text`
-    (`json.dumps(ensure_ascii=False)`, then octal-escaped). Header regenerated
-- `tests/test_gen_data_edge_vectors.py`: 6 tests (frame/sentinel rendering, wrapping, video rows
-    incl. a ragged one, meta JSON text, int32 range and non-object meta fail closed)
+**Summary:** Both sections are in `data-edge.json` and its 4 copies, and all 12 surfaces run the
+three vectors green. The fan-out is honest: 12 per-surface commits plus one for the fixture and the
+generator, no core or binding change, no `except` entry, no lint suppression. Both `normal`
+`[human]` issues are closed. Codex found two gaps in the new harness code that would reject a valid
+future meta vector; they are filed as one `normal` issue.
 
 **Verification:**
 
-- `cargo test -p iscc-lib --test test_data_edge`: 7 passed (default, `--no-default-features`,
-    `--features text-processing --no-default-features`, `--all-features`); clippy `--tests` clean
-    with and without default features
-- `cargo llvm-cov … && cargo crap --baseline .crap-baseline.json --fail-regression --fail-above`:
-    exit 0, 0 regressed after the baseline refresh. `call_meta` scores 30.0 (cc 5, at the threshold,
-    passes); `meta_arg` 20.0
-- pytest `test_data_edge.py test_gen_data_edge_vectors.py test_vendored_fixtures.py`: 141 passed
-    (the video ragged vector is "differs from iscc-core" via `diverges`; meta agrees with iscc-core)
-- Node `npm test` after `napi build`: 182 pass / 0 fail. `wasm-pack test --node` data_edge: 8 passed
-- `mvn clean test` (after `cargo build -p iscc-jni`): exit 0, DataEdgeTest XML 8 tests 0 failures
-- `CGO_ENABLED=0 go test ./...` + `go vet` + `gofmt -l`: clean
-- .NET: 153 passed. Ruby `bundle exec rake test`: 165 runs, 0 failures
-- Swift (Linux recipe, `/tmp/swifttc`): 30 tests, 0 failures. Kotlin `./gradlew test --rerun-tasks`:
-    DataEdgeTest XML `tests="6" failures="0" errors="0"`
-- C (`gcc -Wall -Wextra -std=c99`, as ci.yml): 104 passed, rows of both sections PASS. C++ CMake
-    with `SANITIZE_ADDRESS=ON` (cmake via `uvx cmake`, none in the container): 112 passed
-- Mutation check on every surface (`/tmp` script: meta iscc + meta data URL, video iscc, ragged
-    `error` → `outputs`): all three vectors red on each of the 12 surfaces, then restored. Meta-only
-    mutation reds `field meta` on Rust, Go, Swift
-- Regeneration is a byte no-op (`cmp` against the tracked render); the python3 count assertion exits
-    0; `mise run check` exits 0; `prek --hook-stage pre-push` on the generator, its test and the
-    Rust harness exits 0
+- [x] `cargo test -p iscc-lib --test test_data_edge` — 7 passed (default, `--no-default-features`,
+    `--no-default-features --features text-processing`, `--all-features`); pytest on the three files
+    141 passed; `cargo llvm-cov` + `cargo crap … --fail-regression --fail-above` exit 0 (0
+    regressed, 157 unchanged)
+- [x] Node `npm test` after a fresh `napi build` 182 pass; `wasm-pack test --node` data_edge 8
+    passed; `mvn clean test` 116 run, 0 failures (DataEdgeTest 8); Go `go test ./...`, `go vet`,
+    `gofmt -l` clean; .NET 153 passed; Ruby 165 runs, 0 failures
+- [x] Swift (Linux recipe) 30 tests, 0 failures; Kotlin `./gradlew test --rerun-tasks`, JUnit XML of
+    `DataEdgeTest`: `tests="6" failures="0" errors="0"`
+- [x] C test (gcc as in `ci.yml`) 104 passed, C++ CMake build with `SANITIZE_ADDRESS=ON` 112 passed;
+    each prints PASS for the three new rows and the two new negatives
+- [x] Generator rerun leaves `data_edge_vectors.h` unchanged; the count assertion exits 0
+- [x] `mise run check` exits 0; `cargo clippy --workspace --all-targets -- -D warnings` clean
 
-**Next:** Both `normal` `[human]` issues ("No shared vector pins raw `&`, `<`, `>`, U+2028 and
-U+2029 in canonical `meta` JSON", "Ragged video frame signatures are rejected by the core but no
-shared vector pins it") can close. Then the remaining `normal` `[audit]` issues, the C FFI
-`(NULL, 0)` behaviour change first.
+Probes beyond next.md (2 of 3):
+
+- The meta vector's four outputs match `iscc_lib` and iscc-core 1.5.0. Escaping any single one of
+    `&`, `<`, `>`, U+2028, U+2029 in the canonical bytes changes the `iscc` (measured through a
+    data-URL `meta`), so the four surfaces that return only the ISCC string detect the defect too
+- A mutation of only the expected `meta` data URL reds Python, Ruby and Kotlin with "field meta"
+    (the handoff claimed it for Rust, Go and Swift)
+
+**Issues found:**
+
+- Filed `normal`: "Four data-edge harnesses and a generator test reject valid `gen_meta_code_v0`
+    vectors". The napi, WASM, JNI and .NET uncompared sets lack `description`, and
+    `test_meta_row_renders_object_as_json_text` requires every `meta` input to be an object. Today's
+    fixture is green; a later vector would need a harness edit, against "A vector costs one edit"
+- Fixed in this review (comment only): the C negative row's comment said "the same object written
+    with escaped `&` and `<`"; the row holds a different object, as the C++ comment says
+- Not filed: the Python ragged-frame error text ("frame_sigs[1] has length 381, expected 380")
+    differs from the core's. Harnesses never match error text, and the binding's own check is out of
+    scope by next.md
+
+**Codex review:** Two P2 findings, both confirmed by reading the code and filed as the issue above.
+Codex ran the suites and reported all 12 surfaces green on the committed fixture.
+
+**Next:** The new `normal` `[review]` issue is the smallest open item: five test files, no library
+code, and the four affected suites plus pytest prove it. After that the `normal` `[audit]` issues,
+the C FFI `(NULL, 0)` behaviour change first and alone.
 
 **Notes:**
 
-- The C/C++ `meta` field carries the JSON text from `json.dumps(meta, ensure_ascii=False)`, so the C
-    test passes raw U+2028/U+2029 bytes into the core; the other harnesses pass whatever their
-    serializer writes (Gson/System.Text.Json raw text, `JSON.stringify`, `JSON.generate`). Every
-    surface agrees, which confirms the core parses before it canonicalizes
-- `call_meta` in the Rust harness sits at cc 5 = CRAP 30.0, at the `--fail-above` limit. A sixth `?`
-    there would red CI
-- C/C++ test: an empty description is passed as `NULL` / `std::nullopt`, matching each surface's
-    `data.json` conformance test
-- No surface disagreed with a vector; no `except` entries, no core or binding changes
+- The Swift harness ran only on Linux here. The `swift` job on `macos-15` is the first Darwin run of
+    the two sections; check it in the CI run of this push
+- `call_meta` in `crates/iscc-lib/tests/test_data_edge.rs` scores CRAP 30.0, exactly the
+    `--fail-above` limit. One more `?` or branch in it reds CI: split it instead
+- A data-edge `meta` input is a JSON object, because iscc-core reads a string `meta` as a data URL.
+    C and C++ receive it as `json.dumps(…, ensure_ascii=False)` text from the generator
+- issues.md is at 295 lines and learnings.md at 200: a new entry needs an equal cut

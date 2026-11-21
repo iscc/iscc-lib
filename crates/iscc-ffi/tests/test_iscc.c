@@ -735,7 +735,7 @@ int main(void) {
                   "data_edge negative: alg_simhash output mismatch fails");
     }
     {
-        /* The Meta-Code of the same object written with escaped `&` and `<`. */
+        /* The Meta-Code of a different object, against the raw-JCS row's expected code. */
         const struct iscc_edge_gen_meta_code_v0_vector meta_mismatch = {
             "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {"Hello", 5}, {"", 0},
             {"{\"t\":\"a&b\"}", 11}, 64, {"ISCC:AAAWKLHFXO3IKDKI", 21}};

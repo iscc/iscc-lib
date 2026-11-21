@@ -58,11 +58,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **C/C++ read `data-edge.json` from a generated header** (219): `gen_data_edge_vectors.py` renders
     `crates/iscc-ffi/tests/data_edge_vectors.h`; a vector = JSON edit + regen. **A new section is
     one unsplittable 12-surface fan-out** (226): each harness and the generator fail closed on it.
-    Checks over generated source tokenize escapes, split on lines, and tally visited rows
-- **Perf-gate tooling installs on demand, NOT in the devcontainer**: `mise run bench:iai:check` dies
-    until `apt-get install valgrind` + `cargo install --locked iai-callgrind-runner@0.16.1` (250)
-- **A docs page lives in FOUR places** — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
-    `nav`, `ORDERED_PAGES`, `docs/llms.txt` — all gated by `scripts/check_docs_nav.py` (145/146).
+    Checks over generated source tokenize escapes, split on lines, and tally visited rows. **A
+    harness's uncompared set holds EVERY `data.json` output key its result type lacks**, not only
+    the keys today's vectors carry (252: `description` missed on four meta harnesses); a `meta`
+    input is a JSON object, because iscc-core reads a string `meta` as a data URL
+- **Perf-gate tooling is NOT in the devcontainer** (250): `mise run bench:iai:check` needs
+    `apt-get install valgrind` + `cargo install --locked iai-callgrind-runner@0.16.1`
+- **A docs page lives in FOUR places**, all gated by `scripts/check_docs_nav.py` (145/146).
     **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
 - **Devcontainer push**: `git -c credential.helper='!gh auth git-credential' push`
 
@@ -161,11 +163,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     range (incl. `next.md`, per-agent `MEMORY*.md`), so one non-conforming file rejects the batch
     although `git commit` passed. Unblock by reformatting + amending
 - **Never write an exact count, substring `grep -c`, unverified CLI flag, or unverified
-    `#[deprecated]` claim into a criterion** (139: `ruff format --check` saw 155 not 153; 148:
-    `--fail-above 30.0` is a `cargo crap` syntax error; 168: a "must not appear" grep banned the
-    *undeprecated* `Env::byte_array_from_slice`, reverted 169). Confirm attributes in
-    `~/.cargo/registry/src/*/<crate>-<ver>/`; assert the *gate* (exit code); copy gate lines from
-    `ci.yml`
+    `#[deprecated]` claim into a criterion** (139, 148, 168: a "must not appear" grep banned an
+    *undeprecated* API, reverted 169). Confirm attributes in the crate source under
+    `~/.cargo/registry/src/`; assert the *gate* (exit code); copy gate lines from `ci.yml`
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
     (142: an unworkable rule; 143: two false claims shipped into published docs). advance implements
     the *intent* and documents any deviation; review re-derives every "never/always" claim

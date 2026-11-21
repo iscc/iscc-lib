@@ -87,8 +87,9 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **Bumps** (generated artifact, MSRV, lockfile, wrapper, framework major) and **security-pass /
     advisory-bump steps (235)** → `dep-refresh-reviews.md`
 - **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table (215-221)**, new
-    data-edge SECTION = 12-surface script (226), **data-edge rule / validator / C-generator (236)**,
-    **harness-compare fan-out (237)** → `binding-reviews.md`
+    data-edge SECTION = 12-surface script (226) + **diff each new `UNCOMPARED` row against the
+    function's `data.json` keys (252: Codex caught a missed key)**, **validator / C-generator
+    (236)**, **harness-compare fan-out (237)** → `binding-reviews.md`
 - **C++ wrapper-only (227)**, **JNI error-path (230)**, **verbatim code-move (231)**,
     **test-harness-only (232)**, **WASM return-shape (234)**, **Ruby gem packaging (239–241)** →
     `binding-reviews.md`
