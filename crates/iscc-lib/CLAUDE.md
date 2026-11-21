@@ -54,8 +54,8 @@ require the `text-processing` feature. `gen_meta_code_v0`, `json_to_data_url`, `
 **Rules:**
 
 - Adding to Tier 1 requires deliberate review
-- Tier 1 is what `lib.rs` re-exports at the crate root; algorithm and utility modules stay
-    `pub(crate)`
+- Tier 1 is what `lib.rs` defines or re-exports at the crate root; algorithm and utility modules
+    stay `pub(crate)`
 - Bindings translate the API; they must not define semantics
 - Do not expose Rust enums directly in bindings (they break when variants are added)
 - All result structs use `#[non_exhaustive]` so fields can be added in minor versions

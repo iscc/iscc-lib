@@ -29,19 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-28 — uniffi 0.32 accepted with a raised source-build floor on unpublished `iscc-uniffi`
-
-**Decision:** the workspace pins `uniffi = "0.32"` even though its default graph
-(`cargo_metadata 0.23.1` → rustc 1.86, `cargo-platform 0.3.3` → 1.91) makes `iscc-uniffi`
-unbuildable on the inherited `rust-version = "1.85"`. **Why:** `iscc-uniffi` is `publish = false`
-and exists only to emit the Swift/Kotlin bindings; the published crate still passes
-`cargo +1.85.0 check -p iscc-lib --locked`, every CI job builds on stable, and no gate or consumer
-promise moves. Holding at 0.31 to protect a floor nothing verifies would have blocked the last
-authorized v0.6.0 dependency item. **Alternatives:** raise the workspace `rust-version` — rejected,
-that is the published MSRV promise and Titusz's call; pin the transitives back — rejected, uniffi
-0.32 requires them. **Context:** iteration 172; the now-false inherited declaration is filed as a
-`normal` issue proposing an explicit per-crate `rust-version` on `iscc-uniffi`.
-
 ## 2026-07-29 — JS-number ISCC-IDv1 surfaces take all params as `f64` and validate before narrowing
 
 **Decision:** on the two JS-number surfaces (napi, wasm) `gen_iscc_id_v1` takes `timestamp`,
@@ -394,3 +381,15 @@ depending on the published `iscc-lib` crate (the gem could only be released afte
 checkout could not test it); publishing no source gem (Ruby 3.4+ and unlisted platforms would need a
 checkout); an unconditional dependency plus a rewritten lock-link step in `release.yml` (nothing
 tests that workflow before a release). **Context:** iterations 239-240.
+
+## 2026-11-21 — Per-crate `CLAUDE.md` files carry no file lists; a rule is stated against a file name
+
+**Decision:** the directory trees and `File`/`Module` tables are removed from every
+`crates/*/CLAUDE.md` and `packages/*/CLAUDE.md`. A fact that a list entry carried stays only when it
+is a rule or the file's origin ("generated, do not edit", "must sit next to `Cargo.toml`",
+"gitignored build output"), written as a sentence that names the file. **Why:** the lists repeated
+`git ls-files`. Every listed path existed, so the drift was missing entries, and an existence check
+would have passed while fixing nothing. **Alternatives:** extending `scripts/check_spec_paths.py` to
+these files with a completeness check (needs a parser and an exemption list for three formats, and
+every new file would then need a `CLAUDE.md` edit); keeping the lists unchecked (breaks the "Derived
+facts are checked or not written" hygiene rule). **Context:** iteration 246.

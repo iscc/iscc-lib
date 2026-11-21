@@ -138,19 +138,17 @@ conversion and the doc comment matches it.
 
 File lists in guidance repeat what `git ls-files` says, and nothing checks them for completeness.
 Rule: `.claude/context/README.md` → "Hygiene rules" → "Derived facts are checked or not written".
-Counts, test tallies, file sizes and line numbers are gone from `.claude/context/specs/` and the
-per-crate `CLAUDE.md` files, and the Tier 1 symbol list is gated (`scripts/check_tier1_docs.py`).
-One part of the problem is left: the directory trees and module tables.
+One part of the problem is left: the directory trees in `.claude/context/specs/`. Counts, the Tier 1
+symbol list and the per-crate `CLAUDE.md` files are not part of it.
 
-- In the specs, `scripts/check_spec_paths.py` checks that a listed path exists. It does not check
-    that a tree lists every file, so a new file is missing from the tree without a failure.
-- In the per-crate and per-package `CLAUDE.md` files nothing checks the fenced directory trees or
-    the module tables (`crates/iscc-lib`, `crates/iscc-rb`, `packages/go`). A renamed or deleted
-    file stays listed.
+`scripts/check_spec_paths.py` checks that a path listed in a spec tree exists. It does not check
+that a tree lists every file, so a new file is missing from the tree without a failure. The script's
+floors fail when it finds zero trees, so removing the trees needs a change to the script and to
+`tests/test_check_spec_paths.py`.
 
-Resolved when every file list in `.claude/context/specs/` and the per-crate `CLAUDE.md` files is
-either removed in favour of wording that cannot go stale, or covered by a check that fails on a
-listed path that does not exist and, where the list claims to be complete, on a missing entry.
+Resolved when every file list in `.claude/context/specs/` is either removed in favour of wording
+that cannot go stale, or covered by a check that fails on a listed path that does not exist and,
+where the list claims to be complete, on a missing entry.
 
 ## The pkg-config example in the C/C++ how-to says `Version: 0.2.0` `low` [review]
 

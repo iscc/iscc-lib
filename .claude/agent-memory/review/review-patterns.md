@@ -726,3 +726,18 @@ rest:
 - The gates that must stay green are `check_tier1_docs.py`, `check_spec_paths.py`,
     `check_ci_job_table.py`: all in `mise run check`, so no extra run is needed.
 - Codex finishes a docs-only review in about 3 minutes and adds nothing here.
+
+## File-list removal step (246 — trees + `File`/`Module` tables out of 12 `CLAUDE.md`, ~8 min, PASS)
+
+Docs-only, no gate covers what matters. Three probes did the work, all from the diff:
+
+- **Rule-retention sweep**: for each removed entry whose comment is a rule or origin note ("checked
+    in", "DO NOT EDIT", "gitignored", "must be at", "required by"), `git grep` the file for the
+    fact. A different wording counts ("never edit this file").
+- **Each added sentence against its source**: `git check-ignore -v <path>` for every "gitignored"
+    claim (the match may be a broad rule such as `*.so`, not the literal name the handoff quotes),
+    the manifest for a lib or module name, the build file for an include path.
+- **Leftover scan**: an `awk` pass for directory-looking lines inside any fence, plus `git grep` for
+    the removed heading names across the repo (nothing may link to a deleted section).
+- A sentence that next.md suggested word for word can still be wrong: "Tier 1 is what `lib.rs`
+    re-exports" (the gen functions are defined there). Fixed in step 9.

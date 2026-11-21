@@ -188,11 +188,11 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
     "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)
 - **Spec paths are gated** (224/228): `scripts/check_spec_paths.py` checks tree entries + backticked
-    paths against `git ls-files` (never disk) — specs only, existence only; `CLAUDE.md` trees are
-    ungated. `*` stays in one segment, `**` crosses `/`. Fix the spec, or list build output in
-    `GENERATED`. **A negative assertion must reach the branch it names** (228). **Removing a derived
-    fact (245)**: a count grep is a floor; join lines (`tr '\n' ' '`) for wrapped + spelled-out
-    counts and check each reworded sentence against the code
+    paths against `git ls-files` (never disk) — specs only, existence only. Per-crate `CLAUDE.md`
+    files hold no file lists (246): a rule is prose against a file name. `*` = one segment, `**`
+    crosses `/`. Fix the spec, or list build output in `GENERATED`. **A negative assertion must
+    reach the branch it names** (228). **Removing a derived fact (245)**: a count grep is a floor;
+    join lines (`tr '\n' ' '`) for wrapped counts; check each reworded sentence against the code
 - **Tier 1 doc parity is gated** (233): `scripts/check_tier1_docs.py` derives the symbols from
     `lib.rs`, NAMES only; an unparsable crate-root `pub` fails (242): add a derive rule or an
     `EXCLUDED_ITEMS` entry. `rust-api.md` signatures: `tests/test_rust_api_signatures.py`; doc

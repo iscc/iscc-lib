@@ -108,7 +108,8 @@ Audit/Perf/Semver/CRAP), `binding-reviews.md` (per-binding cmds + `-Xcheck:jni`)
     `review-patterns.md` "Doc-parity gate (233)"
 - **Derived-fact removal step (245, ~10 min)**: wrap-insensitive sweep incl. untouched files; each
     reworded sentence is a new claim to check → `review-patterns.md` "Derived-fact removal step
-    (245)"
+    (245)". **File-list removal (246, ~8 min)**: rule-retention `git grep` per removed entry,
+    `git check-ignore -v` per "gitignored" claim → same file, "File-list removal step (246)"
 - **WASM return-shape step (234, ~10 min)**: `#[wasm_bindgen_test]` never crosses the JS glue —
     probe the built `--target nodejs` pkg from Node + read the `.d.ts` → `binding-reviews.md`
 - **data-edge rule / validator / C-generator step (236, ~8 min)**: two pytest files, regen +
