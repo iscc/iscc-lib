@@ -552,3 +552,21 @@ sessions stay opted out. **Alternatives:** Fable 5.2 as the model for define-nex
 chosen; all-Opus without advisor — not chosen. Watch `model_costs` in iterations.jsonl: advisor
 calls re-read the transcript uncached and count toward `ROLE_BUDGET_USD`. **Context:** interactive
 CID setup review, 2026-11-17; supersedes the effort levels in the 2026-10-17 entry.
+
+## 2026-11-18 — Base32 decoding stays strict: no padding, zero spare bits
+
+**Decision:** Every codec surface rejects base32 with `=` padding or with non-zero unused trailing
+bits in the last character, although iscc-core 1.5.0 accepts both. The Python ISCC-SEQ differential
+test asserts this divergence explicitly instead of matching the reference's reject set, and the
+pure-Go port must follow (issues.md). **Why:** human decision. No encoder emits these strings:
+IEP-0001 defines the canonical form as RFC 4648 base32 without padding, and RFC 4648 §3.5 lets
+decoders reject non-zero pad bits. The reference accepts them only because it re-pads and calls
+Python's `b32decode`; its own docstring says "without padding" and its `iscc_validate` regex rejects
+`=`. Spare bits make real codes ambiguous: a 2-unit ISCC-CODE has one, so
+`ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` decodes to the same bytes as `…CNGI`, and two strings for one
+ISCC break keys, deduplication and signatures. Rust has rejected both since the codec landed
+(`b23aee2`), so every release already behaves this way; matching the reference would be the
+behaviour change. Same reasoning as the archived 2026-07-24 entry on rejecting aliasing strings.
+**Alternatives:** a lenient decoder for `encode_seq` only (two decoders in one codec — rejected);
+match the reference codec-wide (widens the Tier 1 input domain and reintroduces aliasing —
+rejected). **Context:** escalated by review in iteration 195; interactive session 2026-11-18.

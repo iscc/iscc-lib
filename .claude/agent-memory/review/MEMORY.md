@@ -73,7 +73,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     `iscc_lib` from a `git archive` copy (`go test -v`, or the output is hidden) →
     `review-patterns.md` "Go-only serializer fix (251)"
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
-    `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go` (empty)
+    `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go`; API-shape (261) → topic
 - **Test-fixture / vector-file only (141/149, ~5 min)**: Rust-only + feature matrix + the four
     fixture mutations → `review-patterns.md`
 - **Docs-only**: `mise run check` + clippy + `mise run version:check` + `uv run zensical build`;

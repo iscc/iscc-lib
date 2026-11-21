@@ -196,28 +196,6 @@ Resolved when the result of the 10.0 leg does not depend on the latest LTS (the 
 a CI run shows no runtime outside the leg's list, or the roll-forward setting cannot pick one), the
 matrix comment matches, and the three .NET jobs are green.
 
-## Go `TextTrim` panics on a negative `nbytes` and Go hashers accept `Push` after `Finalize` `normal` [audit]
-
-Verified by the iteration-260 audit at 3040298.
-
-- `TextTrim(text string, nbytes int)` (`packages/go/utils.go:99-104`): for `nbytes < 0` the
-    `len(text) <= nbytes` check fails and `text[:nbytes]` panics, the empty string included. Every
-    other surface takes an unsigned type or rejects the value (decision of 2026-11-21);
-    `utils_test.go` has no negative case.
-- `DataHasher.Finalize` (`packages/go/code_data.go:61-66`) appends the tail feature but keeps the
-    tail and sets no finalized state, so `Push(a); Finalize; Push(b); Finalize` returns a Data-Code
-    that differs from `GenDataCodeV0(a+b)` with no error. `InstanceHasher`
-    (`code_instance.go:35-57`) has no finalized state either. `docs/howto/go.md:284` calls both
-    single-use, while Python, napi, WASM, UniFFI and JNI reject the misuse.
-
-**Why it matters:** a library panic and a silently wrong code on input that every sibling surface
-rejects. **Suggested fix:** reject or clamp a negative `nbytes`; give both hashers a finalized flag
-so `Push`/`Finalize` after `Finalize` return an "already finalized" error; Go tests for each case.
-**Scope estimate:** 3 non-test files.
-
-Resolved when `TextTrim(x, -1)` returns without a panic and both Go hashers reject use after
-`Finalize`, each pinned by a Go test.
-
 ## `alg_cdc_chunks` accepts an `avg_chunk_size` whose parameter maths overflows `normal` [audit]
 
 Verified by the iteration-260 audit at 3040298. `alg_cdc_chunks` (`crates/iscc-lib/src/cdc.rs:178`)
@@ -279,7 +257,9 @@ Verified by the iteration-260 audit at 3040298. CID-fixable (decision of 2026-11
     `codec.rs:105-131` defines `V1` and admits `(Id, V1)`.
 - `specs/python-bindings.md:301-304`: text and video paths "still hold the GIL";
     `iscc-py/src/lib.rs` wraps them in `.detach(` (:138, :190, :217, :241).
-- `specs/go-bindings.md:122-136`: the IDv1 rename "exists only on `develop`"; it shipped in 0.6.0.
+- `specs/go-bindings.md`: the IDv1 rename "exists only on `develop`" (it shipped in 0.6.0);
+    "Streaming functions also accept `io.Reader`" and the two `io.Reader` bullets (no such API in
+    `packages/go`).
 - `crates/iscc-napi/CLAUDE.md:36,66`, `crates/iscc-py/CLAUDE.md:66`, `crates/iscc-wasm/CLAUDE.md:43`
     name `iscc_lib::Error`; the type is `IsccError`.
 - `packages/go/CLAUDE.md`: :91-117 keeps a test-file list (missing three files) that the 2026-11-21

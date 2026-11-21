@@ -1,51 +1,62 @@
-## 2026-11-21 — Go `TextTrim` stops panicking on a negative `nbytes`; Go hashers reject use after `Finalize`
+## 2026-11-21 — Review of: Go `TextTrim` stops panicking on a negative `nbytes`; Go hashers reject use after `Finalize`
 
-**Done:** `TextTrim` returns `""` for any `nbytes <= 0` (before, `text[:-1]` panicked). `DataHasher`
-and `InstanceHasher` carry a `finalized` flag. `Push` now returns `error`, and after `Finalize` both
-`Push` and `Finalize` return `iscc: <Type> already finalized` without touching state. Every `Push`
-call in the package checks the error (`GenDataCodeV0`, `GenInstanceCodeV0`, `GenSumCodeV0`).
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/go/utils.go`: `TextTrim` non-positive guard + doc sentence
-- `packages/go/code_data.go`: `finalized` field, `Push(...) error`, guard in `Push`/`Finalize`,
-    type/method docs state the single-use rule, `GenDataCodeV0` wraps the `Push` error
-- `packages/go/code_instance.go`: same for `InstanceHasher` / `GenInstanceCodeV0`
-- `packages/go/code_sum.go`: both `Push` errors checked and wrapped (`iscc: push … code: %w`)
-- `docs/howto/go.md`: both streaming examples check `Push`'s error; the single-use sentence now says
-    `Push`/`Finalize` return an "already finalized" error and that a failed `Finalize` consumes
-- `.claude/context/specs/go-bindings.md`: Streaming Types block shows `Push(data []byte) error` and
-    `Finalize(bits uint32)`, plus a two-line single-use paragraph
-- Tests: `utils_test.go` (3: `("abc",-1)`, `("",-1)`, `("abc",0)`), `code_data_test.go` and
-    `code_instance_test.go` (4 each: Push after Finalize, second Finalize → error + nil result,
-    failed `Finalize(63)` then `Finalize(64)` → error, `Push(a);Push(b)` == one-shot gen)
+**Summary:** `TextTrim` returns `""` for `nbytes <= 0` instead of panicking. `DataHasher` and
+`InstanceHasher` carry a `finalized` flag: `Push` now returns `error`, and after the first
+`Finalize` both methods return `iscc: <Type> already finalized` without touching state. The diff
+stays inside the scope (4 Go source files, `docs/howto/go.md`, the Streaming Types block of the Go
+spec), touches no gate, and every `Push` call in the package checks the error. The `[audit]` issue
+is resolved and deleted.
 
 **Verification:**
 
-- `CGO_ENABLED=0 go test -count=1 ./...` → `ok` (conformance + data-edge included)
-- `go vet ./...` clean; `gofmt -l .` printed nothing
-- `go test -run 'TextTrim' -v` → 11 PASS incl. the 3 new negative/zero cases, no panic
-- `go test -run 'Hasher' -v` → 8 PASS (4 per hasher, both after-Finalize cases per hasher)
-- `grep -n 'already finalized'` matches in `code_data.go`, `code_instance.go`, `docs/howto/go.md`
-- `mise run check` → exit 0
+- [x] `CGO_ENABLED=0 go test -count=1 ./...` in `packages/go` passes — `ok`, conformance and
+    data-edge included
+- [x] `go vet ./...` clean and `gofmt -l .` prints nothing
+- [x] `go test -run 'TextTrim' -v ./...` — 11 PASS, including `("abc",-1)`, `("",-1)` and
+    `("abc",0)`; no panic
+- [x] `go test -run 'Hasher' -v ./...` — 8 PASS; per hasher: `Push` after `Finalize` → error, second
+    `Finalize` → error and nil result, failed `Finalize(63)` then `Finalize(64)` → error,
+    `Push(a); Push(b)` equals the one-shot function
+- [x] `grep -n 'already finalized'` matches in `code_data.go`, `code_instance.go` and
+    `docs/howto/go.md`
+- [x] `mise run check` exits 0
 
-**Next:** The Ruby floor 3.1 → 3.3 (decided, release blocker), or the `.NET` LTS pre-pass issue
-(`skip-lts-prepass: true`, CI-only proof).
+Extra checks: `TextTrim` and `SlidingWindow` are the only exported Go functions with an `int`
+parameter (grep over the non-test sources), and both now handle bad values. The handoff's claim that
+the Python binding consumes on a failed `finalize` holds (`self.inner.take()` runs before the core
+call in `crates/iscc-py/src/lib.rs`).
+
+**Issues found:**
+
+- Not filed (style): the Go tab in `docs/tutorials/getting-started.md:496` still calls
+    `hasher.Push(buf[:n])` as a statement. It compiles, the error cannot occur there, and the
+    example already drops every other error (`f, _ :=`, `result, _ :=`).
+- Added to the existing spec-drift `[audit]` issue instead of a new entry: `specs/go-bindings.md`
+    says three times that the Go API takes `io.Reader`; `packages/go` has no such API.
+
+**Codex review:** no actionable findings. It confirmed the guards, the updated callers and the
+`TextTrim` boundary, and ran `go test` and `go vet` green.
+
+**Next:** 16 `normal` issues block v0.8.0. Candidates, in the order I would take them:
+
+1. **Ruby floor 3.1 → 3.3** (`[human]`, decided, has a `**Spec:**` field). Touches the gemspec,
+    `ci.yml`, `release.yml`, the `Gemfile` minitest hold and four doc files, so it is over 6 files:
+    scope it as a fan-out of one decided behaviour, or split CI/gemspec from docs. Research first
+    which Ruby series the cross-gem image builds (web lookup is allowed).
+2. **`alg_cdc_chunks` overflow** (`[audit]`): a Tier 1 function panics in debug builds. Needs a new
+    `data-edge.json` vector; check first whether an existing section can hold it, because a new
+    section is a 12-surface fan-out.
+3. A docs batch of small `normal` entries that need no research: the `KAA` Sum-Code prefix, the
+    pkg-config `Version: 0.2.0`, and the Ruby `to_int` doc sentence.
 
 **Notes:**
 
-- **Rule chosen for a failed `Finalize`:** the flag is set at entry, so ANY first `Finalize`
-    consumes the hasher, even on invalid `bits`; the retry returns "already finalized". next.md's
-    first sentence said "sets the flag only on success" but then offered this alternative ("pick one
-    rule"). I picked it because it matches every sibling surface: Rust `finalize(self)` consumes,
-    and the Python binding `take()`s `inner` before encoding (`crates/iscc-py/src/lib.rs` ~648). It
-    also avoids the double-append trap in `DataHasher.Finalize` with no extra code. Pinned by
-    `Test{Data,Instance}HasherFailedFinalizeIsFinal`.
-- API: `Push` gaining an `error` return is source-compatible for statement calls but breaks any
-    caller that stores the method value as `func([]byte)`. Go has no Tier-1 crate API here; this is
-    the `packages/go` surface only, as next.md scoped.
-- Out of scope, left alone: `docs/tutorials/getting-started.md:496` still calls
-    `hasher.Push(buf[:n])` as a statement (compiles, ignores the error). The spec block's next line
-    "Streaming functions also accept `io.Reader`" is false (no `io.Reader` API in `packages/go`);
-    belongs to the spec/`CLAUDE.md` audit issue.
-- No Rust touched; no CRAP/iai impact.
+- New decisions.md entry (2026-11-21, Go hashers): the first `Finalize` consumes even when it fails,
+    and `Push` returns `error`. The `Push` change breaks a stored method value or a caller's own
+    `interface{ Push([]byte) }`; accepted in 0.x. The release notes for v0.8.0 should name it.
+- The decisions.md append went over 400 lines, so the runner's `archive_overflow` rotated the oldest
+    entries into `decisions-archive.md` (their titles stay binding).
+- No Rust changed: CRAP and iai gates are unaffected.
+- learnings.md is at its 200-line budget; nothing was added this round.

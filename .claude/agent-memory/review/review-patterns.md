@@ -1000,3 +1000,23 @@ The long form of the index entries as they stood before the compaction in iterat
     `binding-reviews.md`; CI/Audit/Perf/Semver/CRAP gates → `gate-reviews.md`
 - **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in
     `gate-reviews.md`); stage `decisions-archive.md` too (195)
+
+## Go API-shape step (261)
+
+A Go-only step that changes a method signature or adds misuse guards (261: `Push` gained an `error`
+return, hashers got a `finalized` flag, `TextTrim` clamps `nbytes <= 0`). About 5 minutes, PASS.
+
+- Run the Go-only commands from the index, then the `-run '<Name>' -v` criteria with
+    `grep -E '^(--- |PASS|FAIL|ok|panic)'` so a panic is visible.
+- **Sibling call sites**: `git grep -n -E '\.Push\(' | grep -v _test.go` finds every caller in the
+    package AND in docs. A docs example that calls the method as a statement still compiles; that is
+    a style note, not an issue.
+- **Go source compatibility**: adding a return value keeps statement calls compiling but breaks a
+    stored method value and a caller's own interface. The advance handoff must name it; record the
+    accepted break in decisions.md (0.x) and tell define-next to put it in the release notes.
+- **Exported `int` parameters** (the only ones that can go negative):
+    `git grep -n -E '^func .*[A-Z][A-Za-z0-9]*\(.*\bint\b' -- 'packages/go/*.go'` minus tests. At
+    261 these are `TextTrim` and `SlidingWindow`, both guarded.
+- "Matches every sibling surface" is a claim: read one sibling (`crates/iscc-py/src/lib.rs`,
+    `inner.take()` before the core call) instead of trusting it.
+- The repository has no `CHANGELOG`; a Go API break is recorded in decisions.md and the handoff.

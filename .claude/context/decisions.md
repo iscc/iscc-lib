@@ -29,24 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-18 — Base32 decoding stays strict: no padding, zero spare bits
-
-**Decision:** Every codec surface rejects base32 with `=` padding or with non-zero unused trailing
-bits in the last character, although iscc-core 1.5.0 accepts both. The Python ISCC-SEQ differential
-test asserts this divergence explicitly instead of matching the reference's reject set, and the
-pure-Go port must follow (issues.md). **Why:** human decision. No encoder emits these strings:
-IEP-0001 defines the canonical form as RFC 4648 base32 without padding, and RFC 4648 §3.5 lets
-decoders reject non-zero pad bits. The reference accepts them only because it re-pads and calls
-Python's `b32decode`; its own docstring says "without padding" and its `iscc_validate` regex rejects
-`=`. Spare bits make real codes ambiguous: a 2-unit ISCC-CODE has one, so
-`ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ` decodes to the same bytes as `…CNGI`, and two strings for one
-ISCC break keys, deduplication and signatures. Rust has rejected both since the codec landed
-(`b23aee2`), so every release already behaves this way; matching the reference would be the
-behaviour change. Same reasoning as the archived 2026-07-24 entry on rejecting aliasing strings.
-**Alternatives:** a lenient decoder for `encode_seq` only (two decoders in one codec — rejected);
-match the reference codec-wide (widens the Tier 1 input domain and reintroduces aliasing —
-rejected). **Context:** escalated by review in iteration 195; interactive session 2026-11-18.
-
 ## 2026-11-18 — macOS CI and release jobs pin `macos-15` (arm64), not `macos-latest`
 
 **Decision:** Every macOS job in `ci.yml` and `release.yml` runs on `macos-15`, the arm64 successor
@@ -394,3 +376,16 @@ review and lose its findings; routing experiments through advance and review kee
 durable at no new runner cost. A riskiest-assumption section in every next.md was rejected: template
 headings get filled by default. **Revisit:** remove both if about 50 iterations pass with no spike
 and no web lookup. **Context:** human decision (Titusz, interactive session, 2026-11-21).
+
+## 2026-11-21 — Go hashers: `Push` returns `error`, and the first `Finalize` consumes even when it fails
+
+**Decision:** `DataHasher`/`InstanceHasher` set `finalized` at the entry of `Finalize`, so a call
+that fails on an invalid `bits` still consumes the hasher; `Push` gained an `error` return.
+`TextTrim` returns `""` for `nbytes <= 0` and keeps its `(string, int) string` signature. **Why:**
+consuming on any first `Finalize` is what Rust (`finalize(self)`) and the Python binding (`take()`
+before encoding) do, and it removes the retry that would append the Data-Code tail feature twice. An
+`error` return keeps statement calls compiling; it breaks only a stored method value or a caller's
+own `interface{ Push([]byte) }`, accepted in 0.x. **Alternatives:** flag set only on success (needs
+a non-mutating feature list, and differs from every sibling); a panic or a silent no-op in `Push`;
+`TextTrim` taking `uint` or returning an error (breaks callers passing an `int`); an exported
+sentinel error (the package has none). **Context:** iteration 261.
