@@ -588,9 +588,9 @@ public static partial class IsccLib
     /// arrays, so every jagged-array method marshals, validates and frees the same way.
     /// </summary>
     /// <remarks>
-    /// <see cref="Pointers"/> and <see cref="Lengths"/> hold at least one slot, so <c>fixed</c>
-    /// never yields a NULL pointer for an empty input. The native side reads a NULL pointer with
-    /// a count of 0 as an empty input as well. The real element count is <see cref="Count"/>.
+    /// For an empty input, <c>fixed</c> over <see cref="Pointers"/> and <see cref="Lengths"/>
+    /// yields a NULL pointer. The native side reads a NULL pointer with a count of 0 as an empty
+    /// input.
     /// </remarks>
     private sealed class PinnedRows : IDisposable
     {
@@ -599,10 +599,10 @@ public static partial class IsccLib
         /// <summary>Number of rows in the input (the count passed to the native call).</summary>
         public int Count { get; }
 
-        /// <summary>Addresses of the pinned rows; length is <c>max(Count, 1)</c>.</summary>
+        /// <summary>Addresses of the pinned rows; length is <see cref="Count"/>.</summary>
         public nint[] Pointers { get; }
 
-        /// <summary>Element counts of the pinned rows; length is <c>max(Count, 1)</c>.</summary>
+        /// <summary>Element counts of the pinned rows; length is <see cref="Count"/>.</summary>
         public nuint[] Lengths { get; }
 
         /// <summary>Allocate empty slots for <paramref name="count"/> rows.</summary>
@@ -610,8 +610,8 @@ public static partial class IsccLib
         {
             Count = count;
             _handles = new GCHandle[count];
-            Pointers = new nint[Math.Max(count, 1)];
-            Lengths = new nuint[Math.Max(count, 1)];
+            Pointers = new nint[count];
+            Lengths = new nuint[count];
         }
 
         /// <summary>Pin every row of <paramref name="rows"/>.</summary>

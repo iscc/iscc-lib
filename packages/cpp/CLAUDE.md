@@ -31,8 +31,8 @@ output.
 | `iscc_IsccByteBufferArray`       | `std::vector<std::vector<uint8_t>>` | `detail::UniqueByteBufferArray` guard + `.to_vec()`    |
 | `const char*` (input)            | `const std::string&`                | `detail::checked_c_str()` (throws on embedded NUL)     |
 | `const char*` (optional input)   | `const std::optional<std::string>&` | Ternary: `opt ? detail::checked_c_str(*opt) : nullptr` |
-| `const uint8_t*` + `size_t`      | `const std::vector<uint8_t>&`       | always `detail::safe_data()` + `.size()`               |
-| `const int32_t*` + `size_t`      | `const std::vector<int32_t>&`       | always `detail::safe_data()` + `.size()`               |
+| `const uint8_t*` + `size_t`      | `const std::vector<uint8_t>&`       | `.data()` + `.size()`                                  |
+| `const int32_t*` + `size_t`      | `const std::vector<int32_t>&`       | `.data()` + `.size()`                                  |
 | `uint32_t bits`                  | `uint32_t bits = 64`                | Direct pass-through with default                       |
 | `bool`                           | `bool`                              | Direct pass-through                                    |
 | `iscc_FfiDataHasher*`            | `iscc::DataHasher` class            | RAII class with opaque handle                          |
@@ -147,11 +147,9 @@ cleanup even if an exception is thrown during field copying.
     changed:
     `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h`
 - **Empty vector data pointers**: `std::vector::data()` may return `nullptr` for an empty vector.
-    The C FFI reads a NULL pointer with a count of 0 as an empty input, so both pointer forms give
-    the same result. Always pass an input vector as `detail::safe_data()` (a single template that
-    returns a static read-only sentinel address for empty vectors), never as `.data()`. This
-    includes the pointer and length arrays built inside list wrappers. `tests/test_cpp_safe_data.py`
-    (pytest, repo root) fails on any other `.data()` in `iscc.hpp`.
+    The C FFI reads a NULL pointer with a count of 0 as an empty input on every pointer+length
+    parameter, inner rows of list inputs included, so input vectors, inner rows and the pointer and
+    length arrays built inside list wrappers all pass `.data()` directly.
 - **`LD_LIBRARY_PATH` required at runtime**: the shared library is not statically linked into tests.
     On Linux, set `LD_LIBRARY_PATH` to the directory containing `libiscc_ffi.so`. On macOS, use
     `DYLD_LIBRARY_PATH`. On Windows, the DLL must be on `PATH` or in the working directory.

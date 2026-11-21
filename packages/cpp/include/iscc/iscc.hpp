@@ -37,17 +37,6 @@ public:
 
 namespace detail {
 
-/// Return a non-null data pointer for any input vector, using a static read-only
-/// sentinel address when `v` is empty. `std::vector::data()` may return NULL for an
-/// empty vector. The C FFI reads a NULL pointer with a count of 0 as an empty input, so
-/// the sentinel only keeps every pointer passed to the FFI non-null. The FFI never
-/// dereferences the sentinel because the count passed alongside it is 0.
-template <typename T>
-inline const T* safe_data(const std::vector<T>& v) {
-    static const T sentinel{};
-    return v.empty() ? &sentinel : v.data();
-}
-
 /// Return the C string of `s` for a C FFI call, or throw IsccError if `s` contains an
 /// embedded NUL character. The C FFI reads strings up to the first NUL, so an
 /// unchecked string would be silently truncated.
@@ -293,7 +282,7 @@ inline std::string text_collapse(const std::string& text) {
 
 /// Encode bytes as base64url (RFC 4648 section 5, no padding).
 inline std::string encode_base64(const std::vector<uint8_t>& data) {
-    detail::UniqueString s(iscc_encode_base64(detail::safe_data(data), data.size()));
+    detail::UniqueString s(iscc_encode_base64(data.data(), data.size()));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
@@ -317,7 +306,7 @@ inline std::string encode_component(uint8_t mtype, uint8_t stype, uint8_t versio
                                     uint32_t bit_length,
                                     const std::vector<uint8_t>& digest) {
     detail::UniqueString s(iscc_encode_component(mtype, stype, version, bit_length,
-                                                  detail::safe_data(digest), digest.size()));
+                                                  digest.data(), digest.size()));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
@@ -373,7 +362,7 @@ inline std::vector<uint8_t> encode_seq(const std::vector<std::string>& units) {
         }
         ptrs.push_back(units[i].c_str());
     }
-    detail::UniqueByteBuffer buf(iscc_encode_seq(detail::safe_data(ptrs), ptrs.size()));
+    detail::UniqueByteBuffer buf(iscc_encode_seq(ptrs.data(), ptrs.size()));
     detail::check_ptr(buf.buf.data);
     return buf.to_vec();
 }
@@ -382,7 +371,7 @@ inline std::vector<uint8_t> encode_seq(const std::vector<std::string>& units) {
 ///
 /// Throws IsccError if `data` is empty, malformed, or has trailing bytes.
 inline std::vector<std::string> decode_seq(const std::vector<uint8_t>& data) {
-    detail::UniqueStringArray arr(::iscc_decode_seq(detail::safe_data(data), data.size()));
+    detail::UniqueStringArray arr(::iscc_decode_seq(data.data(), data.size()));
     detail::check_ptr(arr.ptr);
     return arr.to_vec();
 }
@@ -405,11 +394,11 @@ inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>&
     ptrs.reserve(digests.size());
     lens.reserve(digests.size());
     for (const auto& d : digests) {
-        ptrs.push_back(detail::safe_data(d));
+        ptrs.push_back(d.data());
         lens.push_back(d.size());
     }
     detail::UniqueByteBuffer buf(iscc_alg_simhash(
-        detail::safe_data(ptrs), detail::safe_data(lens), digests.size()));
+        ptrs.data(), lens.data(), digests.size()));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("alg_simhash failed");
@@ -420,7 +409,7 @@ inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>&
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 inline std::vector<uint8_t> alg_minhash_256(const std::vector<uint32_t>& features) {
     detail::UniqueByteBuffer buf(
-        iscc_alg_minhash_256(detail::safe_data(features), features.size()));
+        iscc_alg_minhash_256(features.data(), features.size()));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("alg_minhash_256 failed");
@@ -433,7 +422,7 @@ inline std::vector<std::vector<uint8_t>> alg_cdc_chunks(const std::vector<uint8_
                                                          bool utf32,
                                                          uint32_t avg_chunk_size) {
     detail::UniqueByteBufferArray arr(
-        iscc_alg_cdc_chunks(detail::safe_data(data), data.size(), utf32, avg_chunk_size));
+        iscc_alg_cdc_chunks(data.data(), data.size(), utf32, avg_chunk_size));
     if (!arr.arr.buffers) {
         detail::check_error();
         throw IsccError("alg_cdc_chunks failed");
@@ -461,11 +450,11 @@ inline std::vector<uint8_t> soft_hash_video_v0(
     ptrs.reserve(frame_sigs.size());
     lens.reserve(frame_sigs.size());
     for (const auto& f : frame_sigs) {
-        ptrs.push_back(detail::safe_data(f));
+        ptrs.push_back(f.data());
         lens.push_back(f.size());
     }
     detail::UniqueByteBuffer buf(iscc_soft_hash_video_v0(
-        detail::safe_data(ptrs), detail::safe_data(lens), frame_sigs.size(), bits));
+        ptrs.data(), lens.data(), frame_sigs.size(), bits));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("soft_hash_video_v0 failed");
@@ -501,7 +490,7 @@ inline TextCodeResult gen_text_code_v0(const std::string& text, uint32_t bits = 
 /// Generate an Image-Code from pixel data.
 inline ImageCodeResult gen_image_code_v0(const std::vector<uint8_t>& pixels,
                                           uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_image_code_v0(detail::safe_data(pixels),
+    detail::UniqueString s(iscc_gen_image_code_v0(pixels.data(),
                                                    pixels.size(), bits));
     detail::check_ptr(s.ptr);
     return ImageCodeResult{s.to_string()};
@@ -518,7 +507,7 @@ inline ImageCodeResult gen_image_code_v0(const uint8_t* pixels, size_t len,
 /// Generate an Audio-Code from a Chromaprint feature vector.
 inline AudioCodeResult gen_audio_code_v0(const std::vector<int32_t>& cv,
                                           uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_audio_code_v0(detail::safe_data(cv), cv.size(), bits));
+    detail::UniqueString s(iscc_gen_audio_code_v0(cv.data(), cv.size(), bits));
     detail::check_ptr(s.ptr);
     return AudioCodeResult{s.to_string()};
 }
@@ -531,11 +520,11 @@ inline VideoCodeResult gen_video_code_v0(
     ptrs.reserve(frame_sigs.size());
     lens.reserve(frame_sigs.size());
     for (const auto& f : frame_sigs) {
-        ptrs.push_back(detail::safe_data(f));
+        ptrs.push_back(f.data());
         lens.push_back(f.size());
     }
     detail::UniqueString s(iscc_gen_video_code_v0(
-        detail::safe_data(ptrs), detail::safe_data(lens), frame_sigs.size(), bits));
+        ptrs.data(), lens.data(), frame_sigs.size(), bits));
     detail::check_ptr(s.ptr);
     return VideoCodeResult{s.to_string()};
 }
@@ -548,7 +537,7 @@ inline MixedCodeResult gen_mixed_code_v0(const std::vector<std::string>& codes,
     for (const auto& c : codes) {
         ptrs.push_back(detail::checked_c_str(c));
     }
-    detail::UniqueString s(iscc_gen_mixed_code_v0(detail::safe_data(ptrs), codes.size(), bits));
+    detail::UniqueString s(iscc_gen_mixed_code_v0(ptrs.data(), codes.size(), bits));
     detail::check_ptr(s.ptr);
     return MixedCodeResult{s.to_string()};
 }
@@ -556,7 +545,7 @@ inline MixedCodeResult gen_mixed_code_v0(const std::vector<std::string>& codes,
 /// Generate a Data-Code from raw byte data.
 inline DataCodeResult gen_data_code_v0(const std::vector<uint8_t>& data,
                                         uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_data_code_v0(detail::safe_data(data), data.size(), bits));
+    detail::UniqueString s(iscc_gen_data_code_v0(data.data(), data.size(), bits));
     detail::check_ptr(s.ptr);
     return DataCodeResult{s.to_string()};
 }
@@ -572,7 +561,7 @@ inline DataCodeResult gen_data_code_v0(const uint8_t* data, size_t len,
 /// Generate an Instance-Code from raw byte data.
 inline InstanceCodeResult gen_instance_code_v0(const std::vector<uint8_t>& data,
                                                 uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_instance_code_v0(detail::safe_data(data),
+    detail::UniqueString s(iscc_gen_instance_code_v0(data.data(),
                                                       data.size(), bits));
     detail::check_ptr(s.ptr);
     return InstanceCodeResult{s.to_string()};
@@ -594,7 +583,7 @@ inline IsccCodeResult gen_iscc_code_v0(const std::vector<std::string>& codes,
     for (const auto& c : codes) {
         ptrs.push_back(detail::checked_c_str(c));
     }
-    detail::UniqueString s(iscc_gen_iscc_code_v0(detail::safe_data(ptrs), codes.size(), wide));
+    detail::UniqueString s(iscc_gen_iscc_code_v0(ptrs.data(), codes.size(), wide));
     detail::check_ptr(s.ptr);
     return IsccCodeResult{s.to_string()};
 }
@@ -686,7 +675,7 @@ public:
 
     /// Push data into the hasher from a vector.
     void update(const std::vector<uint8_t>& data) {
-        update(detail::safe_data(data), data.size());
+        update(data.data(), data.size());
     }
 
     /// Finalize and return the Data-Code result.
@@ -736,7 +725,7 @@ public:
 
     /// Push data into the hasher from a vector.
     void update(const std::vector<uint8_t>& data) {
-        update(detail::safe_data(data), data.size());
+        update(data.data(), data.size());
     }
 
     /// Finalize and return the Instance-Code result.

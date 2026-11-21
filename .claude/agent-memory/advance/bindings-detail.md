@@ -26,10 +26,10 @@ metadata:
     gitignored `build-uv/`). Detail → MEMORY-archive.md
 - Embedded NUL (213): .NET `ToNativeUtf8` / C++ `detail::checked_c_str` throw; route every new
     string input through them (bare `.c_str()` / `GetBytes` truncates at NUL)
-- C++ empty vectors (227): every vector input → `detail::safe_data` (one template, read-only
-    sentinel); never `.data()` (`{}` → FFI "must not be NULL" hides the core error)
-- .NET jagged arrays (220): `PinnedRows` in `IsccLib.cs` (`fixed` on `T[0]` is NULL → pad). Filter
-    tests: `--filter FullyQualifiedName~X`
+- C++ empty vectors (273): `safe_data` sentinel REMOVED; every vector input passes `.data()` (FFI
+    reads `(NULL, 0)` as empty since 255). Empty-inner-row probe: test 42b in `test_iscc.cpp`
+- .NET jagged arrays (220): `PinnedRows` in `IsccLib.cs`, arrays sized `Count` (padding removed
+    273). Filter tests: `--filter FullyQualifiedName~X`
 - npm metadata (214): `@iscc/wasm` package.json comes from `crates/iscc-wasm/Cargo.toml` via
     wasm-pack (0.13.1 resolves `license.workspace`); `@iscc/lib` package.json is committed as-is.
     taplo aligns trailing comments to the longest line in a block — put comments on their own line

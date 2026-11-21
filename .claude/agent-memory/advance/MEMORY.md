@@ -170,4 +170,4 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 
 ## Bindings detail → [bindings-detail.md](bindings-detail.md)
 
-- Ruby source gem / Ruby `i32` / .NET jagged + NUL / C++ `safe_data` / npm metadata gotchas
+- Ruby source gem / Ruby `i32` / .NET jagged + NUL / C++ empty vectors / npm metadata gotchas

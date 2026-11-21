@@ -1,55 +1,50 @@
-## 2026-11-21 — Review of: Saturate UniFFI `text_trim`'s `nbytes` and correct its doc comment
+## 2026-11-21 — Remove the C++ `safe_data` sentinel and the .NET `PinnedRows` padding
 
-**Verdict:** PASS
+**Done:** Deleted `detail::safe_data` from `iscc.hpp`. All 21 call sites now pass `.data()` (input
+vectors, `ptrs`/`lens` arrays, inner rows, both hasher `update(vector)` overloads). .NET
+`PinnedRows` sizes `Pointers`/`Lengths` to `count`, and its remarks and property docs no longer say
+`max(Count, 1)`. Removed `tests/test_cpp_safe_data.py`. Added one empty-inner-row test on each
+surface and updated both CLAUDE.md files.
 
-**Summary:** UniFFI `text_trim` now saturates `nbytes` with
-`usize::try_from(nbytes).unwrap_or(usize::MAX)`, so a limit above `u32::MAX` no longer trims the
-text on 32-bit Android. The doc comment describes what the core does, and both generated bindings
-carry it. The diff is one Rust file plus the two regenerated files, exactly as scoped.
+**Files changed:**
+
+- `packages/cpp/include/iscc/iscc.hpp`: helper removed, `detail::safe_data(x)` → `x.data()`
+- `packages/cpp/tests/test_iscc.cpp`: 42b now checks that `alg_simhash({std::vector<uint8_t>{}})`
+    either returns or throws, and never with a message containing "must not be NULL"
+- `packages/dotnet/Iscc.Lib/IsccLib.cs`: `new nint[count]` / `new nuint[count]`, docs rewritten
+- `packages/dotnet/Iscc.Lib.Tests/ArrayInputTests.cs`: `AlgSimhash_EmptyInnerRow_NeverReportsNull`
+    (uses `Record.Exception`, compares against `FfiNullMessage`)
+- `packages/cpp/CLAUDE.md`: the two table rows now say `.data()` + `.size()`. The "Empty vector data
+    pointers" pitfall now says `(NULL, 0)` is an empty input everywhere, and the pytest reference is
+    gone
+- `packages/dotnet/CLAUDE.md`: the "Empty spans" bullet describes `Count`-sized arrays
+- `tests/test_cpp_safe_data.py`: deleted (`git rm`)
 
 **Verification:**
 
-- [x] `cargo test -p iscc-uniffi` passes, including the two new tests: `30 passed; 0 failed`
-- [x] `cargo test -p iscc-uniffi --target i686-unknown-linux-musl text_trim`: `2 passed; 0 failed`
-- [x] `grep -rn "word boundary" crates/iscc-uniffi/src packages/swift/Sources packages/kotlin/src`
-    prints nothing, exit 1 (`git grep -i` over the whole tree outside `.claude` is empty too)
-- [x] Generated-file diff touches only the `text_trim` doc-comment block and the checksum constant
-    `46357` → `61011` in each file
-- [x] `cargo clippy -p iscc-uniffi --all-targets -- -D warnings` clean; `mise run check` exit 0
-- [x] Kotlin `packages/kotlin/gradlew -p packages/kotlin test --rerun-tasks`: `BUILD SUCCESSFUL`,
-    JUnit 25 tests, 0 failures. Swift `swift test` (6.1.2 at `/tmp/swifttc`): 30 tests, 0 failures
+- `grep -rn "safe_data" packages/ tests/ docs/` printed nothing (exit 1).
+    `grep -n "Math.Max" packages/dotnet/Iscc.Lib/IsccLib.cs` printed nothing. A repo-wide grep for
+    `test_cpp_safe_data` outside `.git`/`target`/`.claude` found nothing
+- C++ ASAN: `cargo build -p iscc-ffi`, then cmake Debug with `-DSANITIZE_ADDRESS=ON` (build dir
+    `/tmp/cppbuild273`; `ldd` shows `libasan.so.8` linked). `test_iscc` exit 0, "118 passed, 0
+    failed", including `PASS: alg_simhash(one empty inner row) does not report NULL`
+- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`: "Passed: 155,
+    Failed: 0". With `--filter EmptyInnerRow` alone: 1 passed
+- `uv run pytest -q`: `817 passed`
+- `mise run check`: exit 0
 
-Probes beyond next.md (3):
-
-- Regeneration is a no-op: fresh bindgen output in `/tmp` equals the committed Kotlin file modulo
-    trailing whitespace, and the Swift file except for the end-of-file newline. The new checksum is
-    what bindgen produces
-- Negative control re-run in a `git archive` copy: with the old `nbytes as usize` on i686 the
-    `(1 << 32) | 5` test fails with `left: "Hello"`, `right: "Hello World"`; the `u64::MAX` test
-    passes under the old cast too, as the advance handoff says
-- Sibling casts: napi and wasm narrow an `f64` with `as usize`, which saturates in Rust; FFI, Python
-    and Ruby take `usize` directly. No other surface has this defect
-
-**Issues found:**
-
-- (none filed). Note: the wrap test only bites on a 32-bit target, and no CI job runs Rust tests
-    there (decision of 2026-11-21 on 32-bit coverage), so on CI it is green under either cast. That
-    is settled, not a new issue
-
-**Codex review:** No actionable findings. It confirmed the native, 32-bit and Swift runs and that
-both checksum constants match the rebuilt library. Its Kotlin run was blocked by a build-directory
-conflict with my own gradle run in the same tree.
-
-**Next:** the decided cleanup "C++ `safe_data` and .NET `PinnedRows` padding guard a NULL rejection
-the FFI no longer has" (remove both, keep the C++ and .NET empty-input tests green). After that the
-generated-artifacts gate: the UniFFI outputs are in a known-clean state as of this commit (a fresh
-regeneration differs only in whitespace), which is the starting point that gate needs.
+**Next:** the generated-artifacts gate (stale `.so`, undiffed `NativeMethods.g.cs`/UniFFI outputs),
+as next.md planned.
 
 **Notes:**
 
-- Resolved and deleted: "UniFFI `text_trim` truncates `nbytes` on 32-bit Android and documents a
-    word boundary". The generated-artifacts entry lost its cross-reference to it
-- No API change (`text_trim(text: String, nbytes: u64) -> String`), core untouched, no CRAP or iai
-    impact. A `///` edit on a UniFFI export changes its checksum constant in both generated files
-    (learnings.md)
-- learnings.md is at its 200-line budget: every new bullet needs an equal cut
+- The core's `alg_simhash` accepts a single empty digest (the equal-length check needs ≥2 rows), so
+    both new tests take the "returns" path. In C++ the empty inner row really does reach the FFI as
+    `(NULL, 0)` (libstdc++ `data()` on an empty vector is nullptr). In .NET, `GCHandle` pinning an
+    empty array most likely gives a non-null address, so that test guards against regressions but
+    probably does not reach the NULL path. I did not check this on .NET
+- No change to the FFI, `iscc.h` or `NativeMethods.g.cs`, and the core is untouched, so CRAP and iai
+    are not affected. The `ThrowIfAnyNull` checks are kept. The `alg_minhash_256({})` 32-byte
+    assertion is unchanged
+- The learnings.md "Binding input-marshalling traps" bullet still calls `PinnedRows` padding and C++
+    `safe_data` "redundant". Both are now gone, so the reviewer may want to trim that clause

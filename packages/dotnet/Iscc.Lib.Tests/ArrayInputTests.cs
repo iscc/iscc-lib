@@ -67,6 +67,14 @@ public class ArrayInputTests
         Assert.DoesNotContain(FfiNullMessage, ex.Message);
     }
 
+    [Fact]
+    public void AlgSimhash_EmptyInnerRow_NeverReportsNull()
+    {
+        var ex = Record.Exception(() => IsccLib.AlgSimhash([Array.Empty<byte>()]));
+        if (ex is not null)
+            Assert.DoesNotContain(FfiNullMessage, ex.Message);
+    }
+
     // ── Null array ──────────────────────────────────────────────────────────
 
     [Fact]

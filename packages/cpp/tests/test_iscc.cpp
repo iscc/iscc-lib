@@ -697,6 +697,17 @@ int main() {
             fail("encode_component(empty digest) does not report NULL", msg.c_str());
         }
     }
+    try {
+        iscc::alg_simhash({std::vector<uint8_t>{}});
+        pass("alg_simhash(one empty inner row) does not report NULL");
+    } catch (const iscc::IsccError& e) {
+        const std::string msg = e.what();
+        if (msg.find("must not be NULL") == std::string::npos) {
+            pass("alg_simhash(one empty inner row) does not report NULL");
+        } else {
+            fail("alg_simhash(one empty inner row) does not report NULL", msg.c_str());
+        }
+    }
     {
         iscc::DataHasher dh;
         dh.update(std::vector<uint8_t>{});

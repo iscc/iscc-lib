@@ -55,9 +55,9 @@ not objects). Then the Tier-1 33→35 doc/count sweep (like IDv1 iter 190).
     empty array = NULL → wrong FFI error); `DecodeSeq` needs none (len-0 checked first). Tests:
     `ConformanceTests.cs` (`DecodeBytes`, 3 seq theories incl. byte round trip) + `SeqTests.cs`
 - **C++ DONE (iter 207)**: `iscc::encode_seq` / `decode_seq` in `iscc.hpp` codec block, next to
-    `iscc_decompose`; `detail::safe_data(const std::vector<const char*>&)` sentinel for empty units;
-    throws on embedded `'\0'` (unit index in message). Tests 39-45 in `test_iscc.cpp` (`from_hex`,
-    `assert_throws_with` helpers). No -Wall in CMake: check warnings with
+    `iscc_decompose`; `.data()` for empty units (sentinel removed 273); throws on embedded `'\0'`
+    (unit index in message). Tests 39-45 in `test_iscc.cpp` (`from_hex`, `assert_throws_with`
+    helpers). No -Wall in CMake: check warnings with
     `g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -fsyntax-only -Ipackages/cpp/include   -Icrates/iscc-ffi/include packages/cpp/tests/test_iscc.cpp`.
     Other C++ c_str() sites truncate at NUL (probed). Mutation probe: copy header to /tmp, sed out
     the guard, compile with -I/tmp

@@ -151,8 +151,8 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 - `fixed` over an empty span yields a null pointer. The C FFI treats a NULL pointer with length 0 as
     an empty input on every pointer+length parameter, so call sites pass `fixed` pointers with no
     special case for empty spans, and an empty input surfaces the core's own error (if any).
-- `PinnedRows` sizes `Pointers` and `Lengths` to `max(Count, 1)`, so a jagged `[]` never pins an
-    empty array either
+- `PinnedRows` sizes `Pointers` and `Lengths` to `Count`, so a jagged `[]` passes a NULL pointer
+    with count 0, and an empty inner row passes its own pointer with length 0
 
 ## Common Pitfalls
 
