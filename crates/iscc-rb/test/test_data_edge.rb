@@ -48,6 +48,14 @@ module DataEdge
     [inputs[0].map { |d| decode_bytes(d) }, *inputs.drop(1)]
   end
 
+  # Prepare `gen_meta_code_v0` inputs: an empty description becomes nil and a meta
+  # Hash is serialized to the JSON string the binding takes.
+  def self.prepare_meta(inputs)
+    name, description, meta, *rest = inputs
+    meta_arg = meta.is_a?(Hash) ? JSON.generate(meta) : meta
+    [name, (description.empty? ? nil : description), meta_arg, *rest]
+  end
+
   # Section name -> [raw call, converter, optional input preparer]. Preparing and
   # converting stay outside the raw call so neither error ever counts as a rejection;
   # `bytes:` inputs are decoded only by a section's preparer.
@@ -66,6 +74,15 @@ module DataEdge
     ],
     "alg_simhash" => [
       ->(inputs) { IsccLib.alg_simhash(inputs[0]) }, method(:bytes_value), method(:prepare_simhash)
+    ],
+    "gen_meta_code_v0" => [
+      lambda do |inputs|
+        IsccLib.gen_meta_code_v0(inputs[0], description: inputs[1], meta: inputs[2], bits: inputs[3])
+      end,
+      method(:convert_hash), method(:prepare_meta)
+    ],
+    "gen_video_code_v0" => [
+      ->(inputs) { IsccLib.gen_video_code_v0(inputs[0], bits: inputs[1]) }, method(:convert_hash)
     ]
   }.freeze
 
