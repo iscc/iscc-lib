@@ -1,82 +1,89 @@
 # Next Work Package
 
-## Step: Kotlin plugins resolve from Maven Central; the .NET 10 leg skips setup-dotnet's LTS pre-pass
+## Step: CDC parameter maths matches the reference for every `avg_chunk_size` (Rust core + Go)
 
 ## Goal
 
-Get CI green again and keep two CI legs from failing because of outside state the repository does
-not pin. The Kotlin job on `332373c` went red when the Gradle plugin portal could not serve
-`kotlin-gradle-plugins-bom:2.4.10`. The issue "The .NET 10 CI leg depends on which .NET is the
-latest LTS" (`normal` [review]) breaks the 10.0 leg once .NET 12 ships.
+Fix the `normal` [audit] issue "`alg_cdc_chunks` accepts an `avg_chunk_size` whose parameter maths
+overflows": Rust `alg_cdc_params` and Go `algCdcParams` compute the reference's
+`(min, max, center, mask_s, mask_l)` for every `u32` value, with no panic, no wrap, and the same
+result on both. This is the core half; the `data-edge.json` vector follows as its own fan-out step.
 
 ## Alternatives Considered
 
-- **Chosen:** CI robustness for Kotlin + .NET (2 files): CI red comes first, and both legs share the
-    same defect (the result depends on whatever the outside source serves today)
-- **Rejected:** `alg_cdc_chunks` overflow (Rust + Go + vector): a correctness fix, but a step that
-    lands on red CI cannot be attributed. It is next
+- **Chosen:** reference-matching parameter maths in Rust and Go. It is a correctness defect in a
+    public Tier 1 function (debug panic, release `mask_s = 0`), and the handoff names it. Matching
+    the reference beats an upper-bound rejection: no `diverges` marker, no new error, no API change
+- **Rejected:** Python video frame `OverflowError` (1 file, Python-only). Smaller and independent,
+    but a binding-local exception class matters less than a core function that panics
+- **Rejected:** adding the `alg_cdc_chunks` section to `data-edge.json` in this step. A new section
+    makes all 12 harnesses and the C generator fail closed (learnings 226), and "core changes go
+    first and alone" forbids combining a core fix with a fan-out
 
 ## Scope
 
-- **Modify**: `packages/kotlin/settings.gradle.kts`, `.github/workflows/ci.yml` (`dotnet-test` job:
-    the `setup-dotnet` input and the matrix comment)
-- **Reference**: `packages/kotlin/build.gradle.kts`, `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`
-    (`Runtime_MatchesExpectedMajorVersion`), failed run
-    https://github.com/iscc/iscc-lib/actions/runs/44908416407
+- **Modify**: `crates/iscc-lib/src/cdc.rs` (`alg_cdc_params` + its unit tests + the `alg_cdc_chunks`
+    doc comment if it mentions limits), `packages/go/cdc.go` (`algCdcParams`)
+- **Tests**: `crates/iscc-lib/src/cdc.rs` `mod tests`, `packages/go/cdc_test.go`
+- **Maybe**: `.crap-baseline.json` (only if `alg_cdc_params` changes score; via
+    `mise run coverage && mise run crap:baseline`), `.iai-baseline.json` (only if `bench:iai:check`
+    fails, which is not expected)
+- **Reference**: `reference/iscc-core/iscc_core/cdc.py` (`alg_cdc_params`, `alg_cdc_offset`)
 
 ## Not In Scope
 
-- Bumping Kotlin, Gradle, JNA or any other pin. The resolution path is the fix, not the versions
-- The three `setup-dotnet` steps in `release.yml` (lines ~955/1019/1065): they install only `8.0`
-    into the default dir with no roll-forward or runtime-major assertion, so the latest LTS cannot
-    change what they produce. They do not have this defect; leave them alone
-- Raising the `net8.0` floor (human call) or changing the matrix legs or roll-forward values
-- Adding a `dependencyResolutionManagement` block or moving the `repositories {}` block out of
-    `build.gradle.kts`
+- The `data-edge.json` `alg_cdc_chunks` section and its 12 harnesses: the next step, as a fan-out
+- An upper bound or any new rejection of large `avg_chunk_size`: the reference accepts every value
+    from 2 up, and so must we
+- The Rust `utf32` `cut_point == 0` fallback (`cut_point = remaining.len().min(4)`), and changes to
+    `gear_scan` / `alg_cdc_offset` or their `unsafe` blocks
+- Binding crates: they pass the `u32` through unchanged and need no edit
 
 ## Implementation Notes
 
-**Kotlin.** No `pluginManagement` block exists, so Gradle resolves `kotlin("jvm")` only through
-`plugins.gradle.org`. The portal answers with a 303 to `repo.maven.apache.org`, and on the failed
-run the BOM lookup failed inside that hop (log: "Could not parse POM
-…plugins.gradle.org/…/kotlin-gradle-plugin-2.4.10.pom > Could not find
-…kotlin-gradle-plugins-bom:2.4.10", searched only on the portal). Gradle resolves a POM's parent/BOM
-from the repository where the child was found. The plugin marker
-(`org/jetbrains/kotlin/jvm/org.jetbrains.kotlin.jvm.gradle.plugin/2.4.10/…pom`), the plugin and the
-BOM all return 200 from `repo1.maven.org` (probed 2026-11-21). Add the block at the top of
-`settings.gradle.kts`, with `mavenCentral()` **first** and `gradlePluginPortal()` second as the
-fallback, and a short comment explaining why. `release.yml`'s Kotlin jobs build from the same
-directory, so they pick up the block automatically.
+Reference (Python ints): `min = avg // 4`, `max = avg * 8`, `offset = min + ceil(min / 2)`,
+`center = avg - offset`, `bits = round(log2(avg))`, `mask_s = 2**(bits+1) - 1`,
+`mask_l = 2**(bits-1) - 1`. `bits` reaches 31 from avg ≈ 1518500250 and 32 from ≈ 3037000500.
 
-**.NET.** `actions/setup-dotnet@v6` has `skip-lts-prepass` (action.yml at `v6`: "When true, skips
-the LTS runtime pre-pass and installs only the requested dotnet-version. Default: false").
-`src/installer.ts` at `v6`, lines ~810-840: the pre-pass runs
-`install-dotnet --runtime dotnet --channel LTS --skip-non-versioned-files`, and the real install
-that follows also passes `--skip-non-versioned-files`. With the pre-pass skipped, the `dotnet` muxer
-therefore comes from the first SDK listed (8.0). It picks the highest `host/fxr` present, so on the
-10.0 leg SDK 10 should still drive the build. This is unverified locally and CI is the check: the
-10.0 leg's `Runtime_MatchesExpectedMajorVersion` must pass. Set `skip-lts-prepass: true` under
-`with:` on the `dotnet-test` step. Rewrite the matrix comment so it says what actually holds: a
-private install dir plus a skipped pre-pass, so a leg holds only the runtimes it lists. Do not name
-a .NET 12 date.
-
-These are CI and Gradle config files only. No Rust changes, so the CRAP and iai gates are untouched.
+- **Masks:** `pattern` is `(pattern >> 1) + gear[b]` with every gear value < 2^31, so it stays below
+    2^32 in the reference too. A mask with 32 or more bits therefore tests `pattern == 0`, the same
+    as `u32::MAX`. Saturate: Rust `1u32.checked_shl(n).map_or(u32::MAX, |v| v - 1)` (`checked_shl`
+    returns `None` for `n >= 32`). `mask_l` needs at most 31 bits, but use the same helper for both.
+    **Go already saturates**: in `maskS = (1 << (bits+1)) - 1` the constant takes type `uint32`, and
+    a Go shift of 32 or more gives 0, so 0 − 1 = `0xFFFFFFFF`. Leave Go's masks alone; pin them with
+    a test
+- **`max_size`:** `avg * 8` overflows `u32` from 2^29 (Rust: debug panic; Go: wrap). Compute it in
+    `u64` and saturate to the platform int (Rust `usize::try_from(..).unwrap_or(usize::MAX)`; Go
+    `int64` clamped to `math.MaxInt`). `ma` is only ever used as `min(ma, size)` with
+    `size <= buffer.len()`, so saturation equals the reference on 32-bit targets (wasm32, Go 386)
+- `min`, `offset`, `center` cannot overflow; keep their formulas
+- Expected tuples `(min, max, center, mask_s, mask_l)`, computed from the reference formulas:
+    - 2^29 = 536870912 → (134217728, 4294967296, 335544320, 1073741823, 268435455)
+    - 2147483647 → (536870911, 17179869176, 1342177280, 4294967295, 1073741823)
+    - 2^31 = 2147483648 → (536870912, 17179869184, 1342177280, 4294967295, 1073741823)
+    - 4294967295 → (1073741823, 34359738360, 2684354560, 4294967295 saturated, 2147483647)
+- Tests, the same four values on both surfaces: a parameter test asserting the tuples above (gate
+    the `max` assertion on a 64-bit `usize`/`int`, e.g. `#[cfg(target_pointer_width = "64")]` /
+    `strconv.IntSize == 64`), and an `alg_cdc_chunks` / `AlgCdcChunks` call on a small input (say 64
+    bytes) returning exactly one chunk equal to the input. In a debug build that call panicked
+    before the fix, so the Rust test is the regression proof
+- Hot path: `alg_cdc_params` runs once per `alg_cdc_chunks` call. Run `mise run bench:iai:check`
+    (CI-only gate) and the CI CRAP lines; if either moves, regenerate the baseline in this step,
+    never widen epsilon or threshold
 
 ## Verification
 
-- `grep -n 'pluginManagement' packages/kotlin/settings.gradle.kts` matches, and inside that block
-    `mavenCentral()` comes before `gradlePluginPortal()`
-- `cargo build -p iscc-uniffi && (cd packages/kotlin && ./gradlew test --refresh-dependencies)`
-    exits 0. Force the run: no "UP-TO-DATE"-only test task
-- `cd packages/kotlin && ./gradlew buildEnvironment --refresh-dependencies --info` shows
-    `kotlin-gradle-plugins-bom` downloaded from `repo.maven.apache.org`/`repo1.maven.org`, not from
-    `plugins.gradle.org` (quote the line in the handoff)
-- `grep -n 'skip-lts-prepass: true' .github/workflows/ci.yml` matches inside the `dotnet-test` job
-- `uv run python -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml'))"` exits 0,
-    and `mise run check` exits 0
+- `cargo test -p iscc-lib` passes, including the new tests for the four values above
+- `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean and
+    `cargo check -p iscc-lib --target wasm32-unknown-unknown` exits 0
+- `go test ./...` and `go vet ./...` in `packages/go` exit 0, including the new tests;
+    `GOARCH=386 go vet ./...` exits 0
+- `mise run bench:iai:check` exits 0
+- `mise run coverage` then the CI `cargo crap` command (copied from `ci.yml`) exits 0 against the
+    committed `.crap-baseline.json`
+- `mise run check` exits 0
 
 ## Done When
 
-All verification criteria pass, and the handoff tells review to confirm on the pushed run that the
-Kotlin job and both `dotnet-test` legs plus the `dotnet` aggregator are green, and that the 10.0
-leg's setup-dotnet log shows no `--channel LTS` install.
+Rust and Go return the reference's CDC parameters for 2^29, 2147483647, 2^31 and 4294967295 without
+a panic or wrap, all six criteria pass, and the handoff names the pending `data-edge.json` fan-out.

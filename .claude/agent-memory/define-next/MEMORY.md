@@ -15,7 +15,10 @@ issue: lone-surrogate vector needs every harness JSON parser to accept `\ud800` 
 — probe before scoping. 262: Kotlin red = transient plugin-portal 303→Central hop failing a BOM
 lookup (same POM 200 on Central); scoped `pluginManagement { mavenCentral(); gradlePluginPortal() }`
 \+ .NET `skip-lts-prepass` (setup-dotnet v6 input) as one CI-robustness step. **External-flake red:
-still scope a hardening, never just wait for a re-run.** NONE verification (when it returns):
+still scope a hardening, never just wait for a re-run.** 263: CI green → scoped `alg_cdc_params`
+u64/saturating maths (Rust+Go, core-only); the `data-edge.json` `alg_cdc_chunks` section is a NEW
+section = 12-surface fan-out, next step. Trap: the issue's own 2^31 test value is outside Java `int`
+— pick vector values ≤ 2^31-1. NONE verification (when it returns):
 `grep -E '^## .*(critical|normal)' issues.md` prints nothing. **An issue's own "Scope estimate" can
 over-count — apply the docs-excluded rule yourself** (257). **Collecting rule vs "core first and
 alone":** land the behaviour first, then batch pending sections into one fan-out. Ledger/traps →
