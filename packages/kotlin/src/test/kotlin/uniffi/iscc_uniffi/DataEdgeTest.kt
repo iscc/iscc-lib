@@ -135,6 +135,51 @@ object DataEdge {
     /** Convert an [IsccCodeResult] to a map of all its fields. */
     fun convertIsccCode(result: Any): Any = mapOf("iscc" to (result as IsccCodeResult).iscc)
 
+    /** Read a meta input: a JSON object is serialized, a string is passed as is. */
+    fun metaArg(inputs: JsonArray, index: Int): String {
+        val value = inputs.get(index)
+        return if (value.isJsonObject) value.toString() else str(inputs, index)
+    }
+
+    /** Prepare `genMetaCodeV0` (an empty description means none). */
+    fun prepareMeta(inputs: JsonArray): () -> Any {
+        val name = str(inputs, 0)
+        val description = str(inputs, 1).ifEmpty { null }
+        val meta = metaArg(inputs, 2)
+        val bits = bits(inputs, 3)
+        return { genMetaCodeV0(name, description, meta, bits) }
+    }
+
+    /** Convert a [MetaCodeResult] to a map of all its fields (an absent option maps to null). */
+    fun convertMeta(result: Any): Any {
+        val r = result as MetaCodeResult
+        return mapOf(
+            "iscc" to r.iscc, "name" to r.name, "description" to r.description,
+            "meta" to r.meta, "metahash" to r.metahash,
+        )
+    }
+
+    /** Read one frame signature; every value must be a JSON integer in the `Int` range. */
+    fun frame(item: JsonElement, index: Int): List<Int> {
+        require(item.isJsonArray) { "input $index holds a non-list frame" }
+        return item.asJsonArray.map { value ->
+            require(value.isJsonPrimitive && value.asJsonPrimitive.isNumber) { "input $index holds a non-number" }
+            value.asString.toInt()
+        }
+    }
+
+    /** Prepare `genVideoCodeV0` on the vector's frame signatures and bits. */
+    fun prepareVideo(inputs: JsonArray): () -> Any {
+        val value = inputs.get(0)
+        require(value.isJsonArray) { "input 0 is not an array" }
+        val frames = value.asJsonArray.map { frame(it, 0) }
+        val bits = bits(inputs, 1)
+        return { genVideoCodeV0(frames, bits) }
+    }
+
+    /** Convert a [VideoCodeResult] to a map of all its fields. */
+    fun convertVideo(result: Any): Any = mapOf("iscc" to (result as VideoCodeResult).iscc)
+
     /** Section name -> caller for every function section this harness handles. */
     val SECTIONS: Map<String, EdgeCaller> = mapOf(
         "iscc_decode" to EdgeCaller(::prepareDecode, ::convertDecode),
@@ -143,6 +188,8 @@ object DataEdge {
         "gen_mixed_code_v0" to EdgeCaller(::prepareMixed, ::convertMixed),
         "gen_iscc_code_v0" to EdgeCaller(::prepareIsccCode, ::convertIsccCode),
         "alg_simhash" to EdgeCaller(::prepareSimhash, ::convertSeq),
+        "gen_meta_code_v0" to EdgeCaller(::prepareMeta, ::convertMeta),
+        "gen_video_code_v0" to EdgeCaller(::prepareVideo, ::convertVideo),
     )
 
     /** Load and parse the vendored data-edge.json from the test resources. */
