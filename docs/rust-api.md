@@ -156,6 +156,8 @@ pub fn gen_video_code_v0<S: AsRef<[i32]> + Ord>(
 
 Produces an ISCC Content-Code for video from MPEG-7 frame signatures using WTA-Hash. Deduplicates
 frames and computes column-wise sums before hashing. Returns a `VideoCodeResult` with `iscc`.
+Returns `IsccError::InvalidInput` for an empty `frame_sigs` or for frame signatures of unequal
+length.
 
 ```rust
 use iscc_lib::gen_video_code_v0;
@@ -465,7 +467,8 @@ pub fn soft_hash_video_v0<S: AsRef<[i32]> + Ord>(
 
 Computes the raw similarity digest (`bits / 8` bytes) behind `gen_video_code_v0`: deduplicates the
 frame signatures, sums them column-wise and applies WTA-Hash. Returns `IsccError::InvalidInput` for
-an empty `frame_sigs`.
+an empty `frame_sigs` or for frame signatures of unequal length (iscc-core truncates to the shortest
+signature instead).
 
 ```rust
 use iscc_lib::soft_hash_video_v0;

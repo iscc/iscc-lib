@@ -126,6 +126,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - ISCC-SEQ #45: core (195) + all 11 surfaces bound (197-210, UniFFI last); docs swept 33→35 (211) →
     iscc-seq.md. iscc-ffi tests in `src/tests.rs` (231); exports MUST stay in lib.rs (csbindgen
     reads only it)
+- Video ragged input (250): `soft_hash_video_v0` / Go `SoftHashVideoV0` reject unequal frame-sig
+    lengths via private `check_frame_sig_lengths` (deliberate iscc-core deviation: ref truncates)
 - `alg_simhash` rejects `[]` (225, core + Go); generators keep 32 zeros via Rust `alg_simhash_inner`
     / Go unexported `algSimhash` — never call the public form from a generator
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type

@@ -719,10 +719,34 @@ pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<AudioCodeResult> {
     })
 }
 
+/// Check that every frame signature has the length of the first one.
+///
+/// Walks `frame_sigs` in input order and reports the first signature whose
+/// length differs from `frame_sigs[0]`. An empty slice passes.
+fn check_frame_sig_lengths<S: AsRef<[i32]>>(frame_sigs: &[S]) -> IsccResult<()> {
+    let Some(first) = frame_sigs.first().map(|s| s.as_ref().len()) else {
+        return Ok(());
+    };
+    match frame_sigs
+        .iter()
+        .map(|s| s.as_ref().len())
+        .enumerate()
+        .find(|&(_, n)| n != first)
+    {
+        Some((i, n)) => Err(IsccError::InvalidInput(format!(
+            "frame_sigs[{i}] has length {n}, expected {first}"
+        ))),
+        None => Ok(()),
+    }
+}
+
 /// Compute a similarity-preserving hash from video frame signatures.
 ///
 /// Deduplicates frame signatures, computes column-wise sums across all
 /// unique frames, then applies WTA-Hash to produce a digest of `bits/8` bytes.
+///
+/// Returns `IsccError::InvalidInput` for an empty `frame_sigs` or for frame
+/// signatures of unequal length (iscc-core truncates to the shortest instead).
 pub fn soft_hash_video_v0<S: AsRef<[i32]> + Ord>(
     frame_sigs: &[S],
     bits: u32,
@@ -732,6 +756,7 @@ pub fn soft_hash_video_v0<S: AsRef<[i32]> + Ord>(
             "frame_sigs must not be empty".into(),
         ));
     }
+    check_frame_sig_lengths(frame_sigs)?;
 
     // Deduplicate using BTreeSet (S: Ord)
     let unique: std::collections::BTreeSet<&S> = frame_sigs.iter().collect();
@@ -751,7 +776,8 @@ pub fn soft_hash_video_v0<S: AsRef<[i32]> + Ord>(
 /// Generate a Video-Code from frame signature data.
 ///
 /// Produces an ISCC Content-Code for video from a sequence of MPEG-7 frame
-/// signatures. Each frame signature is a 380-element integer vector.
+/// signatures. Each frame signature is a 380-element integer vector; frame
+/// signatures of unequal length return `IsccError::InvalidInput`.
 pub fn gen_video_code_v0<S: AsRef<[i32]> + Ord>(
     frame_sigs: &[S],
     bits: u32,
@@ -1599,6 +1625,55 @@ mod tests {
             parts,
             vec![&[][..] as &[i32], &[][..] as &[i32], &[][..] as &[i32]]
         );
+    }
+
+    #[test]
+    fn test_soft_hash_video_v0_rejects_longer_later_sig() {
+        let frames: Vec<Vec<i32>> = vec![vec![0; 380], vec![0; 381]];
+        let err = soft_hash_video_v0(&frames, 64).unwrap_err();
+        assert!(
+            matches!(&err, IsccError::InvalidInput(msg) if msg == "frame_sigs[1] has length 381, expected 380"),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_soft_hash_video_v0_rejects_shorter_later_sig() {
+        let frames: Vec<Vec<i32>> = vec![vec![0; 380], vec![0; 379]];
+        let err = soft_hash_video_v0(&frames, 64).unwrap_err();
+        assert!(
+            matches!(&err, IsccError::InvalidInput(msg) if msg == "frame_sigs[1] has length 379, expected 380"),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_soft_hash_video_v0_rejects_ragged_reversed_order() {
+        let frames: Vec<Vec<i32>> = vec![vec![0; 381], vec![0; 380]];
+        let err = soft_hash_video_v0(&frames, 64).unwrap_err();
+        assert!(
+            matches!(&err, IsccError::InvalidInput(msg) if msg == "frame_sigs[1] has length 380, expected 381"),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_soft_hash_video_v0_reports_first_mismatch() {
+        let frames: Vec<Vec<i32>> = vec![vec![0; 380], vec![0; 380], vec![1; 382], vec![0; 1]];
+        let err = soft_hash_video_v0(&frames, 64).unwrap_err();
+        assert!(
+            matches!(&err, IsccError::InvalidInput(msg) if msg == "frame_sigs[2] has length 382, expected 380"),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_gen_video_code_v0_rejects_ragged_frames() {
+        let frames: Vec<Vec<i32>> = vec![vec![0; 380], vec![0; 381]];
+        assert!(matches!(
+            gen_video_code_v0(&frames, 64),
+            Err(IsccError::InvalidInput(_))
+        ));
     }
 
     #[test]

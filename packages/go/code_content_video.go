@@ -13,7 +13,8 @@ type VideoCodeResult struct {
 // GenVideoCodeV0 generates an ISCC Content-Code for video content.
 // Takes a sequence of MPEG-7 frame signatures (each 380 int32 values) and a
 // bit length, computes a WTA-Hash digest from deduplicated column-wise sums,
-// and encodes as an ISCC component.
+// and encodes as an ISCC component. Frame signatures of unequal length
+// return an error.
 func GenVideoCodeV0(frameSigs [][]int32, bits uint32) (*VideoCodeResult, error) {
 	digest, err := SoftHashVideoV0(frameSigs, bits)
 	if err != nil {
@@ -30,13 +31,32 @@ func GenVideoCodeV0(frameSigs [][]int32, bits uint32) (*VideoCodeResult, error) 
 	}, nil
 }
 
+// checkFrameSigLengths reports the first frame signature (in input order)
+// whose length differs from frameSigs[0]. An empty slice passes.
+func checkFrameSigLengths(frameSigs [][]int32) error {
+	if len(frameSigs) == 0 {
+		return nil
+	}
+	first := len(frameSigs[0])
+	for i, sig := range frameSigs {
+		if len(sig) != first {
+			return fmt.Errorf("frame_sigs[%d] has length %d, expected %d", i, len(sig), first)
+		}
+	}
+	return nil
+}
+
 // SoftHashVideoV0 computes a WTA-Hash digest from video frame signatures.
 // Deduplicates frame signatures, computes column-wise sums across all unique
 // frames into int64 to avoid overflow, then applies WTA-Hash to produce a
-// digest of bits/8 bytes.
+// digest of bits/8 bytes. Returns an error for empty frameSigs or for frame
+// signatures of unequal length (iscc-core truncates to the shortest instead).
 func SoftHashVideoV0(frameSigs [][]int32, bits uint32) ([]byte, error) {
 	if len(frameSigs) == 0 {
 		return nil, fmt.Errorf("frame_sigs must not be empty")
+	}
+	if err := checkFrameSigLengths(frameSigs); err != nil {
+		return nil, err
 	}
 
 	// Deduplicate using a string-keyed map
