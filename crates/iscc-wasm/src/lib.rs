@@ -323,7 +323,7 @@ pub fn gen_iscc_code_v0(
 /// Result of [`gen_sum_code_v0`], containing the composite ISCC-CODE, data hash, and file size.
 #[wasm_bindgen]
 pub struct WasmSumCodeResult {
-    /// Composite ISCC-CODE string (e.g., `"ISCC:KAC..."`).
+    /// Composite ISCC-CODE string (e.g., `"ISCC:KUA..."`).
     #[wasm_bindgen(getter_with_clone)]
     pub iscc: String,
     /// Hex-encoded BLAKE3 multihash (`"1e20..."`) of the data.

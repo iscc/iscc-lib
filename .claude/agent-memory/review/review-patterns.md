@@ -1059,3 +1059,23 @@ return, hashers got a `finalized` flag, `TextTrim` clamps `nbytes <= 0`). About 
 - "Matches every sibling surface" is a claim: read one sibling (`crates/iscc-py/src/lib.rs`,
     `inner.take()` before the core call) instead of trusting it.
 - The repository has no `CHANGELOG`; a Go API break is recorded in decisions.md and the handoff.
+
+## Docs accuracy batch (277, ~25 min)
+
+A step that corrects false sentences on named pages. All gates were green and Codex found nothing;
+the findings came from sweeping for siblings.
+
+- **Sweep the whole tree for each corrected claim**, source comments included:
+    `git grep -nE   'KA[AC]\b'` found two `///` comments (`types.rs`, wasm `lib.rs`) next.md had not
+    listed, and `git grep -nE '10 .gen_' -- docs` found `ecosystem.md` and `architecture.md`. Read
+    each hit: a library-wide "10 functions" count is correct, "10 from ISO" or "10 in `data.json`"
+    is not (9)
+- **Release-doc claims**: dump every job's `needs`, `if`, `permissions`, secrets and check-step
+    names from `release.yml` with PyYAML in one script and compare the table row by row
+- **Facts measured here**: `gen_sum_code_v0` and `gen_iscc_code_v0([data, instance])` return
+    `ISCC:KUA…` (`wide` with 64-bit units changes nothing); iscc-core 1.5.0 has no
+    `gen_sum_code_v0`; Ruby `Float::INFINITY` raises `FloatDomainError` like `NaN`
+- **A human decision recorded only inside an issue dies with the issue**: write the decisions.md
+    entry when closing it (the Ruby `to_int` idiom)
+- A comment-only leftover in two files is a step-9 fix; prose leftovers on other pages are one
+    `normal` issue (leftover of the step's own pattern)

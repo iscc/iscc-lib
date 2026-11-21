@@ -391,3 +391,10 @@ repo the pinned Ruby precedes any system Ruby on PATH. CI does not use mise, so 
 reaches it. **Alternatives:** a supported Ruby in the `Dockerfile` (a source build or a third-party
 apt repository, and the hooks would still need one named version); pinning Rust, Python and Node too
 (out of scope: the image and `uv` own those). **Context:** iteration 271.
+
+## 2026-11-21 — Ruby integer parameters keep Ruby's implicit `to_int` conversion
+
+**Decision (Titusz):** an integer parameter or integer list element in `iscc-rb` accepts a Float or
+any `to_int` object and truncates it toward zero; `docs/ruby-api.md` states it. **Why:** Ruby host
+idiom (`Array#[]` does the same), given by Magnus. **Rejected:** a strict Integer check to match
+Python's `TypeError`. No `data-edge.json` vector (wrong-typed element). **Context:** iteration 277.

@@ -19,28 +19,6 @@ and user-facing behaviour in `docs/`.
 
 <!-- Add issues below this line -->
 
-## Ruby integer list elements accept a Float and truncate it `normal` [review]
-
-Magnus' integer conversions apply Ruby's implicit `to_int`. So `IsccLib.gen_audio_code_v0([1.9])`
-returns the code of `[1]`, and `alg_minhash_256` does the same, where Python raises `TypeError`. It
-follows Ruby's own convention (`[10, 20, 30][1.9]` is `20`), so it may be acceptable as host idiom.
-Pre-existing, measured in iter 229. The doc comment on `array_to_i32_vec` in
-`crates/iscc-rb/src/lib.rs` says "`TypeError` for a non-Integer", which does not hold for a Float.
-No `data-edge.json` vector is owed (`edge-vectors.md` → Rules: wrong-typed elements).
-
-**Decided (Titusz, 2026-11-21):** keep the implicit conversion as Ruby host idiom; fix the docs.
-
-Resolved when `docs/ruby-api.md` → Error Handling states the implicit conversion and the doc comment
-on `array_to_i32_vec` matches it.
-
-## The pkg-config example in the C/C++ how-to says `Version: 0.2.0` `normal` [review]
-
-The line is typed by hand and is not a `scripts/version_sync.py` target, which covers only the
-Maven, Gradle and SPM snippets in docs (0.7.0 is current). Pre-existing, found in iteration 244.
-
-Resolved when the example shows no version that no check keeps current: a placeholder the reader
-fills in, or the line is a `version_sync.py` target.
-
 ## Published Ruby source gems up to 0.7.0 do not build `low` [review]
 
 The source gem on rubygems.org was built with a bare `gem build` up to 0.7.0: it declares no
@@ -52,16 +30,6 @@ registry action for Titusz. CID must not act on this.
 Resolved when a release with the repaired source gem is on rubygems.org and it installs from the
 registry into a clean gem home on a Ruby series without a precompiled gem
 (`GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install iscc-lib`, then `IsccLib.conformance_selftest`).
-
-## How-to examples show the Sum-Code prefix as `KAA` `normal` [review]
-
-`gen_sum_code_v0` composes a Data-Code and an Instance-Code, so without `wide` its result has
-SubType SUM and starts with `ISCC:KUA` (measured in iteration 238). The Sum-Code examples in the
-how-tos under `docs/howto/` and in `docs/java-api.md` carry the comment `"ISCC:KAA..."`, and the
-`iscc` field comment in `SumCodeResult.java` says `"ISCC:KAC..."`. Pre-existing and cosmetic. The
-`gen_iscc_code_v0` examples next to them use the same comment and were not checked.
-
-Resolved when each Sum-Code example comment shows a prefix the call can return.
 
 ## `release.yml` loads only one precompiled Ruby binary before publishing `low` [review]
 
@@ -88,26 +56,6 @@ rb_sys 0.9.124 or newer, and the hold comment in `crates/iscc-rb/Gemfile` says t
 
 Resolved when the cross-gem list includes 4.0 and the docs name the range, or a decisions.md entry
 keeps 4.0 on the source gem.
-
-## `docs/development.md` tells maintainers to release by pushing a tag `normal` [review]
-
-`docs/development.md` → "Publish" says to run `git tag vX.Y.Z` and `git push origin vX.Y.Z` on
-`main`, and that "the tag push triggers `.github/workflows/release.yml`". The workflow has
-`workflow_dispatch` as its only trigger, so the push starts nothing. It also does harm:
-`prepare-release` does not move a tag that already exists (its checkout fetches every tag, `git tag`
-fails and the step continues), so a later dispatch leaves the hand-pushed tag on the commit before
-the `Package.swift` checksum commit. The registry table under the same heading lists five of the
-packages the workflow publishes, and the checkbox sentence four of the eight checkboxes.
-Pre-existing, found in iteration 259 while the same claim was removed from the specs.
-
-In `.claude/context/specs/swift-bindings.md`, the heading "Release Process — Force-Update Tag
-Pattern" and its intro paragraph still name Ferrostar's force-update approach. The Release Flow
-below it creates the tag once, after the checksum commit, and moves none. Realign without escalation
-(decision of 2026-11-20).
-
-Resolved when the "Publish" section describes the dispatch with a `version` input, names every
-registry chain or says the table is an excerpt, tells the reader not to push the tag by hand, and
-the Swift heading and intro match the flow.
 
 ## `@iscc/wasm` converts byte inputs and traps on a non-string `low` [review]
 
@@ -164,22 +112,6 @@ no `#[wasm_bindgen_test]` (CI runs `wasm-pack test --node`). Pre-existing.
 
 Resolved when each of the three sections covers every surface the graph shows or says it is an
 excerpt, and the `iscc-ffi` and WASM rows match the release assets and the CI command.
-
-## Docs overstate language coverage and what ISO 24138 specifies `normal` [audit]
-
-Verified by the iteration-249 audit, re-checked against the tree 2026-11-21. These pages are what
-users and LLM tools read first.
-
-- `docs/llms.txt:5` names 6 languages (Python, Node.js, WASM, Go, Java, C FFI) and line 9 three
-    install commands; the project ships 11 surfaces (also Ruby, .NET, C++, Swift, Kotlin)
-- `docs/index.md:17,26` and `docs/benchmarks.md:15` say all 10 `gen_*_v0` functions are specified
-    (or defined) by ISO 24138; `gen_sum_code_v0` is an iscc-lib addition, not part of the standard
-
-**Suggested fix:** list every surface and its install command in `llms.txt` (or point to the install
-table); say 9 functions are standard and `gen_sum_code_v0` is a convenience on top. **Scope
-estimate:** 3 non-test files.
-
-Resolved when the three pages state the coverage and the standard's scope correctly.
 
 ## One-shot gen functions re-implement their streaming counterparts `normal` [audit]
 
@@ -271,3 +203,40 @@ reported by advance in iteration 275. No other `crates/*/CLAUDE.md` or `packages
 has such a list.
 
 Resolved when the section states its conventions as rules on file names and lists no modules.
+
+## `docs/ecosystem.md` and two other pages still count 10 standard functions `normal` [review]
+
+Leftovers of the iteration-277 docs batch, which corrected the same sentences on `docs/index.md`,
+`docs/llms.txt` and `docs/benchmarks.md` only. Measured 2026-11-21: `data.json` has 9 `gen_*_v0`
+sections, and iscc-core 1.5.0 has no `gen_sum_code_v0`.
+
+- `docs/ecosystem.md` → "iscc-core": Coverage says "All 10 `gen_*_v0` functions". → "iscc-core-ts":
+    "9 of the 10 `gen_*_v0` functions from ISO 24138", above a table of the 9 standard ones. →
+    "Contributing an Implementation": `data.json` has vectors "for all 10 `gen_*_v0` functions"
+- `docs/ecosystem.md` → "iscc-lib": the intro and the Language row name six languages (Python,
+    Node.js, WASM, Go, Java, C) and the Packages row four of the registries
+- `docs/architecture.md` → "How It Works": test vectors "for all 10 `gen_*_v0` functions"
+- `docs/howto/nodejs.md` → "Code generation": "All 10 `gen_*_v0` functions return the ISCC code as a
+    string", while `gen_sum_code_v0` returns a `NapiSumCodeResult` (the example below it reads
+    `result.iscc`)
+
+Resolved when these sentences give 9 standard functions and 9 `data.json` sections, the iscc-lib
+section names every surface or says it is an excerpt, the Node.js sentence names the Sum-Code result
+type, and `git grep -nE '10 .gen_' -- docs` shows only library-wide counts.
+
+## target.md and the Swift spec criterion say the release workflow force-updates the tag `low` [review]
+
+**Triage:** untriaged. An agent that reads the Swift section of `target.md` would expect a release
+to move the tag and could plan work around a mechanism that does not exist; users are unaffected.
+
+`target.md` → Swift ("force-update tag for checksum", and the criterion "Release workflow
+force-updates the tag after updating checksum in `Package.swift`") and the same criterion under
+"Verification Criteria" in `specs/swift-bindings.md` describe Ferrostar's pattern. `release.yml`
+commits the checksum first and creates the tag once; an existing tag is never moved (learnings →
+"prepare-release", and the spec's own Release Flow since iteration 277). The loop may realign the
+sub-spec line (decision of 2026-11-20), but `target.md` is Titusz's to edit.
+
+**Spec:** `.claude/context/target.md` → Swift bindings; `.claude/context/specs/swift-bindings.md` →
+Verification Criteria
+
+Resolved when both criteria say the workflow tags the checksum commit once and moves no tag.

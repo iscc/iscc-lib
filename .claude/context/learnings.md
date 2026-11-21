@@ -40,8 +40,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `unicodedata.unidata_version`; iscc-core#137). Always name the interpreter (`--python 3.13`)
 - **iscc-core 1.5.0 has two builds that can disagree** (264: compiled wheel cp310 to cp314, pure
     Python on 3.15): probe a vector under `uv run --no-project --python` 3.10 AND 3.15
-- **String-input divergences from iscc-core** (decisions of 2026-11-18): the reference's reject set
-    differs per entry point, so probe each → `learnings-archive.md` (268)
+- **iscc-core's string reject set differs per entry point** (decisions of 2026-11-18): probe each
 
 ## Tooling
 
@@ -98,8 +97,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `find_class`) CLEAR the JVM exception (OOM → `NoMemory`), `post_check_ex` ones (`new_object`)
     leave it pending. HotSpot 17 `-Xcheck:jni` is SILENT on `ThrowNew` over a pending exception:
     assert the class. Trigger: shadow result class with a throwing ctor first on a child `-cp`
-- **Release pipeline** + `version_sync.py`'s targets → `learnings-archive.md`. Its doc targets are
-    the Maven/Gradle/SPM snippets only: any other version in docs is hand-typed, so write none (244)
+- **`version_sync.py` covers only the Maven/Gradle/SPM doc snippets**: write no other version (244)
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are gated: `scripts/check_release_workflow.py` (prek hook + tests) and the CI-only
     `--check-action-inputs`; never hand-retype either. **`prepare-release` never moves an existing
@@ -167,6 +165,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `#[deprecated]` claim into a criterion** (139, 148, 168: a "must not appear" grep banned an
     *undeprecated* API, reverted 169). Confirm attributes in the crate source under
     `~/.cargo/registry/src/`; assert the *gate* (exit code); copy gate lines from `ci.yml`
+- **A false docs claim outlives the pages its issue names** (277: `ecosystem.md` and two `///`
+    comments kept it): scope and review with a repo-wide `git grep` on the claim's key phrase
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
     (142: an unworkable rule; 143: two false claims shipped into published docs). advance implements
     the *intent* and documents any deviation; review re-derives every "never/always" claim

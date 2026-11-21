@@ -104,7 +104,7 @@ pub struct IsccIdResult {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct SumCodeResult {
-    /// Composite ISCC-CODE string (e.g., `"ISCC:KAC..."`).
+    /// Composite ISCC-CODE string (e.g., `"ISCC:KUA..."`).
     pub iscc: String,
     /// Hex-encoded BLAKE3 multihash (`"1e20..."`) of the file.
     pub datahash: String,

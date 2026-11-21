@@ -1,68 +1,60 @@
-## 2026-11-21 — User-docs accuracy batch — pkg-config version, Sum-Code prefix, llms.txt/ISO scope, Publish section, Ruby Float
+## 2026-11-21 — Review of: User-docs accuracy batch — pkg-config version, Sum-Code prefix, llms.txt/ISO scope, Publish section, Ruby Float
 
-**Done:** Fixed all five docs issues in a docs-only pass. The pkg-config example uses a placeholder.
-Every Sum-Code and `gen_iscc_code_v0([data, instance])` comment now shows `ISCC:KUA...`. `llms.txt`,
-`index.md` and `benchmarks.md` state the 9 ISO functions plus the `gen_sum_code_v0` convenience.
-`development.md` → Publish describes the workflow dispatch, warns against tagging by hand, and lists
-every chain. The Swift spec heading and intro are corrected, and the Ruby docs and doc comments
-describe the measured Float truncation. The only edits under `crates/` are comment lines.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `docs/howto/{dotnet,go,java,kotlin,nodejs,python,ruby,rust,swift,wasm}.md`, `docs/java-api.md`:
-    `"ISCC:KAA..."` → `"ISCC:KUA..."` (comment lines only)
-- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/SumCodeResult.java`: Javadoc `KAC` → `KUA`
-- `docs/howto/c-cpp.md`: `Version: X.Y.Z` plus a one-line note to use the installed release
-- `docs/index.md`: intro and feature bullet say "9 `gen_*_v0` functions that ISO 24138 specifies"
-    plus the `gen_sum_code_v0` convenience; the "10 functions implemented" count is kept
-- `docs/benchmarks.md`: Methodology says 9 ISO functions; `gen_sum_code_v0` is not compared (true:
-    the tables list 9 rows)
-- `docs/llms.txt`: names all 11 surfaces, one install command each where there is one, and links
-    `index.md#available-bindings` for Java/Kotlin/Swift/C/C++
-- `docs/development.md`: Publish rewritten
-    (`gh workflow run release.yml --ref main -f version=X.Y.Z` or the Actions page; Cargo.toml
-    version must match; no hand tag; 12-row table; all 8 checkbox names; FFI job has no
-    exists-check). The tree comment for `release.yml` is generic now
-- `.claude/context/specs/swift-bindings.md`: heading "Release Process — Checksum Commit, Then Tag";
-    line-9 summary and intro paragraph say the workflow commits first and tags once
-- `docs/ruby-api.md` → Error Handling: describes the `to_int` truncation, plus the
-    `TypeError`/`FloatDomainError` cases
-- `crates/iscc-rb/src/lib.rs`: doc comments of `array_to_vec` and `array_to_i32_vec` (no code)
+**Summary:** The docs-only batch does what next.md asked, and every factual claim I re-derived
+holds: the release facts against `release.yml`, the `KUA` prefix from Python, the Ruby conversions
+from a rebuilt extension. Five `normal` issues are closed. The scope missed sibling sentences that
+carry the same false claims; I fixed two comment lines directly and filed the rest as one issue.
 
 **Verification:**
 
-- Measured prefixes (Python, after `mise run py:develop`, data `b"Hello World"*1000`):
-    `gen_iscc_code_v0([data, instance])` → `ISCC:KUABGAWXH2VYUQWIVYLQGD2NZH6TM`; `gen_sum_code_v0`
-    (with and without `add_units`) → same; `SumHasher` → `ISCC:KUAN7YLATENGET3HQKFIMYFOQ24G6`. No
-    example passes `wide`/128 bits (grepped the call sites)
-- Ruby probe (rebuilt with `rake compile`, Ruby 3.4.13): `gen_audio_code_v0([1.9])` == `[1]` ==
-    `[Rational(19,10)]`; `[-1.9]` == `[-1]`; `bits: 64.9` == `bits: 64`;
-    `alg_minhash_256([1.9,2.9,3.9])` == `[1,2,3]`; `gen_iscc_id_v1(1.7e15, 5.9, 0.9)` == the integer
-    call; `["1"]`/`[nil]`/`bits: "64"` → `TypeError`; `[Float::NAN]` → `FloatDomainError`; `[1e20]`
-    → `RangeError`
-- The release facts come from `release.yml`: inputs at lines 6-42; `prepare-release` checks the
-    version against Cargo.toml, commits `Package.swift`, then runs `git tag … || echo` + push and
-    creates the GitHub Release with `IsccLib.xcframework.zip`. Auth per job: `id-token: write` for
-    crates.io/PyPI/npm/RubyGems, `MAVEN_*` secrets for both Maven jobs, `NUGET_API_KEY`,
-    `contents: write` for FFI. Exists-check step present in every publish job except `publish-ffi`
-- All 6 next.md greps print nothing. `llms.txt` contains Ruby, .NET, C++, Swift, Kotlin.
-    `git diff -U0 crates/` shows only `///`/`/** */` lines
-- `uv run zensical build` rc=0 ("No issues found");
-    `uv run pytest tests/test_check_docs_nav.py tests/test_c_ffi_docs.py` 18 passed;
-    `scripts/check_docs_nav.py` and `scripts/check_spec_paths.py` OK; `mise run check` rc=0
-    (mdformat reflowed the development.md paragraphs on the first run)
+- [x] `grep -rnE 'ISCC:KA[AC]\.\.\.' docs/howto docs/java-api.md crates/iscc-jni/java/src/main`
+    prints nothing; measured again: `gen_iscc_code_v0([data, instance])` and `gen_sum_code_v0` both
+    return `ISCC:KUABGAWXH2VYUQWIVYLQGD2NZH6TM` (`wide=True` with 64-bit units returns the same)
+- [x] `grep -nE '^Version: [0-9]' docs/howto/c-cpp.md` prints nothing
+- [x] The ISO-scope grep on `docs/index.md` and `docs/benchmarks.md` prints nothing; `docs/llms.txt`
+    names Ruby, .NET, C++, Swift and Kotlin. iscc-core 1.5.0 has no `gen_sum_code_v0` (checked)
+- [x] The tag-push grep on `docs/development.md` and the `Force-Update Tag Pattern` grep on the
+    Swift spec print nothing. Publish section checked job by job against `release.yml` (needs,
+    conditions, permissions, secrets, exists-check steps, the eight input names): all correct
+- [x] `docs/ruby-api.md` → Error Handling states the Float conversion; both `lib.rs` doc comments
+    match; the advance edits under `crates/` are comment lines only. Ruby probe re-run: all eleven
+    results as the handoff reported, plus `Float::INFINITY` → `FloatDomainError`
+- [x] `uv run zensical build` exits 0, the two pytest files pass (18), `mise run check` exits 0
 
-**Next:** the JNI `NativeLoader` fallback (next.md names it as next in line). It needs Java tests
-and a `-Dos.arch=riscv64` probe.
+**Issues found:**
+
+- Fixed here (step 9, comment or prose only): `crates/iscc-lib/src/types.rs` and
+    `crates/iscc-wasm/src/lib.rs` still said `"ISCC:KAC..."` on the Sum-Code result's `iscc` field;
+    `docs/ruby-api.md` now says "a `NaN` or infinite Float"
+- Filed `normal`: "`docs/ecosystem.md` and two other pages still count 10 standard functions". The
+    step fixed the sentence on three pages; `ecosystem.md` (four places, plus six of eleven
+    languages), `architecture.md` → "How It Works" and `howto/nodejs.md` → "Code generation" kept it
+- Filed `low`, untriaged: "target.md and the Swift spec criterion say the release workflow
+    force-updates the tag". next.md excluded both lines and nothing tracked them; `target.md` needs
+    Titusz
+- Not filed (nits): `docs/benchmarks.md` says "all benchmarks measure the 9 functions", while the
+    criterion suite also times `gen_sum_code_v0` (the page shows no row for it). In
+    `docs/development.md` the XCFramework row sits under "once `prepare-release` has finished",
+    although that job uploads it
+
+**Codex review:** ran over both advance commits (`--base 47738d0`); no findings. It confirmed the
+release instructions against the workflow.
+
+**Next:** the JNI `NativeLoader` fallback stays next in line (Java test plus a `-Dos.arch=riscv64`
+probe on a built JAR). A cheap alternative is one docs-only step that closes both
+`docs/architecture.md` entries and the new `ecosystem.md` entry: three files, no code. Scope it with
+`git grep -nE '10 .gen_' -- docs` and read each hit, because six of the eleven hits are correct
+library-wide counts.
 
 **Notes:**
 
-- Left on purpose (out of scope per next.md): swift-bindings.md:393 (Verification Criteria
-    "force-updates tag"), the Ferrostar row in its comparison table (describes Ferrostar's own
-    pattern), and the `KAA` placeholder input in `docs/ruby-api.md`
-- `docs/index.md` Available Bindings shows SPM `from: "0.7.0"`. That is fine: `docs/index.md` is a
-    `version_sync.py` target (line 284)
-- Also beyond the letter of next.md: `llms.txt` line 5 still said "all 10 gen\_\*\_v0 functions", so
-    I rewrote it with the same 9 + convenience wording as `index.md`
-- `zensical build` wiped `site/` (gitignored); `gen_llms_full.py` was not re-run, nothing tracked
-    depends on it
+- Closed: Ruby Float docs, pkg-config version, Sum-Code prefix, `development.md` tag push, and the
+    `[audit]` language-coverage entry. Left: 6 `normal` (JNI loader, architecture sections, one-shot
+    duplication, `@iscc/wasm` Node docs, `alg_minhash_256([])`, ecosystem leftovers) and 8 `low`
+- Titusz's Ruby decision lived only in the deleted issue, so it is now a decisions.md entry ("Ruby
+    integer parameters keep Ruby's implicit `to_int` conversion")
+- decisions.md is at 400 lines and learnings.md at 200: the next entry in either needs a cut or a
+    rotation in the same commit
+- `zensical build` wiped `site/`; nothing tracked depends on it
