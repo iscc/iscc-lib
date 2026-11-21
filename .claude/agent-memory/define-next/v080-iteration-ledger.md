@@ -99,4 +99,11 @@ sweep. 240 = repair of 239 on top of unpushed `d299106`: rb_sys gemspec dep cond
 `File.directory?(File.join(__dir__, "core"))` (staged tree only) → lock back to `d299106~1`,
 platform gems keep zero runtime deps; test models the action's REAL pipeline + fire test; `run()`
 stdout-only. Lesson: model a third-party action from its `action.yml`, never from my own paraphrase.
-Next: drift gate holes, then part 3 count sweep.
+Next: drift gate holes, then part 3 count sweep. 241 = Ruby source-gem `[profile.release]` (issue
+branch 1; branch 2 = decisions.md entry advance can't write → Not In Scope). Derive by verbatim TEXT
+slice of the root table, no `tomllib` (pytest imports the script in-process, `python-test` matrix
+runs 3.10; same reason as `check_docs_nav.py`); fail closed on missing/empty table +
+`[profile.release.*]` sub-tables; trap = `[profile.bench]` (`strip = false`, `debug = true`) right
+after it. Behavioural check: `file` on the installed `.so` must lack `not stripped` (grep `stripped`
+matches both). Install timing = report-only. Next: drift gate holes (fail-closed lib.rs parser +
+register 4 sub-threshold docs), then part 3 count sweep.
