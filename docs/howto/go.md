@@ -232,7 +232,9 @@ buf := make([]byte, 65536)
 for {
 	n, err := f.Read(buf)
 	if n > 0 {
-		hasher.Push(buf[:n])
+		if err := hasher.Push(buf[:n]); err != nil {
+			log.Fatal(err)
+		}
 	}
 	if err == io.EOF {
 		break
@@ -264,7 +266,9 @@ buf := make([]byte, 65536)
 for {
 	n, err := f.Read(buf)
 	if n > 0 {
-		hasher.Push(buf[:n])
+		if err := hasher.Push(buf[:n]); err != nil {
+			log.Fatal(err)
+		}
 	}
 	if err == io.EOF {
 		break
@@ -281,7 +285,9 @@ if err != nil {
 fmt.Println(result.Iscc) // Identical to iscc.GenInstanceCodeV0(entireFile, 64)
 ```
 
-Both hashers are single-use: after calling `Finalize`, do not call `Push` or `Finalize` again.
+Both hashers are single-use: the first `Finalize` call consumes the hasher, even when it fails (for
+example on an invalid `bits` value). After that, `Push` and `Finalize` return an "already finalized"
+error.
 
 ## Text utilities
 

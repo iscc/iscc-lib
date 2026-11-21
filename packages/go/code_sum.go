@@ -35,8 +35,12 @@ func GenSumCodeV0(path string, bits uint32, wide bool, addUnits bool) (*SumCodeR
 	for {
 		n, err := f.Read(buf)
 		if n > 0 {
-			dh.Push(buf[:n])
-			ih.Push(buf[:n])
+			if err := dh.Push(buf[:n]); err != nil {
+				return nil, fmt.Errorf("iscc: push data code: %w", err)
+			}
+			if err := ih.Push(buf[:n]); err != nil {
+				return nil, fmt.Errorf("iscc: push instance code: %w", err)
+			}
 		}
 		if err == io.EOF {
 			break

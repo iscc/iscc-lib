@@ -13,9 +13,14 @@ type DataCodeResult struct {
 // DataHasher incrementally hashes binary data to produce an ISCC Data-Code.
 // Uses CDC to split data into content-defined chunks, xxh32-hashes each chunk,
 // and applies MinHash to produce a similarity-preserving digest.
+//
+// A DataHasher is single-use: the first Finalize call consumes it, whether
+// it succeeds or fails, and every later Push or Finalize returns an
+// "already finalized" error.
 type DataHasher struct {
 	chunkFeatures []uint32
 	tail          []byte
+	finalized     bool
 }
 
 // NewDataHasher creates a new DataHasher.
@@ -26,7 +31,12 @@ func NewDataHasher() *DataHasher {
 // Push appends data to the hasher, running CDC on accumulated bytes.
 // All complete chunks are xxh32-hashed; the last chunk is retained as tail
 // for the next Push call (mirrors the Python prev_chunk pattern).
-func (h *DataHasher) Push(data []byte) {
+// Returns an error without touching any state once Finalize has been called.
+func (h *DataHasher) Push(data []byte) error {
+	if h.finalized {
+		return fmt.Errorf("iscc: DataHasher already finalized")
+	}
+
 	// Prepend any retained tail from previous Push
 	if len(h.tail) > 0 {
 		combined := make([]byte, len(h.tail)+len(data))
@@ -54,11 +64,19 @@ func (h *DataHasher) Push(data []byte) {
 	} else {
 		h.tail = []byte{}
 	}
+	return nil
 }
 
 // Finalize flushes any remaining tail data, computes the MinHash digest,
 // and encodes the result as an ISCC Data-Code component.
+// The first call consumes the hasher even when it fails (for example on an
+// invalid bits value); every later call returns an "already finalized" error.
 func (h *DataHasher) Finalize(bits uint32) (*DataCodeResult, error) {
+	if h.finalized {
+		return nil, fmt.Errorf("iscc: DataHasher already finalized")
+	}
+	h.finalized = true
+
 	if len(h.tail) > 0 {
 		// Hash non-empty tail
 		h.chunkFeatures = append(h.chunkFeatures, xxh32(h.tail, 0))
@@ -85,6 +103,8 @@ func (h *DataHasher) Finalize(bits uint32) (*DataCodeResult, error) {
 // and applies MinHash to produce a similarity-preserving fingerprint.
 func GenDataCodeV0(data []byte, bits uint32) (*DataCodeResult, error) {
 	h := NewDataHasher()
-	h.Push(data)
+	if err := h.Push(data); err != nil {
+		return nil, fmt.Errorf("iscc: push data code: %w", err)
+	}
 	return h.Finalize(bits)
 }

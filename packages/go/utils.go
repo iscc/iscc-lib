@@ -95,8 +95,11 @@ func TextRemoveNewlines(text string) string {
 //
 // Finds the largest valid UTF-8 prefix within nbytes, then strips
 // leading/trailing Python str.strip() whitespace. Multi-byte characters that would be
-// split are dropped entirely.
+// split are dropped entirely. A non-positive nbytes returns the empty string.
 func TextTrim(text string, nbytes int) string {
+	if nbytes <= 0 {
+		return ""
+	}
 	if len(text) <= nbytes {
 		return strings.TrimFunc(text, isPyStripChar)
 	}

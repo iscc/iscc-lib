@@ -37,6 +37,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - Go pure: `packages/go/` — one `.go` per algorithm/code-type (codec, utils, cdc, minhash, simhash,
     dct, wtahash, xxh32, `code_*.go`, conformance.go); pure Go only. ISCC-IDv1, decode guards, gofmt
     caveat → go-idv1.md
+- Go hashers (261): `Push(...) error` + `finalized` flag set at `Finalize` ENTRY (any first call
+    consumes, like Rust `finalize(self)` / Python `take()`); every in-package `Push` error checked
 
 ## Build and Tooling
 

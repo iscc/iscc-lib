@@ -296,3 +296,21 @@ func TestUtilsTextRemoveNewlinesKeepsZeroWidthSpace(t *testing.T) {
 		t.Errorf("TextRemoveNewlines(%q): got %q, want unchanged", in, got)
 	}
 }
+
+func TestUtilsTextTrimNegativeNbytes(t *testing.T) {
+	if got := TextTrim("abc", -1); got != "" {
+		t.Errorf("TextTrim(%q, -1): got %q, want empty", "abc", got)
+	}
+}
+
+func TestUtilsTextTrimNegativeNbytesEmptyText(t *testing.T) {
+	if got := TextTrim("", -1); got != "" {
+		t.Errorf("TextTrim(%q, -1): got %q, want empty", "", got)
+	}
+}
+
+func TestUtilsTextTrimZeroNbytes(t *testing.T) {
+	if got := TextTrim("abc", 0); got != "" {
+		t.Errorf("TextTrim(%q, 0): got %q, want empty", "abc", got)
+	}
+}

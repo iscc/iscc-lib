@@ -19,9 +19,14 @@ type InstanceCodeResult struct {
 
 // InstanceHasher incrementally hashes binary data with BLAKE3 to produce
 // an ISCC Instance-Code identical to GenInstanceCodeV0 for the same byte stream.
+//
+// An InstanceHasher is single-use: the first Finalize call consumes it,
+// whether it succeeds or fails, and every later Push or Finalize returns an
+// "already finalized" error.
 type InstanceHasher struct {
-	hasher   *blake3.Hasher
-	filesize uint64
+	hasher    *blake3.Hasher
+	filesize  uint64
+	finalized bool
 }
 
 // NewInstanceHasher creates a new InstanceHasher.
@@ -32,14 +37,26 @@ func NewInstanceHasher() *InstanceHasher {
 }
 
 // Push feeds data into the BLAKE3 hasher and updates the filesize counter.
-func (h *InstanceHasher) Push(data []byte) {
+// Returns an error without touching any state once Finalize has been called.
+func (h *InstanceHasher) Push(data []byte) error {
+	if h.finalized {
+		return fmt.Errorf("iscc: InstanceHasher already finalized")
+	}
 	h.hasher.Write(data)
 	h.filesize += uint64(len(data))
+	return nil
 }
 
 // Finalize computes the BLAKE3 digest, builds the multihash, and encodes
 // the result as an ISCC Instance-Code component.
+// The first call consumes the hasher even when it fails (for example on an
+// invalid bits value); every later call returns an "already finalized" error.
 func (h *InstanceHasher) Finalize(bits uint32) (*InstanceCodeResult, error) {
+	if h.finalized {
+		return nil, fmt.Errorf("iscc: InstanceHasher already finalized")
+	}
+	h.finalized = true
+
 	digest := h.hasher.Sum(nil)
 	datahash := "1e20" + hex.EncodeToString(digest)
 
@@ -62,6 +79,8 @@ func (h *InstanceHasher) Finalize(bits uint32) (*InstanceCodeResult, error) {
 // Returns the ISCC code, BLAKE3 multihash, and file size.
 func GenInstanceCodeV0(data []byte, bits uint32) (*InstanceCodeResult, error) {
 	h := NewInstanceHasher()
-	h.Push(data)
+	if err := h.Push(data); err != nil {
+		return nil, fmt.Errorf("iscc: push instance code: %w", err)
+	}
 	return h.Finalize(bits)
 }

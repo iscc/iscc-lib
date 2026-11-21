@@ -83,9 +83,12 @@ type SumCodeResult struct {
 type DataHasher struct { /* internal state */ }
 
 func NewDataHasher() *DataHasher
-func (h *DataHasher) Update(data []byte)
-func (h *DataHasher) Finalize(bits int) (*DataCodeResult, error)
+func (h *DataHasher) Push(data []byte) error
+func (h *DataHasher) Finalize(bits uint32) (*DataCodeResult, error)
 ```
+
+Hashers are single-use: the first `Finalize` call consumes the hasher, even when it fails. After
+that, `Push` and `Finalize` return an "already finalized" error.
 
 Streaming functions also accept `io.Reader` for file/network streaming.
 
