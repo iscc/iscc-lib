@@ -24,6 +24,10 @@ already appended the latest snapshot and the trend is here.
 !`cat .claude/context/issues.md 2>/dev/null || echo "(no issues)"`
 </issues-md>
 
+<postponed-md>
+!`cat .claude/context/postponed.md 2>/dev/null || echo "(nothing postponed)"`
+</postponed-md>
+
 <learnings-md>
 !`cat .claude/context/learnings.md 2>/dev/null || echo "(no learnings)"`
 </learnings-md>

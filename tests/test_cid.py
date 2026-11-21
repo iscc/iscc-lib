@@ -1502,6 +1502,7 @@ def test_context_packs_only_inline_known_context_files():
             cid.META_LOG_FILE,
             cid.METRICS_FILE,
             cid.CONTEXT_DIR / "target.md",
+            cid.CONTEXT_DIR / "postponed.md",
         )
     }
     # Every path in a shell block, whatever the command: anchoring on the command name

@@ -13,21 +13,22 @@ It exists to keep agent prompts small, stable, and unambiguous.
 
 ## Files (ownership + update policy)
 
-| File                   | Primary owner                                                      | Update style                             | Budget    | Purpose                                                                |
-| ---------------------- | ------------------------------------------------------------------ | ---------------------------------------- | --------- | ---------------------------------------------------------------------- |
-| `target.md`            | human + review (when `issues.md` says `Source: [human]` + `Spec:`) | curated                                  | —         | Long-lived desired end-state + verification criteria                   |
-| `state.md`             | `update-state`                                                     | overwrite                                | 200 lines | Factual snapshot of what exists at `HEAD` (records `assessed-at` hash) |
-| `next.md`              | `define-next`                                                      | overwrite                                | 120 lines | Exactly one small, verifiable work package                             |
-| `handoff.md`           | `advance` then `review`                                            | overwrite                                | 100 lines | Inter-role communication; latest review verdict is authoritative       |
-| `learnings.md`         | `review`                                                           | append + prune to `learnings-archive.md` | 200 lines | High-signal pitfalls, patterns, and verified conventions               |
-| `issues.md`            | humans + agents                                                    | append; review deletes resolved          | 300 lines | Defect tracker (40 lines per entry, no progress logs)                  |
-| `decisions.md`         | `review` + humans                                                  | append; runner rotates oldest out        | 400 lines | Binding design rationale a reader cannot reconstruct from the code     |
-| `decisions-archive.md` | `tools/cid.py`                                                     | append (rotation target)                 | —         | Decisions aged out of budget; titles stay in context, bodies do not    |
-| `iterations.jsonl`     | `tools/cid.py` (sole writer + committer)                           | append-only                              | —         | Execution log (per-role + `iteration_summary` rows) for accounting     |
-| `metrics.jsonl`        | `tools/metrics.py` via the runner                                  | append-only                              | —         | Codebase-health snapshots on the audit cadence                         |
-| `proposals.md`         | `meta-improve`                                                     | overwrite                                | —         | Open self-improvement proposals awaiting human review                  |
-| `meta-log.jsonl`       | `meta-improve`                                                     | append-only                              | —         | Audit trail of auto-applied loop changes + their rollback outcomes     |
-| `specs/`               | human + review (when authorized via `issues.md`)                   | curated                                  | —         | Deeper specs referenced by `target.md`                                 |
+| File                   | Primary owner                                                      | Update style                             | Budget    | Purpose                                                                   |
+| ---------------------- | ------------------------------------------------------------------ | ---------------------------------------- | --------- | ------------------------------------------------------------------------- |
+| `target.md`            | human + review (when `issues.md` says `Source: [human]` + `Spec:`) | curated                                  | —         | Long-lived desired end-state + verification criteria                      |
+| `state.md`             | `update-state`                                                     | overwrite                                | 200 lines | Factual snapshot of what exists at `HEAD` (records `assessed-at` hash)    |
+| `next.md`              | `define-next`                                                      | overwrite                                | 120 lines | Exactly one small, verifiable work package                                |
+| `handoff.md`           | `advance` then `review`                                            | overwrite                                | 100 lines | Inter-role communication; latest review verdict is authoritative          |
+| `learnings.md`         | `review`                                                           | append + prune to `learnings-archive.md` | 200 lines | High-signal pitfalls, patterns, and verified conventions                  |
+| `issues.md`            | humans + agents                                                    | append; review deletes resolved          | 400 lines | Defect tracker (40 lines per entry, no progress logs)                     |
+| `postponed.md`         | human                                                              | move entries in/out of `issues.md`       | —         | Issues set aside for a later release; read only by `audit` (no re-filing) |
+| `decisions.md`         | `review` + humans                                                  | append; runner rotates oldest out        | 400 lines | Binding design rationale a reader cannot reconstruct from the code        |
+| `decisions-archive.md` | `tools/cid.py`                                                     | append (rotation target)                 | —         | Decisions aged out of budget; titles stay in context, bodies do not       |
+| `iterations.jsonl`     | `tools/cid.py` (sole writer + committer)                           | append-only                              | —         | Execution log (per-role + `iteration_summary` rows) for accounting        |
+| `metrics.jsonl`        | `tools/metrics.py` via the runner                                  | append-only                              | —         | Codebase-health snapshots on the audit cadence                            |
+| `proposals.md`         | `meta-improve`                                                     | overwrite                                | —         | Open self-improvement proposals awaiting human review                     |
+| `meta-log.jsonl`       | `meta-improve`                                                     | append-only                              | —         | Audit trail of auto-applied loop changes + their rollback outcomes        |
+| `specs/`               | human + review (when authorized via `issues.md`)                   | curated                                  | —         | Deeper specs referenced by `target.md`                                    |
 
 ## Context packs (how these files reach the agents)
 

@@ -149,8 +149,8 @@ Detailed spec: `.claude/context/specs/python-bindings.md`
 
 ## Node.js Bindings — `@iscc/lib` on npm
 
-An npm package [`@iscc/lib`](https://www.npmjs.com/package/@iscc/lib) exposing all 35 Tier 1 symbols
-as native addon via napi-rs. Published under the `@iscc` npm org.
+An npm package [`@iscc/lib`](https://www.npmjs.com/package/@iscc/lib) exposing all Tier 1 symbols as
+native addon via napi-rs. Published under the `@iscc` npm org.
 
 Detailed spec: `.claude/context/specs/nodejs-bindings.md`
 
@@ -158,12 +158,12 @@ Detailed spec: `.claude/context/specs/nodejs-bindings.md`
 
 - `npm test` passes conformance vectors from JavaScript
 - Package installs cleanly via `npm install`
-- All 35 Tier 1 symbols accessible with TypeScript declarations
+- All Tier 1 symbols accessible with TypeScript declarations
 
 ## WASM Bindings — `@iscc/wasm` on npm
 
 A browser-compatible WASM package [`@iscc/wasm`](https://www.npmjs.com/package/@iscc/wasm) exposing
-all 35 Tier 1 symbols via wasm-bindgen. Published under the same `@iscc` npm scope.
+all Tier 1 symbols via wasm-bindgen. Published under the same `@iscc` npm scope.
 
 Detailed spec: `.claude/context/specs/wasm-bindings.md`
 
@@ -171,7 +171,7 @@ Detailed spec: `.claude/context/specs/wasm-bindings.md`
 
 - Conformance tests pass in a WASM runtime
 - Package builds with `wasm-pack`
-- All 35 Tier 1 symbols accessible from JavaScript/TypeScript
+- All Tier 1 symbols accessible from JavaScript/TypeScript
 - Published release builds enable WASM SIMD (`simd128` target feature + `wasm-opt --enable-simd`) so
     BLAKE3 runs its SIMD backend; conformance vectors pass on the SIMD build
 
@@ -204,7 +204,7 @@ Detailed spec: `.claude/context/specs/java-bindings.md`
 
 - `mvn test` passes conformance vectors from Java
 - Native libraries load correctly on Linux, macOS, and Windows
-- All 35 Tier 1 symbols accessible with idiomatic Java types
+- All Tier 1 symbols accessible with idiomatic Java types
 - JAR published to Maven Central with source, Javadoc, and GPG signatures
 
 ## Go Bindings — Pure Go module
@@ -217,7 +217,7 @@ Detailed spec: `.claude/context/specs/go-bindings.md`
 **Verified when:**
 
 - `go test ./...` passes all conformance vectors from `iscc-core/data.json`
-- All 35 Tier 1 symbols accessible with idiomatic Go types and error handling
+- All Tier 1 symbols accessible with idiomatic Go types and error handling
 - No cgo required (`CGO_ENABLED=0` works)
 - `go vet ./...` clean
 - Experimental ISCC-IDv1 support at the same API shape as every other binding — `GenIsccIDV1` with
@@ -237,7 +237,7 @@ Detailed spec: `.claude/context/specs/ruby-bindings.md`
 **Verified when:**
 
 - `gem install iscc-lib` succeeds with precompiled native gem
-- All 35 Tier 1 symbols accessible with idiomatic Ruby types
+- All Tier 1 symbols accessible with idiomatic Ruby types
 - Conformance tests pass against vendored `data.json` vectors
 - `bundle exec rake test` passes in CI
 - Version synced from root `Cargo.toml` via `mise run version:sync`
@@ -253,7 +253,7 @@ Detailed spec: `.claude/context/specs/dotnet-bindings.md`
 **Verified when:**
 
 - `dotnet test` passes conformance vectors
-- All 35 Tier 1 symbols accessible with idiomatic C# types
+- All Tier 1 symbols accessible with idiomatic C# types
 - Native libraries load correctly on Linux, macOS, and Windows
 - Version synced from root `Cargo.toml` via `mise run version:sync`
 
@@ -268,7 +268,7 @@ Detailed spec: `.claude/context/specs/cpp-bindings.md`
 **Verified when:**
 
 - `#include <iscc/iscc.hpp>` compiles with C++17 on GCC, Clang, MSVC
-- All 35 Tier 1 symbols accessible with idiomatic C++ types
+- All Tier 1 symbols accessible with idiomatic C++ types
 - RAII ensures no memory leaks (valgrind/ASAN clean)
 - Conformance tests pass (C++ test program)
 
@@ -287,7 +287,7 @@ Detailed spec: `.claude/context/specs/swift-bindings.md`
 
 - `swift test` passes conformance vectors on macOS
 - SPM resolves the package from Git tag with zero external toolchains required
-- All 35 Tier 1 symbols accessible with idiomatic Swift types
+- All Tier 1 symbols accessible with idiomatic Swift types
 - XCFramework bundles static libraries for macOS (arm64, x86_64) and iOS (device + simulator)
 - Root `Package.swift` uses `.binaryTarget(url:checksum:)` with local/remote toggle variable
 - XCFramework build is cached — unchanged sources skip the expensive native build
@@ -310,7 +310,7 @@ Detailed spec: `.claude/context/specs/kotlin-bindings.md`
 **Verified when:**
 
 - Kotlin tests pass conformance vectors on JVM
-- All 35 Tier 1 symbols accessible with idiomatic Kotlin types
+- All Tier 1 symbols accessible with idiomatic Kotlin types
 - Native libraries bundled for Android ABIs (arm64-v8a, armeabi-v7a, x86_64, x86)
 - Native libraries bundled for desktop (linux-x86-64, darwin-aarch64, darwin-x86-64, win32-x86-64)
 - Android app can add the Maven dependency and call ISCC functions without manual native lib setup
@@ -339,8 +339,9 @@ C developers.
     Go/go get, Node.js/npm, WASM/npm, C#/dotnet, C++/vcpkg, Swift/SPM, Kotlin/Gradle) — use tabbed
     or sectioned format
 - **Quick Start**: minimal code examples showing `gen_meta_code_v0` in each language
-- **Implementors Guide**: link to conformance test vectors and the 9 `gen_*_v0` entry points (same
-    list as iscc-core), link to documentation site for detailed per-language guides
+- **Implementors Guide**: link to conformance test vectors and the `gen_*_v0` conformance entry
+    points (iscc-core's list; `gen_sum_code_v0` has no vectors), link to documentation site for
+    detailed per-language guides
 - **Documentation**: link to `lib.iscc.codes`
 - **Contributing**: contribution guidelines, link to developer chat
 - **License**: Apache-2.0
@@ -357,7 +358,7 @@ setup, quality gates). Those belong in the documentation site under a Developmen
 - Contains per-language quick start code examples
 - Links to documentation site (`lib.iscc.codes`)
 - Does not contain development workflow content (CID loop, dev container, pre-commit hooks)
-- Lists the 9 `gen_*_v0` conformance entry points
+- Lists the `gen_*_v0` conformance entry points (iscc-core's list)
 - Includes ISCC architecture diagram and MainTypes table
 
 ## Per-Crate READMEs
@@ -391,7 +392,7 @@ must stand alone without requiring the reader to visit the repository.
 - **Installation**: registry-specific install command (e.g., `cargo add iscc-lib`,
     `pip install   iscc-lib`, `npm install @iscc/lib`)
 - **Quick start**: minimal code example in the crate's target language showing `gen_meta_code_v0`
-- **API overview**: list of the 9 `gen_*_v0` functions and key utilities available in this binding
+- **API overview**: list of the `gen_*_v0` functions and key utilities available in this binding
 - **Links**: link to documentation site (`lib.iscc.codes`), repository, and the ISCC specification
 - **License**: Apache-2.0
 

@@ -339,8 +339,8 @@ it must have a comment explaining why. Approve these case by case.
 
 ### Backward compatibility & performance (core crate)
 
-The `iscc-lib` core is stability-committed (v1.0.0+) and used in downstream production. Treat these
-as release-blocking unless the advance handoff explicitly flagged and justified them:
+The `iscc-lib` core is used in downstream production, and a break costs every binding and consumer.
+Treat these as release-blocking unless the advance handoff explicitly flagged and justified them:
 
 - **API breaks**: if the diff changes the signature, name, or type of any Tier 1 / Tier 2 `codec`
     public symbol without an `**API-BREAK:**` flag in the handoff, verdict is **NEEDS_WORK**. When
@@ -420,7 +420,7 @@ Use this when:
 - If tests fail, do NOT mark the handoff as PASS. Be honest about failures.
 - Keep learnings.md concise — max 5 new bullet points per review. Remove duplicates.
 - Every learning should be actionable and specific, not vague advice.
-- **Respect the artifact budgets.** handoff.md ≤ 100 lines, issues.md ≤ 300, learnings.md ≤ 200,
+- **Respect the artifact budgets.** handoff.md ≤ 100 lines, issues.md ≤ 400, learnings.md ≤ 200,
     decisions.md ≤ 400. The runner measures all four after every iteration and tells you at the
     start of your run which ones you are over; bringing them back under is part of the run, not a
     later cleanup step. The handoff is a briefing for the next define-next agent — verdict, what

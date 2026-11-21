@@ -150,11 +150,11 @@ technical debt introduced>
     source/test files.
 - Every function you write must have a docstring.
 - Do not introduce `unsafe` code without documenting why it's necessary.
-- **Preserve the public API of `iscc-lib` (core crate).** The crate is stability-committed (v1.0.0+)
-    and used in downstream production. Do not change the signature, name, or type of any Tier 1 (35
-    symbols) or Tier 2 `codec` symbol in a backward-incompatible way. If a break is genuinely
-    required by the work package, do NOT proceed silently — stop and flag `**API-BREAK:**` in the
-    handoff with justification for human approval.
+- **Preserve the public API of `iscc-lib` (core crate).** The crate is used in downstream
+    production, and breaks cost every binding and consumer. Do not change the signature, name, or
+    type of any Tier 1 or Tier 2 `codec` symbol in a backward-incompatible way. If a break is
+    genuinely required by the work package, do NOT proceed silently — stop and flag `**API-BREAK:**`
+    in the handoff with justification for human approval.
 - **Preserve performance.** If your change touches a benchmarked hot path (`gen_*_v0`, hashing, CDC,
     MinHash), run the relevant bench (`cargo bench` / `iai-callgrind`) and report before/after
     numbers in the handoff. Do not land a change that regresses a hot path beyond ~10% without

@@ -55,6 +55,7 @@ selectively based on the task at hand (e.g., read `state.md` to understand proje
 | `.claude/context/handoff.md`       | Inter-agent communication and verdicts      | Read only          |
 | `.claude/context/learnings.md`     | Accumulated knowledge from prior iterations | Read and append    |
 | `.claude/context/issues.md`        | Tracked issues and feature requests         | Read and append    |
+| `.claude/context/postponed.md`     | Issues set aside for a later release        | Read and write     |
 | `.claude/context/decisions.md`     | Binding design rationale (runner-rotated)   | Read and append    |
 | `.claude/context/iterations.jsonl` | CID iteration log                           | Read only          |
 | `.claude/context/metrics.jsonl`    | Codebase-health snapshots (audit cadence)   | Read only          |
