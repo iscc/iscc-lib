@@ -245,6 +245,60 @@ unsafe fn ptr_to_str<'a>(ptr: *const c_char, param_name: &str) -> Option<&'a str
     }
 }
 
+/// Borrow a pointer+length input as a slice, accepting `(NULL, 0)` as empty.
+///
+/// A length of 0 yields an empty slice whatever `ptr` is, so an empty input
+/// reaches the core and gets the core's own error (if any). A NULL `ptr` with
+/// `len > 0` sets `"<name> must not be NULL"` and returns `None`.
+///
+/// # Safety
+///
+/// If `len > 0` and `ptr` is non-null, `ptr` must be valid for reads of `len`
+/// elements of `T` for the lifetime `'a`.
+unsafe fn slice_or_empty<'a, T>(ptr: *const T, len: usize, name: &str) -> Option<&'a [T]> {
+    if len == 0 {
+        return Some(&[]);
+    }
+    if ptr.is_null() {
+        set_last_error(&format!("{name} must not be NULL"));
+        return None;
+    }
+    // SAFETY: ptr is non-null and the caller guarantees it is valid for len elements
+    Some(unsafe { std::slice::from_raw_parts(ptr, len) })
+}
+
+/// Borrow parallel row-pointer and row-length arrays as a list of slices.
+///
+/// The outer arrays and every row go through `slice_or_empty`, so `count == 0`
+/// yields an empty list and a row with length 0 yields an empty row whatever
+/// its pointer is. Stops at the first NULL with a non-zero length; the error
+/// names the parameter (`rows_name`, `lens_name`, or `rows_name[i]`).
+///
+/// # Safety
+///
+/// If `count > 0`, `rows` and `lens` must be valid for `count` elements, and
+/// each non-null `rows[i]` must be valid for `lens[i]` elements of `T`.
+unsafe fn rows_or_empty<'a, T>(
+    rows: *const *const T,
+    lens: *const usize,
+    count: usize,
+    rows_name: &str,
+    lens_name: &str,
+) -> Option<Vec<&'a [T]>> {
+    // SAFETY: caller guarantees rows and lens are valid for count elements
+    let row_ptrs = unsafe { slice_or_empty(rows, count, rows_name) }?;
+    let row_lens = unsafe { slice_or_empty(lens, count, lens_name) }?;
+    row_ptrs
+        .iter()
+        .zip(row_lens)
+        .enumerate()
+        .map(|(i, (&ptr, &len))| {
+            // SAFETY: caller guarantees each non-null row is valid for its length
+            unsafe { slice_or_empty(ptr, len, &format!("{rows_name}[{i}]")) }
+        })
+        .collect()
+}
+
 /// Convert an optional `*const c_char` to `Option<&str>`.
 ///
 /// Returns `Some(None)` for null pointers, `Some(Some(s))` for valid strings,
@@ -346,7 +400,8 @@ pub unsafe extern "C" fn iscc_gen_text_code_v0(text: *const c_char, bits: u32) -
 ///
 /// # Safety
 ///
-/// `pixels` must point to a valid buffer of at least `pixels_len` bytes.
+/// `pixels` must point to a valid buffer of at least `pixels_len` bytes. It may
+/// be NULL when `pixels_len` is 0; NULL with `pixels_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_image_code_v0(
     pixels: *const u8,
@@ -354,12 +409,10 @@ pub unsafe extern "C" fn iscc_gen_image_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if pixels.is_null() {
-        set_last_error("pixels must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees pixels is valid for pixels_len bytes
-    let pixels = unsafe { std::slice::from_raw_parts(pixels, pixels_len) };
+    let Some(pixels) = (unsafe { slice_or_empty(pixels, pixels_len, "pixels") }) else {
+        return ptr::null_mut();
+    };
     result_to_c_string(iscc_lib::gen_image_code_v0(pixels, bits).map(|r| r.iscc))
 }
 
@@ -378,7 +431,8 @@ pub unsafe extern "C" fn iscc_gen_image_code_v0(
 ///
 /// # Safety
 ///
-/// `cv` must point to a valid buffer of at least `cv_len` `i32` elements.
+/// `cv` must point to a valid buffer of at least `cv_len` `i32` elements. It may
+/// be NULL when `cv_len` is 0; NULL with `cv_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_audio_code_v0(
     cv: *const i32,
@@ -386,12 +440,10 @@ pub unsafe extern "C" fn iscc_gen_audio_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if cv.is_null() {
-        set_last_error("cv must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees cv is valid for cv_len elements
-    let cv = unsafe { std::slice::from_raw_parts(cv, cv_len) };
+    let Some(cv) = (unsafe { slice_or_empty(cv, cv_len, "cv") }) else {
+        return ptr::null_mut();
+    };
     result_to_c_string(iscc_lib::gen_audio_code_v0(cv, bits).map(|r| r.iscc))
 }
 
@@ -411,9 +463,11 @@ pub unsafe extern "C" fn iscc_gen_audio_code_v0(
 ///
 /// # Safety
 ///
-/// - `frame_sigs` must point to an array of `num_frames` valid pointers
+/// - `frame_sigs` must point to an array of `num_frames` pointers
 /// - `frame_lens` must point to an array of `num_frames` lengths
 /// - Each `frame_sigs[i]` must be valid for `frame_lens[i]` `i32` elements
+/// - Any of these pointers may be NULL when its length (`num_frames` or
+///   `frame_lens[i]`) is 0; NULL with a non-zero length is an error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_video_code_v0(
     frame_sigs: *const *const i32,
@@ -422,26 +476,18 @@ pub unsafe extern "C" fn iscc_gen_video_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if frame_sigs.is_null() {
-        set_last_error("frame_sigs must not be NULL");
+    // SAFETY: caller guarantees the arrays and each row are valid for their lengths
+    let Some(frames) = (unsafe {
+        rows_or_empty(
+            frame_sigs,
+            frame_lens,
+            num_frames,
+            "frame_sigs",
+            "frame_lens",
+        )
+    }) else {
         return ptr::null_mut();
-    }
-    if frame_lens.is_null() {
-        set_last_error("frame_lens must not be NULL");
-        return ptr::null_mut();
-    }
-    // SAFETY: caller guarantees pointers are valid for num_frames elements
-    let sig_ptrs = unsafe { std::slice::from_raw_parts(frame_sigs, num_frames) };
-    let lens = unsafe { std::slice::from_raw_parts(frame_lens, num_frames) };
-
-    let frames: Vec<&[i32]> = sig_ptrs
-        .iter()
-        .zip(lens.iter())
-        .map(|(&ptr, &len)| {
-            // SAFETY: caller guarantees each ptr is valid for its length
-            unsafe { std::slice::from_raw_parts(ptr, len) }
-        })
-        .collect();
+    };
 
     result_to_c_string(iscc_lib::gen_video_code_v0(&frames, bits).map(|r| r.iscc))
 }
@@ -462,6 +508,7 @@ pub unsafe extern "C" fn iscc_gen_video_code_v0(
 /// # Safety
 ///
 /// `codes` must point to an array of `num_codes` valid null-terminated UTF-8 strings.
+/// It may be NULL when `num_codes` is 0; NULL with `num_codes > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_mixed_code_v0(
     codes: *const *const c_char,
@@ -469,12 +516,10 @@ pub unsafe extern "C" fn iscc_gen_mixed_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if codes.is_null() {
-        set_last_error("codes must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees codes is valid for num_codes elements
-    let code_ptrs = unsafe { std::slice::from_raw_parts(codes, num_codes) };
+    let Some(code_ptrs) = (unsafe { slice_or_empty(codes, num_codes, "codes") }) else {
+        return ptr::null_mut();
+    };
 
     let mut code_strs: Vec<&str> = Vec::with_capacity(num_codes);
     for (i, &ptr) in code_ptrs.iter().enumerate() {
@@ -502,7 +547,8 @@ pub unsafe extern "C" fn iscc_gen_mixed_code_v0(
 ///
 /// # Safety
 ///
-/// `data` must point to a valid buffer of at least `data_len` bytes.
+/// `data` must point to a valid buffer of at least `data_len` bytes. It may be
+/// NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_data_code_v0(
     data: *const u8,
@@ -510,12 +556,10 @@ pub unsafe extern "C" fn iscc_gen_data_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if data.is_null() {
-        set_last_error("data must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees data is valid for data_len bytes
-    let data = unsafe { std::slice::from_raw_parts(data, data_len) };
+    let Some(data) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return ptr::null_mut();
+    };
     result_to_c_string(iscc_lib::gen_data_code_v0(data, bits).map(|r| r.iscc))
 }
 
@@ -534,7 +578,8 @@ pub unsafe extern "C" fn iscc_gen_data_code_v0(
 ///
 /// # Safety
 ///
-/// `data` must point to a valid buffer of at least `data_len` bytes.
+/// `data` must point to a valid buffer of at least `data_len` bytes. It may be
+/// NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_instance_code_v0(
     data: *const u8,
@@ -542,12 +587,10 @@ pub unsafe extern "C" fn iscc_gen_instance_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if data.is_null() {
-        set_last_error("data must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees data is valid for data_len bytes
-    let data = unsafe { std::slice::from_raw_parts(data, data_len) };
+    let Some(data) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return ptr::null_mut();
+    };
     result_to_c_string(iscc_lib::gen_instance_code_v0(data, bits).map(|r| r.iscc))
 }
 
@@ -567,6 +610,7 @@ pub unsafe extern "C" fn iscc_gen_instance_code_v0(
 /// # Safety
 ///
 /// `codes` must point to an array of `num_codes` valid null-terminated UTF-8 strings.
+/// It may be NULL when `num_codes` is 0; NULL with `num_codes > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_iscc_code_v0(
     codes: *const *const c_char,
@@ -574,12 +618,10 @@ pub unsafe extern "C" fn iscc_gen_iscc_code_v0(
     wide: bool,
 ) -> *mut c_char {
     clear_last_error();
-    if codes.is_null() {
-        set_last_error("codes must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees codes is valid for num_codes elements
-    let code_ptrs = unsafe { std::slice::from_raw_parts(codes, num_codes) };
+    let Some(code_ptrs) = (unsafe { slice_or_empty(codes, num_codes, "codes") }) else {
+        return ptr::null_mut();
+    };
 
     let mut code_strs: Vec<&str> = Vec::with_capacity(num_codes);
     for (i, &ptr) in code_ptrs.iter().enumerate() {
@@ -726,16 +768,15 @@ pub unsafe extern "C" fn iscc_text_collapse(text: *const c_char) -> *mut c_char 
 ///
 /// # Safety
 ///
-/// `data` must point to a valid buffer of at least `data_len` bytes.
+/// `data` must point to a valid buffer of at least `data_len` bytes. It may be
+/// NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_encode_base64(data: *const u8, data_len: usize) -> *mut c_char {
     clear_last_error();
-    if data.is_null() {
-        set_last_error("data must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees data is valid for data_len bytes
-    let data = unsafe { std::slice::from_raw_parts(data, data_len) };
+    let Some(data) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return ptr::null_mut();
+    };
     string_to_c(iscc_lib::encode_base64(data))
 }
 
@@ -784,8 +825,8 @@ pub unsafe extern "C" fn iscc_json_to_data_url(json: *const c_char) -> *mut c_ch
 ///
 /// # Safety
 ///
-/// If `digest_len > 0`, `digest` must point to a valid buffer of at least
-/// `digest_len` bytes.
+/// `digest` must point to a valid buffer of at least `digest_len` bytes. It may
+/// be NULL when `digest_len` is 0; NULL with `digest_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_encode_component(
     mtype: u8,
@@ -796,14 +837,9 @@ pub unsafe extern "C" fn iscc_encode_component(
     digest_len: usize,
 ) -> *mut c_char {
     clear_last_error();
-    let slice = if digest_len == 0 {
-        &[]
-    } else if digest.is_null() {
-        set_last_error("digest must not be NULL");
+    // SAFETY: caller guarantees digest is valid for digest_len bytes
+    let Some(slice) = (unsafe { slice_or_empty(digest, digest_len, "digest") }) else {
         return ptr::null_mut();
-    } else {
-        // SAFETY: caller guarantees digest is valid for digest_len bytes
-        unsafe { std::slice::from_raw_parts(digest, digest_len) }
     };
     result_to_c_string(iscc_lib::encode_component(
         mtype, stype, version, bit_length, slice,
@@ -1063,26 +1099,25 @@ pub unsafe extern "C" fn iscc_decompose(iscc_code: *const c_char) -> *mut *mut c
 /// # Returns
 ///
 /// `IsccByteBuffer` with the ISCC-SEQ bytes on success. On error `.data` is
-/// `NULL` (check `iscc_last_error()`): `units` is NULL, the list is empty, or
-/// a unit is NULL, not UTF-8, malformed, or of an excluded MainType
-/// (ISCC-CODE, ID, FLAKE). Caller must free with `iscc_free_byte_buffer()`.
+/// `NULL` (check `iscc_last_error()`): `units` is NULL with `num_units > 0`,
+/// the list is empty, or a unit is NULL, not UTF-8, malformed, or of an
+/// excluded MainType (ISCC-CODE, ID, FLAKE). Caller must free with
+/// `iscc_free_byte_buffer()`.
 ///
 /// # Safety
 ///
 /// `units` must point to an array of `num_units` valid null-terminated UTF-8
-/// strings.
+/// strings. It may be NULL when `num_units` is 0.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_encode_seq(
     units: *const *const c_char,
     num_units: usize,
 ) -> IsccByteBuffer {
     clear_last_error();
-    if units.is_null() {
-        set_last_error("units must not be NULL");
-        return null_byte_buffer();
-    }
     // SAFETY: caller guarantees units is valid for num_units elements
-    let unit_ptrs = unsafe { std::slice::from_raw_parts(units, num_units) };
+    let Some(unit_ptrs) = (unsafe { slice_or_empty(units, num_units, "units") }) else {
+        return null_byte_buffer();
+    };
 
     let mut unit_strs: Vec<&str> = Vec::with_capacity(num_units);
     for (i, &ptr) in unit_ptrs.iter().enumerate() {
@@ -1120,19 +1155,14 @@ pub unsafe extern "C" fn iscc_encode_seq(
 ///
 /// # Safety
 ///
-/// If `data_len > 0`, `data` must point to a valid buffer of at least
-/// `data_len` bytes.
+/// `data` must point to a valid buffer of at least `data_len` bytes. It may be
+/// NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_decode_seq(data: *const u8, data_len: usize) -> *mut *mut c_char {
     clear_last_error();
-    let slice = if data_len == 0 {
-        &[]
-    } else if data.is_null() {
-        set_last_error("data must not be NULL");
+    // SAFETY: caller guarantees data is valid for data_len bytes
+    let Some(slice) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
         return ptr::null_mut();
-    } else {
-        // SAFETY: caller guarantees data is valid for data_len bytes
-        unsafe { std::slice::from_raw_parts(data, data_len) }
     };
     match iscc_lib::decode_seq(slice) {
         Ok(units) => vec_to_c_string_array(units),
@@ -1194,9 +1224,11 @@ pub unsafe extern "C" fn iscc_sliding_window(seq: *const c_char, width: u32) -> 
 ///
 /// # Safety
 ///
-/// - `digests` must point to an array of `num_digests` valid byte pointers
+/// - `digests` must point to an array of `num_digests` byte pointers
 /// - `digest_lens` must point to an array of `num_digests` lengths
 /// - Each `digests[i]` must be valid for `digest_lens[i]` bytes
+/// - Any of these pointers may be NULL when its length (`num_digests` or
+///   `digest_lens[i]`) is 0; NULL with a non-zero length is an error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_alg_simhash(
     digests: *const *const u8,
@@ -1204,36 +1236,12 @@ pub unsafe extern "C" fn iscc_alg_simhash(
     num_digests: usize,
 ) -> IsccByteBuffer {
     clear_last_error();
-    if num_digests == 0 {
-        let empty: &[&[u8]] = &[];
-        return match iscc_lib::alg_simhash(empty) {
-            Ok(v) => vec_to_byte_buffer(v),
-            Err(e) => {
-                set_last_error(&e.to_string());
-                null_byte_buffer()
-            }
-        };
-    }
-    if digests.is_null() {
-        set_last_error("digests must not be NULL");
+    // SAFETY: caller guarantees the arrays and each row are valid for their lengths
+    let Some(slices) =
+        (unsafe { rows_or_empty(digests, digest_lens, num_digests, "digests", "digest_lens") })
+    else {
         return null_byte_buffer();
-    }
-    if digest_lens.is_null() {
-        set_last_error("digest_lens must not be NULL");
-        return null_byte_buffer();
-    }
-    // SAFETY: caller guarantees pointers are valid for num_digests elements
-    let ptrs = unsafe { std::slice::from_raw_parts(digests, num_digests) };
-    let lens = unsafe { std::slice::from_raw_parts(digest_lens, num_digests) };
-
-    let slices: Vec<&[u8]> = ptrs
-        .iter()
-        .zip(lens.iter())
-        .map(|(&ptr, &len)| {
-            // SAFETY: caller guarantees each ptr is valid for its length
-            unsafe { std::slice::from_raw_parts(ptr, len) }
-        })
-        .collect();
+    };
 
     match iscc_lib::alg_simhash(&slices) {
         Ok(v) => vec_to_byte_buffer(v),
@@ -1262,21 +1270,16 @@ pub unsafe extern "C" fn iscc_alg_simhash(
 /// # Safety
 ///
 /// `features` must point to a valid buffer of at least `features_len` `u32` elements.
+/// It may be NULL when `features_len` is 0; NULL with `features_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_alg_minhash_256(
     features: *const u32,
     features_len: usize,
 ) -> IsccByteBuffer {
     clear_last_error();
-    let slice = if features_len == 0 {
-        &[]
-    } else {
-        if features.is_null() {
-            set_last_error("features must not be NULL");
-            return null_byte_buffer();
-        }
-        // SAFETY: caller guarantees features is valid for features_len elements
-        unsafe { std::slice::from_raw_parts(features, features_len) }
+    // SAFETY: caller guarantees features is valid for features_len elements
+    let Some(slice) = (unsafe { slice_or_empty(features, features_len, "features") }) else {
+        return null_byte_buffer();
     };
     vec_to_byte_buffer(iscc_lib::alg_minhash_256(slice))
 }
@@ -1300,7 +1303,8 @@ pub unsafe extern "C" fn iscc_alg_minhash_256(
 ///
 /// # Safety
 ///
-/// `data` must point to a valid buffer of at least `data_len` bytes.
+/// `data` must point to a valid buffer of at least `data_len` bytes. It may be
+/// NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_alg_cdc_chunks(
     data: *const u8,
@@ -1309,15 +1313,9 @@ pub unsafe extern "C" fn iscc_alg_cdc_chunks(
     avg_chunk_size: u32,
 ) -> IsccByteBufferArray {
     clear_last_error();
-    let slice = if data_len == 0 {
-        &[]
-    } else {
-        if data.is_null() {
-            set_last_error("data must not be NULL");
-            return null_byte_buffer_array();
-        }
-        // SAFETY: caller guarantees data is valid for data_len bytes
-        unsafe { std::slice::from_raw_parts(data, data_len) }
+    // SAFETY: caller guarantees data is valid for data_len bytes
+    let Some(slice) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return null_byte_buffer_array();
     };
     let chunks = match iscc_lib::alg_cdc_chunks(slice, utf32, avg_chunk_size) {
         Ok(c) => c,
@@ -1356,9 +1354,11 @@ pub unsafe extern "C" fn iscc_alg_cdc_chunks(
 ///
 /// # Safety
 ///
-/// - `frame_sigs` must point to an array of `num_frames` valid pointers
+/// - `frame_sigs` must point to an array of `num_frames` pointers
 /// - `frame_lens` must point to an array of `num_frames` lengths
 /// - Each `frame_sigs[i]` must be valid for `frame_lens[i]` `i32` elements
+/// - Any of these pointers may be NULL when its length (`num_frames` or
+///   `frame_lens[i]`) is 0; NULL with a non-zero length is an error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_soft_hash_video_v0(
     frame_sigs: *const *const i32,
@@ -1367,26 +1367,18 @@ pub unsafe extern "C" fn iscc_soft_hash_video_v0(
     bits: u32,
 ) -> IsccByteBuffer {
     clear_last_error();
-    if frame_sigs.is_null() {
-        set_last_error("frame_sigs must not be NULL");
+    // SAFETY: caller guarantees the arrays and each row are valid for their lengths
+    let Some(frames) = (unsafe {
+        rows_or_empty(
+            frame_sigs,
+            frame_lens,
+            num_frames,
+            "frame_sigs",
+            "frame_lens",
+        )
+    }) else {
         return null_byte_buffer();
-    }
-    if frame_lens.is_null() {
-        set_last_error("frame_lens must not be NULL");
-        return null_byte_buffer();
-    }
-    // SAFETY: caller guarantees pointers are valid for num_frames elements
-    let sig_ptrs = unsafe { std::slice::from_raw_parts(frame_sigs, num_frames) };
-    let lens = unsafe { std::slice::from_raw_parts(frame_lens, num_frames) };
-
-    let frames: Vec<&[i32]> = sig_ptrs
-        .iter()
-        .zip(lens.iter())
-        .map(|(&ptr, &len)| {
-            // SAFETY: caller guarantees each ptr is valid for its length
-            unsafe { std::slice::from_raw_parts(ptr, len) }
-        })
-        .collect();
+    };
 
     match iscc_lib::soft_hash_video_v0(&frames, bits) {
         Ok(result) => vec_to_byte_buffer(result),
@@ -1435,7 +1427,8 @@ pub extern "C" fn iscc_data_hasher_new() -> *mut FfiDataHasher {
 /// # Safety
 ///
 /// - `hasher` must be a valid pointer from `iscc_data_hasher_new()`, or NULL.
-/// - `data` must point to at least `data_len` valid bytes.
+/// - `data` must point to at least `data_len` valid bytes. It may be NULL when
+///   `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_data_hasher_update(
     hasher: *mut FfiDataHasher,
@@ -1454,14 +1447,8 @@ pub unsafe extern "C" fn iscc_data_hasher_update(
         return false;
     };
     // SAFETY: caller guarantees data is valid for data_len bytes
-    let slice = if data_len == 0 {
-        &[]
-    } else {
-        if data.is_null() {
-            set_last_error("data must not be NULL");
-            return false;
-        }
-        unsafe { std::slice::from_raw_parts(data, data_len) }
+    let Some(slice) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return false;
     };
     inner.update(slice);
     true
@@ -1532,7 +1519,8 @@ pub extern "C" fn iscc_instance_hasher_new() -> *mut FfiInstanceHasher {
 /// # Safety
 ///
 /// - `hasher` must be a valid pointer from `iscc_instance_hasher_new()`, or NULL.
-/// - `data` must point to at least `data_len` valid bytes.
+/// - `data` must point to at least `data_len` valid bytes. It may be NULL when
+///   `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_instance_hasher_update(
     hasher: *mut FfiInstanceHasher,
@@ -1551,14 +1539,8 @@ pub unsafe extern "C" fn iscc_instance_hasher_update(
         return false;
     };
     // SAFETY: caller guarantees data is valid for data_len bytes
-    let slice = if data_len == 0 {
-        &[]
-    } else {
-        if data.is_null() {
-            set_last_error("data must not be NULL");
-            return false;
-        }
-        unsafe { std::slice::from_raw_parts(data, data_len) }
+    let Some(slice) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return false;
     };
     inner.update(slice);
     true

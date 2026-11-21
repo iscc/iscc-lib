@@ -128,14 +128,6 @@ public static partial class IsccLib
     {
         unsafe
         {
-            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
-            if (pixels.IsEmpty)
-            {
-                byte sentinel = 0;
-                byte* result = NativeMethods.iscc_gen_image_code_v0(&sentinel, 0, bits);
-                return new ImageCodeResult(ConsumeNativeString(result));
-            }
-
             fixed (byte* pPixels = pixels)
             {
                 byte* result = NativeMethods.iscc_gen_image_code_v0(
@@ -150,14 +142,6 @@ public static partial class IsccLib
     {
         unsafe
         {
-            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
-            if (cv.IsEmpty)
-            {
-                int sentinel = 0;
-                byte* result = NativeMethods.iscc_gen_audio_code_v0(&sentinel, 0, bits);
-                return new AudioCodeResult(ConsumeNativeString(result));
-            }
-
             fixed (int* pCv = cv)
             {
                 byte* result = NativeMethods.iscc_gen_audio_code_v0(
@@ -234,14 +218,6 @@ public static partial class IsccLib
     {
         unsafe
         {
-            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
-            if (data.IsEmpty)
-            {
-                byte sentinel = 0;
-                byte* result = NativeMethods.iscc_gen_data_code_v0(&sentinel, 0, bits);
-                return new DataCodeResult(ConsumeNativeString(result));
-            }
-
             fixed (byte* pData = data)
             {
                 byte* result = NativeMethods.iscc_gen_data_code_v0(
@@ -256,14 +232,6 @@ public static partial class IsccLib
     {
         unsafe
         {
-            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
-            if (data.IsEmpty)
-            {
-                byte sentinel = 0;
-                byte* result = NativeMethods.iscc_gen_instance_code_v0(&sentinel, 0, bits);
-                return new InstanceCodeResult(ConsumeNativeString(result));
-            }
-
             fixed (byte* pData = data)
             {
                 byte* result = NativeMethods.iscc_gen_instance_code_v0(
@@ -322,14 +290,6 @@ public static partial class IsccLib
     {
         unsafe
         {
-            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
-            if (data.IsEmpty)
-            {
-                byte sentinel = 0;
-                byte* result = NativeMethods.iscc_encode_base64(&sentinel, 0);
-                return ConsumeNativeString(result);
-            }
-
             fixed (byte* pData = data)
             {
                 byte* result = NativeMethods.iscc_encode_base64(
@@ -476,14 +436,6 @@ public static partial class IsccLib
     {
         unsafe
         {
-            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
-            if (features.IsEmpty)
-            {
-                uint sentinel = 0;
-                IsccByteBuffer buf = NativeMethods.iscc_alg_minhash_256(&sentinel, 0);
-                return ConsumeByteBuffer(buf);
-            }
-
             fixed (uint* pFeatures = features)
             {
                 IsccByteBuffer buf = NativeMethods.iscc_alg_minhash_256(
@@ -499,15 +451,6 @@ public static partial class IsccLib
     {
         unsafe
         {
-            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
-            if (data.IsEmpty)
-            {
-                byte sentinel = 0;
-                IsccByteBufferArray arr = NativeMethods.iscc_alg_cdc_chunks(
-                    &sentinel, 0, utf32, avgChunkSize);
-                return ConsumeByteBufferArray(arr);
-            }
-
             fixed (byte* pData = data)
             {
                 IsccByteBufferArray arr = NativeMethods.iscc_alg_cdc_chunks(

@@ -74,6 +74,55 @@ static int tests_failed = 0;
         } \
     } while (0)
 
+/* Return 1 if the last error is set and contains `needle`. */
+static int last_error_has(const char *needle) {
+    const char *err = iscc_last_error();
+    return err != NULL && strstr(err, needle) != NULL;
+}
+
+/* Return 1 if the last error is unset or lacks "must not be NULL". */
+static int last_error_not_null_rejection(void) {
+    return !last_error_has("must not be NULL");
+}
+
+/* Return 1 if two FFI string results are equal (both NULL counts); frees both. */
+static int same_str_result(char *a, char *b) {
+    int same = (a == NULL && b == NULL) || (a != NULL && b != NULL && strcmp(a, b) == 0);
+    iscc_free_string(a);
+    iscc_free_string(b);
+    return same;
+}
+
+/* Return 1 if two FFI byte buffers are equal (both NULL counts); frees both. */
+static int same_buf_result(struct iscc_IsccByteBuffer a, struct iscc_IsccByteBuffer b) {
+    int same = (a.data == NULL && b.data == NULL) ||
+               (a.data != NULL && b.data != NULL && a.len == b.len &&
+                memcmp(a.data, b.data, a.len) == 0);
+    iscc_free_byte_buffer(a);
+    iscc_free_byte_buffer(b);
+    return same;
+}
+
+/* Check that a (NULL, 0) call matches the same call with a non-NULL pointer and that it
+ * never fails with "must not be NULL". `null_call` runs first, so the error is its own. */
+#define CHECK_NULL_EMPTY_STR(null_call, ptr_call, test_name) \
+    do { \
+        char *null_res = (null_call); \
+        int null_ok = last_error_not_null_rejection(); \
+        char *ptr_res = (ptr_call); \
+        ASSERT_EQ(null_ok, 1, test_name " — no NULL rejection"); \
+        ASSERT_EQ(same_str_result(null_res, ptr_res), 1, test_name " — matches non-NULL"); \
+    } while (0)
+
+#define CHECK_NULL_EMPTY_BUF(null_call, ptr_call, test_name) \
+    do { \
+        struct iscc_IsccByteBuffer null_res = (null_call); \
+        int null_ok = last_error_not_null_rejection(); \
+        struct iscc_IsccByteBuffer ptr_res = (ptr_call); \
+        ASSERT_EQ(null_ok, 1, test_name " — no NULL rejection"); \
+        ASSERT_EQ(same_buf_result(null_res, ptr_res), 1, test_name " — matches non-NULL"); \
+    } while (0)
+
 /* Return 1 if an edge-vector string reaches C intact: non-NULL and no embedded NUL,
  * so a row whose input C cannot express fails instead of hashing the prefix. */
 static int edge_str_fits_c(struct iscc_edge_str s) {
@@ -747,6 +796,89 @@ int main(void) {
                   "data_edge negative: gen_meta_code_v0 output mismatch fails");
         ASSERT_EQ(check_edge_gen_video_code_v0(&ragged_ok), 0,
                   "data_edge negative: gen_video_code_v0 expected output that errors fails");
+    }
+
+    /* 35. (NULL, 0) is an empty input on every pointer+length parameter */
+    {
+        static const uint8_t byte0 = 0;
+        static const int32_t int0 = 0;
+        static const uint32_t u0 = 0;
+        static const char *const no_codes[] = {NULL};
+        static const int32_t *const empty_row[] = {&int0};
+        static const int32_t *const null_row[] = {NULL};
+        static const uint8_t *const empty_digest[] = {&byte0};
+        static const uint8_t *const null_digest[] = {NULL};
+        static const size_t zero_len[] = {0};
+        CHECK_NULL_EMPTY_STR(iscc_gen_image_code_v0(NULL, 0, 64),
+                             iscc_gen_image_code_v0(&byte0, 0, 64), "gen_image_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_audio_code_v0(NULL, 0, 64),
+                             iscc_gen_audio_code_v0(&int0, 0, 64), "gen_audio_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_data_code_v0(NULL, 0, 64),
+                             iscc_gen_data_code_v0(&byte0, 0, 64), "gen_data_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_instance_code_v0(NULL, 0, 64),
+                             iscc_gen_instance_code_v0(&byte0, 0, 64),
+                             "gen_instance_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_encode_base64(NULL, 0), iscc_encode_base64(&byte0, 0),
+                             "encode_base64(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_mixed_code_v0(NULL, 0, 64),
+                             iscc_gen_mixed_code_v0(no_codes, 0, 64),
+                             "gen_mixed_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_iscc_code_v0(NULL, 0, false),
+                             iscc_gen_iscc_code_v0(no_codes, 0, false),
+                             "gen_iscc_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_video_code_v0(NULL, NULL, 0, 64),
+                             iscc_gen_video_code_v0(empty_row, zero_len, 0, 64),
+                             "gen_video_code_v0(NULL, NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_video_code_v0(null_row, zero_len, 1, 64),
+                             iscc_gen_video_code_v0(empty_row, zero_len, 1, 64),
+                             "gen_video_code_v0 NULL row of length 0");
+        CHECK_NULL_EMPTY_BUF(iscc_encode_seq(NULL, 0), iscc_encode_seq(no_codes, 0),
+                             "encode_seq(NULL, 0)");
+        CHECK_NULL_EMPTY_BUF(iscc_alg_minhash_256(NULL, 0), iscc_alg_minhash_256(&u0, 0),
+                             "alg_minhash_256(NULL, 0)");
+        CHECK_NULL_EMPTY_BUF(iscc_soft_hash_video_v0(null_row, zero_len, 1, 64),
+                             iscc_soft_hash_video_v0(empty_row, zero_len, 1, 64),
+                             "soft_hash_video_v0 NULL row of length 0");
+        CHECK_NULL_EMPTY_BUF(iscc_alg_simhash(null_digest, zero_len, 1),
+                             iscc_alg_simhash(empty_digest, zero_len, 1),
+                             "alg_simhash NULL row of length 0");
+    }
+
+    /* 36. NULL with a non-zero length is rejected with the parameter name (one per call) */
+    {
+        static const int32_t frame[380] = {0};
+        static const uint8_t digest[4] = {1, 2, 3, 4};
+        static const int32_t *const sigs_null_row[] = {frame, NULL};
+        static const size_t frame_lens[] = {380, 380};
+        static const uint8_t *const digests_null_row[] = {digest, NULL};
+        static const size_t digest_lens[] = {4, 4};
+        char *s;
+        struct iscc_IsccByteBuffer b;
+
+        s = iscc_gen_data_code_v0(NULL, 4, 64);
+        ASSERT_NULL(s, "gen_data_code_v0(NULL, 4) returns NULL");
+        ASSERT_EQ(last_error_has("data must not be NULL"), 1,
+                  "gen_data_code_v0(NULL, 4) names data");
+        s = iscc_gen_image_code_v0(NULL, 1024, 64);
+        ASSERT_NULL(s, "gen_image_code_v0(NULL, 1024) returns NULL");
+        ASSERT_EQ(last_error_has("pixels must not be NULL"), 1,
+                  "gen_image_code_v0(NULL, 1024) names pixels");
+        s = iscc_gen_mixed_code_v0(NULL, 2, 64);
+        ASSERT_NULL(s, "gen_mixed_code_v0(NULL, 2) returns NULL");
+        ASSERT_EQ(last_error_has("codes must not be NULL"), 1,
+                  "gen_mixed_code_v0(NULL, 2) names codes");
+        s = iscc_gen_video_code_v0(sigs_null_row, frame_lens, 2, 64);
+        ASSERT_NULL(s, "gen_video_code_v0 NULL row with length returns NULL");
+        ASSERT_EQ(last_error_has("frame_sigs[1] must not be NULL"), 1,
+                  "gen_video_code_v0 NULL row names frame_sigs[1]");
+        b = iscc_soft_hash_video_v0(sigs_null_row, frame_lens, 2, 64);
+        ASSERT_NULL(b.data, "soft_hash_video_v0 NULL row with length returns NULL");
+        ASSERT_EQ(last_error_has("frame_sigs[1] must not be NULL"), 1,
+                  "soft_hash_video_v0 NULL row names frame_sigs[1]");
+        b = iscc_alg_simhash(digests_null_row, digest_lens, 2);
+        ASSERT_NULL(b.data, "alg_simhash NULL row with length returns NULL");
+        ASSERT_EQ(last_error_has("digests[1] must not be NULL"), 1,
+                  "alg_simhash NULL row names digests[1]");
     }
 
     /* Summary */

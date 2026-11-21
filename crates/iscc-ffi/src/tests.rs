@@ -83,9 +83,16 @@ fn test_gen_image_code_v0_basic() {
 }
 
 #[test]
-fn test_gen_image_code_v0_null() {
+fn test_gen_image_code_v0_null_empty() {
     let result = unsafe { iscc_gen_image_code_v0(ptr::null(), 0, 64) };
+    assert_str_matches_core(result, iscc_lib::gen_image_code_v0(&[], 64).map(|r| r.iscc));
+}
+
+#[test]
+fn test_gen_image_code_v0_null_with_len() {
+    let result = unsafe { iscc_gen_image_code_v0(ptr::null(), 1024, 64) };
     assert!(result.is_null());
+    assert_last_error_contains("pixels must not be NULL");
 }
 
 #[test]
@@ -100,21 +107,85 @@ fn test_gen_audio_code_v0_basic() {
 }
 
 #[test]
-fn test_gen_audio_code_v0_null() {
+fn test_gen_audio_code_v0_null_empty() {
     let result = unsafe { iscc_gen_audio_code_v0(ptr::null(), 0, 64) };
-    assert!(result.is_null());
+    let s = unsafe { c_ptr_to_string(result) }.unwrap();
+    assert_eq!(s, iscc_lib::gen_audio_code_v0(&[], 64).unwrap().iscc);
 }
 
 #[test]
-fn test_gen_video_code_v0_null_sigs() {
+fn test_gen_audio_code_v0_null_with_len() {
+    let result = unsafe { iscc_gen_audio_code_v0(ptr::null(), 3, 64) };
+    assert!(result.is_null());
+    assert_last_error_contains("cv must not be NULL");
+}
+
+#[test]
+fn test_gen_video_code_v0_null_empty() {
+    // Zero frames reach the core, which rejects the empty list itself
     let result = unsafe { iscc_gen_video_code_v0(ptr::null(), ptr::null(), 0, 64) };
-    assert!(result.is_null());
+    let empty: &[&[i32]] = &[];
+    assert_str_matches_core(
+        result,
+        iscc_lib::gen_video_code_v0(empty, 64).map(|r| r.iscc),
+    );
 }
 
 #[test]
-fn test_gen_mixed_code_v0_null() {
-    let result = unsafe { iscc_gen_mixed_code_v0(ptr::null(), 0, 64) };
+fn test_gen_video_code_v0_null_sigs_with_count() {
+    let lens = [380usize];
+    let result = unsafe { iscc_gen_video_code_v0(ptr::null(), lens.as_ptr(), 1, 64) };
     assert!(result.is_null());
+    assert_last_error_contains("frame_sigs must not be NULL");
+}
+
+#[test]
+fn test_gen_video_code_v0_null_lens_with_count() {
+    let f1: Vec<i32> = (0..380).collect();
+    let ptrs = [f1.as_ptr()];
+    let result = unsafe { iscc_gen_video_code_v0(ptrs.as_ptr(), ptr::null(), 1, 64) };
+    assert!(result.is_null());
+    assert_last_error_contains("frame_lens must not be NULL");
+}
+
+#[test]
+fn test_gen_video_code_v0_null_inner_row_with_len() {
+    let f1: Vec<i32> = (0..380).collect();
+    let ptrs = [f1.as_ptr(), ptr::null()];
+    let lens = [380usize, 380];
+    let result = unsafe { iscc_gen_video_code_v0(ptrs.as_ptr(), lens.as_ptr(), 2, 64) };
+    assert!(result.is_null());
+    assert_last_error_contains("frame_sigs[1] must not be NULL");
+}
+
+#[test]
+fn test_gen_video_code_v0_null_inner_row_empty() {
+    // A NULL row with length 0 is an empty row; the core decides what it means
+    let ptrs = [ptr::null()];
+    let lens = [0usize];
+    let result = unsafe { iscc_gen_video_code_v0(ptrs.as_ptr(), lens.as_ptr(), 1, 64) };
+    let rows: &[&[i32]] = &[&[]];
+    assert_str_matches_core(
+        result,
+        iscc_lib::gen_video_code_v0(rows, 64).map(|r| r.iscc),
+    );
+}
+
+#[test]
+fn test_gen_mixed_code_v0_null_empty() {
+    let result = unsafe { iscc_gen_mixed_code_v0(ptr::null(), 0, 64) };
+    let empty: &[&str] = &[];
+    assert_str_matches_core(
+        result,
+        iscc_lib::gen_mixed_code_v0(empty, 64).map(|r| r.iscc),
+    );
+}
+
+#[test]
+fn test_gen_mixed_code_v0_null_with_count() {
+    let result = unsafe { iscc_gen_mixed_code_v0(ptr::null(), 2, 64) };
+    assert!(result.is_null());
+    assert_last_error_contains("codes must not be NULL");
 }
 
 #[test]
@@ -127,9 +198,17 @@ fn test_gen_data_code_v0_basic() {
 }
 
 #[test]
-fn test_gen_data_code_v0_null() {
+fn test_gen_data_code_v0_null_empty() {
     let result = unsafe { iscc_gen_data_code_v0(ptr::null(), 0, 64) };
+    let s = unsafe { c_ptr_to_string(result) }.unwrap();
+    assert_eq!(s, iscc_lib::gen_data_code_v0(&[], 64).unwrap().iscc);
+}
+
+#[test]
+fn test_gen_data_code_v0_null_with_len() {
+    let result = unsafe { iscc_gen_data_code_v0(ptr::null(), 11, 64) };
     assert!(result.is_null());
+    assert_last_error_contains("data must not be NULL");
 }
 
 #[test]
@@ -141,15 +220,34 @@ fn test_gen_instance_code_v0_basic() {
 }
 
 #[test]
-fn test_gen_instance_code_v0_null() {
+fn test_gen_instance_code_v0_null_empty() {
     let result = unsafe { iscc_gen_instance_code_v0(ptr::null(), 0, 64) };
-    assert!(result.is_null());
+    let s = unsafe { c_ptr_to_string(result) }.unwrap();
+    assert_eq!(s, "ISCC:IAA26E2JXH27TING");
 }
 
 #[test]
-fn test_gen_iscc_code_v0_null() {
-    let result = unsafe { iscc_gen_iscc_code_v0(ptr::null(), 0, false) };
+fn test_gen_instance_code_v0_null_with_len() {
+    let result = unsafe { iscc_gen_instance_code_v0(ptr::null(), 4, 64) };
     assert!(result.is_null());
+    assert_last_error_contains("data must not be NULL");
+}
+
+#[test]
+fn test_gen_iscc_code_v0_null_empty() {
+    let result = unsafe { iscc_gen_iscc_code_v0(ptr::null(), 0, false) };
+    let empty: &[&str] = &[];
+    assert_str_matches_core(
+        result,
+        iscc_lib::gen_iscc_code_v0(empty, false).map(|r| r.iscc),
+    );
+}
+
+#[test]
+fn test_gen_iscc_code_v0_null_with_count() {
+    let result = unsafe { iscc_gen_iscc_code_v0(ptr::null(), 2, false) };
+    assert!(result.is_null());
+    assert_last_error_contains("codes must not be NULL");
 }
 
 #[test]
@@ -265,9 +363,17 @@ fn test_encode_base64_known() {
 }
 
 #[test]
-fn test_encode_base64_null() {
+fn test_encode_base64_null_empty() {
     let result = unsafe { iscc_encode_base64(ptr::null(), 0) };
+    let s = unsafe { c_ptr_to_string(result) }.unwrap();
+    assert_eq!(s, "");
+}
+
+#[test]
+fn test_encode_base64_null_with_len() {
+    let result = unsafe { iscc_encode_base64(ptr::null(), 3) };
     assert!(result.is_null());
+    assert_last_error_contains("data must not be NULL");
 }
 
 // ── conformance_selftest test ───────────────────────────────────────────
@@ -356,6 +462,47 @@ fn assert_last_error_contains(needle: &str) {
     assert!(msg.contains(needle), "{msg:?} lacks {needle:?}");
 }
 
+/// Assert that an FFI string result matches the core's outcome: the same string
+/// on `Ok`, NULL with the core's own message (never "must not be NULL") on `Err`.
+fn assert_str_matches_core(result: *mut c_char, core: iscc_lib::IsccResult<String>) {
+    let got = unsafe { c_ptr_to_string(result) };
+    match core {
+        Ok(expected) => assert_eq!(got.as_deref(), Some(expected.as_str())),
+        Err(e) => {
+            assert!(got.is_none(), "expected core error {e}, got {got:?}");
+            assert_last_error_is_core(&e.to_string());
+        }
+    }
+}
+
+/// Assert that an FFI byte-buffer result matches the core's outcome (see
+/// `assert_str_matches_core`), freeing the buffer.
+fn assert_buf_matches_core(buf: IsccByteBuffer, core: iscc_lib::IsccResult<Vec<u8>>) {
+    match core {
+        Ok(expected) => {
+            assert!(!buf.data.is_null(), "expected {expected:?}, got NULL");
+            // SAFETY: buf.data is valid for buf.len bytes until freed below
+            let got = unsafe { std::slice::from_raw_parts(buf.data, buf.len) }.to_vec();
+            unsafe { iscc_free_byte_buffer(buf) };
+            assert_eq!(got, expected);
+        }
+        Err(e) => {
+            assert!(buf.data.is_null(), "expected core error {e}");
+            assert_last_error_is_core(&e.to_string());
+        }
+    }
+}
+
+/// Assert that the last FFI error equals the core's message `expected`.
+fn assert_last_error_is_core(expected: &str) {
+    assert_last_error_set();
+    let msg = unsafe { CStr::from_ptr(iscc_last_error()) }
+        .to_str()
+        .unwrap();
+    assert_eq!(msg, expected);
+    assert!(!msg.contains("must not be NULL"), "{msg:?}");
+}
+
 #[test]
 fn test_encode_seq_conformance() {
     let section = seq_section("encode_seq");
@@ -429,8 +576,16 @@ fn test_encode_seq_lowercase_without_prefix() {
 }
 
 #[test]
-fn test_encode_seq_null_units() {
+fn test_encode_seq_null_units_empty() {
+    // (NULL, 0) reaches the core, which rejects the empty list itself
     let buf = unsafe { iscc_encode_seq(ptr::null(), 0) };
+    assert!(buf.data.is_null());
+    assert_last_error_contains("at least one ISCC-UNIT");
+}
+
+#[test]
+fn test_encode_seq_null_units_with_count() {
+    let buf = unsafe { iscc_encode_seq(ptr::null(), 1) };
     assert!(buf.data.is_null());
     assert_last_error_contains("units must not be NULL");
 }
@@ -560,6 +715,36 @@ fn test_alg_simhash_null() {
     let buf = unsafe { iscc_alg_simhash(ptr::null(), lens.as_ptr(), 1) };
     assert!(buf.data.is_null());
     assert_eq!(buf.len, 0);
+    assert_last_error_contains("digests must not be NULL");
+}
+
+#[test]
+fn test_alg_simhash_null_lens() {
+    let d1: [u8; 4] = [0xFF, 0x00, 0xFF, 0x00];
+    let digests = [d1.as_ptr()];
+    let buf = unsafe { iscc_alg_simhash(digests.as_ptr(), ptr::null(), 1) };
+    assert!(buf.data.is_null());
+    assert_last_error_contains("digest_lens must not be NULL");
+}
+
+#[test]
+fn test_alg_simhash_null_inner_row_with_len() {
+    let d1: [u8; 4] = [0xFF, 0x00, 0xFF, 0x00];
+    let digests = [d1.as_ptr(), ptr::null()];
+    let lens = [4usize, 4];
+    let buf = unsafe { iscc_alg_simhash(digests.as_ptr(), lens.as_ptr(), 2) };
+    assert!(buf.data.is_null());
+    assert_last_error_contains("digests[1] must not be NULL");
+}
+
+#[test]
+fn test_alg_simhash_null_inner_row_empty() {
+    // A NULL row with length 0 is an empty digest; the core decides what it means
+    let digests = [ptr::null()];
+    let lens = [0usize];
+    let buf = unsafe { iscc_alg_simhash(digests.as_ptr(), lens.as_ptr(), 1) };
+    let rows: &[&[u8]] = &[&[]];
+    assert_buf_matches_core(buf, iscc_lib::alg_simhash(rows));
 }
 
 #[test]
@@ -592,6 +777,13 @@ fn test_alg_minhash_256_null() {
     let buf = unsafe { iscc_alg_minhash_256(ptr::null(), 5) };
     assert!(buf.data.is_null());
     assert_eq!(buf.len, 0);
+    assert_last_error_contains("features must not be NULL");
+}
+
+#[test]
+fn test_alg_minhash_256_null_empty() {
+    let buf = unsafe { iscc_alg_minhash_256(ptr::null(), 0) };
+    assert_buf_matches_core(buf, Ok(iscc_lib::alg_minhash_256(&[])));
 }
 
 // ── alg_cdc_chunks tests ───────────────────────────────────────────────
@@ -621,6 +813,7 @@ fn test_alg_cdc_chunks_null() {
     let arr = unsafe { iscc_alg_cdc_chunks(ptr::null(), 10, false, 1024) };
     assert!(arr.buffers.is_null());
     assert_eq!(arr.count, 0);
+    assert_last_error_contains("data must not be NULL");
 }
 
 #[test]
@@ -650,11 +843,39 @@ fn test_soft_hash_video_v0_basic() {
 }
 
 #[test]
-fn test_soft_hash_video_v0_null() {
-    // NULL frame_sigs returns null buffer
+fn test_soft_hash_video_v0_null_empty() {
+    // Zero frames reach the core, which rejects the empty list itself
     let buf = unsafe { iscc_soft_hash_video_v0(ptr::null(), ptr::null(), 0, 64) };
+    let empty: &[&[i32]] = &[];
+    assert_buf_matches_core(buf, iscc_lib::soft_hash_video_v0(empty, 64));
+}
+
+#[test]
+fn test_soft_hash_video_v0_null_sigs_with_count() {
+    let lens = [380usize];
+    let buf = unsafe { iscc_soft_hash_video_v0(ptr::null(), lens.as_ptr(), 1, 64) };
     assert!(buf.data.is_null());
-    assert_eq!(buf.len, 0);
+    assert_last_error_contains("frame_sigs must not be NULL");
+}
+
+#[test]
+fn test_soft_hash_video_v0_null_inner_row_with_len() {
+    let f1: Vec<i32> = (0..380).collect();
+    let ptrs = [f1.as_ptr(), ptr::null()];
+    let lens = [380usize, 380];
+    let buf = unsafe { iscc_soft_hash_video_v0(ptrs.as_ptr(), lens.as_ptr(), 2, 64) };
+    assert!(buf.data.is_null());
+    assert_last_error_contains("frame_sigs[1] must not be NULL");
+}
+
+#[test]
+fn test_soft_hash_video_v0_null_inner_row_empty() {
+    // A NULL row with length 0 is an empty row; the core decides what it means
+    let ptrs = [ptr::null()];
+    let lens = [0usize];
+    let buf = unsafe { iscc_soft_hash_video_v0(ptrs.as_ptr(), lens.as_ptr(), 1, 64) };
+    let rows: &[&[i32]] = &[&[]];
+    assert_buf_matches_core(buf, iscc_lib::soft_hash_video_v0(rows, 64));
 }
 
 // ── free byte buffer null safety ───────────────────────────────────────
@@ -722,6 +943,15 @@ fn test_data_hasher_multi_update() {
     unsafe { iscc_data_hasher_free(hasher2) };
 
     assert_eq!(s1, s2);
+}
+
+#[test]
+fn test_data_hasher_update_null() {
+    let hasher = iscc_data_hasher_new();
+    assert!(unsafe { iscc_data_hasher_update(hasher, ptr::null(), 0) });
+    assert!(!unsafe { iscc_data_hasher_update(hasher, ptr::null(), 4) });
+    assert_last_error_contains("data must not be NULL");
+    unsafe { iscc_data_hasher_free(hasher) };
 }
 
 #[test]
@@ -808,6 +1038,15 @@ fn test_instance_hasher_multi_update() {
     unsafe { iscc_instance_hasher_free(hasher2) };
 
     assert_eq!(s1, s2);
+}
+
+#[test]
+fn test_instance_hasher_update_null() {
+    let hasher = iscc_instance_hasher_new();
+    assert!(unsafe { iscc_instance_hasher_update(hasher, ptr::null(), 0) });
+    assert!(!unsafe { iscc_instance_hasher_update(hasher, ptr::null(), 4) });
+    assert_last_error_contains("data must not be NULL");
+    unsafe { iscc_instance_hasher_free(hasher) };
 }
 
 #[test]
@@ -902,6 +1141,7 @@ fn test_encode_component_basic() {
 fn test_encode_component_null_digest_with_len() {
     let result = unsafe { iscc_encode_component(0, 0, 0, 64, ptr::null(), 8) };
     assert!(result.is_null());
+    assert_last_error_contains("digest must not be NULL");
 }
 
 #[test]

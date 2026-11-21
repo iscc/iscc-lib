@@ -1,58 +1,62 @@
-## 2026-11-21 — Review of: Cut the pytest gate time: benchmarks disabled by default, Tier 1 doc tests copy only what they read
+## 2026-11-21 — C FFI accepts `(NULL, 0)` everywhere and checks inner pointers, via one `slice_or_empty` helper
 
-**Verdict:** PASS
+**Done:** Every pointer+length input of `crates/iscc-ffi` now goes through the private
+`slice_or_empty` helper. Length 0 gives an empty slice whatever the pointer is. NULL with a non-zero
+length sets `"<name> must not be NULL"`. A second private helper, `rows_or_empty`, handles the
+parallel row arrays (video, `soft_hash_video_v0`, `alg_simhash`): it runs the outer arrays and each
+row through `slice_or_empty` and names a bad row `frame_sigs[i]` / `digests[i]`. That removes the UB
+from a NULL inner row. The 7 .NET stack-sentinel branches are gone.
 
-**Summary:** The pytest gate dropped from about 45 s to about 20 s. `pyproject.toml` disables
-pytest-benchmark timing loops by default, the documented benchmark command gained
-`--benchmark-enable`, and the Tier 1 doc tests read the repo sources once per session. The diff
-touches exactly the three files next.md named and changes no assertion.
+**Files changed:**
+
+- `crates/iscc-ffi/src/lib.rs`: `slice_or_empty` + `rows_or_empty` helpers; 20 call sites (image,
+    audio, video, mixed, data, instance, iscc_code, encode_base64, encode_component, encode_seq,
+    decode_seq, simhash, minhash, cdc, soft_hash_video, both hasher updates). The `alg_simhash`
+    `num_digests == 0` shortcut is dropped (the helper path reaches the core's empty-list error).
+    `# Safety` docs on each touched export say a pointer may be NULL when its length is 0;
+    `iscc_encode_seq` errors now read "`units` is NULL with `num_units > 0`"
+- `crates/iscc-ffi/include/iscc.h`, `packages/dotnet/Iscc.Lib/NativeMethods.g.cs`: regenerated (doc
+    comments only)
+- `crates/iscc-ffi/src/tests.rs`: flipped 6 len-0 NULL tests (image, audio, data, instance,
+    encode_base64, encode_seq) and renamed video/mixed/iscc_code/soft_hash ones to `_null_empty`.
+    Added NULL + len > 0 tests with the parameter name (pixels, cv, data, codes, units, frame_sigs,
+    frame_lens, digests, digest_lens, features, digest, both hasher updates), inner NULL row + len >
+    0 (video, soft_hash, simhash) and inner NULL row + len 0 (same three). Helpers
+    `assert_str_matches_core` / `assert_buf_matches_core` check the FFI result against the core call
+    on the same empty input: same output on `Ok`, the exact core message (never "must not be NULL")
+    on `Err`
+- `crates/iscc-ffi/tests/test_iscc.c`: block 35 (13 `(NULL, 0)` / NULL-row-len-0 cases; each
+    compares the result to the same call with a non-NULL pointer and checks the error has no "must
+    not be NULL") and block 36 (6 NULL + len > 0 cases, one bad case per call, message checked)
+- `packages/dotnet/Iscc.Lib/IsccLib.cs`: removed the 7 `IsEmpty` sentinel branches
+- `packages/dotnet/CLAUDE.md`: "Empty span sentinel" section → "Empty spans"; rewrote the pitfall
 
 **Verification:**
 
-- [x] `uv run pytest` exits 0 — 763 passed in 20.62 s (25 s wall) on my run. Top of
-    `--durations=10`: tier1 `test_real_repo_passes` 1.09 s, tier1 `test_fire_pub_fn_added_to_lib_rs`
-    0.65 s, `test_check_ci_job_table.py::test_real_repo_passes` 0.42 s, everything else ≤ 0.40 s
-- [x] `uv run pytest tests/test_benchmarks.py` exits 0 without the stats header — 18 passed in 0.68
-    s, `Name (time in` count 0
-- [x] The `docs/benchmarks.md` command contains `--benchmark-enable`, exits 0 under `uv run` and
-    prints the stats table — 18 passed in 13.92 s, 9 tables. Without `--benchmark-enable` it exits 4
-    with the "Can't have both" usage error, so the doc edit was required
-- [x] `uv run pytest tests/test_check_tier1_docs.py` exits 0 — 36 passed. Read in full: the 13
-    unrecognised-item cases and the floor test use `_copy_lib` (lib.rs only), and `_tree_bytes` is
-    `functools.cache`d. `run_checks` returns on both paths before the doc loop
-    (`scripts/check_tier1_docs.py`), and a regression there would raise `FileNotFoundError`
-- [x] `uv run zensical build` exits 0 — "No issues found"
-- [x] `mise run check` exits 0
+- `cargo test -p iscc-ffi`: 120 passed. Before the test edits, the new lib.rs failed exactly the 5
+    old len-0 rejection tests (image did not fail because the core also rejects empty pixels), so
+    the flipped tests track the behaviour change
+- `cargo clippy -p iscc-ffi --all-targets -- -D warnings`: clean
+- `grep -n 'slice::from_raw_parts(' crates/iscc-ffi/src/lib.rs` → only line 267, inside
+    `slice_or_empty`
+- C test (`cc -Wall -Wextra`, no warnings): exit 0, 142 passed, 0 failed
+- Regeneration no-op: reran cbindgen + `cargo build -p iscc-ffi`, then `cmp` against the earlier
+    output: both files identical
+- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug`: 153 passed
+    (`ArrayInputTests.cs` unchanged). `grep -n sentinel` on IsccLib.cs + dotnet CLAUDE.md: no output
+- C++ (cmake via `uv run --with cmake`, Debug + ASAN, build in /tmp): 112 passed, 0 failed
+- `mise run check`: exit 0. `prek run --hook-stage pre-push --files <7 changed files>`: all passed
+    (clippy, cargo test, ty, ruff S/C901, pytest)
 
-Beyond next.md: `uv run ty check` and ruff `S`/`C901` on the changed test file are clean. Every
-pytest invocation in the repo (`ci.yml` `uv run pytest`, the pre-push hook, `mise.toml`) runs with
-the dev group, which holds `pytest-benchmark`, so the ini-wide `addopts` cannot hit an "unrecognized
-arguments" error there. No gate was weakened: benchmarked calls still run once each.
-
-**Issues found:**
-
-- (none filed) Two nits, not worth an entry: a bare `pytest benchmarks/python/` now runs each
-    benchmark once and prints no timings, where the `conftest.py` docstring and `notes/09` mention
-    that form. `_copy_tree` and `_copy_lib` keep "copy" in their names although they write cached
-    bytes
-
-**Issue resolved:** "Pytest gate spends ~25 s of ~44 s on benchmark loops and doc-tree copies"
-(`normal` `[audit]`) is deleted from `issues.md`.
-
-**Codex review:** No actionable findings. It ran the full suite (763 passed) and the enabled
-benchmark command (18 passed, timing tables printed).
-
-**Next:** The C FFI `(NULL, 0)` unification (`normal` `[audit]`, scope estimate 2-4 non-test files)
-as its own step. It changes FFI behaviour and flips len-0 null tests on the C, .NET and C++
-surfaces, so run all three suites, regenerate `iscc.h` and `NativeMethods.g.cs` in the same step if
-a doc comment on an export moves, and add `data-edge.json` vectors only if the change is
-JSON-expressible. After it: the integer-range issue, then the published-docs issue.
+**Next:** The out-of-range integer issue (napi, WASM, JNI, Py, Rb), then the published-docs issue,
+which can now cite the FFI's `(NULL, 0)` behaviour.
 
 **Notes:**
 
-- Three `normal` `[audit]` issues remain and block v0.8.0: C FFI `(NULL, 0)`, out-of-range integers,
-    published-package docs
-- `issues.md` is at 268 of 300 lines, `learnings.md` at its 200-line budget: a new learning needs an
-    equal cut in the same commit
-- To see benchmark numbers from pytest, pass `--benchmark-enable`. This holds for
-    `tests/test_benchmarks.py` as well as for `benchmarks/python/`
+- `PinnedRows` (IsccLib.cs ~590) was left alone as next.md said. Its doc comment still says the
+    `max(Count, 1)` padding exists so "the core's own error surfaces instead of the FFI's 'must not
+    be NULL'". After this step that is redundant but true. The reviewer may file dropping the
+    padding together with C++ `detail::safe_data` as one cleanup
+- `crates/iscc-ffi/CLAUDE.md` was not in scope. Its "NULL-check all incoming pointers" safety rule
+    still holds (NULL + len > 0 is checked) but does not mention `slice_or_empty`
+- Not a core or hot-path change: no bench or CRAP run (`iscc-ffi` is outside both gates)

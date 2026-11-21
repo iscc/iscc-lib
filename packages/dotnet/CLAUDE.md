@@ -146,13 +146,13 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 - **Parallel length arrays** (`frame_lens`, `digest_lens`): `PinnedRows.Lengths` (`nuint[]`), passed
     with a second `fixed`
 
-### Empty span sentinel
+### Empty spans
 
-- `ReadOnlySpan<byte>.Empty` produces a null pointer under `fixed`, which the native library would
-    reject. Instead, a stack-allocated `byte sentinel = 0` is used with length 0.
-- Jagged-array inputs need the same for an empty array: `PinnedRows` sizes `Pointers` and `Lengths`
-    to `max(Count, 1)`, so `fixed` never yields NULL and `[]` surfaces the core's error (e.g. "at
-    least 2 ISCC unit codes required"), not the FFI's "must not be NULL"
+- `fixed` over an empty span yields a null pointer. The C FFI treats a NULL pointer with length 0 as
+    an empty input on every pointer+length parameter, so call sites pass `fixed` pointers with no
+    special case for empty spans, and an empty input surfaces the core's own error (if any).
+- `PinnedRows` sizes `Pointers` and `Lengths` to `max(Count, 1)`, so a jagged `[]` never pins an
+    empty array either
 
 ## Common Pitfalls
 
@@ -163,7 +163,8 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 - **NativeMethods.g.cs is auto-generated:** never edit this file. Regenerate it from `iscc-ffi`
     using csbindgen when the FFI surface changes.
 - **Empty spans produce null pointers:** `fixed (byte* p = ReadOnlySpan<byte>.Empty)` yields `null`.
-    Use a stack sentinel (see pattern above) for functions that reject null data pointers.
+    Pass it on with length 0; the FFI accepts `(NULL, 0)`. Only a NULL pointer with a non-zero
+    length is an error.
 - **GCHandle leaks:** a missing `Free()` pins objects permanently. Pin jagged arrays only through
     `PinnedRows` in a `using`, which frees every handle, also when pinning fails halfway.
 - **Bool marshalling:** C `bool` is 1 byte, but .NET `bool` defaults to 4 bytes.

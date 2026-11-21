@@ -1,6 +1,7 @@
 # Advance Agent Memory
 
-Detail lives in topic files: [ci-gates.md](ci-gates.md), UniFFI/Swift/Kotlin (Gradle+JNA):
+Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edge.md),
+[doc-checks.md](doc-checks.md), UniFFI/Swift/Kotlin (Gradle+JNA):
 [uniffi-swift-kotlin.md](uniffi-swift-kotlin.md), [deps-refresh.md](deps-refresh.md),
 [wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md), [release-gate.md](release-gate.md), Archived
 phases: [MEMORY-archive.md](MEMORY-archive.md).
@@ -17,49 +18,16 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `encode_seq` + 4 `decode_seq`, outputs `bytes:<hex>`/list). Vendored copies
     (packages/{dotnet,go,kotlin,swift}) gated by `tests/test_vendored_fixtures.py` — any NEW tracked
     `data.json` copy → register in `VENDORED_COPIES` or the test reds
-- Edge vectors (215): `crates/iscc-lib/tests/data-edge.json` (spec `specs/edge-vectors.md`), no
-    `_metadata`; Rust `tests/test_data_edge.rs` (runtime read, excluded from package; CRAP-clean
-    caller table, see ci-gates.md), Python `tests/test_data_edge.py` (schema + lib + iscc_core
-    iff-`diverges` + SEED_SET; raw call apart from converter, rejections on raw call only).
-    `iscc_decode` output = `[mt, st, vs, li, "bytes:<hex>"]`. Group 1 harnesses DONE (217): Go
-    `data_edge_test.go`, Node `__tests__/data_edge.test.mjs`, WASM `tests/data_edge.rs`, JNI
-    `DataEdgeTest.java`, .NET `DataEdgeTests.cs` (vendored), Ruby `test/test_data_edge.rb`. Group 2
-    (218): Swift/Kotlin `DataEdge*`. Group 3 (219): C/C++ read generated
-    `crates/iscc-ffi/tests/data_edge_vectors.h` (`scripts/gen_data_edge_vectors.py`, rows carry
-    resolved c/cpp expectation; gate `tests/test_gen_data_edge_vectors.py`). `mise run check` =
-    pre-commit only — run `prek run --hook-stage pre-push --files …` too. Sections (226): 6 incl.
-    `alg_simhash` — first section with `bytes:<hex>` INPUTS: every harness has a per-section input
-    preparer (Py `PREPARERS`, Node/Ruby 3rd tuple slot) applied OUTSIDE the raw call; generator
-    `byte_list_arrays` (binary items, explicit lens). fixture =
-    `json.dumps(indent=2,   ensure_ascii=False)`. Mutation-check by sed'ing an expected output in
-    the copy a harness reads
-- Sections (252): 8 incl. `gen_meta_code_v0` (meta OBJECT input; harnesses serialize it, C/C++ get
-    `json.dumps(ensure_ascii=False)` text) + `gen_video_code_v0` (C struct `iscc_edge_frames`,
-    `uintptr_t` lens). napi/WASM/JNI/.NET meta return bare iscc → `UNCOMPARED` name/meta/metahash.
-    No cmake in container: `uvx cmake`. Swift toolchain persists in `/tmp/swifttc`. Reusable
-    mutation-check = a `/tmp` script that edits expected values in the copy each harness reads. Rust
-    harness `call_meta` sits at cc 5 (CRAP 30.0 = limit)
-- Throwaway-vector proof (253): write vectors with iscc-core 1.5.0 into all 5 copies, regen header,
-    run 12 surfaces, then `git checkout --` those 6 paths only. .NET local run needs
-    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$PWD/target/debug`
-    (`packages/dotnet` alone = MSB1003). iscc-core 1.5.0 has no `json_to_data_url`
-- Output subset (236): gen `outputs` keys ⊆ `data.json` per-function keys, `iscc` required;
-    validator `validate_vector(section, name, vector)` + generator `allowed_output_keys` derive it
-    from data.json (gen = `gen_` prefix). Harnesses fix uncompared keys statically per result type
-    (237: .NET/Java/napi/WASM `UNCOMPARED` map keyed by section; `compare(section, …)` walks
-    expected)
+- Data-edge vectors (215-253): `crates/iscc-lib/tests/data-edge.json`, 12 harnesses, C/C++ via
+    generated header, sections, output subset, Swift scalars, throwaway proof → data-edge.md
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —
     `--tests`
-- Swift scalars (232): corelibs AND Darwin `NSNumber` casts are loose (`false as? Int`=0,
-    `0 as? Bool` =false). Data-edge harness classifies via `DataEdge.scalar` (re-serialise `[v]`
-    after `isValidJSONObject`); synthetic Swift docs → `parsedDoc(#"json"#)`, never literals
-- Docs code check (238): wrap a Java doc block in a `/tmp` class (`import io.iscc.iscc_lib.*;`),
-    `javac -cp crates/iscc-jni/java/target/classes` after `mvn compile`; run with
-    `-Djava.library.path=target/debug`. Ruby gem range pinned by `tests/test_ruby_gem_docs.py`. C++
-    (244): extract each ```` ```cpp ```` block with `int main()` to /tmp,
-    `g++ -std=c++17 -Wall   -I packages/cpp/include -I crates/iscc-ffi/include f.cpp -L target/debug -liscc_ffi`,
-    run with `LD_LIBRARY_PATH=target/debug`. zsh: `rm -f glob*` with no match aborts an `&&` chain
+- Doc example checks (238/243/244): Java/C++/Rust doc blocks compiled in /tmp → doc-checks.md
 - C FFI docs (221): C type names `iscc_`-prefixed, gated by `tests/test_c_ffi_docs.py`
+- C FFI slices (255): every ptr+len input via private `slice_or_empty` (len 0 → `&[]`, NULL+len>0 →
+    named error) / `rows_or_empty` (parallel row arrays, `name[i]`). Never a bare `from_raw_parts`.
+    .NET passes `fixed` over empty spans as-is. C++ cmake: `uv run --with cmake`,
+    `-S packages/cpp -B /tmp/...`. Bulk exact edits: a `/tmp` Python script asserting match counts
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
@@ -156,9 +124,6 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     symbols). New API symbol → update every FULL doc + both `tier1:begin` blocks in the same step.
     Fail-closed lib.rs parse (242): `scan_lib` classifies each column-0 `pub` by offset; a new
     non-derived crate-root item needs an `EXCLUDED_ITEMS` entry (named, never kind-wide)
-- Doc example check (243): extract non-signature \`\`\`rust blocks into a throwaway
-    `crates/iscc-lib/tests/zz_*.rs` (`#[test]` + `-> Result<(), Box<dyn Error>>` wrapper), run,
-    delete; examples that write files (`example.bin`) land in `crates/iscc-lib/` — remove them
 - Per-crate `CLAUDE.md` files carry no file trees/tables (246): a rule goes in prose against a file
     name. Line-range edits via an anchored `/tmp` Python script; mdformat reflows inserted lines
 - Guidance docs carry no counts/`path:NN` (245): write "every binding", "all Tier 1 symbols". Line
