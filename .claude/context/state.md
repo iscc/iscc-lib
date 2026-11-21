@@ -1,16 +1,16 @@
-<!-- assessed-at: c8ccc72f459b9bffb5784baf60ac2395b5b0dfba -->
+<!-- assessed-at: 908bd7bae481f38d1e806312c448fce1f2a52997 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 10 `normal` issues block the release
+## Phase: v0.8.0 — features done; 6 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 276 rewrote
-`conformance_selftest` in Rust and Go around one generic section runner and closed that audit issue.
-CI on `f6a43b8` is fully green; the run on the pushed tip `7bbb1f0` (which carries the selftest
-rewrite) is 22/24 green with Kotlin and Bench still running. 17 issues are open: 0 `critical`, 10
-`normal`, 7 `low`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 277 was a
+docs-accuracy batch that closed five `normal` issues (pkg-config version, Sum-Code prefix, ISO and
+language-coverage claims, the Publish section, Ruby Float docs) and filed two leftovers. CI on
+`7bbb1f0` is fully green; the run on the pushed tip `c6bc616` is 22/24 green with Kotlin and Perf
+still running. 14 issues are open: 0 `critical`, 6 `normal`, 8 `low`.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -28,9 +28,7 @@ rewrite) is 22/24 green with Kotlin and Bench still running. 17 issues are open:
 **Status**: partially met (v0.8.0 features met; two `normal` issues)
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
-    `conformance_selftest` runs the seq vectors; 315 `#[test]` in `src/`
-- `conformance.rs` runs all sections through one `run_section` + `report_case` pair (audit issue
-    closed 276); `.crap-baseline.json` regenerated
+    `conformance_selftest` runs the seq vectors through one `run_section`; 315 `#[test]` in `src/`
 - `normal` (audit): `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises; five
     per-surface tests pin it and no decision covers it
 - `normal` (audit): one-shot gen functions re-implement streaming (double BLAKE3, double `meta`
@@ -43,7 +41,6 @@ rewrite) is 22/24 green with Kotlin and Bench still running. 17 issues are open:
 
 - 35 Tier 1 symbols with `.pyi` stubs and `__all__`; abi3-py310 wheels for 4 platforms; 12
     `py.detach` sites; 0.7.0 on PyPI; data-edge harness with the iscc-core cross-check; CI 3.10/3.15
-- The pre-push `pytest` hook and `mise run test` run `mise run py:develop` first (debug build)
 - `low`: `crates/iscc-py/CLAUDE.md` still lists test files one by one
 
 ## Node.js Bindings
@@ -67,11 +64,11 @@ rewrite) is 22/24 green with Kotlin and Bench still running. 17 issues are open:
 
 ## C FFI
 
-**Status**: met (one `normal` docs issue)
+**Status**: met
 
 - 51 exports incl. `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with freshness check;
     `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
-- `normal`: the pkg-config example in `docs/howto/c-cpp.md` says `Version: 0.2.0`
+- The pkg-config example no longer pins a stale version (closed 277)
 
 ## Java Bindings
 
@@ -87,8 +84,7 @@ rewrite) is 22/24 green with Kotlin and Bench still running. 17 issues are open:
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
     sections; `go` CI job also runs as `GOARCH=386`
-- `conformance.go` uses one generic `runSection` + `reportCase` (276); a too-short `inputs` array is
-    now a parse failure, not a panic
+- `conformance.go` uses one generic `runSection` + `reportCase`
 
 ## C# / .NET Bindings
 
@@ -105,37 +101,40 @@ rewrite) is 22/24 green with Kotlin and Bench still running. 17 issues are open:
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job; 0.7.0
     vcpkg/Conan
-- `iscc.hpp` passes `.data()`, so empty vectors reach the FFI as `(NULL, 0)`
 
 ## Ruby Bindings
 
-**Status**: partially met (one `normal`, three `low`)
+**Status**: met (v0.8.0 scope; three `low`)
 
-- `encode_seq` / `decode_seq`; data-edge runs strictly; floor is 3.3 (gemspec `>= 3.3.0`, CI `ruby`
-    job 3.3, `release.yml` cross-gems 3.3 and 3.4); dev Ruby 3.4.13 pinned in `mise.toml`
-- `normal`: integer list elements accept a Float and truncate it
+- `encode_seq` / `decode_seq`; data-edge runs strictly; floor is 3.3 (gemspec, CI, `release.yml`
+    cross-gems 3.3 and 3.4); dev Ruby 3.4.13 pinned in `mise.toml`
+- Float-to-integer truncation is now documented behaviour: decisions.md "Ruby integer parameters
+    keep Ruby's implicit `to_int` conversion"; `docs/ruby-api.md` states it (closed 277)
 - `low`: source gems up to 0.7.0 do not build; `release.yml` loads only the 3.3 precompiled binary
     before publish; Ruby 4.0 gets no precompiled gem (needs rb_sys past 0.9.123)
 
 ## Swift and Kotlin Bindings
 
-**Status**: met (v0.8.0 scope)
+**Status**: met (v0.8.0 scope; one `low` spec mismatch)
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
     all 9 data-edge sections; shipped 0.7.0; 30 `#[test]` in iscc-uniffi
 - The `kotlin` CI job regenerates the UniFFI Kotlin + Swift outputs and diffs them against the
-    committed copies (modulo trailing whitespace)
+    committed copies
+- `specs/swift-bindings.md` now describes commit-checksum-then-tag-once; target.md still says the
+    release workflow force-updates the tag (`low`, untriaged; target.md edit needs Titusz)
 
 ## Documentation
 
-**Status**: partially met (five `normal` issues)
+**Status**: partially met (three `normal` issues)
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (20 `FULL`, 2 `EXACT`)
-- `normal`: `architecture.md` lower sections cover half the surfaces; Sum-Code examples show `KAA`;
-    docs overstate language coverage and ISO 24138 scope; WASM Node.js setup (see WASM)
-- `normal`: `docs/development.md` "Publish" says a tag push triggers the release
-- The pkg-config version entry is counted under C FFI
+- Closed 277: Sum-Code examples now show `KUA`; `docs/llms.txt` names all languages; ISO scope
+    claims and the `development.md` Publish section match `release.yml`
+- `normal`: `architecture.md` lower sections cover half the surfaces; `docs/ecosystem.md`,
+    `architecture.md` and `howto/nodejs.md` still count 10 standard functions; WASM Node.js setup
+    (see WASM)
 
 ## Benchmarks
 
@@ -154,20 +153,20 @@ rewrite) is 22/24 green with Kotlin and Bench still running. 17 issues are open:
 - Generated-artifact gates: `c-ffi` diffs `NativeMethods.g.cs`, `kotlin` diffs the UniFFI outputs;
     anchored by `tests/test_generated_artifact_gates.py`
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: IN PROGRESS** on the pushed tip `7bbb1f0`:
-    https://github.com/iscc/iscc-lib/actions/runs/44950595748 — 22 of 24 jobs green, Kotlin and
-    Bench (compile check) still running. Newest fully green run is on `f6a43b8` (run 44948765142);
-    it predates the selftest rewrite, so that code is not yet covered by a completed green run.
-    HEAD's only unpushed commit is `.claude/` only
+- **Latest CI: IN PROGRESS** on the pushed tip `c6bc616`:
+    https://github.com/iscc/iscc-lib/actions/runs/44952542030 — 22 of 24 jobs green, Kotlin and Perf
+    (iai-callgrind) still running. Run 44950595748 on `7bbb1f0` (selftest rewrite) finished fully
+    green. The tip delta since then is docs, doc comments and one Ruby comment block only. HEAD's
+    only unpushed commit is `.claude/` only
 
 ## Open Issues
 
-17 open in issues.md: 0 `critical`, 10 `normal`, 7 `low`; none blocked on the human or upstream (the
-`alg_minhash_256` entry needs a decision). The `conformance_selftest` duplication issue was closed
-this iteration. 7 sit in `postponed.md`.
+14 open in issues.md: 0 `critical`, 6 `normal`, 8 `low` (7 `low` untriaged). Only the
+`alg_minhash_256` entry needs a decision; none is blocked on upstream. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Confirm the tip CI run finishes green, then clear the 10 `normal` issues that block v0.8.0 — the
-code defects (JNI loader fallback, Ruby Float truncation, `alg_minhash_256` decision, one-shot gen
-duplication) and the user-docs accuracy entries. Then Titusz cuts v0.8.0 via `/release`.
+Confirm the tip CI run finishes green, then clear the 6 `normal` issues that block v0.8.0: the JNI
+loader fallback, the `alg_minhash_256([])` decision, the one-shot gen duplication, and the three
+user-docs accuracy entries (architecture sections, the 10-function count, `@iscc/wasm` Node setup).
+Then Titusz cuts v0.8.0 via `/release`.

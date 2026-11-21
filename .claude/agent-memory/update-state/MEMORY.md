@@ -86,16 +86,16 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: c8ccc72, iter 277 — incremental)
+## Current State (assessed-at: 908bd7b, iter 278 — incremental)
 
-- **Tip `7bbb1f0` run 44950595748 IN PROGRESS** (22/24 green, Kotlin+Bench running); last fully
-    green = `f6a43b8` (predates the 276 selftest rewrite). codecov/cursor suites sit `queued`
-    forever — judge by the github-actions suite. A `null` check-run conclusion = still running;
-    `gh run view <id> --json status,conclusion,jobs` settles it.
-- 17 open (0 `critical` + 10 `normal` + 7 `low`; selftest-dup closed 276); 7 postponed. iscc-uniffi
-    30 `#[test]`. 271 pinned dev Ruby 3.4.13 in `mise.toml` `[tools]` (only tools pin); Ruby floor
-    3.3 (gemspec, ci.yml, release.yml). Fast suite check: `gh api .../commits/<sha>/check-suites`
-    (one call). iscc-lib `src/` has 315 `#[test]`.
+- **Tip `c6bc616` run 44952542030 IN PROGRESS** (22/24 green, Kotlin+Perf running); last fully green
+    = `7bbb1f0` (selftest rewrite covered; tip delta docs/comments only). codecov/cursor suites sit
+    `queued` forever — judge by the github-actions suite. A `null` check-run conclusion = still
+    running; `gh run view <id> --json status,conclusion,jobs` settles it.
+- 14 open (0 `critical` + 6 `normal` + 8 `low`; 277 docs batch closed 5 normal); 7 postponed.
+    iscc-uniffi 30 `#[test]`. 271 pinned dev Ruby 3.4.13 in `mise.toml` `[tools]` (only tools pin);
+    Ruby floor 3.3 (gemspec, ci.yml, release.yml). Fast suite check:
+    `gh api .../commits/<sha>/check-suites` (one call). iscc-lib `src/` has 315 `#[test]`.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
@@ -146,3 +146,4 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     span/paren straddles a break. Edge cases → `lint-tooling.md`.
 - **Toolchain presence (`$PATH` fallbacks), invisible exec bits, case-sensitive binding-API greps,
     csbindgen/UniFFI/JNA side effects, the Go probe recipe → `env-gotchas.md`.**
+- **`git ls-files 'docs/*.md'` gives 23**, not the 22 docs pages (`ORDERED_PAGES`) — keep 22.
