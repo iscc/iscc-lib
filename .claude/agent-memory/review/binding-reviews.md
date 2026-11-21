@@ -850,3 +850,24 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     constant fails them at init
 - The background Codex run also starts gradle in the same tree: its "Kotlin tests blocked by
     build-directory conflicts" is the race with my run, not a finding
+
+## Java loader / Java test step (278, ~15 min, NEEDS_WORK, the blocker came from Codex)
+
+- **The Java suite runs in TWO layouts.** CI `java`: `cargo build -p iscc-jni`, library on
+    `java.library.path` (`target/debug`), no bundled resource. `release.yml` → `test-jni`: libraries
+    copied to `src/main/resources/META-INF/native/<os>-<arch>/`, NO `target/debug`. A test that
+    spawns a child JVM with the parent's `java.library.path`, or that needs the fallback library,
+    passes in the first and fails in the second; `publish-maven` needs `test-jni`
+- Reproduce the release layout (~40 s per tree), for the parent commit AND HEAD:
+    `git archive <rev> crates/iscc-jni/java crates/iscc-lib/tests/data.json crates/iscc-lib/tests/data-edge.json | tar -x -C $T`,
+    copy `target/debug/libiscc_jni.so` to
+    `$T/crates/iscc-jni/java/src/main/resources/META-INF/native/linux-x86_64/`, then
+    `mvn -q test -f $T/crates/iscc-jni/java/pom.xml`. The CI layout in a tree:
+    `ln -s "$(realpath target)" $T/target`
+- A hand probe for loader errors: a single-file
+    `java -cp crates/iscc-jni/java/target/classes X.java` that prints `getCause()` and
+    `getSuppressed()`; `-Dos.arch=riscv64` / `-Dos.name=FreeBSD` reach `NativeLoader`,
+    `-Djava.library.path=/nonexistent` forces the both-fail path
+- Each bundled load leaks an empty `/tmp/iscc-jni-*` dir (filed `low`): `rmdir /tmp/iscc-jni-[0-9]*`
+    after probing. No docker, podman or musl loader in the devcontainer: a musl claim cannot be
+    measured

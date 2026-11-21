@@ -90,25 +90,25 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `mise run py:develop` (274); a bare `pytest` still imports whatever is there
 - **The JVM type-checks nothing a native method returns** (168): an `Object[]` returned where
     `String[]` is declared survives every element read — assert `getClass().getName()` and probe
-    under `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test` (log shows
-    `Picked up JAVA_TOOL_OPTIONS` twice). **`-DargLine=…` is a no-op** (208, `mvn -X`): the pom's
-    `<argLine>` beats the user property, so all earlier `-DargLine` "zero warnings" runs were
-    vacuous. CI runs no `-Xcheck:jni`. **jni 0.22 (230)**: `*_with_catch*` calls (`new_string`,
-    `find_class`) CLEAR the JVM exception (OOM → `NoMemory`), `post_check_ex` ones (`new_object`)
-    leave it pending. HotSpot 17 `-Xcheck:jni` is SILENT on `ThrowNew` over a pending exception:
-    assert the class. Trigger: shadow result class with a throwing ctor first on a child `-cp`
+    under `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test`. **`-DargLine=…`
+    is a no-op** (208): the pom's `<argLine>` beats the user property. CI runs no `-Xcheck:jni`.
+    **jni 0.22 (230)**: `*_with_catch*` calls (`new_string`, `find_class`) CLEAR the JVM exception
+    (OOM → `NoMemory`), `post_check_ex` ones (`new_object`) leave it pending. HotSpot 17
+    `-Xcheck:jni` is SILENT on `ThrowNew` over a pending exception: assert the class. Trigger:
+    shadow result class with a throwing ctor first on a child `-cp`
 - **`version_sync.py` covers only the Maven/Gradle/SPM doc snippets**: write no other version (244)
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are gated: `scripts/check_release_workflow.py` (prek hook + tests) and the CI-only
     `--check-action-inputs`; never hand-retype either. **`prepare-release` never moves an existing
-    tag** (259): `fetch-depth: 0` fetches every tag, `git tag … || echo` keeps it and the
-    `push --force` is a no-op, so a hand-pushed tag stays on the pre-checksum commit
+    tag** (259): `git tag … || echo` keeps it, so a hand-pushed tag stays on the pre-checksum
+    commit. **`test-jni` runs `mvn test` on libraries bundled as JAR resources, with NO
+    `target/debug`** (278): rerun a new Java test in that layout
 - **`setup-dotnet` installs the latest LTS runtime before each requested version** (260), a private
     `DOTNET_INSTALL_DIR` included; `skip-lts-prepass: true` stops it (262: SDK 10 still drives)
 - **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): source gems
     up to 0.7.0 do not build. Probe: `gem fetch iscc-lib --platform ruby`, then
     `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`. **A platform-fallback claim needs
-    a foreign-platform run** (257): `java -Dos.arch=riscv64` → `NativeLoader` throws pre-fallback
+    a foreign-platform run** (257: `java -Dos.arch=riscv64`)
 - **Ruby source gem = `scripts/build_ruby_source_gem.py` only** (239-241). `cross-gem@v1` reads the
     rb_sys pin UNANCHORED (first `Gemfile.lock` line containing `rb_sys`), so the gemspec declares
     `rb_sys` only next to `core/`. The staged manifest is its own workspace: of the root, only

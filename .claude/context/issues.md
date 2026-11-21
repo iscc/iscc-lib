@@ -90,19 +90,35 @@ Pre-existing: the build of `3ef83ce` behaves the same. The number-array paramete
 Resolved when a throwing element on each of these parameters gives an ordinary error and leaves the
 instance usable, pinned by a test per parameter, or a decisions.md entry keeps the limit on purpose.
 
-## JNI `NativeLoader` rejects an unknown OS or architecture before the `java.library.path` fallback `normal` [review]
+## JNI loader tests fail in `release.yml` → `test-jni` and block the Maven publish `critical` [review]
 
-`NativeLoader.load()` calls `detectOs()` and `detectArch()` first, and both throw
-`UnsatisfiedLinkError` for a value they do not know, so `System.loadLibrary("iscc_jni")` is never
-tried. Measured on the published 0.7.0 JAR in iteration 257 with a working library on
-`java.library.path`: `-Dos.arch=riscv64` fails with "Unsupported architecture: riscv64" and
-`-Dos.name=FreeBSD` with "Unsupported OS: FreeBSD", while a recognized pair without a bundled
-library (Windows on aarch64) loads it. Unverified: musl Linux probably fails too, because the
-bundled glibc library fails inside `System.load` and only `IOException` leads to the fallback.
-Pre-existing; the Java how-to and the JNI README describe it.
+The three `loaderFallsBack*` tests in `IsccLibTest` (iteration 278) hand their child JVM the
+parent's `java.library.path`, which the pom sets to `target/debug`. `test-jni` copies the built
+libraries into `src/main/resources/META-INF/native/` and runs `mvn test` without a `cargo build`, so
+that directory does not exist there: each child skips or rejects the bundled library, finds nothing
+on the fallback path and fails with `UnsatisfiedLinkError`. `publish-maven` needs `test-jni`.
+Measured in iteration 278 in a `git archive` tree with the debug `.so` copied to
+`…/resources/META-INF/native/linux-x86_64/` and no `target/`: the parent commit exits 0, HEAD gives
+`Tests run: 121, Failures: 3`. The CI `java` job stays green because it builds the library first.
+The loader change itself is correct and needs no rework.
 
-Resolved when either an unknown OS or architecture reaches the `System.loadLibrary` fallback, pinned
-by a Java test, and the two docs say so, or a decisions.md entry keeps the limit on purpose.
+Resolved when `mvn test` passes in both configurations (library only on `java.library.path`; library
+only bundled as a resource) with the three tests run, not skipped.
+
+## JNI `NativeLoader` leaves an empty temp directory behind on every JVM start `low` [review]
+
+**Triage:** untriaged. Every application that loads the bundled library leaves one empty
+`iscc-jni-<random>` directory in `java.io.tmpdir` per JVM start; a command-line tool or a service
+that restarts often piles them up.
+
+`loadFromResource` registers the extracted file for `deleteOnExit` first and its directory second.
+The JVM deletes in reverse order of registration, so it tries the directory while the file is still
+inside, fails silently, and then deletes the file. Measured in iteration 278: one `mvn test` run
+with a bundled library (two JVMs load it) raised the number of empty `/tmp/iscc-jni-*` directories
+from 12 to 14. Pre-existing. Not measured: Windows, where a loaded DLL cannot be deleted at all.
+
+Resolved when a JVM that loaded the bundled library leaves no `iscc-jni-*` directory behind on
+Linux, pinned by a child-JVM test, or a decisions.md entry accepts the leak.
 
 ## `docs/architecture.md` sections below the graph cover half the surfaces `normal` [review]
 
