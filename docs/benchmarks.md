@@ -96,14 +96,16 @@ measurements.
 
 ## How to reproduce
 
-Build the Rust bindings in release mode and run the comparative benchmark suite:
+Build the Rust bindings in release mode and run the comparative benchmark suite. The repository's
+pytest configuration disables benchmarks by default, so the benchmark command passes
+`--benchmark-enable`:
 
 ```bash
 # Build release bindings into the project virtualenv
 maturin develop --manifest-path crates/iscc-py/Cargo.toml --release
 
 # Run Python comparison benchmarks (iscc-core vs iscc-lib)
-pytest benchmarks/python/ --benchmark-only --benchmark-columns=mean,stddev,rounds
+pytest benchmarks/python/ --benchmark-enable --benchmark-only --benchmark-columns=mean,stddev,rounds
 
 # Run native Rust benchmarks (Criterion)
 cargo bench -p iscc-lib

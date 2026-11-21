@@ -2,14 +2,16 @@
 
 The anchor test runs the check against the real tree and asserts zero errors — this
 carries the gate into CI (CI runs pytest, never prek) and catches deletions the
-``files:``-scoped hook never sees. The fire tests copy ``lib.rs`` and every inspected
+``files:``-scoped hook never sees. The fire tests write ``lib.rs`` and every inspected
 tracked Markdown file into ``tmp_path``, inject exactly one defect, and assert the
-complete error list.
+complete error list. The source bytes are read off the repository once per session;
+tests whose defect makes ``run_checks`` return before any doc is read get ``lib.rs``
+alone.
 """
 
+import functools
 import importlib.util
 import re
-import shutil
 from pathlib import Path
 
 import pytest
@@ -51,13 +53,31 @@ mod tests {
 """
 
 
-def _copy_tree(tmp_path):
-    """Copy lib.rs and every inspected tracked Markdown file into tmp_path."""
-    for rel in [ct.LIB_RS, *(p for p in TRACKED if not ct.is_skipped(p))]:
+@functools.cache
+def _tree_bytes():
+    """Return {rel: bytes} for lib.rs and every inspected tracked Markdown file."""
+    rels = [ct.LIB_RS, *(p for p in TRACKED if not ct.is_skipped(p))]
+    return {rel: (ct.ROOT / rel).read_bytes() for rel in rels}
+
+
+def _write(tmp_path, rels):
+    """Write the cached source bytes of `rels` into tmp_path; return tmp_path."""
+    tree = _tree_bytes()
+    for rel in rels:
         dest = tmp_path / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(ct.ROOT / rel, dest)
+        dest.write_bytes(tree[rel])
     return tmp_path
+
+
+def _copy_tree(tmp_path):
+    """Write lib.rs and every inspected tracked Markdown file into tmp_path."""
+    return _write(tmp_path, _tree_bytes())
+
+
+def _copy_lib(tmp_path):
+    """Write only lib.rs into tmp_path, for checks that return before any doc."""
+    return _write(tmp_path, [ct.LIB_RS])
 
 
 def _edit(root, rel, old, new):
@@ -228,7 +248,7 @@ def test_fire_registered_doc_not_tracked(tmp_path):
 
 def test_floor_rejects_collapsed_parse(tmp_path):
     # A lib.rs whose items no longer parse must not read as a pass.
-    root = _copy_tree(tmp_path)
+    root = _copy_lib(tmp_path)
     lib = root / ct.LIB_RS
     collapsed = lib.read_text(encoding="utf-8").replace("\npub ", "\npub(crate) ")
     lib.write_text(collapsed, encoding="utf-8")
@@ -266,7 +286,7 @@ EXCLUDED_FORMS = (
 def test_fire_unrecognised_crate_root_item(tmp_path, form):
     # One column-0 form the gate neither derives nor excludes fails it on its own,
     # before the floor and before any doc is read.
-    root = _copy_tree(tmp_path)
+    root = _copy_lib(tmp_path)
     anchor = "/// Max UTF-8 byte length for name metadata trimming."
     _edit(root, ct.LIB_RS, anchor, f"{form}\n\n{anchor}")
     lines = (root / ct.LIB_RS).read_text(encoding="utf-8").split("\n")

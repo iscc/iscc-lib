@@ -108,6 +108,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     pytest anchor; backticked first-column keys, count floor 10)
 - `version-check` job: `scripts/version_sync.py --check` (16 targets; exits 1 on mismatch). Go CI
     job has zero Rust deps
+- pytest (254): `addopts = "--benchmark-disable"` in pyproject —
+    `benchmarks/python/ --benchmark-only` needs `--benchmark-enable` too. Tier 1 doc tests cache
+    repo bytes once (`_tree_bytes`). Gate ~19 s
 - Python dev builds: `uv run maturin develop -m crates/iscc-py/Cargo.toml` (always via uv run).
     Single `cp310-abi3` wheel. GOTCHA: `uv sync` uninstalls the editable ext — re-run maturin after
 - PyO3 pin = single source: root `Cargo.toml` (`pyo3` "0.29", `abi3-py310`); ONLY `crates/iscc-py`
