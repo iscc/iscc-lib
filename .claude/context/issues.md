@@ -266,11 +266,3 @@ though `Package.swift:18-20` fetches an XCFramework; `docs/architecture.md:30,17
 napi AsyncTask); `docs/development.md:181` + `CLAUDE.md:207` claim pytest coverage enforcement, no
 `--cov` exists. **Fix:** correct each claim against the code. **Scope estimate:** ~11 files — needs
 audit-scope step (≤8 files); do README + how-tos first.
-
-## Pytest gate spends ~25 s of ~44 s on benchmark loops and doc-tree copies `normal` [audit]
-
-Gate rose 25.6 → 44.1 s over four `metrics.jsonl` rows. `tests/test_benchmarks.py` runs timing loops
-every gate (13.8 s; 0.7 s with `--benchmark-disable`), duplicating `benchmarks/python/`.
-`tests/test_check_tier1_docs.py:54-60` copies lib.rs + 91 docs off 9p per test, incl. 13 cases that
-fire before any doc is read (`scripts/check_tier1_docs.py:282-289`). **Fix:**
-`addopts = "--benchmark-disable"`; copy only what each case reads. **Scope estimate:** 1-2 files.

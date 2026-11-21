@@ -84,6 +84,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     mutations, probe equal-empty and duplicated-row blind spots → `review-patterns.md`
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed → `gate-reviews.md` Audit)
+- **Pytest config / test-fixture speed (254, ~6 min)**: an ini-wide `addopts` reaches EVERY pytest
+    invocation → `review-patterns.md` "Pytest config / test-fixture speed step (254)"
 - **Bumps** (generated artifact, MSRV, lockfile, wrapper, framework major) and **security-pass /
     advisory-bump steps (235)** → `dep-refresh-reviews.md`
 - **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table (215-221)**, new

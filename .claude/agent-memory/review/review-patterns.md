@@ -812,6 +812,22 @@ A step that changes how the Go port serializes something the core also serialize
 - When the step fixes part of an issue, rewrite the entry to the remainder and keep its priority.
     `issues.md` sat at 298 of 300 lines: a new entry needed cuts in other `low` `[review]` entries
 
+## Pytest config / test-fixture speed step (254)
+
+A step that changes `[tool.pytest.ini_options]` or where test fixtures get their bytes (254:
+`addopts = "--benchmark-disable"`, Tier 1 doc tests read the repo once). PASS in about 6 minutes.
+
+- Criteria from one logged script: full `uv run pytest --durations=10` with wall time, the changed
+    test module alone, each documented pytest command as written in the docs, `zensical build`
+- An ini-wide `addopts` reaches every pytest invocation under the repo root. Grep `.github`,
+    `.pre-commit-config.yaml`, `mise.toml` and the docs for `pytest`, and check that each one
+    installs the plugin the option belongs to (an unknown option is a usage error, exit 4)
+- Run the documented command once without the new flag too: 254's exit 4 proved the doc edit was
+    required, not decoration
+- A fixture helper that copies less is safe when the code under test would raise `FileNotFoundError`
+    on the files left out. Confirm that by reading the early-return path; no mutation test is needed
+- Pre-flight `uv run ty check` and ruff `S`/`C901` on the changed test file before the push
+
 ## Moved from the index (251)
 
 The long form of the index entries as they stood before the compaction in iteration 251.

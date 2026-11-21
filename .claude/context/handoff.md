@@ -1,48 +1,58 @@
-## 2026-11-21 — Cut the pytest gate time: benchmarks disabled by default, Tier 1 doc tests copy only what they read
+## 2026-11-21 — Review of: Cut the pytest gate time: benchmarks disabled by default, Tier 1 doc tests copy only what they read
 
-**Done:** `pyproject.toml` now sets `addopts = "--benchmark-disable"`, so `tests/test_benchmarks.py`
-runs each benchmarked call once as a smoke test. The documented reproduce command gains
-`--benchmark-enable`. The Tier 1 doc tests read the repo sources once per session (`functools.cache`
-→ `{rel: bytes}`) and write them into each `tmp_path`; the 14 early-return cases (13
-`test_fire_unrecognised_crate_root_item` + `test_floor_rejects_collapsed_parse`) get `lib.rs` only
-via `_copy_lib`.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `pyproject.toml`: `addopts = "--benchmark-disable"` in `[tool.pytest.ini_options]`
-- `docs/benchmarks.md`: "How to reproduce" command adds `--benchmark-enable`, plus one sentence
-    saying the repo config disables benchmarks by default
-- `tests/test_check_tier1_docs.py`: `_tree_bytes` (cached), `_write`, `_copy_tree` (full tree from
-    cache), `_copy_lib` (lib.rs only); `shutil` import dropped; module docstring updated. No
-    assertion changed
+**Summary:** The pytest gate dropped from about 45 s to about 20 s. `pyproject.toml` disables
+pytest-benchmark timing loops by default, the documented benchmark command gained
+`--benchmark-enable`, and the Tier 1 doc tests read the repo sources once per session. The diff
+touches exactly the three files next.md named and changes no assertion.
 
 **Verification:**
 
-- `uv run pytest` — exit 0, 763 passed in 18.76 s (22 s wall). Before: 763 passed in 45.71 s. Top 10
-    `--durations=10` after: tier1 `test_real_repo_passes` 0.86 s, spec_paths `test_real_repo_passes`
-    0.40 s, tier1 `test_fire_pub_fn_added_to_lib_rs` 0.38 s,
-    `test_seq.py::test_differential_rejects_space_like_chars_python_keeps` 0.38 s,
-    `test_text_utils.py::test_differential_space_like_chars_kept_by_both` 0.36 s,
-    `test_cid.py::test_run_metrics_snapshot_appends_and_commits` 0.33 s, tier1
-    `test_fire_unregistered_doc_over_threshold` 0.30 s,
-    `test_cid.py::test_enforce_meta_safety_flags_human_review_on_conflict` 0.28 s,
-    `test_gil.py::test_gen_text_code_v0_concurrent_matches_single_thread` 0.26 s,
-    `test_check_ci_job_table.py::test_real_repo_passes` 0.25 s. Nothing over 1 s remains
-- `uv run pytest tests/test_benchmarks.py` — 18 passed in 0.67 s; `grep -c "Name (time in"` = 0
-- `uv run pytest benchmarks/python/ --benchmark-enable --benchmark-only --benchmark-columns=mean,stddev,rounds`
-    — exit 0, 18 passed, 9 stats tables (`Name (time in` ×9). Without `--benchmark-enable` it errors
-    `Can't have both --benchmark-only and --benchmark-disable` (confirmed)
-- `uv run pytest tests/test_check_tier1_docs.py` — 36 passed in 2.99 s
-- `uv run zensical build` — exit 0, "No issues found"
-- `mise run check` — exit 0
+- [x] `uv run pytest` exits 0 — 763 passed in 20.62 s (25 s wall) on my run. Top of
+    `--durations=10`: tier1 `test_real_repo_passes` 1.09 s, tier1 `test_fire_pub_fn_added_to_lib_rs`
+    0.65 s, `test_check_ci_job_table.py::test_real_repo_passes` 0.42 s, everything else ≤ 0.40 s
+- [x] `uv run pytest tests/test_benchmarks.py` exits 0 without the stats header — 18 passed in 0.68
+    s, `Name (time in` count 0
+- [x] The `docs/benchmarks.md` command contains `--benchmark-enable`, exits 0 under `uv run` and
+    prints the stats table — 18 passed in 13.92 s, 9 tables. Without `--benchmark-enable` it exits 4
+    with the "Can't have both" usage error, so the doc edit was required
+- [x] `uv run pytest tests/test_check_tier1_docs.py` exits 0 — 36 passed. Read in full: the 13
+    unrecognised-item cases and the floor test use `_copy_lib` (lib.rs only), and `_tree_bytes` is
+    `functools.cache`d. `run_checks` returns on both paths before the doc loop
+    (`scripts/check_tier1_docs.py`), and a regression there would raise `FileNotFoundError`
+- [x] `uv run zensical build` exits 0 — "No issues found"
+- [x] `mise run check` exits 0
 
-**Next:** The C FFI `(NULL, 0)` unification (`normal` `[audit]`) as its own step, as planned.
+Beyond next.md: `uv run ty check` and ruff `S`/`C901` on the changed test file are clean. Every
+pytest invocation in the repo (`ci.yml` `uv run pytest`, the pre-push hook, `mise.toml`) runs with
+the dev group, which holds `pytest-benchmark`, so the ini-wide `addopts` cannot hit an "unrecognized
+arguments" error there. No gate was weakened: benchmarked calls still run once each.
+
+**Issues found:**
+
+- (none filed) Two nits, not worth an entry: a bare `pytest benchmarks/python/` now runs each
+    benchmark once and prints no timings, where the `conftest.py` docstring and `notes/09` mention
+    that form. `_copy_tree` and `_copy_lib` keep "copy" in their names although they write cached
+    bytes
+
+**Issue resolved:** "Pytest gate spends ~25 s of ~44 s on benchmark loops and doc-tree copies"
+(`normal` `[audit]`) is deleted from `issues.md`.
+
+**Codex review:** No actionable findings. It ran the full suite (763 passed) and the enabled
+benchmark command (18 passed, timing tables printed).
+
+**Next:** The C FFI `(NULL, 0)` unification (`normal` `[audit]`, scope estimate 2-4 non-test files)
+as its own step. It changes FFI behaviour and flips len-0 null tests on the C, .NET and C++
+surfaces, so run all three suites, regenerate `iscc.h` and `NativeMethods.g.cs` in the same step if
+a doc comment on an export moves, and add `data-edge.json` vectors only if the change is
+JSON-expressible. After it: the integer-range issue, then the published-docs issue.
 
 **Notes:**
 
-- `git grep` finds no other `--benchmark-only` invocation (CI, mise, scripts) besides
-    `docs/benchmarks.md`. The pre-push hook (`uv run pytest --timeout=120`) and CI's `uv run pytest`
-    both inherit `addopts`
-- The `uv run` warning about `VIRTUAL_ENV` not matching the project env is environment noise; I ran
-    with `VIRTUAL_ENV=` exported
-- No other slow module worth naming: the slowest test after the change is 0.86 s
+- Three `normal` `[audit]` issues remain and block v0.8.0: C FFI `(NULL, 0)`, out-of-range integers,
+    published-package docs
+- `issues.md` is at 268 of 300 lines, `learnings.md` at its 200-line budget: a new learning needs an
+    equal cut in the same commit
+- To see benchmark numbers from pytest, pass `--benchmark-enable`. This holds for
+    `tests/test_benchmarks.py` as well as for `benchmarks/python/`
