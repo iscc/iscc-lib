@@ -160,7 +160,7 @@ fn call_text(inputs: &[Value]) -> Result<Outcome, String> {
     let text = str_arg(inputs, 0)?;
     let bits = u32_arg(inputs, 1)?;
     Ok(to_outcome(
-        iscc_wasm::gen_text_code_v0(text, Some(bits)),
+        iscc_wasm::gen_text_code_v0(text, Some(f64::from(bits))),
         iscc_json,
     ))
 }
@@ -170,7 +170,7 @@ fn call_mixed(inputs: &[Value]) -> Result<Outcome, String> {
     let codes = str_list_arg(inputs, 0)?;
     let bits = u32_arg(inputs, 1)?;
     Ok(to_outcome(
-        iscc_wasm::gen_mixed_code_v0(codes, Some(bits)),
+        iscc_wasm::gen_mixed_code_v0(codes, Some(f64::from(bits))),
         iscc_json,
     ))
 }
@@ -200,7 +200,7 @@ fn call_meta(inputs: &[Value]) -> Result<Outcome, String> {
     let meta = meta_arg(inputs, 2)?;
     let bits = u32_arg(inputs, 3)?;
     Ok(to_outcome(
-        iscc_wasm::gen_meta_code_v0(name, description, Some(meta), Some(bits)),
+        iscc_wasm::gen_meta_code_v0(name, description, Some(meta), Some(f64::from(bits))),
         iscc_json,
     ))
 }
@@ -210,7 +210,7 @@ fn call_video(inputs: &[Value]) -> Result<Outcome, String> {
     let frames = frames_arg(inputs, 0)?;
     let bits = u32_arg(inputs, 1)?;
     Ok(to_outcome(
-        iscc_wasm::gen_video_code_v0(frames, Some(bits)),
+        iscc_wasm::gen_video_code_v0(frames, Some(f64::from(bits))),
         iscc_json,
     ))
 }

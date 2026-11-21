@@ -537,7 +537,10 @@ console.log(conformance_selftest()); // true
 
 ## Error handling
 
-Functions throw on invalid input:
+Functions throw on invalid input. Every number argument must be an integer within the range of its
+parameter (for example, `bits` and `nbytes` must lie in 0 to 2^32 − 1 and each `gen_audio_code_v0`
+feature in the signed 32-bit range). A negative, fractional, non-finite or too large number throws
+an error that names the parameter, for example `Invalid bits: -1`:
 
 ```javascript
 import {

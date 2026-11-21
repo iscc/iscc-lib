@@ -80,6 +80,8 @@ result.keys        # list all present fields
 ## Code Generation Functions
 
 All 10 `gen_*_v0` functions return typed `Result` objects and raise `RuntimeError` on invalid input.
+An integer argument outside its native range, such as a negative `bits`, raises `RangeError` (see
+[Error Handling](#error-handling)).
 
 ### gen_meta_code_v0
 
@@ -853,10 +855,11 @@ puts IsccLib.conformance_selftest # true
 
 Methods raise `TypeError` for arguments of the wrong type, such as `nil` for a required String, a
 non-Array where an Array is expected, or a non-String element in a list of ISCC units
-(`IsccLib.encode_seq([nil])`). Integer list elements outside the native range (e.g., a negative
-feature for `alg_minhash_256` or a value beyond 32 bits for `gen_audio_code_v0`) raise `RangeError`;
-`gen_iscc_id_v1` checks its own integer arguments and raises `RuntimeError` instead. Methods raise
-`RuntimeError` for arguments of the right type with invalid values:
+(`IsccLib.encode_seq([nil])`). Integer arguments and integer list elements outside the native range
+(e.g., a negative `bits` or `nbytes`, a negative feature for `alg_minhash_256` or a value beyond 32
+bits for `gen_audio_code_v0`) raise `RangeError`; `gen_iscc_id_v1` checks its own integer arguments
+and raises `RuntimeError` instead. Methods raise `RuntimeError` for arguments of the right type with
+invalid values:
 
 - Empty required parameters (e.g., empty `name` in `gen_meta_code_v0`)
 - Invalid `bits` values (must be a multiple of 32, range 32–256)

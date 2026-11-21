@@ -62,7 +62,7 @@ fn test_gen_sum_code_v0_default_params() {
     // None bits/wide should produce the same as explicit Some(64)/Some(false)
     let data = b"Default params test data";
     let default_result = iscc_wasm::gen_sum_code_v0(data, None, None, None).unwrap();
-    let explicit_result = iscc_wasm::gen_sum_code_v0(data, Some(64), Some(false), None).unwrap();
+    let explicit_result = iscc_wasm::gen_sum_code_v0(data, Some(64.0), Some(false), None).unwrap();
     assert_eq!(default_result.iscc, explicit_result.iscc);
     assert_eq!(default_result.datahash, explicit_result.datahash);
     assert_eq!(default_result.filesize, explicit_result.filesize);
@@ -72,8 +72,8 @@ fn test_gen_sum_code_v0_default_params() {
 fn test_gen_sum_code_v0_wide_mode() {
     // Wide and non-wide should produce different iscc but same datahash/filesize
     let data = b"Wide mode test data with enough bytes to make it meaningful";
-    let narrow = iscc_wasm::gen_sum_code_v0(data, Some(128), Some(false), None).unwrap();
-    let wide = iscc_wasm::gen_sum_code_v0(data, Some(128), Some(true), None).unwrap();
+    let narrow = iscc_wasm::gen_sum_code_v0(data, Some(128.0), Some(false), None).unwrap();
+    let wide = iscc_wasm::gen_sum_code_v0(data, Some(128.0), Some(true), None).unwrap();
     assert_ne!(narrow.iscc, wide.iscc, "wide and non-wide should differ");
     assert_eq!(
         narrow.datahash, wide.datahash,
@@ -182,19 +182,19 @@ fn test_text_remove_newlines_consecutive_spaces() {
 
 #[wasm_bindgen_test]
 fn test_text_trim_truncation() {
-    assert_eq!(iscc_wasm::text_trim("hello world", 5), "hello");
+    assert_eq!(iscc_wasm::text_trim("hello world", 5.0).unwrap(), "hello");
 }
 
 #[wasm_bindgen_test]
 fn test_text_trim_multibyte_not_split() {
     // 'ä' is 2 bytes in UTF-8; trimming to 1 byte should drop it entirely
-    assert_eq!(iscc_wasm::text_trim("ä", 1), "");
+    assert_eq!(iscc_wasm::text_trim("ä", 1.0).unwrap(), "");
 }
 
 #[wasm_bindgen_test]
 fn test_text_trim_result_stripped() {
     // Trailing whitespace should be stripped from the trimmed result
-    assert_eq!(iscc_wasm::text_trim("hi there", 3), "hi");
+    assert_eq!(iscc_wasm::text_trim("hi there", 3.0).unwrap(), "hi");
 }
 
 // ── text_collapse ───────────────────────────────────────────────────────────
@@ -352,25 +352,25 @@ fn test_conformance_selftest_returns_true() {
 
 #[wasm_bindgen_test]
 fn test_sliding_window_known_ngrams() {
-    let result = iscc_wasm::sliding_window("hello", 3).unwrap();
+    let result = iscc_wasm::sliding_window("hello", 3.0).unwrap();
     assert_eq!(result, vec!["hel", "ell", "llo"]);
 }
 
 #[wasm_bindgen_test]
 fn test_sliding_window_width_equals_length() {
-    let result = iscc_wasm::sliding_window("ab", 2).unwrap();
+    let result = iscc_wasm::sliding_window("ab", 2.0).unwrap();
     assert_eq!(result, vec!["ab"]);
 }
 
 #[wasm_bindgen_test]
 fn test_sliding_window_error_on_width_zero() {
-    let result = iscc_wasm::sliding_window("hello", 0);
+    let result = iscc_wasm::sliding_window("hello", 0.0);
     assert!(result.is_err(), "width 0 should error");
 }
 
 #[wasm_bindgen_test]
 fn test_sliding_window_error_on_width_one() {
-    let result = iscc_wasm::sliding_window("hello", 1);
+    let result = iscc_wasm::sliding_window("hello", 1.0);
     assert!(result.is_err(), "width 1 should error");
 }
 
@@ -413,16 +413,16 @@ fn test_alg_simhash_single_digest_identity() {
 
 #[wasm_bindgen_test]
 fn test_alg_minhash_256_output_length() {
-    let features = vec![1u32, 2, 3, 4, 5];
-    let result = iscc_wasm::alg_minhash_256(features);
+    let features = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+    let result = iscc_wasm::alg_minhash_256(features).unwrap();
     assert_eq!(result.len(), 32, "minhash output should be 32 bytes");
 }
 
 #[wasm_bindgen_test]
 fn test_alg_minhash_256_deterministic() {
-    let features = vec![100u32, 200, 300];
-    let r1 = iscc_wasm::alg_minhash_256(features.clone());
-    let r2 = iscc_wasm::alg_minhash_256(features);
+    let features = vec![100.0, 200.0, 300.0];
+    let r1 = iscc_wasm::alg_minhash_256(features.clone()).unwrap();
+    let r2 = iscc_wasm::alg_minhash_256(features).unwrap();
     assert_eq!(r1, r2, "same input should produce same output");
 }
 
@@ -442,7 +442,7 @@ fn cdc_chunk_bytes(chunks: &[js_sys::Uint8Array]) -> Vec<Vec<u8>> {
 #[wasm_bindgen_test]
 fn test_alg_cdc_chunks_concatenation() {
     let data: Vec<u8> = (0..4096u32).map(|i| (i * 7 % 251) as u8).collect();
-    let chunks = iscc_wasm::alg_cdc_chunks(&data, false, Some(64)).unwrap();
+    let chunks = iscc_wasm::alg_cdc_chunks(&data, false, Some(64.0)).unwrap();
     assert!(
         chunks.len() > 1,
         "4 KiB at avg 64 should yield several chunks"
@@ -467,7 +467,7 @@ fn test_alg_cdc_chunks_empty_input() {
 #[wasm_bindgen_test]
 fn test_alg_cdc_chunks_at_least_one_chunk() {
     let data = vec![0u8; 100];
-    let chunks = iscc_wasm::alg_cdc_chunks(&data, false, Some(1024)).unwrap();
+    let chunks = iscc_wasm::alg_cdc_chunks(&data, false, Some(1024.0)).unwrap();
     let bytes = cdc_chunk_bytes(&chunks);
     assert!(!bytes.is_empty(), "should return at least one chunk");
     assert_eq!(bytes.concat(), data, "chunks should concatenate to input");
@@ -488,7 +488,7 @@ fn test_soft_hash_video_v0_output_length() {
 fn test_soft_hash_video_v0_custom_bits() {
     let frame_sigs: Vec<Vec<i32>> = vec![vec![0i32; 380], vec![1i32; 380]];
     let input = serde_wasm_bindgen::to_value(&frame_sigs).unwrap();
-    let result = iscc_wasm::soft_hash_video_v0(input, Some(128)).unwrap();
+    let result = iscc_wasm::soft_hash_video_v0(input, Some(128.0)).unwrap();
     assert_eq!(result.len(), 16, "128 bits = 16 bytes");
 }
 
@@ -518,8 +518,8 @@ fn test_data_hasher_matches_gen_function() {
     let data = b"Hello, ISCC World!";
     let mut dh = iscc_wasm::DataHasher::new();
     dh.update(data).unwrap();
-    let streaming = dh.finalize(Some(64)).unwrap();
-    let oneshot = iscc_wasm::gen_data_code_v0(data, Some(64)).unwrap();
+    let streaming = dh.finalize(Some(64.0)).unwrap();
+    let oneshot = iscc_wasm::gen_data_code_v0(data, Some(64.0)).unwrap();
     assert_eq!(streaming, oneshot, "streaming should match one-shot");
 }
 
@@ -530,8 +530,8 @@ fn test_data_hasher_multi_update() {
     dh.update(&data[..10]).unwrap();
     dh.update(&data[10..25]).unwrap();
     dh.update(&data[25..]).unwrap();
-    let streaming = dh.finalize(Some(64)).unwrap();
-    let oneshot = iscc_wasm::gen_data_code_v0(data, Some(64)).unwrap();
+    let streaming = dh.finalize(Some(64.0)).unwrap();
+    let oneshot = iscc_wasm::gen_data_code_v0(data, Some(64.0)).unwrap();
     assert_eq!(streaming, oneshot, "multi-update should match one-shot");
 }
 
@@ -543,7 +543,7 @@ fn test_data_hasher_empty_data() {
         result.starts_with("ISCC:"),
         "empty data should produce valid ISCC"
     );
-    let oneshot = iscc_wasm::gen_data_code_v0(&[], Some(64)).unwrap();
+    let oneshot = iscc_wasm::gen_data_code_v0(&[], Some(64.0)).unwrap();
     assert_eq!(
         result, oneshot,
         "empty streaming should match empty one-shot"
@@ -572,7 +572,7 @@ fn test_data_hasher_update_after_finalize_errors() {
 
 #[wasm_bindgen_test]
 fn test_data_hasher_default_bits() {
-    // finalize(None) should use 64-bit default — same as finalize(Some(64))
+    // finalize(None) should use 64-bit default — same as finalize(Some(64.0))
     let data = b"default bits test";
 
     let mut dh1 = iscc_wasm::DataHasher::new();
@@ -581,7 +581,7 @@ fn test_data_hasher_default_bits() {
 
     let mut dh2 = iscc_wasm::DataHasher::new();
     dh2.update(data).unwrap();
-    let result_64 = dh2.finalize(Some(64)).unwrap();
+    let result_64 = dh2.finalize(Some(64.0)).unwrap();
 
     assert_eq!(result_none, result_64, "None bits should equal explicit 64");
 }
@@ -604,8 +604,8 @@ fn test_instance_hasher_matches_gen_function() {
     let data = b"Hello, ISCC World!";
     let mut ih = iscc_wasm::InstanceHasher::new();
     ih.update(data).unwrap();
-    let streaming = ih.finalize(Some(64)).unwrap();
-    let oneshot = iscc_wasm::gen_instance_code_v0(data, Some(64)).unwrap();
+    let streaming = ih.finalize(Some(64.0)).unwrap();
+    let oneshot = iscc_wasm::gen_instance_code_v0(data, Some(64.0)).unwrap();
     assert_eq!(streaming, oneshot, "streaming should match one-shot");
 }
 
@@ -616,8 +616,8 @@ fn test_instance_hasher_multi_update() {
     ih.update(&data[..10]).unwrap();
     ih.update(&data[10..25]).unwrap();
     ih.update(&data[25..]).unwrap();
-    let streaming = ih.finalize(Some(64)).unwrap();
-    let oneshot = iscc_wasm::gen_instance_code_v0(data, Some(64)).unwrap();
+    let streaming = ih.finalize(Some(64.0)).unwrap();
+    let oneshot = iscc_wasm::gen_instance_code_v0(data, Some(64.0)).unwrap();
     assert_eq!(streaming, oneshot, "multi-update should match one-shot");
 }
 
@@ -629,7 +629,7 @@ fn test_instance_hasher_empty_data() {
         result.starts_with("ISCC:"),
         "empty data should produce valid ISCC"
     );
-    let oneshot = iscc_wasm::gen_instance_code_v0(&[], Some(64)).unwrap();
+    let oneshot = iscc_wasm::gen_instance_code_v0(&[], Some(64.0)).unwrap();
     assert_eq!(
         result, oneshot,
         "empty streaming should match empty one-shot"
@@ -658,7 +658,7 @@ fn test_instance_hasher_update_after_finalize_errors() {
 
 #[wasm_bindgen_test]
 fn test_instance_hasher_default_bits() {
-    // finalize(None) should use 64-bit default — same as finalize(Some(64))
+    // finalize(None) should use 64-bit default — same as finalize(Some(64.0))
     let data = b"default bits test";
 
     let mut ih1 = iscc_wasm::InstanceHasher::new();
@@ -667,7 +667,7 @@ fn test_instance_hasher_default_bits() {
 
     let mut ih2 = iscc_wasm::InstanceHasher::new();
     ih2.update(data).unwrap();
-    let result_64 = ih2.finalize(Some(64)).unwrap();
+    let result_64 = ih2.finalize(Some(64.0)).unwrap();
 
     assert_eq!(result_none, result_64, "None bits should equal explicit 64");
 }
@@ -792,11 +792,11 @@ fn test_sum_hasher_wide_mode() {
     let data = b"Wide mode test data with enough bytes to make it meaningful";
     let mut narrow = iscc_wasm::SumHasher::new();
     narrow.update(data).unwrap();
-    let narrow_result = narrow.finalize(Some(128), Some(false), None).unwrap();
+    let narrow_result = narrow.finalize(Some(128.0), Some(false), None).unwrap();
 
     let mut wide = iscc_wasm::SumHasher::new();
     wide.update(data).unwrap();
-    let wide_result = wide.finalize(Some(128), Some(true), None).unwrap();
+    let wide_result = wide.finalize(Some(128.0), Some(true), None).unwrap();
 
     assert_ne!(
         narrow_result.iscc, wide_result.iscc,
@@ -859,7 +859,7 @@ fn test_text_ngram_size_value() {
 fn test_encode_component_meta_code() {
     // mtype=0 (META), stype=0, version=0, 64 bits, 8-byte digest
     let digest = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
-    let result = iscc_wasm::encode_component(0, 0, 0, 64, &digest).unwrap();
+    let result = iscc_wasm::encode_component(0.0, 0.0, 0.0, 64.0, &digest).unwrap();
     assert!(!result.is_empty(), "should return non-empty string");
     // Result should be valid base32 — all uppercase letters and digits 2-7
     assert!(
@@ -873,7 +873,7 @@ fn test_encode_component_meta_code() {
 #[wasm_bindgen_test]
 fn test_encode_component_roundtrip_with_decode() {
     let digest = [0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89];
-    let encoded = iscc_wasm::encode_component(3, 0, 0, 64, &digest).unwrap();
+    let encoded = iscc_wasm::encode_component(3.0, 0.0, 0.0, 64.0, &digest).unwrap();
     let decoded = iscc_wasm::iscc_decode(&encoded).unwrap();
     assert_eq!(decoded.maintype, 3);
     assert_eq!(decoded.subtype, 0);
@@ -883,14 +883,14 @@ fn test_encode_component_roundtrip_with_decode() {
 
 #[wasm_bindgen_test]
 fn test_encode_component_error_on_invalid_mtype() {
-    let result = iscc_wasm::encode_component(255, 0, 0, 64, &[0u8; 8]);
+    let result = iscc_wasm::encode_component(255.0, 0.0, 0.0, 64.0, &[0u8; 8]);
     assert!(result.is_err(), "mtype 255 should error");
 }
 
 #[wasm_bindgen_test]
 fn test_encode_component_error_on_short_digest() {
     // 64 bits needs 8 bytes, but only 4 provided
-    let result = iscc_wasm::encode_component(0, 0, 0, 64, &[0u8; 4]);
+    let result = iscc_wasm::encode_component(0.0, 0.0, 0.0, 64.0, &[0u8; 4]);
     assert!(result.is_err(), "short digest should error");
 }
 
@@ -912,7 +912,7 @@ fn test_iscc_decode_known_data_code() {
 #[wasm_bindgen_test]
 fn test_iscc_decode_with_iscc_prefix() {
     let digest = [0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89];
-    let encoded = iscc_wasm::encode_component(3, 0, 0, 64, &digest).unwrap();
+    let encoded = iscc_wasm::encode_component(3.0, 0.0, 0.0, 64.0, &digest).unwrap();
     let with_prefix = format!("ISCC:{encoded}");
     let result = iscc_wasm::iscc_decode(&with_prefix).unwrap();
     assert_eq!(result.maintype, 3);
@@ -922,7 +922,7 @@ fn test_iscc_decode_with_iscc_prefix() {
 #[wasm_bindgen_test]
 fn test_iscc_decode_has_all_fields() {
     let digest = [0xAA; 8];
-    let encoded = iscc_wasm::encode_component(0, 0, 0, 64, &digest).unwrap();
+    let encoded = iscc_wasm::encode_component(0.0, 0.0, 0.0, 64.0, &digest).unwrap();
     let result = iscc_wasm::iscc_decode(&encoded).unwrap();
     // Verify all fields are accessible
     let _mt = result.maintype;
@@ -1010,4 +1010,198 @@ fn test_gen_iscc_id_v1_rejects_out_of_range() {
     assert!(iscc_wasm::gen_iscc_id_v1(4_503_599_627_370_496.0, 1.0, 0.0).is_err()); // 2^52
     assert!(iscc_wasm::gen_iscc_id_v1(1751831876325218.0, 4096.0, 0.0).is_err());
     assert!(iscc_wasm::gen_iscc_id_v1(1751831876325218.0, 1.0, 2.0).is_err());
+}
+
+// ── Integer range checks ────────────────────────────────────────────────────
+// The JS glue would wrap an out-of-range number (`>>> 0`, typed-array copies)
+// into a different valid integer; every numeric parameter is range-checked.
+
+/// 2^32 + 64: wraps to 64 under ToUint32.
+const OVER_U32: f64 = 4_294_967_360.0;
+
+/// Return the message of the `JsError` that `result` must hold.
+fn err_message<T>(result: Result<T, wasm_bindgen::JsError>) -> String {
+    let Err(err) = result else {
+        panic!("expected an error");
+    };
+    String::from(
+        JsValue::from(err)
+            .dyn_into::<js_sys::Error>()
+            .unwrap()
+            .message(),
+    )
+}
+
+/// Assert that every `bits`-taking export rejects `bits` with `expected`.
+fn assert_bits_rejected(bits: f64, expected: &str) {
+    let frames = || serde_wasm_bindgen::to_value(&vec![vec![0i32, 1, 2]]).unwrap();
+    let codes = || serde_wasm_bindgen::to_value(&Vec::<String>::new()).unwrap();
+    let messages = [
+        err_message(iscc_wasm::gen_meta_code_v0("name", None, None, Some(bits))),
+        err_message(iscc_wasm::gen_text_code_v0("text", Some(bits))),
+        err_message(iscc_wasm::gen_image_code_v0(&[0u8; 1024], Some(bits))),
+        err_message(iscc_wasm::gen_audio_code_v0(vec![1.0, 2.0], Some(bits))),
+        err_message(iscc_wasm::gen_video_code_v0(frames(), Some(bits))),
+        err_message(iscc_wasm::gen_mixed_code_v0(codes(), Some(bits))),
+        err_message(iscc_wasm::gen_data_code_v0(b"data", Some(bits))),
+        err_message(iscc_wasm::gen_instance_code_v0(b"data", Some(bits))),
+        err_message(iscc_wasm::gen_sum_code_v0(b"data", Some(bits), None, None)),
+        err_message(iscc_wasm::soft_hash_video_v0(frames(), Some(bits))),
+        err_message(iscc_wasm::DataHasher::new().finalize(Some(bits))),
+        err_message(iscc_wasm::InstanceHasher::new().finalize(Some(bits))),
+        err_message(iscc_wasm::SumHasher::new().finalize(Some(bits), None, None)),
+    ];
+    for (i, message) in messages.iter().enumerate() {
+        assert_eq!(message, expected, "export #{i}");
+    }
+}
+
+#[wasm_bindgen_test]
+fn test_bits_rejects_over_u32() {
+    assert_bits_rejected(OVER_U32, "Invalid bits: 4294967360");
+}
+
+#[wasm_bindgen_test]
+fn test_bits_rejects_negative() {
+    assert_bits_rejected(-1.0, "Invalid bits: -1");
+}
+
+#[wasm_bindgen_test]
+fn test_bits_rejects_fractional() {
+    assert_bits_rejected(64.5, "Invalid bits: 64.5");
+}
+
+#[wasm_bindgen_test]
+fn test_bits_rejects_non_finite() {
+    assert_bits_rejected(f64::NAN, "Invalid bits: NaN");
+    assert_bits_rejected(f64::INFINITY, "Invalid bits: inf");
+}
+
+#[wasm_bindgen_test]
+fn test_bits_none_keeps_default() {
+    let expected = iscc_wasm::gen_text_code_v0("text", Some(64.0)).unwrap();
+    assert_eq!(iscc_wasm::gen_text_code_v0("text", None).unwrap(), expected);
+}
+
+#[wasm_bindgen_test]
+fn test_rejected_finalize_leaves_hasher_usable() {
+    let mut hasher = iscc_wasm::DataHasher::new();
+    hasher.update(b"data").unwrap();
+    assert_eq!(err_message(hasher.finalize(Some(-1.0))), "Invalid bits: -1");
+    assert_eq!(
+        hasher.finalize(Some(64.0)).unwrap(),
+        iscc_wasm::gen_data_code_v0(b"data", Some(64.0)).unwrap()
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_text_trim_rejects_out_of_range_nbytes() {
+    assert_eq!(
+        err_message(iscc_wasm::text_trim("hello", -1.0)),
+        "Invalid nbytes: -1"
+    );
+    assert_eq!(
+        err_message(iscc_wasm::text_trim("hello", 4_294_967_299.0)),
+        "Invalid nbytes: 4294967299"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_text_trim_accepts_negative_zero_and_u32_max() {
+    assert_eq!(iscc_wasm::text_trim("hello", -0.0).unwrap(), "");
+    assert_eq!(
+        iscc_wasm::text_trim("hello", 4_294_967_295.0).unwrap(),
+        "hello"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_sliding_window_rejects_out_of_range_width() {
+    assert_eq!(
+        err_message(iscc_wasm::sliding_window("abcd", 4_294_967_298.0)),
+        "Invalid width: 4294967298"
+    );
+    assert_eq!(
+        err_message(iscc_wasm::sliding_window("abcd", -1.0)),
+        "Invalid width: -1"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_alg_cdc_chunks_rejects_out_of_range_avg_chunk_size() {
+    assert_eq!(
+        err_message(iscc_wasm::alg_cdc_chunks(
+            b"data",
+            false,
+            Some(4_294_968_320.0)
+        )),
+        "Invalid avg_chunk_size: 4294968320"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_encode_component_rejects_out_of_range_fields() {
+    let digest = [0u8; 8];
+    assert_eq!(
+        err_message(iscc_wasm::encode_component(256.0, 0.0, 0.0, 64.0, &digest)),
+        "Invalid mtype: 256"
+    );
+    assert_eq!(
+        err_message(iscc_wasm::encode_component(0.0, -1.0, 0.0, 64.0, &digest)),
+        "Invalid stype: -1"
+    );
+    assert_eq!(
+        err_message(iscc_wasm::encode_component(0.0, 0.0, 0.5, 64.0, &digest)),
+        "Invalid version: 0.5"
+    );
+    assert_eq!(
+        err_message(iscc_wasm::encode_component(
+            0.0, 0.0, 0.0, OVER_U32, &digest
+        )),
+        "Invalid bit_length: 4294967360"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_gen_audio_code_v0_rejects_out_of_range_elements() {
+    assert_eq!(
+        err_message(iscc_wasm::gen_audio_code_v0(
+            vec![1.0, 1_099_511_627_776.0],
+            None
+        )),
+        "Invalid cv[1]: 1099511627776"
+    );
+    assert_eq!(
+        err_message(iscc_wasm::gen_audio_code_v0(vec![-2_147_483_649.0], None)),
+        "Invalid cv[0]: -2147483649"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_gen_audio_code_v0_accepts_i32_bounds() {
+    let iscc = iscc_wasm::gen_audio_code_v0(vec![-2_147_483_648.0, 2_147_483_647.0], None).unwrap();
+    assert!(iscc.starts_with("ISCC:"));
+}
+
+#[wasm_bindgen_test]
+fn test_alg_minhash_256_rejects_out_of_range_elements() {
+    assert_eq!(
+        err_message(iscc_wasm::alg_minhash_256(vec![-1.0])),
+        "Invalid features[0]: -1"
+    );
+    assert_eq!(
+        err_message(iscc_wasm::alg_minhash_256(vec![0.0, 4_294_967_296.0])),
+        "Invalid features[1]: 4294967296"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_video_rejects_out_of_range_frame_element() {
+    let frames = || {
+        let js = js_sys::Array::new();
+        js.push(&js_sys::Array::of2(&0.into(), &2_147_483_648.0.into()));
+        JsValue::from(js)
+    };
+    assert!(iscc_wasm::gen_video_code_v0(frames(), None).is_err());
+    assert!(iscc_wasm::soft_hash_video_v0(frames(), None).is_err());
 }

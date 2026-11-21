@@ -57,7 +57,7 @@ fn test_gen_meta_code_v0_conformance() {
         let name_arg = inputs[0].as_str().unwrap();
         let description = inputs[1].as_str().unwrap();
         let meta = prepare_meta_arg(&inputs[2]);
-        let bits = inputs[3].as_u64().unwrap() as u32;
+        let bits = inputs[3].as_u64().unwrap() as f64;
         let expected = tc["outputs"]["iscc"].as_str().unwrap();
 
         let desc = if description.is_empty() {
@@ -86,7 +86,7 @@ fn test_gen_text_code_v0_conformance() {
     for (tc_name, tc) in cases {
         let inputs = tc["inputs"].as_array().unwrap();
         let text = inputs[0].as_str().unwrap();
-        let bits = inputs[1].as_u64().unwrap() as u32;
+        let bits = inputs[1].as_u64().unwrap() as f64;
         let expected = tc["outputs"]["iscc"].as_str().unwrap();
 
         let result = iscc_wasm::gen_text_code_v0(text, Some(bits))
@@ -109,7 +109,7 @@ fn test_gen_image_code_v0_conformance() {
     for (tc_name, tc) in cases {
         let inputs = tc["inputs"].as_array().unwrap();
         let pixels_json = inputs[0].as_array().unwrap();
-        let bits = inputs[1].as_u64().unwrap() as u32;
+        let bits = inputs[1].as_u64().unwrap() as f64;
         let expected = tc["outputs"]["iscc"].as_str().unwrap();
 
         let pixels: Vec<u8> = pixels_json
@@ -137,10 +137,10 @@ fn test_gen_audio_code_v0_conformance() {
     for (tc_name, tc) in cases {
         let inputs = tc["inputs"].as_array().unwrap();
         let cv_json = inputs[0].as_array().unwrap();
-        let bits = inputs[1].as_u64().unwrap() as u32;
+        let bits = inputs[1].as_u64().unwrap() as f64;
         let expected = tc["outputs"]["iscc"].as_str().unwrap();
 
-        let cv: Vec<i32> = cv_json.iter().map(|v| v.as_i64().unwrap() as i32).collect();
+        let cv: Vec<f64> = cv_json.iter().map(|v| v.as_i64().unwrap() as f64).collect();
 
         let result = iscc_wasm::gen_audio_code_v0(cv, Some(bits))
             .unwrap_or_else(|e| panic!("gen_audio_code_v0 failed for {tc_name}: {e:?}"));
@@ -162,7 +162,7 @@ fn test_gen_video_code_v0_conformance() {
     for (tc_name, tc) in cases {
         let inputs = tc["inputs"].as_array().unwrap();
         let frames_json = inputs[0].as_array().unwrap();
-        let bits = inputs[1].as_u64().unwrap() as u32;
+        let bits = inputs[1].as_u64().unwrap() as f64;
         let expected = tc["outputs"]["iscc"].as_str().unwrap();
 
         let frame_sigs: Vec<Vec<i32>> = frames_json
@@ -198,7 +198,7 @@ fn test_gen_mixed_code_v0_conformance() {
     for (tc_name, tc) in cases {
         let inputs = tc["inputs"].as_array().unwrap();
         let codes_json = inputs[0].as_array().unwrap();
-        let bits = inputs[1].as_u64().unwrap() as u32;
+        let bits = inputs[1].as_u64().unwrap() as f64;
         let expected = tc["outputs"]["iscc"].as_str().unwrap();
 
         let codes: Vec<String> = codes_json
@@ -227,7 +227,7 @@ fn test_gen_data_code_v0_conformance() {
     for (tc_name, tc) in cases {
         let inputs = tc["inputs"].as_array().unwrap();
         let stream_str = inputs[0].as_str().unwrap();
-        let bits = inputs[1].as_u64().unwrap() as u32;
+        let bits = inputs[1].as_u64().unwrap() as f64;
         let expected = tc["outputs"]["iscc"].as_str().unwrap();
 
         let input_bytes = decode_stream(stream_str);
@@ -252,7 +252,7 @@ fn test_gen_instance_code_v0_conformance() {
     for (tc_name, tc) in cases {
         let inputs = tc["inputs"].as_array().unwrap();
         let stream_str = inputs[0].as_str().unwrap();
-        let bits = inputs[1].as_u64().unwrap() as u32;
+        let bits = inputs[1].as_u64().unwrap() as f64;
         let expected = tc["outputs"]["iscc"].as_str().unwrap();
 
         let input_bytes = decode_stream(stream_str);

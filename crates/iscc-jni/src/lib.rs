@@ -88,6 +88,21 @@ fn throw_and_default<T: Default, E: JavaError + ?Sized>(
     Ok(T::default())
 }
 
+/// Narrow a Java `int` to `u32`, rejecting a negative value.
+///
+/// Java has no unsigned `int`, so a bare `as u32` would turn `-1` into
+/// `4294967295`. On a negative value this throws `IllegalArgumentException`
+/// naming the parameter and returns `Err` holding the default value the
+/// bridge function must return.
+fn non_negative<T: Default>(
+    env: &mut Env,
+    value: jint,
+    name: &str,
+) -> Result<u32, jni::errors::Result<T>> {
+    u32::try_from(value)
+        .map_err(|_| throw_and_default(env, format!("{name} must be non-negative").as_str()))
+}
+
 /// Throw `IllegalStateException` in Java and return a type-appropriate default.
 ///
 /// Used for operations invalid in the current object state (e.g., calling
@@ -203,6 +218,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genMetaCodeV0<'local>(
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             let name_str: String = match name.try_to_string(env) {
                 Ok(s) => s,
                 Err(e) => return throw_and_default(env, &e),
@@ -227,7 +246,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genMetaCodeV0<'local>(
                 &name_str,
                 desc_opt.as_deref(),
                 meta_opt.as_deref(),
-                bits as u32,
+                bits,
             ) {
                 Ok(result) => match env.new_string(result.iscc) {
                     Ok(s) => Ok(s),
@@ -251,11 +270,15 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genTextCodeV0<'local>(
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             let text_str: String = match text.try_to_string(env) {
                 Ok(s) => s,
                 Err(e) => return throw_and_default(env, &e),
             };
-            match iscc_lib::gen_text_code_v0(&text_str, bits as u32) {
+            match iscc_lib::gen_text_code_v0(&text_str, bits) {
                 Ok(result) => match env.new_string(result.iscc) {
                     Ok(s) => Ok(s),
                     Err(e) => throw_and_default(env, &e),
@@ -278,11 +301,15 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genImageCodeV0<'local>(
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             let pixel_bytes = match env.convert_byte_array(&pixels) {
                 Ok(b) => b,
                 Err(e) => return throw_and_default(env, &e),
             };
-            match iscc_lib::gen_image_code_v0(&pixel_bytes, bits as u32) {
+            match iscc_lib::gen_image_code_v0(&pixel_bytes, bits) {
                 Ok(result) => match env.new_string(result.iscc) {
                     Ok(s) => Ok(s),
                     Err(e) => throw_and_default(env, &e),
@@ -306,11 +333,15 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genAudioCodeV0<'local>(
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             let buf = match extract_int_array(env, &cv) {
                 Ok(b) => b,
                 Err(e) => return throw_and_default(env, &e),
             };
-            match iscc_lib::gen_audio_code_v0(&buf, bits as u32) {
+            match iscc_lib::gen_audio_code_v0(&buf, bits) {
                 Ok(result) => match env.new_string(result.iscc) {
                     Ok(s) => Ok(s),
                     Err(e) => throw_and_default(env, &e),
@@ -334,11 +365,15 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genVideoCodeV0<'local>(
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             let frames = match extract_int_array_2d(env, &frame_sigs) {
                 Ok(f) => f,
                 Err(e) => return throw_and_default(env, &e),
             };
-            match iscc_lib::gen_video_code_v0(&frames, bits as u32) {
+            match iscc_lib::gen_video_code_v0(&frames, bits) {
                 Ok(result) => match env.new_string(result.iscc) {
                     Ok(s) => Ok(s),
                     Err(e) => throw_and_default(env, &e),
@@ -362,12 +397,16 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genMixedCodeV0<'local>(
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             let code_strs = match extract_string_array(env, &codes) {
                 Ok(s) => s,
                 Err(e) => return throw_and_default(env, &e),
             };
             let refs: Vec<&str> = code_strs.iter().map(|s| s.as_str()).collect();
-            match iscc_lib::gen_mixed_code_v0(&refs, bits as u32) {
+            match iscc_lib::gen_mixed_code_v0(&refs, bits) {
                 Ok(result) => match env.new_string(result.iscc) {
                     Ok(s) => Ok(s),
                     Err(e) => throw_and_default(env, &e),
@@ -390,11 +429,15 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genDataCodeV0<'local>(
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             let bytes = match env.convert_byte_array(&data) {
                 Ok(b) => b,
                 Err(e) => return throw_and_default(env, &e),
             };
-            match iscc_lib::gen_data_code_v0(&bytes, bits as u32) {
+            match iscc_lib::gen_data_code_v0(&bytes, bits) {
                 Ok(result) => match env.new_string(result.iscc) {
                     Ok(s) => Ok(s),
                     Err(e) => throw_and_default(env, &e),
@@ -417,11 +460,15 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genInstanceCodeV0<'local>(
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             let bytes = match env.convert_byte_array(&data) {
                 Ok(b) => b,
                 Err(e) => return throw_and_default(env, &e),
             };
-            match iscc_lib::gen_instance_code_v0(&bytes, bits as u32) {
+            match iscc_lib::gen_instance_code_v0(&bytes, bits) {
                 Ok(result) => match env.new_string(result.iscc) {
                     Ok(s) => Ok(s),
                     Err(e) => throw_and_default(env, &e),
@@ -479,13 +526,17 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0<'local>(
 ) -> JObject<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JObject<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             let path_str: String = match path.try_to_string(env) {
                 Ok(s) => s,
                 Err(e) => return throw_and_default(env, &e),
             };
             let result = match iscc_lib::gen_sum_code_v0(
                 std::path::Path::new(&path_str),
-                bits as u32,
+                bits,
                 wide,
                 add_units,
             ) {
@@ -637,14 +688,15 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_textTrim<'local>(
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
-            if nbytes < 0 {
-                return throw_and_default(env, "nbytes must be non-negative");
-            }
+            let nbytes = match non_negative(env, nbytes, "nbytes") {
+                Ok(v) => v as usize,
+                Err(default) => return default,
+            };
             let text_str: String = match text.try_to_string(env) {
                 Ok(s) => s,
                 Err(e) => return throw_and_default(env, &e),
             };
-            let result = iscc_lib::text_trim(&text_str, nbytes as usize);
+            let result = iscc_lib::text_trim(&text_str, nbytes);
             match env.new_string(result) {
                 Ok(s) => Ok(s),
                 Err(e) => throw_and_default(env, &e),
@@ -941,14 +993,15 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_slidingWindow<'local>(
     unowned
         .with_env(
             |env| -> jni::errors::Result<JObjectArray<'local, JString<'local>>> {
-                if width < 0 {
-                    return throw_and_default(env, "width must be non-negative");
-                }
+                let width = match non_negative(env, width, "width") {
+                    Ok(v) => v as usize,
+                    Err(default) => return default,
+                };
                 let seq_str: String = match seq.try_to_string(env) {
                     Ok(s) => s,
                     Err(e) => return throw_and_default(env, &e),
                 };
-                let ngrams = match iscc_lib::sliding_window(&seq_str, width as usize) {
+                let ngrams = match iscc_lib::sliding_window(&seq_str, width) {
                     Ok(v) => v,
                     Err(e) => return throw_and_default(env, &e),
                 };
@@ -1098,11 +1151,15 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_softHashVideoV0<'local>(
 ) -> JByteArray<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JByteArray<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             let frames = match extract_int_array_2d(env, &frame_sigs) {
                 Ok(f) => f,
                 Err(e) => return throw_and_default(env, &e),
             };
-            match iscc_lib::soft_hash_video_v0(&frames, bits as u32) {
+            match iscc_lib::soft_hash_video_v0(&frames, bits) {
                 Ok(result) => match env.byte_array_from_slice(&result) {
                     Ok(a) => Ok(a),
                     Err(e) => throw_and_default(env, &e),
@@ -1188,6 +1245,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_dataHasherFinalize<'local>
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             if ptr == 0 {
                 return throw_and_default(env, "DataHasher handle is null");
             }
@@ -1198,7 +1259,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_dataHasherFinalize<'local>
             let Some(inner) = wrapper.inner.take() else {
                 return throw_state_error(env, "DataHasher already finalized");
             };
-            match inner.finalize(bits as u32) {
+            match inner.finalize(bits) {
                 Ok(result) => match env.new_string(result.iscc) {
                     Ok(s) => Ok(s),
                     Err(e) => throw_and_default(env, &e),
@@ -1287,6 +1348,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_instanceHasherFinalize<'lo
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
+            };
             if ptr == 0 {
                 return throw_and_default(env, "InstanceHasher handle is null");
             }
@@ -1297,7 +1362,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_instanceHasherFinalize<'lo
             let Some(inner) = wrapper.inner.take() else {
                 return throw_state_error(env, "InstanceHasher already finalized");
             };
-            match inner.finalize(bits as u32) {
+            match inner.finalize(bits) {
                 Ok(result) => match env.new_string(result.iscc) {
                     Ok(s) => Ok(s),
                     Err(e) => throw_and_default(env, &e),

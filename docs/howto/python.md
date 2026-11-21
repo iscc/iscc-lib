@@ -547,3 +547,17 @@ try:
 except ValueError as e:
     print(f"Invalid input: {e}")
 ```
+
+An integer argument that does not fit the native type, such as a negative `bits` or `nbytes`, or an
+`int` beyond 32 bits in a feature list, raises `OverflowError` instead. Python raises it while
+converting the argument, before the call reaches the library. `OverflowError` is not a subclass of
+`ValueError`, so catch both to handle every invalid argument:
+
+```python
+from iscc_lib import gen_text_code_v0
+
+try:
+    gen_text_code_v0("Hello", bits=-1)
+except (ValueError, OverflowError) as e:
+    print(f"Invalid input: {e}")
+```

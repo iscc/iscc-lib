@@ -20,21 +20,21 @@ napi-rs bindings exposing the `iscc-lib` Rust core as a native Node.js addon pub
 
 ## Rust-to-JS Type Mapping
 
-| Rust type (napi boundary)      | JS/TS type                                    | Notes                                                 |
-| ------------------------------ | --------------------------------------------- | ----------------------------------------------------- |
-| `String`                       | `string`                                      | Owned, UTF-8                                          |
-| `Option<String>`               | `string \| undefined \| null`                 | Optional params become nullable                       |
-| `Option<u32>` / `Option<bool>` | `number \| undefined \| null` / `boolean ...` | napi-derive handles optional scalars                  |
-| `Buffer`                       | `Buffer`                                      | Node.js Buffer; use `data.as_ref()` for `&[u8]`       |
-| `Vec<String>`                  | `Array<string>`                               | Collected from `&[&str]` via intermediate Vec         |
-| `Vec<i32>` / `Vec<u32>`        | `Array<number>`                               | JS numbers map to i32/u32 per signature               |
-| `Vec<Vec<i32>>`                | `Array<Array<number>>`                        | Nested arrays (frame signatures)                      |
-| `Vec<Buffer>`                  | `Array<Buffer>`                               | Used by `alg_cdc_chunks` return                       |
-| `u8`                           | `number`                                      | Header fields in encode/decode codec functions        |
-| `i64`                          | `number`                                      | Filesize in `NapiSumCodeResult`                       |
-| `#[napi(object)] struct`       | plain JS object                               | `IsccDecodeResult`, `NapiSumCodeResult`               |
-| `napi::Result<T>`              | throws on Err                                 | Maps `iscc_lib::Error` via `napi::Error::from_reason` |
-| `bool`                         | `boolean`                                     | Direct mapping                                        |
+| Rust type (napi boundary)      | JS/TS type                                    | Notes                                                      |
+| ------------------------------ | --------------------------------------------- | ---------------------------------------------------------- |
+| `String`                       | `string`                                      | Owned, UTF-8                                               |
+| `Option<String>`               | `string \| undefined \| null`                 | Optional params become nullable                            |
+| `Option<f64>` / `Option<bool>` | `number \| undefined \| null` / `boolean ...` | Optional numbers narrowed by `opt_u32`                     |
+| `Buffer`                       | `Buffer`                                      | Node.js Buffer; use `data.as_ref()` for `&[u8]`            |
+| `Vec<String>`                  | `Array<string>`                               | Collected from `&[&str]` via intermediate Vec              |
+| `Vec<f64>`                     | `Array<number>`                               | Elements narrowed by `to_i32_vec` / `to_u32_vec`           |
+| `Vec<Vec<f64>>`                | `Array<Array<number>>`                        | Frame signatures, narrowed by `to_i32_rows`                |
+| `Vec<Buffer>`                  | `Array<Buffer>`                               | Used by `alg_cdc_chunks` return                            |
+| `f64`                          | `number`                                      | Every numeric input, narrowed by `to_u8`/`to_u32`/`to_i32` |
+| `i64`                          | `number`                                      | Filesize in `NapiSumCodeResult`                            |
+| `#[napi(object)] struct`       | plain JS object                               | `IsccDecodeResult`, `NapiSumCodeResult`                    |
+| `napi::Result<T>`              | throws on Err                                 | Maps `iscc_lib::Error` via `napi::Error::from_reason`      |
+| `bool`                         | `boolean`                                     | Direct mapping                                             |
 
 ## Build Commands
 
@@ -131,5 +131,9 @@ cargo build -p iscc-napi
     (gitignored)
 - **Watch for `Option` semantics** -- JS `null` and `undefined` both map to Rust `None`; ensure
     default values match Python bindings exactly (e.g., `bits` defaults to 64)
+- **Never take `u8`, `u32`, `i32` or a `Vec` of them as an input** -- napi converts with
+    ToUint32/ToInt32, so `256` becomes `u8` 0 and `2**40` becomes `i32` 0 without an error. Take
+    `f64` and narrow it through the range-checked helpers at the top of `src/lib.rs`, which name the
+    parameter (and an element by its index) in the error
 - **Panic = abort in release** -- any panic in Rust crashes the Node.js process; always convert
     errors to `napi::Result` and never use `.unwrap()` on fallible operations

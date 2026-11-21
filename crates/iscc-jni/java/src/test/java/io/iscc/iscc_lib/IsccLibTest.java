@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.function.Executable;
 
 class IsccLibTest {
 
@@ -506,16 +507,56 @@ class IsccLibTest {
 
     // ── Negative jint validation ─────────────────────────────────────────────
 
+    /** Assert that {@code call} throws IllegalArgumentException naming a negative {@code param}. */
+    private static void assertRejectsNegative(String param, Executable call) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, call);
+        assertEquals(param + " must be non-negative", e.getMessage());
+    }
+
     /** Verify textTrim throws IllegalArgumentException for negative nbytes. */
     @Test
     void textTrimNegativeNbytes() {
-        assertThrows(IllegalArgumentException.class, () -> IsccLib.textTrim("hello", -1));
+        assertRejectsNegative("nbytes", () -> IsccLib.textTrim("hello", -1));
     }
 
     /** Verify slidingWindow throws IllegalArgumentException for negative width. */
     @Test
     void slidingWindowNegativeWidth() {
-        assertThrows(IllegalArgumentException.class, () -> IsccLib.slidingWindow("hello", -1));
+        assertRejectsNegative("width", () -> IsccLib.slidingWindow("hello", -1));
+    }
+
+    /** Verify every gen function rejects negative bits before the unsigned cast. */
+    @Test
+    void genFunctionsRejectNegativeBits() {
+        int[][] frames = {{0, 1, 2}};
+        assertRejectsNegative("bits", () -> IsccLib.genMetaCodeV0("name", null, null, -1));
+        assertRejectsNegative("bits", () -> IsccLib.genTextCodeV0("text", -1));
+        assertRejectsNegative("bits", () -> IsccLib.genImageCodeV0(new byte[1024], -1));
+        assertRejectsNegative("bits", () -> IsccLib.genAudioCodeV0(new int[] {1, 2}, -1));
+        assertRejectsNegative("bits", () -> IsccLib.genVideoCodeV0(frames, -1));
+        assertRejectsNegative("bits", () -> IsccLib.genMixedCodeV0(new String[0], -1));
+        assertRejectsNegative("bits", () -> IsccLib.genDataCodeV0(new byte[] {1}, -1));
+        assertRejectsNegative("bits", () -> IsccLib.genInstanceCodeV0(new byte[] {1}, -1));
+        assertRejectsNegative("bits", () -> IsccLib.genSumCodeV0("unused", -1, false, false));
+        assertRejectsNegative("bits", () -> IsccLib.softHashVideoV0(frames, -1));
+    }
+
+    /** Verify hasher finalize rejects negative bits and leaves the hasher usable. */
+    @Test
+    void hasherFinalizeRejectsNegativeBits() {
+        long data = IsccLib.dataHasherNew();
+        long instance = IsccLib.instanceHasherNew();
+        try {
+            assertRejectsNegative("bits", () -> IsccLib.dataHasherFinalize(data, -1));
+            assertRejectsNegative("bits", () -> IsccLib.instanceHasherFinalize(instance, -1));
+            assertEquals(IsccLib.genDataCodeV0(new byte[0], 64), IsccLib.dataHasherFinalize(data, 64));
+            assertEquals(
+                    IsccLib.genInstanceCodeV0(new byte[0], 64),
+                    IsccLib.instanceHasherFinalize(instance, 64));
+        } finally {
+            IsccLib.dataHasherFree(data);
+            IsccLib.instanceHasherFree(instance);
+        }
     }
 
     /** Verify algCdcChunks throws IllegalArgumentException for negative avg_chunk_size. */

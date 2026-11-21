@@ -384,3 +384,15 @@ and `std::vector::data()` yield NULL, each wrapper needed sentinels. **Alternati
 NULL everywhere (keeps sentinels in every wrapper and hides the core's error); deciding per export
 (the split that existed). **Context:** iteration 255. The review made the indexed row name lazy
 (`format_args!`) after measuring 2x on `iscc_alg_simhash` with 1,000 rows.
+
+## 2026-11-21 — Out-of-range integer arguments are per-binding tests, not `data-edge.json` vectors
+
+**Decision:** napi and WASM take every numeric parameter as a JS `number` (`f64`) and range-check it
+before narrowing; JNI rejects a negative `int` for `bits`, `nbytes` and `width`. Python keeps
+`OverflowError` and Ruby `RangeError`, the classes each host raises itself when an integer
+conversion fails, and the docs name them. No `data-edge.json` vector covers these inputs. **Why:**
+audit issue. A value such as `2**32 + 64` for `bits` cannot be passed through the typed signatures
+of the Rust, C, C++, Go, .NET, Swift and Kotlin harnesses: to them it is a wrong argument type,
+which `edge-vectors.md` → Rules leaves to per-binding tests. **Alternatives:** a vector with
+`except` entries for seven surfaces (mostly exceptions); wrapping Python/Ruby errors into
+`ValueError`/`RuntimeError` (hides the host's own class). **Context:** iteration 256.

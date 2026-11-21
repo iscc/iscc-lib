@@ -1,65 +1,65 @@
-## 2026-11-21 — Review of: C FFI accepts `(NULL, 0)` everywhere and checks inner pointers, via one `slice_or_empty` helper
+## 2026-11-21 — Range-check every JS integer argument, reject negative JNI counts, document the Python/Ruby classes
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** napi and WASM now take every numeric input as `f64` (`Option<f64>`, `Vec<f64>`, napi
+`Vec<Vec<f64>>`) and narrow it through one range-checked helper set (`checked` with a minimum, plus
+`to_u8`/`to_u32`/`to_i32`/`opt_u32`/`to_*_vec`, napi `to_i32_rows`). `gen_iscc_id_v1` uses the same
+`checked`. JNI gained `non_negative`, used at all 12 `bits` sites and for `nbytes`/`width`. The
+Python and Ruby docs now name `OverflowError` / `RangeError`, and decisions.md records why no
+`data-edge.json` vector covers this.
 
-**Summary:** Every pointer+length input of `crates/iscc-ffi` now goes through `slice_or_empty` (row
-arrays through a second private helper, `rows_or_empty`). Length 0 is an empty input, NULL with a
-non-zero length is a named error, and a NULL inner row is no longer undefined behaviour. The 7 .NET
-sentinel branches are gone. The work matches next.md and all six criteria pass. The Codex review
-found two real defects on top (a per-row allocation and a double free in two new C test macros);
-both were two-line fixes and the review applied them.
+**Files changed:**
+
+- `crates/iscc-napi/src/lib.rs`: helpers at the top; every gen fn, `gen_sum_code_v0`, hasher
+    `finalize`, `text_trim`, `sliding_window`, `alg_cdc_chunks`, `encode_component`,
+    `alg_minhash_256`, audio `cv`, video/soft-hash frames. `text_trim` and `alg_minhash_256` now
+    return `napi::Result`
+- `crates/iscc-wasm/src/lib.rs`: same helpers (no rows helper: video stays on `serde_wasm_bindgen`);
+    `SumHasher.finalize` included. `cv`/`features` carry
+    `#[wasm_bindgen(unchecked_param_type = "ArrayLike<number>")]`
+- `crates/iscc-jni/src/lib.rs`: `non_negative<T: Default>(env, jint, name) -> Result<u32, …>`
+- Tests: napi `functions.test.mjs` (+3 describe blocks, 52 cases), WASM `tests/unit.rs` (+16 tests;
+    `conformance.rs`/`data_edge.rs`/older unit calls moved to `f64` args), `IsccLibTest.java` (+2
+    tests, message asserted), `tests/test_int_range.py` (new, 6), `test_array_args.rb` (+3)
+- Docs: `docs/howto/python.md`, `docs/ruby-api.md` (line 82 + Error Handling),
+    `docs/howto/{nodejs,wasm,java}.md` error sections, napi/WASM `CLAUDE.md` type tables + pitfall
+- `.claude/context/decisions.md`: entry "Out-of-range integer arguments are per-binding tests"
 
 **Verification:**
 
-- [x] `cargo test -p iscc-ffi` passes with the new tests — 121 passed (120 from advance, 1 added by
-    the review); `cargo clippy --workspace --all-targets -- -D warnings` clean
-- [x] `grep -n 'slice::from_raw_parts(' crates/iscc-ffi/src/lib.rs` prints only the line inside
-    `slice_or_empty` — and this is now a Rust test (`test_slices_are_built_only_in_slice_or_empty`)
-- [x] The C test compiles (`-Wall -Wextra`, also with `-fsanitize=address`) and exits 0 — 142 passed
-- [x] Regeneration is a no-op — after cbindgen and `cargo build -p iscc-ffi`, `git status` on
-    `iscc.h` and `NativeMethods.g.cs` is empty (checked again after the review's fixes)
-- [x] `dotnet test` passes (153), `grep -n sentinel` on `IsccLib.cs` + `packages/dotnet/CLAUDE.md`
-    prints nothing
-- [x] C++ suite passes against the rebuilt FFI (Debug + ASAN, 112 passed); `mise run check` exits 0
+- [x] `npm run build:debug && npm test` (iscc-napi): 238/238 pass. Every listed case throws with a
+    message naming the parameter (`Invalid bits: 4294967360`, `Invalid cv[1]: …`,
+    `Invalid frame_sigs[1][1]: 2147483648`, `Invalid mtype: 256`, `Invalid bits: 64.5`)
+- [x] `wasm-pack test --node crates/iscc-wasm`: 11 + 8 + 108 pass (re-run after `cargo fmt`). Node
+    probe on `/tmp/wasm-int`: `gen_text_code_v0("x", 2**32+64)` → `Invalid bits: 4294967360`,
+    `gen_audio_code_v0([2**40])` → `Invalid cv[0]: 1099511627776`; `Int32Array`/`Uint32Array` inputs
+    still give the same result as plain arrays
+- [x] The signature grep from next.md prints nothing
+- [x] `mvn -f crates/iscc-jni/java/pom.xml clean test`: 110 + 8 pass (after
+    `cargo build -p iscc-jni`)
+- [x] `uv run pytest`: 769 pass; `bundle exec rake test`: 168 runs, 0 failures
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` exit 0; also
+    `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown --all-targets` clean;
+    `mise run check` exit 0
 
-**Issues found:**
-
-- `rows_or_empty` built the indexed row name with `format!` for every valid row. Measured with a
-    release build and 1,000 four-byte digests: `iscc_alg_simhash` took 260-330 µs per call, 150-170
-    µs after the fix. **Fixed in review:** `slice_or_empty` takes `name: impl Display`, the row call
-    passes `format_args!`, so the name is built only on rejection. The 17 other call sites are
-    unchanged
-- `CHECK_NULL_EMPTY_STR` / `CHECK_NULL_EMPTY_BUF` in `test_iscc.c` passed a freeing comparison to
-    `ASSERT_EQ`, which evaluates its argument again when it prints a failure: a failing check ended
-    in a double free instead of a FAIL line. **Fixed in review:** the result is stored first. Proof:
-    two deliberate mismatches under ASAN give two clean FAIL lines and no sanitizer report
-- The step made four comments false ("several C FFI functions reject a NULL pointer before checking
-    the count"): `iscc.hpp` (`detail::safe_data`), `packages/cpp/CLAUDE.md`,
-    `tests/test_cpp_safe_data.py`, and the `PinnedRows` remarks in `IsccLib.cs`. **Fixed in
-    review**, comment text only
-- Filed `low`, untriaged: "C++ `safe_data` and .NET `PinnedRows` padding guard a NULL rejection the
-    FFI no longer has". Both workarounds are now redundant but correct; whether to drop them is a
-    call for Titusz
-- Nit, not filed: no .NET test passes an empty span to `GenImageCodeV0`, `EncodeBase64` or
-    `AlgMinhash256`. The FFI side of each is covered in Rust and C
-
-**Codex review:** two P2 findings, both confirmed and fixed (the first two entries above). Codex
-also re-ran the Rust, C and .NET suites green.
-
-**Next:** The `normal` `[audit]` issue "Out-of-range integer arguments wrap silently on JS, raise
-undocumented classes elsewhere" (napi, WASM, JNI, Python, Ruby; 5-6 non-test files, so cite the
-audit valve). After that the published-docs issue.
+**Next:** the published-docs issue ("Published-package docs contradict what ships"), as next.md
+says.
 
 **Notes:**
 
-- Resolved and deleted: the `[audit]` issue "C FFI treats `(NULL, 0)` two opposite ways and never
-    checks inner pointers". The rule is recorded as a decision (2026-11-21) and in
-    `crates/iscc-ffi/CLAUDE.md` → Safety Rules
-- `docs/c-ffi-api.md` now states the `(NULL, 0)` rule under "Memory Model" and the `iscc_encode_seq`
-    error list matches the header. The published-docs step can build on that
-- `ASSERT_EQ` and the other C test macros evaluate `actual` twice on failure. Noted in
-    `crates/iscc-ffi/CLAUDE.md` → C tests: pass a stored value, never a call that frees
-- `iscc-ffi` is outside the iai and CRAP gates, so no gate would have caught the per-row allocation.
-    For a marshalling change on a row loop, time it once with a release build
-- decisions.md went over 400 lines with the new entry and was rotated with the runner's
-    `archive_overflow`; `decisions-archive.md` is part of this commit
+- **TypeScript surface of `@iscc/wasm`:** a plain `Vec<f64>` would have changed the `.d.ts` from
+    `Int32Array`/`Uint32Array` to `Float64Array`. Existing TS callers passing a typed array would
+    then fail to compile. `unchecked_param_type = "ArrayLike<number>"` makes the type wider instead
+    (plain arrays and every typed array are accepted). Everything else is `number` before and after.
+    The napi `.d.ts` is unchanged (`Array<number>`, `number`)
+- **Behaviour choices:** the `bits` check runs before the hasher is consumed, so a rejected
+    `finalize(-1)` leaves the hasher usable (tested on napi, WASM and JNI). A core-level rejection
+    such as `bits=13` still consumes it, as before. `-0` maps to 0. `null`/`undefined` keep the
+    default
+- WASM video: the Node probe confirms that `serde_wasm_bindgen` already rejects `2**31`
+    (`invalid value: integer 2147483648, expected i32`). Left as is
+- JNI `genSumCodeV0("unused", -1, …)` checks `bits` before reading the path, so the test needs no
+    file
+- Helpers are duplicated between napi and WASM (different error types); the old `checked` was
+    duplicated the same way
+- No hot path in the core changed. The napi/WASM element conversion adds one pass over `cv` /
+    `features`; not benchmarked (bindings are outside iai/CRAP)

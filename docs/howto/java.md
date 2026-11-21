@@ -438,8 +438,9 @@ System.out.println("Conformance: " + ok); // true
 
 ## Error handling
 
-Methods throw `IllegalArgumentException` on invalid input (wrong bit count, empty data where content
-is required, etc.). Use try-catch for error handling:
+Methods throw `IllegalArgumentException` on invalid input (wrong bit count, a negative `int` such as
+`bits`, `nbytes` or `width`, empty data where content is required, etc.). Use try-catch for error
+handling:
 
 ```java
 try {

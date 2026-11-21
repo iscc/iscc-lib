@@ -20,21 +20,21 @@ Browser-compatible WASM bindings for iscc-lib, published as `@iscc/wasm` on npm.
 
 ## Type Mapping (Rust to JS via wasm-bindgen)
 
-| Rust type            | JS type                | How                                                 |
-| -------------------- | ---------------------- | --------------------------------------------------- |
-| `&str`               | `string`               | Direct wasm-bindgen conversion                      |
-| `String`             | `string`               | Direct wasm-bindgen conversion                      |
-| `Option<String>`     | `string \| undefined`  | wasm-bindgen handles Option natively                |
-| `Option<u32>`        | `number \| undefined`  | wasm-bindgen handles Option natively                |
-| `Option<bool>`       | `boolean \| undefined` | wasm-bindgen handles Option natively                |
-| `&[u8]`              | `Uint8Array`           | Direct wasm-bindgen conversion                      |
-| `Vec<u8>`            | `Uint8Array`           | Direct wasm-bindgen conversion                      |
-| `Vec<String>`        | `string[]`             | Direct wasm-bindgen conversion                      |
-| `Vec<i32>`           | `Int32Array`           | Direct wasm-bindgen conversion                      |
-| `Vec<u32>`           | `Uint32Array`          | Direct wasm-bindgen conversion                      |
-| `Vec<Vec<i32>>`      | `JsValue`              | Use `serde_wasm_bindgen::from_value` to deserialize |
-| `Vec<Uint8Array>`    | `Uint8Array[]`         | Return-side byte chunks via `js_sys::Uint8Array`    |
-| `Result<T, JsError>` | throws on Err          | `JsError::new(&e.to_string())`                      |
+| Rust type            | JS type                | How                                                               |
+| -------------------- | ---------------------- | ----------------------------------------------------------------- |
+| `&str`               | `string`               | Direct wasm-bindgen conversion                                    |
+| `String`             | `string`               | Direct wasm-bindgen conversion                                    |
+| `Option<String>`     | `string \| undefined`  | wasm-bindgen handles Option natively                              |
+| `Option<f64>`        | `number \| undefined`  | Optional numbers narrowed by `opt_u32`                            |
+| `f64`                | `number`               | Every numeric input, narrowed by `to_u8`/`to_u32`/`to_i32`        |
+| `Option<bool>`       | `boolean \| undefined` | wasm-bindgen handles Option natively                              |
+| `&[u8]`              | `Uint8Array`           | Direct wasm-bindgen conversion                                    |
+| `Vec<u8>`            | `Uint8Array`           | Direct wasm-bindgen conversion                                    |
+| `Vec<String>`        | `string[]`             | Direct wasm-bindgen conversion                                    |
+| `Vec<f64>`           | `ArrayLike<number>`    | Via `unchecked_param_type`; narrowed by `to_i32_vec`/`to_u32_vec` |
+| `Vec<Vec<i32>>`      | `JsValue`              | Use `serde_wasm_bindgen::from_value` to deserialize               |
+| `Vec<Uint8Array>`    | `Uint8Array[]`         | Return-side byte chunks via `js_sys::Uint8Array`                  |
+| `Result<T, JsError>` | throws on Err          | `JsError::new(&e.to_string())`                                    |
 
 **Key rules:**
 
@@ -178,9 +178,15 @@ crate-root Tier 1 re-export) and its `finalize(bits?, wide?, add_units?)` return
     annotation.
 - **Do not use `Option<&str>`.** wasm-bindgen does not support `Option<&str>` -- use
     `Option<String>` and convert with `.as_deref()`.
-- **`Vec<i32>` in function signatures becomes `Int32Array`.** If JS callers pass a regular array
-    instead of a typed array, use `JsValue` + `serde_wasm_bindgen::from_value` for the parameter.
-    See `gen_audio_code_v0` (takes `Vec<i32>`) vs `gen_video_code_v0` (takes `JsValue`).
+- **Never take `u8`, `u32`, `i32` or a `Vec` of them as an input.** The JS glue wraps them (`>>> 0`
+    for `u32`, typed-array copies for `Vec<i32>`/`Vec<u32>`), so an out-of-range number turns into a
+    different valid integer. Take `f64` / `Vec<f64>` and narrow through the range-checked helpers at
+    the top of `src/lib.rs`. A `Vec<f64>` parameter carries
+    `#[wasm_bindgen(unchecked_param_type = "ArrayLike<number>")]` so TypeScript accepts plain arrays
+    and every typed array. Nested arrays (`gen_video_code_v0`) take `JsValue` +
+    `serde_wasm_bindgen::from_value`, which rejects non-`i32` numbers itself.
+- **`#[wasm_bindgen_test]` calls the Rust function directly and skips the JS glue.** Prove a
+    marshalling change from Node on a `wasm-pack build --target nodejs` package as well.
 - **Conformance test counts are hardcoded.** When upstream `data.json` adds test cases, update the
     `assert_eq!(tested, N, ...)` counts in `conformance.rs`.
 - **`crate-type` must include `cdylib`.** The `rlib` target is included for test compilation. Do not

@@ -89,6 +89,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `--check-action-inputs`) + shape (9 inputs, 97 `uses:` refs) — keep green → release-gate.md
 - WASM returns (234): byte chunks → `Vec<js_sys::Uint8Array>` (d.ts `Uint8Array[]`), never
     `serde_wasm_bindgen::to_value` (gives `number[][]`/`any`). Probe d.ts via `wasm-pack build`
+- JS ints (256): napi/WASM numeric params are `f64` narrowed by `to_u32`-style helpers (lib.rs top),
+    never `u8`/`u32`/`i32`; WASM `Vec<f64>` + `unchecked_param_type = "ArrayLike<number>"`
 - WASM SIMD (#42): `blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt `--enable-simd` →
     wasm-simd.md
 

@@ -197,6 +197,20 @@ class TestArrayArgs < Minitest::Test
     assert_raises(RangeError) { IsccLib.alg_minhash_256([-1]) }
   end
 
+  def test_out_of_range_bits_raises_range_error
+    [-1, 2**32 + 64].each do |bits|
+      assert_raises(RangeError) { IsccLib.gen_text_code_v0("text", bits: bits) }
+    end
+  end
+
+  def test_negative_bits_on_hasher_finalize_raises_range_error
+    assert_raises(RangeError) { IsccLib::DataHasher.new.finalize(bits: -1) }
+  end
+
+  def test_negative_text_trim_nbytes_raises_range_error
+    assert_raises(RangeError) { IsccLib.text_trim("hello", -1) }
+  end
+
   def test_invalid_unit_value_raises_runtime_error
     assert_raises(RuntimeError) { IsccLib.encode_seq(["ISCC:NOTAVALIDCODE"]) }
   end
