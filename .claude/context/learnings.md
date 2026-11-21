@@ -13,10 +13,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     .NET strings go through `ToNativeUtf8`, C++ through `detail::checked_c_str`; probe
     `x + "\0junk"` on every string input. JNI, Ruby + UniFFI keep the NUL, the core rejects. **An
     EMPTY container marshals to NULL** (`fixed` over `[]`, `.data()` on `{}`); the FFI reads
-    `(NULL, 0)` as empty via `slice_or_empty` (255): `PinnedRows` padding and C++ `safe_data` are
-    redundant. **Never take `Vec<T>` from Ruby**: Magnus `to_vec` holds a slice, so a shrinking
-    `to_str` segfaulted (212); use `array_to_vec`. `RBignum::to_i32` truncates negative Bignums:
-    `i32` only via `array_to_i32_vec`
+    `(NULL, 0)` as empty via `slice_or_empty` (255), so both wrappers pass it through (273). Only
+    C++ sends a NULL inner row: a pinned empty .NET array has an address. **Never take `Vec<T>` from
+    Ruby**: Magnus `to_vec` holds a slice, so a shrinking `to_str` segfaulted (212); use
+    `array_to_vec`. `RBignum::to_i32` truncates negative Bignums: `i32` only via `array_to_i32_vec`
 - **WASM marshalling (268/269)**: the wasm-bindgen glue converts every typed parameter. Numbers and
     `bool` arrive as `JsValue` and are type-checked in Rust; `&[u8]` still converts and a number for
     a `&str` traps. **An `Option<T>` before a `JsValue` override loses its `?` in the `.d.ts`**

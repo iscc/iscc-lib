@@ -109,18 +109,6 @@ Resolved when the "Publish" section describes the dispatch with a `version` inpu
 registry chain or says the table is an excerpt, tells the reader not to push the tag by hand, and
 the Swift heading and intro match the flow.
 
-## C++ `safe_data` and .NET `PinnedRows` padding guard a NULL rejection the FFI no longer has `normal` [review]
-
-The C FFI reads a NULL pointer with length 0 as an empty input on every pointer+length parameter
-(decision of 2026-11-21). `detail::safe_data` in `packages/cpp/include/iscc/iscc.hpp`, its gate
-`tests/test_cpp_safe_data.py`, and the `max(Count, 1)` padding of `PinnedRows` in
-`packages/dotnet/Iscc.Lib/IsccLib.cs` now only keep pointers non-null and change no result. Dropping
-the padding supersedes that half of the 2026-11-20 decision on .NET jagged arrays (its null check
-stays). **Decided (Titusz, 2026-11-21):** remove both, in the release whose FFI change made them
-dead.
-
-Resolved when both are removed with the C++ and .NET empty-input tests still green.
-
 ## `@iscc/wasm` converts byte inputs and traps on a non-string `low` [review]
 
 **Triage:** untriaged. A plain-JavaScript caller who passes a string or a plain array where a

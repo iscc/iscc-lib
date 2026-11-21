@@ -684,7 +684,7 @@ int main() {
     assert_throws_with([] { iscc::alg_simhash({}); }, "must not be empty",
                        "alg_simhash(empty) throws 'must not be empty'");
 
-    // 42b. Empty vector inputs on the non-list wrappers never reach the NULL path
+    // 42b. An empty vector or inner row may reach the FFI as (NULL, 0); it is read as empty
     assert_eq(iscc::alg_minhash_256({}).size(), 32, "alg_minhash_256(empty) returns 32 bytes");
     try {
         iscc::encode_component(0, 0, 0, 64, {});

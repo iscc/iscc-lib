@@ -506,7 +506,16 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     `data_edge/…empty_list` rows stay green under that mutation (they assert rejection, not the
     message). A wrapper whose behaviour is identical with either form can only be pinned by a SOURCE
     check — added `tests/test_cpp_safe_data.py` (new `.py` ⇒ run `uv run ty check` + ruff
-    `S`/`C901`)
+    `S`/`C901`); that file and the sentinel were removed in 273
+- **C++/.NET wrapper workaround removal (273, ~10 min incl. Codex)**: next.md's criteria from one
+    logged script (cmake build dir under `/tmp`), plus two 1-minute probes that show which suite
+    really sends `(NULL, 0)`: a g++ one-liner (`std::vector<uint8_t>{}.data() == nullptr` is true on
+    libstdc++) and `dotnet fsi --quiet --exec p.fsx`
+    (`GCHandle.Alloc(Array.Empty<byte>(), GCHandleType.Pinned).AddrOfPinnedObject()` is non-null, so
+    the .NET empty-inner-row test never reaches the NULL path). A deleted source-check test is no
+    gate weakening when the human decision removed the rule it pinned. When a decision supersedes
+    HALF of an older decisions.md entry, retitle and reword the old entry in the review commit so
+    the title list does not show the dead half
 - **UniFFI Swift+Kotlin step (210, ~10 min)**: `gradlew -p packages/kotlin clean test --offline`
     (JUnit XML) + `swift test --package-path packages/swift` with `/tmp/swifttc` on PATH, a fresh
     `--scratch-path` and ABSOLUTE `-L`/rpath + bindgen regen into a temp dir → `binding-reviews.md`
