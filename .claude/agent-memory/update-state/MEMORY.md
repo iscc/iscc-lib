@@ -87,18 +87,18 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 26cebb4, iter 247 — incremental)
+## Current State (assessed-at: 1b3a50f, iter 248 — incremental)
 
-- **CI GREEN on `origin/develop` = `0653726`**. HEAD ahead only by `.claude`. Check-suites API:
+- **CI GREEN on `origin/develop` = `4d04bf9`**. HEAD ahead only by `.claude`. Check-suites API:
     `gh api "repos/iscc/iscc-lib/commits/<sha>/check-suites"` (codecov/cursor suites sit `queued`
     forever — judge by `github-actions`). `gh run view <id> --json jobs` per-job.
-- Tier 1 doc gate registry: `FULL` / `EXACT` / `EXEMPT` near top of `scripts/check_tier1_docs.py`
-    (20 FULL, 2 EXACT, 2 EXEMPT). `tests/test_rust_api_signatures.py` pins `rust-api.md` signatures.
-- **12 open: 1 normal** (`[human]` derived-fact drift — remainder is the spec TREES only: 9 specs
-    with `├`/`└` trees, find via `grep -lE '[├└]' .claude/context/specs/*.md`; per-crate CLAUDE.md
-    file lists removed at 246). 11 low. issues.md 215/300.
-- Spec diffs at 245 were count removals only — a digit-free `grep -E '^[-+]'` skim of the diff is a
-    fast way to confirm no criterion changed.
+- **v0.8.0 release criteria MET; 0 normal open.** 12 open, ALL `low` (= human-directed, CID must
+    skip — legend at issues.md top); 7 carry `**Triage:** untriaged` (count with
+    `grep -c '^\*\*Triage:\*\* untriaged'`, a bare grep hits the legend). Next = human: `/release`,
+    triage, EOL floors, v1.0.0. Stays IN_PROGRESS (low issues + v1.0.0 criteria).
+- Spec trees carry a "not every file" note gated by `scripts/check_spec_paths.py` (247).
+- Tier 1 doc gate registry near top of `scripts/check_tier1_docs.py` (20 FULL, 2 EXACT, 2 EXEMPT).
+- Spec diffs: a digit-free `grep -E '^[-+]'` skim of the diff confirms no criterion changed.
 - data-edge.json sections (6). Vendored check: `md5sum $(git ls-files -- '*data-edge.json')`.
 - **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`.
 
