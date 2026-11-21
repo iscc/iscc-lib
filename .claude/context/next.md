@@ -1,98 +1,61 @@
 # Next Work Package
 
-## Step: Mark every spec file list as partial and gate the note in check_spec_paths.py
+## Step: NONE
 
 ## Goal
 
-Close the last part of "Derived facts in guidance and docs are written by hand and drift" (`normal`,
-`[human]`). The trees in `.claude/context/specs/` stay as statements of where files must live. Each
-tree gets a note that it is not a complete list, and `scripts/check_spec_paths.py` fails on a tree
-that lacks the note. Existence is already checked, so this meets the issue's Resolved-when.
+No CID-workable step exists. Every v0.8.0 release criterion is met, CI is green on `develop`
+(`4d04bf9`), and every open issue is `low`, which the loop must not pick up.
 
 ## Alternatives Considered
 
-- **Chosen:** drop the claim of completeness, keep the trees and the existence check. The trees
-    carry requirements ("DO NOT EDIT", where SPM, JNA and NuGet files live), the gate already fails
-    on a stale entry, and `go-bindings.md` already has the wording.
-- **Rejected:** remove all spec trees and delete the tree parser, its floors and about 8 tests.
-    Every requirement-bearing tree comment would have to be rewritten as prose in 9 specs. That
-    costs more and closes nothing more than the chosen step.
+- **Chosen:** NONE. The gap analysis of target.md against state.md found no unmet criterion inside
+    v0.8.0 scope. The only open items are `low` issues and v1.0.0 work the human has to start.
+- **Rejected:** realigning the release tag trigger in `ci-cd.md` (issue "`ci-cd.md` describes a tag
+    trigger the release workflow does not have"). It is the only `low` entry the loop could finish
+    on its own, but it is untriaged `low`. The 2026-11-19 decision keeps such entries off the loop
+    until Titusz promotes them to `normal`.
 
-## Scope
+## Reason
 
-- **Modify**: `scripts/check_spec_paths.py` (the only file counted against the budget; specs count
-    as docs, as in iterations 245/246)
-- **Modify (docs)**:
-    `.claude/context/specs/{cpp,dotnet,java,kotlin,nodejs,ruby,swift,wasm}-bindings.md`,
-    `.claude/context/specs/ci-cd.md` ("Workflow Files" table only)
-- **Modify (tests)**: `tests/test_check_spec_paths.py`
-- **Reference**: `.claude/context/specs/go-bindings.md` lines 27-41 (the model note),
-    `.claude/context/README.md` → "Hygiene rules"
+Probes run while scoping this step (2026-11-21):
+
+- **CI:** the last 3 `develop` runs are `success`; HEAD is ahead only by `.claude` log and state
+    commits.
+- **Advisories:** osv-scanner over all tracked lockfiles finds only the 3 unmaintained crates that
+    `deny.toml` ignores (expected). The 6 open Dependabot alerts are all for the default branch
+    (`main`), and none applies to `develop`: `uv.lock` has setuptools 84.2.1 (fixed in 84.1.0) and
+    no soupsieve at all, and `crates/iscc-rb/Gemfile.lock` has json 2.21.2 (fixed in 2.21.2). They
+    close once `develop` is merged to `main`.
+
+What blocks further work. Each item needs Titusz:
+
+1. **Cut v0.8.0.** The release criteria are met. Merge `develop` → `main` and run `/release 0.8.0`.
+    CID never cuts a release. The merge also closes the stale Dependabot alerts. Release notes
+    should mention that `@iscc/wasm` `alg_cdc_chunks` now returns `Uint8Array[]`.
+2. **Triage the 7 `untriaged` `low` issues**: promote each to `normal` or park it. The `ci-cd.md`
+    tag-trigger realignment and the Sum-Code `KAA` comments are small docs/spec fixes the loop can
+    do right after promotion.
+3. **End-of-life version floors** (Python 3.10, .NET 8, Ruby 3.1): raise each one or keep it on
+    purpose. Only the human may raise a floor.
+4. **v1.0.0 and MSRV**: Titusz said "not yet" (2026-11-20). There is no milestone after v0.8.0.
+5. **Human-only `low` issues**: the upstream Unicode drift (iscc-core#137), yanking the broken Ruby
+    source gems, the napi `Buffer` leak, the JNI guard test, Ruby Float truncation, and the gate
+    remainders from iteration 146.
+
+Side note for Titusz: the CI/CD section of target.md says "all 12 sync targets", but
+`scripts/version_sync.py` `TARGETS` now holds 21. The criterion is met either way. Only the number
+in the human-owned target is out of date.
 
 ## Not In Scope
 
-- Removing any tree, or the tree floors (zero roots / entries / backticked paths). The floors stay:
-    state.md and the handoff say they must change, but that is only true if the trees go.
-- Completeness checks for trees. Once each tree says it is partial, nothing needs one.
-- The tag trigger in `ci-cd.md`: the Release row's trigger cell, "Tag trigger as convenience" (about
-    line 173) and `tags: [v*.*.*]` (about line 187) contradict `target.md` and `release.yml`, which
-    is `workflow_dispatch`-only. Leave them and mention the conflict in the handoff so review can
-    file it.
-- `.claude/context/README.md`, `learnings.md`, per-crate `CLAUDE.md` files.
-
-## Implementation Notes
-
-**Gate rule.** A fence that holds at least one tree entry (an `ENTRY_RE` match) must be followed by
-a paragraph containing `not every file`. Key the rule on entries, not root lines: `is_root_line`
-also matches a lone `target/`-style line in any code block. "Paragraph" means: skip blank lines
-after the closing fence, then join the following lines with single spaces up to the next blank line.
-A heading or another fence there means the note is missing. Joining matters because mdformat wraps
-at 100 columns and can split the phrase, and in Go the phrase is in the paragraph's second sentence.
-One note per fence: the swift fence has two roots (`packages/swift/`, `scripts/`) and needs one
-note. Error format, in the same style as the others:
-`<spec>:<fence line>: tree has no "not every file" note after its fence`. Update the module
-docstring Rules list to match.
-
-**Backticked prefixes.** Add `\.github` to the `BACKTICK_RE` prefix group. Today only
-`.github/workflows/` (ci-cd.md, about lines 440-441) matches, and it resolves as an ancestor
-directory.
-
-**Spec edits.**
-
-- After each tree in the 8 specs, add a one- or two-sentence note in Go's style that the tree lists
-    the load-bearing entries, not every file. Go already passes; leave it unchanged.
-- Remove entries below a `GENERATED` prefix: the gate exempts them, so it can never fail on them.
-    Keep the prefix line itself. Wasm: drop the 4 children of `pkg/`. Kotlin: drop the 8 children of
-    `main/resources/`; the "Native Library Targets" tables already list those JNA paths. Dotnet: the
-    5 RID lines under `runtimes/` appear nowhere else, so put the layout into the note or a prose
-    sentence (`runtimes/<rid>/native/<lib>` for linux-x64, linux-arm64, osx-arm64, osx-x64,
-    win-x64). The napi `index.js` / `index.d.ts` lines stay; `GENERATED` names each of them exactly.
-- Keep every tree comment that states a rule, such as "DO NOT EDIT" or "synced by version_sync.py".
-- ci-cd.md "Workflow Files": write the File cells as `.github/workflows/ci.yml` etc. so the gate
-    checks they exist. Add a sentence below the table saying it names the workflows this spec
-    requires, not every file in `.github/workflows/`.
-
-**Tests.** Every fixture that holds a tree needs the note appended after its closing fence. That
-covers `GOOD_TREE` (two fences) and `OLD_GO_TREE`. Keep the old-Go replay asserting exactly its 11
-phantoms and `counts == (1, 20, 0)`. Add one test per new failure arm, one bad case per call:
-
-1. A tree followed directly by a heading fires.
-2. A note one paragraph too late (a non-note paragraph between the fence and the note) fires.
-3. The phrase split across two wrapped lines passes.
-4. A phantom backticked `.github/workflows/x.yml` fires.
-
-The gate touches no Rust, so neither CRAP nor iai is affected.
+- Any `low` issue, the release itself, and any change to a version floor.
 
 ## Verification
 
-- `uv run scripts/check_spec_paths.py` exits 0
-- `uv run pytest tests/test_check_spec_paths.py` passes, including the 4 tests listed in the notes
-- `grep -nE '(├──|└──) (linux|darwin|win32|android|osx|win)-|── iscc_wasm' .claude/context/specs/*.md`
-    prints nothing
-- `grep -n 'workflows/ci.yml' .claude/context/specs/ci-cd.md` finds the Workflow Files row
-- `mise run check` exits 0
+- No code change: the advance agent no-ops on NONE.
 
 ## Done When
 
-Every spec tree and the workflow table carry a "not every file" note, the gate fails on a tree
-without one, and all five checks pass.
+Nothing to do. The advance agent no-ops, and review signals IDLE because every blocker is `low` or
+human-gated.
