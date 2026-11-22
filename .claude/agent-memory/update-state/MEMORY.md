@@ -86,14 +86,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 8d16bd5, iter 290 — incremental)
+## Current State (assessed-at: ea5603a, iter 291 — incremental)
 
-- Origin tip `c981338b` run 44992891924 GREEN 24/24 (Kotlin finished mid-iteration). HEAD +1
-    `.claude`.
-- 18 open (3 `normal` + 15 `low`, 14 untriaged). 289 closed the one-shot/streaming dup `normal`
-    (`utils::blake3_multihash_hex`, `canonicalize_json`, WASM sum → core `SumHasher`); filed `low`
-    stale iai `bench_instance_code` baseline. 318 `#[test]` in `src/`. Version-sync TARGETS =
-    **22**.
+- Origin tip `bfd803f8` run 44994420850 GREEN 24/24. HEAD +4 `.claude` (log + audit commits).
+- 21 open (6 `normal` + 15 `low`, 14 untriaged). 290 audit filed 3 `normal` (version_sync doc
+    snippets, Go `EncodeComponent` short digest, WASM init docs); Go data.json dedup done, Rust half
+    remains. 318 `#[test]` in `src/`, 305 Go `func Test`. Version-sync TARGETS = **22**.
+- **Audit iterations add issues with zero code change** (290: 3→6 `normal`) — always re-read
+    issues.md bodies after a `cid(audit)` commit.
 - **CI still running at assess time?** Write state, then re-check the run before committing — the
     Kotlin job is the slowest and usually finishes within the iteration (287).
 - `prepare-release` needs `build-ffi`; runs `scripts/update_vcpkg_hashes.py ffi-staging`.
