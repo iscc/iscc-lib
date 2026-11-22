@@ -1,84 +1,105 @@
 # Next Work Package
 
-## Step: napi installs from a committed `package-lock.json` with `npm ci` in CI and release
+## Step: `prepare-release` writes the vcpkg portfile SHA512s from the built FFI archives before tagging
 
 ## Goal
 
-CI is red on `bd79145`. The `nodejs` job's unlocked `npm install` fetched `@inquirer/ansi@2.1.1` two
-minutes after it was published and got a registry 404. The tarball serves HTTP 200 now, so the red
-was transient. Commit the napi lockfile and switch every napi install to `npm ci`, as
-`specs/nodejs-bindings.md` → "CI Job" already shows. Then a just-published transitive version can no
-longer break a run, and it can no longer reach the `id-token: write` publish job.
+Fix the `normal` `[audit]` issue "vcpkg portfile pins the SHA512 hashes of the v0.2.0 tarballs". The
+portfile now carries the v0.7.0 hashes. From now on the release workflow writes the hashes from the
+archives it publishes, in the commit it tags, so the port works for every future release.
 
 ## Alternatives Considered
 
-- **Chosen:** lockfile + `npm ci`. Red CI comes first, and an external-flake red still gets
-    hardened. The spec already says `npm ci`. Locking also closes a supply-chain hole:
-    `napi-publish` installs an unlocked tree while it holds an OIDC token.
-- **Rejected:** vcpkg portfile hashes (`normal`, the handoff's Next). They are the next user-facing
-    step, but they come after CI is green and protected. Also rejected: a `min-release-age`
-    `.npmrc`. It needs npm >= 11.10, and Node 22 ships npm 10.9, which ignores the key without a
-    word.
+- **Chosen:** release-time hash writing plus a stdlib script that has a check mode. This copies the
+    existing Swift checksum pattern. The other suggested fix (drop the port) would amend
+    `specs/cpp-bindings.md` → Distribution, and that needs Titusz.
+- **Rejected:** the `@iscc/lib` README result-type sentence (`normal`, docs-only). It is cheaper but
+    less valuable: the vcpkg channel has been broken for five releases. It is the next step.
+- **Rejected design:** a job after publishing that commits the hashes to `main`. The tagged commit
+    would still carry stale hashes, and vcpkg consumers pin tags.
 
 ## Scope
 
-- **Create**: `crates/iscc-napi/package-lock.json` (generated, not counted),
-    `tests/test_version_sync.py`
-- **Modify**: `crates/iscc-napi/.gitignore`, `.github/workflows/ci.yml` (`nodejs` job),
-    `.github/workflows/release.yml` (the two `npm install` steps in `crates/iscc-napi`, lines ~325
-    and ~382), `scripts/version_sync.py`, `.claude/context/specs/ci-cd.md` (line 26 table row),
-    `crates/iscc-napi/CLAUDE.md` (only if it describes the install step)
-- **Reference**: `.claude/context/specs/nodejs-bindings.md` → "CI Integration",
-    `scripts/check_ci_job_table.py` (the gate that parses the ci-cd.md table)
+- **Create**: `scripts/update_vcpkg_hashes.py`, `tests/test_update_vcpkg_hashes.py`
+- **Modify**: `packages/cpp/portfile.cmake` (v0.7.0 hashes, written by the script),
+    `.github/workflows/release.yml`, `packages/cpp/CLAUDE.md` (Publishing + "vcpkg SHA512 updates"
+    pitfall), `.claude/context/specs/cpp-bindings.md` (one Distribution line on how the hashes are
+    kept)
+- **Reference**: `scripts/check_release_workflow.py` (guard and needs invariants),
+    `tests/test_check_release_workflow.py` (how tests load `release.yml`), `release.yml`
+    `prepare-release` (lines 55-122), `build-ffi` / `test-ffi` / `publish-ffi` / `pack-nuget`
 
 ## Not In Scope
 
-- Bumping `@napi-rs/cli` or any other dependency. Lock what `^3` resolves to today
-- Adding Dependabot, a `packageManager` field, `setup-node` caching, or `--ignore-scripts`. No
-    locked package has an install script today
-- Any `@iscc/wasm` npm step (`release.yml` ~432-501 uses no `npm install`) and
-    `scripts/test_install.py` (it installs the published packages into scratch projects)
-- The napi README result-type sentence (`normal`). That is its own docs step
+- The Conan recipe (it does no hash check). Submitting the port to the vcpkg registry
+- Making the FFI archives reproducible, and any other `release.yml` restructuring
+- vcpkg usage docs for users (no page documents vcpkg install today). Do not add one
+- `version_sync.py` changes: the hashes are not a version field
 
 ## Implementation Notes
 
-- Generate the lock **fresh**: `rm -rf node_modules package-lock.json && npm install` in
-    `crates/iscc-napi`. A lock written over an existing `node_modules` can drop other platforms'
-    optional packages (npm/cli#4828). The local stale lock (root version 0.6.0, @napi-rs/cli 3.5.1)
-    has 46 `os`/`cpu` packages. The fresh lock must also carry darwin and win32 entries, because
-    `build-napi` runs `npm ci` on macOS and Windows, where no CI run exercises it.
-- Remove the `package-lock.json` line from `crates/iscc-napi/.gitignore` and keep `node_modules/`.
-- The lock repeats the package version twice: top-level `version` and `packages[""].version`.
-    Register the lock as a `TARGETS` entry in `scripts/version_sync.py` (21 → 22). Use a get/sync
-    helper pair that reads and writes **both** fields; check fails if either one differs. Keep
-    `json.dumps(indent=2)` + trailing newline, which is the byte format npm writes; confirm the sync
-    leaves the file byte-identical when the versions already match. Update the module docstring
-    list. `tests/test_version_sync.py` loads the script by path (pattern:
-    `tests/test_check_ci_job_table.py`) and covers: sync rewrites both fields, get reports a
-    mismatch if only one field is stale, and the real tree passes check.
-- `setup-node@v7` turns caching on only when `package.json` has a `packageManager` /
-    `devEngines.packageManager` field. A lockfile does not trigger it, so leave the `setup-node`
-    steps alone (https://github.com/actions/setup-node/blob/v7/README.md).
-- `npm publish` never packs `package-lock.json`, so the published tarball does not change.
-- Update the `nodejs` row in `specs/ci-cd.md` to `npm ci`. Then run `git grep -n 'npm install'` over
-    the workflows, specs and the napi `CLAUDE.md` for any other claim about the napi install.
+**Script** (stdlib only: it runs as `python3` on the `macos-15` runner; docstrings per project
+style): `update_vcpkg_hashes.py <archive-dir> [--check] [--portfile P] [--manifest M]`. The defaults
+are `packages/cpp/portfile.cmake` and `packages/cpp/vcpkg.json`.
+
+- Read the version from `vcpkg.json`. Read the target branches from the portfile: each
+    `set(ISCC_TARGET "…")` with its `ISCC_ARCHIVE_EXT` and `ISCC_SHA512` in the same `if`/`elseif`
+    block. The portfile is the single list of targets, so nothing is hardcoded
+- Each target needs `<dir>/iscc-ffi-v{version}-{target}{ext}`. If any archive is missing, exit 1,
+    name it, and write nothing. A file for another version counts as missing
+- Without `--check`: compute the SHA512 hex (lowercase) and rewrite only the `ISCC_SHA512` values.
+    With `--check`: write nothing, and exit 1 listing every target whose hash differs
+- Fix the current portfile by running the script on the real v0.7.0 assets:
+    `gh release download v0.7.0 -p 'iscc-ffi-v0.7.0-*' -D <empty tmp dir>`. The issue measured the
+    linux x64 value as `26f396ed…`
+
+**release.yml** (it is never run by CI, so the wiring test below is the gate):
+
+- `build-ffi`: drop `needs: [prepare-release]`. Keep its guard `if` unchanged
+- `prepare-release`: add `needs: [build-ffi]` and keep the bare `if: inputs.version != ''` (the
+    checker requires it). Before "Commit Package.swift", add `actions/download-artifact@v8` with
+    `pattern: ffi-*`, `path: ffi-staging` and `merge-multiple: true` (copy `publish-ffi`). Then add
+    a step that runs `python3 scripts/update_vcpkg_hashes.py ffi-staging`. The commit step stages
+    `packages/cpp/portfile.cmake` with `Package.swift`. Generalise its "unchanged" message and its
+    commit subject
+- `publish-ffi` and `pack-nuget` got the tag ordering through `build-ffi`; add `prepare-release` to
+    their `needs`. `publish-ffi`: set `overwrite_files: false` on `softprops/action-gh-release@v3`
+    (declared in its `action.yml`, default `'true'`). A later `ffi` re-trigger then cannot replace
+    archives whose hashes are committed. Recovery stays `gh run rerun --failed`, which reuses the
+    run's artifacts
+- Consequence to document in the cpp `CLAUDE.md`: a failing `build-ffi` leg now blocks the tag and,
+    through `!failure()`, every publish job. This is intended: no tag with hashes that do not match
+
+**Tests** (pytest, no network; fake archives in `tmp_path`, with a copy of the portfile and a
+`vcpkg.json` written in `tmp_path`). One bad case per call:
+
+- The rewrite sets each hash to `hashlib.sha512` of its fake archive. The rest of the portfile stays
+    byte-identical
+- A missing archive exits non-zero and leaves the portfile byte-identical. So does an archive named
+    for another version
+- `--check` passes after a rewrite and fails on a stale hash
+- The portfile target set equals the `build-ffi` `strategy.matrix.include[].target` set in the real
+    `release.yml`
+- Wiring in the real `release.yml`: `prepare-release.needs` contains `build-ffi`; a step `run` that
+    calls `update_vcpkg_hashes.py` comes before the step whose `run` stages
+    `packages/cpp/portfile.cmake`, and that step comes before "Create tags"; `build-ffi` has no
+    `needs` on `prepare-release`; `publish-ffi` and `pack-nuget` need `prepare-release`;
+    `overwrite_files` on `publish-ffi` is `false`
+
+Record a decisions.md entry: "vcpkg SHA512s are written by `prepare-release` from the `build-ffi`
+artifacts, before the tag". No Rust change: CRAP, iai and semver are unaffected.
 
 ## Verification
 
-- `git ls-files crates/iscc-napi/package-lock.json` prints the path, and
-    `grep -c package-lock crates/iscc-napi/.gitignore` prints `0`
-- `grep -nE 'run: npm install' .github/workflows/ci.yml .github/workflows/release.yml` prints
-    nothing
-- In `crates/iscc-napi`: `rm -rf node_modules && npm ci && npx napi build --platform && npm test`
-    exits 0, and afterwards `git status --porcelain crates/iscc-napi` prints nothing
-- `python3 -c` over the lock finds at least one package with `"os"` containing `darwin` and one with
-    `win32`
-- `mise run version:check` exits 0, and
-    `uv run pytest tests/test_version_sync.py tests/test_check_ci_job_table.py tests/test_check_release_workflow.py`
-    passes
+- With the five v0.7.0 FFI assets downloaded to an empty directory D,
+    `python3 scripts/update_vcpkg_hashes.py --check D` exits 0
+- `uv run pytest tests/test_update_vcpkg_hashes.py tests/test_check_release_workflow.py` passes
+- `uv run python scripts/check_release_workflow.py` exits 0
+- `grep -n "must be updated" packages/cpp/CLAUDE.md` prints nothing, and the cpp `CLAUDE.md` names
+    `scripts/update_vcpkg_hashes.py`
 - `mise run check` exits 0
 
 ## Done When
 
-All six verification criteria pass: napi dependencies install only from the committed,
-version-synced lockfile, in CI and in both release jobs.
+The portfile matches the v0.7.0 release archives, `release.yml` writes the hashes from the built
+archives into the tagged commit, and the tests above pin that wiring.

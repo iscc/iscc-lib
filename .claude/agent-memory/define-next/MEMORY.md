@@ -3,14 +3,14 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 284):** 283 (WASM Node docs) PASSED. CI red on an npm 404 for a transitive
-dep published 2 min before the run (transient; tarball 200 by scoping time). 284 = hardening: commit
-napi `package-lock.json` + `npm ci` (spec `nodejs-bindings.md` already shows `npm ci`; lock repeats
-the version twice, so it becomes a version_sync target). Node 22 = npm 10.9, so `min-release-age`
-(npm >= 11.10) would be a silent no-op. Remaining normals: vcpkg hashes (release step + gate), Rust
-tier docs (4-5 files), dup `data.json` parsers (Rust/Go split), one-shot dedup (core, iai), minhash
-`[]` + WASM `finalize()` (both need a behaviour decision → HUMAN). **Any Java test needing a library
-outside the bundle must pass in BOTH layouts.** Per-iteration traps for 259-269 →
+**Status 2026-11-22 (iter 285):** 284 (napi lockfile + `npm ci`) PASSED, CI green. 285 = vcpkg
+portfile hashes: FFI tarballs are built AFTER `prepare-release` tags, so the fix reorders jobs
+(`prepare-release` needs `build-ffi`, hashes written pre-tag like the Swift checksum; jobs that got
+tag ordering transitively via `build-ffi` — `publish-ffi`, `pack-nuget` — need `prepare-release`
+directly). Next: napi README result-type (docs-only). Remaining normals after: Rust tier docs (4-5
+files), dup `data.json` parsers (Rust/Go split), one-shot dedup (core, iai), minhash `[]` + WASM
+`finalize()` (both need a behaviour decision → HUMAN). **Any Java test needing a library outside the
+bundle must pass in BOTH layouts.** Per-iteration traps for 259-269 →
 [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
 py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
 estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
