@@ -86,13 +86,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 5395127, iter 295 — incremental)
+## Current State (assessed-at: 1767b86, iter 296 — incremental)
 
-- Origin tip `51a04c6a` run 45002675318 green (finished during the iteration). HEAD +1 `.claude`.
-- 18 open (3 `normal` + 15 `low`, 14 untriaged). 294 closed the `version:check` `normal`
-    (`scripts/version_sync.py` getters return lists, exit 1 on missing/unmatched; 19 tests). Only Go
-    `EncodeComponent` is loop-workable; the other 2 `normal` need Titusz → expect HUMAN REVIEW
-    REQUESTED soon, not IDLE.
+- Origin tip `11092f1a` run 45004014806 green (Kotlin finished during the iteration). HEAD +1
+    `.claude`.
+- 19 open (3 `normal` + 16 `low`, 15 untriaged). 295: Go `EncodeComponent` rejects short digests;
+    the Go `normal` was REWRITTEN to "No shared vector pins the short-digest rule" (data-edge
+    `encode_component` section, 12-surface fan-out) — loop-workable. Other 2 `normal` need Titusz.
+    Go: 311 `func Test`.
 - **Audit iterations add issues with zero code change** (290: 3→6 `normal`) — always re-read
     issues.md bodies after a `cid(audit)` commit.
 - **CI still running at assess time?** Write state, then re-check the run before committing — the

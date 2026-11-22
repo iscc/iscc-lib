@@ -1,4 +1,4 @@
-<!-- assessed-at: 539512711eb2d68343e128d5435cf03a24a75b35 -->
+<!-- assessed-at: 1767b8646fede63c0d8b505e5f50fa2ccdb7200a -->
 
 # Project State
 
@@ -6,23 +6,23 @@
 
 ## Phase: v0.8.0 — features done; 3 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 294 made
-`version:check` see every version occurrence and fail on a missing target or unmatched pattern,
-closing that `normal` issue. 3 `normal` and 15 `low` issues are open; two of the `normal` need a
-behaviour decision from Titusz.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 295 made Go's
+public `EncodeComponent` reject a digest shorter than `bit_length/8`, as every Rust-backed surface
+does, and recorded the rule in decisions.md. The Go `normal` issue was rewritten to what is left: a
+shared `encode_component` vector. 3 `normal` and 16 `low` issues are open; two of the `normal` need
+a behaviour decision from Titusz.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
-**Status**: met (one `normal` asks for a new section)
+**Status**: partially met (one `normal` asks for a new section)
 
 - `crates/iscc-lib/tests/data-edge.json` has 9 sections; the 5 tracked copies are byte-identical;
     all 12 harnesses run every section
 - C/C++ read the generated `data_edge_vectors.h`. Strings longer than 4,095 bytes become static
     buffers filled by `iscc_edge_init()`
-- `normal` (Go issue below): there is no `encode_component` section, so the short-digest split
-    between Go and the Rust-backed surfaces has no shared vector
-- `low`: the 4,095-byte pieces are over the 2,048 bytes that one MSVC reference page allows. Nobody
-    has measured it (no MSVC in CI)
+- `normal`: no `encode_component` section, so no shared vector pins the short-digest rule (decided
+    2026-11-22); needs a short-digest error row and an exact-length code row on all 12
+- `low`: the 4,095-byte pieces exceed the 2,048 bytes one MSVC reference page allows; unmeasured
 
 ## Rust Core Crate
 
@@ -30,11 +30,10 @@ behaviour decision from Titusz.
 
 - Tier 1 has 35 symbols at the crate root, plus the Tier 2 `read_unit` and `SEQ_MAINTYPES`.
     `conformance_selftest` runs the seq vectors; `src/` has 324 `#[test]`
-- `conformance.rs` is the only file in `src/` that parses `data.json`; wrong-type, `null`,
-    fractional or out-of-range values make a case unparsable (decision 2026-11-22)
+- `conformance.rs` is the only file in `src/` that parses `data.json` (decision 2026-11-22)
 - `normal`: `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises; no decision yet
-- Known, unfiled: `-0` as a pixel, `cv` or frame entry is rejected by Rust and read as 0 by Go; no
-    vendored vector can hold it (listed under "Not covered" in the decision)
+- `low` (new, upstream too): gen functions accept `bits` of 288 or more and return a code that
+    `iscc_decode` rejects; iscc-core behaves the same
 - **Postponed (human):** `>= 1.0.0`, MSRV, `no_std`
 
 ## Python Bindings
@@ -59,9 +58,7 @@ behaviour decision from Titusz.
 **Status**: partially met (one `normal`, two `low`)
 
 - 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust;
-    `gen_sum_code_v0` feeds one core `streaming::SumHasher`
-- Every snippet on `README.md`, `docs/index.md` and the getting-started tutorial calls
-    `await init();`; guarded by `tests/test_wasm_docs.py`
+    `gen_sum_code_v0` feeds one core `streaming::SumHasher`; every snippet calls `await init();`
 - `normal`: hasher `finalize()` consumes the hasher when the core rejects `bits`, but not when JS
     rejects it. No cross-binding rule is recorded and no test covers it
 - `low`: byte/string conversion in the glue code; a list element that throws during the serde read
@@ -84,14 +81,13 @@ behaviour decision from Titusz.
 
 ## Go Bindings
 
-**Status**: partially met (one `normal`)
+**Status**: met (v0.8.0 scope; the shared-vector `normal` sits under data-edge)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
-    sections; the `go` CI job also runs as `GOARCH=386`; 308 `func Test`
+    sections; the `go` CI job also runs as `GOARCH=386`; 311 `func Test`
+- Public `EncodeComponent` (`codec.go:480`) rejects a digest shorter than `bit_length/8`; gen and
+    decompose paths call the clamping `encodeComponentInternal`, as Rust uses `codec::`
 - `conformance.go` follows the same wrong-type rule as Rust (`parseSection`, `containsNull`)
-- `normal`: `EncodeComponent` clamps a short digest and emits a header that claims more bits than
-    the body has. Every Rust-backed surface raises; iscc-core slices like Go. No decision is
-    recorded
 
 ## C# / .NET Bindings
 
@@ -153,24 +149,22 @@ behaviour decision from Titusz.
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles;
     `prepare-release` commits the vcpkg hashes with the Swift checksum before tagging; 22
     version-sync targets at 0.7.0; every ecosystem installs from a lockfile
-- `scripts/version_sync.py`: every getter returns all versions its sync rewrites; `--check` and the
-    sync exit 1 on a stale occurrence, a missing target or an unmatched pattern; 19 tests in
-    `tests/test_version_sync.py`
-- Known limit (review, unfiled): in a multi-snippet file, one snippet that stops matching goes
-    unseen while a sibling still matches; only `docs/index.md` has a pinned count (4)
+- `scripts/version_sync.py` fails on a stale occurrence, missing target or unmatched pattern (19
+    tests)
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 45002675318 on the origin tip `51a04c6a`, 24/24 check-runs green:
-    https://github.com/iscc/iscc-lib/actions/runs/45002675318
+- **Latest CI: PASSING.** Run 45004014806 on the origin tip `11092f1a`, 24/24 check-runs green:
+    https://github.com/iscc/iscc-lib/actions/runs/45004014806
 - Local HEAD adds 1 unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
-18 open in issues.md: 3 `normal`, 15 `low` (14 untriaged), no `critical`. Two `normal` need a
-behaviour decision from Titusz (`alg_minhash_256([])`, WASM `finalize()`); the Go `EncodeComponent`
-one needs a recorded rule. None is blocked on upstream. 7 sit in `postponed.md`.
+19 open in issues.md: 3 `normal`, 16 `low` (15 untriaged), no `critical`. Two `normal` need a
+behaviour decision from Titusz (`alg_minhash_256([])`, WASM `finalize()`); the third (shared
+`encode_component` vector) is decided and loop-workable. None is blocked on upstream. 7 sit in
+`postponed.md`.
 
 ## Next Milestone
 
-Clear the `normal` issues that block v0.8.0. Go `EncodeComponent` is the only one the loop can move
-without Titusz (its rule must be recorded first); `alg_minhash_256([])` and the WASM `finalize()`
-rule need his decision. After that, Titusz cuts v0.8.0 via `/release`.
+Clear the `normal` issues that block v0.8.0. The shared `encode_component` vector is the only one
+the loop can move without Titusz; `alg_minhash_256([])` and the WASM `finalize()` rule need his
+decision. After that, Titusz cuts v0.8.0 via `/release`.
