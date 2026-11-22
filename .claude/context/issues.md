@@ -334,3 +334,58 @@ calls a refresh a human call (nine other rows read 3–8% high from toolchain dr
 Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact of a CI `perf` run
 on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
 that both `bench_instance_code` rows are within the tolerance of a current run.
+
+## `version:check` passes a stale second doc snippet and skips a vanished target silently `normal` [audit]
+
+Verified by the iteration-290 audit at b3869b91. `_get_doc_dep_version`
+(`scripts/version_sync.py:250-263`) returns the first Maven, else Gradle, else SPM match, so in
+`README.md` (Maven :103, SPM :139, Gradle :150) and `docs/index.md` (4 versioned snippets) only one
+snippet is checked; `sync_mode` skips the file when that one is current and never repairs the rest.
+`check_mode` and `sync_mode` (:315-350) `continue` without a message when a target file is missing
+or its getter finds nothing, so a renamed file or reworded line drops out of the gate. Tests cover
+only the npm lockfile and the real tree.
+
+**Why it matters:** `version-check` is the only CI guard over 22 version references; it stays green
+while a release ships docs with mixed versions. **Suggested fix:** the doc getter returns every
+match and reports a mismatch if any differs; sync rewrites when any differs; "file missing" and
+"pattern not found" become `MISMATCH` in check mode. Pin each with a test on a synthetic doc.
+**Scope estimate:** 1 non-test file.
+
+Resolved when `version_sync.py --check` fails on a doc with one current and one stale snippet and on
+a target whose file or pattern is gone, each pinned by a test.
+
+## Go `EncodeComponent` truncates a short digest where every Rust-backed surface raises `normal` [audit]
+
+Verified by the iteration-290 audit at b3869b91. `packages/go/codec.go:508-515` clamps the body to
+`len(digest)`, so `EncodeComponent(0, 0, 0, 64, <4 bytes>)` returns a unit whose header says 64 bits
+over a 4-byte body. The core rejects it (`crates/iscc-lib/src/lib.rs:219-226`, "digest length \<
+bit_length/8", pinned at :2155) and every binding passes that error through. iscc-core slices
+(`codec.py:43-45`), so Go matches the reference and Rust diverges; no decision records either, and
+`data-edge.json` has no `encode_component` section.
+
+**Why it matters:** the one pure-Go surface silently emits malformed codes for an input the other
+eleven reject. **Suggested fix:** record the rule in decisions.md (rejection is the safer one), add
+an `encode_component` short-digest row to `data-edge.json`, make Go return an `iscc:` error. **Scope
+estimate:** 1-2 non-test files plus the vector fan-out.
+
+Resolved when the short-digest behavior is decided and pinned by a shared vector that Go passes.
+
+## WASM init and build-target guidance is wrong outside the two pages a test guards `normal` [audit]
+
+Verified by the iteration-290 audit at b3869b91. `docs/howto/wasm.md` and the crate README say the
+package is one `--target web` build that needs `init()` (Node: `initSync({ module })`), guarded by
+`tests/test_wasm_docs.py`. Elsewhere: `docs/tutorials/getting-started.md` WASM tabs at :182, :267,
+:340, :408 and :503 call functions with no init (fails everywhere); its verify step (:102-107),
+`README.md:279-286` and `docs/index.md:111-120` show a bare `await init()` that fails under Node.
+`crates/iscc-wasm/CLAUDE.md:49-77` names `bundler` the default (release build `--target bundler`),
+:202-203 tells agents to prove marshalling on a `--target nodejs` package, and
+`specs/wasm-bindings.md:86-91` lists three targets.
+
+**Why it matters:** the getting-started page is the first code a WASM user runs, and agents probe a
+glue users never get. **Suggested fix:** add the init step (or one note above the tabs) to every
+WASM snippet, label the bare `init()` as browser/bundler with a Node link, realign the CLAUDE.md and
+spec sections to the published build, and extend `WASM_DOCS` to these files. **Scope estimate:** 5
+non-test files.
+
+Resolved when every WASM snippet initializes the module in a form that works where it claims to and
+the agent guidance names only the published target, guarded by `test_wasm_docs.py`.
