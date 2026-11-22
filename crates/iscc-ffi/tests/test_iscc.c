@@ -312,6 +312,18 @@ static int check_edge_alg_cdc_chunks(const struct iscc_edge_alg_cdc_chunks_vecto
     return passed;
 }
 
+/* Check one encode_component edge row against its c expectation (rejection = NULL).
+ * The digest is binary with an explicit length, so no C-string fit check applies. */
+static int check_edge_encode_component(const struct iscc_edge_encode_component_vector *v) {
+    char *actual;
+    int passed;
+    actual = iscc_encode_component(v->mtype, v->stype, v->version, v->bit_length,
+                                   (const uint8_t *)v->digest.ptr, v->digest.len);
+    passed = edge_gen_result_ok(v->c, actual, v->unit);
+    iscc_free_string(actual);
+    return passed;
+}
+
 /* Run every row of one data-edge section: skip rows marked c skip, check the rest,
  * print PASS/FAIL per row, and add each row (run or skipped) to `seen`. */
 #define RUN_EDGE_SECTION(section, rows, count, check, seen) \
@@ -791,6 +803,9 @@ int main(void) {
                          edge_seen);
         RUN_EDGE_SECTION("alg_cdc_chunks", iscc_edge_alg_cdc_chunks,
                          ISCC_EDGE_ALG_CDC_CHUNKS_COUNT, check_edge_alg_cdc_chunks, edge_seen);
+        RUN_EDGE_SECTION("encode_component", iscc_edge_encode_component,
+                         ISCC_EDGE_ENCODE_COMPONENT_COUNT, check_edge_encode_component,
+                         edge_seen);
         ASSERT_EQ(edge_seen, ISCC_EDGE_TOTAL_COUNT,
                   "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
     }
