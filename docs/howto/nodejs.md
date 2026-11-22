@@ -405,7 +405,7 @@ Additional primitives:
 - `alg_simhash(hashDigests)` — compute a SimHash digest from an array of equal-length Buffers,
     returns Buffer
 - `alg_minhash_256(features)` — compute a 256-bit MinHash digest from 32-bit integer features,
-    returns Buffer
+    returns Buffer; throws on an empty array
 - `alg_cdc_chunks(data, utf32, avgChunkSize?)` — split data into content-defined chunks (default
     average chunk size 1024), returns an array of Buffers
 

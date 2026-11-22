@@ -476,11 +476,13 @@ pub fn alg_simhash(hash_digests: Vec<Buffer>) -> napi::Result<Buffer> {
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 ///
 /// Uses 64 universal hash functions with bit-interleaved compression to
-/// produce a 32-byte similarity-preserving digest.
+/// produce a 32-byte similarity-preserving digest. Throws on an empty list.
 #[napi(js_name = "alg_minhash_256")]
 pub fn alg_minhash_256(features: Vec<f64>) -> napi::Result<Buffer> {
     let features = to_u32_vec(&features, "features")?;
-    Ok(iscc_lib::alg_minhash_256(&features).into())
+    iscc_lib::alg_minhash_256(&features)
+        .map(|v| v.into())
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
 /// Split data into content-defined chunks using gear rolling hash.
