@@ -86,15 +86,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: e78cfe5, iter 283 — incremental)
+## Current State (assessed-at: 06a5afd, iter 284 — incremental)
 
-- Origin tip `2ccf9f1` run 44963348649 GREEN (24/24; was in_progress at start — waited with an
-    `until gh run view ... status = completed` background loop, ~5 min); local HEAD +1
-    `.claude`-only. codecov/cursor suites sit `queued` forever — judge by the github-actions suite.
-- 17 open (0 `critical` + 7 `normal` + 10 `low`, 9 untriaged); 7 postponed. 282 closed the MSVC
-    header `normal` (long strings → `iscc_edge_init()` buffers, `C_LITERAL_MAX = 4095` in
-    `scripts/gen_data_edge_vectors.py`), review filed `low` (2,048-byte MSVC doc). Header 150 KB.
-    iscc-lib `src/` 315 `#[test]`; iscc-uniffi 30; JNI `IsccLibTest.java` 65 `@Test`.
+- Origin tip `bd79145` run 44965003618 RED 23/24: napi `npm install` 404 on `@inquirer/ansi@2.1.1`
+    (published 2 min before the run; transitive via `@napi-rs/cli`). External, napi code unchanged
+    since green `2ccf9f1`. Rerun once npm serves it. Local HEAD +1 `.claude`-only.
+- 17 open (7 `normal` + 10 `low`, 9 untriaged); 283 closed WASM Node docs `normal`, review filed
+    napi README `normal`. Tier 1 doc gate now 21 FULL (WASM README added).
 - **JNI layouts:** CI `java` job runs Maven twice since 279 — `target/debug` layout, then
     bundled-resource-only (mirrors `release.yml` → `test-jni`).
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
@@ -129,9 +127,11 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 - **Review policy widened at 171:** `review` may correct a *mechanically checkable fact* (version,
     path, count) in a sub-spec under `.claude/context/specs/` with NO escalation; `target.md` +
     rationale/criteria/scope still need the human. Report stale spec FACTS.
-- **Every ecosystem has a lockfile** (170: .NET `packages.lock.json` `--locked-mode`; a bump needs
-    `--force-evaluate` same commit). Propagation invariant: `git ls-files -- '*data.json'` = **5**
-    (canonical + 4 vendored) == `VENDORED_COPIES` in `tests/test_vendored_fixtures.py`.
+- **Every ecosystem has a lockfile EXCEPT napi** (284: `crates/iscc-napi/.gitignore` ignores
+    `package-lock.json`, so CI resolves npm unlocked — a fresh upstream publish can red CI) (170:
+    .NET `packages.lock.json` `--locked-mode`; a bump needs `--force-evaluate` same commit).
+    Propagation invariant: `git ls-files -- '*data.json'` = **5** (canonical + 4 vendored) ==
+    `VENDORED_COPIES` in `tests/test_vendored_fixtures.py`.
 - **Loop infra (162):** `ARTIFACT_BUDGETS` (`tools/cid.py`) caps state 200; `decisions.md` rotates
     into `decisions-archive.md` (grep BOTH) — dirty `decisions*.md` = runner, not crash.
 - **Issue count: never carry forward** — re-grep `^## ` headers each iteration (a legend inflates a

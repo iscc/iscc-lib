@@ -1,41 +1,43 @@
-<!-- assessed-at: e78cfe529a70b29606c3a7e738ac3973005a7cac -->
+<!-- assessed-at: 06a5afdb0c695f30c5a6a5c5af1b5764933cdeef -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 7 `normal` issues block the release
+## Phase: v0.8.0 — features done; CI red on the tip; 7 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings, and all code is pushed and
-covered by green CI. Iteration 282 made the generated C edge header split long strings into
-4,095-byte literals, closing the MSVC `normal` issue; review filed a `low` follow-up because one
-Microsoft page documents a 2,048-byte limit. 17 issues are open: 7 `normal`, 10 `low`.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 283 fixed the
+`@iscc/wasm` Node.js docs, which closes that `normal` issue. Review filed the sibling napi README
+sentence as a new `normal`. CI on the origin tip `bd79145` is red: the napi job's `npm install` hit
+a registry 404 for a transitive dependency that was published two minutes before the run.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
 **Status**: met
 
-- `crates/iscc-lib/tests/data-edge.json` has 9 sections; the 5 tracked copies are byte-identical
-    (about 144 KB each); all 12 harnesses run every section
-- C/C++ read the generated `data_edge_vectors.h` (150 KB); strings over 4,095 bytes become static
-    buffers filled by `iscc_edge_init()`, which both test programs call
-- `low`: 4,095-byte pieces exceed the 2,048 bytes one MSVC reference page allows; unmeasured (no
-    MSVC in CI)
-- The ragged video vector carries a `diverges` marker; napi, WASM, JNI and .NET leave `name`,
-    `description`, `meta`, `metahash` uncompared for meta. No `alg_minhash_256` section
+- `crates/iscc-lib/tests/data-edge.json` has 9 sections; the 5 tracked copies are byte-identical;
+    all 12 harnesses run every section
+- C/C++ read the generated `data_edge_vectors.h`. Strings longer than 4,095 bytes become static
+    buffers filled by `iscc_edge_init()`
+- `low`: those 4,095-byte pieces are over the 2,048 bytes that one MSVC reference page allows.
+    Nobody has measured it (no MSVC in CI)
+- The ragged video vector carries a `diverges` marker. For meta, napi, WASM, JNI and .NET leave
+    `name`, `description`, `meta` and `metahash` uncompared. There is no `alg_minhash_256` section
 
 ## Rust Core Crate
 
 **Status**: partially met (v0.8.0 features met; four `normal` issues)
 
-- Tier 1 has 35 symbols at the crate root; Tier 2 `read_unit` + `SEQ_MAINTYPES`;
-    `conformance_selftest` runs the seq vectors; 315 `#[test]` in `src/`
-- `normal`: `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises; no decision
-- `normal`: one-shot gen functions re-implement streaming (double BLAKE3, double `meta` parse)
+- Tier 1 has 35 symbols at the crate root, plus the Tier 2 `read_unit` and `SEQ_MAINTYPES`.
+    `conformance_selftest` runs the seq vectors; `src/` has 315 `#[test]`
+- `normal`: `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises; no decision yet
+- `normal`: the one-shot gen functions re-implement streaming (BLAKE3 runs twice, `meta` is parsed
+    twice)
 - `normal`: nine `test_gen_*_conformance` tests in `lib.rs` re-parse `data.json` beside
-    `conformance.rs`; the Rust and Go runners disagree on malformed vectors
-- `normal`: public `streaming::SumHasher` and `IsccError` sit in no tier list; docs and `CLAUDE.md`
-    cite a nonexistent `iscc_lib::api` module. **Postponed (human):** `>= 1.0.0`, MSRV, `no_std`
+    `conformance.rs`, and the Rust and Go runners disagree on malformed vectors
+- `normal`: the public `streaming::SumHasher` and `IsccError` appear in no tier list, and the docs
+    and `CLAUDE.md` cite an `iscc_lib::api` module that does not exist. **Postponed (human):**
+    `>= 1.0.0`, MSRV, `no_std`
 
 ## Python Bindings
 
@@ -47,48 +49,51 @@ Microsoft page documents a 2,048-byte limit. 17 issues are open: 7 `normal`, 10 
 
 ## Node.js Bindings
 
-**Status**: met (v0.8.0 scope)
+**Status**: partially met (one `normal`)
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and strict data-edge tests;
     `@iscc/lib` 0.7.0 on npm (OIDC)
+- `normal`: `crates/iscc-napi/README.md:52` says every code generator returns a string, but
+    `gen_sum_code_v0` returns a `NapiSumCodeResult`
+- `crates/iscc-napi/package-lock.json` is gitignored, so CI's `npm install` resolves the
+    `@napi-rs/cli` tree with no lock. That is why the CI tip went red (see CI/CD)
 - The napi `Buffer` reference leak is postponed (`postponed.md`)
 
 ## WASM Bindings
 
-**Status**: partially met (two `normal`, two `low`)
+**Status**: partially met (one `normal`, two `low`)
 
 - 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust
-- `normal`: `docs/howto/wasm.md` and the crate README show a Node.js setup the `--target web`
-    package cannot run; `wasm.md:82` still says all 10 gen functions return a string
-- `normal`: hasher `finalize()` consumes the hasher on a core-rejected `bits` but not on a
-    JS-rejected one; no cross-binding rule recorded, no test
-- `low`: byte/string parameters glue-converted; a throwing serde-read list element kills the
-    instance
+- `docs/howto/wasm.md` and the crate README show a Node.js setup that works on the `--target web`
+    package (`init({ module_or_path })`) and name the `gen_sum_code_v0` result type. Both are pinned
+    by `tests/test_wasm_docs.py`; the README is registered `FULL` in the Tier 1 doc gate
+- `normal`: hasher `finalize()` consumes the hasher when the core rejects `bits`, but not when JS
+    rejects it. No cross-binding rule is recorded and no test covers it
+- `low`: byte and string parameters are converted in the glue code; a list element that throws
+    during the serde read kills the instance
 
 ## C FFI
 
 **Status**: met
 
-- 51 exports incl. `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with freshness check;
-    `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
-- The test program builds against the split-literal edge header (MSVC doubt: see data-edge)
+- 51 exports, including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
+    check; `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
 
 ## Java Bindings
 
 **Status**: met (v0.8.0 scope; one `low`)
 
 - `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 9 sections strictly; 0.7.0 on Maven Central
-    with five bundled native libraries; 65 `@Test` in `IsccLibTest.java`
-- CI `java` job runs the suite in both the CI and the `release.yml` → `test-jni` layouts
-- `low`: each bundled load leaves an empty `iscc-jni-*` temp directory
+    with five bundled native libraries; the CI `java` job tests both the CI and the `test-jni`
+    layouts
+- `low`: each bundled load leaves an empty `iscc-jni-*` temp directory behind
 
 ## Go Bindings
 
 **Status**: met (v0.8.0 scope)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
-    sections; `go` CI job also runs as `GOARCH=386`
-- `GenMetaCodeV0` rejects meta over `MetaTrimMeta`, with boundary tests for both meta forms
+    sections; the `go` CI job also runs as `GOARCH=386`; `GenMetaCodeV0` enforces the meta limit
 - Go per-function tests re-read `data.json` beside `conformance.go` (tracked under Rust core)
 
 ## C# / .NET Bindings
@@ -96,44 +101,45 @@ Microsoft page documents a 2,048-byte limit. 17 issues are open: 7 `normal`, 10 
 **Status**: met (v0.8.0 scope)
 
 - `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 9 sections strictly; 0.7.0 on NuGet;
-    `dotnet-test` 8.0/10.0 legs; `NativeMethods.g.cs` diffed against fresh csbindgen in `c-ffi`
-- .NET 8 reached end of support 2026-11-10; the `net8.0` floor is the human's call
+    `dotnet-test` runs on .NET 8.0 and 10.0; `NativeMethods.g.cs` is diffed against a fresh
+    csbindgen
+- .NET 8 reached end of support on 2026-11-10; raising the `net8.0` floor is the human's call
 
 ## C++ Bindings
 
 **Status**: partially met (one `normal`)
 
-- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run (test calls
-    `iscc_edge_init()`); ASAN `cpp` job
-- `normal`: `packages/cpp/portfile.cmake` still pins the five v0.2.0 tarball SHA512s while the URL
-    follows `vcpkg.json` 0.7.0, so the vcpkg port cannot install; no gate checks it
+- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job
+- `normal`: `packages/cpp/portfile.cmake` still pins the five SHA512s of the v0.2.0 tarballs while
+    the URL follows `vcpkg.json` 0.7.0, so the vcpkg port cannot install; no gate checks it
 
 ## Ruby Bindings
 
 **Status**: met (v0.8.0 scope; three `low`)
 
-- `encode_seq` / `decode_seq`; data-edge runs strictly; floor 3.3 (gemspec, CI, `release.yml`
-    cross-gems 3.3 and 3.4); dev Ruby 3.4.13 pinned in `mise.toml`
+- `encode_seq` / `decode_seq`; data-edge runs strictly; floor 3.3 (gemspec, CI, and the
+    `release.yml` cross-gems for 3.3 and 3.4)
 - `low`: source gems up to 0.7.0 do not build; `release.yml` loads only the 3.3 binary before
-    publish; Ruby 4.0 gets no precompiled gem (needs rb_sys past 0.9.123)
+    publishing; Ruby 4.0 gets no precompiled gem (needs rb_sys newer than 0.9.123)
 
 ## Swift and Kotlin Bindings
 
 **Status**: met (v0.8.0 scope; one `low` spec mismatch)
 
 - `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
-    all 9 data-edge sections; shipped 0.7.0; 30 `#[test]` in iscc-uniffi
-- The `kotlin` CI job regenerates the UniFFI Kotlin + Swift outputs and diffs them
-- `low`: target.md says the release workflow force-updates the tag; the Swift spec describes
-    commit-checksum-then-tag-once (target.md edit needs Titusz)
+    all 9 data-edge sections; 0.7.0 shipped; the `kotlin` CI job diffs regenerated UniFFI outputs
+- `low`: target.md says the release workflow force-updates the tag, but the Swift spec describes
+    committing the checksum and then tagging once (the target.md edit needs Titusz)
 
 ## Documentation
 
 **Status**: partially met (two `normal` issues)
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
-    section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (20 `FULL`, 2 `EXACT`)
-- `normal`: WASM Node.js setup (see WASM); Rust API tier docs (see Rust core)
+    section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (21 `FULL`, 2 `EXACT`)
+- `normal`: napi README result-type sentence (see Node.js); Rust API tier docs (see Rust core)
+- Root README, `docs/index.md` and the getting-started page show a bare `await init()` for WASM.
+    That is correct for browsers, and none of them claims to cover Node (not filed)
 
 ## Benchmarks
 
@@ -145,24 +151,30 @@ Microsoft page documents a 2,048-byte limit. 17 issues are open: 7 `normal`, 10 
 
 ## CI/CD and Publishing
 
-**Status**: partially met (one `low`)
+**Status**: partially met (CI red; one `low`)
 
-- `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 21
-    version-sync targets at 0.7.0; the vcpkg hashes are not a release step (see C++)
-- `low`: no CI job runs a test suite on Windows (so MSVC header limits go unseen); `iscc-ffi`, napi
-    and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 44963348649 on the origin tip `2ccf9f1` is green on all 24 jobs:
-    https://github.com/iscc/iscc-lib/actions/runs/44963348649. Local HEAD adds one unpushed
-    `.claude`-only log commit; no code is uncovered
+- `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; its
+    WASM smoke script and `scripts/test_install.py` now call `init({ module_or_path })`; 21
+    version-sync targets at 0.7.0
+- `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
+- **Latest CI: FAILING.** Run 44965003618 on the origin tip `bd79145`: 23/24 green, and
+    `Node.js (napi build, test)` failed at `npm install`. The registry returned a 404 for the
+    tarball of `@inquirer/ansi@2.1.1` (published 00:04 UTC, fetched 00:06, still 404 at 00:09). It
+    is a transitive dependency of `@napi-rs/cli` and resolves with no lock. The napi code is
+    unchanged since the green run 44963348649 (`2ccf9f1`):
+    https://github.com/iscc/iscc-lib/actions/runs/44965003618
+- Local HEAD adds one unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
 17 open in issues.md: 7 `normal`, 10 `low` (9 untriaged), no `critical`. Two need a behaviour
-decision first (`alg_minhash_256([])`, WASM `finalize()`); none is blocked on upstream. 7 sit in
+decision first (`alg_minhash_256([])`, WASM `finalize()`). None is blocked on upstream. 7 sit in
 `postponed.md`.
 
 ## Next Milestone
 
-Clear the 7 `normal` issues that block v0.8.0 — the vcpkg hashes and the WASM Node.js docs are
-user-facing gaps; the Rust API tier docs, duplicate `data.json` parsers, one-shot/streaming
-duplication and the two behaviour decisions follow. Then Titusz cuts v0.8.0 via `/release`.
+Get CI green on `develop` first: the napi job fails on an unlocked npm dependency the registry
+cannot serve. Then clear the 7 `normal` issues that block v0.8.0. The vcpkg hashes and the napi
+README are the user-facing ones; the Rust API tier docs, the duplicate `data.json` parsers, the
+one-shot/streaming duplication and the two behaviour decisions follow. Then Titusz cuts v0.8.0 via
+`/release`.
