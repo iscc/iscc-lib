@@ -86,21 +86,18 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 1767b86, iter 296 — incremental)
+## Current State (assessed-at: 9a14082, iter 297 — incremental)
 
-- Origin tip `11092f1a` run 45004014806 green (Kotlin finished during the iteration). HEAD +1
-    `.claude`.
-- 19 open (3 `normal` + 16 `low`, 15 untriaged). 295: Go `EncodeComponent` rejects short digests;
-    the Go `normal` was REWRITTEN to "No shared vector pins the short-digest rule" (data-edge
-    `encode_component` section, 12-surface fan-out) — loop-workable. Other 2 `normal` need Titusz.
-    Go: 311 `func Test`.
+- Origin tip `e2495d85` run 45006494417 green (24/24). HEAD +2 `.claude` (log + `cid(human)`).
+- 16 open (3 `normal` + 13 `low`, 12 untriaged). Titusz decided all 3 `normal` on 2026-11-22
+    (minhash empty = error, finalize always consumes, bits > 256 rejected) — all loop-workable.
+    data-edge has 10 sections; Java `Map.of` table is AT its 10-pair limit.
+- **`cid(human)` commits rewrite target.md/issues.md** — always diff both after one (297: two `low`
+    removed, Tier 2 list extended, Swift "tags once").
+- `release.yml` "Create tags" ends `git push ... --force`; harmless with `fetch-depth: 0` (an
+    existing tag stays local-identical). Don't re-flag as a tag-move gap.
 - **Audit iterations add issues with zero code change** (290: 3→6 `normal`) — always re-read
     issues.md bodies after a `cid(audit)` commit.
-- **CI still running at assess time?** Write state, then re-check the run before committing — the
-    Kotlin job is the slowest and usually finishes within the iteration (287).
-- `prepare-release` needs `build-ffi`; runs `scripts/update_vcpkg_hashes.py ffi-staging`.
-- **JNI layouts:** CI `java` job runs Maven twice since 279 — `target/debug` layout, then
-    bundled-resource-only (mirrors `release.yml` → `test-jni`).
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
 - **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
@@ -116,8 +113,6 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     count holds; diff issues.md bodies.
 - **An audit or `cid(human)` commit can flip DONE-adjacent → workable with zero code change** —
     always diff issues.md after an audit iteration (249 filed 4, 260 filed 5).
-- Spec trees carry a "not every file" note gated by `scripts/check_spec_paths.py` (247).
-- Tier 1 doc gate registry near top of `scripts/check_tier1_docs.py`; count via its own output line.
 - data-edge.json sections (9 since 264; list via `uv run python` json keys). C/C++ read generated
     `crates/iscc-ffi/tests/data_edge_vectors.h`. Vendored check:
     `md5sum $(git ls-files -- '*data-edge.json')`.
