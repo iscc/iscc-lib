@@ -63,6 +63,7 @@ SEED_SET = [
     ("gen_mixed_code_v0", [[], 64]),
     ("gen_iscc_code_v0", [[]]),
     ("alg_simhash", [[]]),
+    ("alg_minhash_256", [[]]),
 ]
 
 
@@ -95,7 +96,7 @@ def convert_iscc_decode(result):
 
 
 def convert_encode_seq(result):
-    """Encode `encode_seq` or `alg_simhash` bytes as a `bytes:<hex>` fixture value."""
+    """Encode `encode_seq`, `alg_simhash` or `alg_minhash_256` bytes as a `bytes:<hex>` fixture value."""
     return f"bytes:{result.hex()}"
 
 
@@ -164,6 +165,7 @@ CONVERTERS = {
     "gen_video_code_v0": dict,
     "alg_cdc_chunks": convert_chunks,
     "encode_component": str,
+    "alg_minhash_256": convert_encode_seq,
 }
 
 
