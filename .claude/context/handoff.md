@@ -1,60 +1,67 @@
-## 2026-11-22 — Review of: `@iscc/lib` npm README states the `gen_sum_code_v0` result type and names every Tier 1 symbol
+## 2026-11-22 — `publish-ffi` prunes `starter` FFI assets before uploading and fails unless every staged archive is `uploaded`
 
-**Verdict:** PASS
+**Done:** Added `scripts/ffi_release_assets.py`, a stdlib-only script with two modes, `stale` and
+`verify`, built from pure functions. `publish-ffi` now has a prune step before the softprops upload.
+It deletes `starter` assets through their `apiUrl`, and a missing release is not an error. After the
+upload, a verify step fails the job unless every staged archive is `uploaded`.
+`overwrite_files: false` is unchanged. `docs/development.md` now describes both the job and what an
+`ffi` re-trigger does.
 
-**Summary:** The npm README no longer says that every code generator returns a string. It states
-that `gen_sum_code_v0` returns a `NapiSumCodeResult` object and names all 35 Tier 1 symbols the
-addon exports. The page is registered in the Tier 1 doc gate (`FULL`), and a docs test ties the
-sentence to the struct in `crates/iscc-napi/src/lib.rs`. Two non-test files changed, no Rust code.
+**Files changed:**
+
+- `scripts/ffi_release_assets.py`: created. `staged_names` (the `iscc-ffi-v*.*` glob), `read_assets`
+    (`{"assets": [...]}`), `stale_urls`, `verify_errors`, `main`. An empty staging dir makes both
+    modes exit 1.
+- `tests/test_ffi_release_assets.py`: created. 8 unit tests on fixtures in the real v0.7.0 asset
+    shape, with one bad case per `verify` call. 4 wiring tests on the real `release.yml`: the order
+    prune < upload < verify, both `run`s pass `ffi-staging`, the tag and `GH_TOKEN` come through
+    `env` with no `${{` in `run`, and `overwrite_files is False`.
+- `.github/workflows/release.yml`: two steps in `publish-ffi` only, each with a one-line "why"
+    comment. The prune step runs `gh release view "$TAG" --json assets > assets.json 2> view.err`.
+    It exits 0 only when stderr contains `release not found`; any other failure prints stderr and
+    exits 1. It then writes `stale` into a file and runs a `while read` loop of
+    `gh api -X DELETE "$url"`. There is no pipe, because the default `bash -e` has no pipefail. The
+    verify step has no fallback. Both steps set `GH_REPO: ${{ github.repository }}`.
+- `docs/development.md`: replaced the "has no such check" sentence and added one sentence to the
+    re-publish paragraph.
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_napi_docs.py tests/test_check_tier1_docs.py` passes — 40 passed
-- [x] `uv run python scripts/check_tier1_docs.py` exits 0 and `crates/iscc-napi/README.md` is in
-    `FULL` — "OK: 22 full and 2 exact Tier 1 docs match"
-- [x] `git grep -n 'return ISCC strings directly' -- ':!.claude'` prints nothing — exit 1
-- [x] `grep -n NapiSumCodeResult crates/iscc-napi/README.md` prints at least one line — line 53
-- [x] `uv run zensical build` exits 0 and `mise run check` exits 0 — both clean, tree unchanged
+- `uv run pytest tests/test_ffi_release_assets.py tests/test_update_vcpkg_hashes.py tests/test_check_release_workflow.py`:
+    52 passed (re-run after the formatters touched the files).
+- `uv run python scripts/check_release_workflow.py`: "OK: … passed release-workflow static checks."
+- `git grep -n 'has no such check: it uploads' -- ':!.claude'`: no output (exit 1).
+- `uv run ty check`: "All checks passed!". `uv run ruff check` on both files is clean, and so is the
+    pre-push `--select S,C901`.
+- `uv run zensical build`: exit 0. `mise run check`: exit 0. The first run failed because mdformat
+    and ruff-format reflowed the docs paragraph and one list comprehension; the second run was
+    clean.
+- Real regression: in a `/tmp` `git archive HEAD` tree with the new script and test but the HEAD
+    `release.yml`, 3 wiring tests failed (order, ffi-staging, env) and 9 passed. As expected:
+    `overwrite_files` and the unit tests do not depend on the new steps.
+- Step bodies run as CI runs them: I extracted both `run` blocks with PyYAML and ran them under
+    `bash -e` with a stub `gh` on PATH:
+    - missing release → "nothing to prune", exit 0
+    - a 502 on `release view` → exit 1
+    - a `starter` asset → exactly one `gh api -X DELETE https://api/1`; the uploaded asset is not
+        touched
+    - verify with a `starter` asset → names the archive, exit 1
+- `gh release view v99.99.99 --repo iscc/iscc-lib` prints `release not found` on stderr with exit 1.
+    This is the string the prune step matches.
 
-Three checks beyond next.md's list:
-
-- The README's claims against the source: the addon has exactly 35 `#[napi]` exports and each one is
-    on the page; nine generators return `String`; the struct has the four fields the sentence names;
-    the constants are real `const` exports. The published 0.7.0 `index.d.ts` (`npm pack`) declares
-    `NapiSumCodeResult` and `export declare const` for the five constants.
-- The new test, mutated in-process on `/tmp` copies: a renamed struct field fails two tests, an
-    added field fails one, a field name dropped from the sentence fails one, and the banned phrase
-    wrapped over a line break is caught.
-- A repo-wide grep for the same claim in other words ("all generators return", "return ISCC
-    string"): every hit names its exception or describes a single function. No sibling leftover.
-
-`uv run ty check` and the ruff `S`/`C901` pre-push rules pass on the new test file.
-
-**Issues found:**
-
-- Closed and deleted: "`@iscc/lib` npm README says every code generator returns a string".
-- Not filed (nit): the README says "`add_units` set to `true`", while the generated `index.d.ts`
-    names that parameter `addUnits` (napi-rs camel-cases parameter names). The parameter is
-    positional, so no caller is misled.
-- No new issues.
-
-**Codex review:** No actionable findings. Codex confirmed that the README matches the binding's
-return type and exports and that the 40 targeted tests and the Tier 1 check pass.
-
-**Next:** The `normal` issue "`publish-ffi` skips a half-uploaded FFI archive on a rerun". It needs
-a design choice between two fixes: verify after the upload that every staged archive is on the
-release in state `uploaded` with the right size, or delete `starter` assets before uploading. The
-issue also asks for a wiring test and a correction of two paragraphs in `docs/development.md`. The
-other open `normal` issues are the Rust tier docs (4-5 files), the duplicate `data.json` parsers
-(audit-sized, Rust and Go can be separate steps) and the one-shot generator duplication (core, mind
-the iai baseline). `alg_minhash_256([])` and the WASM `finalize()` rule each need a behaviour
-decision from Titusz first.
+**Next:** The Rust API tier docs (`normal`, 4-5 files), which next.md names as the next step.
 
 **Notes:**
 
-- The published 0.7.0 package has no `encode_seq` and `decode_seq`: they were added after that
-    release and ship with 0.8.0, together with this README. The README is correct for the version it
-    ships with.
-- `learnings.md` is at its 200-line budget. This review added nothing to it: the step confirmed
-    existing entries and produced no new pitfall.
+- Ruff S105 flagged `step["env"]["GH_TOKEN"] == "${{ github.token }}"` in the test as a hardcoded
+    password. I replaced it with `"github.token" in step["env"]["GH_TOKEN"]`. No suppression.
+- `GH_REPO` was not in next.md. I added it so that `gh` names the repository explicitly instead of
+    inferring it from the checkout's git remote. It is harmless if the inference would have worked.
+- Repo-wide `git grep -n "overwrite"`: `packages/cpp/CLAUDE.md:145` ("a later `ffi` re-trigger
+    cannot replace those archives; recover a failed publish with `gh run rerun --failed`") is still
+    true and I left it unchanged. `git grep -n "uploads its tarballs"` finds nothing. The comment on
+    `test_update_vcpkg_hashes.py::test_publish_ffi_never_overwrites_archives` is still accurate.
+- Not proven: the real behaviour of GitHub's API on a `starter` asset (DELETE via `apiUrl`, and
+    whether softprops then re-uploads it). That needs a live release. The `starter` state name comes
+    from the issue.
 - No Rust change: the CRAP, iai and semver gates are untouched.

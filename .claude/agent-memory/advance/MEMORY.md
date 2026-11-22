@@ -98,8 +98,9 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     consumes it. KEEP `#[pymodule(name="_lowlevel", gil_used=true)]` (lib.rs:697) — 0.28+ defaults
     `gil_used` false, unsafe for raw `PyList_GetItem` ptrs. GIL release (#39/#41): 12 `py.detach`
     sites; video detach opens after frame-sig extraction. Recipe → MEMORY-archive.md
-- release.yml: static gate `scripts/check_release_workflow.py` (prek hook, opt-in
-    `--check-action-inputs`) + shape (9 inputs, 97 `uses:` refs) — keep green → release-gate.md
+- release.yml (+ publish-ffi prune/verify 287): static gate `scripts/check_release_workflow.py`
+    (prek, opt-in `--check-action-inputs`) + shape (9 inputs, 97 `uses:` refs) — keep green →
+    release-gate.md
 - vcpkg hashes (285): `prepare-release` needs `build-ffi`, runs `scripts/update_vcpkg_hashes.py`
     before tagging; wiring pinned by `tests/test_update_vcpkg_hashes.py`. Scripts loaded by path in
     tests: no `@dataclass` (needs `sys.modules`) — use `NamedTuple`

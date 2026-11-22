@@ -388,12 +388,18 @@ Once `prepare-release` has finished, the workflow publishes every chain:
 | Go              | module tag `packages/go/vX.Y.Z`               | served from the tag, no publish job |
 
 Each registry publish job checks if the version already exists on the registry and skips gracefully.
-The FFI job has no such check: it uploads its tarballs to the `vX.Y.Z` GitHub Release.
+The FFI job uploads its archives to the `vX.Y.Z` GitHub Release instead. It first deletes any of its
+archives left in state `starter` by a failed upload, then uploads only the archives the release
+lacks. Archives already uploaded are kept, because the tagged vcpkg portfile pins their hashes. The
+job fails unless every archive ends up on the release in state `uploaded`. Recover a failed upload
+with `gh run rerun --failed`.
 
 To re-publish to individual registries, dispatch the workflow with an empty `version` and select the
 checkboxes you need: `crates-io`, `pypi`, `npm` (both npm packages), `maven`, `ffi`, `rubygems`,
 `nuget`, and `maven-kotlin`. Without a `version`, `prepare-release` is skipped, so no tag or
-`Package.swift` change is made.
+`Package.swift` change is made. An `ffi` re-trigger rebuilds the archives in a new run but uploads
+only those the release lacks: archives already uploaded stay as they are, so they keep matching the
+portfile's hashes.
 
 ### Post-Release Verification
 
