@@ -913,3 +913,16 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     (`escape_c_string`): `git grep` every helper the diff stopped calling
 - An edit with backslash escapes in a test file: one Python script with `chr(92)` and
     `assert text.count(old) == 1` per replacement
+
+### New data-edge section, decided behaviour (iter 296, ~25 min) — PASS + escalation, Codex clean
+
+- `/tmp/r296-verify.sh` shape: one `step <name> <cmd>` per surface, a log per step and
+    `exit[rc] <name>` lines in a summary file; 32 steps ran in 4 min on a warm tree (napi in a
+    `git archive` copy is the slowest, 60 s). Kotlin ran after Codex exited (17 s)
+- The pair of rows is its own regression proof: the error row and the code row share every header
+    field and differ only in digest length, so no mutation run was needed (probe budget)
+- A vector whose section name is a function iscc-core has needs only a preparer in
+    `tests/test_data_edge.py`; the cross-check then runs it. Probe both builds (3.10, 3.15) once
+- When the closed issue was the last loop-decidable `normal`: PASS + HUMAN REVIEW REQUESTED with a
+    recommendation per open decision, and say what the recommended option costs (296: rejecting an
+    empty `alg_minhash_256` list changes a Tier 1 return type to `Result`)

@@ -384,5 +384,5 @@ internal encode path (Rust `codec::encode_component`, Go `encodeComponentInterna
 the body to the digest. **Why:** a header that claims more bits than its body holds is a malformed
 unit, and eleven surfaces already raised; Go was the one that truncated. **Rejected:** slicing like
 iscc-core (hands out malformed units); rejecting gen `bits` beyond the digest in the same change (a
-separate behaviour, shared with iscc-core). **Next:** a shared `encode_component` vector in
-`data-edge.json` pins this on all 12 surfaces. **Context:** 295.
+separate behaviour, shared with iscc-core). **Pinned by:** the `encode_component` section of
+`data-edge.json`, run on all 12 surfaces (296). **Context:** 295.

@@ -1,70 +1,75 @@
-## 2026-11-22 — `encode_component` data-edge section on all 12 surfaces
+> **HUMAN REVIEW REQUESTED**: the two `normal` issues that still block v0.8.0 each need a behaviour
+> decision from Titusz; the loop has no `normal` work left that it can choose itself. (1)
+> `alg_minhash_256([])` returns 32 bytes of `0xFF`, iscc-core raises `ValueError`. Recommended:
+> reject the empty list, as decided for `alg_simhash` on 2026-11-20. Cost: the function returns a
+> bare value today (Rust `Vec<u8>`, Go `[]byte`), so rejecting changes both Tier 1 signatures to
+> carry an error, an API break. The alternative is to keep `0xFF` and record it as a divergence. (2)
+> `@iscc/wasm` hasher `finalize()` stays usable after a `bits` the JS-side check rejects (`-1`,
+> `1.5`) but is consumed after one the core rejects (`13`). Recommended: the first `finalize()`
+> consumes whatever its outcome, as Go, Rust and the Python binding do (decisions.md 2026-11-21). A
+> one-line answer per question in issues.md or decisions.md unblocks both.
 
-**Done:** `data-edge.json` and its 4 vendored copies gain an `encode_component` section with two
-vectors: `test_0001_short_digest` (`[0,0,0,64,"bytes:01020304"]`, error, `diverges` names
-decisions.md 2026-11-22) and `test_0002_exact_length_digest` (output `"AAAQAAICAMCAKBQH"`). All 12
-harnesses, the C/C++ header generator and its tests handle the section. No library file changed.
+## 2026-11-22 — Review of: `encode_component` data-edge section on all 12 surfaces
 
-**Files changed:** (one commit per surface, then JSON + generator)
+**Verdict:** PASS
 
-- `tests/test_data_edge.py`: `prepare_encode_component` (decodes the digest) and the `str` converter
-- `crates/iscc-lib/tests/test_data_edge.rs`: `u8_arg`, `header_args`, `call_encode_component`
-- `packages/go/data_edge_test.go`: `edgeCallEncodeComponent`
-- `crates/iscc-napi/__tests__/data_edge.test.mjs`: `prepareComponent`, `identity` as the converter
-    (its docstring now says it also passes a bare string result)
-- `crates/iscc-wasm/tests/data_edge.rs`: `number_arg`, `call_encode_component`
-- `crates/iscc-jni/java/.../DataEdgeTest.java`: `callEncodeComponent` (10th `Map.of` pair, the max)
-- `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs`: `CallEncodeComponent`
-- `crates/iscc-rb/test/test_data_edge.rb`: `prepare_component`, `convert_string`
-- `packages/swift/.../DataEdgeTests.swift`: `byteArg`, `prepareComponent`, `convertString`
-- `packages/kotlin/.../DataEdgeTest.kt`: `byte`, `prepareComponent`, `convertString`
-- `crates/iscc-ffi/tests/test_iscc.c`, `packages/cpp/tests/test_iscc.cpp`: per-row checks, run after
-    `alg_cdc_chunks`
-- `scripts/gen_data_edge_vectors.py`: struct `iscc_edge_encode_component_vector` (`uint8_t` header,
-    `uint32_t bit_length`, digest, unit), `require_u8`, `row_encode_component`; header regenerated
-    (`ISCC_EDGE_TOTAL_COUNT` 27 → 29)
-- `tests/test_gen_data_edge_vectors.py`: rendered-row test, 4 bad-input fail-closed cases, a
-    non-string-unit case
-- the 5 `data-edge.json` copies: section spliced as text before the final `}` (same bytes in all 5)
+**Summary:** `data-edge.json` and its 4 vendored copies gained an `encode_component` section with a
+short-digest row (error, `diverges`) and an exact-length row (`AAAQAAICAMCAKBQH`). All 12 harnesses,
+the C/C++ header generator and its tests handle it; no library file changed. Every surface was
+re-run by the reviewer and is green, and the `normal` [audit] issue is closed.
 
 **Verification:**
 
-- Vectors probed on iscc-core 1.5.0 under `--python 3.10` and `3.15`: `AAAQCAQDAQ` (short) and
-    `AAAQAAICAMCAKBQH` (exact). The Python binding raises `digest length 4 < bit_length/8 (8)` on
-    the short one and returns `AAAQAAICAMCAKBQH` on the exact one
-- `cargo test -p iscc-lib --test test_data_edge`: 7 passed. CI CRAP lines
-    (`cargo llvm-cov -p iscc-lib --lcov`, then `cargo crap … --fail-regression --fail-above`): exit
-    0, `↑ 0 regressed`; `header_args` and `call_encode_component` score 20.0 (cc 4), `u8_arg` 2.0
-- `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py tests/test_vendored_fixtures.py`:
-    185 passed; `-k encode_component -v` shows schema, iscc_lib and the iscc-core cross-check
-    passing for both vectors
-- After the final commit, `uv run python scripts/gen_data_edge_vectors.py` then
+- [x] `cargo test -p iscc-lib --test test_data_edge` passes (7 passed; also `--no-default-features`,
+    `text-processing`, `--all-features`), and the CI CRAP lines exit 0 (`↑ 0 regressed`; the new
+    helpers score 20.0 at most, limit 30)
+- [x] `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py` and
+    `tests/test_vendored_fixtures.py` pass (185 passed); `-k encode_component -v` shows schema,
+    iscc_lib and the iscc-core cross-check passing for both vectors
+- [x] After `uv run python scripts/gen_data_edge_vectors.py`,
     `git status --porcelain crates/iscc-ffi` prints nothing
-- go `CGO_ENABLED=0 go test ./...` ok (also `GOARCH=386`, `go vet` clean); nodejs `npm test` in a
-    `/tmp` copy (built with `napi build --platform`): 238 pass, 0 fail; wasm
-    `wasm-pack test --node crates/iscc-wasm --features conformance`: 11 + 8 + 127 passed; java
-    `mvn clean test`: exit 0, DataEdgeTest XML `tests="8" failures="0" errors="0"`; ruby
-    `bundle exec rake test`: 168 runs, 0 failures; dotnet: 155 passed
-- c (`gcc` line from ci.yml): 150 passed, 0 failed, both `data_edge/encode_component/*` PASS; cpp
-    (cmake ASAN build): 121 passed, 0 failed, both rows PASS
-- kotlin JUnit XML: `DataEdgeTest tests="6" failures="0" errors="0"`; swift
-    `swift test --filter DataEdge`: 11 tests, 0 failures
-- JSON count one-liner: exits 0. `mise run check`: exits 0
-- Test that the vector catches a regression: Go from before `3cd346f1` (codec + call sites + tests
-    restored in a `mktemp -d` copy) fails `TestDataEdgeVectorsPass` with exactly
-    `encode_component/test_0001_short_digest: expected an error, got AAAQCAQDAQ`. Copy removed
+- [x] nodejs `npm ci && npx napi build --platform && npm test` in a `git archive` copy under `/tmp`
+    (238 pass, 0 fail); wasm `wasm-pack test --node crates/iscc-wasm --features conformance` (127
+    passed in the main suite); java `mvn test` (`DataEdgeTest` 8 run, 0 failures; 122 total); go
+    `CGO_ENABLED=0 go test ./...` ok (also `GOARCH=386`, `go vet`, `gofmt`); ruby
+    `bundle exec rake test` (168 runs, 0 failures); dotnet (155 passed, run as
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/`, the CI form)
+- [x] c `test_iscc` (150 passed, 0 failed) and cpp `test_iscc` (cmake ASAN build, 121 passed, 0
+    failed), both `data_edge/encode_component/*` rows print PASS; kotlin JUnit XML:
+    `DataEdgeTest tests="6" failures="0" errors="0"`; swift `swift test --filter DataEdge` (11
+    tests, 0 failures)
+- [x] The JSON count one-liner exits 0 (the 5 copies are byte-identical), and `mise run check` exits
+    0
 
-**Next:** the `normal` issues left both need a decision from Titusz: `alg_minhash_256([])` and the
-WASM hasher `finalize()` rule. Everything else open is `low`.
+Beyond next.md (1 of 3 probes used): iscc-core 1.5.0 under Python 3.10 and 3.15 returns `AAAQCAQDAQ`
+for the short digest and `AAAQAAICAMCAKBQH` for the exact one, so both vector notes and the
+`diverges` marker are true on both builds. Also green: `cargo clippy --workspace --all-targets`,
+`uv run ty check`, ruff `S`/`C901`, and the `NativeMethods.g.cs` / `iscc.h` freshness diff.
+
+**Issues found:**
+
+- (none filed) One nit: the C and C++ commits do not compile on their own (the struct arrives with
+    the final commit that regenerates the header), the same order as the `alg_cdc_chunks` fan-out
+- Fan-out check: one behaviour, decided on 2026-11-22; no surface made a design choice and no core
+    or binding source file changed (`git diff --stat` over `src/` trees is empty)
+
+**Codex review:** ran over the whole advance range (`--base` the define-next commit): "No actionable
+defects found."
+
+**Next:** nothing `normal` is left that the loop can decide. `alg_minhash_256([])` and the WASM
+hasher `finalize()` rule both wait for Titusz (see the marker above). If neither is answered, the
+honest next.md is `## Step: NONE` naming those two blockers. Do not pick a `low` issue: every open
+one is untriaged or human-only. Once Titusz answers, each decision is one small step: the core or
+WASM change, a decisions.md entry, and for minhash one `alg_minhash_256` section in `data-edge.json`
+(another 12-surface fan-out; Java's `Map.of` section table is at its 10-pair limit and needs
+`Map.ofEntries` for the next section).
 
 **Notes:**
 
-- The commits for C and C++ do not compile on their own: the struct exists only once the final
-    commit regenerates the header. The `alg_cdc_chunks` fan-out had the same order (fail-closed
-    sections make it one unit)
-- CRAP output lists `call_meta`/`call_text` (cfg twins) as "removed since baseline" and 7 as "new".
-    Nothing regressed and the gate exits 0, so the baseline was not refreshed. Whether the same
-    listing showed before this step was not checked
-- WASM passes each header field as `JsValue::from(u32)` read with `u32_arg`. The binding's own
-    `to_u8` does the narrowing, so the harness does not check the range first. Every other surface
-    reads the fields into its native `u8`/`UByte`/`byte`/`int` type
+- state.md still says "9 sections" in four places and lists the closed issue; update-state owns it
+- The decision "encode_component rejects a digest shorter than bit_length/8" now names the vectors
+    that pin it instead of a "Next" line
+- CRAP lists 7 functions as new and 4 as removed against the baseline (cfg twins among them);
+    nothing regressed and the gate exits 0, so the baseline was left alone
+- The WASM harness passes header fields as JS numbers and leaves the range check to the binding;
+    every other harness reads them into the native 8-bit or `int` type first

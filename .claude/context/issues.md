@@ -295,21 +295,6 @@ Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact
 on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
 that both `bench_instance_code` rows are within the tolerance of a current run.
 
-## No shared vector pins the short-digest rule of `encode_component` `normal` [audit]
-
-The rule is decided (decisions.md, 2026-11-22): the Tier 1 `encode_component` rejects a digest
-shorter than `bit_length/8` on every surface, where iscc-core slices. The Rust core and Go each pin
-it with their own test, but `data-edge.json` has no `encode_component` section, so nothing shared
-holds the ten bindings and the Go port to it. Measured in iteration 295 over 28,431 argument
-combinations: Go and the Python binding agree on accept or reject and on every code. Where an input
-has two faults they name different ones (Go reports the Version first), so a vector row carries
-exactly one fault and no harness compares the message.
-
-**Scope estimate:** no behaviour file; the vector fan-out over the 12 harnesses.
-
-Resolved when `data-edge.json` has an `encode_component` section with a short-digest row (error) and
-an exact-length row (code), and all 12 surfaces pass it.
-
 ## Gen functions accept `bits` above 256 and return a unit that no decoder reads `low` [review]
 
 **Triage:** untriaged. A caller who passes `bits` of 288 or more to a gen function gets a code that
