@@ -75,8 +75,6 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - Commit quirks (217): Ruby `standardrb --fix` hook takes minutes (long timeout); trust
     `prek run --files` over bare `uv run mdformat`; never edit files while `mise run check` runs.
     WSL `index.lock` race after prek's stash-restore: retry `git commit` in a sleep loop (226)
-- Ruby CI job: libclang-dev required; ruby/setup-ruby@v1 `working-directory` is a `with:` param.
-    `rust` job matrix: `--no-default-features` / `--all-features` / `--features text-processing`
 - Adding/renaming a ci.yml job requires updating the job table in `.claude/context/specs/ci-cd.md`
     same commit — parity-gated by `scripts/check_ci_job_table.py` (prek `check-ci-job-table` +
     pytest anchor; backticked first-column keys, count floor 10)
@@ -84,6 +82,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     every site sync rewrites, `[]` = not found; missing/unmatched fails both modes, 294). Go CI job
     has zero Rust deps. napi lock (284) is a target: get/sync both root version fields
 - Generated-artifact gates (274), pytest addopts (254), Kotlin plugins (262), .NET CI (260) →
+    ci-gates.md
+- Local suite quirks (298: .NET `LD_LIBRARY_PATH`, C++ `g++` includes, UniFFI regen ws) →
     ci-gates.md
 - Python dev builds: `uv run maturin develop -m crates/iscc-py/Cargo.toml` (always via uv run).
     Single `cp310-abi3` wheel. GOTCHA: `uv sync` uninstalls the editable ext — re-run maturin after
@@ -120,6 +120,7 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     parse+JCS once in private `canonicalize_json(json, prefix)` (each caller keeps its error text);
     WASM `gen_sum_code_v0` = core `SumHasher`. next.md grep criteria can over-match field/test names
     — report, don't rename to game them
+- `alg_minhash_256` (298): `IsccResult`, `[]` → `features must not be empty`; callers use `_inner`
 - Video ragged input (250), Python int range (265), Go meta JCS (251/266), `alg_simhash([])` (225),
     `json_to_data_url` → api-design.md
 

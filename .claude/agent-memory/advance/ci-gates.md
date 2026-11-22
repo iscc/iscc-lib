@@ -115,3 +115,16 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
 - .NET CI (260): `dotnet-test` legs install into private `DOTNET_INSTALL_DIR` (runner.temp) —
     `/usr/share/dotnet` preinstalls newer majors that `LatestMajor` would pick. Verify action claims
     via `gh api 'repos/<o>/<r>/contents/<path>?ref=<tag>' --jq .content | base64 -d`
+
+## Local suite quirks (298)
+
+- `dotnet test packages/dotnet/Iscc.Lib.Tests` needs `LD_LIBRARY_PATH=$PWD/target/debug` (else 132
+    `DllNotFoundException`)
+- C++ test without cmake:
+    `g++ -std=c++17 -o /tmp/t packages/cpp/tests/test_iscc.cpp -Ipackages/cpp/include -Icrates/iscc-ffi/include -Icrates/iscc-ffi/tests -Ltarget/debug -liscc_ffi -lpthread -ldl -lm`
+- zsh does not word-split `$gen` vars: run ci.yml step bodies with `bash -e` (extract via PyYAML)
+- UniFFI regen leaves trailing whitespace / extra EOF newlines: re-stage and re-run `mise run check`
+    until clean (Kotlin needed 2 passes); also delete the stray `iscc_uniffiFFI.modulemap` the Swift
+    generator writes into `Sources/IsccLib/`
+- Ruby CI job: libclang-dev required; ruby/setup-ruby@v1 `working-directory` is a `with:` param.
+    `rust` job matrix: `--no-default-features` / `--all-features` / `--features text-processing`
