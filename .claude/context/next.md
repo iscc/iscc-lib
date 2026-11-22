@@ -1,100 +1,92 @@
 # Next Work Package
 
-## Step: Classify every public `iscc-lib` path in one tier list and fix the false Rust API sentences
+## Step: One-shot gen functions stop re-implementing their streaming counterparts
 
 ## Goal
 
-Pick up the `[audit]` issue "Rust public API docs misclassify `IsccError`, omit `SumHasher`, and
-contradict `gen_sum_code_v0`": every public path of `iscc-lib` gets a tier, and the cited false
-sentences match `lib.rs`. These pages tell Rust users and agents what SemVer covers before v1.0.0.
+Picks up the `normal` `[audit]` issue "One-shot gen functions re-implement their streaming
+counterparts": each of the three cited computations (BLAKE3 multihash, the WASM sum composition, the
+meta JSON parse + canonicalize) exists once, and `gen_instance_code_v0` hashes its input once.
 
 ## Alternatives Considered
 
-- **Chosen:** tier docs. It is the handoff's Next, it needs no change in behaviour, and the one
-    design call (where `SumHasher` belongs) follows from the specs (see Implementation Notes)
-- **Rejected:** one-shot/streaming dedup (`normal`, 3 files). It changes the Rust hot path and needs
-    the CI-only iai/CRAP gates. Better as the next step, not one stacked on unpushed commits
-- **Not candidates:** `alg_minhash_256([])` and the WASM `finalize()` rule both need a behaviour
-    decision from Titusz. The duplicate `data.json` parsers come after the dedup
+- **Chosen:** one-shot dedup — the handoff's pick, 4 non-test files, and it removes a real 2× BLAKE3
+    cost on the instance hot path. Of the four `normal` issues, only this one and the parser one can
+    be done without a decision from Titusz
+- **Rejected:** the Rust half of "Rust and Go per-function tests re-parse `data.json`" — also needs
+    a malformed-vector policy that both runners share, so it is the bigger step. It comes next
+- `alg_minhash_256([])` and WASM `finalize()` wait for Titusz's behaviour decision (handoff)
 
 ## Scope
 
-- **Modify**: `docs/architecture.md`, `docs/rust-api.md`, `CLAUDE.md` (root),
-    `crates/iscc-lib/CLAUDE.md`, `crates/iscc-lib/src/lib.rs` (crate doc comment only),
-    `.claude/context/specs/rust-core.md` (Tier 2 paragraph and the API-compatibility bullet)
-- **Reference**: `crates/iscc-lib/src/streaming.rs` (`SumHasher`, line 157 on),
-    `scripts/check_tier1_docs.py` (`EXCLUDED_ITEMS`), `tests/test_rust_api_signatures.py`,
-    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java:2`
-
-Rule: docs only. The `lib.rs` edit is a `//!` comment, and comment-only edits do not count against
-the cap. No code file changes.
+- **Modify**: `crates/iscc-lib/src/utils.rs`, `crates/iscc-lib/src/streaming.rs`,
+    `crates/iscc-lib/src/lib.rs`, `crates/iscc-wasm/src/lib.rs`
+- **Reference**: the issue body in issues.md; `crates/iscc-wasm/src/lib.rs` → `SumHasher` wrapper
+    (around line 782) and `gen_sum_code_v0` (around line 348); `.iai-baseline.json`
 
 ## Not In Scope
 
-- Making `SumHasher` Tier 1 (a crate-root re-export or binding it on the other 9 surfaces). That
-    would change target.md's count of 35, which only Titusz can do
-- Editing `target.md`: its Tier 2 line names only `codec`. If it is now incomplete, review files a
-    `low` issue for Titusz
-- Changing visibility (`pub(crate)`, `#[doc(hidden)]`) of `streaming`, `types` or `SumHasher`
-- The one-shot dedup (`gen_sum_code_v0` in WASM copying `SumHasher`), and the version-sync lists in
-    `docs/development.md` (separate `low` issue)
-- `notes/`: it is the design record and is not swept
+- `gen_data_code_v0` vs `DataHasher`: not cited by the issue. The one-shot path chunks the whole
+    slice without the tail buffer copy, so delegating would cost Ir. Leave it alone
+- No `.iai-baseline.json` refresh (the baseline is 3–8% high from toolchain drift and a refresh is a
+    human call, state.md). An Ir *drop* on the instance benches passes the check as is
+- No change to any public error text, signature or result field; no binding other than WASM
+- The other one-shot functions in `iscc-napi`/`iscc-py`/… already call the core; do not touch them
 
 ## Implementation Notes
 
-**The classification** (the design call; review records it in decisions.md):
-
-- `iscc_lib::streaming::SumHasher` → **Tier 2**: public Rust API, covered by the SemVer and
-    `cargo-semver-checks` contract, and outside the every-surface Tier 1 contract. Python and WASM
-    wrap it as an extra. It cannot be Tier 1 without the target.md change above
-- `iscc_lib::types` → its `*CodeResult` structs are the Tier 1 return types, re-exported at the
-    crate root by `pub use types::*`. The `types::X` path is the same item, not a separate tier
-- `IsccError` / `IsccResult` → crate-root support types of Tier 1 (the error every Tier 1 call
-    returns). They are not counted among the 35 symbols, as `EXCLUDED_ITEMS` in
-    `check_tier1_docs.py` already says. They are not codec types
-- `DataHasher` / `InstanceHasher` stay Tier 1 (crate-root re-exports). Their `streaming::` path is
-    the same item
-
-**Sentences to fix** (from the issue, re-derived on HEAD):
-
-- `docs/architecture.md` "Tier 2 — Public Rust API" (around line 141): name `codec` and
-    `streaming::SumHasher`. Say that Python and WASM wrap `SumHasher` (so do not write "not exposed
-    through FFI bindings" for it). Add a line on `types` and `IsccError`
-- `docs/architecture.md:163` "takes bytes, not file paths": `gen_sum_code_v0` takes a path. State
-    the rule with that one exception
-- `docs/rust-api.md` "## Types" (around 679): the note says to import `IsccError` from `codec`. Move
-    `IsccError` out of the codec framing (it is `iscc_lib::IsccError`). Add `SumHasher` to "##
-    Streaming" as Tier 2 at its `iscc_lib::streaming::SumHasher` path, with its `impl` block copied
-    from `streaming.rs` (`finalize(self, bits: u32, wide: bool, add_units: bool)`).
-    `tests/test_rust_api_signatures.py` checks every printed `pub fn` against the source
-- Root `CLAUDE.md:154` `iscc_lib::api`: there is no such module. The bound surface is the crate-root
-    re-exports of `lib.rs`. `CLAUDE.md:217`: 9 of the 10 `gen_*_v0` functions have `data.json`
-    vectors (`gen_sum_code_v0` has none). Do not make a blanket 9→10 change
-- `crates/iscc-lib/src/lib.rs:3-5`: Tier 1 is the crate-root symbols (35), not "all 10 `gen_*_v0`
-    functions"
-- `crates/iscc-lib/CLAUDE.md` Tier 2 block (line 40): add `streaming::SumHasher` and list
-    `IsccError`/`IsccResult`. `rust-core.md:699` and the API-compatibility bullet (line 725): name
-    `streaming::SumHasher` beside `codec`
-- `IsccLibTest.java:2` claims data.json vectors for all 10 gen functions. Fix the comment if the
-    file has no `gen_sum_code_v0` vectors (it is a comment-only edit)
-
-Sweep with a repo-wide `git grep` before you finish. Key phrases: `iscc_lib::api`,
-`bytes, not file paths`, `Import codec types`, `only Tier 2`, and "All 10". The "All 10 … follow the
-same pattern" lines in the how-to guides describe calling conventions and are correct. Check that
-every Rust example you add compiles (in a `/tmp` cargo project with a path dep).
-
-No Rust code changes, so the CRAP, iai and semver gates are unaffected.
+1. **One multihash formatter.** In `utils.rs`, add a `pub(crate)` helper that formats an existing
+    `blake3::Hash` as the multihash hex (`1e` + `20` + digest). `multi_hash_blake3(data)` becomes
+    `helper(&blake3::hash(data))`. `InstanceHasher::finalize` (its `format!("1e20{}", …)`) and
+    `gen_instance_code_v0` both call the helper on the digest they already have. After this, the
+    `1e`/`20` prefix bytes are written in one place only, and `gen_instance_code_v0` calls
+    `blake3::hash` exactly once and `multi_hash_blake3` not at all
+2. **WASM sum.** `iscc_wasm::gen_sum_code_v0` builds one `iscc_lib::streaming::SumHasher`, calls
+    `update(data)` and `finalize(bits, wide, add_units)`, and maps `SumCodeResult` into
+    `WasmSumCodeResult` (`filesize as f64`). Delete the hand copy and its comment. Keep the
+    `opt_u32`/`opt_bool` argument checks and their order. Update the doc comment (it names the two
+    inner hashers)
+3. **Meta parse once.** Today `gen_meta_code_v0` parses a JSON `meta` in `parse_meta_json` and
+    parses it again to build the data URL, and `json_to_data_url` repeats the parse+canonicalize
+    body. Make one private helper that parses and canonicalizes once and returns both the canonical
+    bytes and what `build_meta_data_url` needs (the parsed `Value`, or just the `@context` flag).
+    `gen_meta_code_v0` keeps that result and builds `meta` from it with no second
+    `serde_json::from_str`; `json_to_data_url` becomes helper + `build_meta_data_url`. **Keep both
+    error texts byte-for-byte**: `gen_meta_code_v0` says `invalid JSON in meta: …` (Go mirrors it
+    in `packages/go/code_meta.go`), `json_to_data_url` says `invalid JSON: …`, and both say
+    `JSON canonicalization failed: …`. The helper may return the raw serde error and let each
+    caller map it, or take the prefix; your choice. Mind the `meta-code` feature gate on every new
+    item, and that the pre-/post-decode size checks keep their order (size check on the canonical
+    bytes before hashing)
+4. **Tests** (outside the budget): one Rust unit test that `gen_instance_code_v0(d).datahash` equals
+    `utils::multi_hash_blake3(d)` and the `InstanceHasher` result for a few inputs incl. empty; one
+    that `json_to_data_url(j)` equals the `meta` field `gen_meta_code_v0` returns for the same JSON
+    (with and without `@context`); one `#[wasm_bindgen_test]` in `crates/iscc-wasm/tests/unit.rs`
+    that `gen_sum_code_v0` with `add_units = true` and `wide = true` equals the WASM `SumHasher`
+    result on the same bytes. Existing tests must pass unchanged — editing an existing assertion is
+    a red flag
+5. **Gates that fail in CI only.** `gen_instance_code_v0` and `gen_meta_code_v0` are benchmarked
+    (iai) and covered (CRAP). `valgrind`, `iai-callgrind-runner` and `wasm-pack` are installed
+    here. Removing branches only lowers CRAP; if the CRAP gate reports a regression anyway (e.g.
+    the helper split), refresh with `mise run coverage && mise run crap:baseline` in this step
 
 ## Verification
 
-- `git grep -n 'iscc_lib::api' -- ':!notes' ':!.claude'` prints nothing
-- `git grep -n -e 'bytes, not file paths' -e 'Import codec types' -- docs CLAUDE.md` prints nothing
-- `git grep -n 'SumHasher' -- docs/architecture.md docs/rust-api.md crates/iscc-lib/CLAUDE.md .claude/context/specs/rust-core.md`
-    prints a match in each of the four files
-- `uv run pytest tests/test_rust_api_signatures.py` passes, and
-    `uv run python scripts/check_tier1_docs.py` exits 0
-- `uv run zensical build` exits 0, and `mise run check` exits 0
+- `cargo test -p iscc-lib`, plus the two CI feature legs (`--no-default-features`, and
+    `--no-default-features --features text-processing`) pass;
+    `cargo clippy -p iscc-lib --no-default-features -- -D warnings` and
+    `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` clean
+- `wasm-pack test --node crates/iscc-wasm --features conformance` passes, including the new sum test
+- `mise run bench:iai:check` exits 0
+- `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info && cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    exits 0
+- `sed -n '/^pub fn gen_instance_code_v0/,/^}/p' crates/iscc-lib/src/lib.rs | grep -c multi_hash_blake3`,
+    the same for `serde_json::from_str` in `gen_meta_code_v0`, and
+    `grep -c 'instance_hasher\|1e20{' crates/iscc-wasm/src/lib.rs crates/iscc-lib/src/streaming.rs`
+    all print 0 (per file)
+- `mise run check` exits 0
 
 ## Done When
 
-Every public `iscc-lib` path is classified in one tier list, and all checks above pass.
+All six verification criteria pass with the issue's three duplications each reduced to one
+implementation and no public error text or result changed.

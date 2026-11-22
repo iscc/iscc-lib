@@ -3,10 +3,11 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 288):** 287 (publish-ffi prune) PASSED. 288 = Rust tier docs, docs only
-(SumHasher → Tier 2: Tier 1 would move target.md's 35, which is human-only; `types` = Tier 1 return
-types; `IsccError` = crate-root Tier 1 support type, excluded in `check_tier1_docs.py`). Next:
-one-shot dedup (core hot path, iai/CRAP CI-only), then dup `data.json` parsers (Rust/Go split).
+**Status 2026-11-22 (iter 289):** 288 (tier docs) PASSED. 289 = one-shot dedup (4 files: multihash
+formatter over a digest, WASM sum via `SumHasher`, meta parse once; error texts kept byte-for-byte —
+Go mirrors "invalid JSON in meta"). `gen_data_code_v0` deliberately NOT delegated to `DataHasher`
+(tail-buffer copy costs Ir). iai baseline reads high → an Ir drop passes, no refresh.
+valgrind/iai-runner/wasm-pack ARE installed now. Next: dup `data.json` parsers (Rust/Go split).
 Minhash `[]` + WASM `finalize()` (both need a behaviour decision → HUMAN). **Any Java test needing a
 library outside the bundle must pass in BOTH layouts.** Per-iteration traps for 259-269 →
 [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
