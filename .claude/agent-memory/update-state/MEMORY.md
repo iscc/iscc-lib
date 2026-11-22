@@ -86,13 +86,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 962c4ff, iter 294 — incremental)
+## Current State (assessed-at: 5395127, iter 295 — incremental)
 
-- Origin tip `37ef63b7` run 45001524612 (Perf iai is the LAST job to finish, after Kotlin). HEAD +1
-    `.claude`.
-- 19 open (4 `normal` + 15 `low`, 14 untriaged). 293 closed the Rust/Go runner wrong-type `normal`
-    (decision 2026-11-22; `check_sections` in conformance.rs, `containsNull`/`parseSection` in
-    conformance.go). 324 `#[test]` in `src/`, 308 Go `func Test`.
+- Origin tip `51a04c6a` run 45002675318 green (finished during the iteration). HEAD +1 `.claude`.
+- 18 open (3 `normal` + 15 `low`, 14 untriaged). 294 closed the `version:check` `normal`
+    (`scripts/version_sync.py` getters return lists, exit 1 on missing/unmatched; 19 tests). Only Go
+    `EncodeComponent` is loop-workable; the other 2 `normal` need Titusz → expect HUMAN REVIEW
+    REQUESTED soon, not IDLE.
 - **Audit iterations add issues with zero code change** (290: 3→6 `normal`) — always re-read
     issues.md bodies after a `cid(audit)` commit.
 - **CI still running at assess time?** Write state, then re-check the run before committing — the

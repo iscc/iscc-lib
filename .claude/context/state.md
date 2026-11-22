@@ -1,14 +1,15 @@
-<!-- assessed-at: 962c4ff0e07bd74ac7013bc4935725fc45825d19 -->
+<!-- assessed-at: 539512711eb2d68343e128d5435cf03a24a75b35 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 4 `normal` issues block the release
+## Phase: v0.8.0 — features done; 3 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 293 gave the Rust
-and Go `data.json` selftest runners one shared rule for wrong-type and out-of-range vector values,
-closing that `normal` issue. 4 `normal` and 15 `low` issues are open.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 294 made
+`version:check` see every version occurrence and fail on a missing target or unmatched pattern,
+closing that `normal` issue. 3 `normal` and 15 `low` issues are open; two of the `normal` need a
+behaviour decision from Titusz.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -29,9 +30,8 @@ closing that `normal` issue. 4 `normal` and 15 `low` issues are open.
 
 - Tier 1 has 35 symbols at the crate root, plus the Tier 2 `read_unit` and `SEQ_MAINTYPES`.
     `conformance_selftest` runs the seq vectors; `src/` has 324 `#[test]`
-- `conformance.rs` is the only file in `src/` that parses `data.json`. A wrong JSON type, a stray
-    `null`, a fraction or an out-of-range number makes a case unparsable; `check_sections` fails the
-    selftest on a malformed top-level key (decision 2026-11-22)
+- `conformance.rs` is the only file in `src/` that parses `data.json`; wrong-type, `null`,
+    fractional or out-of-range values make a case unparsable (decision 2026-11-22)
 - `normal`: `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises; no decision yet
 - Known, unfiled: `-0` as a pixel, `cv` or frame entry is rejected by Rust and read as 0 by Go; no
     vendored vector can hold it (listed under "Not covered" in the decision)
@@ -60,8 +60,8 @@ closing that `normal` issue. 4 `normal` and 15 `low` issues are open.
 
 - 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust;
     `gen_sum_code_v0` feeds one core `streaming::SumHasher`
-- Init/target guidance met: every snippet on `README.md`, `docs/index.md` and the getting-started
-    tutorial calls `await init();`; guarded by `tests/test_wasm_docs.py`
+- Every snippet on `README.md`, `docs/index.md` and the getting-started tutorial calls
+    `await init();`; guarded by `tests/test_wasm_docs.py`
 - `normal`: hasher `finalize()` consumes the hasher when the core rejects `bits`, but not when JS
     rejects it. No cross-binding rule is recorded and no test covers it
 - `low`: byte/string conversion in the glue code; a list element that throws during the serde read
@@ -88,8 +88,7 @@ closing that `normal` issue. 4 `normal` and 15 `low` issues are open.
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
     sections; the `go` CI job also runs as `GOARCH=386`; 308 `func Test`
-- `conformance.go` follows the same wrong-type rule as Rust: `parseSection` checks each section is
-    an object of case objects and `containsNull` rejects a `null` outside `meta`
+- `conformance.go` follows the same wrong-type rule as Rust (`parseSection`, `containsNull`)
 - `normal`: `EncodeComponent` clamps a short digest and emits a header that claims more bits than
     the body has. Every Rust-backed surface raises; iscc-core slices like Go. No decision is
     recorded
@@ -149,28 +148,29 @@ closing that `normal` issue. 4 `normal` and 15 `low` issues are open.
 
 ## CI/CD and Publishing
 
-**Status**: partially met (one `normal`, one `low`)
+**Status**: met (one `low`)
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles;
     `prepare-release` commits the vcpkg hashes with the Swift checksum before tagging; 22
     version-sync targets at 0.7.0; every ecosystem installs from a lockfile
-- `.crap-baseline.json` regenerated in 293 (only `conformance_selftest` and `string_entries` rose)
-- `normal`: `scripts/version_sync.py` checks only the first versioned snippet per doc (`README.md`
-    and `docs/index.md` have several), and skips a missing file or unmatched pattern without a
-    message
+- `scripts/version_sync.py`: every getter returns all versions its sync rewrites; `--check` and the
+    sync exit 1 on a stale occurrence, a missing target or an unmatched pattern; 19 tests in
+    `tests/test_version_sync.py`
+- Known limit (review, unfiled): in a multi-snippet file, one snippet that stops matching goes
+    unseen while a sibling still matches; only `docs/index.md` has a pinned count (4)
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 45001524612 on the origin tip `37ef63b7`: 24/24 check-runs green:
-    https://github.com/iscc/iscc-lib/actions/runs/45001524612
+- **Latest CI: PASSING.** Run 45002675318 on the origin tip `51a04c6a`, 24/24 check-runs green:
+    https://github.com/iscc/iscc-lib/actions/runs/45002675318
 - Local HEAD adds 1 unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
-19 open in issues.md: 4 `normal`, 15 `low` (14 untriaged), no `critical`. Two `normal` need a
+18 open in issues.md: 3 `normal`, 15 `low` (14 untriaged), no `critical`. Two `normal` need a
 behaviour decision from Titusz (`alg_minhash_256([])`, WASM `finalize()`); the Go `EncodeComponent`
 one needs a recorded rule. None is blocked on upstream. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the `normal` issues that block v0.8.0. The `version:check` gaps can be worked by the loop
-without a decision; Go `EncodeComponent` needs its rule recorded first, and two need Titusz's
-decision. After that, Titusz cuts v0.8.0 via `/release`.
+Clear the `normal` issues that block v0.8.0. Go `EncodeComponent` is the only one the loop can move
+without Titusz (its rule must be recorded first); `alg_minhash_256([])` and the WASM `finalize()`
+rule need his decision. After that, Titusz cuts v0.8.0 via `/release`.
