@@ -86,13 +86,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 7c9700d, iter 306 — incremental)
+## Current State (assessed-at: 8e3b3a6, iter 307 — incremental)
 
-- Origin tip `516beea7` run 45031720460 green. HEAD +1 `.claude`. check-suites API: codecov/cursor
-    suites sit `queued` forever — judge by the `github-actions` suite only.
-- 18 open (2 `normal` audit + 16 `low`, 15 untriaged). 305 closed the Conan checksum issue
-    (`packages/cpp/conandata.yml` SHA256s, written by `update_vcpkg_hashes.py`). iscc-lib `src/`
-    `#[test]` = 341.
+- Origin tip `097e7e9d` run 45034383698 green (24 check runs). HEAD +1 `.claude`. check-suites API:
+    codecov/cursor sit `queued` forever, and the `github-actions` suite can read `in_progress` after
+    the CI run completed — confirm with `gh run list` + check-runs instead.
+- 17 open (1 `normal` audit spec/doc drift + 16 `low`, 15 untriaged). 306 closed conformance dup:
+    `SECTIONS` table in `conformance.rs`. iscc-lib `src/` `#[test]` = 337 via
+    `grep -rc '#\[test\]' crates/iscc-lib/src` (a zsh `src/*.rs src/**/*.rs` glob DOUBLE-counts).
 - **A doc/vector row can be present yet wrong** (303): check issues.md bodies for the reviewer's
     measured defects instead of counting rows as met.
 - **CI on a fresh tip may be mid-run** (Coverage+CRAP is the slowest job): wait with

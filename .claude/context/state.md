@@ -1,14 +1,15 @@
-<!-- assessed-at: 7c9700d16d5aced92636396c39fc50c5ef991095 -->
+<!-- assessed-at: 8e3b3a6645206c94b21684d9bb1962c067b7421e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 2 `normal` audit issues block the release
+## Phase: v0.8.0 — features done; 1 `normal` audit issue blocks the release
 
-ISCC-SEQ and `data-edge.json` (11 sections) run on the Rust core and all 11 bindings. Iteration 305
-closed the Conan checksum issue: the recipe now verifies a pinned SHA256 per target. Two `normal`
-audit issues still block v0.8.0: the Rust conformance runner duplication and the spec/API-doc drift.
+ISCC-SEQ and `data-edge.json` (11 sections) run on the Rust core and all 11 bindings. Iteration 306
+closed the conformance-duplication audit issue: one `SECTIONS` table in `conformance.rs` now drives
+Rust conformance, and the WASM harness reads vectors strictly. One `normal` audit issue (spec and
+API-doc drift, 9 files) still blocks v0.8.0.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -16,19 +17,18 @@ audit issues still block v0.8.0: the Rust conformance runner duplication and the
 
 - `crates/iscc-lib/tests/data-edge.json` has 11 sections; the 5 tracked copies are byte-identical;
     all 12 harnesses run every section; C/C++ read the generated `data_edge_vectors.h`
-- 256-bit rows pin the unit limit on encode and decode (`iscc_decode` `test_0006_unit_above_256`
-    carries the reference encoder's 288-bit Meta-Code)
+- 256-bit rows pin the unit limit on encode and decode
 - `low`: the 4,095-byte string pieces exceed the 2,048 bytes one MSVC reference page allows
 
 ## Rust Core Crate
 
-**Status**: partially met (v0.8.0 features met; one `normal` audit issue open)
+**Status**: met (v0.8.0 scope; two `low`)
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `codec` (incl. `read_unit`, `SEQ_MAINTYPES`) and
-    `streaming::SumHasher` exist; 341 `#[test]` in `src/`; 256-bit limit enforced
-- `normal` (audit): `conformance.rs` lists sections by hand in three places and runs runners up to
-    three times; `lib.rs` has 5 iscc-only conformance loops; WASM `tests/conformance.rs` copies
-    parsers with silent casts
+    `streaming::SumHasher` exist; 337 `#[test]` in `src/`; 256-bit limit enforced
+- `conformance.rs` has one `SECTIONS` table driving `conformance_selftest`, the test helpers, a
+    table-vs-`data.json` test and a non-empty-section test; the 5 duplicate `lib.rs` loops are gone
+    (meta, text, mixed, instance loops with hard-coded counts remain)
 - `low`: `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects; `gen_mixed_code_v0` with
     `bits` below 8 panics in debug builds (`soft_hash_codes_v0` underflow)
 - **Postponed (human):** `>= 1.0.0`, MSRV, `no_std`
@@ -54,6 +54,8 @@ audit issues still block v0.8.0: the Rust conformance runner duplication and the
 **Status**: met (v0.8.0 scope; two `low`)
 
 - 35 Tier 1 symbols; SIMD release build met; data-edge runs all 11 sections
+- `tests/conformance.rs` reads every vector through strict shared readers in `tests/common/mod.rs`
+    (no silent `as` casts) and takes case counts from the file
 - `low`: byte/string conversion in the glue; a throwing list element during serde kills the instance
 
 ## C FFI
@@ -68,8 +70,7 @@ audit issues still block v0.8.0: the Rust conformance runner duplication and the
 
 **Status**: met (v0.8.0 scope; one `low`)
 
-- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 11 sections; `genSumCodeV0` Javadoc states 64
-    to 256; 0.7.0 on Maven Central
+- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 11 sections; 0.7.0 on Maven Central
 - `low`: each bundled load leaves an empty `iscc-jni-*` temp directory behind
 
 ## Go Bindings
@@ -93,10 +94,8 @@ audit issues still block v0.8.0: the Rust conformance runner duplication and the
 **Status**: met (v0.8.0 scope; one `low`)
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job
-- `packages/cpp/conanfile.py` passes `sha256=` to `download()` from `packages/cpp/conandata.yml` (5
-    target triples, v0.7.0 hashes) and raises on a missing hash; `scripts/update_vcpkg_hashes.py`
-    writes it, `prepare-release` stages it; tests tie its keys to the `build-ffi` matrix
-- No CI job executes the recipe (tests read it with `ast`); the review left this unfiled
+- Conan recipe verifies a pinned SHA256 per target from `packages/cpp/conandata.yml`; no CI job
+    executes the recipe (tests read it with `ast`)
 - `low`: the vcpkg port fails one post-build check (debug/release binary count)
 
 ## Ruby Bindings
@@ -121,7 +120,6 @@ audit issues still block v0.8.0: the Rust conformance runner duplication and the
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate
-- Unit range 32 to 256 on API/how-to pages, `iscc.h`, `_lowlevel.pyi`; `gen_sum_code_v0` 64 to 256
 - `normal` (audit): stale specs (`swift-bindings.md` checkbox, `documentation.md` counts,
     `c-ffi-dx.md` feature flags); `docs/c-ffi-api.md` omits the failed-finalize rule; the
     `encode_component` short-digest error is missing on 6 surfaces; `README.md` omits Swift
@@ -141,19 +139,20 @@ audit issues still block v0.8.0: the Rust conformance runner duplication and the
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 22
     version-sync targets at 0.7.0; every ecosystem installs from a lockfile
+- `.crap-baseline.json` refreshed in iteration 306 (only `conformance.rs` rows changed)
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 45031720460 on the origin tip `516beea7`, all jobs green:
-    https://github.com/iscc/iscc-lib/actions/runs/45031720460
+- **Latest CI: PASSING.** Run 45034383698 on the origin tip `097e7e9d`, all 24 check runs green
+    (including CRAP and Perf, which prove the refreshed baseline):
+    https://github.com/iscc/iscc-lib/actions/runs/45034383698
 - Local HEAD adds 1 unpushed `cid(log)` commit that touches only `.claude`
 
 ## Open Issues
 
-18 open in issues.md: 2 `normal`, 16 `low` (15 untriaged), no `critical`. The Conan checksum issue
-was closed in iteration 305. Both `normal` issues come from the audit and are loop-workable; none is
+17 open in issues.md: 1 `normal`, 16 `low` (15 untriaged), no `critical`. Iteration 306 closed the
+conformance-duplication audit issue. The remaining `normal` issue is loop-workable; it is not
 blocked on the human or upstream.
 
 ## Next Milestone
 
-Clear the 2 open `normal` audit issues that block v0.8.0: the duplicated Rust conformance section
-lists and runners, and the stale specs and API-doc gaps. After that, Titusz cuts v0.8.0 via
-`/release`.
+Clear the last `normal` audit issue that blocks v0.8.0: specs and API docs that describe shipped
+work as planned or leave out shipped rules. After that, Titusz cuts v0.8.0 via `/release`.
