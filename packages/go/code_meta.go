@@ -82,8 +82,8 @@ func GenMetaCodeV0(name string, description, meta *string, bits uint32) (*MetaCo
 		metaCodeDigest := softHashMetaV0WithBytes(cleanName, metaPayload)
 		metahash := multiHashBlake3(metaPayload)
 
-		component, err := EncodeComponent(
-			uint8(MTMeta), uint8(STNone), uint8(VSV0), bits, metaCodeDigest,
+		component, err := encodeComponentInternal(
+			MTMeta, STNone, VSV0, bits, metaCodeDigest,
 		)
 		if err != nil {
 			return nil, err
@@ -122,8 +122,8 @@ func GenMetaCodeV0(name string, description, meta *string, bits uint32) (*MetaCo
 	}
 	metaCodeDigest := softHashMetaV0(cleanName, extra)
 
-	component, err := EncodeComponent(
-		uint8(MTMeta), uint8(STNone), uint8(VSV0), bits, metaCodeDigest,
+	component, err := encodeComponentInternal(
+		MTMeta, STNone, VSV0, bits, metaCodeDigest,
 	)
 	if err != nil {
 		return nil, err

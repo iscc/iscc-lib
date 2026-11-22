@@ -385,3 +385,17 @@ value and truncated floats; serde_json dropped non-string list entries). No real
 data-edge harnesses; `-0` as a pixel, `cv` or frame entry (serde_json reads it as a float and
 rejects it, Go reads 0); Go's case-insensitive key match. Both left as they are: no vendored vector
 can hold either, and `data.json` is gated byte-identical to iscc-core's. **Context:** 293.
+
+## 2026-11-22 — encode_component rejects a digest shorter than bit_length/8
+
+**Decision:** the Tier 1 `encode_component` raises when `len(digest) < bit_length / 8`, on every
+surface (Rust `lib.rs`, so the ten Rust-backed bindings, and Go `EncodeComponent`, wording
+`digest length N < bit_length/8 (M)`). iscc-core slices instead
+(`encode_component(0, 0, 0, 64, b"\x01\x02\x03\x04")` returns `AAAQCAQDAQ`): Rust and Go diverge
+from it here on purpose. The gen functions keep the reference's behaviour: they go through the
+internal encode path (Rust `codec::encode_component`, Go `encodeComponentInternal`), which clamps
+the body to the digest. **Why:** a header that claims more bits than its body holds is a malformed
+unit, and eleven surfaces already raised; Go was the one that truncated. **Rejected:** slicing like
+iscc-core (hands out malformed units); rejecting gen `bits` beyond the digest in the same change (a
+separate behaviour, shared with iscc-core). **Next:** a shared `encode_component` vector in
+`data-edge.json` pins this on all 12 surfaces. **Context:** 295.

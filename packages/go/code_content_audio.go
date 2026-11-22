@@ -18,8 +18,8 @@ type AudioCodeResult struct {
 // computes a multi-stage SimHash digest, and encodes as an ISCC component.
 func GenAudioCodeV0(cv []int32, bits uint32) (*AudioCodeResult, error) {
 	hashDigest := softHashAudioV0(cv)
-	component, err := EncodeComponent(
-		uint8(MTContent), uint8(STAudio), uint8(VSV0), bits, hashDigest,
+	component, err := encodeComponentInternal(
+		MTContent, STAudio, VSV0, bits, hashDigest,
 	)
 	if err != nil {
 		return nil, err

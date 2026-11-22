@@ -41,6 +41,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - Go pure: `packages/go/` — one `.go` per algorithm/code-type (codec, utils, cdc, minhash, simhash,
     dct, wtahash, xxh32, `code_*.go`, conformance.go); pure Go only. IDv1, decode guards, gofmt,
     386, hashers, CDC → go-idv1.md
+- Go encode split (295): public `EncodeComponent` = enum checks + short-digest error; gen +
+    decompose call `encodeComponentInternal` (typed, clamps) — mirrors Rust lib.rs vs codec.rs
 - Conformance runners (276/290/291/293: one parse per language, shared parsers, wrong-type rule,
     CRAP + count-proof recipes) → conformance-runners.md
 

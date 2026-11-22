@@ -475,7 +475,8 @@ func JsonToDataUrl(jsonStr string) (string, error) {
 
 // EncodeComponent encodes an ISCC-UNIT with header and body as a base32 string.
 // Produces the base32-encoded string (without "ISCC:" prefix).
-// ISCC MainType (MTIscc) is rejected — use gen_iscc_code_v0 instead.
+// Returns an error if a type value is out of range, if mtype is MTIscc (use
+// gen_iscc_code_v0 instead), or if digest is shorter than bitLength/8 bytes.
 func EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest []byte) (string, error) {
 	mt := MainType(mtype)
 	st := SubType(stype)
@@ -491,21 +492,31 @@ func EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest
 	if vs > VSV0 && (mt != MTId || vs != VSV1) {
 		return "", fmt.Errorf("iscc: invalid Version: %d", version)
 	}
-	if mt == MTIscc {
+	if len(digest) < int(bitLength/8) {
+		return "", fmt.Errorf("iscc: digest length %d < bit_length/8 (%d)", len(digest), bitLength/8)
+	}
+	return encodeComponentInternal(mt, st, vs, bitLength, digest)
+}
+
+// encodeComponentInternal encodes an ISCC-UNIT from typed enums for the Gen*
+// functions and IsccDecompose. It rejects MTIscc but performs no range or
+// digest-length checks: the body is digest truncated to bitLength/8 bytes, or the
+// whole digest when it is shorter (as iscc-core's encode_component slices).
+func encodeComponentInternal(mtype MainType, stype SubType, version Version, bitLength uint32, digest []byte) (string, error) {
+	if mtype == MTIscc {
 		return "", fmt.Errorf("iscc: ISCC MainType is not a unit; use gen_iscc_code_v0 instead")
 	}
 
-	encodedLength, err := encodeLength(mt, bitLength)
+	encodedLength, err := encodeLength(mtype, bitLength)
 	if err != nil {
 		return "", err
 	}
-	nbytes := int(bitLength / 8)
-	header, err := encodeHeader(mt, st, vs, encodedLength)
+	header, err := encodeHeader(mtype, stype, version, encodedLength)
 	if err != nil {
 		return "", err
 	}
 
-	bodyLen := nbytes
+	bodyLen := int(bitLength / 8)
 	if bodyLen > len(digest) {
 		bodyLen = len(digest)
 	}
@@ -515,11 +526,6 @@ func EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest
 	component = append(component, digest[:bodyLen]...)
 
 	return encodeBase32(component), nil
-}
-
-// encodeComponentInternal is the internal version that accepts typed enums directly.
-func encodeComponentInternal(mtype MainType, stype SubType, version Version, bitLength uint32, digest []byte) (string, error) {
-	return EncodeComponent(uint8(mtype), uint8(stype), uint8(version), bitLength, digest)
 }
 
 // ---- ISCC Clean (unexported) ----

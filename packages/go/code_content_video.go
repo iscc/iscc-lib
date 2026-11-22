@@ -20,8 +20,8 @@ func GenVideoCodeV0(frameSigs [][]int32, bits uint32) (*VideoCodeResult, error) 
 	if err != nil {
 		return nil, err
 	}
-	component, err := EncodeComponent(
-		uint8(MTContent), uint8(STVideo), uint8(VSV0), bits, digest,
+	component, err := encodeComponentInternal(
+		MTContent, STVideo, VSV0, bits, digest,
 	)
 	if err != nil {
 		return nil, err

@@ -86,8 +86,8 @@ func (h *DataHasher) Finalize(bits uint32) (*DataCodeResult, error) {
 	}
 
 	digest := AlgMinhash256(h.chunkFeatures)
-	component, err := EncodeComponent(
-		uint8(MTData), uint8(STNone), uint8(VSV0), bits, digest,
+	component, err := encodeComponentInternal(
+		MTData, STNone, VSV0, bits, digest,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("iscc: encode data code: %w", err)

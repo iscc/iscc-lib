@@ -749,6 +749,45 @@ func TestCodecEncodeComponentRejectsIscc(t *testing.T) {
 	}
 }
 
+func TestCodecEncodeComponentRejectsShortDigest(t *testing.T) {
+	_, err := EncodeComponent(uint8(MTMeta), uint8(STNone), uint8(VSV0), 64, []byte{1, 2, 3, 4})
+	if err == nil {
+		t.Fatal("expected error for 4-byte digest with bit_length 64")
+	}
+	if !strings.Contains(err.Error(), "iscc: digest length 4 < bit_length/8 (8)") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestCodecEncodeComponentRejectsEmptyDigest(t *testing.T) {
+	_, err := EncodeComponent(uint8(MTData), uint8(STNone), uint8(VSV0), 32, []byte{})
+	if err == nil {
+		t.Fatal("expected error for empty digest with bit_length 32")
+	}
+	if !strings.Contains(err.Error(), "digest length") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestCodecEncodeComponentExactLengthDigest(t *testing.T) {
+	digest := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	code, err := EncodeComponent(uint8(MTMeta), uint8(STNone), uint8(VSV0), 64, digest)
+	if err != nil {
+		t.Fatalf("exact-length digest rejected: %v", err)
+	}
+	raw, err := decodeBase32(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, _, _, tail, err := decodeHeader(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !byteSliceEqual(tail, digest) {
+		t.Errorf("tail: got %x, want %x", tail, digest)
+	}
+}
+
 func TestCodecEncodeComponentDataType(t *testing.T) {
 	digest := make([]byte, 32)
 	for i := range digest {

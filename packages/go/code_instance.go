@@ -60,8 +60,8 @@ func (h *InstanceHasher) Finalize(bits uint32) (*InstanceCodeResult, error) {
 	digest := h.hasher.Sum(nil)
 	datahash := "1e20" + hex.EncodeToString(digest)
 
-	component, err := EncodeComponent(
-		uint8(MTInstance), uint8(STNone), uint8(VSV0), bits, digest,
+	component, err := encodeComponentInternal(
+		MTInstance, STNone, VSV0, bits, digest,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("iscc: encode instance code: %w", err)

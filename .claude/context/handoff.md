@@ -1,66 +1,49 @@
-## 2026-11-22 — Review of: `version:check` checks every version occurrence and fails on a vanished target
+## 2026-11-22 — Go `EncodeComponent` rejects a digest shorter than `bit_length/8`
 
-**Verdict:** PASS
+**Done:** Go's public `EncodeComponent` keeps its MainType/SubType/Version checks (same order), then
+rejects `len(digest) < bitLength/8` with `iscc: digest length N < bit_length/8 (M)` (Rust wording),
+then calls `encodeComponentInternal`. The clamping body (MTIscc rejection, length/header encoding,
+clamped append) moved into `encodeComponentInternal`, mirroring Rust's `codec::encode_component`.
+All 9 gen call sites now use the internal helper. Rule recorded in decisions.md.
 
-**Summary:** Every getter in `scripts/version_sync.py` now returns a list with each version its sync
-function rewrites, and both modes fail (exit 1) on a missing target file or an unmatched pattern.
-`--check` fails on any stale occurrence, and the sync repairs a file when any occurrence differs.
-The audit issue is closed. The diff touches the script and its tests only: no library code, no
-quality gate weakened, no suppression added.
+**Files changed:**
+
+- `packages/go/codec.go`: split `EncodeComponent` (validation + length check) and
+    `encodeComponentInternal` (clamping encode); both doc comments updated
+- `packages/go/code_content_{audio,image,mixed,text,video}.go`, `code_data.go`, `code_instance.go`,
+    `code_meta.go` (2 sites): `EncodeComponent(uint8(MTx), uint8(STy), uint8(VSV0), …)` →
+    `encodeComponentInternal(MTx, STy, VSV0, …)`, one call each, same arguments (perl regex swap)
+- `packages/go/codec_test.go`: `TestCodecEncodeComponentRejectsShortDigest` (4 bytes/64 bits, full
+    message asserted), `TestCodecEncodeComponentRejectsEmptyDigest` (0 bytes/32 bits,
+    `digest length`), `TestCodecEncodeComponentExactLengthDigest` (8 bytes/64 bits, body
+    round-trips)
+- `.claude/context/decisions.md`: entry `encode_component rejects a digest shorter`
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_version_sync.py`: 19 passed. The four `check_mode` failure tests
-    exist, one bad case each: (a) current Maven + stale SPM doc, (b) missing target, (c) unmatched
-    pattern, (d) stale second `--version` in `mise.toml`-style text
-- [x] `test_sync_rewrites_stale_second_doc_snippet` reads the file back and compares it with the
-    all-current text
-- [x] `python scripts/version_sync.py --check` exits 0 on the real tree and prints 22 `OK:` lines
-- [x] `uv run ruff check scripts/version_sync.py tests/test_version_sync.py` and
-    `uv run ty check scripts/version_sync.py` exit 0 (also the pre-push forms: project-wide
-    `ty check`, ruff `S`/`C901`)
-- [x] `mise run check` exits 0
+- `go test -count=1 ./...` → `ok`; `go vet ./...` and `GOARCH=386 go vet ./...` clean;
+    `CGO_ENABLED=0 GOARCH=386 go test -count=1 ./...` → `ok`; `gofmt -l .` empty
+- `grep -n "EncodeComponent(" packages/go/*.go | grep -v _test.go` → only
+    `codec.go:480:func EncodeComponent(…)` (the doc line has no `(`)
+- `grep -n "encode_component rejects a digest shorter" .claude/context/decisions.md` → line 389
+- `mise run check` → exit 0 (first run: mdformat rewrapped the decision entry; second run clean)
+- Temporary probe (`zz_probe_test.go`, run then deleted, `ls zz*` → no matches): data
+    `ISCC:GAEHA6W7RKLGNVVVKKJZC3YRAK357XX6X7HKIOLPOBY7BC5QBONX2BKZ`, text
+    `ISCC:EAEHA2J6QMX4ZG2CUO7YPWBB4MECFBWWVJDPMQLTDS4CDX62B55UGXO4` —
+    `GenDataCodeV0([]byte("abc"), 512)` and `GenTextCodeV0("hello", 512)` equal next.md's two codes
+    exactly
+- Decision claims re-measured: iscc-core 1.5.0 `encode_component(0,0,0,64,b"\x01\x02\x03\x04")` →
+    `AAAQCAQDAQ`; Python binding same call →
+    `ValueError: invalid input: digest length 4 < bit_length/8 (8)`
 
-Three checks beyond next.md's list, all in a `git archive` copy under `/tmp`:
-
-- **Round trip**: `Cargo.toml` bumped to 9.8.7, sync (22 `Synced` lines, exit 0), `--check` (22
-    `OK:`), then back to 0.7.0 and sync again: the tree is byte-identical to HEAD. The changed regex
-    groups and backreferences corrupt no target
-- **Command line failure modes**: a stale third snippet in `README.md`, a deleted
-    `docs/howto/kotlin.md` and a reworded `gradle.properties` line. `--check` exits 1 with one
-    `MISMATCH` line each; the sync exits 1, repairs the README and prints `FAILED:` for the other
-    two
-- **Literal count**: in each of the 22 targets, the number of literal `0.7.0` strings equals the
-    number of versions its getter reports. No target holds a version the gate cannot see
-
-**Issues found:**
-
-- Known limit, not filed: in a file with several snippets, one snippet that stops matching (a
-    reworded line) goes unseen while a sibling still matches. The script holds no expected count per
-    file. `test_doc_getter_reports_every_snippet` pins `docs/index.md` at 4 and so covers that one
-    file. A general check (literal version count equals getter count, as a test) would turn a
-    release commit red on any "since X.Y.Z" sentence, so I did not add it
-- (nothing else)
-
-**Codex review:** no actionable findings. Codex ran the 19 tests and the real-tree check, and
-confirmed update, restore and idempotence across all 22 targets in memory.
-
-**Next:** Go `EncodeComponent` on a short digest (`normal` [audit]) is the only remaining `normal`
-issue the loop can move without Titusz. The core already rejects that input and a test pins it, so
-the rule exists on eleven surfaces. A workable split: first record the rule in decisions.md and make
-Go return an `iscc:` error with a Go test (Go-only step), then add the `encode_component` section to
-`data-edge.json` (one 12-surface fan-out). The other two `normal` issues need Titusz's decision on
-behaviour: `alg_minhash_256([])` and the WASM `finalize()` consumption rule. Once the Go issue is
-closed and only those two remain, the right signal is HUMAN REVIEW REQUESTED, not IDLE.
+**Next:** the `encode_component` section in `data-edge.json` (12-surface fan-out) can now pass on
+Go: short digest → error, exact digest → code.
 
 **Notes:**
 
-- Closed and deleted from issues.md: "`version:check` passes a stale second doc snippet and skips a
-    vanished target silently". issues.md now holds 3 `normal` and 15 `low` entries
-- The sync now exits 1 when a target file is gone or its pattern no longer matches. Whoever renames
-    or removes a synced file must update `TARGETS` in the same change, or the release sync stops
-- The `low` issue about partial file lists in `docs/development.md` and the release skill is
-    untouched. Both pages should point to `TARGETS`
-- No decision entry and no new learning: the contract is stated in the script's module docstring,
-    and the existing learnings line on the Maven/Gradle/SPM snippets still holds
-- No API change, no benchmarked path, no Rust touched
+- **Finding for review to file:** gen `bits` above 256 (e.g. 512) yields a header claiming 512 bits
+    over a 32-byte body on every surface and in iscc-core (probe above). Not pinned by any committed
+    test, per next.md; behaviour not chosen
+- Decompose call sites lose no validation: they pass types from `decodeHeader`, which already
+    range-checks MainType/SubType/Version (codec.go:257-266)
+- Go-only change: no Rust touched, CRAP/iai gates unaffected; no public API signature changed

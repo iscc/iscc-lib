@@ -36,8 +36,8 @@ func GenMixedCodeV0(codes []string, bits uint32) (*MixedCodeResult, error) {
 		return nil, err
 	}
 
-	component, err := EncodeComponent(
-		uint8(MTContent), uint8(STMixed), uint8(VSV0), bits, digest,
+	component, err := encodeComponentInternal(
+		MTContent, STMixed, VSV0, bits, digest,
 	)
 	if err != nil {
 		return nil, err
