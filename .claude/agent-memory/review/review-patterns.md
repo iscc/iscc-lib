@@ -1119,3 +1119,18 @@ ties the sentence to the binding source.
     no `encode_seq`/`decode_seq`): the README ships with the next version
 - napi-rs camel-cases PARAMETER names in the `.d.ts` (`addUnits`) while `js_name` keeps function
     names snake_case; parameters are positional, so a README that says `add_units` is a nit
+
+## API-tier classification docs step (288, ~25 min, PASS)
+
+- A classification step rewrites sentences in several files; read each rewritten sentence against
+    the step's OWN new classification. Root `CLAUDE.md` kept "only Tier 1 is bound" one paragraph
+    away from "Python and WASM wrap the Tier 2 `SumHasher`"
+- "Module X is Tier 2" is false for items the crate root re-exports from X: list `pub use X::…` in
+    `lib.rs` and check that the text covers them (`codec` holds four Tier 1 functions, and
+    `codec::encode_component` is NOT the crate-root function of the same name)
+- A `//!` or `///` edit in a covered Rust file shifts line numbers in `.crap-baseline.json`. That is
+    harmless: the CI gate line reported "0 regressed, 33 moved", exit 0 (coverage + gate ≈ 4 min).
+    Run it once when a handoff says "comment-only, gates unaffected" and the file is `lib.rs`
+- One `/tmp` cargo project with a path dep proves the doc example AND the prose claims around it
+    (same-item paths by assigning `types::X` to `X`, "identical to `gen_sum_code_v0`" by comparing)
+- Codex had no findings here; the two wording gaps came from the re-export listing

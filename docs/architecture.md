@@ -148,14 +148,16 @@ Two kinds of crate-root items support Tier 1 but are not counted as Tier 1 symbo
     idiom.
 
 `DataHasher` and `InstanceHasher` are Tier 1 crate-root re-exports; their `iscc_lib::streaming::`
-paths name the same items.
+paths name the same items. The same holds for the four `codec` functions re-exported at the crate
+root (`encode_base64`, `iscc_decompose`, `encode_seq`, `decode_seq`). `codec::encode_component` is a
+separate, enum-typed Tier 2 function, not the crate-root `encode_component`.
 
 ### Tier 2 — Public Rust API
 
 Public Rust items outside the Tier 1 contract (not bound in every language):
 
 - **`codec` module**: `MainType`, `SubType`, `Version`, header and base32 encoding/decoding, unit
-    and length helpers, `read_unit`, `SEQ_MAINTYPES`. Not exposed through the bindings.
+    and length helpers, `read_unit`, `SEQ_MAINTYPES`. These are not exposed through the bindings.
 - **`streaming::SumHasher`**: single-pass streaming ISCC-SUM (Data-Code + Instance-Code). Not
     re-exported at the crate root. The Python and WASM bindings wrap it as an extra; the other
     bindings do not.

@@ -259,36 +259,24 @@ hashers, pin both error kinds with a test, and state the rule in `wasm.md`.
 Resolved when a rejected `bits` leaves every WASM hasher in the same state, whichever check rejects
 it, as decided and pinned by a test.
 
-## Rust public API docs misclassify `IsccError`, omit `SumHasher`, and contradict `gen_sum_code_v0` `normal` [audit]
+## target.md and the agent prompts name `codec` as the whole of Tier 2 `low` [review]
 
-Verified by the iteration-280 audit at db1fe55. `crates/iscc-lib/src/lib.rs:8-14` makes `codec`,
-`streaming` and `types` public, and `IsccError` is defined at the crate root (`:51`).
+**Triage:** untriaged. An agent that reads `target.md` or the API-break rule in its own prompt would
+treat `streaming::SumHasher` as outside every tier and outside the SemVer lock; users are
+unaffected, the published docs are correct.
 
-- `docs/architecture.md:141-144` names `codec` as the only Tier 2 module, and nothing classifies
-    `streaming`/`types`. `iscc_lib::streaming::SumHasher` (`streaming.rs:157`) is public and bound
-    in Python and WASM, yet it is absent from `docs/rust-api.md`, `architecture.md` and the Tier 1
-    doc gate.
-- `docs/architecture.md:162-163`: "The core library takes bytes, not file paths". But Tier 1
-    `gen_sum_code_v0` takes a path (`lib.rs:1059-1068`).
-- `docs/rust-api.md:678-687` presents `IsccError` as a `codec` type ("Import codec types with
-    `use iscc_lib::codec::…`").
-- Root `CLAUDE.md:154` says the bound surface is "`iscc_lib::api`", a module that does not exist.
-    `CLAUDE.md:217` and the crate doc `lib.rs:3` say all 10 `gen_*_v0` functions match `data.json`
-    (`gen_sum_code_v0` has no vectors).
+Since iteration 288 the docs, `specs/rust-core.md` and decisions.md (2026-11-22) classify
+`iscc_lib::streaming::SumHasher` as Tier 2 beside `codec`. `target.md` ("**Tier 2 API** — `codec`
+module (Rust-only, not bound)") still names `codec` alone, and its item list also lacks
+`decode_units` and the enum-typed `codec::encode_component`. The API-break rules in
+`.claude/agents/advance.md` and `.claude/agents/review.md` say "Tier 1 or Tier 2 `codec` symbol".
+All three files are Titusz's to edit. He may also overrule the classification (for example make
+`SumHasher` Tier 1, which changes the count of 35).
 
-**Why it matters:** these are the pages a Rust user and every agent read to learn what is covered by
-SemVer and what the bindings may bind. A public type outside every tier list cannot be reasoned
-about at the v1.0.0 stability cut.
+**Spec:** `.claude/context/target.md` → Tier 2 API
 
-**Suggested fix:** classify `streaming::SumHasher` (Tier 1 re-export or documented Tier 2). Fix the
-three sentences in `architecture.md`/`rust-api.md`, and point `CLAUDE.md` and the crate doc at the
-crate-root re-exports and the right vector count. A repo-wide `git grep` on each phrase (learnings:
-false claims outlive their pages).
-
-**Scope estimate:** 4-5 non-test files.
-
-Resolved when every public path of `iscc-lib` is classified in one tier list and the cited sentences
-match `lib.rs`.
+Resolved when `target.md` and both agent rules name `streaming::SumHasher` as Tier 2, or a new
+decisions.md entry classifies it differently.
 
 ## `napi build` fails in the devcontainer checkout with the locked `@napi-rs/cli` 3.10.12 `low` [review]
 

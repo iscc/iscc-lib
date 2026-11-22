@@ -151,9 +151,9 @@ the specs or the code, they win. Do not update `notes/` in sweeps.
 
 - **Sync core, streaming interface**: Rust core is synchronous. Each binding adapts async
     idiomatically. Pattern: `new() -> update(&[u8]) -> finalize() -> Result<T>`
-- **Tiered API surface**: Only Tier 1 (the symbols `lib.rs` defines or re-exports at the crate root)
-    is bound to foreign languages. Internal modules use `pub(crate)` and are never exposed across
-    FFI.
+- **Tiered API surface**: Tier 1 (the symbols `lib.rs` defines or re-exports at the crate root) is
+    what every binding exposes. Of Tier 2, only `streaming::SumHasher` is wrapped, by Python and
+    WASM. Internal modules use `pub(crate)` and are never exposed across FFI.
 - **Hub-and-spoke crate model**: All binding crates depend on the pure-Rust `iscc-lib` core crate.
 
 ## Design Constraints

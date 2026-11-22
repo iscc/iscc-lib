@@ -41,9 +41,11 @@ require the `text-processing` feature. `gen_meta_code_v0`, `json_to_data_url`, `
 
 - `IsccError`, `IsccResult<T>`: the error every fallible Tier 1 call returns (excluded from the
     symbol count in `EXCLUDED_ITEMS` of `scripts/check_tier1_docs.py`)
-- The `*CodeResult` structs of `types`, re-exported by `pub use types::*`; `types::X` and the
-    crate-root `X` are the same item. Likewise `streaming::DataHasher`/`streaming::InstanceHasher`
-    are the Tier 1 re-exports, not separate items
+- The result structs of `types`, re-exported by `pub use types::*`; `types::X` and the crate-root
+    `X` are the same item. Likewise `streaming::DataHasher`/`streaming::InstanceHasher` and the
+    `codec` paths of `encode_base64`, `iscc_decompose`, `encode_seq` and `decode_seq` are the Tier 1
+    re-exports, not separate items. `codec::encode_component` IS a separate item: the enum-typed
+    Tier 2 variant of the crate-root function
 
 **Tier 2 -- public Rust API outside the every-language contract (covered by SemVer):**
 

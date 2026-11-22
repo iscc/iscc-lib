@@ -77,7 +77,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **Test-fixture / vector-file only (141/149, ~5 min)**: Rust-only + feature matrix + the four
     fixture mutations → `review-patterns.md`
 - **Docs-only**: `mise run check` + clippy + `mise run version:check` + `uv run zensical build`;
-    green gates say NOTHING about truth (143); accuracy batch (277/280), README claim (286) → topic
+    green gates say NOTHING about truth (143); batch (277/280), README (286), tiers (288) → topic
 - **Python-only**: `mise run check` + `pytest`; ANY edited `.py` (tests too, 270) needs pre-push
     `ty`/ruff; `maturin develop` before any test; PyO3 marshalling (265) → `binding-reviews.md`
 - **New gate script / gate hardening / parity gate (142–146/163, ~10 min)**: write your OWN

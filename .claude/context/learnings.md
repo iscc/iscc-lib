@@ -120,13 +120,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a
-    new branch in a covered fn — or merely **moving lines below the edit point** — is green locally,
-    red in CI unless the baseline moves in the SAME step (never widen epsilon/threshold). **A new
-    stable rustc re-scores untouched fns** (195): read the toolchain in CI's CRAP log before blaming
-    the diff. **Rust test helpers (`crates/iscc-lib/tests/*.rs`) score at 0% coverage**
-    (pessimistic; CRAP = cc² + cc): cc > 5 fails `--fail-above` in CI only (215: 210). Fix = a
-    `const` table of small `fn` callers (216). cargo-crap 0.2.2 counts `?`, `||`, `if`, top-level
-    `match` arms; NOT closure bodies, `let … else`, `.then()`. Run the CI CRAP lines on `tests/*.rs`
+    new branch in a covered fn is green locally, red in CI unless the baseline moves in the SAME
+    step. A pure line shift passes (288: 4 comment lines, `↔ 33 moved`, 0 regressed). **A new stable
+    rustc re-scores untouched fns** (195): read the toolchain in CI's CRAP log before blaming the
+    diff. **Rust test helpers (`crates/iscc-lib/tests/*.rs`) score at 0% coverage** (pessimistic;
+    CRAP = cc² + cc): cc > 5 fails `--fail-above` in CI only (215: 210). Fix = a `const` table of
+    small `fn` callers (216). cargo-crap 0.2.2 counts `?`, `||`, `if`, top-level `match` arms; NOT
+    closure bodies, `let … else`, `.then()`. Run the CI CRAP lines on `tests/*.rs`
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
     load-bearing (stripped → `summary: 0` false-green). **NOT in `mise run check`** — run
     `mise run bench:iai:check` on any benchmarked hot-path change (191's +36% reached red CI). A

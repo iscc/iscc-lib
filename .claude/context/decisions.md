@@ -29,18 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-20 — A spec criterion naming a mechanism that does not exist is realigned, not escalated
-
-**Decision:** the wasm and go "Verification Criteria" bullets "Version synced from root `Cargo.toml`
-via `mise run version:sync`" became "npm package version comes from root `Cargo.toml` (wasm-pack
-output patched by release.yml)" and "Module version set by `packages/go/vX.Y.Z` Git tags". Review
-approved them without human escalation. **Why:** `version_sync.py` has no wasm or Go target, and
-each new bullet restates what ci-cd.md ("Automatic propagation", "Go modules use git tags") and
-target.md already say. A bullet that only names the real mechanism is a checkable fact, not a new
-acceptance criterion. Review cut advance's "(no in-repo package-version string)" clause from the Go
-bullet: it forbade something no spec forbids. **Alternatives:** revert the bullets to the false
-mechanism; escalate with HUMAN REVIEW REQUESTED. **Context:** iteration 223 review.
-
 ## 2026-11-20 — `alg_simhash` rejects an empty list
 
 **Decision:** the public `alg_simhash` (Rust core, Go port, every binding) returns an error for an
@@ -394,3 +382,16 @@ portfile pins; the asset on the release is the correct one. **Rejected:** a size
 proven:** that GitHub lists a live `starter` asset and lets it be deleted (a 502 cannot be forced).
 If it is not listed, the upload gets a 422 or the verify step reports it missing: the job fails
 either way. **Context:** 287.
+
+## 2026-11-22 — `streaming::SumHasher` is Tier 2, and Tier 2 is under the SemVer contract
+
+**Decision:** every public `iscc-lib` path has a tier. Tier 1 is the 35 crate-root symbols.
+`IsccError`/`IsccResult` and the `types` result structs are crate-root support types of Tier 1 and
+are not counted. Tier 2 is `codec` plus `streaming::SumHasher`. A module path to a re-exported item
+(`types::X`, `streaming::DataHasher`, `codec::encode_seq`) is the same item, not a second one. Tier
+2 has the same SemVer contract as Tier 1, not "may change in MINOR releases". **Why:** `SumHasher`
+has been public since v0.5.0 and Python and WASM wrap it, and `cargo-semver-checks` checks the whole
+public surface, so it is locked in fact; `rust-core.md` already put `codec` under the lock.
+**Rejected:** Tier 1 (a crate-root re-export bound on every surface changes target.md's count of 35,
+which is Titusz's call); hiding it (`pub(crate)` or `#[doc(hidden)]` breaks the two bindings or
+removes a published type). **Open:** target.md still names `codec` alone (issues.md, from 288).

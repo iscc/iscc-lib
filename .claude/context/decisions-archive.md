@@ -685,3 +685,15 @@ one code path for all six, no `count == 0` branch at a call site. **Alternatives
 per call site (next.md's suggestion; six extra branches); interleaving the null and NUL checks per
 element (keeps the old `EncodeSeq` order, splits the helper); `IsccException` for null (not the .NET
 idiom). **Context:** iteration 220 review.
+
+## 2026-11-20 — A spec criterion naming a mechanism that does not exist is realigned, not escalated
+
+**Decision:** the wasm and go "Verification Criteria" bullets "Version synced from root `Cargo.toml`
+via `mise run version:sync`" became "npm package version comes from root `Cargo.toml` (wasm-pack
+output patched by release.yml)" and "Module version set by `packages/go/vX.Y.Z` Git tags". Review
+approved them without human escalation. **Why:** `version_sync.py` has no wasm or Go target, and
+each new bullet restates what ci-cd.md ("Automatic propagation", "Go modules use git tags") and
+target.md already say. A bullet that only names the real mechanism is a checkable fact, not a new
+acceptance criterion. Review cut advance's "(no in-repo package-version string)" clause from the Go
+bullet: it forbade something no spec forbids. **Alternatives:** revert the bullets to the false
+mechanism; escalate with HUMAN REVIEW REQUESTED. **Context:** iteration 223 review.
