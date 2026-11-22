@@ -94,9 +94,12 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - release.yml (+ publish-ffi prune/verify 287): static gate `scripts/check_release_workflow.py`
     (prek, opt-in `--check-action-inputs`) + shape (9 inputs, 97 `uses:` refs) — keep green →
     release-gate.md
-- vcpkg hashes (285): `prepare-release` needs `build-ffi`, runs `scripts/update_vcpkg_hashes.py`
-    before tagging; wiring pinned by `tests/test_update_vcpkg_hashes.py`. Scripts loaded by path in
-    tests: no `@dataclass` (needs `sys.modules`) — use `NamedTuple`
+- vcpkg + Conan hashes (285, 305): `prepare-release` needs `build-ffi`, runs
+    `scripts/update_vcpkg_hashes.py` before tagging → portfile SHA512 + `packages/cpp/conandata.yml`
+    SHA256 (rendered whole, starts `---` for yamlfix). Wiring + recipe (via `ast`) pinned by
+    `tests/test_update_vcpkg_hashes.py`. Conan e2e:
+    `CONAN_HOME=/tmp/x uv run --no-project --with conan   conan create packages/cpp`. Scripts loaded
+    by path in tests: no `@dataclass` — use `NamedTuple`
 - WASM returns (234) / JS ints (256, 268, 269) / published web pkg + Node init (283, 292) →
     bindings-detail.md
 - WASM SIMD (#42): `blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt `--enable-simd` →

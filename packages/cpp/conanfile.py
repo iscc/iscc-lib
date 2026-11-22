@@ -1,7 +1,10 @@
 """Conan 2.x recipe for the ISCC C++ wrapper (header-only + pre-built FFI shared library).
 
-Downloads platform-specific pre-built FFI tarballs from GitHub Releases.
-Mirrors the platform mapping logic in portfile.cmake (vcpkg).
+Downloads platform-specific pre-built FFI tarballs from GitHub Releases and verifies each
+against the SHA256 that `conandata.yml` pins for its target triple. The release workflow
+writes those hashes with `scripts/update_vcpkg_hashes.py`, from the same archives whose
+SHA512s it writes into `portfile.cmake` (vcpkg). The targets here must equal the
+`build-ffi` matrix in `.github/workflows/release.yml` (`tests/test_update_vcpkg_hashes.py`).
 """
 
 import os
@@ -72,16 +75,26 @@ class IsccConan(ConanFile):
                 f"Unsupported platform: {self.settings.os}-{self.settings.arch}"
             )
 
+    def _archive_sha256(self, target):
+        """Return the pinned SHA256 of the target's archive, raising if none is pinned."""
+        sha256 = (self.conan_data or {}).get("sha256", {}).get(target)
+        if not sha256:
+            raise ConanInvalidConfiguration(
+                f"No SHA256 pinned in conandata.yml for target {target}"
+            )
+        return sha256
+
     def build(self):
-        """Download and extract the pre-built FFI tarball for the target platform."""
+        """Download the pre-built FFI tarball, verify its SHA256 and extract it."""
         target, _, _, ext = self._target_triple()
+        sha256 = self._archive_sha256(target)
         artifact = f"iscc-ffi-v{self.version}-{target}"
         url = (
             f"https://github.com/iscc/iscc-lib/releases/download/"
             f"v{self.version}/{artifact}{ext}"
         )
         archive_path = os.path.join(self.build_folder, f"{artifact}{ext}")
-        download(self, url, archive_path)
+        download(self, url, archive_path, sha256=sha256)
         unzip(self, archive_path, destination=self.build_folder)
 
     def package(self):

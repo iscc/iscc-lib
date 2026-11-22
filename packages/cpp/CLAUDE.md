@@ -10,7 +10,7 @@ symbols live in the `iscc::` namespace.
 - Does NOT implement any ISCC logic; all computation delegates through `iscc-ffi` to `iscc-lib`
 - Requires the `iscc_ffi` shared library at link time and runtime
 - Distributed as pre-built tarballs attached to GitHub Releases (shared lib + static lib + `iscc.h`
-    \+ `iscc.hpp` + LICENSE) and via a vcpkg portfile
+    \+ `iscc.hpp` + LICENSE) and via a vcpkg portfile and a Conan recipe
 
 ## Code Organization
 
@@ -144,6 +144,10 @@ cleanup even if an exception is thrown during field copying.
     the tagged commit carries the hashes of the archives `publish-ffi` uploads. `publish-ffi` sets
     `overwrite_files: false`, so a later `ffi` re-trigger cannot replace those archives; recover a
     failed publish with `gh run rerun --failed`, which reuses the run's artifacts.
+- **Conan**: `conanfile.py` downloads the same archive and passes the target's SHA256 from
+    `conandata.yml` (keyed by target triple) to `download()`; a target without a pinned hash raises
+    `ConanInvalidConfiguration`. The same `scripts/update_vcpkg_hashes.py` pass in `prepare-release`
+    renders `conandata.yml`, and the release commit stages it next to the portfile.
 - No crates.io / PyPI / npm publishing — this is a binary distribution package.
 
 ## Common Pitfalls
@@ -159,12 +163,13 @@ cleanup even if an exception is thrown during field copying.
 - **`LD_LIBRARY_PATH` required at runtime**: the shared library is not statically linked into tests.
     On Linux, set `LD_LIBRARY_PATH` to the directory containing `libiscc_ffi.so`. On macOS, use
     `DYLD_LIBRARY_PATH`. On Windows, the DLL must be on `PATH` or in the working directory.
-- **vcpkg SHA512 updates**: never edit the `ISCC_SHA512` values by hand. `prepare-release` writes
-    them with `scripts/update_vcpkg_hashes.py` (`--check` verifies a downloaded set of release
-    archives). Because `prepare-release` needs `build-ffi`, a failing `build-ffi` leg blocks the tag
-    and, through `!failure()`, every publish job. This is intended: no tag whose hashes do not match
-    its archives. A new platform is a `set(ISCC_TARGET …)` branch in `portfile.cmake` plus a
-    `build-ffi` matrix entry; `tests/test_update_vcpkg_hashes.py` keeps the two sets equal.
+- **vcpkg and Conan hash updates**: never edit the `ISCC_SHA512` values or `conandata.yml` by hand.
+    `prepare-release` writes both with `scripts/update_vcpkg_hashes.py` (`--check` verifies a
+    downloaded set of release archives). Because `prepare-release` needs `build-ffi`, a failing
+    `build-ffi` leg blocks the tag and, through `!failure()`, every publish job. This is intended:
+    no tag whose hashes do not match its archives. A new platform is a `set(ISCC_TARGET …)` branch
+    in `portfile.cmake`, a `_target_triple` entry in `conanfile.py` and a `build-ffi` matrix entry;
+    `tests/test_update_vcpkg_hashes.py` keeps the three sets (and the `conandata.yml` keys) equal.
 - **Header include order**: `iscc.hpp` wraps `iscc.h` via `extern "C" { #include "iscc.h" }`. Both
     headers must be on the include path. CMakeLists.txt sets both `packages/cpp/include` and
     `crates/iscc-ffi/include` as INTERFACE include directories.
