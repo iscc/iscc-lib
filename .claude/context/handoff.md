@@ -1,64 +1,42 @@
-## 2026-11-22 — Review of: Shared vectors and API pages for the 256-bit unit limit
+## 2026-11-22 — Decode vector that pins the 256-bit limit, and the sum-code bits range
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Replaced the input of `iscc_decode/test_0006_unit_above_256` with the reference encoder's
+288-bit Meta-Code and rewrote its `note` (canonical file + 4 byte-identical copies, C header
+regenerated). The two `gen_sum_code_v0` `bits` doc rows and the `genSumCodeV0` Javadoc now say 64 to
+256\.
 
-**Summary:** The step did what next.md asked: four `data-edge.json` rows in the 5 fixture copies and
-the C header, and the range "32 to 256" on every API page and comment that said only "multiple of
-32". All suites are green on all 12 surfaces. Two defects came in with it, both from next.md's own
-notes, so the bits issue stays open in a smaller form: the decode row does not pin the bound, and
-the sum-code `bits` row got a range whose lower end the code rejects.
+**Files changed:**
+
+- `crates/iscc-lib/tests/data-edge.json`: row input + `note` (name and `error` unchanged, ASCII)
+- `packages/{dotnet/Iscc.Lib.Tests/testdata,go/testdata,kotlin/src/test/resources,swift/Tests/IsccLibTests}/data-edge.json`:
+    `cp` of the canonical file (all 5 md5 `26a75922f149272dcd5083f761b9214c`)
+- `crates/iscc-ffi/tests/data_edge_vectors.h`: regenerated with
+    `uv run --script scripts/gen_data_edge_vectors.py` (one line: new string, length 68)
+- `docs/rust-api.md:302`, `docs/java-api.md:331`: "32 to 256" → "64 to 256" (same width, no re-pad)
+- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java:154`: `@param bits` drops 32
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_data_edge.py tests/test_vendored_fixtures.py tests/test_gen_data_edge_vectors.py`
-    — 211 passed (includes the iscc-core cross-check of the `diverges` markers)
-- [x] `cargo test -p iscc-lib --test test_data_edge` (also the three CI feature sets) and
-    `CGO_ENABLED=0 go test -count=1 ./...` (amd64 and `GOARCH=386`) pass; the 4 row names are in the
-    canonical file, and the 5 copies have one md5
-- [x] Header generator, `cargo build -p iscc-ffi` (after `cargo clean -p iscc-ffi`, so `build.rs`
-    ran) and the cbindgen line leave `git status` empty
-- [x] `git grep -n "multiple of 32" -- docs crates packages | grep -v 256` — prints the two test
-    comments plus three `streaming.rs` lines. Those are false hits: each `///` sentence continues
-    with "from 32 to 256." on the next line (in place since 301)
-- [x] `uv run zensical build` exits 0, `mise run check` exits 0
-- [x] .NET (155), Java (125), Ruby, C (gcc), C++ (cmake + ASAN), Kotlin (`DataEdgeTest` 6/6), Swift
-    (11 `DataEdge` tests), napi (in a `git archive` copy) and WASM (8 + 136) pass
+- Pinning probe from empty `/tmp/r304x`:
+    `uv run --no-project --with iscc-lib==0.7.0 python -c "import iscc_lib; print(iscc_lib.iscc_decode('ISCC:AAEAAAABAIBQIBIGA4EASCQLBQGQ4DYQCEJBGFAVCYLRQGI2DMOB2HQ7EAQSEIY'))"`
+    →
+    `(<MT.META: 0>, <ST.NONE: 0>, <VS.V0: 0>, 8, b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f !"#')`
+    — 0.7.0 prints its IntEnums by name; the values are `(0, 0, 0, 8, <36 bytes>)`, so 0.7.0
+    accepts the row's input
+- `grep -c` of the new string: 1 in each of the 5 JSON files and 1 in the header; `AAEAAAICAMCAKBQ`:
+    0 in all 6
+- `uv run pytest tests/test_data_edge.py tests/test_vendored_fixtures.py tests/test_gen_data_edge_vectors.py`
+    — 211 passed
+- `cargo test -p iscc-lib --test test_data_edge` — 7 passed (HEAD rejects the row with the expected
+    error); `packages/go`: `CGO_ENABLED=0 go test -count=1 ./...` — ok
+- `git grep -n "32 to 256" -- docs/rust-api.md docs/java-api.md` no longer lists line 302 or 331
+- `uv run zensical build` exit 0; `mise run check` exit 0
+- Not run: the other 9 harnesses (.NET, Java, Ruby, C, C++, Kotlin, Swift, napi, WASM). The change
+    is one fixture string in a row shape they already handle; the header no-op check is done by the
+    reviewer after the commit
 
-**Issues found:**
+**Next:** The bits issue should be closable. Remaining `normal` work: the three `[audit]` issues
+(Conan recipe checksum first, per next.md's ranking).
 
-- **The decode row passes without the bound** (`normal`, in the rewritten bits issue). next.md built
-    the string as header `00 08` over 36 bytes. A length index of 8 takes two nibbles, so the header
-    is `00 08 00` and the body has 35 bytes. Published iscc-lib 0.7.0, which has no bound, rejects
-    the row as "truncated ISCC body". The row's `note` is false as well. The right string is in the
-    issue, with measurements on 0.7.0, HEAD, the Go port and both iscc-core builds
-- **Sum-code rows say "32 to 256", and `bits=32` fails** (`normal`, same issue): `docs/java-api.md`
-    (this step) and `docs/rust-api.md` (since 301). The valid range is 64 to 256. Every other
-    function with a changed row accepts 32 and 256 and rejects 0 and 288 (measured on the Python
-    binding: meta, text, image, audio, video, mixed, data, instance, both hashers)
-- **Filed `low`, untriaged:** `gen_mixed_code_v0` with `bits` below 8 panics in the Go port and in
-    debug builds of the Rust core. Pre-existing; found by the range probe. Not for the loop
-- Both reference claims in the other three rows hold on iscc-core 1.5.0 under CPython 3.10 (compiled
-    wheel) and 3.15 (pure Python)
-
-**Codex review:** No actionable findings. It ran the Rust, Python, C and Go tests, including 32-bit
-Go.
-
-**Next:** Close the rest of the bits issue. It is a small rows-and-docs step with no harness change:
-
-- Replace the input of `iscc_decode/test_0006_unit_above_256` with
-    `ISCC:AAEAAAABAIBQIBIGA4EASCQLBQGQ4DYQCEJBGFAVCYLRQGI2DMOB2HQ7EAQSEIY` and correct its `note`,
-    in the canonical file and the 4 copies, then regenerate the C header
-- Change the two `gen_sum_code_v0` `bits` rows (`docs/rust-api.md`, `docs/java-api.md`) to "64 to
-    256"
-- Verification that proves the row this time: the string decodes on the last release
-    (`uv run --no-project --with iscc-lib==0.7.0 python -c "import iscc_lib; print(iscc_lib.iscc_decode('<string>'))"`,
-    run from an empty directory) and fails at HEAD
-
-After that, the three `[audit]` `normal` issues remain.
-
-**Notes:**
-
-- A grep criterion of the form `git grep "multiple of 32" | grep -v 256` is line-based. The three
-    wrapped `///` sentences in `streaming.rs` will always show up; name them as expected hits
-- The step changed no behaviour: no CRAP, iai or semver impact. No quality gate was touched
-- `/tmp/r303-verify.sh` runs all 31 checks in about 3 minutes on a warm tree
+**Notes:** No behaviour change, so no CRAP/iai/semver impact. Other "32 to 256" rows in both pages
+are left as next.md scoped (correct for those functions).

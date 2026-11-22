@@ -299,7 +299,7 @@ pub fn gen_sum_code_v0(
 | Parameter   | Type    | Description                                                               |
 | ----------- | ------- | ------------------------------------------------------------------------- |
 | `path`      | `&Path` | Path to the file (`std::path::Path`)                                      |
-| `bits`      | `u32`   | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
+| `bits`      | `u32`   | Bit length of the generated code (default: 64, multiple of 32, 64 to 256) |
 | `wide`      | `bool`  | Enable 256-bit wide mode for ISCC-CODE combination                        |
 | `add_units` | `bool`  | Include individual Data-Code and Instance-Code ISCC strings in result     |
 

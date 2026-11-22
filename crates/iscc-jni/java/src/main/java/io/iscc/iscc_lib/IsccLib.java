@@ -151,7 +151,7 @@ public class IsccLib {
      * single pass, then composes the final ISCC-CODE.
      *
      * @param path     file path to process
-     * @param bits     hash bit length (32, 64, 96, 128, 160, 192, 224, 256)
+     * @param bits     hash bit length (64, 96, 128, 160, 192, 224, 256)
      * @param wide     if {@code true}, use 256-bit combination (requires bits >= 128)
      * @param addUnits if {@code true}, include individual Data-Code and Instance-Code
      *                 ISCC strings in the result's {@code units} field

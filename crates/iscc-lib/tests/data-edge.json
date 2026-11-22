@@ -46,10 +46,10 @@
     },
     "test_0006_unit_above_256": {
       "inputs": [
-        "ISCC:AAEAAAICAMCAKBQHBAEQUCYMBUHA6EARCIJRIFIWC4MBSGQ3DQOR4HZAEERCG"
+        "ISCC:AAEAAAABAIBQIBIGA4EASCQLBQGQ4DYQCEJBGFAVCYLRQGI2DMOB2HQ7EAQSEIY"
       ],
       "error": "unit longer than 256 bits",
-      "note": "A Meta-Code header with length index 8 claims a 288-bit unit, which the Rust core and the Go port decoded before the limit was set."
+      "note": "The reference encoder's 288-bit Meta-Code (header 00 08 00, 36-byte body). iscc-lib 0.7.0 decoded it; the bound rejects it, and iscc-core raises '288 is not a valid LN'."
     }
   },
   "encode_seq": {

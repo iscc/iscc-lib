@@ -328,7 +328,7 @@ public static native SumCodeResult genSumCodeV0(String path, int bits, boolean w
 | Parameter  | Type      | Description                                                                |
 | ---------- | --------- | -------------------------------------------------------------------------- |
 | `path`     | `String`  | Path of the file to process                                                |
-| `bits`     | `int`     | Bit length of the generated codes (default: 64, multiple of 32, 32 to 256) |
+| `bits`     | `int`     | Bit length of the generated codes (default: 64, multiple of 32, 64 to 256) |
 | `wide`     | `boolean` | `true` for 256-bit output (requires `bits >= 128`)                         |
 | `addUnits` | `boolean` | `true` to include the Data-Code and Instance-Code in `units`               |
 

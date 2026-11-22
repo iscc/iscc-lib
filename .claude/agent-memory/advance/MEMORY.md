@@ -123,7 +123,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - Unit ≤ 256 bits (301 Rust, 302 Go): `encode_length`/`encodeLength` cap Meta..Flake at 256;
     decoders use checked `unit_bit_length`/`unitBitLength` (`decode_length` unchecked). Go tests:
     `overlongUnit`/`assert{Encode,Decode}BoundErr` helpers in codec_test.go. Image/video fail
-    earlier (own \<=256 check). Next: data-edge rows (12 harnesses), then API pages
+    earlier (own \<=256 check). Rows + docs done (303/304). Decode vectors: take the reference
+    ENCODER's output, prove on `iscc-lib==0.7.0` from an empty dir. Sum-code bits = 64..256
 - `alg_minhash_256` (298): `IsccResult`, `[]` → `features must not be empty`; callers use `_inner`.
     Go (299): `AlgMinhash256` → `([]byte, error)`, gens call unexported `algMinhash256`
 - Video ragged input (250), Python int range (265), Go meta JCS (251/266), `alg_simhash([])` (225),

@@ -190,7 +190,7 @@ static const struct iscc_edge_iscc_decode_vector iscc_edge_iscc_decode[ISCC_EDGE
     {"test_0005_empty_string", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
      {"", 0}, 0, 0, 0, 0, {0, 0}},
     {"test_0006_unit_above_256", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
-     {"ISCC:AAEAAAICAMCAKBQHBAEQUCYMBUHA6EARCIJRIFIWC4MBSGQ3DQOR4HZAEERCG", 66}, 0, 0, 0, 0, {0, 0}},
+     {"ISCC:AAEAAAABAIBQIBIGA4EASCQLBQGQ4DYQCEJBGFAVCYLRQGI2DMOB2HQ7EAQSEIY", 68}, 0, 0, 0, 0, {0, 0}},
 };
 
 static const char *const iscc_edge_encode_seq_0_items[] = {"gaawdlqng6\305\277sdpf2"};
