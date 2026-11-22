@@ -7,6 +7,7 @@ this script handles everything else.
 Synced targets:
 - `pyproject.toml` — root project version (dev workspace)
 - `crates/iscc-napi/package.json` — npm package version
+- `crates/iscc-napi/package-lock.json` — npm lockfile root version (top-level and `packages[""]`)
 - `crates/iscc-jni/java/pom.xml` — Maven artifact version
 - `crates/iscc-rb/lib/iscc_lib/version.rb` — Ruby gem version constant
 - `packages/swift/Sources/IsccLib/Constants.swift` — Swift package version constant
@@ -96,6 +97,22 @@ def _sync_package_json(text, version):
     """Update version in package.json."""
     data = json.loads(text)
     data["version"] = version
+    return json.dumps(data, indent=2) + "\n"
+
+
+def _get_package_lock_version(text):
+    """Extract the root version from package-lock.json, or "MISMATCH" if its two copies differ."""
+    data = json.loads(text)
+    top = data.get("version", "")
+    root = data.get("packages", {}).get("", {}).get("version", "")
+    return top if top == root else f"MISMATCH(top={top!r}, packages['']={root!r})"
+
+
+def _sync_package_lock(text, version):
+    """Update both root version fields (top-level and packages[""]) in package-lock.json."""
+    data = json.loads(text)
+    data["version"] = version
+    data["packages"][""]["version"] = version
     return json.dumps(data, indent=2) + "\n"
 
 
@@ -259,6 +276,11 @@ def _sync_doc_deps(text, version):
 TARGETS = [
     ("pyproject.toml", _get_pyproject_version, _sync_pyproject),
     ("crates/iscc-napi/package.json", _get_package_json_version, _sync_package_json),
+    (
+        "crates/iscc-napi/package-lock.json",
+        _get_package_lock_version,
+        _sync_package_lock,
+    ),
     ("crates/iscc-jni/java/pom.xml", _get_pom_version, _sync_pom),
     ("mise.toml", _get_mise_version, _sync_mise),
     ("scripts/test_install.py", _get_test_install_version, _sync_test_install),

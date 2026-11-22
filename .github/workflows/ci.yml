@@ -90,7 +90,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
         working-directory: crates/iscc-napi
       - name: Build native addon
         run: npx napi build --platform

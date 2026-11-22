@@ -1,68 +1,70 @@
-## 2026-11-22 — Review of: `@iscc/wasm` docs show a Node.js setup that runs on the published web-target package
+## 2026-11-22 — napi installs from a committed `package-lock.json` with `npm ci` in CI and release
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** I generated the napi lockfile from scratch
+(`rm -rf node_modules package-lock.json && npm install`, npm 10.9.9 / Node v22.23.5) and committed
+it. The `nodejs` CI job and both `release.yml` napi install steps now run `npm ci`.
+`version_sync.py` treats the lock as a 22nd target and keeps both of its root version fields in
+sync.
 
-**Summary:** `docs/howto/wasm.md` and `crates/iscc-wasm/README.md` now show a Node.js setup that
-works on the package npm serves, and both state that `gen_sum_code_v0` returns a
-`WasmSumCodeResult`. I ran both pages' Node blocks verbatim against the real `@iscc/wasm@0.7.0` from
-the registry and against a packed HEAD build: both print a code and write nothing to stderr. The
-`[audit]` issue is resolved and deleted. One leftover fixed here, one sibling page filed.
+**Files changed:**
+
+- `crates/iscc-napi/package-lock.json`: created, lockfileVersion 3, 114 packages, `@napi-rs/cli`
+    3.10.12 (what `^3` resolves to today)
+- `crates/iscc-napi/.gitignore`: dropped the `package-lock.json` line, kept `node_modules/`
+- `.github/workflows/ci.yml` (`nodejs`), `.github/workflows/release.yml` (`build-napi` line 325,
+    `napi-publish` line 382): `npm install` → `npm ci`
+- `scripts/version_sync.py`: `_get_package_lock_version` returns the version only when the top-level
+    and `packages[""]` copies agree. Otherwise it returns a `MISMATCH(...)` string, which makes
+    `--check` fail. `_sync_package_lock` writes both copies with `json.dumps(indent=2)` plus a
+    trailing newline. Also a TARGETS entry and a docstring line
+- `tests/test_version_sync.py`: created, 6 tests: the lock is registered, sync rewrites both fields,
+    a stale `packages[""]` alone is caught, a stale top-level alone is caught, syncing the real lock
+    leaves it byte-identical, the real tree passes `check_mode`
+- `.claude/context/specs/ci-cd.md`: the `nodejs` row now says `npm ci`
 
 **Verification:**
 
-- [x] The handoff carries the probe — re-run: HEAD `--target web --release` build, `name` set in a
-    copy, `npm pack`, tarball installed in a scratch project (Node v22.23.5). `howto_node.mjs` →
-    `ISCC:EAASKDNZNYGUUF5A`, `readme_node.mjs` → `Meta-Code: ISCC:AAAT4EBWK27737D2`, exit 0, 0
-    stderr bytes each. The same two files against `npm install @iscc/wasm@0.7.0`: same output
-- [x] `uv run pytest tests/test_wasm_docs.py tests/test_check_docs_nav.py tests/test_check_tier1_docs.py`
-    — 55 passed (56 with the test added in this review)
-- [x] `git grep -nE -- '--target nodejs|Both browser and Node' -- docs README.md crates/iscc-wasm/README.md`
-    — prints nothing
-- [x] `grep -c WasmSumCodeResult crates/iscc-wasm/README.md` — 1
-- [x] `uv run zensical build` — exit 0
-- [x] `mise run check` — exit 0, before and after the step-9 fix
+- `git ls-files` lists the lock (it is staged). `grep -c package-lock crates/iscc-napi/.gitignore`
+    prints 0
+- `grep -nE 'run: npm install'` over both workflows prints nothing. Lines 93, 325 and 382 now read
+    `run: npm ci`
+- Lock platforms: 43 packages carry `os`, 6 of them darwin and 9 win32 (for example
+    `@napi-rs/lzma-darwin-arm64` and `@napi-rs/lzma-win32-arm64-msvc`). No package has
+    `hasInstallScript`
+- Round trip: `json.dumps(json.loads(lock), indent=2) + "\n" == lock` is True
+- `mise run version:check` exits 0 and prints `OK: crates/iscc-napi/package-lock.json = 0.7.0`
+- `uv run pytest tests/test_version_sync.py tests/test_check_ci_job_table.py tests/test_check_release_workflow.py`:
+    42 passed
+- `mise run check`: exit 0
+- **napi build criterion, with a caveat.** In the checkout, `rm -rf node_modules && npm ci`
+    succeeds. `npx napi build --platform` then fails twice in a row with
+    `AggregateError:   Filesystem transaction failed and its recovery state could not be removed from   .../.napi-rs-filesystem-transaction.swp`.
+    The cause is the cli 3.10.x filesystem transaction on this devcontainer's Windows 9p (drvfs)
+    `/workspace` mount. To check that, I ran the same lock in a throwaway `git worktree` under
+    `/tmp` (overlay fs), with `CARGO_TARGET_DIR=/workspace/iscc-lib/target`: `npm ci` →
+    `napi build --platform` exit 0 → `npm test` `# pass 238`, `# fail 0`. `npm ci` left the lock
+    byte-identical (`cmp`). I removed the worktree, and `git worktree list` shows only the checkout.
+    I deleted the leftover `.napi-rs-filesystem-transaction.swp/` and `.*.tmp` files from the
+    checkout, so `git status --porcelain crates/iscc-napi` shows only this step's `.gitignore` and
+    the lock
 
-Extra checks (3): the registry package probe above; the `test-wasm` step body extracted with PyYAML
-and run as `bash --noprofile --norc -eo pipefail` next to the packed `pkg/` (exit 0, silent); the
-new test module against the previous versions of the three files (5 of 7 fail, as advance reported).
-Bare `await init()` in Node fails with `TypeError: fetch failed` on the registry package, which
-confirms the defect the docs now explain. `gen_sum_code_v0(…, true)` returns the four documented
-fields; without `add_units`, `units` is `undefined`.
-
-**Issues found:**
-
-- Fixed in this review: `scripts/test_install.py` (the registry install check) still called the
-    deprecated positional `init(wasmBytes)`, the sibling of the `release.yml` smoke script. Now
-    `init({ module_or_path: wasmBytes })`, guarded by `test_install_script_uses_options_object`.
-    `uv run scripts/test_install.py --npm --version 0.7.0` passes for both npm packages
-- Filed `normal`: "`@iscc/lib` npm README says every code generator returns a string". The napi
-    `gen_sum_code_v0` returns a `NapiSumCodeResult`. It is the sentence this step removed from the
-    WASM README, left on the sibling npm page
-- Not filed: the WASM blocks in root `README.md`, `docs/index.md` and
-    `docs/tutorials/getting-started.md` show a bare `await init()`. That is correct for browsers and
-    bundlers, and none of the three claims Node. A one-line pointer to the how-to's Node section
-    would help a reader who runs them in Node
-- Not an error: the README lists `encode_seq` and `decode_seq`, which 0.7.0 on npm does not export.
-    They are unreleased additions and ship with the README in the next release
-- Deviation accepted: `crates/iscc-wasm/README.md` is registered as `FULL` in
-    `scripts/check_tier1_docs.py`. Filling the Codec and Encoding lines reached the gate's 30-symbol
-    discovery threshold. `FULL` keeps the npm page under the parity gate
-
-**Codex review:** No actionable findings. It ran the targeted tests, both Node examples and the
-smoke script against a fresh packed web build, all green.
-
-**Next:** The vcpkg portfile hashes (`normal` `[audit]`: a `release.yml` step plus a gate), as
-define-next already planned. The napi README sentence is a small docs step (1-2 files) and can go
-before or after it. `alg_minhash_256([])` and the WASM hasher `finalize()` rule each need a recorded
-decision first.
+**Next:** Vcpkg portfile hashes (`normal` `[audit]`), then the napi README result-type sentence.
 
 **Notes:**
 
-- The published `@iscc/wasm` is one `--target web` build with `main: iscc_wasm.js`, `type: module`
-    and no `exports` map, so `require.resolve("@iscc/wasm/iscc_wasm_bg.wasm")` works. An `exports`
-    map added to `build-wasm` later would break the documented Node snippet unless it exports the
-    `.wasm` subpath
-- `tests/test_wasm_docs.py` checks text only. Whether the snippets run is proved by the probe, so a
-    step that edits either Node block must repeat it (`npm install @iscc/wasm@<version>` in an empty
-    `/tmp` project, then the blocks as `.mjs`)
+- **Devcontainer napi builds are broken on the 9p mount with any cli 3.10.x.** This did not start
+    with this step. The old local, gitignored lock pinned cli 3.5.1, and any fresh unlocked
+    `npm install` already pulled 3.10.12, published 2026-11-03. CI runners are unaffected (the probe
+    above passed on overlay fs). Review may want to file it (`low`). Possible fixes: build from a
+    Docker volume, or pin the cli below the 3.10 transaction code. Both are out of scope here: no
+    bumps or pins
+- The fresh lock has 43 `os` packages, the stale local lock had 46. The difference comes from the
+    cli version (3.10.12 vs 3.5.1), not from dropped platforms: darwin and win32 entries are present
+- Left alone as out of scope (next.md limited `ci-cd.md` to line 26): the "Manifest surface" table
+    row `npm` → `crates/iscc-napi/package.json`, and "Lockfiles (`Cargo.lock`, `uv.lock`,
+    `Gemfile.lock`) are regenerated" in the same spec. Both now leave out
+    `crates/iscc-napi/package-lock.json`. Two one-line spec edits for review
+- `crates/iscc-napi/CLAUDE.md` does not describe the install step, so it is unchanged. The other
+    `npm install` hits in specs (`nodejs-bindings.md:175`, `wasm-bindings.md:191`) are about
+    consumers installing published packages
 - No Rust change: no CRAP, iai, semver or API impact

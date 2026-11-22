@@ -83,8 +83,13 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - Adding/renaming a ci.yml job requires updating the job table in `.claude/context/specs/ci-cd.md`
     same commit — parity-gated by `scripts/check_ci_job_table.py` (prek `check-ci-job-table` +
     pytest anchor; backticked first-column keys, count floor 10)
-- `version-check` job: `scripts/version_sync.py --check` (16 targets; exits 1 on mismatch). Go CI
-    job has zero Rust deps
+- `version-check` job: `scripts/version_sync.py --check` (`TARGETS` list; exits 1 on mismatch). Go
+    CI job has zero Rust deps. napi lock (284) is a target: get/sync both root version fields
+- napi (284): `crates/iscc-napi/package-lock.json` committed, CI + release use `npm ci`; lock
+    @napi-rs/cli 3.10.12 `napi build` FAILS on the 9p `/workspace` mount (fs-transaction
+    AggregateError, deterministic) — prove builds in a `/tmp` worktree with
+    `CARGO_TARGET_DIR=/workspace/iscc-lib/target`; clean the `.napi-rs-filesystem-transaction.swp`
+    and `.*.tmp` leftovers
 - Generated-artifact gates (274), pytest addopts (254), Kotlin plugins (262), .NET CI (260) →
     ci-gates.md
 - Python dev builds: `uv run maturin develop -m crates/iscc-py/Cargo.toml` (always via uv run).

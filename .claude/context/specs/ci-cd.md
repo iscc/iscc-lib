@@ -23,7 +23,7 @@ merge.
 | `rust`             | `cargo fmt --check`; clippy (`-D warnings`) and tests for the workspace (excluding `iscc-rb`) plus the `iscc-lib` feature matrix   |
 | `python-test`      | `maturin develop`, `ruff check`, `ruff format --check`, `pytest` on each matrix Python                                             |
 | `python`           | Asserts `needs.python-test.result == "success"` (aggregator, see note below)                                                       |
-| `nodejs`           | `npm install`, `napi build --platform`, `npm test` in `crates/iscc-napi`                                                           |
+| `nodejs`           | `npm ci`, `napi build --platform`, `npm test` in `crates/iscc-napi`                                                                |
 | `wasm`             | `wasm-pack test --node crates/iscc-wasm --features conformance` with `+simd128`                                                    |
 | `c-ffi`            | `NativeMethods.g.cs` + cbindgen header freshness (`git diff --exit-code` after the build), gcc compile + run of the C test program |
 | `dotnet-test`      | `cargo build -p iscc-ffi`, then `dotnet build` + `dotnet test` for `packages/dotnet`, the net8.0 build on each matrix runtime      |
