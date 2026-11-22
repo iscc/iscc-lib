@@ -86,12 +86,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 113c61b, iter 305 — incremental)
+## Current State (assessed-at: 7c9700d, iter 306 — incremental)
 
-- Origin tip `3b956483` run 45029771700 green (waited ~3 min, mid-run on arrival). HEAD +1
-    `.claude`.
-- 19 open (3 `normal` audit + 16 `low`, 15 untriaged). 304 closed the 256-bit bits issue (decode row
-    now the encoder's 288-bit Meta-Code; sum-code docs 64 to 256). iscc-lib `src/` `#[test]` = 341.
+- Origin tip `516beea7` run 45031720460 green. HEAD +1 `.claude`. check-suites API: codecov/cursor
+    suites sit `queued` forever — judge by the `github-actions` suite only.
+- 18 open (2 `normal` audit + 16 `low`, 15 untriaged). 305 closed the Conan checksum issue
+    (`packages/cpp/conandata.yml` SHA256s, written by `update_vcpkg_hashes.py`). iscc-lib `src/`
+    `#[test]` = 341.
 - **A doc/vector row can be present yet wrong** (303): check issues.md bodies for the reviewer's
     measured defects instead of counting rows as met.
 - **CI on a fresh tip may be mid-run** (Coverage+CRAP is the slowest job): wait with
