@@ -151,7 +151,7 @@ enum DataEdge {
         return { try encodeSeq(units: units) }
     }
 
-    /// Convert `encodeSeq` or `algSimhash` bytes to a `bytes:<hex>` value.
+    /// Convert `encodeSeq`, `algSimhash` or `algMinhash256` bytes to a `bytes:<hex>` value.
     static func convertSeq(_ result: Any) -> Any {
         guard let data = result as? Data else { return "not Data: \(result)" }
         return bytesValue(data)
@@ -161,6 +161,20 @@ enum DataEdge {
     static func prepareSimhash(_ inputs: [Any]) throws -> () throws -> Any {
         let digests = try bytesList(inputs, 0)
         return { try algSimhash(hashDigests: digests) }
+    }
+
+    /// Read one feature as a `UInt32`; it must be a JSON integer.
+    static func feature(_ value: Any, _ index: Int) throws -> UInt32 {
+        guard case .int(let number) = scalar(value), let feature = UInt32(exactly: number) else {
+            throw EdgeHarnessError(description: "input \(index) holds a non-UInt32 feature")
+        }
+        return feature
+    }
+
+    /// Prepare `algMinhash256` on the vector's feature list.
+    static func prepareMinhash(_ inputs: [Any]) throws -> () throws -> Any {
+        let features = try arg(inputs, 0, as: [Any].self).map { try feature($0, 0) }
+        return { try algMinhash256(features: features) }
     }
 
     /// Prepare `algCdcChunks` on the vector's data, `utf32` flag and average size.
@@ -301,6 +315,7 @@ enum DataEdge {
         "gen_video_code_v0": EdgeCaller(prepare: prepareVideo, convert: convertVideo),
         "alg_cdc_chunks": EdgeCaller(prepare: prepareCdc, convert: convertChunks),
         "encode_component": EdgeCaller(prepare: prepareComponent, convert: convertString),
+        "alg_minhash_256": EdgeCaller(prepare: prepareMinhash, convert: convertSeq),
     ]
 
     /// Load and parse the vendored data-edge.json.
