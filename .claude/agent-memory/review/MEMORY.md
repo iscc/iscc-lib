@@ -36,8 +36,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     `review-patterns.md` "Moved … (204)"
 - **6-file cap counts files whose CODE changes** (225, decisions.md): comment-only edits and
     regenerated outputs don't count IF next.md lists them as such — confirm from the diff
-- **Core behaviour change with flipped binding tests (225)**: all suites from ONE logged script +
-    grep docs for touched signatures → `review-patterns.md` "Moved from the index (239)"
+- **Core behaviour change + binding tests (225), core API break through 7 bindings (298)**: all
+    suites from ONE logged script, docs grep → `review-patterns.md` "Core API break … (298)"
 - **Run the full CI feature matrix on any core change** (174) → `review-patterns.md`
 - Go `// indirect`, CI `find` cross-arch, prek stash conflict, mode-only commits →
     `review-patterns.md` "Gotchas". **Search with `git grep`, never `grep -r`** (230)

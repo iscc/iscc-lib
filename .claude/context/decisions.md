@@ -29,21 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-20 — Go CI tests on the latest patch through a `toolchain` line; the `go` directive stays the floor
-
-**Decision:** `packages/go/go.mod` keeps `go 1.26.1` and adds `toolchain go1.26.11`. CI (`setup-go`
-with `go-version-file`) and the devcontainer use the toolchain version, so the test runtime carries
-the current stdlib security fixes while consumers keep the 1.26.1 minimum (Go ignores a dependency's
-`toolchain` line). The CI napi job moves from Node 20 to 22 on the same reasoning: `@iscc/lib`
-declares no `engines` floor, so the CI version is a test runtime, not a promise. **Trade-off:** CI
-no longer runs on go1.26.1 itself; the suite passed there once at this review (Codex run), and
-nothing gates it afterwards. **Alternatives:** raising the `go` directive to 1.26.11 (forces every
-consumer up for advisories in code they compile with their own toolchain anyway); a two-version CI
-matrix (doubles the job for a floor that differs only in patch level); leaving 1.26.1 (govulncheck:
-about 40 stdlib advisories in the tested toolchain). Floors stay the human's call (`ci-cd.md` →
-"Dependency Freshness" → Policy). **Context:** iteration 235; next.md flagged it "Decision for
-Titusz".
-
 ## 2026-11-20 — data-edge output subset: allowed keys come from `data.json`, uncompared keys are fixed per harness
 
 **Decision:** in a `gen_*` section of `data-edge.json`, `outputs` holds `iscc` and only keys that
@@ -396,3 +381,17 @@ ruling puts the consume step first, and a typed parameter cannot be ordered afte
 **Alternatives:** Python `Option<u32>` with `bits=None` (turns `finalize(None)` from `TypeError`
 into a 64-bit code); napi `f64` checked after `take()` only (a string is still rejected before the
 body). **Context:** iteration 297 review.
+
+## 2026-11-22 — A core signature change lands with the binding edits the compiler forces
+
+**Decision:** iteration 298 passed with code changes in 10 non-test files (3 core, 7 binding
+`lib.rs`) and neither escape valve declared. A Tier 1 signature change in `iscc-lib` and the edit it
+forces in each binding crate are one step, on four conditions the review checks: a decisions.md
+entry approves the break, each binding maps the result exactly as a sibling wrapper already does
+(here `alg_simhash`), no binding changes beyond that call, and there is one commit per surface. Go
+and shared vectors stay separate steps. **Why:** the workspace does not compile in between, so no
+smaller unit passes clippy or the pre-push gates. The cap and "a core change never rides along with
+a fan-out" (2026-11-19) keep open design questions out of mechanical steps; here Titusz had settled
+the design and the binding edits carry no choice. **Alternatives:** NEEDS_WORK (nothing to split or
+repair); a second function beside the old one (keeps the `0xFF` behaviour the ruling removes).
+**Context:** iteration 298 review. define-next names this ground in Scope when it applies.

@@ -1247,3 +1247,36 @@ sibling still matches (no expected count per file; `test_doc_getter_reports_ever
 X.Y.Z" sentence would turn the release commit red.
 
 Python edits need the pre-push gates: `uv run ty check` and `uv run ruff check --select S,C901`.
+
+## Core API break through 7 bindings (298, ~40 min, PASS_WITH_NOTES)
+
+`alg_minhash_256` became `IsccResult<Vec<u8>>`: 3 core files, one call in each of 7 binding
+`lib.rs`, one commit per surface, regenerated `iscc.h` + `NativeMethods.g.cs` + UniFFI Kotlin/Swift
+\+ CRAP baseline.
+
+- **Scope**: over the 6-file cap with no valve declared. Passed under decisions.md 2026-11-22 "A
+    core signature change lands with the binding edits the compiler forces". Check its four
+    conditions: a decision approves the break, each binding maps the result as a sibling wrapper
+    does, no binding changes beyond that call, one commit per surface. Anything more = NEEDS_WORK
+- **Codex**: the work spans 9 commits, so run ONE `codex exec review --base <define-next sha>`. It
+    came back clean in under 10 minutes, before my suite run started (no build race)
+- **One logged script, sequential, ~15 min in total** (`step <name> <cmd>` writes `START`/`DONE rc=`
+    lines to a log and each command's output to its own file): core in 4 feature sets,
+    `-p iscc-ffi -p iscc-uniffi`, clippy, `git diff --exit-code` on `iscc.h` + `NativeMethods.g.cs`
+    after the build, `cbindgen` to `/tmp` + `diff`, the UniFFI freshness step body (PyYAML extract,
+    `bash -e`, `RUNNER_TEMP=/tmp/x`), gcc C test, cmake C++ test
+    (`-S packages/cpp -B /tmp/x -DFFI_LIB_DIR=$PWD/target/debug -DSANITIZE_ADDRESS=ON`),
+    `dotnet test … -e LD_LIBRARY_PATH=$PWD/target/debug`, JNI + `mvn -q`, Kotlin
+    `./gradlew test --rerun-tasks` (3 min), `maturin develop` + pytest, Ruby `rake compile test`,
+    `wasm-pack test`, napi in a `git archive` copy (2 min, with a `node -e` probe of the new error
+    appended), `mise run coverage`, the CI CRAP line, `mise run bench:iai:check`. Start it AFTER
+    `mise run check` has finished
+- **Read each log for real counts** (a cached `rc=0` in 5 s is normal): surefire `Tests run:` lines
+    under `crates/iscc-jni/java/target/surefire-reports/*.txt` (`mvn -q` prints nothing)
+- **Swift cannot be built here** (macOS CI job only). A function that becomes `throws` breaks every
+    call site without `try`: `git grep <name> packages/swift packages/kotlin docs` and read the hits
+- **The `semver` CI job is `continue-on-error`**: an approved break turns it red and CI stays green
+- **Docs name an error on surfaces with no test** (napi, WASM, Ruby, .NET, Swift, Kotlin; the
+    data-edge section pins them later): probe two by hand, read the wrapper for the rest
+- **Rewrite the issue to the smaller problem** when a multi-step `[human]` issue is partly done (Go
+    port + data-edge section left); do not delete it and do not log progress in it

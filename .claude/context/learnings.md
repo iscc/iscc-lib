@@ -55,8 +55,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     dep (142, `pyyaml`). Generated Rust must be data-only + rustfmt-stable; generated C must be
     ASCII + LF + one trailing newline, else prek hygiene hooks rewrite it and break the
     regeneration-no-op gate — a **third-party** generator you can't fix (uniffi bindgen, 172) always
-    trips it, so verify no-op modulo `sed 's/[[:space:]]*$//'`, never `git status`. A `///` edit on
-    a uniffi export moves its checksum constant in both outputs (272): regenerate them together
+    trips it, so verify no-op modulo `sed 's/[[:space:]]*$//'`, never `git status`. A `///` or type
+    edit on a uniffi export moves its checksum in both outputs (272); delete the stray `.modulemap`
 - **C/C++ read `data-edge.json` from a generated header** (219): `gen_data_edge_vectors.py` renders
     `crates/iscc-ffi/tests/data_edge_vectors.h`; a vector = JSON edit + regen. **A new section is
     one unsplittable 12-surface fan-out** (226: every harness and the generator fail closed). Checks

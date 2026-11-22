@@ -776,3 +776,18 @@ behaviour (`Array.isArray(chunk)`, `JSON.stringify`, a widening `chunk.map`) see
 bindings carry no 1.0 stability commitment. **Alternatives:** a `js_sys::Array` return (the `.d.ts`
 says `any[]`); keeping `to_value` and correcting the docs instead (keeps the one byte output that is
 not a typed array). `js-sys` was already in the dependency graph. **Context:** iteration 234 review.
+
+## 2026-11-20 — Go CI tests on the latest patch through a `toolchain` line; the `go` directive stays the floor
+
+**Decision:** `packages/go/go.mod` keeps `go 1.26.1` and adds `toolchain go1.26.11`. CI (`setup-go`
+with `go-version-file`) and the devcontainer use the toolchain version, so the test runtime carries
+the current stdlib security fixes while consumers keep the 1.26.1 minimum (Go ignores a dependency's
+`toolchain` line). The CI napi job moves from Node 20 to 22 on the same reasoning: `@iscc/lib`
+declares no `engines` floor, so the CI version is a test runtime, not a promise. **Trade-off:** CI
+no longer runs on go1.26.1 itself; the suite passed there once at this review (Codex run), and
+nothing gates it afterwards. **Alternatives:** raising the `go` directive to 1.26.11 (forces every
+consumer up for advisories in code they compile with their own toolchain anyway); a two-version CI
+matrix (doubles the job for a floor that differs only in patch level); leaving 1.26.1 (govulncheck:
+about 40 stdlib advisories in the tested toolchain). Floors stay the human's call (`ci-cd.md` →
+"Dependency Freshness" → Policy). **Context:** iteration 235; next.md flagged it "Decision for
+Titusz".
