@@ -50,6 +50,7 @@ var edgeSections = map[string]edgeCaller{
 	"gen_video_code_v0": edgeCallVideo,
 	"alg_cdc_chunks":    edgeCallCdc,
 	"encode_component":  edgeCallEncodeComponent,
+	"alg_minhash_256":   edgeCallMinhash,
 }
 
 // loadEdgeDoc reads and parses the vendored data-edge.json.
@@ -209,6 +210,17 @@ func edgeCallSimhash(inputs []json.RawMessage) (edgeCall, error) {
 		return edgeCall{}, err
 	}
 	call := func() (any, error) { return AlgSimhash(digests) }
+	convert := func(r any) any { return edgeBytes(r.([]byte)) }
+	return edgeCall{call, convert}, nil
+}
+
+// edgeCallMinhash prepares AlgMinhash256 on the vector's feature list.
+func edgeCallMinhash(inputs []json.RawMessage) (edgeCall, error) {
+	var features []uint32
+	if err := edgeArg(inputs, 0, &features); err != nil {
+		return edgeCall{}, err
+	}
+	call := func() (any, error) { return AlgMinhash256(features) }
 	convert := func(r any) any { return edgeBytes(r.([]byte)) }
 	return edgeCall{call, convert}, nil
 }
