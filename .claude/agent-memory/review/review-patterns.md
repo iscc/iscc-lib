@@ -499,9 +499,10 @@ Full text of entries compacted out of `MEMORY.md`.
     HUMAN-REVIEW spec amendments + `low` left → **HUMAN REVIEW REQUESTED**, never `**IDLE**`
     (all-`low` only). Verdict still PASS. Same call when the only `normal` left is trigger-gated on
     an upstream release (173, go1.27): escalate rather than burn a `Step: NONE` cycle
-- **`Step: NONE` with all-`low` issues (248, ~5 min)** → PASS + `**IDLE**`. Checks: advance diff is
-    `handoff.md` only; `grep '^## ' issues.md | grep -vc '`low`'` is 0 (the `untriaged` grep also
-    matches the file header: entries = count − 1); `gh run list --branch develop` green on
+- **`Step: NONE` with all-`low` issues (248/308, ~5 min)** → PASS + `**IDLE**`. Checks: advance diff
+    is `handoff.md` only; `grep '^## ' issues.md | grep -vc '`low`'` is 0 (count untriaged entries
+    with the anchored `grep -c '^\*\*Triage:\*\* untriaged'`; 308: next.md was off by one, a handoff
+    note only); Codex finishes in about 2 min; `gh run list --branch develop` green on
     `origin/develop`; one probe of a next.md claim about external state (248: the Dependabot alerts
     API vs the `develop` lockfiles). A side note for the human in next.md is lost when next.md is
     rewritten: file it as a `low` entry if it is a real defect
