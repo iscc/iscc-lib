@@ -324,6 +324,21 @@ static int check_edge_encode_component(const struct iscc_edge_encode_component_v
     return passed;
 }
 
+/* Check one alg_minhash_256 edge row against its c expectation (rejection = NULL data). */
+static int check_edge_alg_minhash_256(const struct iscc_edge_alg_minhash_256_vector *v) {
+    struct iscc_IsccByteBuffer buf;
+    int passed;
+    buf = iscc_alg_minhash_256(v->features.values, v->features.count);
+    if (v->c == ISCC_EDGE_ERROR) {
+        passed = buf.data == NULL;
+    } else {
+        passed = v->c == ISCC_EDGE_OK && buf.data != NULL &&
+                 edge_bytes_eq(buf.data, buf.len, v->minhash);
+    }
+    iscc_free_byte_buffer(buf);
+    return passed;
+}
+
 /* Run every row of one data-edge section: skip rows marked c skip, check the rest,
  * print PASS/FAIL per row, and add each row (run or skipped) to `seen`. */
 #define RUN_EDGE_SECTION(section, rows, count, check, seen) \
@@ -805,6 +820,9 @@ int main(void) {
                          ISCC_EDGE_ALG_CDC_CHUNKS_COUNT, check_edge_alg_cdc_chunks, edge_seen);
         RUN_EDGE_SECTION("encode_component", iscc_edge_encode_component,
                          ISCC_EDGE_ENCODE_COMPONENT_COUNT, check_edge_encode_component,
+                         edge_seen);
+        RUN_EDGE_SECTION("alg_minhash_256", iscc_edge_alg_minhash_256,
+                         ISCC_EDGE_ALG_MINHASH_256_COUNT, check_edge_alg_minhash_256,
                          edge_seen);
         ASSERT_EQ(edge_seen, ISCC_EDGE_TOTAL_COUNT,
                   "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
