@@ -6,12 +6,12 @@ metadata:
 ---
 
 Facts about reading the CID record and choosing meta changes that are not obvious from the code.
-Check each against the current files before acting. Last verified at iteration 258.
+Check each against the current files before acting. Last verified at iteration 308.
 
 - **The "Fails" column in `cid.py stats` is misleading.** It counts every row whose status is not
     `OK`, including zero-turn status-marker rows. For real failures, grep role rows for
     `"status":"FAIL"` or `"TIMEOUT"`. Since iteration 150 there are only four: define-next 155
-    (TIMEOUT), review 180 (FAIL), review 195 and 212 (TIMEOUT, both recovered). None in 213–258.
+    (TIMEOUT), review 180 (FAIL), review 195 and 212 (TIMEOUT, both recovered). None in 213–308.
 
 - **needs_work_rate is low but not zero.** Over iterations 209–248 it was 2/40 (215 CRAP gate, 239
     rb_sys cross-gem). Both verdicts caught real defects, and each lesson went into learnings.md.

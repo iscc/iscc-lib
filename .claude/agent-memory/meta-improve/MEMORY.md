@@ -11,7 +11,7 @@ under 200 lines; archive stale entries to `MEMORY-archive.md`.
 ## Changes tried
 
 - Auto-applied changes and their measured outcomes live in `.claude/context/meta-log.jsonl` (does
-    not exist yet: nothing has been auto-applied as of iteration 258). This file holds the
+    not exist yet: nothing has been auto-applied as of iteration 308). This file holds the
     higher-level patterns.
 - **Iter 112: nothing auto-applied.** The loop was healthy. Recorded 2 needs-human proposals;
     proposals.md was cleared afterwards (outcome not verified).
@@ -23,3 +23,7 @@ under 200 lines; archive stale entries to `MEMORY-archive.md`.
     (252 = 181, a genuine fan-out). The 248 proposal was still unapplied in `cid.py`, so it was
     carried over. Pattern: the loop runs about 8 productive iterations per human triage batch, then
     goes idle.
+- **Iter 308: nothing auto-applied.** Third idle cycle. 259–308: 2/50 NEEDS_WORK (268, 278, both
+    real defects), no TIMEOUT since 212, median 85.5 turns (284–307). Role medians: update-state 8,
+    define-next 15, advance 27, review 30. The 248 proposal is still unapplied; carried it again.
+    After three carries with no human action, consider dropping it as accepted-latent next time.
