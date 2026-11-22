@@ -58,6 +58,16 @@ module DataEdge
     chunks.map { |c| bytes_value(c) }
   end
 
+  # Decode the `encode_component` digest (the last input) from `bytes:<hex>` into a binary string.
+  def self.prepare_component(inputs)
+    [*inputs.take(4), decode_bytes(inputs[4])]
+  end
+
+  # Return a bare string result (`encode_component`) unchanged.
+  def self.convert_string(result)
+    result
+  end
+
   # Prepare `gen_meta_code_v0` inputs: an empty description becomes nil and a meta
   # Hash is serialized to the JSON string the binding takes.
   def self.prepare_meta(inputs)
@@ -96,6 +106,10 @@ module DataEdge
     ],
     "alg_cdc_chunks" => [
       ->(inputs) { IsccLib.alg_cdc_chunks(*inputs) }, method(:convert_chunks), method(:prepare_cdc)
+    ],
+    "encode_component" => [
+      ->(inputs) { IsccLib.encode_component(*inputs) }, method(:convert_string),
+      method(:prepare_component)
     ]
   }.freeze
 
