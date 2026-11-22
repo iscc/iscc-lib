@@ -18,6 +18,7 @@ pub mod streaming;
 pub mod types;
 pub(crate) mod utils;
 pub(crate) mod wtahash;
+pub(crate) mod xxh32;
 
 pub use cdc::alg_cdc_chunks;
 pub use codec::encode_base64;
@@ -484,7 +485,7 @@ fn soft_hash_text_v0(text: &str) -> Vec<u8> {
     let ngrams = simhash::sliding_window_strs(text, TEXT_NGRAM_SIZE);
     let features: Vec<u32> = ngrams
         .iter()
-        .map(|ng| xxhash_rust::xxh32::xxh32(ng.as_bytes(), 0))
+        .map(|ng| xxh32::xxh32(ng.as_bytes(), 0))
         .collect();
     minhash::alg_minhash_256_inner(&features)
 }
@@ -889,14 +890,11 @@ pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<MixedCodeResul
 /// similarity-preserving fingerprint.
 pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<DataCodeResult> {
     let chunks = cdc::alg_cdc_chunks_unchecked(data, false, cdc::DATA_AVG_CHUNK_SIZE);
-    let mut features: Vec<u32> = chunks
-        .iter()
-        .map(|chunk| xxhash_rust::xxh32::xxh32(chunk, 0))
-        .collect();
+    let mut features: Vec<u32> = chunks.iter().map(|chunk| xxh32::xxh32(chunk, 0)).collect();
 
     // Defensive: ensure at least one feature (alg_cdc_chunks guarantees >= 1 chunk)
     if features.is_empty() {
-        features.push(xxhash_rust::xxh32::xxh32(b"", 0));
+        features.push(xxh32::xxh32(b"", 0));
     }
 
     let digest = minhash::alg_minhash_256_inner(&features);

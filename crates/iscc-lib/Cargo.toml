@@ -28,7 +28,6 @@ serde_json_canonicalizer = { workspace = true, optional = true }
 thiserror.workspace = true
 unicode-normalization = { workspace = true, optional = true }
 unicode-general-category = { workspace = true, optional = true }
-xxhash-rust.workspace = true
 
 [dev-dependencies]
 serde = { workspace = true }

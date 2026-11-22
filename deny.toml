@@ -49,7 +49,6 @@ allow = [
   "ISC",
   "Unicode-3.0",                    # unicode-ident: (MIT OR Apache-2.0) AND Unicode-3.0
   "Zlib",                           # foldhash
-  "BSL-1.0",                        # xxhash-rust (core CDC dep)
   "MPL-2.0",                        # uniffi* crates
   "CC0-1.0",                        # satisfiable via an OR branch; listed for clarity
   "Unlicense",                      # satisfiable via an OR branch; listed for clarity

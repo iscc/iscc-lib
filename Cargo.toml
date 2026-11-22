@@ -31,7 +31,6 @@ serde_json_canonicalizer = "0.3.2"
 thiserror = "2"
 unicode-normalization = "0.1"
 unicode-general-category = "1"
-xxhash-rust = { version = "0.8", features = ["xxh32"] }
 # note: pyo3 bumps must re-verify `gil_used = true` (crates/iscc-py/src/lib.rs) and the
 # `py.detach` call sites (issue #41).
 pyo3 = { version = "0.29", features = ["abi3-py310"] }

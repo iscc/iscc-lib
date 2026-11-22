@@ -7,7 +7,7 @@
 //! of large files without loading entire contents into memory.
 
 use crate::types::{DataCodeResult, InstanceCodeResult, SumCodeResult};
-use crate::{IsccResult, cdc, codec, gen_iscc_code_v0, minhash, utils};
+use crate::{IsccResult, cdc, codec, gen_iscc_code_v0, minhash, utils, xxh32};
 
 /// Streaming Instance-Code generator.
 ///
@@ -103,7 +103,7 @@ impl DataHasher {
         let mut prev_chunk: Option<&[u8]> = None;
         for chunk in &chunks {
             if let Some(pc) = prev_chunk {
-                self.chunk_features.push(xxhash_rust::xxh32::xxh32(pc, 0));
+                self.chunk_features.push(xxh32::xxh32(pc, 0));
             }
             prev_chunk = Some(chunk);
         }
@@ -129,11 +129,10 @@ impl DataHasher {
     /// from 32 to 256.
     pub fn finalize(mut self, bits: u32) -> IsccResult<DataCodeResult> {
         if !self.buf.is_empty() {
-            self.chunk_features
-                .push(xxhash_rust::xxh32::xxh32(&self.buf, 0));
+            self.chunk_features.push(xxh32::xxh32(&self.buf, 0));
         } else if self.chunk_features.is_empty() {
             // Empty input: ensure at least one feature
-            self.chunk_features.push(xxhash_rust::xxh32::xxh32(b"", 0));
+            self.chunk_features.push(xxh32::xxh32(b"", 0));
         }
 
         let digest = minhash::alg_minhash_256_inner(&self.chunk_features);

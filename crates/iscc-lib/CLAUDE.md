@@ -60,6 +60,8 @@ require the `text-processing` feature. `gen_meta_code_v0`, `json_to_data_url`, `
 **Internal -- `pub(crate)` or private, free to change:**
 
 - `dct::alg_dct`, `wtahash::alg_wtahash`
+- `xxh32::xxh32` -- the feature hash of Data-Code and Text-Code, implemented in this crate (no
+    xxHash dependency; decisions.md, 2026-11-22)
 - Helper functions in `lib.rs` (`interleave_digests`, `meta_name_simhash`, `soft_hash_meta_v0`,
     `soft_hash_meta_v0_with_bytes`, `soft_hash_text_v0`, `soft_hash_image_v0`, `soft_hash_audio_v0`,
     `soft_hash_codes_v0`, etc.)
@@ -135,7 +137,6 @@ cargo bench -p iscc-lib                     # Criterion benchmarks
 ## Dependencies
 
 - `blake3` -- BLAKE3 hashing (Instance-Code, metahash)
-- `xxhash-rust` -- xxh32 feature hashing (Data-Code, Text-Code)
 - `data-encoding` -- base32/base64 encoding
 - `hex` -- hex encode/decode for conformance vector parsing
 - `unicode-normalization` -- NFKC/NFD normalization (optional, `text-processing` feature)

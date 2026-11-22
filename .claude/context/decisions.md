@@ -394,3 +394,15 @@ release exactly as the portfile is. **Alternatives:** a dict in `conanfile.py` (
 inside hand-written code); Conan's `sources: {version: …}` layout (a second version to sync, old
 entries to prune); a second script or a neutral script name (duplicates the archive checks, or
 leaves the decision of 2026-11-22 naming a missing file). **Context:** iteration 305 review.
+
+## 2026-11-22 — The core implements XXH32 itself and carries no xxHash dependency
+
+**Decision:** `crates/iscc-lib/src/xxh32.rs` implements XXH32 in safe Rust. `xxhash-rust` is gone
+from the workspace and `BSL-1.0` from the `deny.toml` allow-list. **Why:** `xxhash-rust` is BSL-1.0
+only, the one licence in the core's graph that strict MIT/Apache allow-lists do not already carry
+(GitHub issue #46). The algorithm is about 50 lines and frozen, so owning it also ends the licence,
+MSRV and supply-chain coupling of a crate; the Go port does the same. The digests equal those of
+`xxhash-rust` 0.8.18 and `twox-hash` 2.1.5 on 32,772 inputs, and the iai rows move by under 1%.
+**Alternatives:** `twox-hash` (MIT, what #46 proposed: the smaller diff, but still a dependency with
+`unsafe` code and its own MSRV); staying on `xxhash-rust`; C bindings (need a C toolchain).
+**Context:** interactive session before the v0.8.0 release; Titusz chose this over `twox-hash`.
