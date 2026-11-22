@@ -86,13 +86,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: caa32e8, iter 301 — incremental)
+## Current State (assessed-at: 2a8c08e, iter 302 — incremental)
 
-- Origin tip `a8d04343` run 45019851735 green (24/24; codecov/cursor suites sit `queued` forever —
-    ignore, judge the github-actions suite). HEAD +4 `.claude` (log + audit commits).
-- 18 open (4 `normal` + 14 `low`, 13 untriaged). minhash issue CLOSED 300 (data-edge now 11
-    sections; Java uses `Map.ofEntries`). `normal`: bits > 256 (untouched) + 3 audit (300): Rust
-    conformance-table dup, Conan `download()` no sha256, stale specs/API docs.
+- Origin tip `f642b239` run 45024759664 green (waited ~5 min, mid-run on arrival). HEAD +1
+    `.claude`.
+- 19 open (4 `normal` + 15 `low`, 14 untriaged). 301: Rust core 256-bit limit DONE (`encode_length`
+    32..256, `pub(crate) unit_bit_length`); bits issue REWRITTEN to Go + data-edge rows + API pages;
+    new `low` 88-bit ISCC-ID. Other `normal`: 3 audit (conformance dup, Conan sha256, stale
+    specs/docs). iscc-lib `src/` `#[test]` = 341.
 - **CI on a fresh tip may be mid-run** (Coverage+CRAP is the slowest job): wait with
     `until [ "$(gh run view <id> --json status --jq .status)" = completed ]` under `timeout 300`.
 - **`cid(human)` commits rewrite target.md/issues.md** — always diff both after one (297: two `low`
