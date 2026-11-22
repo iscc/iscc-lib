@@ -685,17 +685,17 @@ impl DataHasher {
 
     /// Consume the hasher and produce a Data-Code ISCC string.
     ///
-    /// After calling `finalize`, subsequent calls to `update` or `finalize`
-    /// will throw. Default `bits` is 64.
+    /// After the first `finalize` call, even one that throws on an argument,
+    /// subsequent calls to `update` or `finalize` will throw. Default `bits` is 64.
     pub fn finalize(
         &mut self,
         #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
     ) -> Result<String, JsError> {
-        let bits = opt_u32(&bits, 64, "bits")?;
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| JsError::new("DataHasher already finalized"))?;
+        let bits = opt_u32(&bits, 64, "bits")?;
         hasher
             .finalize(bits)
             .map(|r| r.iscc)
@@ -740,17 +740,17 @@ impl InstanceHasher {
 
     /// Consume the hasher and produce an Instance-Code ISCC string.
     ///
-    /// After calling `finalize`, subsequent calls to `update` or `finalize`
-    /// will throw. Default `bits` is 64.
+    /// After the first `finalize` call, even one that throws on an argument,
+    /// subsequent calls to `update` or `finalize` will throw. Default `bits` is 64.
     pub fn finalize(
         &mut self,
         #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
     ) -> Result<String, JsError> {
-        let bits = opt_u32(&bits, 64, "bits")?;
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| JsError::new("InstanceHasher already finalized"))?;
+        let bits = opt_u32(&bits, 64, "bits")?;
         hasher
             .finalize(bits)
             .map(|r| r.iscc)
@@ -797,8 +797,8 @@ impl SumHasher {
 
     /// Consume the hasher and produce a composite ISCC-CODE result.
     ///
-    /// After calling `finalize`, subsequent calls to `update` or `finalize`
-    /// will throw. Defaults: `bits` 64, `wide` false, `add_units` false. When
+    /// After the first `finalize` call, even one that throws on an argument,
+    /// subsequent calls to `update` or `finalize` will throw. Defaults: `bits` 64, `wide` false, `add_units` false. When
     /// `add_units` is `true`, the result includes the individual Data-Code and
     /// Instance-Code ISCC strings.
     pub fn finalize(
@@ -807,13 +807,13 @@ impl SumHasher {
         #[wasm_bindgen(unchecked_optional_param_type = "boolean | null")] wide: JsValue,
         #[wasm_bindgen(unchecked_optional_param_type = "boolean | null")] add_units: JsValue,
     ) -> Result<WasmSumCodeResult, JsError> {
-        let bits = opt_u32(&bits, 64, "bits")?;
-        let wide = opt_bool(&wide, false, "wide")?;
-        let add_units = opt_bool(&add_units, false, "add_units")?;
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| JsError::new("SumHasher already finalized"))?;
+        let bits = opt_u32(&bits, 64, "bits")?;
+        let wide = opt_bool(&wide, false, "wide")?;
+        let add_units = opt_bool(&add_units, false, "add_units")?;
         let result = hasher
             .finalize(bits, wide, add_units)
             .map_err(|e| JsError::new(&e.to_string()))?;

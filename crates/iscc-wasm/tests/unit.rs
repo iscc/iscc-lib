@@ -1224,14 +1224,121 @@ fn test_bits_none_keeps_default() {
     );
 }
 
+/// Assert that `finalize(64)` on a hasher whose first `finalize` failed reports the finalized state.
+fn assert_consumed<T>(second: Result<T, wasm_bindgen::JsError>, name: &str) {
+    assert_eq!(err_message(second), format!("{name} already finalized"));
+}
+
 #[wasm_bindgen_test]
-fn test_rejected_finalize_leaves_hasher_usable() {
+fn test_data_hasher_rejected_negative_bits_consumes() {
     let mut hasher = iscc_wasm::DataHasher::new();
     hasher.update(b"data").unwrap();
     assert_eq!(err_message(hasher.finalize(num(-1.0))), "Invalid bits: -1");
+    assert_consumed(hasher.finalize(num(64.0)), "DataHasher");
+}
+
+#[wasm_bindgen_test]
+fn test_data_hasher_rejected_non_number_bits_consumes() {
+    let mut hasher = iscc_wasm::DataHasher::new();
     assert_eq!(
-        hasher.finalize(num(64.0)).unwrap(),
-        iscc_wasm::gen_data_code_v0(b"data", num(64.0)).unwrap()
+        err_message(hasher.finalize(JsValue::from_str("x"))),
+        "Invalid bits: expected a number"
+    );
+    assert_consumed(hasher.finalize(num(64.0)), "DataHasher");
+}
+
+#[wasm_bindgen_test]
+fn test_data_hasher_core_rejected_bits_consumes() {
+    let mut hasher = iscc_wasm::DataHasher::new();
+    assert!(hasher.finalize(num(13.0)).is_err());
+    assert_consumed(hasher.finalize(num(64.0)), "DataHasher");
+}
+
+#[wasm_bindgen_test]
+fn test_instance_hasher_rejected_negative_bits_consumes() {
+    let mut hasher = iscc_wasm::InstanceHasher::new();
+    hasher.update(b"data").unwrap();
+    assert_eq!(err_message(hasher.finalize(num(-1.0))), "Invalid bits: -1");
+    assert_consumed(hasher.finalize(num(64.0)), "InstanceHasher");
+}
+
+#[wasm_bindgen_test]
+fn test_instance_hasher_rejected_non_number_bits_consumes() {
+    let mut hasher = iscc_wasm::InstanceHasher::new();
+    assert_eq!(
+        err_message(hasher.finalize(JsValue::from_str("x"))),
+        "Invalid bits: expected a number"
+    );
+    assert_consumed(hasher.finalize(num(64.0)), "InstanceHasher");
+}
+
+#[wasm_bindgen_test]
+fn test_instance_hasher_core_rejected_bits_consumes() {
+    let mut hasher = iscc_wasm::InstanceHasher::new();
+    assert!(hasher.finalize(num(13.0)).is_err());
+    assert_consumed(hasher.finalize(num(64.0)), "InstanceHasher");
+}
+
+/// Finalize a `SumHasher` with `bits` and `wide`, leaving `add_units` at its default.
+fn sum_finalize(
+    hasher: &mut iscc_wasm::SumHasher,
+    bits: JsValue,
+    wide: JsValue,
+) -> Result<iscc_wasm::WasmSumCodeResult, wasm_bindgen::JsError> {
+    hasher.finalize(bits, wide, JsValue::UNDEFINED)
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_rejected_negative_bits_consumes() {
+    let mut hasher = iscc_wasm::SumHasher::new();
+    hasher.update(b"data").unwrap();
+    assert_eq!(
+        err_message(sum_finalize(&mut hasher, num(-1.0), JsValue::UNDEFINED)),
+        "Invalid bits: -1"
+    );
+    assert_consumed(
+        sum_finalize(&mut hasher, num(64.0), JsValue::UNDEFINED),
+        "SumHasher",
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_rejected_non_number_bits_consumes() {
+    let mut hasher = iscc_wasm::SumHasher::new();
+    assert_eq!(
+        err_message(sum_finalize(
+            &mut hasher,
+            JsValue::from_str("x"),
+            JsValue::UNDEFINED
+        )),
+        "Invalid bits: expected a number"
+    );
+    assert_consumed(
+        sum_finalize(&mut hasher, num(64.0), JsValue::UNDEFINED),
+        "SumHasher",
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_rejected_wide_consumes() {
+    let mut hasher = iscc_wasm::SumHasher::new();
+    assert_eq!(
+        err_message(sum_finalize(&mut hasher, num(64.0), JsValue::from_str("x"))),
+        "Invalid wide: expected a boolean"
+    );
+    assert_consumed(
+        sum_finalize(&mut hasher, num(64.0), JsValue::UNDEFINED),
+        "SumHasher",
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_core_rejected_bits_consumes() {
+    let mut hasher = iscc_wasm::SumHasher::new();
+    assert!(sum_finalize(&mut hasher, num(13.0), JsValue::UNDEFINED).is_err());
+    assert_consumed(
+        sum_finalize(&mut hasher, num(64.0), JsValue::UNDEFINED),
+        "SumHasher",
     );
 }
 
