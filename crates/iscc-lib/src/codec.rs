@@ -359,7 +359,8 @@ pub fn decode_header(data: &[u8]) -> IsccResult<(MainType, SubType, Version, u32
 /// Encode bit length to header length field value.
 ///
 /// Semantics depend on MainType:
-/// - META/SEMANTIC/CONTENT/DATA/INSTANCE/FLAKE: `(bit_length / 32) - 1`
+/// - META/SEMANTIC/CONTENT/DATA/INSTANCE/FLAKE: `(bit_length / 32) - 1`, for a
+///   multiple of 32 from 32 to 256 (an ISCC-UNIT is at most 256 bits)
 /// - ISCC: pass-through (0–7, unit composition flags)
 /// - ID: `(bit_length - 64) / 8`
 pub fn encode_length(mtype: MainType, length: u32) -> IsccResult<u32> {
@@ -370,11 +371,11 @@ pub fn encode_length(mtype: MainType, length: u32) -> IsccResult<u32> {
         | MainType::Data
         | MainType::Instance
         | MainType::Flake => {
-            if length >= 32 && length % 32 == 0 {
+            if (32..=256).contains(&length) && length % 32 == 0 {
                 Ok(length / 32 - 1)
             } else {
                 Err(IsccError::InvalidInput(format!(
-                    "invalid length {length} for {mtype:?} (must be multiple of 32, >= 32)"
+                    "invalid length {length} for {mtype:?} (must be a multiple of 32 from 32 to 256)"
                 )))
             }
         }
@@ -406,6 +407,10 @@ pub fn encode_length(mtype: MainType, length: u32) -> IsccResult<u32> {
 /// - ISCC + Wide: 256
 /// - ISCC + other: `popcount(length) * 64 + 128`
 /// - ID: `length * 8 + 64`
+///
+/// The length field is not range-checked: a META..FLAKE index above 7 decodes
+/// to more than 256 bits, which is not a valid ISCC-UNIT (an ISCC-UNIT is at
+/// most 256 bits). The crate's own decoders apply that rule.
 pub fn decode_length(mtype: MainType, length: u32, stype: SubType) -> u32 {
     match mtype {
         MainType::Meta
@@ -423,6 +428,21 @@ pub fn decode_length(mtype: MainType, length: u32, stype: SubType) -> u32 {
         }
         MainType::Id => length * 8 + 64,
     }
+}
+
+/// Decode a header length field to the bit length of a valid ISCC header.
+///
+/// Same result as [`decode_length`], but a META..FLAKE length index above 7
+/// (more than 256 bits) is an error, mirroring iscc-core's `LN` lookup. ISCC
+/// and ID lengths decode unchanged.
+pub(crate) fn unit_bit_length(mtype: MainType, length: u32, stype: SubType) -> IsccResult<u32> {
+    let bits = decode_length(mtype, length, stype);
+    if bits > 256 && !matches!(mtype, MainType::Iscc | MainType::Id) {
+        return Err(IsccError::InvalidInput(format!(
+            "invalid length {bits} bits for {mtype:?} (an ISCC-UNIT is at most 256 bits)"
+        )));
+    }
+    Ok(bits)
 }
 
 // ---- Unit Encoding ----
@@ -659,7 +679,7 @@ pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
 
         // Standard ISCC-UNIT with tail continuation
         if mt != MainType::Iscc {
-            let ln_bits = decode_length(mt, ln, st);
+            let ln_bits = unit_bit_length(mt, ln, st)?;
             let nbytes = (ln_bits / 8) as usize;
             if body.len() < nbytes {
                 return Err(IsccError::InvalidInput(format!(
@@ -1201,6 +1221,9 @@ mod tests {
         assert!(encode_length(MainType::Meta, 48).is_err());
         // Too small
         assert!(encode_length(MainType::Meta, 0).is_err());
+        // Above 256 bits
+        assert!(encode_length(MainType::Meta, 288).is_err());
+        assert!(encode_length(MainType::Data, 512).is_err());
         // ID out of range
         assert!(encode_length(MainType::Id, 63).is_err());
         assert!(encode_length(MainType::Id, 97).is_err());
@@ -1232,6 +1255,37 @@ mod tests {
         assert_eq!(decode_length(MainType::Id, 0, SubType::None), 64);
         assert_eq!(decode_length(MainType::Id, 1, SubType::None), 72);
         assert_eq!(decode_length(MainType::Id, 4, SubType::None), 96);
+    }
+
+    #[test]
+    fn test_unit_bit_length_above_256() {
+        // Length index 7 is 256 bits, the longest ISCC-UNIT
+        assert_eq!(
+            unit_bit_length(MainType::Meta, 7, SubType::None).unwrap(),
+            256
+        );
+        assert_eq!(
+            unit_bit_length(MainType::Flake, 7, SubType::None).unwrap(),
+            256
+        );
+        // Length index 8 would be 288 bits
+        let err = unit_bit_length(MainType::Meta, 8, SubType::None).unwrap_err();
+        assert!(err.to_string().contains("256"), "unexpected error: {err}");
+        assert!(unit_bit_length(MainType::Instance, 8, SubType::None).is_err());
+        // ISCC and ID lengths are unchanged
+        assert_eq!(
+            unit_bit_length(MainType::Iscc, 7, SubType::None).unwrap(),
+            320
+        );
+        assert_eq!(unit_bit_length(MainType::Id, 4, SubType::None).unwrap(), 96);
+    }
+
+    #[test]
+    fn test_iscc_decompose_above_256() {
+        let mut raw = encode_header(MainType::Meta, SubType::None, Version::V0, 8).unwrap();
+        raw.extend_from_slice(&[0u8; 36]);
+        let err = iscc_decompose(&encode_base32(&raw)).unwrap_err();
+        assert!(err.to_string().contains("256"), "unexpected error: {err}");
     }
 
     #[test]

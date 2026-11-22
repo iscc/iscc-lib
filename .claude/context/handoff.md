@@ -1,68 +1,62 @@
-## 2026-11-22 — Review of: `alg_minhash_256` data-edge section on all 12 surfaces
+## 2026-11-22 — Rust core rejects ISCC-UNITs above 256 bits (encode and decode)
 
-**Verdict:** PASS
+**Done:** `codec::encode_length` accepts only 32 to 256 bits (multiples of 32) for Meta through
+Flake, so every gen function, all three hashers' `finalize` and both `encode_component` variants
+reject `bits=288`. A `pub(crate)` checked helper `codec::unit_bit_length` (wraps `decode_length`,
+errors on a Meta..Flake length above 256 bits; ISCC/ID unchanged) replaces all four internal
+`decode_length` calls. No `codec` signature changed.
 
-**Summary:** The step adds an `alg_minhash_256` section with two vectors (the empty-list error and a
-four-feature digest) to `data-edge.json` and its 4 vendored copies, and all 12 harnesses and the C
-generator run it. No library code changed behaviour; the only non-test edits are doc lines in
-`IsccLib.cs` and `iscc.hpp` and the generator script. The fan-out is honest: one decided behaviour
-(decisions.md 2026-11-22), one commit per surface, no surface made a design choice of its own.
+**Files changed:**
+
+- `crates/iscc-lib/src/codec.rs`: bound + error text in `encode_length`
+    (`invalid length {length} for {mtype:?} (must be a multiple of 32 from 32 to 256)`); doc notes
+    on `encode_length`/`decode_length` (unchecked, points to the rule); `unit_bit_length` helper;
+    `iscc_decompose` uses it; tests `test_unit_bit_length_above_256` (7 ok, 8 error, ISCC 320 and ID
+    96 unchanged), `test_iscc_decompose_above_256`, 288/512 cases in `test_encode_length_invalid`
+- `crates/iscc-lib/src/lib.rs`: `iscc_decode` and `soft_hash_codes_v0` (mixed) use the helper; the
+    wide check in `gen_iscc_code_v0` calls a private `units_reach_128_bits` (stops at the first unit
+    under 128 bits, like the reference's `all(...)`, and is reached only after the `wide`, count and
+    Data+Instance short-circuits); `# Errors` text of `encode_component`/`iscc_decode`; 12
+    `*_above_256` tests (meta, text, audio, mixed bits, mixed 288-bit input unit, data, instance,
+    sum, Tier 1 `encode_component` 512 + 288, `iscc_decode`, wide `gen_iscc_code_v0`)
+- `crates/iscc-lib/src/streaming.rs`: `# Errors` sections on the three `finalize`; 3 tests
+- `docs/rust-api.md`: 7 `bits` rows + `gen_sum_code_v0` row say "multiple of 32, 32 to 256";
+    `encode_component`, `iscc_decode` and streaming prose name the rule
+- `.crap-baseline.json`: refreshed (see below)
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib --test test_data_edge` passes (7 passed, also under the three other CI
-    feature sets), and the CI CRAP lines exit 0 (0 regressed, 7 new, none above the threshold)
-- [x] `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py tests/test_vendored_fixtures.py`
-    passes (199 passed); `test_reference_outcome` ran both `alg_minhash_256` vectors
-- [x] After `uv run python scripts/gen_data_edge_vectors.py`,
-    `git status --porcelain crates/iscc-ffi` prints nothing (also after `cargo build -p iscc-ffi`:
-    `iscc.h` and `NativeMethods.g.cs` did not move)
-- [x] nodejs `npm test` in a `/tmp` copy (243 pass, 0 fail), wasm
-    `wasm-pack test --node crates/iscc-wasm --features conformance`, java `mvn clean test`
-    (`DataEdgeTest` 8 tests, 0 failures), go `CGO_ENABLED=0 go test ./...` (also `GOARCH=386`), ruby
-    `rake test` (175 runs, 0 failures), dotnet `dotnet test packages/dotnet/Iscc.Lib.Tests/` (155
-    passed) all pass
-- [x] c `test_iscc` (152 passed) and cpp `test_iscc` (ASAN build, 123 passed) pass with both rows
-    PASS; kotlin JUnit XML shows `DataEdgeTest` tests=6, failures=0, errors=0; swift
-    `swift test --filter DataEdge` executed 11 tests with 0 failures
-- [x] The JSON one-liner exits 0 (2 vectors, no `except`, no `diverges`); both greps show an
-    empty-list error line above each of the four functions; `mise run check` exits 0
+- `cargo test -p iscc-lib`: all pass (lib 341); `--no-default-features`: all pass (lib 284);
+    `cargo test -p iscc-lib above_256`: 16 passed, 0 failed
+- Mutation check: with both bounds disabled, 15 of the 16 tests fail. The exception is
+    `test_gen_mixed_code_v0_bits_above_256`: no valid input unit exceeds 256 bits, so mixed
+    `bits=288` was already rejected by the existing "Content-Code too short" check (the reference
+    does the same). The input-unit side is covered by `test_gen_mixed_code_v0_unit_above_256`, which
+    does fail without the fix
+- `cargo clippy --workspace --all-targets -- -D warnings`: clean
+- grep: `pub fn decode_length(...) -> u32` prints one line (codec.rs:414);
+    `git grep -n "decode_length(" crates/iscc-lib/src/lib.rs` prints nothing
+- CRAP: the first run of the CI lines exited 1 with 4 regressed, each +1 cc from the new `?`:
+    `gen_iscc_code_v0` 21.08→22.10, `iscc_decompose` 19→20, `soft_hash_codes_v0` 7.12→8.15,
+    `iscc_decode` 4→5. After `mise run crap:baseline` (re-run after rustfmt touched the file),
+    `mise run coverage && cargo crap ... --fail-regression --fail-above` exits 0 (0 regressed, 190
+    unchanged)
+- `mise run bench:iai:check`: exit 0, 16 benchmarks within 10%. Against the previous local run:
+    `bench_mixed_code` +0.44%, `bench_iscc_code` +0.28%, all others under +0.01% or unchanged
+- `uv run pytest tests/test_rust_api_signatures.py`: 5 passed; `mise run check`: exit 0 (the first
+    run's rustfmt fix was applied, second run clean)
+- `data.json` vectors: the conformance tests still pass, so no vector uses a unit above 256 bits
 
-Beyond next.md's list (3 probes): iscc-core 1.5.0 returns the stated digest and raises `ValueError`
-on the empty list under Python 3.10 (compiled) and 3.15 (pure Python). A two-row mutation of all 5
-JSON copies (wrong digest on row 2, row 1 flipped to expect the old all-`0xFF` output) made the
-Python, Go, Ruby, C, C++, WASM, Java, .NET, Swift and Kotlin harnesses fail, each naming both rows.
-`cargo clippy --workspace --all-targets -- -D warnings` is clean.
-
-**Issues found:**
-
-- (none filed). Two nits, not worth an entry: the Swift helper `feature(_:_:)` is always called with
-    index 0, and `test_alg_minhash_256_rows_render_features_and_digest` assumes the empty row is row
-    0 of its section
-
-**Codex review:** no actionable findings (run over the whole range with
-`--base <define-next commit>`).
-
-**Next:** the last `normal` issue, "Gen functions accept `bits` above 256 and return a unit that no
-decoder reads". It is a core behaviour change and its "Resolved when" spans the core, the Go port,
-shared vectors and the API pages, so it needs more than one step. A workable order:
-
-1. The Rust core alone: an upper bound of 256 in `codec::encode_length` and `codec::decode_length`,
-    so that every gen function, `SumHasher`/hasher `finalize` and `encode_component` reject it. The
-    10 surfaces built on the core inherit it. This touches a benchmarked path, so the step must run
-    `mise run bench:iai:check` and the CI CRAP lines, and it must check that no `data.json` vector
-    uses a unit above 256 bits
-2. The Go port (`packages/go`), then the `data-edge.json` rows (marked `diverges`, since iscc-core
-    1.5.0 returns the undecodable code; new rows in existing sections need no new harness section),
-    then the API pages ("32 to 256")
-
-Not measured so far, per the issue: the hashers' `finalize(bits)` on any surface.
+**Next:** the Go port (`packages/go`: `encodeLength` bound plus a checked decode on the
+`IsccDecode`/`IsccDecompose`/mixed/wide paths), then the `data-edge.json` rows (`diverges`), then
+the binding API pages ("32 to 256").
 
 **Notes:**
 
-- Resolved and deleted: "No shared vector pins the `alg_minhash_256` empty-list error". One `normal`
-    issue is left; the other 14 entries are `low`
-- state.md still says "10 sections" in five places; the file now has 11 (update-state's file)
-- The hand-written empty-list tests on the Rust core, C FFI, UniFFI, Python, Java, C++ and Go stay
-    in place next to the shared vector. They also pin the error text, which the vectors do not
-- learnings.md is at its 200-line budget; this review added no entry
+- The 288-bit `test_gen_iscc_code_v0_wide_above_256` also asserts that `wide=false` with the same
+    288-bit Data unit still succeeds, pinning "non-wide unchanged, as in iscc-core"
+- Rust error-order nuance in mixed: the core checks main type, then length, per code. The reference
+    checks all main types first, then all lengths. Both reject; only which message wins can differ
+    when two inputs are bad in different ways
+- The `iai_regression.py` table still shows the stale `bench_instance_code` rows at about −50% (the
+    existing `low` issue). I did not refresh `.iai-baseline.json`

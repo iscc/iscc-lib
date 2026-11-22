@@ -37,6 +37,11 @@ impl InstanceHasher {
     ///
     /// Equivalent to calling `gen_instance_code_v0` with the concatenation
     /// of all data passed to `update`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IsccError::InvalidInput` if `bits` is not a multiple of 32
+    /// from 32 to 256.
     pub fn finalize(self, bits: u32) -> IsccResult<InstanceCodeResult> {
         let digest = self.hasher.finalize();
         let datahash = utils::blake3_multihash_hex(&digest);
@@ -117,6 +122,11 @@ impl DataHasher {
     ///
     /// Equivalent to calling `gen_data_code_v0` with the concatenation
     /// of all data passed to `update`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IsccError::InvalidInput` if `bits` is not a multiple of 32
+    /// from 32 to 256.
     pub fn finalize(mut self, bits: u32) -> IsccResult<DataCodeResult> {
         if !self.buf.is_empty() {
             self.chunk_features
@@ -181,6 +191,11 @@ impl SumHasher {
     /// individual Data-Code and Instance-Code ISCC strings at the requested
     /// `bits` precision. Equivalent to calling `gen_sum_code_v0` on a file
     /// containing the concatenation of all data passed to `update`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IsccError::InvalidInput` if `bits` is not a multiple of 32
+    /// from 32 to 256.
     pub fn finalize(self, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult> {
         let data_result = self.data_hasher.finalize(bits)?;
         let instance_result = self.instance_hasher.finalize(bits)?;
@@ -643,5 +658,32 @@ mod tests {
             assert_eq!(streaming.filesize, file_based.filesize);
             assert_eq!(streaming.units, file_based.units);
         }
+    }
+
+    /// Assert that a result is an error that names the 256-bit limit.
+    fn assert_above_256_error<T: std::fmt::Debug>(result: IsccResult<T>) {
+        let err = result.expect_err("bits above 256 must be rejected");
+        assert!(err.to_string().contains("256"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn test_data_hasher_finalize_above_256() {
+        let mut hasher = DataHasher::new();
+        hasher.update(b"data");
+        assert_above_256_error(hasher.finalize(288));
+    }
+
+    #[test]
+    fn test_instance_hasher_finalize_above_256() {
+        let mut hasher = InstanceHasher::new();
+        hasher.update(b"data");
+        assert_above_256_error(hasher.finalize(288));
+    }
+
+    #[test]
+    fn test_sum_hasher_finalize_above_256() {
+        let mut hasher = SumHasher::new();
+        hasher.update(b"data");
+        assert_above_256_error(hasher.finalize(288, false, false));
     }
 }

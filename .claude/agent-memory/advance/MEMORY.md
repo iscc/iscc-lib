@@ -120,6 +120,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     parse+JCS once in private `canonicalize_json(json, prefix)` (each caller keeps its error text);
     WASM `gen_sum_code_v0` = core `SumHasher`. next.md grep criteria can over-match field/test names
     — report, don't rename to game them
+- Unit ≤ 256 bits (301): `codec::encode_length` caps Meta..Flake at 256; decoders use `pub(crate)`
+    `codec::unit_bit_length` (checked; `decode_length` stays unchecked, Tier 2). Go port next
 - `alg_minhash_256` (298): `IsccResult`, `[]` → `features must not be empty`; callers use `_inner`.
     Go (299): `AlgMinhash256` → `([]byte, error)`, gens call unexported `algMinhash256`
 - Video ragged input (250), Python int range (265), Go meta JCS (251/266), `alg_simhash([])` (225),

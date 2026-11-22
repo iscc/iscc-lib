@@ -207,7 +207,8 @@ fn build_meta_data_url(json: &CanonicalJson) -> String {
 /// # Errors
 ///
 /// Returns `IsccError::InvalidInput` if enum values are out of range, if `mtype` is
-/// `MainType::Iscc` (5), or if `digest.len() < bit_length / 8`.
+/// `MainType::Iscc` (5), if `digest.len() < bit_length / 8`, or if `bit_length` is
+/// not valid for `mtype` (for Meta through Flake: a multiple of 32 from 32 to 256).
 pub fn encode_component(
     mtype: u8,
     stype: u8,
@@ -292,13 +293,13 @@ fn iscc_normalize(iscc: &str) -> IsccResult<String> {
 /// # Errors
 ///
 /// Returns `IsccError::InvalidInput` on invalid base32 input, a malformed
-/// header, a body shorter than its encoded bit-length, or a unit sequence that
-/// cannot be composed into an ISCC-CODE.
+/// header, a unit length above 256 bits, a body shorter than its encoded
+/// bit-length, or a unit sequence that cannot be composed into an ISCC-CODE.
 pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
     let normalized = iscc_normalize(iscc)?;
     let raw = codec::decode_base32(&normalized)?;
     let (mt, st, vs, length_index, tail) = codec::decode_header(&raw)?;
-    let bit_length = codec::decode_length(mt, length_index, st);
+    let bit_length = codec::unit_bit_length(mt, length_index, st)?;
     let nbytes = (bit_length / 8) as usize;
     // No length check here: normalization guarantees an exact body. `iscc_decompose`
     // rejects a short unit body and truncates each unit to its encoded length, and a
@@ -831,7 +832,7 @@ fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>> 
                 "all codes must be Content-Codes".into(),
             ));
         }
-        let unit_bits = codec::decode_length(mtype, blen, stype);
+        let unit_bits = codec::unit_bit_length(mtype, blen, stype)?;
         if unit_bits < bits {
             return Err(IsccError::InvalidInput(format!(
                 "Content-Code too short for {bits}-bit length (has {unit_bits} bits)"
@@ -934,6 +935,27 @@ pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<InstanceCodeRe
     })
 }
 
+/// Return whether every decoded unit header carries at least 128 bits.
+///
+/// Stops at the first unit below 128 bits, as iscc-core's `all(...)` does, and
+/// rejects a unit length above 256 bits on the way.
+fn units_reach_128_bits(
+    decoded: &[(
+        codec::MainType,
+        codec::SubType,
+        codec::Version,
+        u32,
+        Vec<u8>,
+    )],
+) -> IsccResult<bool> {
+    for &(mt, st, _, len, _) in decoded {
+        if codec::unit_bit_length(mt, len, st)? < 128 {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// Generate a composite ISCC-CODE from individual ISCC unit codes.
 ///
 /// Combines multiple ISCC unit codes (Meta-Code, Content-Code, Data-Code,
@@ -998,9 +1020,7 @@ pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<IsccCodeResult
     let is_wide = wide
         && decoded.len() == 2
         && main_types == [codec::MainType::Data, codec::MainType::Instance]
-        && decoded
-            .iter()
-            .all(|&(mt, st, _, len, _)| codec::decode_length(mt, len, st) >= 128);
+        && units_reach_128_bits(&decoded)?;
 
     // Step 9: Determine SubType
     let st = if is_wide {
@@ -2687,5 +2707,95 @@ mod tests {
         assert_eq!(sum_result.iscc, iscc_result.iscc);
 
         std::fs::remove_file(&path).ok();
+    }
+
+    /// Build a base32 ISCC-UNIT whose header claims 288 bits (length index 8).
+    fn unit_288_bits(mtype: codec::MainType) -> String {
+        let mut raw =
+            codec::encode_header(mtype, codec::SubType::None, codec::Version::V0, 8).unwrap();
+        raw.extend_from_slice(&[0u8; 36]);
+        codec::encode_base32(&raw)
+    }
+
+    /// Assert that a result is an error that names the 256-bit limit.
+    fn assert_above_256_error<T: std::fmt::Debug>(result: IsccResult<T>) {
+        let err = result.expect_err("a unit above 256 bits must be rejected");
+        assert!(err.to_string().contains("256"), "unexpected error: {err}");
+    }
+
+    #[cfg(feature = "meta-code")]
+    #[test]
+    fn test_gen_meta_code_v0_above_256() {
+        assert_above_256_error(gen_meta_code_v0("Title", None, None, 288));
+        assert!(gen_meta_code_v0("Title", None, None, 256).is_ok());
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_gen_text_code_v0_above_256() {
+        assert_above_256_error(gen_text_code_v0("Hello World", 288));
+        assert!(gen_text_code_v0("Hello World", 256).is_ok());
+    }
+
+    #[test]
+    fn test_gen_audio_code_v0_above_256() {
+        assert_above_256_error(gen_audio_code_v0(&[1, 2, 3], 288));
+        assert!(gen_audio_code_v0(&[1, 2, 3], 256).is_ok());
+    }
+
+    #[test]
+    fn test_gen_mixed_code_v0_bits_above_256() {
+        let a = gen_audio_code_v0(&[1, 2, 3], 256).unwrap().iscc;
+        let b = gen_audio_code_v0(&[4, 5, 6], 256).unwrap().iscc;
+        assert_above_256_error(gen_mixed_code_v0(&[&a, &b], 288));
+        assert!(gen_mixed_code_v0(&[&a, &b], 256).is_ok());
+    }
+
+    #[test]
+    fn test_gen_mixed_code_v0_unit_above_256() {
+        let long = unit_288_bits(codec::MainType::Content);
+        let ok = gen_audio_code_v0(&[1, 2, 3], 64).unwrap().iscc;
+        assert_above_256_error(gen_mixed_code_v0(&[&long, &ok], 64));
+    }
+
+    #[test]
+    fn test_gen_data_code_v0_above_256() {
+        assert_above_256_error(gen_data_code_v0(b"data", 288));
+        assert!(gen_data_code_v0(b"data", 256).is_ok());
+    }
+
+    #[test]
+    fn test_gen_instance_code_v0_above_256() {
+        assert_above_256_error(gen_instance_code_v0(b"data", 288));
+        assert!(gen_instance_code_v0(b"data", 256).is_ok());
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_above_256() {
+        let path = write_temp_file("sum_above_256", b"some file content");
+        assert_above_256_error(gen_sum_code_v0(&path, 288, false, false));
+        assert!(gen_sum_code_v0(&path, 256, false, false).is_ok());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_encode_component_above_256() {
+        assert_above_256_error(encode_component(0, 0, 0, 512, &[0u8; 64]));
+        assert_above_256_error(encode_component(0, 0, 0, 288, &[0u8; 36]));
+        assert!(encode_component(0, 0, 0, 256, &[0u8; 32]).is_ok());
+    }
+
+    #[test]
+    fn test_iscc_decode_above_256() {
+        assert_above_256_error(iscc_decode(&unit_288_bits(codec::MainType::Meta)));
+    }
+
+    #[test]
+    fn test_gen_iscc_code_v0_wide_above_256() {
+        let data = unit_288_bits(codec::MainType::Data);
+        let instance = gen_instance_code_v0(b"data", 128).unwrap().iscc;
+        assert_above_256_error(gen_iscc_code_v0(&[&data, &instance], true));
+        // Without `wide` the unit length is never decoded, as in iscc-core.
+        assert!(gen_iscc_code_v0(&[&data, &instance], false).is_ok());
     }
 }

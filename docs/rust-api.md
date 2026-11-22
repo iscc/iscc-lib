@@ -38,12 +38,12 @@ pub fn gen_meta_code_v0(
 ) -> IsccResult<MetaCodeResult>
 ```
 
-| Parameter     | Type           | Description                                                         |
-| ------------- | -------------- | ------------------------------------------------------------------- |
-| `name`        | `&str`         | Title or name of the content (normalized to 128 bytes)              |
-| `description` | `Option<&str>` | Optional description text (normalized to 4096 bytes)                |
-| `meta`        | `Option<&str>` | Optional metadata as JSON string or `data:` URL with base64 payload |
-| `bits`        | `u32`          | Bit length of the generated code (default: 64, multiple of 32)      |
+| Parameter     | Type           | Description                                                               |
+| ------------- | -------------- | ------------------------------------------------------------------------- |
+| `name`        | `&str`         | Title or name of the content (normalized to 128 bytes)                    |
+| `description` | `Option<&str>` | Optional description text (normalized to 4096 bytes)                      |
+| `meta`        | `Option<&str>` | Optional metadata as JSON string or `data:` URL with base64 payload       |
+| `bits`        | `u32`          | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns a `MetaCodeResult` with `iscc`, `name`, `metahash` and the optional `description` and `meta`
 fields. Uses SimHash for similarity hashing. When `meta` is provided, it takes precedence over
@@ -66,10 +66,10 @@ Generate a Text-Code from plain text content.
 pub fn gen_text_code_v0(text: &str, bits: u32) -> IsccResult<TextCodeResult>
 ```
 
-| Parameter | Type   | Description                                                    |
-| --------- | ------ | -------------------------------------------------------------- |
-| `text`    | `&str` | Plain text content                                             |
-| `bits`    | `u32`  | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type   | Description                                                               |
+| --------- | ------ | ------------------------------------------------------------------------- |
+| `text`    | `&str` | Plain text content                                                        |
+| `bits`    | `u32`  | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Produces an ISCC Content-Code for text by collapsing the input, extracting character n-gram
 features, and applying MinHash. Returns a `TextCodeResult` with `iscc` and `characters` (the number
@@ -119,10 +119,10 @@ Generate an Audio-Code from a Chromaprint feature vector.
 pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<AudioCodeResult>
 ```
 
-| Parameter | Type     | Description                                                    |
-| --------- | -------- | -------------------------------------------------------------- |
-| `cv`      | `&[i32]` | Chromaprint signed integer fingerprint vector                  |
-| `bits`    | `u32`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type     | Description                                                               |
+| --------- | -------- | ------------------------------------------------------------------------- |
+| `cv`      | `&[i32]` | Chromaprint signed integer fingerprint vector                             |
+| `bits`    | `u32`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Produces an ISCC Content-Code for audio using multi-stage SimHash over Chromaprint features. The
 caller must generate the Chromaprint fingerprint externally before calling this function. Returns an
@@ -152,7 +152,7 @@ pub fn gen_video_code_v0<S: AsRef<[i32]> + Ord>(
 | Parameter    | Type   | Description                                                                  |
 | ------------ | ------ | ---------------------------------------------------------------------------- |
 | `frame_sigs` | `&[S]` | MPEG-7 frame signatures (each a 380-element integer vector, e.g. `Vec<i32>`) |
-| `bits`       | `u32`  | Bit length of the generated code (default: 64, multiple of 32)               |
+| `bits`       | `u32`  | Bit length of the generated code (default: 64, multiple of 32, 32 to 256)    |
 
 Produces an ISCC Content-Code for video from MPEG-7 frame signatures using WTA-Hash. Deduplicates
 frames and computes column-wise sums before hashing. Returns a `VideoCodeResult` with `iscc`.
@@ -177,10 +177,10 @@ Generate a Mixed-Code from multiple Content-Code strings.
 pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<MixedCodeResult>
 ```
 
-| Parameter | Type      | Description                                                     |
-| --------- | --------- | --------------------------------------------------------------- |
-| `codes`   | `&[&str]` | Two or more ISCC Content-Code strings (optional `ISCC:` prefix) |
-| `bits`    | `u32`     | Bit length of the generated code (default: 64, multiple of 32)  |
+| Parameter | Type      | Description                                                               |
+| --------- | --------- | ------------------------------------------------------------------------- |
+| `codes`   | `&[&str]` | Two or more ISCC Content-Code strings (optional `ISCC:` prefix)           |
+| `bits`    | `u32`     | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Combines multiple Content-Codes of different types (text, image, audio, video) into a single Mixed
 Content-Code using SimHash. Requires at least 2 codes. Returns a `MixedCodeResult` with `iscc` and
@@ -204,10 +204,10 @@ Generate a Data-Code from raw byte data.
 pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<DataCodeResult>
 ```
 
-| Parameter | Type    | Description                                                    |
-| --------- | ------- | -------------------------------------------------------------- |
-| `data`    | `&[u8]` | Raw byte data                                                  |
-| `bits`    | `u32`   | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type    | Description                                                               |
+| --------- | ------- | ------------------------------------------------------------------------- |
+| `data`    | `&[u8]` | Raw byte data                                                             |
+| `bits`    | `u32`   | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Produces an ISCC Data-Code by splitting data into content-defined chunks, hashing each chunk, and
 applying MinHash for similarity-preserving fingerprinting. Returns a `DataCodeResult` with `iscc`.
@@ -230,10 +230,10 @@ Generate an Instance-Code from raw byte data.
 pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<InstanceCodeResult>
 ```
 
-| Parameter | Type    | Description                                                    |
-| --------- | ------- | -------------------------------------------------------------- |
-| `data`    | `&[u8]` | Raw byte data                                                  |
-| `bits`    | `u32`   | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type    | Description                                                               |
+| --------- | ------- | ------------------------------------------------------------------------- |
+| `data`    | `&[u8]` | Raw byte data                                                             |
+| `bits`    | `u32`   | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Produces an ISCC Instance-Code by hashing the complete byte stream with BLAKE3. Captures the exact
 binary identity of the data — any change in the input produces a different code. Returns an
@@ -296,12 +296,12 @@ pub fn gen_sum_code_v0(
 ) -> IsccResult<SumCodeResult>
 ```
 
-| Parameter   | Type    | Description                                                           |
-| ----------- | ------- | --------------------------------------------------------------------- |
-| `path`      | `&Path` | Path to the file (`std::path::Path`)                                  |
-| `bits`      | `u32`   | Bit length of the generated code (default: 64)                        |
-| `wide`      | `bool`  | Enable 256-bit wide mode for ISCC-CODE combination                    |
-| `add_units` | `bool`  | Include individual Data-Code and Instance-Code ISCC strings in result |
+| Parameter   | Type    | Description                                                               |
+| ----------- | ------- | ------------------------------------------------------------------------- |
+| `path`      | `&Path` | Path to the file (`std::path::Path`)                                      |
+| `bits`      | `u32`   | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
+| `wide`      | `bool`  | Enable 256-bit wide mode for ISCC-CODE combination                        |
+| `add_units` | `bool`  | Include individual Data-Code and Instance-Code ISCC strings in result     |
 
 Reads the file once, feeding both a `DataHasher` (CDC/MinHash) and an `InstanceHasher` (BLAKE3) from
 the same buffer, then composes the result into an ISCC-CODE. Returns a `SumCodeResult` with `iscc`,
@@ -525,7 +525,7 @@ pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)>
 Decodes an ISCC string (optional `ISCC:` prefix, dashes allowed) into
 `(maintype, subtype, version, length_index, digest)`. The integer fields match the
 `codec::MainType`, `codec::SubType` and `codec::Version` values. Returns `IsccError::InvalidInput`
-for invalid base32 or a malformed header.
+for invalid base32, a malformed header, or a unit whose header claims more than 256 bits.
 
 ```rust
 use iscc_lib::iscc_decode;
@@ -565,8 +565,10 @@ pub fn encode_component(
 
 Encodes a raw digest as an ISCC-UNIT string (base32, without the `ISCC:` prefix). `mtype`, `stype`
 and `version` take the integer values of the `codec::MainType`, `codec::SubType` and
-`codec::Version` enums. Returns `IsccError::InvalidInput` for out-of-range values, for
-`MainType::Iscc` (5), or when `digest` is shorter than `bit_length / 8` bytes.
+`codec::Version` enums. `bit_length` is a multiple of 32, 32 to 256, for Meta through Flake (64 to
+96 in steps of 8 for ID). Returns `IsccError::InvalidInput` for out-of-range values, for
+`MainType::Iscc` (5), for an invalid `bit_length`, or when `digest` is shorter than `bit_length / 8`
+bytes.
 
 ```rust
 use iscc_lib::encode_component;
@@ -609,7 +611,8 @@ assert_eq!(encode_seq(&refs)?, data);
 
 `DataHasher` and `InstanceHasher` compute a Data-Code and an Instance-Code incrementally, for input
 that does not fit in memory. Both produce the same result as their one-shot counterparts for the
-same byte stream. `finalize` consumes the hasher.
+same byte stream. `finalize` consumes the hasher and returns `IsccError::InvalidInput` unless `bits`
+is a multiple of 32, 32 to 256.
 
 ```rust
 impl DataHasher {
