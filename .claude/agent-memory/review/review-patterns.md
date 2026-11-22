@@ -1103,3 +1103,19 @@ the findings came from sweeping for siblings.
     C FFI row named `ctx_new()` (no such function) and the Java row a `DataHasher` class (static
     `dataHasher*` methods only); two cells are a step-9 fix. **Keep a replaced table cell within the
     widest row**, or mdformat re-pads every row of the table
+
+## Binding README claim + docs-claim test (286, ~10 min, PASS)
+
+A step that corrects one sentence on a registry README, fills its symbol list and adds a pytest that
+ties the sentence to the binding source.
+
+- **Count the binding's exports yourself** (`git grep -n -A2 '#\[napi' <lib.rs>`) against the README
+    list; the Tier 1 gate checks names on the page, not that the binding exports them
+- **Mutate the test in-process**, no tree edits: import the test module from `tests/`, point its
+    path constants (`LIB_RS`, `README`) at `/tmp` copies with a renamed field, an added field, a
+    dropped field name and the banned phrase wrapped over a line break, and call each test function
+- **`npm pack <pkg>` in an empty `/tmp` dir and grep `package/index.d.ts`** shows the published type
+    names in one minute. Symbols added since the last release are missing there by design (0.7.0 has
+    no `encode_seq`/`decode_seq`): the README ships with the next version
+- napi-rs camel-cases PARAMETER names in the `.d.ts` (`addUnits`) while `js_name` keeps function
+    names snake_case; parameters are positional, so a README that says `add_units` is a nit

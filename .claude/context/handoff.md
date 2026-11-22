@@ -1,41 +1,60 @@
-## 2026-11-22 — `@iscc/lib` npm README states the `gen_sum_code_v0` result type and names every Tier 1 symbol
+## 2026-11-22 — Review of: `@iscc/lib` npm README states the `gen_sum_code_v0` result type and names every Tier 1 symbol
 
-**Done:** The napi README now says nine generators return the ISCC string and `gen_sum_code_v0`
-returns a `NapiSumCodeResult` object (`iscc`, `datahash`, `filesize`, plus `units` with
-`add_units`). Its Utilities list names all 35 Tier 1 symbols, including a Constants line without the
-WASM "(getter functions)" note. The README is registered in `FULL`, and a docs test pins the claim.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-napi/README.md`: result-type sentence (mirrors the WASM README); Encoding gains
-    `json_to_data_url`, Codec gains `encode_component`, `iscc_decode`, `encode_seq`, `decode_seq`,
-    `gen_iscc_id_v1` (experimental); new Constants line
-- `scripts/check_tier1_docs.py`: `crates/iscc-napi/README.md` added to `FULL` (after
-    `crates/iscc-ffi/CLAUDE.md`)
-- `tests/test_napi_docs.py` (new, 4 tests): the README names `NapiSumCodeResult`; the "all return
-    strings" phrase is absent from the README and `docs/howto/nodejs.md` (whitespace normalised);
-    every field on the README result sentence is a field of `pub struct NapiSumCodeResult` parsed
-    from `src/lib.rs`; the struct's field set equals the README's four fields, so an added field
-    fails too
+**Summary:** The npm README no longer says that every code generator returns a string. It states
+that `gen_sum_code_v0` returns a `NapiSumCodeResult` object and names all 35 Tier 1 symbols the
+addon exports. The page is registered in the Tier 1 doc gate (`FULL`), and a docs test ties the
+sentence to the struct in `crates/iscc-napi/src/lib.rs`. Two non-test files changed, no Rust code.
 
 **Verification:**
 
-- `uv run pytest tests/test_napi_docs.py tests/test_check_tier1_docs.py`: 40 passed
-- `uv run python scripts/check_tier1_docs.py`: "OK: 22 full and 2 exact Tier 1 docs match …" (21
-    before this step)
-- `git grep -n 'return ISCC strings directly' -- ':!.claude'`: no output (exit 1)
-- `grep -n NapiSumCodeResult crates/iscc-napi/README.md`: line 53
-- Negative proof: with `git show HEAD:crates/iscc-napi/README.md` swapped in, `test_napi_docs.py`
-    gave 3 failed, 1 passed (the nodejs.md test passes because that page was already correct). With
-    the edited README restored, 4 passed
-- `uv run zensical build`: exit 0. `mise run check`: exit 0. The first run failed only because ruff
-    format rewrapped the `RESULT_SENTENCE_RE` line in the test. The second run was clean
+- [x] `uv run pytest tests/test_napi_docs.py tests/test_check_tier1_docs.py` passes — 40 passed
+- [x] `uv run python scripts/check_tier1_docs.py` exits 0 and `crates/iscc-napi/README.md` is in
+    `FULL` — "OK: 22 full and 2 exact Tier 1 docs match"
+- [x] `git grep -n 'return ISCC strings directly' -- ':!.claude'` prints nothing — exit 1
+- [x] `grep -n NapiSumCodeResult crates/iscc-napi/README.md` prints at least one line — line 53
+- [x] `uv run zensical build` exits 0 and `mise run check` exits 0 — both clean, tree unchanged
+
+Three checks beyond next.md's list:
+
+- The README's claims against the source: the addon has exactly 35 `#[napi]` exports and each one is
+    on the page; nine generators return `String`; the struct has the four fields the sentence names;
+    the constants are real `const` exports. The published 0.7.0 `index.d.ts` (`npm pack`) declares
+    `NapiSumCodeResult` and `export declare const` for the five constants.
+- The new test, mutated in-process on `/tmp` copies: a renamed struct field fails two tests, an
+    added field fails one, a field name dropped from the sentence fails one, and the banned phrase
+    wrapped over a line break is caught.
+- A repo-wide grep for the same claim in other words ("all generators return", "return ISCC
+    string"): every hit names its exception or describes a single function. No sibling leftover.
+
+`uv run ty check` and the ruff `S`/`C901` pre-push rules pass on the new test file.
+
+**Issues found:**
+
+- Closed and deleted: "`@iscc/lib` npm README says every code generator returns a string".
+- Not filed (nit): the README says "`add_units` set to `true`", while the generated `index.d.ts`
+    names that parameter `addUnits` (napi-rs camel-cases parameter names). The parameter is
+    positional, so no caller is misled.
+- No new issues.
+
+**Codex review:** No actionable findings. Codex confirmed that the README matches the binding's
+return type and exports and that the 40 targeted tests and the Tier 1 check pass.
 
 **Next:** The `normal` issue "`publish-ffi` skips a half-uploaded FFI archive on a rerun". It needs
-a design choice: check the uploaded assets after the upload, or delete `starter` assets first.
+a design choice between two fixes: verify after the upload that every staged archive is on the
+release in state `uploaded` with the right size, or delete `starter` assets before uploading. The
+issue also asks for a wiring test and a correction of two paragraphs in `docs/development.md`. The
+other open `normal` issues are the Rust tier docs (4-5 files), the duplicate `data.json` parsers
+(audit-sized, Rust and Go can be separate steps) and the one-shot generator duplication (core, mind
+the iai baseline). `alg_minhash_256([])` and the WASM `finalize()` rule each need a behaviour
+decision from Titusz first.
 
 **Notes:**
 
-- The test's banned phrase is written as `"return ISCC " + "strings directly"`, with a comment. As a
-    single literal, the test file itself would match next.md's repo-wide `git grep` criterion
-- No Rust change, so the CRAP, iai and semver gates are untouched. napi was not built (docs only)
+- The published 0.7.0 package has no `encode_seq` and `decode_seq`: they were added after that
+    release and ship with 0.8.0, together with this README. The README is correct for the version it
+    ships with.
+- `learnings.md` is at its 200-line budget. This review added nothing to it: the step confirmed
+    existing entries and produced no new pitfall.
+- No Rust change: the CRAP, iai and semver gates are untouched.
