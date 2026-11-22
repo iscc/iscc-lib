@@ -1,80 +1,110 @@
 # Next Work Package
 
-## Step: Go `AlgMinhash256` returns an error for an empty feature list
+## Step: `alg_minhash_256` data-edge section on all 12 surfaces
 
 ## Goal
 
-Port the decided empty-list error (decisions.md 2026-11-22, "`alg_minhash_256` rejects an empty
-feature list") to the pure-Go module, the first part of the `normal` issue "Go `AlgMinhash256` still
-returns `0xFF` for an empty list, and no shared vector pins the error". After this step Go agrees
-with the Rust core and the 10 surfaces built on it, so the shared `data-edge.json` section can land
-as a clean 12-surface fan-out with no `except` entry.
+Pin the decided empty-list rejection of `alg_minhash_256` (decisions.md 2026-11-22) with a shared
+vector that every harness runs. Picks up the `normal` issue "No shared vector pins the
+`alg_minhash_256` empty-list error"; it closes that issue and unblocks one of the two v0.8.0
+blockers.
 
 ## Alternatives Considered
 
-- **Chosen:** Go port alone — it is a change to the Go port's behaviour and public signature, and
-    "core changes go first and alone": it must land and be verified before the fan-out that pins it.
-- **Rejected:** the `alg_minhash_256` `data-edge.json` section now — Go would fail it (or need an
-    `except` entry that the next step deletes again). The `bits` above 256 issue is the other
-    `normal` gap; it is larger (core + 12 surfaces + a vector) and the issue ordering puts it after
-    the minhash work is closed.
+- **Chosen:** the `alg_minhash_256` section fan-out: behaviour decided and implemented on all 12
+    surfaces since iteration 299, so the step is harness and generator work only
+- **Rejected:** the 256-bit unit limit in the Rust core (the other `normal` issue). It is a core
+    behaviour change and must land alone; finishing the minhash issue first closes one coherent
+    feature before opening the next
 
 ## Scope
 
-- **Modify**: `packages/go/minhash.go`, `packages/go/code_content_text.go`,
-    `packages/go/code_data.go`
-- **Modify (tests/docs, outside the cap)**: `packages/go/minhash_test.go`, `docs/howto/go.md`,
-    `.claude/context/specs/go-bindings.md` (row of `alg_minhash_256`)
-- **Reference**: `packages/go/simhash.go` (`AlgSimhash` / `algSimhash`: the exported-checked plus
-    unexported-unchecked pattern to mirror), `crates/iscc-lib/src/minhash.rs` or wherever the Rust
-    `alg_minhash_256` and its unchecked helper live (`git grep -n "fn alg_minhash_256"`)
+- **Fan-out:** the decided `alg_minhash_256` empty-list rejection, applied to rust, python, nodejs,
+    wasm, c, cpp, java, go, ruby, dotnet, swift, kotlin (one commit per surface, then the JSON +
+    generator commit). No library code changes behaviour
+- **Modify**: `crates/iscc-lib/tests/data-edge.json` and its 4 vendored copies
+    (`packages/dotnet/Iscc.Lib.Tests/testdata/`, `packages/go/testdata/`,
+    `packages/kotlin/src/test/resources/`, `packages/swift/Tests/IsccLibTests/`);
+    `scripts/gen_data_edge_vectors.py` + regenerated `crates/iscc-ffi/tests/data_edge_vectors.h`;
+    harnesses `crates/iscc-lib/tests/test_data_edge.rs`, `tests/test_data_edge.py`,
+    `crates/iscc-napi/__tests__/data_edge.test.mjs`, `crates/iscc-wasm/tests/data_edge.rs`,
+    `crates/iscc-ffi/tests/test_iscc.c`, `packages/cpp/tests/test_iscc.cpp`,
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java`,
+    `packages/go/data_edge_test.go`, `crates/iscc-rb/test/test_data_edge.rb`,
+    `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs`,
+    `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/DataEdgeTest.kt`,
+    `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift`; `tests/test_gen_data_edge_vectors.py`
+- **Modify (doc comments only, the review nit of iteration 298):**
+    `packages/dotnet/Iscc.Lib/IsccLib.cs` and `packages/cpp/include/iscc/iscc.hpp`
+- **Reference**: commits `6064506d`..`7041f47f` (the `encode_component` section fan-out, same
+    shape); the `alg_simhash` section in `data-edge.json` and its handler in each harness (closest
+    model: a list input, a `bytes:<hex>` output, an empty-list error row); `specs/edge-vectors.md`
 
 ## Not In Scope
 
-- The `alg_minhash_256` section in `data-edge.json` and any harness edit (`data_edge_test.go`
-    included) — that is the next step, a 12-surface fan-out
-- The .NET XML doc / C++ `///` nit from the last review — it rides with the data-edge fan-out
-- Anything about `bits` above 256 (`GenDataCodeV0` accepting 512 stays as it is here)
-- Changing `minhashFn` / `minhashCompress` arithmetic, or the output of any gen function
+- Any change to library behaviour or error messages on any surface; comparing error text
+- More rows (duplicates, a single feature, large lists): two rows as below, nothing else
+- Hand-written empty-list tests on napi, WASM, Ruby, .NET, Swift or Kotlin: the section replaces
+    them
+- The `bits` above 256 work, and the other `low` issues in issues.md
 
 ## Implementation Notes
 
-- New exported signature: `func AlgMinhash256(features []uint32) ([]byte, error)`. On
-    `len(features) == 0` return `nil, fmt.Errorf("features must not be empty")` — the bare message,
-    the way `AlgSimhash` returns `hash_digests must not be empty` (Go errors carry no
-    `invalid input:` prefix). Otherwise delegate to an unexported `algMinhash256(features) []byte`
-    holding today's two-line body; doc comments of both say who guarantees non-empty input.
-- Switch the two internal callers to `algMinhash256`: `softHashTextV0` (`SlidingWindow` always
-    yields at least one window, so features are never empty) and the data hasher's `Finalize`
-    (`code_data.go` already appends one feature for empty input). No gen output may move — the
-    existing conformance tests (`data.json`) and data-edge tests prove it.
-- `git grep -n "AlgMinhash256" packages/go` showed no other call site (no bench, no example); if
-    `go vet` finds one, update it too.
-- Tests in `minhash_test.go`: replace `TestMinhash256Empty` with a test asserting a non-nil error
-    whose `Error()` equals `features must not be empty` and a nil result, for both `[]uint32{}` and
-    a `nil` slice; adapt `TestMinhash256Single` / `TestMinhash256Deterministic` to the two returns
-    (assert `err == nil`). Keep one test that the exported function equals `algMinhash256` on a
-    non-empty input, so the delegation is pinned.
-- Docs: `docs/howto/go.md` line ~340 becomes `AlgMinhash256(features []uint32) ([]byte, error)` and
-    names the empty-list error (match how `docs/howto/python.md` or another how-to page words it).
-    Spec row in `go-bindings.md` gets the new signature. `packages/go/README.md` and `CLAUDE.md`
-    list only names — no edit needed.
-- Behaviour-neutral call swaps in the two gen files are part of the same pattern; the step has 3
-    behaviour/code files, under the 6-file cap. Go is outside the Rust CRAP/iai gates.
+Two vectors in a new `alg_minhash_256` section, inputs `[[<uint32>, ...]]`, outputs `bytes:<hex>`
+(as in `alg_simhash`). Probed by define-next on iscc-core 1.5.0 under Python 3.10 (compiled) and
+3.15 (pure Python), and on the local Python binding:
+
+- `test_0001_empty_list`: `[[]]`, `error` `"features must not be empty"`. iscc-core raises
+    `ValueError` on both builds (`min()` of an empty sequence), so no `diverges`; no `except`
+- `test_0002_four_features`: `[[7, 42, 2147483648, 4294967295]]`, outputs
+    `"bytes:de7197a4343a0d7422964c15b69982ffa3706205863421259c99cdf30668b4b8"` on iscc-core (both
+    builds), iscc_lib and Go. The values span both ends of `uint32`, so each harness's integer
+    conversion is exercised (Java `int[]` needs the unsigned values as their `int` bit pattern;
+    check each surface's existing `alg_minhash_256` test for its parameter type)
+
+Each `note` is one sentence naming the idiosyncrasy (an empty list was hashed into 32 `0xFF` bytes
+before the decision). Python: `iscc_core.alg_minhash_256` is exported at top level; add the empty
+row to the rejection list next to `("alg_simhash", [[]])` and a converter for the bytes output. The
+existing `REJECTIONS` tuple already holds `ValueError`.
+
+Java: the `SECTIONS` table in `DataEdgeTest.java` is `Map.of` with 10 pairs, its maximum; switch it
+to `Map.ofEntries(Map.entry(...), ...)`. C generator: add a struct and a row renderer for a
+`uint32_t` list (an empty row must render; mirror the `alg_simhash` empty-row handling). The
+generator and every harness fail closed on an unhandled section, so all must land before the final
+JSON commit is green.
+
+Doc nits: name the empty-list error on `AlgMinhash256` AND `AlgSimhash` in `IsccLib.cs`
+(`<exception cref="IsccException">Thrown when ... is empty.</exception>`, as on line 383) and on
+`alg_minhash_256` AND `alg_simhash` in `iscc.hpp` (`/// Throws IsccError if ... is empty.`, as on
+line 353). Both functions reject an empty list, so both get the line. A `///` edit in `iscc.hpp` or
+`IsccLib.cs` touches no exported FFI item, so `iscc.h` and `NativeMethods.g.cs` must not move.
+
+Traps: Rust `tests/*.rs` helpers score 0% coverage under CRAP, keep each at cyclomatic complexity ≤
+5 (CI-only `--fail-above`). napi: `napi build` fails in the 9p checkout, so build and test in a
+`git archive` copy under `/tmp` (learnings). Swift toolchain recipe: `packages/swift/CLAUDE.md`.
+Kotlin: read the JUnit XML, not the exit code. No hot-path or Rust `src/` change, so iai, CRAP on
+`src/` and semver do not move.
 
 ## Verification
 
-- `cd packages/go && go test ./...` passes, and `GOARCH=386 go test ./...` passes
-- `cd packages/go && go vet ./...` clean and `CGO_ENABLED=0 go build ./...` exits 0
-- `grep -n "func AlgMinhash256(features \[\]uint32) (\[\]byte, error)" packages/go/minhash.go`
-    prints one line
-- `grep -rn "0xFF" packages/go/minhash_test.go` prints no line that tests `AlgMinhash256` of an
-    empty list (the old `TestMinhash256Empty` body is gone)
-- `grep -n "AlgMinhash256(features \[\]uint32) (\[\]byte, error)" docs/howto/go.md .claude/context/specs/go-bindings.md`
-    prints a line from each file
-- `mise run check` exits 0
+- `cargo test -p iscc-lib --test test_data_edge` passes, and the CI CRAP lines from `ci.yml`
+    (llvm-cov then cargo crap with `--fail-regression --fail-above`) exit 0
+- `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py tests/test_vendored_fixtures.py`
+    passes, with the iscc-core cross-check running both `alg_minhash_256` vectors
+- After `uv run python scripts/gen_data_edge_vectors.py`, `git status --porcelain crates/iscc-ffi`
+    prints nothing
+- nodejs `npm test` (in a `/tmp` copy), wasm `wasm-pack test --node crates/iscc-wasm` with the
+    conformance feature, java `mvn test -f crates/iscc-jni/java/pom.xml`, go
+    `CGO_ENABLED=0 go test ./...` (also `GOARCH=386`), ruby `bundle exec rake test`, dotnet
+    `dotnet test packages/dotnet` all pass
+- c `test_iscc` and cpp `test_iscc` (build lines from `ci.yml`) pass; kotlin JUnit XML shows
+    `DataEdgeTest` with 0 failures; swift `swift test --filter DataEdge` passes
+- `python3 -c "import json;d=json.load(open('crates/iscc-lib/tests/data-edge.json'))['alg_minhash_256'];assert len(d)==2 and not any('except' in v or 'diverges' in v for v in d.values())"`
+    exits 0; `grep -B4 -E 'Alg(Minhash256|Simhash)\(' packages/dotnet/Iscc.Lib/IsccLib.cs` and
+    `grep -B4 -E 'alg_(minhash_256|simhash)\(const' packages/cpp/include/iscc/iscc.hpp` show an
+    empty-list error line above each of the four functions; `mise run check` exits 0
 
 ## Done When
 
-All verification criteria pass, with Go's `AlgMinhash256` rejecting an empty list with
-`features must not be empty` and every gen-function conformance test still green.
+The `alg_minhash_256` section runs green on all 12 surfaces and in the Python iscc-core cross-check,
+with no `except` or `diverges` entry.

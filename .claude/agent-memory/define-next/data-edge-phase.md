@@ -62,3 +62,5 @@ commit `ea69169`).
     error-only one, or no harness ever exercises its input decoding. Python `outcome()` passes raw
     JSON inputs, so `bytes:` inputs need a per-section preparer. `/tmp/swifttc` disappears between
     container restarts; recipe in `packages/swift/CLAUDE.md`.
+- 300 = `alg_minhash_256` section (2 rows, no except/diverges). Reuse a prior section fan-out's
+    next.md via `git show <define-next commit>:.claude/context/next.md` — cheapest scoping path.

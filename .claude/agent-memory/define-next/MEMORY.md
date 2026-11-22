@@ -3,12 +3,12 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 299):** 298 core minhash break PASSED (10 non-test files; review added
-decision "A core signature change lands with the binding edits the compiler forces"). 299 = Go
-`AlgMinhash256` → `([]byte, error)` alone (mirror `AlgSimhash`/`algSimhash` checked/unchecked
-split). Next: the `alg_minhash_256` data-edge fan-out (Java `Map.ofEntries`; .NET XML doc + C++
-`///` nit rides along), then bits>256 core, then its fan-out. **An issue's list of pinning tests can
-under-count (298: `tests/test_algo.py` was a 6th `0xFF` pin) — grep yourself.** **A
+**Status 2026-11-22 (iter 300):** 299 Go `AlgMinhash256` error PASSED. 300 = `alg_minhash_256`
+data-edge section fan-out (12 surfaces, template = encode_component commits `6064506d..7041f47f`;
+Java `SECTIONS` → `Map.ofEntries`; .NET/C++ doc nit on BOTH minhash + simhash). iscc-core 1.5.0
+raises `ValueError` on `alg_minhash_256([])` (both builds) → no `diverges`. Next: bits>256 core
+(alone), then its fan-out, then v0.8.0 is release-ready (human cuts). **An issue's list of pinning
+tests can under-count (298: `tests/test_algo.py` was a 6th `0xFF` pin) — grep yourself.** **A
 signature-changing core break cannot land "alone": forced binding edits ride along; the data-edge
 fan-out stays separate.** **Behaviour-neutral call swaps don't count toward the cap (decision
 2026-11-20 counts behaviour files)** — say so in Scope. In-crate test modules of `lib.rs` can't see
