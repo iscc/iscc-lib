@@ -86,14 +86,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 8e3b3a6, iter 307 — incremental)
+## Current State (assessed-at: 0e0f5d1, iter 308 — incremental)
 
-- Origin tip `097e7e9d` run 45034383698 green (24 check runs). HEAD +1 `.claude`. check-suites API:
-    codecov/cursor sit `queued` forever, and the `github-actions` suite can read `in_progress` after
-    the CI run completed — confirm with `gh run list` + check-runs instead.
-- 17 open (1 `normal` audit spec/doc drift + 16 `low`, 15 untriaged). 306 closed conformance dup:
-    `SECTIONS` table in `conformance.rs`. iscc-lib `src/` `#[test]` = 337 via
-    `grep -rc '#\[test\]' crates/iscc-lib/src` (a zsh `src/*.rs src/**/*.rs` glob DOUBLE-counts).
+- **v0.8.0 release criteria MET at 308** (0 normal/critical; 18 `low`, 16 untriaged). Origin tip
+    `32cd3f91` run 45036383921 green (24 check runs). HEAD +1 `.claude`. Next = human `/release`.
+    check-suites API: codecov/cursor sit `queued` forever, and the `github-actions` suite can read
+    `in_progress` after the CI run completed — confirm with `gh run list` + check-runs instead.
+- `grep -c '`normal`'` on issues.md hits 2 PREAMBLE legend lines (L3, L9) — not issues. iscc-lib
+    `src/` `#[test]` = 337 via `grep -rc '#\[test\]' crates/iscc-lib/src` (a zsh
+    `src/*.rs src/**/*.rs` glob DOUBLE-counts).
 - **A doc/vector row can be present yet wrong** (303): check issues.md bodies for the reviewer's
     measured defects instead of counting rows as met.
 - **CI on a fresh tip may be mid-run** (Coverage+CRAP is the slowest job): wait with
