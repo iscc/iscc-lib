@@ -126,7 +126,7 @@ impl DataHasher {
             self.chunk_features.push(xxhash_rust::xxh32::xxh32(b"", 0));
         }
 
-        let digest = minhash::alg_minhash_256(&self.chunk_features);
+        let digest = minhash::alg_minhash_256_inner(&self.chunk_features);
         let component = codec::encode_component(
             codec::MainType::Data,
             codec::SubType::None,

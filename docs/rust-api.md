@@ -427,16 +427,17 @@ assert_eq!(digest, [0xFF, 0x0F]);
 ### alg_minhash_256
 
 ```rust
-pub fn alg_minhash_256(features: &[u32]) -> Vec<u8>
+pub fn alg_minhash_256(features: &[u32]) -> IsccResult<Vec<u8>>
 ```
 
-Computes a 256-bit (32-byte) MinHash digest from 32-bit integer features. Used by Text-Code and
-Data-Code generation.
+Computes a 256-bit (32-byte) MinHash digest from 32-bit integer features. Returns
+`IsccError::InvalidInput` for an empty feature list. Used by Text-Code and Data-Code generation.
 
 ```rust
 use iscc_lib::alg_minhash_256;
 
-assert_eq!(alg_minhash_256(&[1, 2, 3]).len(), 32);
+assert_eq!(alg_minhash_256(&[1, 2, 3]).unwrap().len(), 32);
+assert!(alg_minhash_256(&[]).is_err());
 ```
 
 ### alg_cdc_chunks

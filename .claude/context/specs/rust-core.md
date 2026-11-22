@@ -85,7 +85,7 @@ blocks used by `iscc-sdk` for granular content processing (text chunking, text f
 | Function          | Signature (Rust)                                         | Behavior                                                                    |
 | ----------------- | -------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `sliding_window`  | `fn(seq: &str, width: usize) -> IsccResult<Vec<String>>` | Generate overlapping character n-grams of given width                       |
-| `alg_minhash_256` | `fn(features: &[u32]) -> Vec<u8>`                        | 64-dimensional MinHash compressed to 256-bit (32-byte) digest               |
+| `alg_minhash_256` | `fn(features: &[u32]) -> IsccResult<Vec<u8>>`            | 64-dimensional MinHash compressed to 256-bit digest; rejects an empty list  |
 | `alg_cdc_chunks`  | `fn(data: &[u8], utf32: bool, avg_chunk_size: u32) -> …` | Content-defined chunking with gear rolling hash                             |
 | `alg_simhash`     | `fn(hash_digests: &[Vec<u8>]) -> IsccResult<Vec<u8>>`    | Similarity-preserving hash from equal-length digests; rejects an empty list |
 
@@ -99,7 +99,8 @@ Note: The bound `alg_simhash` takes `&[Vec<u8>]` (concrete type) rather than the
 
 - `iscc_lib::sliding_window("abcde", 3)` returns `["abc", "bcd", "cde"]`
 - `iscc_lib::sliding_window("ab", 3)` returns `["ab"]` (input shorter than width)
-- `iscc_lib::alg_minhash_256(&[0, 1, 2, 3])` returns a 32-byte `Vec<u8>`
+- `iscc_lib::alg_minhash_256(&[0, 1, 2, 3])` returns a 32-byte `Vec<u8>`; `alg_minhash_256(&[])`
+    returns `Err(IsccError::InvalidInput)`
 - `iscc_lib::alg_cdc_chunks(data, false, 1024)` returns non-empty chunk list for non-empty input
 - `iscc_lib::alg_simhash(&[vec![0u8; 32]])` returns a 32-byte `Vec<u8>`
 - `iscc_lib::alg_simhash` returns `Err(IsccError::InvalidInput)` for an empty list

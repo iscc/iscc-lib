@@ -485,7 +485,7 @@ fn soft_hash_text_v0(text: &str) -> Vec<u8> {
         .iter()
         .map(|ng| xxhash_rust::xxh32::xxh32(ng.as_bytes(), 0))
         .collect();
-    minhash::alg_minhash_256(&features)
+    minhash::alg_minhash_256_inner(&features)
 }
 
 /// Generate a Text-Code from plain text content.
@@ -898,7 +898,7 @@ pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<DataCodeResult> {
         features.push(xxhash_rust::xxh32::xxh32(b"", 0));
     }
 
-    let digest = minhash::alg_minhash_256(&features);
+    let digest = minhash::alg_minhash_256_inner(&features);
     let component = codec::encode_component(
         codec::MainType::Data,
         codec::SubType::None,

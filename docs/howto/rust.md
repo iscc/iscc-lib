@@ -440,8 +440,9 @@ blocks used internally by `gen_*_v0` functions.
     fingerprint from a collection of byte digests. Returns an error for an empty list or digests of
     unequal length. Used by Meta-Code, Audio-Code, and Mixed-Code generation.
 
-- **`alg_minhash_256(features: &[u32]) -> Vec<u8>`** — Compute a 256-bit MinHash fingerprint from a
-    collection of u32 feature hashes. Used by Text-Code and Data-Code generation.
+- **`alg_minhash_256(features: &[u32]) -> IsccResult<Vec<u8>>`** — Compute a 256-bit MinHash
+    fingerprint from a collection of u32 feature hashes. Returns an error for an empty list. Used by
+    Text-Code and Data-Code generation.
 
 - **`alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> IsccResult<Vec<&[u8]>>`** —
     Split data into content-defined chunks using a rolling hash. Used by Data-Code generation.
