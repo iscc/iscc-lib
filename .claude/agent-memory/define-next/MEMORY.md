@@ -3,21 +3,20 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 286):** 285 (vcpkg hashes in `prepare-release`) PASSED. 286 = napi README
-`gen_sum_code_v0` result type + fill Utilities to all 35 Tier 1 names → register in `FULL` of
-`check_tier1_docs.py` (threshold 30; napi has no `SumHasher`, constants are real `u32`, not
-getters). Next: `publish-ffi` rerun gap (`overwrite_files: false` skips `starter` assets; needs a
-post-upload state/size check). Remaining normals after: Rust tier docs (4-5 files), dup `data.json`
-parsers (Rust/Go split), one-shot dedup (core, iai), minhash `[]` + WASM `finalize()` (both need a
-behaviour decision → HUMAN). **Any Java test needing a library outside the bundle must pass in BOTH
-layouts.** Per-iteration traps for 259-269 → [v0.8.0 iteration ledger](v080-iteration-ledger.md).
-**Probe the ref on BOTH builds (py3.10 + py3.15) before scoping a vector. External-flake red: still
-scope a hardening. An issue's "Scope estimate" can over-count — apply the docs-excluded rule
-yourself. Dependabot alerts track `main`, not `develop`.** NONE verification:
-`grep -E '^## .*(critical|normal)' issues.md` prints nothing. **Compiler-limit issues with no
-compiler here: find a gcc warning that encodes the same standard limit** (282). **wasm-bindgen
-generated-JS facts: cli-support is not in the cargo registry (wasm-pack downloads the binary) — read
-`crates/cli-support/src/js/mod.rs` upstream** (283).
+**Status 2026-11-22 (iter 287):** 286 (napi README) PASSED. 287 = `publish-ffi` prune `starter`
+assets (via `apiUrl` from `gh release view --json assets`; fields `state`/`size`/`digest`/`apiUrl`
+exist) before upload + post-upload `verify` state; NO digest compare (an `ffi`-only re-trigger
+rebuilds, pinned bytes are the old ones). Next: Rust tier docs (4-5 files, docs mostly). Then dup
+`data.json` parsers (Rust/Go split), one-shot dedup (core, iai), minhash `[]` + WASM `finalize()`
+(both need a behaviour decision → HUMAN). **Any Java test needing a library outside the bundle must
+pass in BOTH layouts.** Per-iteration traps for 259-269 →
+[v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
+py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
+estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
+not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints nothing.
+**Compiler-limit issues with no compiler here: find a gcc warning that encodes the same standard
+limit** (282). **wasm-bindgen generated-JS facts: cli-support is not in the cargo registry
+(wasm-pack downloads the binary) — read `crates/cli-support/src/js/mod.rs` upstream** (283).
 
 ## Scope Calibration Principles
 
