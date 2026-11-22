@@ -22,6 +22,7 @@ import {
     gen_meta_code_v0,
     gen_video_code_v0,
     alg_cdc_chunks,
+    encode_component,
 } from '../index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -57,6 +58,11 @@ function convertChunks(chunks) {
     return chunks.map(bytesValue);
 }
 
+/** Decode the `encode_component` digest (the last input) from `bytes:<hex>` into a Buffer. */
+function prepareComponent([mtype, stype, version, bitLength, digest]) {
+    return [mtype, stype, version, bitLength, decodeBytes(digest)];
+}
+
 /**
  * Prepare `gen_meta_code_v0` inputs: an empty description becomes `undefined` and a
  * meta object is serialized to the JSON string the binding takes.
@@ -66,7 +72,7 @@ function prepareMeta([name, description, meta, ...rest]) {
     return [name, description || undefined, metaArg, ...rest];
 }
 
-/** Return a vector's raw JSON inputs unchanged. */
+/** Return a value unchanged: raw JSON inputs, or a bare string result. */
 function identity(inputs) {
     return inputs;
 }
@@ -97,6 +103,7 @@ const SECTIONS = {
     gen_meta_code_v0: [gen_meta_code_v0, convertIscc, prepareMeta],
     gen_video_code_v0: [gen_video_code_v0, convertIscc, identity],
     alg_cdc_chunks: [alg_cdc_chunks, convertChunks, prepareCdc],
+    encode_component: [encode_component, identity, prepareComponent],
 };
 
 /** Load and parse data-edge.json. */
