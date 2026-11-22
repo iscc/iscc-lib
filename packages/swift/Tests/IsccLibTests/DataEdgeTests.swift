@@ -94,6 +94,15 @@ enum DataEdge {
         return bits
     }
 
+    /// Read the input at `index` as a `UInt8` (an ISCC header field).
+    static func byteArg(_ inputs: [Any], _ index: Int) throws -> UInt8 {
+        let value = try intArg(inputs, index)
+        guard let byte = UInt8(exactly: value) else {
+            throw EdgeHarnessError(description: "input \(index) is not a UInt8")
+        }
+        return byte
+    }
+
     /// Encode bytes as a `bytes:<hex>` fixture value.
     static func bytesValue(_ data: Data) -> String {
         "bytes:" + data.map { String(format: "%02x", $0) }.joined()
@@ -166,6 +175,22 @@ enum DataEdge {
     static func convertChunks(_ result: Any) -> Any {
         guard let chunks = result as? [Data] else { return "not [Data]: \(result)" }
         return chunks.map(bytesValue) as [Any]
+    }
+
+    /// Prepare `encodeComponent` on the vector's header fields, bit length and digest.
+    static func prepareComponent(_ inputs: [Any]) throws -> () throws -> Any {
+        let mtype = try byteArg(inputs, 0)
+        let stype = try byteArg(inputs, 1)
+        let version = try byteArg(inputs, 2)
+        let bitLength = try bits(inputs, 3)
+        let digest = try decodeBytes(arg(inputs, 4, as: String.self))
+        return { try encodeComponent(mtype: mtype, stype: stype, version: version, bitLength: bitLength, digest: digest) }
+    }
+
+    /// Return a bare `String` result (`encodeComponent`) unchanged.
+    static func convertString(_ result: Any) -> Any {
+        guard let text = result as? String else { return "not String: \(result)" }
+        return text
     }
 
     /// Prepare `genTextCodeV0` on the vector's text and bits.
@@ -275,6 +300,7 @@ enum DataEdge {
         "gen_meta_code_v0": EdgeCaller(prepare: prepareMeta, convert: convertMeta),
         "gen_video_code_v0": EdgeCaller(prepare: prepareVideo, convert: convertVideo),
         "alg_cdc_chunks": EdgeCaller(prepare: prepareCdc, convert: convertChunks),
+        "encode_component": EdgeCaller(prepare: prepareComponent, convert: convertString),
     ]
 
     /// Load and parse the vendored data-edge.json.
