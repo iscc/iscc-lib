@@ -1182,3 +1182,18 @@ ties the sentence to the binding source.
 - Codex returned in about four minutes with no finding on a test-only refactor
 - The issue's "Resolved when" had two halves: rewrite the entry to the half that is left, and check
     that the other surface pins the closed row too (`git grep` its test file) before dropping it
+
+## Docs snippet gate step (292 — WASM init on three pages + agent guidance, ~15 min, PASS)
+
+- Criteria + ONE script that loads the test module with `importlib` and runs the step's rule helpers
+    over `git show <define-next>:<page>` and the current page: old copies must report problems,
+    current ones none. That is the real-regression proof for a docs rule
+- **Ask what the rule cannot see**: a fence regex tied to one language tag (```` ```javascript ````)
+    misses a `js` / `typescript` / `html` snippet. Tie the count of matches inside checked blocks to
+    the count in the whole page (added in step 9); prove it on a `git archive` copy with one fence
+    retagged. Mutate a page with SEVERAL snippets: with one snippet a different assert fires
+- A build command quoted in guidance "exactly as release.yml runs it": compare with the `run` line
+    and its `env` block. `git grep` the banned strings repo-wide; `notes/`, agent memory, archives
+    and issue text that reports an old measurement are legitimate leftovers
+- Left as nits: an `init(` inside a comment satisfies the rule, and call order is not checked
+- Codex returned in about five minutes with no finding

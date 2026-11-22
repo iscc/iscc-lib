@@ -183,9 +183,14 @@ def test_positional_init_pattern_matches_deprecated_forms():
 def test_snippet_pages_initialize_every_wasm_snippet():
     """Every ``@iscc/wasm`` snippet on the snippet pages initializes in a labelled form."""
     for path in SNIPPET_PAGES:
-        blocks = indented_javascript_blocks(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        blocks = indented_javascript_blocks(text)
         wasm_blocks = [block for block in blocks if WASM_IMPORT_RE.search(block)]
         assert wasm_blocks, f"{path.relative_to(ROOT)} has no @iscc/wasm snippet"
+        checked_imports = sum(len(WASM_IMPORT_RE.findall(block)) for block in blocks)
+        assert checked_imports == len(WASM_IMPORT_RE.findall(text)), (
+            f"{path.relative_to(ROOT)} imports @iscc/wasm outside a javascript block"
+        )
         for block in wasm_blocks:
             assert not snippet_problems(block), (path.relative_to(ROOT), block)
 

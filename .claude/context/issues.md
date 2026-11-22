@@ -360,23 +360,3 @@ an `encode_component` short-digest row to `data-edge.json`, make Go return an `i
 estimate:** 1-2 non-test files plus the vector fan-out.
 
 Resolved when the short-digest behavior is decided and pinned by a shared vector that Go passes.
-
-## WASM init and build-target guidance is wrong outside the two pages a test guards `normal` [audit]
-
-Verified by the iteration-290 audit at b3869b91. `docs/howto/wasm.md` and the crate README say the
-package is one `--target web` build that needs `init()` (Node: `initSync({ module })`), guarded by
-`tests/test_wasm_docs.py`. Elsewhere: `docs/tutorials/getting-started.md` WASM tabs at :182, :267,
-:340, :408 and :503 call functions with no init (fails everywhere); its verify step (:102-107),
-`README.md:279-286` and `docs/index.md:111-120` show a bare `await init()` that fails under Node.
-`crates/iscc-wasm/CLAUDE.md:49-77` names `bundler` the default (release build `--target bundler`),
-:202-203 tells agents to prove marshalling on a `--target nodejs` package, and
-`specs/wasm-bindings.md:86-91` lists three targets.
-
-**Why it matters:** the getting-started page is the first code a WASM user runs, and agents probe a
-glue users never get. **Suggested fix:** add the init step (or one note above the tabs) to every
-WASM snippet, label the bare `init()` as browser/bundler with a Node link, realign the CLAUDE.md and
-spec sections to the published build, and extend `WASM_DOCS` to these files. **Scope estimate:** 5
-non-test files.
-
-Resolved when every WASM snippet initializes the module in a form that works where it claims to and
-the agent guidance names only the published target, guarded by `test_wasm_docs.py`.

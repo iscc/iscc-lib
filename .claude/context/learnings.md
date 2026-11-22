@@ -107,8 +107,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     locked cli 3.10 FAILS in the checkout** (9p, issues.md): build in a `git archive` copy in `/tmp`
 - **A docs install claim is a claim about the PUBLISHED artifact: install it** (238: source gems up
     to 0.7.0 do not build). **npm `@iscc/wasm` is ONE `--target web` build** (283): in Node a bare
-    `init()` fails on its `file:` fetch, so pass the bytes via `initSync({ module })`; guard
-    `tests/test_wasm_docs.py`. **A fallback claim needs a foreign-platform run** (257: `os.arch`)
+    `init()` fails on its `file:` fetch: use `initSync({ module })`; guard `tests/test_wasm_docs.py`
+    (292: tab fences are indented 4). **A fallback claim needs a foreign-platform run** (257)
 - **Ruby source gem = `scripts/build_ruby_source_gem.py` only** (239-241). `cross-gem@v1` reads the
     rb_sys pin UNANCHORED (first `Gemfile.lock` line containing `rb_sys`), so the gemspec declares
     `rb_sys` only next to `core/`. The staged manifest is its own workspace: of the root, only
