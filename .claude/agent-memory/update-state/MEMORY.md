@@ -86,12 +86,14 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 9a14082, iter 297 — incremental)
+## Current State (assessed-at: 909e7b4, iter 298 — incremental)
 
-- Origin tip `e2495d85` run 45006494417 green (24/24). HEAD +2 `.claude` (log + `cid(human)`).
-- 16 open (3 `normal` + 13 `low`, 12 untriaged). Titusz decided all 3 `normal` on 2026-11-22
-    (minhash empty = error, finalize always consumes, bits > 256 rejected) — all loop-workable.
-    data-edge has 10 sections; Java `Map.of` table is AT its 10-pair limit.
+- Origin tip `869abbbf` run 45011030542 green (24/24). HEAD +1 `.claude` (`cid(log)`).
+- 16 open (2 `normal` + 14 `low`, 13 untriaged). Remaining `normal` (decided 2026-11-22): minhash
+    empty = error, bits > 256 rejected. finalize-consumes closed 297. data-edge has 10 sections;
+    Java `Map.of` table is AT its 10-pair limit.
+- **CI on a fresh tip may be mid-run** (Coverage+CRAP is the slowest job): wait with
+    `until [ "$(gh run view <id> --json status --jq .status)" = completed ]` under `timeout 300`.
 - **`cid(human)` commits rewrite target.md/issues.md** — always diff both after one (297: two `low`
     removed, Tier 2 list extended, Swift "tags once").
 - `release.yml` "Create tags" ends `git push ... --force`; harmless with `fetch-depth: 0` (an
