@@ -3,10 +3,11 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 291):** 290 (Go dedup) PASSED. 291 = Rust dedup part 1 (in-crate tests
-read inputs via `conformance.rs` `pub(crate)` parsers + `.get()` short-inputs panic fix); part 2
-(one wrong-type rule on both runners) next, then `version:check` gaps (1 file) and WASM init docs.
-Go `EncodeComponent` needs a decision recorded + 12-surface vector fan-out. In-crate test modules of
+**Status 2026-11-22 (iter 292):** 291 (Rust dedup part 1) PASSED. 292 = WASM init docs (user-facing
+after three dedup iters; docs + `tests/test_wasm_docs.py`; tab code blocks are 4-space indented, the
+test's `javascript_blocks` regex only sees column-0 fences). Next: runner part 2 (one wrong-type
+rule, decisions.md entry, CRAP baseline may move), then `version:check` gaps (1 file). Go
+`EncodeComponent` needs a decision recorded + 12-surface vector fan-out. In-crate test modules of
 `lib.rs` can't see private `conformance` items — scope `pub(crate)`. **Check a grep criterion's
 pattern against the current tree's error/doc strings too** (290). iscc-lib CI tests 3 feature sets
 (default, none, text-processing). Minhash `[]` + WASM `finalize()` (both need a behaviour decision →
