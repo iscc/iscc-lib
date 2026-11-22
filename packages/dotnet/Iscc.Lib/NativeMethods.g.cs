@@ -652,8 +652,8 @@ namespace Iscc.Lib
         ///
         ///  # Returns
         ///
-        ///  `IsccByteBuffer` with 32 bytes. On error, `.data` is `NULL`.
-        ///  Caller must free with `iscc_free_byte_buffer()`.
+        ///  `IsccByteBuffer` with 32 bytes. On error (including an empty feature
+        ///  list), `.data` is `NULL`. Caller must free with `iscc_free_byte_buffer()`.
         ///
         ///  # Safety
         ///

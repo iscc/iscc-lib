@@ -1269,8 +1269,8 @@ pub unsafe extern "C" fn iscc_alg_simhash(
 ///
 /// # Returns
 ///
-/// `IsccByteBuffer` with 32 bytes. On error, `.data` is `NULL`.
-/// Caller must free with `iscc_free_byte_buffer()`.
+/// `IsccByteBuffer` with 32 bytes. On error (including an empty feature
+/// list), `.data` is `NULL`. Caller must free with `iscc_free_byte_buffer()`.
 ///
 /// # Safety
 ///
@@ -1286,7 +1286,13 @@ pub unsafe extern "C" fn iscc_alg_minhash_256(
     let Some(slice) = (unsafe { slice_or_empty(features, features_len, "features") }) else {
         return null_byte_buffer();
     };
-    vec_to_byte_buffer(iscc_lib::alg_minhash_256(slice))
+    match iscc_lib::alg_minhash_256(slice) {
+        Ok(v) => vec_to_byte_buffer(v),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            null_byte_buffer()
+        }
+    }
 }
 
 /// Split data into content-defined chunks using gear rolling hash.

@@ -740,8 +740,8 @@ struct iscc_IsccByteBuffer iscc_alg_simhash(const uint8_t *const *digests,
  *
  * # Returns
  *
- * `IsccByteBuffer` with 32 bytes. On error, `.data` is `NULL`.
- * Caller must free with `iscc_free_byte_buffer()`.
+ * `IsccByteBuffer` with 32 bytes. On error (including an empty feature
+ * list), `.data` is `NULL`. Caller must free with `iscc_free_byte_buffer()`.
  *
  * # Safety
  *

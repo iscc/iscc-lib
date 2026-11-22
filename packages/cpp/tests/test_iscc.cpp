@@ -699,7 +699,9 @@ int main() {
                        "alg_simhash(empty) throws 'must not be empty'");
 
     // 42b. An empty vector or inner row may reach the FFI as (NULL, 0); it is read as empty
-    assert_eq(iscc::alg_minhash_256({}).size(), 32, "alg_minhash_256(empty) returns 32 bytes");
+    // alg_minhash_256 reaches the core's empty-list error, not a NULL rejection
+    assert_throws_with([] { iscc::alg_minhash_256({}); }, "features must not be empty",
+                       "alg_minhash_256(empty) throws 'features must not be empty'");
     try {
         iscc::encode_component(0, 0, 0, 64, {});
         pass("encode_component(empty digest) does not report NULL");

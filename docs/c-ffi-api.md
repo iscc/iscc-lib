@@ -541,7 +541,9 @@ iscc_IsccByteBuffer iscc_alg_minhash_256(
 | `features`     | `const uint32_t*` | Pointer to feature values |
 | `features_len` | `size_t`          | Number of features        |
 
-Returns an `iscc_IsccByteBuffer` with 32 bytes. Free with `iscc_free_byte_buffer()`.
+Returns an `iscc_IsccByteBuffer` with 32 bytes. Free with `iscc_free_byte_buffer()`. An empty
+feature list (`features_len` 0, `features` may be `NULL`) is an error: `.data` is `NULL` and
+`iscc_last_error()` reports `features must not be empty`.
 
 ---
 

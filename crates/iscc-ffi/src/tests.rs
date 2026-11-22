@@ -782,8 +782,14 @@ fn test_alg_minhash_256_null() {
 
 #[test]
 fn test_alg_minhash_256_null_empty() {
+    // (NULL, 0) is an empty list: the core's empty-list error, not a NULL rejection
     let buf = unsafe { iscc_alg_minhash_256(ptr::null(), 0) };
-    assert_buf_matches_core(buf, Ok(iscc_lib::alg_minhash_256(&[])));
+    assert_buf_matches_core(buf, iscc_lib::alg_minhash_256(&[]));
+    assert_last_error_contains("features must not be empty");
+    let msg = unsafe { CStr::from_ptr(iscc_last_error()) }
+        .to_str()
+        .unwrap();
+    assert!(!msg.contains("must not be NULL"), "got: {msg}");
 }
 
 // ── alg_cdc_chunks tests ───────────────────────────────────────────────

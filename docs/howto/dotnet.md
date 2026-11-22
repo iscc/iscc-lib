@@ -413,7 +413,7 @@ Additional primitives:
 - `IsccLib.AlgSimhash(byte[][] digests)` — compute a SimHash digest from equal-length byte arrays,
     returns `byte[]`
 - `IsccLib.AlgMinhash256(ReadOnlySpan<uint> features)` — compute a 256-bit MinHash digest from
-    32-bit features, returns `byte[]`
+    32-bit features, returns `byte[]`; throws `IsccException` on an empty span
 - `IsccLib.AlgCdcChunks(ReadOnlySpan<byte> data, bool utf32, uint avgChunkSize)` — split data into
     content-defined chunks, returns `byte[][]`
 - `IsccLib.SoftHashVideoV0(int[][] frameSigs, uint bits)` — compute a similarity-preserving hash
