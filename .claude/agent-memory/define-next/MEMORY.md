@@ -3,13 +3,12 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 287):** 286 (napi README) PASSED. 287 = `publish-ffi` prune `starter`
-assets (via `apiUrl` from `gh release view --json assets`; fields `state`/`size`/`digest`/`apiUrl`
-exist) before upload + post-upload `verify` state; NO digest compare (an `ffi`-only re-trigger
-rebuilds, pinned bytes are the old ones). Next: Rust tier docs (4-5 files, docs mostly). Then dup
-`data.json` parsers (Rust/Go split), one-shot dedup (core, iai), minhash `[]` + WASM `finalize()`
-(both need a behaviour decision → HUMAN). **Any Java test needing a library outside the bundle must
-pass in BOTH layouts.** Per-iteration traps for 259-269 →
+**Status 2026-11-22 (iter 288):** 287 (publish-ffi prune) PASSED. 288 = Rust tier docs, docs only
+(SumHasher → Tier 2: Tier 1 would move target.md's 35, which is human-only; `types` = Tier 1 return
+types; `IsccError` = crate-root Tier 1 support type, excluded in `check_tier1_docs.py`). Next:
+one-shot dedup (core hot path, iai/CRAP CI-only), then dup `data.json` parsers (Rust/Go split).
+Minhash `[]` + WASM `finalize()` (both need a behaviour decision → HUMAN). **Any Java test needing a
+library outside the bundle must pass in BOTH layouts.** Per-iteration traps for 259-269 →
 [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
 py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
 estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
