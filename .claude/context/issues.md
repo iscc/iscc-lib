@@ -295,18 +295,38 @@ Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact
 on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
 that both `bench_instance_code` rows are within the tolerance of a current run.
 
-## Go `EncodeComponent` truncates a short digest where every Rust-backed surface raises `normal` [audit]
+## No shared vector pins the short-digest rule of `encode_component` `normal` [audit]
 
-Verified by the iteration-290 audit at b3869b91. `packages/go/codec.go:508-515` clamps the body to
-`len(digest)`, so `EncodeComponent(0, 0, 0, 64, <4 bytes>)` returns a unit whose header says 64 bits
-over a 4-byte body. The core rejects it (`crates/iscc-lib/src/lib.rs:219-226`, "digest length \<
-bit_length/8", pinned at :2155) and every binding passes that error through. iscc-core slices
-(`codec.py:43-45`), so Go matches the reference and Rust diverges; no decision records either, and
-`data-edge.json` has no `encode_component` section.
+The rule is decided (decisions.md, 2026-11-22): the Tier 1 `encode_component` rejects a digest
+shorter than `bit_length/8` on every surface, where iscc-core slices. The Rust core and Go each pin
+it with their own test, but `data-edge.json` has no `encode_component` section, so nothing shared
+holds the ten bindings and the Go port to it. Measured in iteration 295 over 28,431 argument
+combinations: Go and the Python binding agree on accept or reject and on every code. Where an input
+has two faults they name different ones (Go reports the Version first), so a vector row carries
+exactly one fault and no harness compares the message.
 
-**Why it matters:** the one pure-Go surface silently emits malformed codes for an input the other
-eleven reject. **Suggested fix:** record the rule in decisions.md (rejection is the safer one), add
-an `encode_component` short-digest row to `data-edge.json`, make Go return an `iscc:` error. **Scope
-estimate:** 1-2 non-test files plus the vector fan-out.
+**Scope estimate:** no behaviour file; the vector fan-out over the 12 harnesses.
 
-Resolved when the short-digest behavior is decided and pinned by a shared vector that Go passes.
+Resolved when `data-edge.json` has an `encode_component` section with a short-digest row (error) and
+an exact-length row (code), and all 12 surfaces pass it.
+
+## Gen functions accept `bits` above 256 and return a unit that no decoder reads `low` [review]
+
+**Triage:** untriaged. A caller who passes `bits` of 288 or more to a gen function gets a code that
+`iscc_decode` rejects; ISO 24138 units are 32 to 256 bits, but most API pages say only "multiple of
+32".
+
+Measured in iteration 295: `gen_data_code_v0(b"abc", 512)` returns
+`ISCC:GAEHA6W7RKLGNVVVKKJZC3YRAK357XX6X7HKIOLPOBY7BC5QBONX2BKZ` on Go, on the Python binding and on
+iscc-core 1.5.0: a header that says 512 bits over a 32-byte body. `bits=288` and `gen_text_code_v0`,
+`gen_instance_code_v0` behave the same; the image function rejects `bits` above 256. `iscc_decode`
+and `iscc_decompose` reject the result ("truncated ISCC body: expected 64 bytes, got 32"), and so
+does iscc-core ("512 is not a valid LN"). Cause: the internal encode path clamps the body to the
+digest (kept on purpose, decisions.md 2026-11-22) and `encode_length` accepts any multiple of 32.
+Pre-existing and identical to the reference, so rejecting it is a divergence only Titusz can choose.
+
+**Upstream:** iscc/iscc-core (its gen functions do not bound `bits`; evidence above)
+
+Resolved when a decisions.md entry fixes the behaviour (reject `bits` above the digest length, or
+keep the reference's output and state the range on every API page) and a `data-edge.json` vector
+pins it.

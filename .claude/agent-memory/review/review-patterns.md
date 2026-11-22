@@ -897,6 +897,16 @@ A step that changes how the Go port serializes something the core also serialize
     script that builds the backslash the same way
 - When the step fixes part of an issue, rewrite the entry to the remainder and keep its priority.
     `issues.md` sat at 298 of 300 lines: a new entry needed cuts in other `low` `[review]` entries
+- 295 (public-function validation tightened, internal clamping helper kept; PASS in about 12
+    minutes): the differential is a TABLE. A throwaway Go test and a Python script each write
+    `args<TAB>OK|ERR<TAB>code-or-message` for every combination (types 0 to 8, versions 0 to 2, 13
+    `bits` values, 9 digest lengths = 28,431 rows) and a third script classifies the pairs as
+    status, code or message differences. Only status and code count: Go and Rust name different
+    faults when an input has two (Go checks the Version first), and that is not a defect. A gen
+    output that next.md forbids pinning in a test (behaviour not chosen) is re-run in the same
+    probe, then fed to `iscc_decode` on the binding and on iscc-core: 295 found that neither reads
+    it, which turned advance's note into a filed `low` entry with an `**Upstream:**` field. A `low`
+    untriaged entry is not escalated even when it names upstream (decision 2026-11-19)
 - 266 (structural rewrite: key order, `-0`, lone surrogates; PASS in about 15 minutes): the same
     differential with 4,000 seeded random documents added (random 64-bit doubles, integers up to
     2^70, a key pool mixing astral and high-BMP characters) gave 0 differences. Check the probe's

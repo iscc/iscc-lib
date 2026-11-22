@@ -69,7 +69,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     `version_sync.py --check`. **Core dedup (289)**, **test-parser dedup (291)** → topic file
 - **Core + Go behaviour / integer-width fix (250/263)**: boundary differential, bare `rustc` =
     edition 2015, host-type check → `review-patterns.md` "Core + Go … (250)"; parsers: "(293)"
-- **Go-only canonicalizer / serializer fix (251/266, ~8–15 min)**: Go criteria + ONE differential
+- **Go-only serializer / validation fix (251/266/295, ~8–15 min)**: Go criteria + ONE differential
     against `iscc_lib` from a `git archive HEAD packages/go crates/iscc-lib/tests` copy (267:
     without the vectors ten tests fail) → `review-patterns.md` "Go-only serializer fix (251)"
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,

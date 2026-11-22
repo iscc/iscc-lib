@@ -1,49 +1,61 @@
-## 2026-11-22 — Go `EncodeComponent` rejects a digest shorter than `bit_length/8`
+## 2026-11-22 — Review of: Go `EncodeComponent` rejects a digest shorter than `bit_length/8`
 
-**Done:** Go's public `EncodeComponent` keeps its MainType/SubType/Version checks (same order), then
-rejects `len(digest) < bitLength/8` with `iscc: digest length N < bit_length/8 (M)` (Rust wording),
-then calls `encodeComponentInternal`. The clamping body (MTIscc rejection, length/header encoding,
-clamped append) moved into `encodeComponentInternal`, mirroring Rust's `codec::encode_component`.
-All 9 gen call sites now use the internal helper. Rule recorded in decisions.md.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/go/codec.go`: split `EncodeComponent` (validation + length check) and
-    `encodeComponentInternal` (clamping encode); both doc comments updated
-- `packages/go/code_content_{audio,image,mixed,text,video}.go`, `code_data.go`, `code_instance.go`,
-    `code_meta.go` (2 sites): `EncodeComponent(uint8(MTx), uint8(STy), uint8(VSV0), …)` →
-    `encodeComponentInternal(MTx, STy, VSV0, …)`, one call each, same arguments (perl regex swap)
-- `packages/go/codec_test.go`: `TestCodecEncodeComponentRejectsShortDigest` (4 bytes/64 bits, full
-    message asserted), `TestCodecEncodeComponentRejectsEmptyDigest` (0 bytes/32 bits,
-    `digest length`), `TestCodecEncodeComponentExactLengthDigest` (8 bytes/64 bits, body
-    round-trips)
-- `.claude/context/decisions.md`: entry `encode_component rejects a digest shorter`
+**Summary:** Go's public `EncodeComponent` now returns `iscc: digest length N < bit_length/8 (M)`
+for a short digest, after its unchanged MainType/SubType/Version checks. The clamping body moved
+into `encodeComponentInternal`, which the 9 gen call sites and the decompose paths use, as Rust does
+with `codec::encode_component`. Only `codec.go` changes behaviour; the 8 call-site swaps are neutral
+(same arguments, constants that pass every removed range check). The rule is in decisions.md.
 
 **Verification:**
 
-- `go test -count=1 ./...` → `ok`; `go vet ./...` and `GOARCH=386 go vet ./...` clean;
-    `CGO_ENABLED=0 GOARCH=386 go test -count=1 ./...` → `ok`; `gofmt -l .` empty
-- `grep -n "EncodeComponent(" packages/go/*.go | grep -v _test.go` → only
-    `codec.go:480:func EncodeComponent(…)` (the doc line has no `(`)
-- `grep -n "encode_component rejects a digest shorter" .claude/context/decisions.md` → line 389
-- `mise run check` → exit 0 (first run: mdformat rewrapped the decision entry; second run clean)
-- Temporary probe (`zz_probe_test.go`, run then deleted, `ls zz*` → no matches): data
-    `ISCC:GAEHA6W7RKLGNVVVKKJZC3YRAK357XX6X7HKIOLPOBY7BC5QBONX2BKZ`, text
-    `ISCC:EAEHA2J6QMX4ZG2CUO7YPWBB4MECFBWWVJDPMQLTDS4CDX62B55UGXO4` —
-    `GenDataCodeV0([]byte("abc"), 512)` and `GenTextCodeV0("hello", 512)` equal next.md's two codes
-    exactly
-- Decision claims re-measured: iscc-core 1.5.0 `encode_component(0,0,0,64,b"\x01\x02\x03\x04")` →
-    `AAAQCAQDAQ`; Python binding same call →
-    `ValueError: invalid input: digest length 4 < bit_length/8 (8)`
+- [x] `cd packages/go && go test ./...` passes, including the new short-digest tests — `ok`; the
+    three new tests pass by name under `-v`
+- [x] `go vet ./...` clean and `CGO_ENABLED=0 GOARCH=386 go test ./...` passes — both exit 0;
+    `GOARCH=386 go vet` and `gofmt -l` clean too
+- [x] `grep -n "EncodeComponent(" packages/go/*.go | grep -v _test.go` prints only the definition —
+    `codec.go:480` alone
+- [x] Probe output: Go `GenDataCodeV0([]byte("abc"), 512)` and `GenTextCodeV0("hello", 512)` equal
+    next.md's two codes — re-run by review in a `git archive` copy, both equal, and equal to the
+    Python binding
+- [x] `grep -n "encode_component rejects a digest shorter" .claude/context/decisions.md` matches
+- [x] `mise run check` exits 0
+- [x] Extra probe (differential): Go `EncodeComponent` against the Python binding over 28,431
+    combinations (types 0 to 8, versions 0 to 2, 13 `bits` values, 9 digest lengths): no difference
+    in accept or reject, none in any code
 
-**Next:** the `encode_component` section in `data-edge.json` (12-surface fan-out) can now pass on
-Go: short digest → error, exact digest → code.
+**Issues found:**
+
+- Filed `low`, untriaged: "Gen functions accept `bits` above 256 and return a unit that no decoder
+    reads". Advance's finding, extended by review: `iscc_decode` rejects the 512-bit and 288-bit
+    results on the binding ("truncated ISCC body") and on iscc-core 1.5.0 ("512 is not a valid LN").
+    Pre-existing and identical to the reference; carries an `**Upstream:**` field. Not escalated
+    (decision 2026-11-19: review-found old defects stay `low` until Titusz promotes them)
+- The `normal` [audit] Go entry is rewritten to what is left: "No shared vector pins the
+    short-digest rule of `encode_component`"
+- Not filed (not a defect): where one input has two faults, Go and Rust name different ones, e.g.
+    Version 1 with a short digest gives `invalid Version: 1` on Go and `digest length …` on Rust.
+    Error text is not a contract on any surface
+
+**Codex review:** no actionable findings. It confirmed that the public encoder rejects undersized
+digests and that gen and decompose output is unchanged; its own native and 386 Go runs passed.
+
+**Next:** the `encode_component` section in `data-edge.json`, a 12-surface fan-out citing the
+rewritten `normal` [audit] issue. Two rows are enough: a short digest (error) and an exact-length
+digest (code). Give each error row exactly one fault and compare no message (see above). Do not add
+a row with a digest longer than `bit_length/8` unless every surface is measured first: this review
+compared Go with the Python binding only.
 
 **Notes:**
 
-- **Finding for review to file:** gen `bits` above 256 (e.g. 512) yields a header claiming 512 bits
-    over a 32-byte body on every surface and in iscc-core (probe above). Not pinned by any committed
-    test, per next.md; behaviour not chosen
-- Decompose call sites lose no validation: they pass types from `decodeHeader`, which already
-    range-checks MainType/SubType/Version (codec.go:257-266)
-- Go-only change: no Rust touched, CRAP/iai gates unaffected; no public API signature changed
+- decisions.md was 401 lines; `cid.archive_overflow` rotated the oldest entry ("Comment-only edits
+    and regenerated files do not count against the 6-file cap", still binding) into
+    `decisions-archive.md`. It is now 388 lines
+- Other `normal` issues still open: `alg_minhash_256([])` (needs a decision), the WASM hasher
+    `finalize()` consume rule (needs a decision)
+- No Rust file changed, so the CRAP, iai and semver gates did not move. Go's `EncodeComponent` keeps
+    its signature; it now rejects an input it used to accept (no `API-BREAK`, as with the decode
+    tightening of 2026-07-24)
+- `docs/howto/go.md` and `packages/go/README.md` show `EncodeComponent` with an exact-length digest
+    and state nothing about short ones: no doc is stale
