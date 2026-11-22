@@ -1134,3 +1134,19 @@ ties the sentence to the binding source.
 - One `/tmp` cargo project with a path dep proves the doc example AND the prose claims around it
     (same-item paths by assigning `types::X` to `X`, "identical to `gen_sum_code_v0`" by comparing)
 - Codex had no findings here; the two wording gaps came from the re-export listing
+
+## Core dedup (289 — one-shot gen functions reuse shared helpers, ~12 min, PASS)
+
+- "No error text or result changed" is a claim the new tests pin only in part. Prove it with ONE
+    program built twice: `git archive HEAD~1 | tar -x -C /tmp/x/old`, two `/tmp` cargo projects with
+    the same `main.rs` and a path dep each (old tree, checkout), an empty `[workspace]` table, a
+    copy of the root `Cargo.lock`, `cargo run -q --offline`, own `CARGO_TARGET_DIR` each. Print
+    `{:?}` of every result and `diff` the outputs (about 1 min for both builds)
+- Pick inputs that reach every error arm, then tally the distinct `Err(` texts to confirm it: both
+    size limits need a payload sized against the constant (`META_TRIM_META` = 128,000)
+- A step that makes a benchmarked function much cheaper leaves `.iai-baseline.json` stale: the check
+    is one-sided (+10%). File the stale rows; a baseline refresh was always `cid(human)`
+- A `grep -c` criterion that prints non-zero: run it on `HEAD~1` and list the matches before
+    judging. Here the pattern matched the field of the one implementation that had to stay
+- One verification script with a `step` function that logs name, `rc` and seconds per criterion to a
+    progress file ran all nine commands in the background while the diff was read

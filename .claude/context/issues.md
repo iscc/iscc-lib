@@ -105,25 +105,6 @@ from 12 to 14. Pre-existing. Not measured: Windows, where a loaded DLL cannot be
 Resolved when a JVM that loaded the bundled library leaves no `iscc-jni-*` directory behind on
 Linux, pinned by a child-JVM test, or a decisions.md entry accepts the leak.
 
-## One-shot gen functions re-implement their streaming counterparts `normal` [audit]
-
-Verified by the iteration-249 and iteration-260 audits (3040298).
-
-- `gen_instance_code_v0` (`crates/iscc-lib/src/lib.rs:907-908`) calls `blake3::hash(data)` and then
-    `utils::multi_hash_blake3(data)`, which hashes the same bytes again (`utils.rs:164`): two full
-    BLAKE3 passes per call. The multihash format is also written in `streaming.rs:39-56`.
-- `gen_sum_code_v0` in `crates/iscc-wasm/src/lib.rs` copies `SumHasher::update`/`finalize`
-    (`streaming.rs:172-203`), comment included; the same file already wraps `SumHasher`.
-- `gen_meta_code_v0` parses `meta` twice (`lib.rs:372` via `parse_meta_json`, then `:406-408`), and
-    `json_to_data_url` (`:322-328`) repeats the parse+canonicalize body with another error string.
-
-**Why it matters:** each pair can drift apart, and the instance hot path does twice the hashing.
-**Suggested fix:** derive `datahash` from the single digest (one shared multihash helper), call
-`SumHasher` from the WASM one-shot function, and have `parse_meta_json` return what the data URL
-step needs. **Scope estimate:** 3 non-test files; mind the iai-callgrind baseline.
-
-Resolved when each computation exists once and the conformance and perf gates stay green.
-
 ## No CI job runs a test suite on Windows `low` [review]
 
 **Triage:** untriaged. A Windows user of any binding would hit a defect that depends on the platform
@@ -209,10 +190,10 @@ Verified by the iteration-280 audit at db1fe55. The rewritten runners
 (`crates/iscc-lib/src/conformance.rs`, `packages/go/conformance.go`) parse every `gen_*` section,
 but parallel parsers remain:
 
-- Rust: nine `test_gen_*_conformance` tests in `crates/iscc-lib/src/lib.rs:1317-1953` (plus
-    `codec.rs:1806`) `include_str!` the fixture and decode inputs by hand. The meta dispatch
-    (`lib.rs:1336-1341`) and the `stream:` decoding (`:1840`, `:1884`) repeat
-    `conformance.rs:126-131` and `:228-231`.
+- Rust: nine `test_gen_*_conformance` tests in `crates/iscc-lib/src/lib.rs` (plus one in `codec.rs`)
+    `include_str!` the fixture and decode inputs by hand. The meta dispatch in
+    `test_gen_meta_code_v0_conformance` and the `stream:` decoding in the data and instance tests
+    repeat `conformance.rs:126-131` and `:228-231`.
 - Go: about ten `*_test.go` files `os.ReadFile` the monorepo path instead of the embedded copy.
     `code_meta_test.go:49-63` copies `metaArg`, and `code_data_test.go:37` and
     `code_instance_test.go:37` copy `decodeStream`. `conformance.go` itself parses the document
@@ -239,13 +220,13 @@ verdict on the same malformed case.
 ## `@iscc/wasm` hasher `finalize()` consumes the hasher on some argument errors but not others `normal` [audit]
 
 Verified by the iteration-249/260/270 audits; unchanged at db1fe55. `DataHasher.finalize`,
-`InstanceHasher.finalize` and `SumHasher.finalize` (`crates/iscc-wasm/src/lib.rs:703-718`,
-`758-770`, and the SumHasher method after them) run `opt_u32`/`opt_bool` *before* `inner.take()`. So
-a `bits` that the JS-side check rejects (`-1`, `1.5`, `"x"`) throws and leaves the hasher usable. A
-`bits` that the core rejects (e.g. `13`) throws *after* `take()` and consumes it.
-`docs/howto/wasm.md:338` says "After calling `finalize()`, the hasher is consumed". Go decided that
-the first `Finalize` consumes even when it fails (decisions.md, 2026-11-21). No other surface states
-its rule, and no test pins either branch.
+`InstanceHasher.finalize` and `SumHasher.finalize` (the three `finalize` methods in
+`crates/iscc-wasm/src/lib.rs`) run `opt_u32`/`opt_bool` *before* `inner.take()`. So a `bits` that
+the JS-side check rejects (`-1`, `1.5`, `"x"`) throws and leaves the hasher usable. A `bits` that
+the core rejects (e.g. `13`) throws *after* `take()` and consumes it. `docs/howto/wasm.md:338` says
+"After calling `finalize()`, the hasher is consumed". Go decided that the first `Finalize` consumes
+even when it fails (decisions.md, 2026-11-21). No other surface states its rule, and no test pins
+either branch.
 
 **Why it matters:** whether a caller can retry after a bad argument depends on which validator
 caught it. That is an implementation accident, and copying it to other surfaces makes it the API.
@@ -330,3 +311,19 @@ job installs the port.
 
 Resolved when the install prints no post-build check problem on x64-linux, or a decisions.md entry
 keeps the port as an overlay port only.
+
+## iai baseline for `bench_instance_code` is twice the measured cost `low` [review]
+
+**Triage:** untriaged. No user is affected; a later change that brings the second BLAKE3 pass back
+into `gen_instance_code_v0` would pass the perf gate unnoticed.
+
+Iteration 289 halved the instruction count of `gen_instance_code_v0` (`bytes_1m` 5,236,470 →
+2,621,027 Ir, `bytes_64k` 333,349 → 169,266). `.iai-baseline.json` still holds the old values, and
+`scripts/iai_regression.py --check` fails only above +10% of the baseline. On these two rows the
+gate now accepts any cost up to twice the current one, and no test can see a double hash. The step
+left the baseline alone on purpose: every refresh so far was a `cid(human)` commit, and state.md
+calls a refresh a human call (nine other rows read 3–8% high from toolchain drift).
+
+Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact of a CI `perf` run
+on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
+that both `bench_instance_code` rows are within the tolerance of a current run.

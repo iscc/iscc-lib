@@ -128,9 +128,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     small `fn` callers (216). cargo-crap 0.2.2 counts `?`, `||`, `if`, top-level `match` arms; NOT
     closure bodies, `let … else`, `.then()`. Run the CI CRAP lines on `tests/*.rs`
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
-    load-bearing (stripped → `summary: 0` false-green). **NOT in `mise run check`** — run
-    `mise run bench:iai:check` on any benchmarked hot-path change (191's +36% reached red CI). A
-    correctness change to a hot path can raise cost irreducibly: regen the baseline in the SAME step
+    load-bearing (stripped → `summary: 0` false-green). **NOT in `mise run check`**: run
+    `mise run bench:iai:check` on any hot-path change (191: +36% reached red CI). **It fails only
+    above +10%**: after a big drop (289: −50%) the old row lets the cost return; file the stale row
 - **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, `ignore` list
     with a per-entry justification) + `audit` CI job (`cargo-deny@0.19.9`, not in the devcontainer —
     install the prebuilt release) + `mise run audit`; reads Cargo.lock so green locally is
