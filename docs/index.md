@@ -114,6 +114,7 @@ decentralized, content-based identification without a central registry.
         gen_text_code_v0
     } from "@iscc/wasm";
 
+    // Browsers and bundlers; for Node.js see the WASM how-to (initSync)
     await init();
     const iscc = gen_text_code_v0("Hello World");
     console.log(iscc); // "ISCC:EAA..."

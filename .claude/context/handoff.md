@@ -1,58 +1,58 @@
-## 2026-11-22 — Review of: Rust in-crate tests read `data.json` inputs through `conformance.rs` parsers
+## 2026-11-22 — Every WASM snippet initializes the module; WASM agent guidance names only the `--target web` build
 
-**Verdict:** PASS
+**Done:** The five getting-started WASM tabs that called exports without initializing now
+`import init` and `await init();`. Every bare `await init();` on the three snippet pages (the
+tutorial's six tabs, README, docs home) has a comment above it:
+`// Browsers and bundlers; for Node.js see the WASM how-to (initSync)`. The iscc-wasm `CLAUDE.md`
+and `specs/wasm-bindings.md` now name only the published `--target web` build. They give the release
+command exactly as `release.yml` runs it and say how each environment initializes the module.
+`tests/test_wasm_docs.py` guards both rules.
 
-**Summary:** `conformance.rs` is now the only file under `crates/iscc-lib/src` that parses
-`data.json`. All 13 hand-parsing test sites in `lib.rs`, `codec.rs` and `streaming.rs` call its
-`pub(crate)` parsers and keep every extra-field assertion and `tested == N` count. A short inputs
-list is a parse failure instead of a panic, pinned in the data, meta and iscc parsers. The diff is
-test modules plus private parser code: no public API change, no hot path, 4 source files.
+**Files changed:**
+
+- `docs/tutorials/getting-started.md`: 5 tabs gain `init` import + labelled `await init();`; verify
+    tab gains the comment
+- `README.md`, `docs/index.md`: the comment above the bare `await init();`
+- `crates/iscc-wasm/CLAUDE.md`: "Browser vs Node.js Targets" → "Published Target and Initialization"
+    (one target, browsers/bundlers `init()`, Node `initSync({ module })`, link to how-to). "Build
+    Commands" has a dev `--target web` build and the `release.yml` release line. The gotcha at the
+    old :202 now says to prove marshalling on a release `--target web` build loaded with
+    `initSync({ module })`
+- `.claude/context/specs/wasm-bindings.md`: "Build Process" now has a paragraph on the one published
+    target and a single `--target web` command. "(`web`, plus `bundler` if published)" became "the
+    published `web` target", and the Verified-when bullet "for all published targets" became "for
+    the published `web` target"
+- `tests/test_wasm_docs.py`: helpers `indented_javascript_blocks` (finds fences at any indent and
+    dedents them), `snippet_problems` and `unpublished_targets`, plus 9 tests: the snippet rule over
+    `SNIPPET_PAGES`, a ≥6-tab reach check on the tutorial, the guidance rule over `AGENT_GUIDANCE`,
+    and one negative case for each rule (missing init, unlabelled bare init, positional init, other
+    package ignored, indented fence, target named across a line break)
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` in all three CI feature sets — lib tests 319 / 266 / 287, every suite
-    ok
-- [x] `cargo clippy -p iscc-lib --all-targets -- -D warnings` — clean; workspace clippy and CI's
-    `--no-default-features` and `--all-features` lines are clean too
-- [x] `grep -n 'data\.json' crates/iscc-lib/src/*.rs` outside `conformance.rs` — prints nothing
-- [x] `grep -nE 'inputs\[[0-9]' crates/iscc-lib/src/*.rs` — prints one line, `lib.rs:1270`, a local
-    `[&str; 3]` array in `test_json_to_data_url_matches_gen_meta_code_v0_meta`. It is no fixture
-    read and was there before the step (43 hits at the define-next commit, this one among them). The
-    criterion over-matched; its intent is met
-- [x] `cargo test -p iscc-lib --lib conformance -- --nocapture` — 22 passed, no panic. The data arms
-    print four `could not parse test inputs` lines, the meta and iscc short-list cases one each
-- [x] CI CRAP gate line after a fresh `cargo llvm-cov` — exit 0 ("0 regressed, 2 improved, 16 new,
-    48 moved"), `.crap-baseline.json` untouched; `mise run check` exits 0
+- `uv run pytest tests/test_wasm_docs.py` → 17 passed (8 existing + 9 new)
+- Real regression check: I ran the helpers over the `git show HEAD:` copies of the 5 pages. The
+    tutorial reports 5× "no init() or initSync() call" plus 1× unlabelled bare init. README and
+    index report the unlabelled bare init. Both guidance files report
+    `['--target nodejs', '--target bundler']`
+- `grep -nE -- '--target (nodejs|bundler)' crates/iscc-wasm/CLAUDE.md .claude/context/specs/wasm-bindings.md`
+    → no output (exit 1)
+- `uv run zensical build` → exit 0, "No issues found"
+- `uv run pytest tests/test_check_spec_paths.py tests/test_check_tier1_docs.py` → 58 passed
+- `mise run check` → exit 0 on the second run. The first run only applied mdformat (reflowed the two
+    guidance files) and ruff-format (one test file). I re-ran the WASM test after the reformat: 17
+    passed
 
-**Issues found:**
-
-- The `[audit]` issue is rewritten to the part that is left, now titled "The Rust and Go conformance
-    runners disagree on malformed vectors" (`normal`): five wrong-type rows plus the
-    unknown-top-level-key difference. The short-list row is closed on both sides (Go pins it as
-    `no_inputs`)
-- Not filed (nits): the 16 new parser functions are not in `.crap-baseline.json`, so only
-    `--fail-above` (30) sees them until a refresh; the highest scores 8.0. The baseline also keeps a
-    stale `parse_meta_json` row from iteration 289, which fails nothing
-- Not filed (pre-existing, nobody runs it): `cargo clippy -p iscc-lib --no-default-features`
-    `--all-targets` fails to compile the benches, which import `gen_meta_code_v0` and
-    `gen_text_code_v0` unconditionally. CI lints that feature set lib-only
-
-**Codex review:** no actionable finding. It confirmed the three feature sets and clippy.
-
-**Next:** two good candidates, both `normal`:
-
-- Part 2 of the runner issue: one rule for a wrong JSON type or range on both runners. It touches
-    `crates/iscc-lib/src/conformance.rs` (`bits_at`, `meta_arg`, `string_entries`, `i32_entries`,
-    the pixel cast in `image_inputs`) and `packages/go/conformance.go`. The rule needs a
-    decisions.md entry (a parse failure for every row is the simplest). New branches in the parsers
-    will move CRAP scores, so run CI's gate line and refresh the baseline in that step if it reports
-    a regression
-- `version:check` gaps (1 non-test file), independent of the above
+**Next:** Part 2 of the runner issue (one wrong-type rule for `conformance.rs` and `conformance.go`,
+needs a decisions.md entry and a CRAP baseline check), or the `version:check` gaps.
 
 **Notes:**
 
-- I added one rule to `crates/iscc-lib/CLAUDE.md` → "Conformance Rules": in-crate tests read inputs
-    through the `conformance.rs` parsers and never decode them themselves
-- Still waiting on Titusz: `alg_minhash_256([])` and the WASM `finalize()` rule need his decision
-- For a "prints nothing" grep criterion, run the grep on the current tree first and name the
-    expected leftovers
+- The guidance rule applies the "no unpublished target" check only to the two `AGENT_GUIDANCE`
+    files. Before writing it I grepped the tree: the strings also appear in `notes/`, agent memory
+    and archives, which are outside the check
+- The snippet rule counts a bare `init()` as labelled when any `//` comment line in the block
+    contains `Node`. That is deliberately loose: it checks that a label exists, not its wording
+- `docs/howto/wasm.md` per-function snippets are untouched, as Not In Scope says. They are not in
+    `SNIPPET_PAGES`, so the rule does not apply to them
+- No Rust, no hot path, no public API change

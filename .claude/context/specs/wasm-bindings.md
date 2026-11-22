@@ -84,10 +84,12 @@ The core struct is shared with the PyO3 binding (see `python-bindings.md` → "S
 
 ## Build Process
 
+`@iscc/wasm` is one `--target web` build (the `build-wasm` job of `release.yml`); no other target is
+built or published. Browsers and bundlers initialize it with `await init()`; Node.js passes the
+`.wasm` bytes through `initSync({ module })` (see `docs/howto/wasm.md` → "Setup").
+
 ```bash
-wasm-pack build crates/iscc-wasm --target bundler   # For bundlers (webpack, vite)
-wasm-pack build crates/iscc-wasm --target web        # For direct browser use
-wasm-pack build crates/iscc-wasm --target nodejs     # For Node.js (testing)
+wasm-pack build crates/iscc-wasm --target web   # Development build
 ```
 
 ### WASM SIMD (`simd128`)
@@ -125,16 +127,16 @@ wasm-opt = [
 ]
 ```
 
-Applies to every published target (`web`, plus `bundler` if published). BLAKE3 is the Instance-Code
-/ `datahash` leg of `gen_sum_code_v0` / `SumHasher` and gains the most; the Data leg (gear CDC /
-xxh32 / minhash) benefits less. `simd128` is baseline in all current browsers (Chrome/Edge ≥91,
-Firefox ≥89, Safari ≥16.4) and Node ≥16 — a single SIMD build is fine, no scalar fallback artifact.
-Build-flag + Cargo-feature change only, no source changes: conformance output is byte-identical.
+Applies to the published `web` target. BLAKE3 is the Instance-Code / `datahash` leg of
+`gen_sum_code_v0` / `SumHasher` and gains the most; the Data leg (gear CDC / xxh32 / minhash)
+benefits less. `simd128` is baseline in all current browsers (Chrome/Edge ≥91, Firefox ≥89, Safari
+≥16.4) and Node ≥16 — a single SIMD build is fine, no scalar fallback artifact. Build-flag +
+Cargo-feature change only, no source changes: conformance output is byte-identical.
 
 **Verified when:**
 
 - Release workflow builds `@iscc/wasm` with `simd128` enabled
-    (`RUSTFLAGS="-C target-feature=+simd128"`) for all published targets
+    (`RUSTFLAGS="-C target-feature=+simd128"`) for the published `web` target
 - `wasm-opt` flags in `crates/iscc-wasm/Cargo.toml` include `--enable-simd`
 - `wasm-pack test --node crates/iscc-wasm --features conformance` passes on the SIMD build
 - Published `.wasm` binary contains SIMD instructions — the backend is definitively wired in

@@ -103,6 +103,7 @@ Verify the installation by running the built-in conformance self-test:
         conformance_selftest
     } from "@iscc/wasm";
 
+    // Browsers and bundlers; for Node.js see the WASM how-to (initSync)
     await init();
     console.log(conformance_selftest()); // true
     ```
@@ -182,10 +183,12 @@ optional description:
 === "WASM"
 
     ```javascript
-    import {
+    import init, {
         gen_meta_code_v0
     } from "@iscc/wasm";
 
+    // Browsers and bundlers; for Node.js see the WASM how-to (initSync)
+    await init();
     const iscc = gen_meta_code_v0(
         "The Neverending Story",
         "A novel by Michael Ende",
@@ -267,11 +270,13 @@ Every ISCC code encodes its type, subtype, version, and length in a self-describ
 === "WASM"
 
     ```javascript
-    import {
+    import init, {
         gen_meta_code_v0,
         iscc_decompose
     } from "@iscc/wasm";
 
+    // Browsers and bundlers; for Node.js see the WASM how-to (initSync)
+    await init();
     const iscc = gen_meta_code_v0("The Neverending Story");
     const units = iscc_decompose(iscc);
     console.log(units);
@@ -340,10 +345,12 @@ Generate a similarity hash from text content:
 === "WASM"
 
     ```javascript
-    import {
+    import init, {
         gen_text_code_v0
     } from "@iscc/wasm";
 
+    // Browsers and bundlers; for Node.js see the WASM how-to (initSync)
+    await init();
     const iscc = gen_text_code_v0("Hello World");
     console.log(iscc); // "ISCC:EAA..."
     ```
@@ -408,10 +415,12 @@ Generate an exact identity hash from raw bytes:
 === "WASM"
 
     ```javascript
-    import {
+    import init, {
         gen_instance_code_v0
     } from "@iscc/wasm";
 
+    // Browsers and bundlers; for Node.js see the WASM how-to (initSync)
+    await init();
     const data = new TextEncoder().encode("Hello World");
     const iscc = gen_instance_code_v0(data);
     console.log(iscc); // "ISCC:IAA..."
@@ -503,10 +512,12 @@ memory:
 === "WASM"
 
     ```javascript
-    import {
+    import init, {
         InstanceHasher
     } from "@iscc/wasm";
 
+    // Browsers and bundlers; for Node.js see the WASM how-to (initSync)
+    await init();
     const hasher = new InstanceHasher();
     // Feed Uint8Array chunks from a ReadableStream or File
     hasher.update(new Uint8Array([72, 101, 108, 108, 111]));

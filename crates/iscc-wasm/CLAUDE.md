@@ -46,15 +46,18 @@ Browser-compatible WASM bindings for iscc-lib, published as `@iscc/wasm` on npm.
     struct. Exception: `gen_sum_code_v0` returns a `WasmSumCodeResult` struct with `iscc`,
     `datahash`, `filesize`, and optional `units` fields.
 
-## Browser vs Node.js Targets
+## Published Target and Initialization
 
-`wasm-pack` supports three build targets:
+`@iscc/wasm` is ONE `wasm-pack build --target web` build, published from `release.yml`. No other
+target is built or published. The build is an ES module whose initializer loads `iscc_wasm_bg.wasm`
+once; every environment calls it before any other export:
 
-- `--target bundler` -- for webpack/vite (default for browser apps)
-- `--target web` -- native ESM in browsers, no bundler needed
-- `--target nodejs` -- Node.js fallback (prefer `iscc-napi` for Node.js server use)
+- Browsers and bundlers (webpack, Vite): a bare `await init()` fetches the `.wasm` file by URL
+- Node.js: a bare `init()` fails (Node's `fetch` cannot read `file:` URLs), so pass the bytes:
+    `initSync({ module: readFileSync(require.resolve("@iscc/wasm/iscc_wasm_bg.wasm")) })`. Prefer
+    `iscc-napi` (`@iscc/lib`) for Node.js server use
 
-All targets produce from the same source. No `#[cfg]` divergence is needed.
+`docs/howto/wasm.md` → "Setup" shows the three forms; `tests/test_wasm_docs.py` guards the docs.
 
 The crate targets `wasm32-unknown-unknown` (browser WASM). WASI is not supported. Evaluate the WASM
 Component Model only when WIT tooling is stable, browsers support components natively, and `jco`
@@ -63,17 +66,12 @@ output size is competitive with `wasm-pack`.
 ## Build Commands
 
 ```bash
-# Build for bundler (webpack/vite)
-wasm-pack build crates/iscc-wasm --target bundler
-
-# Build for native ESM in browsers
+# Development build (native ESM, the published target)
 wasm-pack build crates/iscc-wasm --target web
 
-# Build for Node.js
-wasm-pack build crates/iscc-wasm --target nodejs
-
-# Release build with size optimization
-wasm-pack build crates/iscc-wasm --release --target bundler
+# Release build, exactly as the build-wasm job of release.yml runs it
+RUSTFLAGS="-C target-feature=+simd128" \
+    wasm-pack build --target web --release crates/iscc-wasm --features conformance
 ```
 
 The release profile uses
@@ -200,7 +198,8 @@ crate-root Tier 1 re-export) and its `finalize(bits?, wide?, add_units?)` return
     `Array::from`, the `Array` index getter and `try_iter` have no `catch`, and a few thousand such
     throws leave every export failing with `memory access out of bounds`.
 - **`#[wasm_bindgen_test]` calls the Rust function directly and skips the JS glue.** Prove a
-    marshalling change from Node on a `wasm-pack build --target nodejs` package as well.
+    marshalling change from Node as well, on a release `--target web` build ("Build Commands")
+    loaded with `initSync({ module })`.
 - **Conformance test counts are hardcoded.** When upstream `data.json` adds test cases, update the
     `assert_eq!(tested, N, ...)` counts in `conformance.rs`.
 - **`crate-type` must include `cdylib`.** The `rlib` target is included for test compilation. Do not

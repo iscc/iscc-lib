@@ -281,6 +281,7 @@ import init, {
     gen_meta_code_v0
 } from "@iscc/wasm";
 
+// Browsers and bundlers; for Node.js see the WASM how-to (initSync)
 await init();
 const iscc = gen_meta_code_v0("ISCC Test Document!");
 console.log(`Meta-Code: ${iscc}`);

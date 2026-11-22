@@ -69,3 +69,8 @@ metadata:
     (`--out-dir` BEFORE the crate path, else it goes to cargo), rename, `npm pack`, install in a
     scratch project. `crates/iscc-wasm/README.md` is a Tier 1 `FULL` doc (283). Docs claims gated by
     `tests/test_wasm_docs.py`
+- WASM snippet gate (292): `test_wasm_docs.py` `SNIPPET_PAGES` (README, docs/index, getting-started)
+    — every `@iscc/wasm` block calls `init(`/`initSync(`; bare `init()` needs a `//` comment naming
+    `Node`. Content-tab fences are indented 4: use `indented_javascript_blocks`, not
+    `javascript_blocks`. `AGENT_GUIDANCE` (iscc-wasm CLAUDE.md, wasm-bindings spec) bans
+    `--target nodejs|bundler`. `WASM_DOCS` (howto + crate README) also demands `WasmSumCodeResult`

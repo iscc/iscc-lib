@@ -104,7 +104,7 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - vcpkg hashes (285): `prepare-release` needs `build-ffi`, runs `scripts/update_vcpkg_hashes.py`
     before tagging; wiring pinned by `tests/test_update_vcpkg_hashes.py`. Scripts loaded by path in
     tests: no `@dataclass` (needs `sys.modules`) — use `NamedTuple`
-- WASM returns (234) / JS ints (256, 268, 269) / published web pkg + Node init (283) →
+- WASM returns (234) / JS ints (256, 268, 269) / published web pkg + Node init (283, 292) →
     bindings-detail.md
 - WASM SIMD (#42): `blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt `--enable-simd` →
     wasm-simd.md
