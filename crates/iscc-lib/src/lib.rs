@@ -1365,40 +1365,25 @@ mod tests {
     #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_meta_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_meta_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let input_name = inputs[0].as_str().unwrap();
-            let input_desc = inputs[1].as_str().unwrap();
-            let meta_val = &inputs[2];
-            let bits = inputs[3].as_u64().unwrap() as u32;
-
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+            let inputs = conformance::meta_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
             let expected_metahash = tc["outputs"]["metahash"].as_str().unwrap();
 
-            // Dispatch meta parameter based on JSON value type
-            let meta_arg: Option<String> = match meta_val {
-                serde_json::Value::Null => None,
-                serde_json::Value::String(s) => Some(s.clone()),
-                serde_json::Value::Object(_) => Some(serde_json::to_string(meta_val).unwrap()),
-                other => panic!("unexpected meta type in {tc_name}: {other:?}"),
-            };
-
-            let desc = if input_desc.is_empty() {
-                None
-            } else {
-                Some(input_desc)
-            };
-
             // Verify ISCC output from struct
-            let result = gen_meta_code_v0(input_name, desc, meta_arg.as_deref(), bits)
-                .unwrap_or_else(|e| panic!("gen_meta_code_v0 failed for {tc_name}: {e}"));
+            let result = gen_meta_code_v0(
+                inputs.name,
+                inputs.description,
+                inputs.meta.as_deref(),
+                inputs.bits,
+            )
+            .unwrap_or_else(|e| panic!("gen_meta_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
                 result.iscc, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
@@ -1430,7 +1415,7 @@ mod tests {
             }
 
             // Verify meta from struct
-            if meta_arg.is_some() {
+            if inputs.meta.is_some() {
                 assert!(
                     result.meta.is_some(),
                     "meta should be present in test case {tc_name}"
@@ -1467,19 +1452,15 @@ mod tests {
     #[cfg(feature = "text-processing")]
     #[test]
     fn test_gen_text_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_text_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_text_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let input_text = inputs[0].as_str().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+            let (input_text, bits) = conformance::text_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
             let expected_chars = tc["outputs"]["characters"].as_u64().unwrap() as usize;
 
             // Verify ISCC output from struct
@@ -1523,23 +1504,15 @@ mod tests {
 
     #[test]
     fn test_gen_image_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_image_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_image_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let pixels_json = inputs[0].as_array().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            let pixels: Vec<u8> = pixels_json
-                .iter()
-                .map(|v| v.as_u64().unwrap() as u8)
-                .collect();
+            let (pixels, bits) = conformance::image_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
 
             let result = gen_image_code_v0(&pixels, bits)
                 .unwrap_or_else(|e| panic!("gen_image_code_v0 failed for {tc_name}: {e}"));
@@ -1557,14 +1530,9 @@ mod tests {
     #[test]
     fn test_soft_hash_image_v0_256_quadrant_layout() {
         // Blocks follow the top-left, top-right, bottom-left and bottom-right 8×8 DCT squares
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let pixels: Vec<u8> = data["gen_image_code_v0"]["test_0003_img_256"]["inputs"][0]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| v.as_u64().unwrap() as u8)
-            .collect();
+        let data = conformance::test_data().unwrap();
+        let tc = &conformance::cases(&data, "gen_image_code_v0").unwrap()["test_0003_img_256"];
+        let (pixels, _) = conformance::image_inputs(tc).unwrap();
         let digest = soft_hash_image_v0(&pixels, 256).unwrap();
 
         let rows: Vec<Vec<f64>> = pixels
@@ -1615,20 +1583,15 @@ mod tests {
 
     #[test]
     fn test_gen_audio_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_audio_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_audio_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let cv_json = inputs[0].as_array().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            let cv: Vec<i32> = cv_json.iter().map(|v| v.as_i64().unwrap() as i32).collect();
+            let (cv, bits) = conformance::audio_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
 
             let result = gen_audio_code_v0(&cv, bits)
                 .unwrap_or_else(|e| panic!("gen_audio_code_v0 failed for {tc_name}: {e}"));
@@ -1737,30 +1700,15 @@ mod tests {
 
     #[test]
     fn test_gen_video_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_video_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_video_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let frames_json = inputs[0].as_array().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            let frame_sigs: Vec<Vec<i32>> = frames_json
-                .iter()
-                .map(|frame| {
-                    frame
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|v| v.as_i64().unwrap() as i32)
-                        .collect()
-                })
-                .collect();
+            let (frame_sigs, bits) = conformance::video_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
 
             let result = gen_video_code_v0(&frame_sigs, bits)
                 .unwrap_or_else(|e| panic!("gen_video_code_v0 failed for {tc_name}: {e}"));
@@ -1777,26 +1725,21 @@ mod tests {
 
     #[test]
     fn test_gen_mixed_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_mixed_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_mixed_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let codes_json = inputs[0].as_array().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+            let (codes, bits) = conformance::mixed_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
             let expected_parts: Vec<&str> = tc["outputs"]["parts"]
                 .as_array()
                 .unwrap()
                 .iter()
                 .map(|v| v.as_str().unwrap())
                 .collect();
-
-            let codes: Vec<&str> = codes_json.iter().map(|v| v.as_str().unwrap()).collect();
 
             let result = gen_mixed_code_v0(&codes, bits)
                 .unwrap_or_else(|e| panic!("gen_mixed_code_v0 failed for {tc_name}: {e}"));
@@ -1873,25 +1816,15 @@ mod tests {
 
     #[test]
     fn test_gen_data_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_data_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_data_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let stream_str = inputs[0].as_str().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            // Parse "stream:" prefix — remainder is hex-encoded bytes
-            let hex_data = stream_str
-                .strip_prefix("stream:")
-                .unwrap_or_else(|| panic!("expected 'stream:' prefix in test case {tc_name}"));
-            let input_bytes = hex::decode(hex_data)
-                .unwrap_or_else(|e| panic!("invalid hex in test case {tc_name}: {e}"));
+            let (input_bytes, bits) = conformance::stream_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
 
             let result = gen_data_code_v0(&input_bytes, bits)
                 .unwrap_or_else(|e| panic!("gen_data_code_v0 failed for {tc_name}: {e}"));
@@ -1934,23 +1867,13 @@ mod tests {
 
     #[test]
     fn test_gen_instance_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_instance_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_instance_code_v0").unwrap();
 
         for (name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let stream_str = inputs[0].as_str().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            // Parse "stream:" prefix — remainder is hex-encoded bytes
-            let hex_data = stream_str
-                .strip_prefix("stream:")
-                .unwrap_or_else(|| panic!("expected 'stream:' prefix in test case {name}"));
-            let input_bytes = hex::decode(hex_data)
-                .unwrap_or_else(|e| panic!("invalid hex in test case {name}: {e}"));
+            let (input_bytes, bits) = conformance::stream_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
 
             let result = gen_instance_code_v0(&input_bytes, bits)
                 .unwrap_or_else(|e| panic!("gen_instance_code_v0 failed for {name}: {e}"));
@@ -1988,19 +1911,15 @@ mod tests {
 
     #[test]
     fn test_gen_iscc_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_iscc_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_iscc_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let codes_json = inputs[0].as_array().unwrap();
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            let codes: Vec<&str> = codes_json.iter().map(|v| v.as_str().unwrap()).collect();
+            let codes = conformance::iscc_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
 
             let result = gen_iscc_code_v0(&codes, false)
                 .unwrap_or_else(|e| panic!("gen_iscc_code_v0 failed for {tc_name}: {e}"));

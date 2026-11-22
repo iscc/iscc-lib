@@ -291,21 +291,12 @@ mod tests {
 
     #[test]
     fn test_instance_hasher_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_instance_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = crate::conformance::test_data().unwrap();
+        let cases = crate::conformance::cases(&data, "gen_instance_code_v0").unwrap();
 
         for (name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let stream_str = inputs[0].as_str().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-
-            let hex_data = stream_str
-                .strip_prefix("stream:")
-                .unwrap_or_else(|| panic!("expected 'stream:' prefix in test case {name}"));
-            let input_bytes = hex::decode(hex_data)
-                .unwrap_or_else(|e| panic!("invalid hex in test case {name}: {e}"));
+            let (input_bytes, bits) = crate::conformance::stream_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {name}"));
 
             // One-shot reference
             let oneshot = gen_instance_code_v0(&input_bytes, bits)
@@ -436,21 +427,12 @@ mod tests {
 
     #[test]
     fn test_data_hasher_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_data_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = crate::conformance::test_data().unwrap();
+        let cases = crate::conformance::cases(&data, "gen_data_code_v0").unwrap();
 
         for (name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let stream_str = inputs[0].as_str().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-
-            let hex_data = stream_str
-                .strip_prefix("stream:")
-                .unwrap_or_else(|| panic!("expected 'stream:' prefix in test case {name}"));
-            let input_bytes = hex::decode(hex_data)
-                .unwrap_or_else(|e| panic!("invalid hex in test case {name}: {e}"));
+            let (input_bytes, bits) = crate::conformance::stream_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {name}"));
 
             // One-shot reference
             let oneshot = gen_data_code_v0(&input_bytes, bits)

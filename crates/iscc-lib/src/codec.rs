@@ -1803,18 +1803,15 @@ mod tests {
     #[test]
     fn test_decompose_conformance_roundtrip() {
         // Use gen_iscc_code_v0 conformance vectors to verify decompose
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_iscc_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = crate::conformance::test_data().unwrap();
+        let cases = crate::conformance::cases(&data, "gen_iscc_code_v0").unwrap();
 
         for (tc_name, tc) in cases {
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-            let inputs = tc["inputs"].as_array().unwrap();
-            let codes_json = inputs[0].as_array().unwrap();
-            let input_codes: Vec<&str> = codes_json.iter().map(|v| v.as_str().unwrap()).collect();
+            let expected_iscc = crate::conformance::expected_iscc(tc).unwrap();
+            let input_codes = crate::conformance::iscc_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
 
-            let decomposed = iscc_decompose(expected_iscc).unwrap();
+            let decomposed = iscc_decompose(&expected_iscc).unwrap();
 
             // Each decomposed code decodes to a valid MainType
             for code in &decomposed {

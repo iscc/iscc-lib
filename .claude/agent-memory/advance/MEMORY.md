@@ -44,6 +44,10 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     over `Case<T> = Option<(IsccResult<T>, T)>` (section logic in closures: not CRAP-counted); Go
     `runSection[V any]` + `run<X>Case(tc) (got, want, err)`, `errUnparsable`, `unmarshalInputs`. A
     new section = one closure/case fn. rustfmt reflow shifts lines → regen CRAP baseline AFTER check
+- Rust data.json (291): only `conformance.rs` parses it — `pub(crate)` `test_data()`, `cases()`,
+    `expected_iscc`, `<x>_inputs(tc) -> Option<…>` (`.get(i)?`, never `inputs[i]`); in-crate tests
+    call `conformance::<x>_inputs(tc).unwrap_or_else(|| panic!(..))`. New CRAP fns = "new", not
+    regressions → baseline untouched. Count-proof: diff sorted `--lib -- --list` vs archive copy
 - Go data.json (290): ONE parse (`vectorEntry{Inputs, Outputs json.RawMessage}`, all sections);
     per-section input parsers (`metaInputs`, `streamInputs`, …) + `expectedISCC` → `(string, error)`
     shared by runners and `code_*_test.go` via `conformanceSection(t, name)` (sync.OnceValues). Bare
