@@ -34,6 +34,7 @@ const SECTIONS: &[(&str, Caller)] = &[
     ("gen_meta_code_v0", call_meta),
     ("gen_video_code_v0", call_video),
     ("alg_cdc_chunks", call_cdc),
+    ("encode_component", call_encode_component),
 ];
 
 /// Load and parse `tests/data-edge.json` from the crate source tree.
@@ -151,6 +152,15 @@ fn u32_arg(inputs: &[Value], index: usize) -> Result<u32, String> {
         .and_then(Value::as_u64)
         .and_then(|n| u32::try_from(n).ok())
         .ok_or_else(|| format!("input {index} is not a u32"))
+}
+
+/// Read the input at `index` as a `u8`.
+fn u8_arg(inputs: &[Value], index: usize) -> Result<u8, String> {
+    inputs
+        .get(index)
+        .and_then(Value::as_u64)
+        .and_then(|n| u8::try_from(n).ok())
+        .ok_or_else(|| format!("input {index} is not a u8"))
 }
 
 /// Encode an `iscc_decode` result as `[mt, st, vs, li, "bytes:<hex>"]`.
@@ -273,6 +283,22 @@ fn call_cdc(inputs: &[Value]) -> Result<Option<Outcome>, String> {
     Ok(Some(to_outcome(
         iscc_lib::alg_cdc_chunks(&data, utf32, avg),
         chunks_json,
+    )))
+}
+
+/// Read inputs 0 to 2 as the `(mtype, stype, version)` header fields.
+fn header_args(inputs: &[Value]) -> Result<(u8, u8, u8), String> {
+    Ok((u8_arg(inputs, 0)?, u8_arg(inputs, 1)?, u8_arg(inputs, 2)?))
+}
+
+/// Run `encode_component` on the vector's header fields, bit length and digest.
+fn call_encode_component(inputs: &[Value]) -> Result<Option<Outcome>, String> {
+    let (mtype, stype, version) = header_args(inputs)?;
+    let bit_length = u32_arg(inputs, 3)?;
+    let digest = bytes_arg(inputs, 4)?;
+    Ok(Some(to_outcome(
+        iscc_lib::encode_component(mtype, stype, version, bit_length, &digest),
+        Value::String,
     )))
 }
 
