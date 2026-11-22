@@ -218,31 +218,6 @@ Resolved when either every literal in the header is at most 2,047 bytes (a lower
 which the literal-length test follows), or an MSVC build of `test_iscc.c` shows that 4,095-byte
 pieces compile.
 
-## vcpkg portfile pins the SHA512 hashes of the v0.2.0 tarballs `normal` [audit]
-
-Verified by the iteration-280 audit at db1fe55. `packages/cpp/portfile.cmake` builds its download
-URL from `${VERSION}` (`:43-45`, so 0.7.0 from `vcpkg.json:3`, which `version_sync.py` keeps in
-step). The five `ISCC_SHA512` values (`:14-38`) have not changed since commit `d140555c`, where they
-were added for v0.2.0. Measured: the published `iscc-ffi-v0.2.0-x86_64-unknown-linux-gnu.tar.gz`
-hashes to `ebed9b50…`, the portfile value, and the v0.7.0 tarball to `26f396ed…`. So
-`vcpkg_download_distfile` fails its hash check on every platform for every release after 0.2.0.
-Neither `version_sync.py`, `release.yml` nor any test touches the hashes, and no CI job runs the
-port. `docs/architecture.md:110` and `packages/cpp/CLAUDE.md:13` present the port as a distribution
-channel.
-
-**Why it matters:** the vcpkg path has been broken for five releases and nothing would notice the
-next one. Every release silently adds one more version that cannot install.
-
-**Suggested fix:** make the hashes a release step (`release.yml` writes them from the built
-tarballs, as it does for the Swift checksum), or drop the hard-coded hashes and the port claim. Add
-a test that ties the portfile to the release artifacts, or a check that fails while the hashes
-belong to another version.
-
-**Scope estimate:** 2-3 non-test files.
-
-Resolved when the portfile's hashes match the tarballs of the version in `vcpkg.json`, and a gate
-keeps them matched.
-
 ## Rust and Go per-function tests re-parse `data.json` beside the conformance runners `normal` [audit]
 
 Verified by the iteration-280 audit at db1fe55. The rewritten runners
@@ -366,3 +341,41 @@ iteration 284 added one more missing row. The skill also tells the reader to sta
 
 Resolved when neither page carries a file list that can fall behind `TARGETS` (point to the list in
 `scripts/version_sync.py`, as the specs do), or a test ties each list to `TARGETS`.
+
+## `publish-ffi` skips a half-uploaded FFI archive on a rerun `normal` [review]
+
+Since iteration 285 `publish-ffi` sets `overwrite_files: false` on `softprops/action-gh-release@v3`,
+so that an `ffi` re-trigger cannot replace archives whose SHA512s the tagged vcpkg portfile pins.
+The action then skips every file whose name is already on the release (`src/github.ts`, `upload`:
+"already exists and overwrite_files is false", `return null`) and does not look at the asset's
+state. GitHub documents that a failed upload (502) can leave an empty asset in state `starter` under
+the intended name. A `gh run rerun --failed` after such a failure, which is the recovery
+`packages/cpp/CLAUDE.md` names, would report success and leave that archive unusable. The release
+skill's check afterwards only greps asset names. With the default (`true`) a rerun deleted and
+re-uploaded the asset. Read from the action source at `v3` (40c2ca6) and GitHub's REST docs ("Upload
+a release asset"). Not reproduced: a 502 cannot be forced. Found by Codex.
+
+`docs/development.md` ("The FFI job has no such check: it uploads its tarballs", and the re-publish
+paragraph after it) still describes the old behaviour. An `ffi` re-trigger now adds only the
+archives the release lacks.
+
+Resolved when `publish-ffi` fails unless every archive it staged is on the release in state
+`uploaded` with the size or digest of the staged file (or it removes `starter` assets before it
+uploads), a wiring test like those in `tests/test_update_vcpkg_hashes.py` pins that, and
+`docs/development.md` says what an `ffi` re-trigger does to archives that exist.
+
+## vcpkg port fails one post-build check `low` [review]
+
+**Triage:** untriaged. Whoever submits the port to the vcpkg registry (`specs/cpp-bindings.md` →
+Distribution) would be asked to fix it first; an overlay-port install works.
+
+Measured in iteration 285 with a fresh vcpkg on x64-linux:
+`vcpkg install iscc --overlay-ports=<dir>` (a directory with `portfile.cmake` and `vcpkg.json`)
+downloads the v0.7.0 archive, passes the hash check and installs the headers and libraries, exit 0.
+Post-build validation then warns "mismatching number of debug and release binaries" and reports
+"Found 1 post-build check problem(s)": the archives carry release binaries only, and the portfile
+sets neither `VCPKG_BUILD_TYPE` nor a policy. Pre-existing. Not measured on Windows or macOS. No CI
+job installs the port.
+
+Resolved when the install prints no post-build check problem on x64-linux, or a decisions.md entry
+keeps the port as an overlay port only.

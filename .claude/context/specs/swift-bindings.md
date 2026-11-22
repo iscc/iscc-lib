@@ -264,8 +264,10 @@ self-consistent state.
 
 The `prepare-release` job of `release.yml` (macos-15) implements the flow above. It runs only when
 the `version` input is set: there is no separate `swift` checkbox, and a registry-only re-trigger
-does not rebuild the XCFramework. Each registry chain starts with a job that has
-`needs: [prepare-release]`, so the tags exist before any publish job starts.
+does not rebuild the XCFramework. Every publish job has `prepare-release` among its ancestors in the
+`needs` graph, so the tags exist before any publish job starts. Only `build-ffi` and its smoke test
+`test-ffi` do not wait for it: `prepare-release` needs the `build-ffi` archives to write the vcpkg
+portfile hashes into the same commit (`cpp-bindings.md` → Distribution).
 
 ## Caching Strategy
 

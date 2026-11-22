@@ -29,19 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-19 — Steps are sized by outcome: 6-file default, fan-out by behaviour
-
-**Decision:** the default step cap rises from 3 to 6 non-test files, and the fan-out valve covers
-bringing one already-decided behaviour to N surfaces, each in its own idiom, with one commit per
-surface (`define-next.md` step 5). A change to core behaviour never rides along with a fan-out.
-advance and review get 2 hours and $40 per run. **Why:** over iterations 196-214 implementation was
-24% of the cost of an iteration, and a step's cost barely moved with its size ($10 for under 50
-changed lines, $14-16 for over 400). 5 of 119 iterations were sent back, none of the 13 largest. The
-ISCC-SEQ bindings took 8 iterations because the valve required mechanically identical changes.
-**Trial — kept** (Titusz, 2026-11-20): iterations 215-224 had 1 NEEDS_WORK, every fan-out push was
-green in CI, and the edge vectors reached all 12 surfaces in 5 iterations at $11.1 per iteration.
-**Context:** human decision (Titusz, interactive session, 2026-11-19).
-
 ## 2026-11-20 — .NET jagged-array inputs: null check first, one `PinnedRows` helper
 
 **Decision:** the six .NET jagged-array methods pin through one private `PinnedRows` helper. A null

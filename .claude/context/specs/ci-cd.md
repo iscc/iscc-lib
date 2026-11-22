@@ -230,9 +230,10 @@ on:
 `release.yml` is **`workflow_dispatch`-only** — a tag push does not trigger it; the workflow creates
 the tags itself. Two ways to run it:
 
-- **Full release** — `version: X.Y.Z`. `prepare-release` (macos-15) builds the Swift XCFramework,
-    commits the `Package.swift` checksum to `main`, creates the `vX.Y.Z` and `packages/go/vX.Y.Z`
-    tags and the GitHub Release; every registry chain then runs.
+- **Full release** — `version: X.Y.Z`. `build-ffi` runs first. `prepare-release` (macos-15) then
+    builds the Swift XCFramework, commits the `Package.swift` checksum and the vcpkg portfile hashes
+    of the `build-ffi` archives to `main`, creates the `vX.Y.Z` and `packages/go/vX.Y.Z` tags and
+    the GitHub Release; every registry chain then runs.
 - **Registry-only re-trigger** — no `version`, one or more checkboxes (`crates-io`, `pypi`, `npm`,
     `maven`, `maven-kotlin`, `ffi`, `rubygems`, `nuget`). `prepare-release` is skipped and only the
     selected chains run (build → test → publish).

@@ -68,7 +68,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## ISCC Algorithm Knowledge
 
-- **Unicode 16.0.0 pin REMOVED 2026-07-30** (decisions.md): never resurrect a freeze mechanism
 - **A data-driven fixture is self-referential — assert CONTENT, not shape** (141): ungate guards on
     version, case counts, code points + skip-list keys (ASCII no-op swaps stay green forever). A
     test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin it
@@ -98,13 +97,14 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `--check-action-inputs`; never hand-retype either. **`prepare-release` never moves an existing
     tag** (259): `git tag … || echo` keeps it, so a hand-pushed tag stays on the pre-checksum
     commit. **`test-jni` runs `mvn test` on libraries bundled as JAR resources, with NO
-    `target/debug`** (278); the CI `java` job runs that layout as its second step (279)
+    `target/debug`** (278); the CI `java` job runs that layout as its second step (279).
+    **`prepare-release` needs `build-ffi`** (285: vcpkg hashes are written before the tag), and
+    `failure()` sees EVERY ancestor: a failed FFI leg skips every chain. `overwrite_files: false`
+    skips by asset NAME
 - **napi installs from the committed `crates/iscc-napi/package-lock.json` with `npm ci`** (284).
     Refresh it only from scratch (`rm -rf node_modules package-lock.json && npm install`): a lock
     written over `node_modules` can drop other platforms' optional packages. **`napi build` with the
-    locked cli 3.10 FAILS in the checkout** (9p mount: hard-link `ENOENT`; it leaves untracked
-    `.*.tmp` files and `.napi-rs-filesystem-transaction.swp/`): build in a `git archive` copy in
-    `/tmp`
+    locked cli 3.10 FAILS in the checkout** (9p, issues.md): build in a `git archive` copy in `/tmp`
 - **A docs install claim is a claim about the PUBLISHED artifact: install it** (238: source gems up
     to 0.7.0 do not build). **npm `@iscc/wasm` is ONE `--target web` build** (283): in Node a bare
     `init()` fails on its `file:` fetch, so pass the bytes via `initSync({ module })`; guard

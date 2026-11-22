@@ -1,62 +1,74 @@
-## 2026-11-22 — `prepare-release` writes the vcpkg portfile SHA512s from the built FFI archives before tagging
+## 2026-11-22 — Review of: `prepare-release` writes the vcpkg portfile SHA512s from the built FFI archives before tagging
 
-**Done:** Added `scripts/update_vcpkg_hashes.py` (stdlib, write/`--check` modes). The portfile is
-the single target list; the version comes from `vcpkg.json`. Ran it on the five real v0.7.0 archives
-to fix `portfile.cmake`. Rewired `release.yml` so `prepare-release` needs `build-ffi`, downloads
-`ffi-*`, runs the script and commits the portfile with `Package.swift` before tagging. `publish-ffi`
-and `pack-nuget` need `prepare-release`; `publish-ffi` has `overwrite_files: false`.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `scripts/update_vcpkg_hashes.py`: new. Parses `if`/`elseif` branches (each must set `ISCC_TARGET`,
-    `ISCC_ARCHIVE_EXT`, `ISCC_SHA512` exactly once). It exits 1 with each missing archive named and
-    writes nothing, and rewrites only the hash spans (byte-level read/write)
-- `tests/test_update_vcpkg_hashes.py`: new, 13 tests (7 script, 6 wiring against the real
-    `release.yml`)
-- `packages/cpp/portfile.cmake`: 5 SHA512s → v0.7.0 values (written by the script)
-- `.github/workflows/release.yml`: `build-ffi` lost `needs`; `prepare-release` got
-    `needs: [build-ffi]` (bare `if` kept), a download step and an update step. The commit step was
-    renamed "Commit release checksums" and stages both files, with generalised message and subject.
-    `needs` on `publish-ffi`/`pack-nuget` and `overwrite_files: false` added; header comments
-    updated
-- `packages/cpp/CLAUDE.md`: Publishing paragraph + "vcpkg SHA512 updates" pitfall rewritten (names
-    the script, `--check`, `gh run rerun --failed`, the build-ffi-blocks-tag consequence)
-- `.claude/context/specs/cpp-bindings.md`: one Distribution sentence on how the hashes are kept
-- `.claude/context/decisions.md`: entry "vcpkg SHA512s are written by `prepare-release` …"
+**Summary:** The portfile now carries the v0.7.0 hashes, written by the new stdlib script
+`scripts/update_vcpkg_hashes.py`, and `release.yml` writes them from the `build-ffi` archives into
+the commit it tags. The work matches next.md, the code is small and fails closed, and 13 tests pin
+the script and the wiring. One recovery gap in the new `overwrite_files: false` setting is filed as
+a `normal` issue (found by Codex).
 
 **Verification:**
 
-- `gh release download v0.7.0 -p 'iscc-ffi-v0.7.0-*'` into an empty tmp dir D. Before the write:
-    `--check D` → 5× `stale SHA512`, exit 1. After: `OK: 5 portfile hashes match v0.7.0 archives`,
-    exit 0. The linux x64 hash starts `26f396edae983bc2f129` = `sha512sum` of that archive (and the
-    issue's value)
-- `uv run pytest tests/test_update_vcpkg_hashes.py tests/test_check_release_workflow.py` → 40
-    passed. Full `uv run pytest tests` → 860 passed
-- Wiring tests against `git show HEAD:.github/workflows/release.yml` (throwaway probe): all 5 wiring
-    tests FAIL on the old workflow (`needs`, step order, download, ffi consumers, overwrite_files).
-    The matrix-equality test passes on both, as it should
-- `uv run python scripts/check_release_workflow.py` → OK, exit 0. `actionlint@v1.7.7` on
-    `release.yml` → exit 0, no output
-- `softprops/action-gh-release@v3` `action.yml` declares `overwrite_files` (default `'true'`),
-    checked via `gh api`
-- `grep -n "must be updated" packages/cpp/CLAUDE.md` → no output; the file names the script
-- `mise run check` → exit 0 (the first run flagged ruff RUF007 `zip` → fixed with
-    `itertools.pairwise`). `ty check` on both files → clean
+- [x] With the five v0.7.0 FFI assets in an empty directory D,
+    `python3 scripts/update_vcpkg_hashes.py --check D` exits 0 — "OK: 5 portfile hashes match v0.7.0
+    archives"; the linux x64 hash starts `26f396ed…` and equals `sha512sum` of the archive
+- [x] `uv run pytest tests/test_update_vcpkg_hashes.py tests/test_check_release_workflow.py` passes
+    — 40 passed
+- [x] `uv run python scripts/check_release_workflow.py` exits 0 — and the CI-only
+    `--check-action-inputs` run resolves 19 of 19 action refs
+- [x] `grep -n "must be updated" packages/cpp/CLAUDE.md` prints nothing, and the file names
+    `scripts/update_vcpkg_hashes.py` (2 mentions)
+- [x] `mise run check` exits 0 — also `uv run ty check` and ruff `S`/`C901` on both new files
 
-**Next:** The `@iscc/lib` npm README result-type sentence (`normal`, docs-only), per the define-next
-ranking.
+Probes beyond next.md (2 of 3 used):
+
+- **The port installs end to end.** A fresh vcpkg on x64-linux ran
+    `vcpkg install iscc --overlay-ports=<portfile.cmake + vcpkg.json from HEAD>`: download of the
+    v0.7.0 archive, hash check, headers and libraries installed, exit 0. Before this step the hash
+    check failed. It prints one post-build warning (filed `low`, see below)
+- **The script runs on the release runner.** It uses `itertools.pairwise` (Python 3.10+) and runs as
+    bare `python3` on `macos-15`; the runner image readme lists Python 3.15.2
+
+**Issues found:**
+
+- Filed `normal`: "`publish-ffi` skips a half-uploaded FFI archive on a rerun" (Codex, confirmed in
+    the action source). The entry also covers two sentences in `docs/development.md` that still
+    describe the old FFI upload behaviour
+- Filed `low`, untriaged: "vcpkg port fails one post-build check" (debug/release binary count; only
+    matters for a submission to the vcpkg registry). Pre-existing
+- Deleted: "vcpkg portfile pins the SHA512 hashes of the v0.2.0 tarballs" (resolved)
+- Fixed in this review (facts the step made stale): `specs/swift-bindings.md` → Release Workflow
+    Integration said each registry chain starts with a job that needs `prepare-release` (`build-ffi`
+    and `test-ffi` no longer do); `specs/ci-cd.md` → Job Conditions and `docs/development.md` said
+    `prepare-release` commits only the `Package.swift` checksum
+- Not filed, minor: write mode rewrites the portfile even when no hash changed; `single_match` has
+    no return annotation
+
+**Codex review:** One finding (P2), accepted. With `overwrite_files: false`,
+`softprops/action-gh-release@v3` skips a file whose name is already on the release and does not
+check the asset's state (`src/github.ts`, `upload`). GitHub documents that a failed upload can leave
+an empty `starter` asset under that name, so `gh run rerun --failed` would report success and leave
+the archive unusable. Not reproducible here; filed as the `normal` issue above.
+
+**Next:** The `@iscc/lib` npm README result-type sentence (`normal`, docs-only), as define-next
+ranked it. The new `publish-ffi` issue is a small follow-up (`release.yml`, a wiring test,
+`docs/development.md`) and fits well while this wiring is fresh; define-next decides the order.
 
 **Notes:**
 
-- `Target` is a `NamedTuple`, not a `@dataclass`: the tests load the script by path without
-    registering it in `sys.modules`, and `dataclass` crashes on that (`'NoneType' … __dict__`)
-- Unverifiable here: the real `release.yml` run. `build-ffi` checks out the dispatch sha while
-    `prepare-release` checks out `main` (unchanged from before). Every pre-step `prepare-release`
-    checks on `main` (version check) now runs only after the ~5 FFI builds finish, so a wrong
-    version input fails later than before. `test-ffi` still runs in parallel with `prepare-release`.
-    A failing smoke test therefore no longer stops the tag, only `publish-ffi`. That matches
-    next.md's wiring, but the reviewer may want `test-ffi` in `prepare-release.needs` too (out of
-    scope here)
-- The script's `--check` with archives of another version reports them as missing (exit 1), same as
-    write mode
-- No Rust change: CRAP, iai, semver unaffected
+- decisions.md was 410 lines; the runner's `archive_overflow` rotated one entry, now 397. No new
+    entry from this review: the advance entry of 2026-11-22 covers the design
+- `failure()` sees every ancestor. Because `prepare-release` now needs `build-ffi`, a failed FFI leg
+    also skips other chains in a combined re-trigger (`-f ffi=true -f pypi=true`). It fails safe and
+    a separate dispatch works around it; not filed
+- `test-ffi` still does not gate the tag (it never did: the tag used to be created before any
+    build). Adding it to `prepare-release.needs` would be cheap if Titusz wants the smoke test
+    before the tag; not filed
+- The first real run of this wiring is the v0.8.0 release. A dispatch must come from `main`:
+    `build-ffi` names its archives from the dispatch commit's `Cargo.toml`, and `prepare-release`
+    reads the version from `vcpkg.json` on `main`; a mismatch fails closed ("missing archive")
+- Gate idea, not scoped: the port can only install while the release named in `vcpkg.json` exists,
+    so it cannot be a CI job on `develop`. `mise run test:install` could run
+    `update_vcpkg_hashes.py --check` on the downloaded release assets after a release
+- No Rust change: CRAP, iai and semver are unaffected

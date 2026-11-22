@@ -240,3 +240,23 @@ to polling loops.
     feature, so the Gradle tests after it load that build. Same exports; noted, not filed.
 - `maturin develop` after `cargo clippy`/`cargo test` recompiles `pyo3-ffi`, `pyo3` and `iscc-py`
     (about 15 s, then 0.3 s when repeated): the pre-push batch took 60 s in total.
+
+## release.yml rewiring step (285, ~25 min, PASS_WITH_NOTES)
+
+- **What a green static gate cannot say, and where to read it instead:** an action input's real
+    behaviour is in the action SOURCE (`gh api "repos/<o>/<r>/contents/src/<f>.ts?ref=<tag>"`):
+    `softprops/action-gh-release@v3` with `overwrite_files: false` skips by asset NAME and never
+    checks the asset state, so a `starter` (half-uploaded) asset survives a rerun. Codex found it;
+    read every recovery path of a new input before the handoff.
+- **A tool version on a runner is in the image readme**
+    (`gh api repos/actions/runner-images/contents/images/macos/macos-15-arm64-Readme.md`): a script
+    run as bare `python3` there got 3.15, so `itertools.pairwise` (3.10+) is fine.
+- **`failure()` is transitive**: compute each job's ancestor set with PyYAML to see which chains a
+    new `needs` edge couples, and to check any "every job waits for X" sentence in the specs
+    (`ci-cd.md` → Job Conditions, `swift-bindings.md` → Release Workflow Integration,
+    `docs/development.md` → release section). A rewiring step leaves those stale: realign the
+    sub-spec facts in the review.
+- **vcpkg port end to end (31 s)**: `sudo apt-get install -y zip cmake ninja-build`, shallow clone
+    `microsoft/vcpkg` into `/tmp`, `bootstrap-vcpkg.sh -disableMetrics`, then
+    `vcpkg install iscc --overlay-ports=<dir with only portfile.cmake + vcpkg.json>`. It installs
+    only while the release named in `vcpkg.json` exists, so it cannot be a CI check on `develop`.

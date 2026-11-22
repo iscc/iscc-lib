@@ -117,8 +117,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **A test that shells out adds a tool to the `python-test` CI job** (240: `ruby`): check the runner
     image readme
 - **Action pin / release.yml / any GHA bump**: static-verify only via the committed gates
-    (`check_release_workflow.py` + `--check-action-inputs`); `always()` = NEEDS_WORK →
-    `gha-workflow-reviews.md`
+    (`check_release_workflow.py` + `--check-action-inputs`); `always()` = NEEDS_WORK. **Rewiring
+    (285)**: action source, runner readme, ancestor sets, vcpkg e2e → `gha-workflow-reviews.md`
 - **ci.yml fix only CI can prove / freshness step (260–274, ~20 min)**: push the advance commits
     FIRST, read the job LOG, pin a step's `exit` line, then the handoff → `gha-workflow-reviews.md`
 - **Pre-flight `uv run prek run --hook-stage pre-push --all-files` before pushing never-CI'd code**

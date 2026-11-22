@@ -365,9 +365,10 @@ workflow" on `main`, and enter the version. The version must match the one in th
 or the workflow stops.
 
 Do not create or push the `vX.Y.Z` tag by hand. The `prepare-release` job builds the Swift
-XCFramework, commits the updated `Package.swift` checksum to `main`, and only then creates the
-`vX.Y.Z` and `packages/go/vX.Y.Z` tags and the GitHub Release. It never moves an existing tag, so a
-tag pushed by hand would stay on the commit before the checksum update.
+XCFramework, commits the updated `Package.swift` checksum and the vcpkg portfile hashes of the FFI
+archives to `main`, and only then creates the `vX.Y.Z` and `packages/go/vX.Y.Z` tags and the GitHub
+Release. It never moves an existing tag, so a tag pushed by hand would stay on the commit before the
+checksum update.
 
 Once `prepare-release` has finished, the workflow publishes every chain:
 
