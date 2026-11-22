@@ -1,15 +1,14 @@
-<!-- assessed-at: cf3caf071ad4c9e003c0e965fbd46bcc286c0bd6 -->
+<!-- assessed-at: 8d16bd57b2a337d84d3a1babef1b50537151ad35 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; CI green; 4 `normal` issues block the release
+## Phase: v0.8.0 — features done; 3 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 288 closed the
-Rust API tier-docs issue: every public `iscc-lib` path now has a tier (Tier 2 = `codec` plus
-`streaming::SumHasher`), and the docs no longer cite an `iscc_lib::api` module. 4 `normal` and 14
-`low` issues remain.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 289 closed the
+one-shot/streaming duplication issue: the gen functions and WASM `gen_sum_code_v0` reuse the core
+streaming, multihash and JSON helpers. 3 `normal` and 15 `low` issues remain.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -26,15 +25,13 @@ Rust API tier-docs issue: every public `iscc-lib` path now has a tier (Tier 2 = 
 
 ## Rust Core Crate
 
-**Status**: partially met (v0.8.0 features met; three `normal` issues)
+**Status**: partially met (v0.8.0 features met; two `normal` issues)
 
 - Tier 1 has 35 symbols at the crate root, plus the Tier 2 `read_unit` and `SEQ_MAINTYPES`.
-    `conformance_selftest` runs the seq vectors; `src/` has 315 `#[test]`
-- Tier list complete: `rust-core.md` names `streaming::SumHasher` as Tier 2 under the same SemVer
-    lock as `codec`; `IsccError`/`IsccResult` and `types` structs are uncounted support types
+    `conformance_selftest` runs the seq vectors; `src/` has 318 `#[test]`
+- One-shot dedup done: `utils::blake3_multihash_hex` is shared by `gen_instance_code_v0` and
+    `InstanceHasher`; `canonicalize_json` parses JSON meta once; instance hashing costs half the Ir
 - `normal`: `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises; no decision yet
-- `normal`: the one-shot gen functions re-implement streaming (BLAKE3 runs twice, `meta` is parsed
-    twice)
 - `normal`: nine `test_gen_*_conformance` tests in `lib.rs` re-parse `data.json` beside
     `conformance.rs`, and the Rust and Go runners disagree on malformed vectors. **Postponed
     (human):** `>= 1.0.0`, MSRV, `no_std`
@@ -63,6 +60,7 @@ Rust API tier-docs issue: every public `iscc-lib` path now has a tier (Tier 2 = 
 
 - 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust; Node.js setup
     for the `--target web` package documented and pinned by `tests/test_wasm_docs.py`
+- `gen_sum_code_v0` now feeds one core `streaming::SumHasher` instead of its own hasher pair
 - `normal`: hasher `finalize()` consumes the hasher when the core rejects `bits`, but not when JS
     rejects it. No cross-binding rule is recorded and no test covers it
 - `low`: byte and string parameters are converted in the glue code; a list element that throws
@@ -136,8 +134,8 @@ Rust API tier-docs issue: every public `iscc-lib` path now has a tier (Tier 2 = 
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (22 `FULL`, 2 `EXACT`)
-- `docs/architecture.md`, `docs/rust-api.md`, root and crate `CLAUDE.md` now match `lib.rs`: no
-    `iscc_lib::api` reference outside `notes/`; `SumHasher` documented as Tier 2
+- `docs/architecture.md`, `docs/rust-api.md`, root and crate `CLAUDE.md` match `lib.rs`; `SumHasher`
+    documented as Tier 2
 - `low`: `target.md` and the advance/review prompts still name `codec` as the whole of Tier 2
     (Titusz's files)
 - `low`: the version-sync file lists in `docs/development.md` (9 of 22 targets) and the release
@@ -145,15 +143,17 @@ Rust API tier-docs issue: every public `iscc-lib` path now has a tier (Tier 2 = 
 
 ## Benchmarks
 
-**Status**: met
+**Status**: met (one `low`)
 
 - 12 criterion benches + iai-callgrind in `crates/iscc-lib/benches/`; pytest-benchmark in
     `benchmarks/python/`; speedups in `docs/benchmarks.md`
-- The iai baseline reads 3–8% high on 9 of 16 benches (toolchain drift); a refresh is a human call
+- `low`: `.iai-baseline.json` still holds the pre-dedup `bench_instance_code` rows (about 2× the
+    measured cost), so the +10% gate cannot catch a returning second BLAKE3 pass; 9 other rows read
+    3–8% high (toolchain drift). A refresh is a `cid(human)` call
 
 ## CI/CD and Publishing
 
-**Status**: partially met (CI green; one `low`)
+**Status**: partially met (one `low`)
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles;
     `prepare-release` commits the vcpkg hashes with the Swift checksum before tagging; 22
@@ -161,18 +161,17 @@ Rust API tier-docs issue: every public `iscc-lib` path now has a tier (Tier 2 = 
 - `publish-ffi` runs `scripts/ffi_release_assets.py stale` before the upload and `verify` after it.
     A live `starter` deletion is unproven (needs a failed upload); `release.yml` is never run by CI
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 44991356360 on the origin tip `031d6de9`: 24/24 check-runs green:
-    https://github.com/iscc/iscc-lib/actions/runs/44991356360
+- **Latest CI: PASSING.** Run 44992891924 on the origin tip `c981338b`: 24/24 check-runs green:
+    https://github.com/iscc/iscc-lib/actions/runs/44992891924
 - Local HEAD adds one unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
-18 open in issues.md: 4 `normal`, 14 `low` (13 untriaged), no `critical`. Two need a behaviour
-decision first (`alg_minhash_256([])`, WASM `finalize()`). None is blocked on upstream. 7 sit in
-`postponed.md`.
+18 open in issues.md: 3 `normal`, 15 `low` (14 untriaged), no `critical`. Two `normal` need a
+behaviour decision from Titusz first (`alg_minhash_256([])`, WASM `finalize()`). None is blocked on
+upstream. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the 4 `normal` issues that block v0.8.0: the one-shot/streaming duplication, the duplicate
-`data.json` parsers, and the two behaviour decisions (these need Titusz). Then Titusz cuts v0.8.0
-via `/release`.
+Clear the 3 `normal` issues that block v0.8.0: the duplicate `data.json` parsers (loop-workable) and
+the two behaviour decisions (need Titusz). Then Titusz cuts v0.8.0 via `/release`.
