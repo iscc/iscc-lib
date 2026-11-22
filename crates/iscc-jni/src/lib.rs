@@ -1232,8 +1232,9 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_dataHasherUpdate<'local>(
 
 /// Finalize a streaming DataHasher and return an ISCC string.
 ///
-/// Consumes the inner hasher state. After this call, subsequent `update`
-/// or `finalize` calls throw `IllegalStateException`; a zero handle throws
+/// Consumes the inner hasher state, even when it throws on an invalid
+/// `bits`. After this call, subsequent `update` or `finalize` calls throw
+/// `IllegalStateException`; a zero handle throws
 /// `IllegalArgumentException`. The caller must still call
 /// `dataHasherFree` to release the wrapper.
 #[unsafe(no_mangle)]
@@ -1245,10 +1246,6 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_dataHasherFinalize<'local>
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
-            let bits = match non_negative(env, bits, "bits") {
-                Ok(v) => v,
-                Err(default) => return default,
-            };
             if ptr == 0 {
                 return throw_and_default(env, "DataHasher handle is null");
             }
@@ -1258,6 +1255,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_dataHasherFinalize<'local>
             let wrapper = unsafe { &mut *(ptr as *mut JniDataHasher) };
             let Some(inner) = wrapper.inner.take() else {
                 return throw_state_error(env, "DataHasher already finalized");
+            };
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
             };
             match inner.finalize(bits) {
                 Ok(result) => match env.new_string(result.iscc) {
@@ -1335,8 +1336,9 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_instanceHasherUpdate<'loca
 
 /// Finalize a streaming InstanceHasher and return an ISCC string.
 ///
-/// Consumes the inner hasher state. After this call, subsequent `update`
-/// or `finalize` calls throw `IllegalStateException`; a zero handle throws
+/// Consumes the inner hasher state, even when it throws on an invalid
+/// `bits`. After this call, subsequent `update` or `finalize` calls throw
+/// `IllegalStateException`; a zero handle throws
 /// `IllegalArgumentException`. The caller must still call
 /// `instanceHasherFree` to release the wrapper.
 #[unsafe(no_mangle)]
@@ -1348,10 +1350,6 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_instanceHasherFinalize<'lo
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> jni::errors::Result<JString<'local>> {
-            let bits = match non_negative(env, bits, "bits") {
-                Ok(v) => v,
-                Err(default) => return default,
-            };
             if ptr == 0 {
                 return throw_and_default(env, "InstanceHasher handle is null");
             }
@@ -1361,6 +1359,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_instanceHasherFinalize<'lo
             let wrapper = unsafe { &mut *(ptr as *mut JniInstanceHasher) };
             let Some(inner) = wrapper.inner.take() else {
                 return throw_state_error(env, "InstanceHasher already finalized");
+            };
+            let bits = match non_negative(env, bits, "bits") {
+                Ok(v) => v,
+                Err(default) => return default,
             };
             match inner.finalize(bits) {
                 Ok(result) => match env.new_string(result.iscc) {

@@ -548,21 +548,58 @@ class IsccLibTest {
         assertRejectsNegative("bits", () -> IsccLib.softHashVideoV0(frames, -1));
     }
 
-    /** Verify hasher finalize rejects negative bits and leaves the hasher usable. */
+    /** Assert that a valid finalize after a rejected one reports the finalized state. */
+    private static void assertConsumed(String name, Executable finalize64) {
+        IllegalStateException e = assertThrows(IllegalStateException.class, finalize64);
+        assertEquals(name + " already finalized", e.getMessage());
+    }
+
+    /** Verify dataHasherFinalize rejecting negative bits still consumes the hasher. */
     @Test
-    void hasherFinalizeRejectsNegativeBits() {
-        long data = IsccLib.dataHasherNew();
-        long instance = IsccLib.instanceHasherNew();
+    void dataHasherFinalizeNegativeBitsConsumes() {
+        long ptr = IsccLib.dataHasherNew();
         try {
-            assertRejectsNegative("bits", () -> IsccLib.dataHasherFinalize(data, -1));
-            assertRejectsNegative("bits", () -> IsccLib.instanceHasherFinalize(instance, -1));
-            assertEquals(IsccLib.genDataCodeV0(new byte[0], 64), IsccLib.dataHasherFinalize(data, 64));
-            assertEquals(
-                    IsccLib.genInstanceCodeV0(new byte[0], 64),
-                    IsccLib.instanceHasherFinalize(instance, 64));
+            assertRejectsNegative("bits", () -> IsccLib.dataHasherFinalize(ptr, -1));
+            assertConsumed("DataHasher", () -> IsccLib.dataHasherFinalize(ptr, 64));
         } finally {
-            IsccLib.dataHasherFree(data);
-            IsccLib.instanceHasherFree(instance);
+            IsccLib.dataHasherFree(ptr);
+        }
+    }
+
+    /** Verify dataHasherFinalize rejected by the core (bits 13) still consumes the hasher. */
+    @Test
+    void dataHasherFinalizeCoreRejectedBitsConsumes() {
+        long ptr = IsccLib.dataHasherNew();
+        try {
+            assertThrows(IllegalArgumentException.class, () -> IsccLib.dataHasherFinalize(ptr, 13));
+            assertConsumed("DataHasher", () -> IsccLib.dataHasherFinalize(ptr, 64));
+        } finally {
+            IsccLib.dataHasherFree(ptr);
+        }
+    }
+
+    /** Verify instanceHasherFinalize rejecting negative bits still consumes the hasher. */
+    @Test
+    void instanceHasherFinalizeNegativeBitsConsumes() {
+        long ptr = IsccLib.instanceHasherNew();
+        try {
+            assertRejectsNegative("bits", () -> IsccLib.instanceHasherFinalize(ptr, -1));
+            assertConsumed("InstanceHasher", () -> IsccLib.instanceHasherFinalize(ptr, 64));
+        } finally {
+            IsccLib.instanceHasherFree(ptr);
+        }
+    }
+
+    /** Verify instanceHasherFinalize rejected by the core (bits 13) still consumes the hasher. */
+    @Test
+    void instanceHasherFinalizeCoreRejectedBitsConsumes() {
+        long ptr = IsccLib.instanceHasherNew();
+        try {
+            assertThrows(
+                    IllegalArgumentException.class, () -> IsccLib.instanceHasherFinalize(ptr, 13));
+            assertConsumed("InstanceHasher", () -> IsccLib.instanceHasherFinalize(ptr, 64));
+        } finally {
+            IsccLib.instanceHasherFree(ptr);
         }
     }
 

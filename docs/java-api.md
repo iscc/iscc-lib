@@ -659,8 +659,9 @@ corresponding `*Free` method to release native memory.
 
 !!! warning
 
-    `*Finalize()` consumes the hasher state. After finalizing, subsequent `*Update()` or `*Finalize()`
-    calls throw `IllegalStateException`. You must still call `*Free()` to release the wrapper.
+    The first `*Finalize()` call consumes the hasher state, even when it fails (for example on an
+    invalid `bits` value). After that, subsequent `*Update()` or `*Finalize()` calls throw
+    `IllegalStateException`. You must still call `*Free()` to release the wrapper.
 
 ### DataHasher
 
@@ -705,7 +706,7 @@ public static native String dataHasherFinalize(long ptr, int bits);
 ```
 
 Throws `IllegalStateException` if already finalized and `IllegalArgumentException` for a zero handle
-or on error.
+or on error. The first call consumes the hasher even when it throws `IllegalArgumentException`.
 
 #### dataHasherFree
 
@@ -760,7 +761,7 @@ public static native String instanceHasherFinalize(long ptr, int bits);
 ```
 
 Throws `IllegalStateException` if already finalized and `IllegalArgumentException` for a zero handle
-or on error.
+or on error. The first call consumes the hasher even when it throws `IllegalArgumentException`.
 
 #### instanceHasherFree
 
