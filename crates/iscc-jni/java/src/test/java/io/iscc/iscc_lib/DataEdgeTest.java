@@ -38,17 +38,18 @@ class DataEdgeTest {
     private record Prepared(Callable<Object> call, Function<Object, JsonElement> convert) {}
 
     /** Section name to caller, which turns a vector's inputs into a {@link Prepared} call. */
-    private static final Map<String, Function<JsonArray, Prepared>> SECTIONS = Map.of(
-            "iscc_decode", DataEdgeTest::callDecode,
-            "encode_seq", DataEdgeTest::callSeq,
-            "gen_text_code_v0", DataEdgeTest::callText,
-            "gen_mixed_code_v0", DataEdgeTest::callMixed,
-            "gen_iscc_code_v0", DataEdgeTest::callIsccCode,
-            "alg_simhash", DataEdgeTest::callSimhash,
-            "gen_meta_code_v0", DataEdgeTest::callMeta,
-            "gen_video_code_v0", DataEdgeTest::callVideo,
-            "alg_cdc_chunks", DataEdgeTest::callCdc,
-            "encode_component", DataEdgeTest::callEncodeComponent);
+    private static final Map<String, Function<JsonArray, Prepared>> SECTIONS = Map.ofEntries(
+            Map.entry("iscc_decode", DataEdgeTest::callDecode),
+            Map.entry("encode_seq", DataEdgeTest::callSeq),
+            Map.entry("gen_text_code_v0", DataEdgeTest::callText),
+            Map.entry("gen_mixed_code_v0", DataEdgeTest::callMixed),
+            Map.entry("gen_iscc_code_v0", DataEdgeTest::callIsccCode),
+            Map.entry("alg_simhash", DataEdgeTest::callSimhash),
+            Map.entry("gen_meta_code_v0", DataEdgeTest::callMeta),
+            Map.entry("gen_video_code_v0", DataEdgeTest::callVideo),
+            Map.entry("alg_cdc_chunks", DataEdgeTest::callCdc),
+            Map.entry("encode_component", DataEdgeTest::callEncodeComponent),
+            Map.entry("alg_minhash_256", DataEdgeTest::callMinhash));
 
     /** Load and parse the canonical data-edge.json. */
     private static JsonObject loadDoc() throws Exception {
@@ -95,6 +96,20 @@ class DataEdgeTest {
         JsonArray out = new JsonArray();
         for (byte[] chunk : (byte[][]) result) {
             out.add(bytesValue(chunk));
+        }
+        return out;
+    }
+
+    /** Read a JSON array of uint32 values as an int[] holding each value's bit pattern. */
+    private static int[] uint32Bits(JsonElement input) {
+        JsonArray items = input.getAsJsonArray();
+        int[] out = new int[items.size()];
+        for (int i = 0; i < out.length; i++) {
+            long value = items.get(i).getAsLong();
+            if (value < 0 || value > 0xFFFFFFFFL) {
+                throw new IllegalStateException("feature " + value + " is not a uint32");
+            }
+            out[i] = (int) value;
         }
         return out;
     }
@@ -174,6 +189,12 @@ class DataEdgeTest {
     private static Prepared callSimhash(JsonArray inputs) {
         byte[][] digests = byteArrays(inputs.get(0));
         return new Prepared(() -> IsccLib.algSimhash(digests), r -> bytesValue((byte[]) r));
+    }
+
+    /** Prepare {@code algMinhash256} on the vector's feature list. */
+    private static Prepared callMinhash(JsonArray inputs) {
+        int[] features = uint32Bits(inputs.get(0));
+        return new Prepared(() -> IsccLib.algMinhash256(features), r -> bytesValue((byte[]) r));
     }
 
     /** Prepare {@code algCdcChunks} on the vector's data, {@code utf32} flag and average size. */
