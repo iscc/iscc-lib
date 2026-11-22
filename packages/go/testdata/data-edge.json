@@ -325,5 +325,30 @@
       ],
       "note": "Empty input yields one empty chunk, as in the reference, not an empty list."
     }
+  },
+  "encode_component": {
+    "test_0001_short_digest": {
+      "inputs": [
+        0,
+        0,
+        0,
+        64,
+        "bytes:01020304"
+      ],
+      "error": "digest shorter than bit_length/8",
+      "note": "iscc-core slices a short digest and emits a unit whose header claims more bits than its body holds.",
+      "diverges": "decisions.md 2026-11-22: encode_component rejects a digest shorter than bit_length/8"
+    },
+    "test_0002_exact_length_digest": {
+      "inputs": [
+        0,
+        0,
+        0,
+        64,
+        "bytes:0001020304050607"
+      ],
+      "outputs": "AAAQAAICAMCAKBQH",
+      "note": "A digest of exactly bit_length/8 bytes encodes to the same unit on every surface and in iscc-core."
+    }
   }
 }

@@ -89,6 +89,7 @@ HEADER_PREAMBLE = """\
  * frame points at a one-element sentinel array with length 0.
  * A meta object is rendered as its JSON text (gen_meta_code_v0).
  * alg_cdc_chunks data is one byte string; its chunks are a byte-string list.
+ * encode_component takes a binary digest and returns its unit as text.
  * Error rows carry zeroed outputs.
  *
  * Regenerate with: uv run --script scripts/gen_data_edge_vectors.py
@@ -217,6 +218,19 @@ struct iscc_edge_alg_cdc_chunks_vector {
     uint32_t avg_chunk_size;
     struct iscc_edge_list chunks;
 };
+
+/* encode_component: mtype, stype, version, bit_length, digest -> unit. */
+struct iscc_edge_encode_component_vector {
+    const char *name;
+    int c;
+    int cpp;
+    uint8_t mtype;
+    uint8_t stype;
+    uint8_t version;
+    uint32_t bit_length;
+    struct iscc_edge_str digest;
+    struct iscc_edge_str unit;
+};
 """
 
 HEADER_POSTAMBLE = "#endif /* ISCC_DATA_EDGE_VECTORS_H */\n"
@@ -321,6 +335,14 @@ def require_u32(value: object, where: str) -> int:
     number = require_int(value, where)
     if number >= 2**32:
         raise SystemExit(f"{where}: expected a uint32 integer, got {value!r}")
+    return number
+
+
+def require_u8(value: object, where: str) -> int:
+    """Return value if it is an integer in the `uint8_t` range (not a bool), else fail closed."""
+    number = require_int(value, where)
+    if number >= 2**8:
+        raise SystemExit(f"{where}: expected a uint8 integer, got {value!r}")
     return number
 
 
@@ -618,6 +640,22 @@ def row_alg_cdc_chunks(
     return lines, f"{head}, {chunks_init}"
 
 
+def row_encode_component(
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
+    """Return the (empty) array lines and fields of one `encode_component` row."""
+    *header, bit_length, digest = require_arity(vector["inputs"], (5,), where)
+    head = (
+        f"{', '.join(str(require_u8(v, where)) for v in header)}, "
+        f"{require_u32(bit_length, where)}u, "
+        f"{c_str(fixture_bytes(digest, where), f'{ident}_digest', bufs)}"
+    )
+    if "error" in vector:
+        return [], f"{head}, {NULL_STR}"
+    unit = require_str(vector["outputs"], where).encode("utf-8")
+    return [], f"{head}, {c_str(unit, f'{ident}_unit', bufs)}"
+
+
 # Section name -> row renderer; the section order is the header order.
 RENDERERS = {
     "iscc_decode": row_iscc_decode,
@@ -629,6 +667,7 @@ RENDERERS = {
     "gen_meta_code_v0": row_gen_meta_code_v0,
     "gen_video_code_v0": row_gen_video_code_v0,
     "alg_cdc_chunks": row_alg_cdc_chunks,
+    "encode_component": row_encode_component,
 }
 
 

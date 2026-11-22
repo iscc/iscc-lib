@@ -17,6 +17,7 @@
  * frame points at a one-element sentinel array with length 0.
  * A meta object is rendered as its JSON text (gen_meta_code_v0).
  * alg_cdc_chunks data is one byte string; its chunks are a byte-string list.
+ * encode_component takes a binary digest and returns its unit as text.
  * Error rows carry zeroed outputs.
  *
  * Regenerate with: uv run --script scripts/gen_data_edge_vectors.py
@@ -144,6 +145,19 @@ struct iscc_edge_alg_cdc_chunks_vector {
     int utf32;
     uint32_t avg_chunk_size;
     struct iscc_edge_list chunks;
+};
+
+/* encode_component: mtype, stype, version, bit_length, digest -> unit. */
+struct iscc_edge_encode_component_vector {
+    const char *name;
+    int c;
+    int cpp;
+    uint8_t mtype;
+    uint8_t stype;
+    uint8_t version;
+    uint32_t bit_length;
+    struct iscc_edge_str digest;
+    struct iscc_edge_str unit;
 };
 
 #define ISCC_EDGE_ISCC_DECODE_COUNT 5
@@ -356,7 +370,15 @@ static const struct iscc_edge_alg_cdc_chunks_vector iscc_edge_alg_cdc_chunks[ISC
      {"", 0}, 0, 1024u, {iscc_edge_alg_cdc_chunks_2_items, iscc_edge_alg_cdc_chunks_2_lens, 1}},
 };
 
-#define ISCC_EDGE_TOTAL_COUNT 27
+#define ISCC_EDGE_ENCODE_COMPONENT_COUNT 2
+static const struct iscc_edge_encode_component_vector iscc_edge_encode_component[ISCC_EDGE_ENCODE_COMPONENT_COUNT] = {
+    {"test_0001_short_digest", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
+     0, 0, 0, 64u, {"\001\002\003\004", 4}, {0, 0}},
+    {"test_0002_exact_length_digest", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     0, 0, 0, 64u, {"\000\001\002\003\004\005\006\007", 8}, {"AAAQAAICAMCAKBQH", 16}},
+};
+
+#define ISCC_EDGE_TOTAL_COUNT 29
 
 /* Fill the static buffers of strings over 4095 bytes; call once before use. */
 static void iscc_edge_init(void) {

@@ -59,3 +59,9 @@ metadata:
     harnesses call init at the top of the edge block. Local MSVC stand-in:
     `gcc -std=c99 -Woverlength-strings -Werror -fsyntax-only -x c <header>`. A missing init call
     fails closed in C only; the pytest harness-call check guards C++
+- Sections (296): 10 incl. `encode_component` (`[mt, st, vs, bits, "bytes:<hex>"]` → plain string
+    unit). C struct uses `uint8_t` header fields + `require_u8`; C reuses `edge_gen_result_ok` for a
+    `char *` result. Rust CRAP: 5 `?` in one caller = cc 6 (fails) — split into `header_args`. Java
+    `Map.of` SECTIONS is now at its 10-pair max: the next section needs `Map.ofEntries`. Test each
+    harness against the uncommitted JSON, commit harnesses one by one (JSON stays unstaged), then
+    JSON + header last. Regression proof: restore pre-fix Go files from `<fix>^` in a temp copy

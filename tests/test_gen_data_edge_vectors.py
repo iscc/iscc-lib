@@ -357,6 +357,50 @@ def test_cdc_bad_input_fails_closed(tmp_path, index, value, message):
         gen.render(mutated)
 
 
+def test_encode_component_rows_render_header_digest_and_unit():
+    """The encode_component rows carry the header fields, bit length, digest and unit."""
+    text = HEADER.read_text(encoding="utf-8")
+    assert '0, 0, 0, 64u, {"\\001\\002\\003\\004", 4}, {0, 0}},' in text, (
+        "the short-digest error row must carry its digest and a zeroed unit"
+    )
+    assert (
+        '0, 0, 0, 64u, {"\\000\\001\\002\\003\\004\\005\\006\\007", 8}, '
+        '{"AAAQAAICAMCAKBQH", 16}},'
+    ) in text
+
+
+@pytest.mark.parametrize(
+    ("index", "value", "message"),
+    [
+        (0, 256, "uint8"),
+        (2, True, "non-negative integer"),
+        (3, 2**32, "uint32"),
+        (4, "0001", "bytes:<hex>"),
+    ],
+)
+def test_encode_component_bad_input_fails_closed(tmp_path, index, value, message):
+    """An encode_component input of the wrong type or range refuses to render."""
+
+    def mutate(fixture):
+        vector = next(iter(fixture["encode_component"].values()))
+        vector["inputs"][index] = value
+
+    mutated = write_mutated_fixture(tmp_path, mutate)
+    with pytest.raises(SystemExit, match=message):
+        gen.render(mutated)
+
+
+def test_encode_component_non_string_unit_fails_closed(tmp_path):
+    """An encode_component output that is not a string refuses to render."""
+
+    def mutate(fixture):
+        fixture["encode_component"]["test_0002_exact_length_digest"]["outputs"] = 7
+
+    mutated = write_mutated_fixture(tmp_path, mutate)
+    with pytest.raises(SystemExit, match="expected a string"):
+        gen.render(mutated)
+
+
 def test_mutated_expected_value_renders_different_header(tmp_path):
     """A changed expected value changes the render, so the staleness gate fires."""
 
