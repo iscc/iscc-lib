@@ -798,9 +798,9 @@ impl SumHasher {
     /// Consume the hasher and produce a composite ISCC-CODE result.
     ///
     /// After the first `finalize` call, even one that throws on an argument,
-    /// subsequent calls to `update` or `finalize` will throw. Defaults: `bits` 64, `wide` false, `add_units` false. When
-    /// `add_units` is `true`, the result includes the individual Data-Code and
-    /// Instance-Code ISCC strings.
+    /// subsequent calls to `update` or `finalize` will throw. Defaults: `bits`
+    /// 64, `wide` false, `add_units` false. When `add_units` is `true`, the
+    /// result includes the individual Data-Code and Instance-Code ISCC strings.
     pub fn finalize(
         &mut self,
         #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,

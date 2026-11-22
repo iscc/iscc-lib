@@ -735,3 +735,44 @@ every such file and say that it is comment-only or regenerated, and review confi
 diff. **Alternatives:** NEEDS_WORK on the count (nothing for the next step to repair); a fan-out
 declaration (wrong: no surface got new behaviour of its own). **Context:** iteration 225 review, an
 interpretation of the 2026-11-19 sizing decision — Titusz may overrule it.
+
+## 2026-11-20 — JNI errors map by type: a fresh `OutOfMemoryError`, pending exceptions pass through
+
+**Decision:** `throw_and_default` takes the error itself through a private `JavaError` trait:
+`JniCall(NoMemory)` throws a new `OutOfMemoryError`, every other error `IllegalArgumentException`,
+and both throw helpers throw nothing while an exception is pending. A zero hasher handle is an
+`IllegalArgumentException`; `IllegalStateException` stays for the finalized state. **Why:** the
+issue asked for the *original* `OutOfMemoryError` via an `exception_check` guard, but jni 0.22's
+catching calls clear the JVM's exception and return `NoMemory`, so the guard alone changes nothing
+there. Java callers catch the class, so a fresh instance is enough. The guard matters for calls that
+leave the exception pending (`new_object`): without it review measured a constructor exception
+replaced by `IllegalArgumentException`. **Alternatives:** the guard only (insufficient); a class
+argument per call site (90 sites to get right); a handle registry for stale handles (out of scope).
+**Context:** iteration 230 review; the 2026-07-28 hand-thrown-exceptions decision is unchanged.
+
+## 2026-11-20 — The Tier 1 doc gate matches names against a registry, with a discovery threshold
+
+**Decision:** `scripts/check_tier1_docs.py` keeps an explicit registry. A `FULL` doc must name every
+symbol derived from `lib.rs`, in any binding casing. An `EXACT` marker block must equal the set. An
+`EXEMPT` path carries a reason. Any other tracked Markdown file that names 30 or more symbols must
+be registered. Per-crate READMEs are partial by design (target.md asks for the gen functions and key
+utilities), so they stay unregistered below that threshold. **Why:** a casing-free name match is the
+one check that works across all surface idioms, and a registry turns "is this list meant to be
+complete?" into a recorded choice. **Alternatives:** marker blocks in every doc (rewrites prose that
+already carries the names); a lower threshold (forces entries for READMEs meant to be short); a
+per-binding export parser (one more gate per surface, and not what the issue asked). **Limits:** it
+checks names, not signatures, and a doc that drifted below the threshold is invisible to discovery:
+register such docs by hand. **Context:** iteration 233 review.
+
+## 2026-11-20 — `@iscc/wasm` `alg_cdc_chunks` changes its runtime shape without a transition
+
+**Decision:** the export returns `Vec<js_sys::Uint8Array>` (`Uint8Array[]`, each chunk a copy in JS
+memory) where it returned nested plain arrays. The change ships in the next 0.x release as a bug
+fix, with no deprecation period and no second export. **Why:** the doc comment and the published
+JSDoc always promised `Uint8Array` chunks, `@iscc/lib` returns `Buffer[]`, and every other byte
+output of the package is a `Uint8Array`, so the old shape was the defect. `Uint8Array.from(chunk)`,
+the documented workaround, still works on the new shape. Callers that relied on plain-array
+behaviour (`Array.isArray(chunk)`, `JSON.stringify`, a widening `chunk.map`) see a difference; the
+bindings carry no 1.0 stability commitment. **Alternatives:** a `js_sys::Array` return (the `.d.ts`
+says `any[]`); keeping `to_value` and correcting the docs instead (keeps the one byte output that is
+not a typed array). `js-sys` was already in the dependency graph. **Context:** iteration 234 review.

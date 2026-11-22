@@ -17,6 +17,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     C++ sends a NULL inner row: a pinned empty .NET array has an address. **Never take `Vec<T>` from
     Ruby**: Magnus `to_vec` holds a slice, so a shrinking `to_str` segfaulted (212); use
     `array_to_vec`. `RBignum::to_i32` truncates negative Bignums: `i32` only via `array_to_i32_vec`
+- **A typed binding parameter converts BEFORE the method body** (297: PyO3, Magnus, napi), so no
+    check on it can follow a state change: take the raw value (`Value`, `Option<Unknown>`, a
+    `FromPyObject` wrapper) and convert in the body. PyO3 0.29 adds a parameter-name note to such an
+    error (mirror it with `add_note`). napi: `T::from_unknown(v)` = a safe `v.cast::<T>()`
 - **WASM marshalling (268/269)**: the wasm-bindgen glue converts every typed parameter. Numbers and
     `bool` arrive as `JsValue` and are type-checked in Rust; `&[u8]` still converts and a number for
     a `&str` traps. **An `Option<T>` before a `JsValue` override loses its `?` in the `.d.ts`**
@@ -172,11 +176,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     the *intent* and documents any deviation; review re-derives every "never/always" claim
 - **One bad case per call when testing failure arms** (195): a negative test that feeds a mismatch,
     an error and a parse failure to ONE runner call stays green even if the mismatch arm breaks —
-    any other bad case still fails the call. **Go `AllocsPerRun(…, func(){ _ = f() })` reads 0 even
-    when `f` allocates** (the copy is optimized away) — assign to a package-level sink (202). And
-    check that each "mismatch" fixture reaches the comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed
-    earlier, with "Trailing data". Positive mirror: one input form per trim site (200: outer-only
-    forms missed the post-colon trims). **Assert a rejection on the raw API call alone** (215):
+    any other bad case still fails the call. **Assert a rejection on the raw API call alone** (215):
     `pytest.raises(ValueError)` around a caller that also converts the result (`dict()`, `int()`)
     stays green when the binding RETURNS garbage, because those conversions raise `ValueError` too.
     **And compare EVERY expected output key on a full-result surface** (217: Ruby's

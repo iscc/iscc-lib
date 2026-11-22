@@ -99,11 +99,11 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     vs a `git archive` build, **one `CARGO_TARGET_DIR` PER tree** (269) → `binding-reviews.md`
 - **C++ wrapper-only (227/273)**, **JNI error-path (230)**, **Java tests (278/279)**, **code-move
     (231)**, **test-harness-only (232)**, **WASM return-shape (234)**, **Ruby gem (239–241)**,
-    **Ruby floor (270)**, **dev-tool pin (271)**, **UniFFI regen (272)** → `binding-reviews.md`
+    **Ruby floor (270)**, **dev-tool pin (271)**, **UniFFI regen (272)**, **argument-order fan-out
+    (297)** → `binding-reviews.md`
 - **A `[human]` issue with a `**Spec:**` field**: on closing it, the reviewer corrects the spec rows
     it names (227) — stage the spec file
-- **Waiting on a background run**:
-    `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15; done'`
+- **Wait on a background run**: `timeout 580 bash -c 'until grep -q exit <log>; do sleep 15; done'`
 - **Core text/codec change + generated data (203)**: Rust-only + feature matrix + CRAP + iai +
     generator no-op; **CRAP-re-keying refactor (276)**: regen to `/tmp` → `gate-reviews.md`
 - **Doc-parity gate / doc-listing (233)**, **parser-only (242)**, **Rust docs completion (243)**,

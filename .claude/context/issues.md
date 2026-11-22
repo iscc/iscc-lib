@@ -169,23 +169,6 @@ Resolved when either every literal in the header is at most 2,047 bytes (a lower
 which the literal-length test follows), or an MSVC build of `test_iscc.c` shows that 4,095-byte
 pieces compile.
 
-## `@iscc/wasm` hasher `finalize()` stays usable after some rejected arguments `normal` [human]
-
-Decided on 2026-11-22 (decisions.md, "The first `finalize()` consumes a hasher on every surface,
-whatever its outcome"). Found by the iteration-249 audit. Today `DataHasher.finalize`,
-`InstanceHasher.finalize` and `SumHasher.finalize` in `crates/iscc-wasm/src/lib.rs` run
-`opt_u32`/`opt_bool` *before* `inner.take()`. A `bits` that the JS-side check rejects (`-1`, `1.5`,
-`"x"`) throws and leaves the hasher usable; a `bits` that the core rejects (e.g. `13`) throws
-*after* `take()` and consumes it. No test pins either branch, and `docs/howto/wasm.md` says only
-"After calling `finalize()`, the hasher is consumed".
-
-Not measured: whether the napi, JNI, .NET, Ruby, UniFFI and C FFI hashers consume on a first
-`finalize` that fails.
-
-Resolved when a rejected argument of either kind leaves each of the three WASM hashers consumed, a
-test pins both kinds, `wasm.md` states the rule, and every other surface with a hasher has been
-checked against the rule (a deviation is fixed or filed).
-
 ## `napi build` fails in the devcontainer checkout with the locked `@napi-rs/cli` 3.10.12 `low` [review]
 
 **Triage:** untriaged. Anyone who builds `@iscc/lib` in the devcontainer on a Windows host (the
@@ -276,3 +259,20 @@ Resolved when every gen function, every hasher `finalize` and `encode_component`
 length above 256 on all 12 surfaces, a unit header longer than 256 bits fails to decode, a
 `data-edge.json` vector pins the rejection (marked `diverges`, naming the decision), and the API
 pages state the range of 32 to 256.
+
+## No test pins "a failed first `finalize` consumes" on C FFI, C++, .NET, Swift and Kotlin `low` [review]
+
+**Triage:** untriaged. No user is affected today; a later reordering in `iscc-ffi`, `iscc-uniffi` or
+the .NET wrapper could bring back a hasher that stays usable after a failed `finalize`, against what
+the how-to pages promise, and no suite would see it.
+
+Iteration 297 stated the rule on the how-to pages of every surface and pinned it with tests on WASM,
+napi, JNI, Python and Ruby; Go has its test since the decision of 2026-11-21. The surfaces named
+above comply by code order: `take()` (C FFI, UniFFI) or the finalized flag (.NET) comes before the
+core call, C++ wraps the C call, and `bits` is unsigned by type. That was checked by reading. Their
+suites test a second `finalize` only after a *successful* first one (`crates/iscc-ffi/src/tests.rs`,
+the tests in `crates/iscc-uniffi/src/lib.rs`, `SmokeTests.cs`). The Rust core needs no test:
+`finalize(self)` moves the hasher.
+
+Resolved when the C FFI, C++, .NET and UniFFI suites each have a test in which `finalize(13)` fails
+and a following `finalize(64)` reports the finalized state.

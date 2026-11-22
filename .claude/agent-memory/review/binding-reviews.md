@@ -926,3 +926,25 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - When the closed issue was the last loop-decidable `normal`: PASS + HUMAN REVIEW REQUESTED with a
     recommendation per open decision, and say what the recommended option costs (296: rejecting an
     empty `alg_minhash_256` list changes a Tier 1 return type to `Result`)
+
+## Argument-order fan-out across bindings (297, ~25 min, PASS_WITH_NOTES, Codex clean)
+
+- Step: hasher `finalize` takes its state before converting arguments on WASM, napi, JNI, Python,
+    Ruby. One logged script ran every surface suite in sequence (check, clippy, wasm-pack, mvn,
+    maturin + pytest + ty, rake, napi in a `git archive` copy); total about 4 minutes
+- **`mvn -q` prints its last line without a newline**, so a following `=== exit` marker is not at
+    line start: grep the marker without `^`
+- Read the framework source for every "same as the typed parameter" claim: PyO3 0.29
+    `argument_extraction_error` (`src/impl_/extract_argument.rs`) is an ignored `add_note` call, and
+    advance had mirrored it exactly
+- **An `unsafe` block in a binding crate: look for the safe twin first.** napi 3.11
+    `FromNapiValue::from_unknown(v)` has the same body as `unsafe Unknown::cast`; the swap is a
+    step-9 fix (rebuild napi in the `/tmp` copy with the patched file, rerun `npm test`)
+- Useful probes: every JS non-number form through the new parameter type (BigInt, object, boolean,
+    numeric string, `null`/`undefined` defaults); `inspect.signature` on the PyO3 method; a
+    conversion hook that re-enters the object (`__index__`, `to_int`) to rule out a borrow panic
+- A call the language rejects before the method body (unknown keyword, arity) is outside such a
+    rule; say so in the decision entry instead of leaving it open
+- "Compliant by type / by code order" surfaces: confirm by reading, then grep their suites for a
+    test of the rule; none found = one `low` issue, not NEEDS_WORK
+- A code span that wraps across lines gets its spaces tripled by mdformat: reword so it fits

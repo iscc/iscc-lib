@@ -5,7 +5,7 @@
 //! `iscc_lib` API, converting napi types to Rust types and mapping errors.
 
 use napi::ValueType;
-use napi::bindgen_prelude::{Buffer, Unknown};
+use napi::bindgen_prelude::{Buffer, FromNapiValue, Unknown};
 use napi_derive::napi;
 use std::fmt::Display;
 
@@ -60,9 +60,7 @@ fn opt_number(value: Option<Unknown<'_>>, name: &str) -> napi::Result<Option<f64
             "Invalid {name}: expected a number"
         )));
     }
-    // SAFETY: `get_type` just reported `number`, the type `f64`'s
-    // `FromNapiValue` (`napi_get_value_double`) requires.
-    unsafe { value.cast::<f64>() }.map(Some)
+    f64::from_unknown(value).map(Some)
 }
 
 /// Narrow every element of a JS number array to `u32`, naming a bad one by index.

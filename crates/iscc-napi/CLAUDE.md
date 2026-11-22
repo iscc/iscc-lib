@@ -25,6 +25,7 @@ napi-rs bindings exposing the `iscc-lib` Rust core as a native Node.js addon pub
 | `String`                       | `string`                                      | Owned, UTF-8                                               |
 | `Option<String>`               | `string \| undefined \| null`                 | Optional params become nullable                            |
 | `Option<f64>` / `Option<bool>` | `number \| undefined \| null` / `boolean ...` | Optional numbers narrowed by `opt_u32`                     |
+| `Option<Unknown>`              | `number \| undefined \| null`                 | Hasher `finalize` only: `opt_number` after `take()`        |
 | `Buffer`                       | `Buffer`                                      | Node.js Buffer; use `data.as_ref()` for `&[u8]`            |
 | `Vec<String>`                  | `Array<string>`                               | Collected from `&[&str]` via intermediate Vec              |
 | `Vec<f64>`                     | `Array<number>`                               | Elements narrowed by `to_i32_vec` / `to_u32_vec`           |

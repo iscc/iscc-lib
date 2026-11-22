@@ -1176,3 +1176,10 @@ runs on `opus`. Deliberate — do not "unify" them.
     total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
     design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
     "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)
+
+## Archived from learnings.md (review 297)
+
+- **Go `AllocsPerRun(…, func(){ _ = f() })` reads 0 even when `f` allocates** (the copy is optimized
+    away): assign to a package-level sink (202). Check that each "mismatch" fixture reaches the
+    comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed earlier, with "Trailing data". Positive mirror:
+    one input form per trim site (200: outer-only forms missed the post-colon trims)
