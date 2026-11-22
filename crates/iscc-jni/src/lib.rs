@@ -1060,7 +1060,8 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algSimhash<'local>(
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 ///
 /// Takes `int[]` features (Java `int` is signed, cast to `u32`).
-/// Returns `byte[]` with 32-byte digest.
+/// Returns `byte[]` with 32-byte digest. Throws `IllegalArgumentException`
+/// on an empty array.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algMinhash256<'local>(
     mut unowned: EnvUnowned<'local>,
@@ -1075,9 +1076,11 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algMinhash256<'local>(
             };
             // Java has no unsigned int — cast jint (i32) to u32
             let u32_features: Vec<u32> = buf.iter().map(|&v| v as u32).collect();
-            let result = iscc_lib::alg_minhash_256(&u32_features);
-            match env.byte_array_from_slice(&result) {
-                Ok(a) => Ok(a),
+            match iscc_lib::alg_minhash_256(&u32_features) {
+                Ok(result) => match env.byte_array_from_slice(&result) {
+                    Ok(a) => Ok(a),
+                    Err(e) => throw_and_default(env, &e),
+                },
                 Err(e) => throw_and_default(env, &e),
             }
         })

@@ -612,7 +612,7 @@ bit-interleaved compression.
 public static native byte[] algMinhash256(int[] features);
 ```
 
-Returns a 32-byte MinHash digest.
+Returns a 32-byte MinHash digest. Throws `IllegalArgumentException` for an empty array.
 
 ---
 

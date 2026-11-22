@@ -1176,12 +1176,12 @@ class IsccLibTest {
 
     // ── algMinhash256 ────────────────────────────────────────────────────────
 
-    /** Verify algMinhash256 of empty features returns 32 bytes of 0xFF. */
+    /** Verify algMinhash256 rejects empty features with IllegalArgumentException. */
     @Test
     void algMinhash256EmptyFeatures() {
-        byte[] expected = new byte[32];
-        java.util.Arrays.fill(expected, (byte) 0xFF);
-        assertArrayEquals(expected, IsccLib.algMinhash256(new int[0]));
+        IllegalArgumentException e = assertThrows(
+                IllegalArgumentException.class, () -> IsccLib.algMinhash256(new int[0]));
+        assertTrue(e.getMessage().contains("features must not be empty"), e.getMessage());
     }
 
     /** Verify algMinhash256 is deterministic and returns a 32-byte digest. */

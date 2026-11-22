@@ -318,7 +318,7 @@ Additional primitives:
 - `IsccLib.algSimhash(byte[][] hashDigests)` — compute a SimHash from equal-length byte digests,
     returns `byte[]`
 - `IsccLib.algMinhash256(int[] features)` — compute a 256-bit MinHash digest from 32-bit features,
-    returns `byte[]`
+    returns `byte[]`; throws `IllegalArgumentException` on an empty array
 - `IsccLib.algCdcChunks(byte[] data, boolean utf32, int avgChunkSize)` — split data into
     content-defined chunks, returns `byte[][]`
 - `IsccLib.softHashVideoV0(int[][] frameSigs, int bits)` — compute a similarity-preserving hash from

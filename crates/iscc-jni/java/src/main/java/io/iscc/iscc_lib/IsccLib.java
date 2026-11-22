@@ -325,8 +325,9 @@ public class IsccLib {
     /**
      * Compute a 256-bit MinHash digest from 32-bit integer features.
      *
-     * @param features array of 32-bit feature values
+     * @param features non-empty array of 32-bit feature values
      * @return 32-byte MinHash digest
+     * @throws IllegalArgumentException if {@code features} is empty
      */
     public static native byte[] algMinhash256(int[] features);
 
