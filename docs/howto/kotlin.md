@@ -488,7 +488,7 @@ handling:
 
 ```kotlin
 try {
-    genTextCodeV0(text = "Hello", bits = 13u) // bits must be a multiple of 32
+    genTextCodeV0(text = "Hello", bits = 13u) // bits must be a multiple of 32 from 32 to 256
 } catch (e: IsccUniException) {
     println("Invalid input: ${e.message}")
 }

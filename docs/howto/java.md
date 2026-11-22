@@ -452,7 +452,7 @@ handling:
 
 ```java
 try {
-    IsccLib.genTextCodeV0("Hello", 13); // bits must be a multiple of 32
+    IsccLib.genTextCodeV0("Hello", 13); // bits must be a multiple of 32 from 32 to 256
 } catch (IllegalArgumentException e) {
     System.out.println("Invalid input: " + e.getMessage());
 }

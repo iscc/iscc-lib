@@ -510,7 +510,7 @@ char *iscc_gen_video_code_v0(const int32_t *const *frame_sigs,
  * - `mtype`: MainType enum value (0–7)
  * - `stype`: SubType enum value (0–7)
  * - `version`: Version enum value
- * - `bit_length`: bit length of the digest (multiple of 32)
+ * - `bit_length`: bit length of the digest (multiple of 32, 32 to 256)
  * - `digest`: pointer to raw digest bytes
  * - `digest_len`: number of bytes in the digest buffer
  *

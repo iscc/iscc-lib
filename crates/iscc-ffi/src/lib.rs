@@ -819,7 +819,7 @@ pub unsafe extern "C" fn iscc_json_to_data_url(json: *const c_char) -> *mut c_ch
 /// - `mtype`: MainType enum value (0–7)
 /// - `stype`: SubType enum value (0–7)
 /// - `version`: Version enum value
-/// - `bit_length`: bit length of the digest (multiple of 32)
+/// - `bit_length`: bit length of the digest (multiple of 32, 32 to 256)
 /// - `digest`: pointer to raw digest bytes
 /// - `digest_len`: number of bytes in the digest buffer
 ///

@@ -471,7 +471,7 @@ content is required, etc.):
 
 ```ruby
 begin
-  IsccLib.gen_text_code_v0("Hello", bits: 13) # bits must be a multiple of 32
+  IsccLib.gen_text_code_v0("Hello", bits: 13) # bits must be a multiple of 32 from 32 to 256
 rescue RuntimeError => e
   puts "Invalid input: #{e.message}"
 end

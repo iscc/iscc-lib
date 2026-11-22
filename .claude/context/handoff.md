@@ -1,64 +1,60 @@
-## 2026-11-22 — Review of: Go port rejects ISCC-UNITs above 256 bits (encode and decode)
+## 2026-11-22 — Shared vectors and API pages for the 256-bit unit limit
 
-**Verdict:** PASS
+**Done:** Added the four `data-edge.json` rows from next.md (meta `bits=288` error,
+`encode_component` 288 error and 256 output, `iscc_decode` 288-bit unit error) to the canonical
+fixture and its 4 vendored copies, and regenerated the C header. Every API page, how-to and API
+comment that said only "multiple of 32" now gives the range of 32 to 256. No harness code changed.
 
-**Summary:** The Go port now applies the 256-bit unit limit on encode (`encodeLength`) and on decode
-(a checked `unitBitLength` at all four former `decodeLength` call sites). The diff stays in scope (3
-Go source files, one how-to comment, tests). A differential of 291 cases against the Rust core
-(through `iscc_lib`, built from HEAD) shows no difference in outcome or output, on amd64 and 386.
+**Files changed:**
+
+- `crates/iscc-lib/tests/data-edge.json`: `gen_meta_code_v0/test_0005_bits_above_256`,
+    `encode_component/test_0003_bit_length_above_256`, `encode_component/test_0004_bit_length_256`,
+    `iscc_decode/test_0006_unit_above_256`. The two encode-288 rows carry
+    `"diverges": "decisions.md 2026-11-22: A unit is at most 256 bits"` and cite iscc/iscc-core#142
+    in `note`. The decode row has no `diverges`
+- `packages/{dotnet/Iscc.Lib.Tests/testdata,go/testdata,kotlin/src/test/resources,swift/Tests/IsccLibTests}/data-edge.json`:
+    byte-for-byte copies (`cp`)
+- `crates/iscc-ffi/tests/data_edge_vectors.h`: regenerated (4 new row names present)
+- `crates/iscc-ffi/src/lib.rs` (`///` only) → `crates/iscc-ffi/include/iscc.h` (cbindgen line from
+    next.md) + `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (`cargo build -p iscc-ffi`)
+- `crates/iscc-jni/java/.../IsccLib.java`, `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: comment
+    text only
+- `docs/{c-ffi-api,java-api,ruby-api}.md`: `bits` rows → `(default: 64, multiple of 32, 32 to 256)`,
+    `bit_length` rows → `(multiple of 32, 32 to 256)` (mdformat realigned the tables)
+- `docs/howto/{dotnet,java,kotlin,nodejs,python,ruby,swift,wasm}.md`: error example comment →
+    `bits must be a multiple of 32 from 32 to 256` (same wording as `docs/howto/go.md`)
 
 **Verification:**
 
-- [x] `CGO_ENABLED=0 go test -count=1 ./...` and the `GOARCH=386` run pass;
-    `go test -run Above256 -v ./...` lists passing tests for encode (7 gen functions, both hashers,
-    `EncodeComponent`, `encodeLength`), decode (`IsccDecode`, `IsccDecompose`, `unitBitLength`),
-    mixed and the wide cases (19 tests with the two added in review)
-- [x] `go vet ./...` and `GOARCH=386 go vet ./...` clean; `gofmt -l .` empty
-- [x] `git grep -n "decodeLength(" -- packages/go ':!*_test.go'` prints `codec.go:313` (definition)
-    and `codec.go:335` (inside `unitBitLength`) only
-- [x] `git grep -n ">= 32)" -- packages/go` prints nothing; `git grep -n "32 to 256"` shows
-    `encodeLength`, the `EncodeComponent` comment and the how-to line (plus the older
-    `IsccNormalizeSeq` comment and the test helper)
-- [x] `mise run check` exits 0
-- [x] Beyond next.md: differential Go vs Rust core, 291 cases (over-long units of every MainType at
-    length indexes 7 to 72, short bodies, sequences, mixed, `GenIsccCodeV0` wide and standard with 2
-    and 3 units, every gen function, both hashers, `GenSumCodeV0` and `EncodeComponent` at 13 `bits`
-    values up to 2^32-1): 0 differences, no panic, amd64 output equals 386 output
+- The decode string was re-derived: base32 of `00 08` + bytes `00..23` =
+    `ISCC:AAEAAAICAMCAKBQHBAEQUCYMBUHA6EARCIJRIFIWC4MBSGQ3DQOR4HZAEERCG`, as in next.md
+- `uv run pytest tests/test_data_edge.py tests/test_vendored_fixtures.py tests/test_gen_data_edge_vectors.py`:
+    211 passed, 0 skipped (includes the iscc-core cross-check of the `diverges` markers)
+- `cargo test -p iscc-lib --test test_data_edge`: 7 passed. `CGO_ENABLED=0 go test -count=1 ./...`
+    passes on amd64 and on `GOARCH=386`
+- Surface suites, run in sequence in the background, all OK: Python (`maturin develop` + all of
+    `tests/`, 950 passed), `cargo test -p iscc-ffi`, .NET (155 passed), C++ via `g++` (127 passed),
+    Java `mvn clean test` (exit 0), Ruby `rake compile test` (175 runs, 0 failures), Kotlin gradle
+    `:test` (ran fresh, `DataEdgeTest` result written), Swift (`DataEdgeTests` 11 tests, 30 total, 0
+    failures), WASM `wasm-pack test --node` (8 + 135 passed). napi built in a `git ls-files | tar`
+    copy under `/tmp` with `CARGO_TARGET_DIR=/tmp/napi-target`: 243/243 passed
+- Re-running the header generator and cbindgen, and the builds above, add no new `git status`
+    entries (same 24 paths before and after)
+- `uv run zensical build`: exit 0 ("No issues found"). `mise run check`: exit 0 on the second run
+    (the first run's mdformat realigned the edited tables)
+- `git grep -n "multiple of 32" -- docs crates packages | grep -v 256` prints the two test comments
+    (`codec.rs:1220`, `codec_test.go:275`) plus three `crates/iscc-lib/src/streaming.rs` lines
+    (43/128/197). Those are false hits: each `///` sentence continues on the next line with "from 32
+    to 256." (already in place since 301), and a line-based grep cannot see that. I left them
+    unchanged
 
-**Issues found:**
-
-- `GenSumCodeV0` had no `Above256` test (Rust has one), and no Go test read the second unit in the
-    wide check (128-bit Data + 288-bit Instance, `wide=true`). Both behave correctly; I added
-    `TestGenSumCodeV0Above256` and `TestGenIsccCodeV0WideAbove256InstanceAfterWideData` (tests only)
-- Nit, not filed: the `unitBitLength` error branch inside `IsccDecode` cannot be reached, because
-    `isccNormalize` runs `IsccDecompose` first and that rejects the unit. `TestIsccDecodeAbove256`
-    therefore passes through the decompose check. The call is harmless (same shape as in Rust, see
-    the iteration-301 nit)
-- The bits issue is rewritten to the remaining problem (shared vector, API pages), still `normal`
-
-**Codex review:** no actionable findings ("The 256-bit limits preserve composite and ISCC-ID
-behavior").
-
-**Next:** the `data-edge.json` rows for the 256-bit limit across all 12 harnesses (issue "No vector
-pins the 256-bit unit limit, and most API pages lack the range"). Facts measured in this review that
-the rows can rely on, identical on Go and the Rust core:
-
-- Encode: `bits=288` fails for meta, text, audio, data, instance, both hashers, sum and
-    `encode_component`. Image and video also fail, with their own earlier errors. Use a gen function
-    without input units for the encode row (iteration-301 note)
-- Decode: a 288-bit unit of MainType 0 to 4 and 7 fails `iscc_decode` and `iscc_decompose`, alone or
-    as any member of a sequence
-- `gen_iscc_code_v0`: an over-long Data or Instance unit fails only with `wide=true` and only when
-    the wide check reaches it (288-bit Data + any Instance; 128-bit Data + 288-bit Instance). With
-    `wide=false`, with a 64-bit Data unit first, or with three units, the call succeeds and returns
-    the standard code. Do not write a row that expects a rejection there
-- Check each row on both iscc-core builds (CPython 3.10 and 3.15) before marking it `diverges`: the
-    decode rejection matches iscc-core, the encode rejection is the divergence
-
-After that, the API-page docs step, then the three `[audit]` `normal` issues.
+**Next:** The bits issue should now be closed. Next are the three `[audit]` `normal` issues, e.g.
+the conformance-table refactor in `conformance.rs`/`lib.rs`.
 
 **Notes:**
 
-- No new decision and no new learning: the step ports a decided behaviour, and learnings.md is at
-    its 200-line budget
-- Go-only step: no CRAP, iai or semver impact; the core crate is untouched
+- The meta row's input is the object `{"a": 1}`, as next.md specified (the C generator's `meta_text`
+    needs an object or a string). `error` texts are short reasons that no harness matches
+- No CRAP, iai or semver impact: no Rust behaviour changed (only test fixtures, comments and docs)
+- Issue ledger: the issue "No vector pins the 256-bit unit limit, and most API pages lack the range"
+    is resolved by this step. issues.md is not mine to edit

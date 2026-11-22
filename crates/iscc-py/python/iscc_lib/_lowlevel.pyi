@@ -30,7 +30,7 @@ def encode_component(
     :param mtype: Main type identifier (0–6).
     :param stype: Sub type identifier (0–7).
     :param version: Version identifier (0).
-    :param bit_length: Bit length of the code body (multiple of 32).
+    :param bit_length: Bit length of the code body (multiple of 32, 32 to 256).
     :param digest: Raw digest bytes (at least ``bit_length // 8`` bytes).
     :return: Base32-encoded ISCC unit string.
     :raises ValueError: If enum values are out of range or digest is too short.

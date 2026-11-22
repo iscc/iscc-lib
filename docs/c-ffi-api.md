@@ -168,12 +168,12 @@ char* iscc_gen_meta_code_v0(
 );
 ```
 
-| Parameter     | Type          | Description                                                        |
-| ------------- | ------------- | ------------------------------------------------------------------ |
-| `name`        | `const char*` | Title or name of the content (required, trimmed to 128 bytes)      |
-| `description` | `const char*` | Optional description text (NULL = not provided, trimmed to 4096 B) |
-| `meta`        | `const char*` | Optional JSON string or `data:` URL (NULL = not provided)          |
-| `bits`        | `uint32_t`    | Bit length of the generated code (default: 64, multiple of 32)     |
+| Parameter     | Type          | Description                                                               |
+| ------------- | ------------- | ------------------------------------------------------------------------- |
+| `name`        | `const char*` | Title or name of the content (required, trimmed to 128 bytes)             |
+| `description` | `const char*` | Optional description text (NULL = not provided, trimmed to 4096 B)        |
+| `meta`        | `const char*` | Optional JSON string or `data:` URL (NULL = not provided)                 |
+| `bits`        | `uint32_t`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -185,10 +185,10 @@ Generate a Text-Code from plain text content.
 char* iscc_gen_text_code_v0(const char *text, uint32_t bits);
 ```
 
-| Parameter | Type          | Description                                                    |
-| --------- | ------------- | -------------------------------------------------------------- |
-| `text`    | `const char*` | Plain text content (required)                                  |
-| `bits`    | `uint32_t`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type          | Description                                                               |
+| --------- | ------------- | ------------------------------------------------------------------------- |
+| `text`    | `const char*` | Plain text content (required)                                             |
+| `bits`    | `uint32_t`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -224,11 +224,11 @@ char* iscc_gen_audio_code_v0(
 );
 ```
 
-| Parameter | Type             | Description                                                    |
-| --------- | ---------------- | -------------------------------------------------------------- |
-| `cv`      | `const int32_t*` | Chromaprint signed integer fingerprint vector                  |
-| `cv_len`  | `size_t`         | Number of elements in the feature vector                       |
-| `bits`    | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type             | Description                                                               |
+| --------- | ---------------- | ------------------------------------------------------------------------- |
+| `cv`      | `const int32_t*` | Chromaprint signed integer fingerprint vector                             |
+| `cv_len`  | `size_t`         | Number of elements in the feature vector                                  |
+| `bits`    | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -245,12 +245,12 @@ char* iscc_gen_video_code_v0(
 );
 ```
 
-| Parameter    | Type                     | Description                                                    |
-| ------------ | ------------------------ | -------------------------------------------------------------- |
-| `frame_sigs` | `const int32_t *const *` | Array of pointers to frame signature arrays                    |
-| `frame_lens` | `const size_t*`          | Array of lengths for each frame signature                      |
-| `num_frames` | `size_t`                 | Number of frames                                               |
-| `bits`       | `uint32_t`               | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter    | Type                     | Description                                                               |
+| ------------ | ------------------------ | ------------------------------------------------------------------------- |
+| `frame_sigs` | `const int32_t *const *` | Array of pointers to frame signature arrays                               |
+| `frame_lens` | `const size_t*`          | Array of lengths for each frame signature                                 |
+| `num_frames` | `size_t`                 | Number of frames                                                          |
+| `bits`       | `uint32_t`               | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Each frame signature is a 380-element `int32_t` array (MPEG-7 frame signature).
 
@@ -268,11 +268,11 @@ char* iscc_gen_mixed_code_v0(
 );
 ```
 
-| Parameter   | Type                 | Description                                                    |
-| ----------- | -------------------- | -------------------------------------------------------------- |
-| `codes`     | `const char *const*` | Array of ISCC Content-Code strings (optional `ISCC:` prefix)   |
-| `num_codes` | `size_t`             | Number of code strings (must be >= 2)                          |
-| `bits`      | `uint32_t`           | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter   | Type                 | Description                                                               |
+| ----------- | -------------------- | ------------------------------------------------------------------------- |
+| `codes`     | `const char *const*` | Array of ISCC Content-Code strings (optional `ISCC:` prefix)              |
+| `num_codes` | `size_t`             | Number of code strings (must be >= 2)                                     |
+| `bits`      | `uint32_t`           | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -288,11 +288,11 @@ char* iscc_gen_data_code_v0(
 );
 ```
 
-| Parameter  | Type             | Description                                                    |
-| ---------- | ---------------- | -------------------------------------------------------------- |
-| `data`     | `const uint8_t*` | Pointer to raw byte data                                       |
-| `data_len` | `size_t`         | Number of bytes                                                |
-| `bits`     | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter  | Type             | Description                                                               |
+| ---------- | ---------------- | ------------------------------------------------------------------------- |
+| `data`     | `const uint8_t*` | Pointer to raw byte data                                                  |
+| `data_len` | `size_t`         | Number of bytes                                                           |
+| `bits`     | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -308,11 +308,11 @@ char* iscc_gen_instance_code_v0(
 );
 ```
 
-| Parameter  | Type             | Description                                                    |
-| ---------- | ---------------- | -------------------------------------------------------------- |
-| `data`     | `const uint8_t*` | Pointer to raw byte data                                       |
-| `data_len` | `size_t`         | Number of bytes                                                |
-| `bits`     | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter  | Type             | Description                                                               |
+| ---------- | ---------------- | ------------------------------------------------------------------------- |
+| `data`     | `const uint8_t*` | Pointer to raw byte data                                                  |
+| `data_len` | `size_t`         | Number of bytes                                                           |
+| `bits`     | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -640,14 +640,14 @@ char* iscc_encode_component(
 );
 ```
 
-| Parameter    | Type             | Description                               |
-| ------------ | ---------------- | ----------------------------------------- |
-| `mtype`      | `uint8_t`        | MainType enum value (0-7)                 |
-| `stype`      | `uint8_t`        | SubType enum value (0-7)                  |
-| `version`    | `uint8_t`        | Version enum value                        |
-| `bit_length` | `uint32_t`       | Bit length of the digest (multiple of 32) |
-| `digest`     | `const uint8_t*` | Pointer to raw digest bytes               |
-| `digest_len` | `size_t`         | Number of bytes in the digest buffer      |
+| Parameter    | Type             | Description                                          |
+| ------------ | ---------------- | ---------------------------------------------------- |
+| `mtype`      | `uint8_t`        | MainType enum value (0-7)                            |
+| `stype`      | `uint8_t`        | SubType enum value (0-7)                             |
+| `version`    | `uint8_t`        | Version enum value                                   |
+| `bit_length` | `uint32_t`       | Bit length of the digest (multiple of 32, 32 to 256) |
+| `digest`     | `const uint8_t*` | Pointer to raw digest bytes                          |
+| `digest_len` | `size_t`         | Number of bytes in the digest buffer                 |
 
 Free the result with `iscc_free_string()`.
 

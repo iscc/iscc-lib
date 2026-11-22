@@ -462,7 +462,7 @@ after finalization. Use do-catch for error handling:
 
 ```swift
 do {
-    let _ = try genTextCodeV0(text: "Hello", bits: 13) // bits must be a multiple of 32
+    let _ = try genTextCodeV0(text: "Hello", bits: 13) // bits must be a multiple of 32 from 32 to 256
 } catch let error as IsccUniError {
     print("Invalid input: \(error.localizedDescription)")
 }

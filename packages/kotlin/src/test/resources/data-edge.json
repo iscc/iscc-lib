@@ -43,6 +43,13 @@
       ],
       "error": "empty ISCC string",
       "note": "Empty input must be rejected; the reference raises IndexError, the Rust core rejects it."
+    },
+    "test_0006_unit_above_256": {
+      "inputs": [
+        "ISCC:AAEAAAICAMCAKBQHBAEQUCYMBUHA6EARCIJRIFIWC4MBSGQ3DQOR4HZAEERCG"
+      ],
+      "error": "unit longer than 256 bits",
+      "note": "A Meta-Code header with length index 8 claims a 288-bit unit, which the Rust core and the Go port decoded before the limit was set."
     }
   },
   "encode_seq": {
@@ -246,6 +253,19 @@
       ],
       "error": "canonical meta payload of 128001 bytes exceeds META_TRIM_META (128000 bytes)",
       "note": "The Go port returned a Meta-Code for a meta payload over the 128,000-byte limit that the Rust core and iscc-core reject."
+    },
+    "test_0005_bits_above_256": {
+      "inputs": [
+        "Hello",
+        "",
+        {
+          "a": 1
+        },
+        288
+      ],
+      "error": "unit longer than 256 bits",
+      "note": "iscc-core returns a Meta-Code whose header claims a 288-bit unit, which no ISCC-UNIT may carry (iscc/iscc-core#142).",
+      "diverges": "decisions.md 2026-11-22: A unit is at most 256 bits"
     }
   },
   "gen_video_code_v0": {
@@ -349,6 +369,29 @@
       ],
       "outputs": "AAAQAAICAMCAKBQH",
       "note": "A digest of exactly bit_length/8 bytes encodes to the same unit on every surface and in iscc-core."
+    },
+    "test_0003_bit_length_above_256": {
+      "inputs": [
+        0,
+        0,
+        0,
+        288,
+        "bytes:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223"
+      ],
+      "error": "unit longer than 256 bits",
+      "note": "iscc-core encodes a 288-bit unit that its own decoder rejects as an invalid length (iscc/iscc-core#142).",
+      "diverges": "decisions.md 2026-11-22: A unit is at most 256 bits"
+    },
+    "test_0004_bit_length_256": {
+      "inputs": [
+        0,
+        0,
+        0,
+        256,
+        "bytes:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      ],
+      "outputs": "AADQAAICAMCAKBQHBAEQUCYMBUHA6EARCIJRIFIWC4MBSGQ3DQOR4HY",
+      "note": "A 256-bit unit is the longest one, and it encodes the same on every surface and in iscc-core."
     }
   },
   "alg_minhash_256": {

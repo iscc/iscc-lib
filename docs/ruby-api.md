@@ -91,12 +91,12 @@ Generate a Meta-Code from name and optional metadata.
 IsccLib.gen_meta_code_v0(name, description: nil, meta: nil, bits: 64)
 ```
 
-| Parameter      | Type          | Description                                                    |
-| -------------- | ------------- | -------------------------------------------------------------- |
-| `name`         | `String`      | Title or name of the content (required, trimmed to 128 bytes)  |
-| `description:` | `String, nil` | Optional description text (trimmed to 4096 bytes)              |
-| `meta:`        | `String, nil` | Optional JSON string or `data:` URL                            |
-| `bits:`        | `Integer`     | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter      | Type          | Description                                                               |
+| -------------- | ------------- | ------------------------------------------------------------------------- |
+| `name`         | `String`      | Title or name of the content (required, trimmed to 128 bytes)             |
+| `description:` | `String, nil` | Optional description text (trimmed to 4096 bytes)                         |
+| `meta:`        | `String, nil` | Optional JSON string or `data:` URL                                       |
+| `bits:`        | `Integer`     | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `MetaCodeResult` with `iscc`, `name`, `metahash`, and optionally `description`, `meta`.
 
@@ -118,10 +118,10 @@ Generate a Text-Code from plain text content using MinHash over character n-gram
 IsccLib.gen_text_code_v0(text, bits: 64)
 ```
 
-| Parameter | Type      | Description                                                    |
-| --------- | --------- | -------------------------------------------------------------- |
-| `text`    | `String`  | Plain text content (required)                                  |
-| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type      | Description                                                               |
+| --------- | --------- | ------------------------------------------------------------------------- |
+| `text`    | `String`  | Plain text content (required)                                             |
+| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `TextCodeResult` with `iscc` and `characters`.
 
@@ -162,10 +162,10 @@ Generate an Audio-Code from a Chromaprint feature vector using multi-stage SimHa
 IsccLib.gen_audio_code_v0(cv, bits: 64)
 ```
 
-| Parameter | Type             | Description                                                    |
-| --------- | ---------------- | -------------------------------------------------------------- |
-| `cv`      | `Array<Integer>` | Signed 32-bit Chromaprint feature values                       |
-| `bits:`   | `Integer`        | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type             | Description                                                               |
+| --------- | ---------------- | ------------------------------------------------------------------------- |
+| `cv`      | `Array<Integer>` | Signed 32-bit Chromaprint feature values                                  |
+| `bits:`   | `Integer`        | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `AudioCodeResult` with `iscc`.
 
@@ -184,10 +184,10 @@ Generate a Video-Code from MPEG-7 frame signature vectors using WTA-Hash and Sim
 IsccLib.gen_video_code_v0(frame_sigs, bits: 64)
 ```
 
-| Parameter    | Type                    | Description                                                    |
-| ------------ | ----------------------- | -------------------------------------------------------------- |
-| `frame_sigs` | `Array<Array<Integer>>` | Array of MPEG-7 frame signature vectors (each 380 integers)    |
-| `bits:`      | `Integer`               | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter    | Type                    | Description                                                               |
+| ------------ | ----------------------- | ------------------------------------------------------------------------- |
+| `frame_sigs` | `Array<Array<Integer>>` | Array of MPEG-7 frame signature vectors (each 380 integers)               |
+| `bits:`      | `Integer`               | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `VideoCodeResult` with `iscc`.
 
@@ -206,10 +206,10 @@ Generate a Mixed-Code from multiple Content-Code strings using SimHash combinati
 IsccLib.gen_mixed_code_v0(codes, bits: 64)
 ```
 
-| Parameter | Type            | Description                                                    |
-| --------- | --------------- | -------------------------------------------------------------- |
-| `codes`   | `Array<String>` | Array of ISCC Content-Code strings (requires >= 2)             |
-| `bits:`   | `Integer`       | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type            | Description                                                               |
+| --------- | --------------- | ------------------------------------------------------------------------- |
+| `codes`   | `Array<String>` | Array of ISCC Content-Code strings (requires >= 2)                        |
+| `bits:`   | `Integer`       | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `MixedCodeResult` with `iscc` and `parts`.
 
@@ -228,10 +228,10 @@ Generate a Data-Code from raw byte data using content-defined chunking and MinHa
 IsccLib.gen_data_code_v0(data, bits: 64)
 ```
 
-| Parameter | Type      | Description                                                    |
-| --------- | --------- | -------------------------------------------------------------- |
-| `data`    | `String`  | Raw binary data                                                |
-| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type      | Description                                                               |
+| --------- | --------- | ------------------------------------------------------------------------- |
+| `data`    | `String`  | Raw binary data                                                           |
+| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `DataCodeResult` with `iscc`.
 
@@ -250,10 +250,10 @@ Generate an Instance-Code from raw byte data using BLAKE3 hashing.
 IsccLib.gen_instance_code_v0(data, bits: 64)
 ```
 
-| Parameter | Type      | Description                                                    |
-| --------- | --------- | -------------------------------------------------------------- |
-| `data`    | `String`  | Raw binary data                                                |
-| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type      | Description                                                               |
+| --------- | --------- | ------------------------------------------------------------------------- |
+| `data`    | `String`  | Raw binary data                                                           |
+| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `InstanceCodeResult` with `iscc`, `datahash`, and `filesize`.
 
@@ -491,13 +491,13 @@ prefix).
 IsccLib.encode_component(mtype, stype, version, bit_length, digest)
 ```
 
-| Parameter    | Type      | Description                                 |
-| ------------ | --------- | ------------------------------------------- |
-| `mtype`      | `Integer` | MainType enum value (0–255)                 |
-| `stype`      | `Integer` | SubType enum value (0–255)                  |
-| `version`    | `Integer` | Version enum value (0–255)                  |
-| `bit_length` | `Integer` | Digest bit length (multiple of 32)          |
-| `digest`     | `String`  | Raw digest bytes (length >= bit_length / 8) |
+| Parameter    | Type      | Description                                   |
+| ------------ | --------- | --------------------------------------------- |
+| `mtype`      | `Integer` | MainType enum value (0–255)                   |
+| `stype`      | `Integer` | SubType enum value (0–255)                    |
+| `version`    | `Integer` | Version enum value (0–255)                    |
+| `bit_length` | `Integer` | Digest bit length (multiple of 32, 32 to 256) |
+| `digest`     | `String`  | Raw digest bytes (length >= bit_length / 8)   |
 
 Raises `RuntimeError` on invalid input.
 

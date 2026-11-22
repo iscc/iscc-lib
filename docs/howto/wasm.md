@@ -580,7 +580,7 @@ import {
 } from "@iscc/wasm";
 
 try {
-    gen_text_code_v0("Hello", 13); // bits must be a multiple of 32
+    gen_text_code_v0("Hello", 13); // bits must be a multiple of 32 from 32 to 256
 } catch (error) {
     console.error(`Invalid input: ${error.message}`);
 }

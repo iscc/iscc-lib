@@ -137,12 +137,12 @@ public static native String genMetaCodeV0(
 );
 ```
 
-| Parameter     | Type     | Description                                                    |
-| ------------- | -------- | -------------------------------------------------------------- |
-| `name`        | `String` | Title or name of the content (required, trimmed to 128 bytes)  |
-| `description` | `String` | Optional description text (nullable, trimmed to 4096 bytes)    |
-| `meta`        | `String` | Optional JSON string or `data:` URL (nullable)                 |
-| `bits`        | `int`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter     | Type     | Description                                                               |
+| ------------- | -------- | ------------------------------------------------------------------------- |
+| `name`        | `String` | Title or name of the content (required, trimmed to 128 bytes)             |
+| `description` | `String` | Optional description text (nullable, trimmed to 4096 bytes)               |
+| `meta`        | `String` | Optional JSON string or `data:` URL (nullable)                            |
+| `bits`        | `int`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 String iscc = IsccLib.genMetaCodeV0(
@@ -160,10 +160,10 @@ Generate a Text-Code from plain text content.
 public static native String genTextCodeV0(String text, int bits);
 ```
 
-| Parameter | Type     | Description                                                    |
-| --------- | -------- | -------------------------------------------------------------- |
-| `text`    | `String` | Plain text content (required)                                  |
-| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type     | Description                                                               |
+| --------- | -------- | ------------------------------------------------------------------------- |
+| `text`    | `String` | Plain text content (required)                                             |
+| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 String iscc = IsccLib.genTextCodeV0("Hello World", 64);
@@ -199,10 +199,10 @@ Generate an Audio-Code from a Chromaprint feature vector.
 public static native String genAudioCodeV0(int[] cv, int bits);
 ```
 
-| Parameter | Type    | Description                                                    |
-| --------- | ------- | -------------------------------------------------------------- |
-| `cv`      | `int[]` | Signed 32-bit Chromaprint feature values                       |
-| `bits`    | `int`   | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type    | Description                                                               |
+| --------- | ------- | ------------------------------------------------------------------------- |
+| `cv`      | `int[]` | Signed 32-bit Chromaprint feature values                                  |
+| `bits`    | `int`   | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 int[] fingerprint = {123456, -789012, 345678};
@@ -219,10 +219,10 @@ Generate a Video-Code from frame signature data.
 public static native String genVideoCodeV0(int[][] frameSigs, int bits);
 ```
 
-| Parameter   | Type      | Description                                                    |
-| ----------- | --------- | -------------------------------------------------------------- |
-| `frameSigs` | `int[][]` | Array of MPEG-7 frame signature vectors (each `int[]`)         |
-| `bits`      | `int`     | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter   | Type      | Description                                                               |
+| ----------- | --------- | ------------------------------------------------------------------------- |
+| `frameSigs` | `int[][]` | Array of MPEG-7 frame signature vectors (each `int[]`)                    |
+| `bits`      | `int`     | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Each frame signature is a 380-element `int[]` array.
 
@@ -241,10 +241,10 @@ Generate a Mixed-Code from multiple Content-Code strings.
 public static native String genMixedCodeV0(String[] codes, int bits);
 ```
 
-| Parameter | Type       | Description                                                    |
-| --------- | ---------- | -------------------------------------------------------------- |
-| `codes`   | `String[]` | Array of ISCC Content-Code strings (requires >= 2)             |
-| `bits`    | `int`      | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type       | Description                                                               |
+| --------- | ---------- | ------------------------------------------------------------------------- |
+| `codes`   | `String[]` | Array of ISCC Content-Code strings (requires >= 2)                        |
+| `bits`    | `int`      | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 String[] codes = {"ISCC:EAA...", "ISCC:EEA..."};
@@ -261,10 +261,10 @@ Generate a Data-Code from raw byte data.
 public static native String genDataCodeV0(byte[] data, int bits);
 ```
 
-| Parameter | Type     | Description                                                    |
-| --------- | -------- | -------------------------------------------------------------- |
-| `data`    | `byte[]` | Raw byte content                                               |
-| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type     | Description                                                               |
+| --------- | -------- | ------------------------------------------------------------------------- |
+| `data`    | `byte[]` | Raw byte content                                                          |
+| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 byte[] data = "Hello World".getBytes();
@@ -281,10 +281,10 @@ Generate an Instance-Code from raw byte data.
 public static native String genInstanceCodeV0(byte[] data, int bits);
 ```
 
-| Parameter | Type     | Description                                                    |
-| --------- | -------- | -------------------------------------------------------------- |
-| `data`    | `byte[]` | Raw byte content                                               |
-| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type     | Description                                                               |
+| --------- | -------- | ------------------------------------------------------------------------- |
+| `data`    | `byte[]` | Raw byte content                                                          |
+| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 byte[] data = "Hello World".getBytes();
@@ -325,12 +325,12 @@ together.
 public static native SumCodeResult genSumCodeV0(String path, int bits, boolean wide, boolean addUnits);
 ```
 
-| Parameter  | Type      | Description                                                     |
-| ---------- | --------- | --------------------------------------------------------------- |
-| `path`     | `String`  | Path of the file to process                                     |
-| `bits`     | `int`     | Bit length of the generated codes (default: 64, multiple of 32) |
-| `wide`     | `boolean` | `true` for 256-bit output (requires `bits >= 128`)              |
-| `addUnits` | `boolean` | `true` to include the Data-Code and Instance-Code in `units`    |
+| Parameter  | Type      | Description                                                                |
+| ---------- | --------- | -------------------------------------------------------------------------- |
+| `path`     | `String`  | Path of the file to process                                                |
+| `bits`     | `int`     | Bit length of the generated codes (default: 64, multiple of 32, 32 to 256) |
+| `wide`     | `boolean` | `true` for 256-bit output (requires `bits >= 128`)                         |
+| `addUnits` | `boolean` | `true` to include the Data-Code and Instance-Code in `units`               |
 
 Throws `IllegalArgumentException` on invalid input or a file I/O error.
 
@@ -476,13 +476,13 @@ public static native String encodeComponent(
 );
 ```
 
-| Parameter   | Type     | Description                                |
-| ----------- | -------- | ------------------------------------------ |
-| `mtype`     | `int`    | MainType enum value (0–255)                |
-| `stype`     | `int`    | SubType enum value (0–255)                 |
-| `version`   | `int`    | Version enum value (0–255)                 |
-| `bitLength` | `int`    | Digest bit length (multiple of 32)         |
-| `digest`    | `byte[]` | Raw digest bytes (length >= bitLength / 8) |
+| Parameter   | Type     | Description                                   |
+| ----------- | -------- | --------------------------------------------- |
+| `mtype`     | `int`    | MainType enum value (0–255)                   |
+| `stype`     | `int`    | SubType enum value (0–255)                    |
+| `version`   | `int`    | Version enum value (0–255)                    |
+| `bitLength` | `int`    | Digest bit length (multiple of 32, 32 to 256) |
+| `digest`    | `byte[]` | Raw digest bytes (length >= bitLength / 8)    |
 
 Throws `IllegalArgumentException` on invalid input.
 

@@ -452,7 +452,7 @@ finalization. Use try-catch for error handling:
 ```csharp
 try
 {
-    IsccLib.GenTextCodeV0("Hello", bits: 13); // bits must be a multiple of 32
+    IsccLib.GenTextCodeV0("Hello", bits: 13); // bits must be a multiple of 32 from 32 to 256
 }
 catch (IsccException ex)
 {

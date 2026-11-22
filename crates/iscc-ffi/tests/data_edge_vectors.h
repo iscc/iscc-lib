@@ -177,7 +177,7 @@ struct iscc_edge_alg_minhash_256_vector {
     struct iscc_edge_str minhash;
 };
 
-#define ISCC_EDGE_ISCC_DECODE_COUNT 5
+#define ISCC_EDGE_ISCC_DECODE_COUNT 6
 static const struct iscc_edge_iscc_decode_vector iscc_edge_iscc_decode[ISCC_EDGE_ISCC_DECODE_COUNT] = {
     {"test_0001_base32_padding", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
      {"ISCC:GAAAAAAAAA======", 21}, 0, 0, 0, 0, {0, 0}},
@@ -189,6 +189,8 @@ static const struct iscc_edge_iscc_decode_vector iscc_edge_iscc_decode[ISCC_EDGE
      {"ISCC:GAAAAAAAAA", 15}, 3, 0, 0, 0, {"\000\000\000\000", 4}},
     {"test_0005_empty_string", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
      {"", 0}, 0, 0, 0, 0, {0, 0}},
+    {"test_0006_unit_above_256", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
+     {"ISCC:AAEAAAICAMCAKBQHBAEQUCYMBUHA6EARCIJRIFIWC4MBSGQ3DQOR4HZAEERCG", 66}, 0, 0, 0, 0, {0, 0}},
 };
 
 static const char *const iscc_edge_encode_seq_0_items[] = {"gaawdlqng6\305\277sdpf2"};
@@ -262,7 +264,7 @@ static const struct iscc_edge_alg_simhash_vector iscc_edge_alg_simhash[ISCC_EDGE
 };
 
 static char iscc_edge_gen_meta_code_v0_3_meta_buf[128003];
-#define ISCC_EDGE_GEN_META_CODE_V0_COUNT 4
+#define ISCC_EDGE_GEN_META_CODE_V0_COUNT 5
 static const struct iscc_edge_gen_meta_code_v0_vector iscc_edge_gen_meta_code_v0[ISCC_EDGE_GEN_META_CODE_V0_COUNT] = {
     {"test_0001_raw_jcs_characters", ISCC_EDGE_OK, ISCC_EDGE_OK,
      {"Hello", 5}, {"", 0}, {"{\"title\": \"Tom & Jerry <3 > \342\200\250 \342\200\251\", \"note\": \"a\\\\u2028b \\b\\f\\u001f\"}", 69}, 64, {"ISCC:AAAWKLHFXO3IKDKI", 21}},
@@ -272,6 +274,8 @@ static const struct iscc_edge_gen_meta_code_v0_vector iscc_edge_gen_meta_code_v0
      {"Hello", 5}, {"", 0}, {"{\"a\": -0.0}", 11}, 64, {"ISCC:AAAWKLHFXMHM7WHO", 21}},
     {"test_0004_meta_payload_over_limit", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
      {"Hello", 5}, {"", 0}, {iscc_edge_gen_meta_code_v0_3_meta_buf, 128002}, 64, {0, 0}},
+    {"test_0005_bits_above_256", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
+     {"Hello", 5}, {"", 0}, {"{\"a\": 1}", 8}, 288, {0, 0}},
 };
 
 static const int32_t iscc_edge_gen_video_code_v0_0_f0[] = {
@@ -387,12 +391,16 @@ static const struct iscc_edge_alg_cdc_chunks_vector iscc_edge_alg_cdc_chunks[ISC
      {"", 0}, 0, 1024u, {iscc_edge_alg_cdc_chunks_2_items, iscc_edge_alg_cdc_chunks_2_lens, 1}},
 };
 
-#define ISCC_EDGE_ENCODE_COMPONENT_COUNT 2
+#define ISCC_EDGE_ENCODE_COMPONENT_COUNT 4
 static const struct iscc_edge_encode_component_vector iscc_edge_encode_component[ISCC_EDGE_ENCODE_COMPONENT_COUNT] = {
     {"test_0001_short_digest", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
      0, 0, 0, 64u, {"\001\002\003\004", 4}, {0, 0}},
     {"test_0002_exact_length_digest", ISCC_EDGE_OK, ISCC_EDGE_OK,
      0, 0, 0, 64u, {"\000\001\002\003\004\005\006\007", 8}, {"AAAQAAICAMCAKBQH", 16}},
+    {"test_0003_bit_length_above_256", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
+     0, 0, 0, 288u, {"\000\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037 !\"#", 36}, {0, 0}},
+    {"test_0004_bit_length_256", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     0, 0, 0, 256u, {"\000\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037", 32}, {"AADQAAICAMCAKBQHBAEQUCYMBUHA6EARCIJRIFIWC4MBSGQ3DQOR4HY", 55}},
 };
 
 static const uint32_t iscc_edge_alg_minhash_256_0_values[] = {
@@ -409,7 +417,7 @@ static const struct iscc_edge_alg_minhash_256_vector iscc_edge_alg_minhash_256[I
      {iscc_edge_alg_minhash_256_1_values, 4}, {"\336q\227\2444:\015t\"\226L\025\266\231\202\377\243pb\005\2064!%\234\231\315\363\006h\264\270", 32}},
 };
 
-#define ISCC_EDGE_TOTAL_COUNT 31
+#define ISCC_EDGE_TOTAL_COUNT 35
 
 /* Fill the static buffers of strings over 4095 bytes; call once before use. */
 static void iscc_edge_init(void) {

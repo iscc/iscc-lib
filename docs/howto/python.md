@@ -544,7 +544,7 @@ All `gen_*_v0` functions raise `ValueError` on invalid input:
 from iscc_lib import gen_text_code_v0
 
 try:
-    gen_text_code_v0("Hello", bits=13)  # bits must be a multiple of 32
+    gen_text_code_v0("Hello", bits=13)  # bits must be a multiple of 32 from 32 to 256
 except ValueError as e:
     print(f"Invalid input: {e}")
 ```

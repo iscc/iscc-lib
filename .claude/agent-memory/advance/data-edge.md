@@ -70,3 +70,9 @@ metadata:
     SECTIONS is `Map.ofEntries` now (no pair cap). Java uint32 → `int` bit pattern via `getAsLong`
     - range check (Gson `getAsInt` rejects > 2^31-1). Whole 12-surface run ≈ $3.5; napi
         `git ls-files | tar` copy to /tmp + `CARGO_TARGET_DIR=/tmp/napi-target npx napi build`
+- Rows-only step (303): rows in existing sections need NO harness change — splice text with a `/tmp`
+    script (assert each anchor count == 1, `json.loads` the result), `cp` to the 4 copies, regen
+    header. One sequential `/tmp/suitesNNN.sh` (step fn logging OK/FAIL + secs per surface: py, ffi,
+    dotnet, c++, java, ruby, uniffi, kotlin, swift, wasm) in the background + napi in a tar copy in
+    parallel. `git grep "multiple of 32" | grep -v 256` is line-based: a wrapped `///` whose next
+    line says "from 32 to 256" is a false hit (streaming.rs)
