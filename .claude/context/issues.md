@@ -119,20 +119,6 @@ was found by reading the code. Pre-existing, measured 2026-11-21.
 Resolved when either CI runs at least the Python suite on `windows-latest`, or a decisions.md entry
 keeps CI on Linux and macOS on purpose.
 
-## No shared vector pins the `alg_minhash_256` empty-list error `normal` [human]
-
-Decided on 2026-11-22 (decisions.md, "`alg_minhash_256` rejects an empty feature list"): an empty
-`features` list is an error on every surface. All 12 surfaces report `features must not be empty`
-(the Rust core and the 10 surfaces built on it since iteration 298, the Go port since 299), but
-`data-edge.json` has no `alg_minhash_256` section. The empty list has a hand-written test on the
-Rust core, C FFI, UniFFI (Rust side), Python, Java, C++ and Go only. napi, WASM, Ruby, .NET, Swift
-and Kotlin have none, although their how-to pages name the error. Measured by hand: napi and Ruby
-report the message (iteration 298), and Go and the Python binding return the same digest for
-`[7, 42, 2147483648, 4294967295]` (iteration 299), so no `except` entry is expected.
-
-Resolved when one `alg_minhash_256` section in `data-edge.json` pins the error row and a non-empty
-row on all 12 surfaces.
-
 ## `crates/iscc-py/CLAUDE.md` still lists test files one by one `low` [review]
 
 **Triage:** untriaged. An agent that reads the "Test Patterns" list as complete would look for

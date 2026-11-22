@@ -89,7 +89,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **Bumps** (generated artifact, MSRV, lockfile, wrapper, framework major) and **security-pass /
     advisory-bump steps (235)** → `dep-refresh-reviews.md`
 - **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table (215-221)**, new
-    data-edge SECTION = 12-surface script (226, 264: both iscc-core builds) + **diff each new
+    data-edge SECTION = 12-surface script (226, 264, 300: both iscc-core builds) + **diff each new
     `UNCOMPARED` row against the function's `data.json` keys (252: Codex caught a missed key)**,
     **validator / C-generator (236)**, **harness-compare fan-out (237)**, **throwaway-vector proof
     (253)**, **new vector (281), C header literal fix (282)** → `binding-reviews.md`

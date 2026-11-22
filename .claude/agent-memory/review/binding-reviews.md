@@ -957,3 +957,19 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - A Go probe outside the tree: a `/tmp` module with a `replace` line to `packages/go`, run with
     `GOFLAGS=-mod=mod "$(mise exec -- which go)" run .` from that directory (`mise exec -C` and
     `mise which go` both fail there)
+
+### New data-edge section, 12-surface fan-out (iter 300, ~25 min) — PASS, Codex clean
+
+- Two logged bash scripts with a `step <name> <cmd…>` helper. `verify.sh` (37 steps, ~3 min warm):
+    the 226 list plus the three feature-matrix runs of the Rust harness, napi from a
+    `git archive HEAD` tree with `CARGO_TARGET_DIR=/tmp/napi-target`, CRAP lines, clippy.
+    `mutate.sh` after Codex exits: Kotlin (`gradlew -p packages/kotlin test --rerun-tasks`, read the
+    XML), then ONE mutation of all 5 JSON copies + header regen, ten suites, `git checkout --`
+- **Mutate two rows at once and grep each log for BOTH vector names**: a wrong digest on the output
+    row, and the error row flipped to the behaviour the decision removed (`"error": …` →
+    `"outputs": "bytes:ff…"`). Every harness collects failures, so one run proves the compare arm
+    and the rejection arm per surface (advance mutates Rust and Node only)
+- A `swift test --filter` log that ends in "0 tests passed" is the swift-testing summary: the XCTest
+    count is the `Executed N tests` line above it
+- Never `grep -A` the generated C header: its `iscc_edge_init()` lines are 4 kB each
+- Codex needs `--base <define-next sha>` for a 13-commit fan-out (~4 min)

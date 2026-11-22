@@ -1,75 +1,68 @@
-## 2026-11-22 — `alg_minhash_256` data-edge section on all 12 surfaces
+## 2026-11-22 — Review of: `alg_minhash_256` data-edge section on all 12 surfaces
 
-**Done:** I added an `alg_minhash_256` section with two vectors to `data-edge.json` and its 4
-vendored copies: `test_0001_empty_list` (`[[]]`, error `features must not be empty`) and
-`test_0002_four_features` (`[[7, 42, 2147483648, 4294967295]]`, output `bytes:de7197a4…68b4b8`).
-Neither has an `except` or `diverges` entry. All 12 harnesses and the C generator now handle the
-section. The .NET and C++ docs of `AlgMinhash256`/`AlgSimhash` now name the empty-list error. There
-is one commit per surface, then a final commit with the JSON, the generator and the header.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `tests/test_data_edge.py`: `("alg_minhash_256", [[]])` added to `SEED_SET`, converter
-    `convert_encode_seq` (bytes → `bytes:<hex>`)
-- `crates/iscc-lib/tests/test_data_edge.rs`: `call_minhash` and the helpers `u32_item`,
-    `u32_list_arg`
-- `packages/go/data_edge_test.go`: `edgeCallMinhash` (`[]uint32` via `edgeArg`)
-- `crates/iscc-napi/__tests__/data_edge.test.mjs`, `crates/iscc-wasm/tests/data_edge.rs`
-    (`u32_list_arg` → JS array): handler entries
-- `DataEdgeTest.java`: `SECTIONS` switched to `Map.ofEntries`, plus `callMinhash` and `uint32Bits`
-    (reads a long, checks the range 0..2^32-1, casts to the `int` bit pattern)
-- `crates/iscc-rb/test/test_data_edge.rb`, `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs`
-    (`ToUIntArray`), `packages/swift/.../DataEdgeTests.swift` (`feature` via `DataEdge.scalar`),
-    `packages/kotlin/.../DataEdgeTest.kt` (`uintList`): handler entries
-- `crates/iscc-ffi/tests/test_iscc.c`, `packages/cpp/tests/test_iscc.cpp`:
-    `check_edge_alg_minhash_256`, added to the section runs
-- `packages/dotnet/Iscc.Lib/IsccLib.cs`, `packages/cpp/include/iscc/iscc.hpp`: doc lines only
-- `scripts/gen_data_edge_vectors.py`: struct `iscc_edge_u32_list {values, count}`, vector struct,
-    `require_u32_list`, `u32_list_array` (`Nu` literals, a `0u` sentinel when empty),
-    `row_alg_minhash_256`, preamble line. `data_edge_vectors.h` is regenerated (31 rows)
-- `tests/test_gen_data_edge_vectors.py`: tests for the renderer, the rows and failing closed on bad
-    features (5 cases)
-- `data-edge.json` and the 4 vendored copies: the section was spliced in as text, so the
-    hand-formatting is unchanged and all 5 copies hold the same bytes
+**Summary:** The step adds an `alg_minhash_256` section with two vectors (the empty-list error and a
+four-feature digest) to `data-edge.json` and its 4 vendored copies, and all 12 harnesses and the C
+generator run it. No library code changed behaviour; the only non-test edits are doc lines in
+`IsccLib.cs` and `iscc.hpp` and the generator script. The fan-out is honest: one decided behaviour
+(decisions.md 2026-11-22), one commit per surface, no surface made a design choice of its own.
 
 **Verification:**
 
-- Rust: `cargo test -p iscc-lib --test test_data_edge` gives 7 passed. With a mutated digest in the
-    JSON, the row fails with expected/got. The CI CRAP lines (`cargo llvm-cov` then
-    `cargo crap … --fail-regression --fail-above`) both exit 0: 0 regressed, new fns `u32_item` 2.0,
-    `u32_list_arg` 6.0, `call_minhash` 6.0
-- Python:
-    `pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py   tests/test_vendored_fixtures.py`
-    gives 199 passed. The `-k minhash -v` run shows `test_reference_outcome` (iscc-core 1.5.0)
-    PASSED for both vectors, and the seed row is present
-- Regenerating the header is a no-op against the working tree, and `git status` showed no change to
-    `iscc.h` or `NativeMethods.g.cs`. The header is committed in the final commit, so
-    `git status --porcelain crates/iscc-ffi` is empty only after that commit
-- nodejs, built in a `/tmp` tree copy: `npm test` gives 243 pass, 0 fail. With a mutated digest the
-    data-edge test fails (`# fail 1`)
-- wasm: `wasm-pack test --node crates/iscc-wasm --features conformance` exits 0, data_edge 8/8 ok
-- java: `cargo build -p iscc-jni && mvn clean test` exits 0. The JUnit XML for `DataEdgeTest` shows
-    tests=8, failures=0, errors=0
-- go: `CGO_ENABLED=0 go test ./...` ok, `GOARCH=386 go test ./...` ok, both `go vet` runs clean,
-    gofmt clean
-- ruby: `rake test` gives 175 runs, 0 failures. standardrb is clean
-- dotnet: `dotnet test … -e LD_LIBRARY_PATH=…` gives Passed 155, Failed 0
-- c: gcc with `-Wall` builds clean, 152 passed, 0 failed, with both rows PASS. cpp: cmake ASAN
-    build, 123 passed, 0 failed, with both rows PASS
-- kotlin: the JUnit XML for `DataEdgeTest` shows tests=6, failures=0, errors=0. swift: Swift 6.1.2
-    on Linux, `swift test --filter DataEdge` executed 11 tests with 0 failures
-- The next.md JSON one-liner exits 0. Both grep criteria show an empty-list line above each of the 4
-    functions. `mise run check` exits 0
+- [x] `cargo test -p iscc-lib --test test_data_edge` passes (7 passed, also under the three other CI
+    feature sets), and the CI CRAP lines exit 0 (0 regressed, 7 new, none above the threshold)
+- [x] `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py tests/test_vendored_fixtures.py`
+    passes (199 passed); `test_reference_outcome` ran both `alg_minhash_256` vectors
+- [x] After `uv run python scripts/gen_data_edge_vectors.py`,
+    `git status --porcelain crates/iscc-ffi` prints nothing (also after `cargo build -p iscc-ffi`:
+    `iscc.h` and `NativeMethods.g.cs` did not move)
+- [x] nodejs `npm test` in a `/tmp` copy (243 pass, 0 fail), wasm
+    `wasm-pack test --node crates/iscc-wasm --features conformance`, java `mvn clean test`
+    (`DataEdgeTest` 8 tests, 0 failures), go `CGO_ENABLED=0 go test ./...` (also `GOARCH=386`), ruby
+    `rake test` (175 runs, 0 failures), dotnet `dotnet test packages/dotnet/Iscc.Lib.Tests/` (155
+    passed) all pass
+- [x] c `test_iscc` (152 passed) and cpp `test_iscc` (ASAN build, 123 passed) pass with both rows
+    PASS; kotlin JUnit XML shows `DataEdgeTest` tests=6, failures=0, errors=0; swift
+    `swift test --filter DataEdge` executed 11 tests with 0 failures
+- [x] The JSON one-liner exits 0 (2 vectors, no `except`, no `diverges`); both greps show an
+    empty-list error line above each of the four functions; `mise run check` exits 0
 
-**Next:** the other `normal` issue, "Gen functions accept `bits` above 256" (a core behaviour
-change, so it should land on its own).
+Beyond next.md's list (3 probes): iscc-core 1.5.0 returns the stated digest and raises `ValueError`
+on the empty list under Python 3.10 (compiled) and 3.15 (pure Python). A two-row mutation of all 5
+JSON copies (wrong digest on row 2, row 1 flipped to expect the old all-`0xFF` output) made the
+Python, Go, Ruby, C, C++, WASM, Java, .NET, Swift and Kotlin harnesses fail, each naming both rows.
+`cargo clippy --workspace --all-targets -- -D warnings` is clean.
+
+**Issues found:**
+
+- (none filed). Two nits, not worth an entry: the Swift helper `feature(_:_:)` is always called with
+    index 0, and `test_alg_minhash_256_rows_render_features_and_digest` assumes the empty row is row
+    0 of its section
+
+**Codex review:** no actionable findings (run over the whole range with
+`--base <define-next commit>`).
+
+**Next:** the last `normal` issue, "Gen functions accept `bits` above 256 and return a unit that no
+decoder reads". It is a core behaviour change and its "Resolved when" spans the core, the Go port,
+shared vectors and the API pages, so it needs more than one step. A workable order:
+
+1. The Rust core alone: an upper bound of 256 in `codec::encode_length` and `codec::decode_length`,
+    so that every gen function, `SumHasher`/hasher `finalize` and `encode_component` reject it. The
+    10 surfaces built on the core inherit it. This touches a benchmarked path, so the step must run
+    `mise run bench:iai:check` and the CI CRAP lines, and it must check that no `data.json` vector
+    uses a unit above 256 bits
+2. The Go port (`packages/go`), then the `data-edge.json` rows (marked `diverges`, since iscc-core
+    1.5.0 returns the undecodable code; new rows in existing sections need no new harness section),
+    then the API pages ("32 to 256")
+
+Not measured so far, per the issue: the hashers' `finalize(bits)` on any surface.
 
 **Notes:**
 
-- The hand-written empty-list tests (C++ `alg_minhash_256({})` and others) are untouched. I did not
-    add or remove any. next.md excluded adding them and did not ask for removal
-- Mutation proofs ran on Rust and Node only (one digest mutation each). The other harnesses fail
-    closed on an unknown section, so they are proven to dispatch, but they had no mutation run in
-    this step
-- The CRAP log lists `call_meta`/`call_text` (cfg twins) as "removed" and then as new, after a line
-    shift. The gate still exits 0, and the baseline does not need a refresh for that
+- Resolved and deleted: "No shared vector pins the `alg_minhash_256` empty-list error". One `normal`
+    issue is left; the other 14 entries are `low`
+- state.md still says "10 sections" in five places; the file now has 11 (update-state's file)
+- The hand-written empty-list tests on the Rust core, C FFI, UniFFI, Python, Java, C++ and Go stay
+    in place next to the shared vector. They also pin the error text, which the vectors do not
+- learnings.md is at its 200-line budget; this review added no entry
