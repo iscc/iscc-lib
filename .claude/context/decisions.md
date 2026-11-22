@@ -398,3 +398,13 @@ dependency pass regenerates the lock. **Why:** an unlocked install fetched a tra
 minutes after its publication and got a 404 (red CI on `bd79145`), and the publish job installed an
 unlocked tree while it held the OIDC token. **Rejected:** a `min-release-age` `.npmrc` (npm 10.9 on
 Node 22 ignores the key). **Open:** the locked cli 3.10 cannot build in the 9p checkout (issues.md).
+
+## 2026-11-22 — vcpkg SHA512s are written by `prepare-release` from the `build-ffi` artifacts, before the tag
+
+**Decision:** `prepare-release` needs `build-ffi`, downloads its `ffi-*` artifacts and runs
+`scripts/update_vcpkg_hashes.py`, then commits `portfile.cmake` with `Package.swift` before it tags.
+`publish-ffi` and `pack-nuget` need `prepare-release`; `publish-ffi` sets `overwrite_files: false`.
+**Why:** the portfile pinned the v0.2.0 hashes for five releases; vcpkg consumers pin tags, so the
+tagged commit must carry the hashes of the archives it publishes. **Rejected:** a post-publish job
+committing to `main` (the tag keeps stale hashes); dropping the port (amends the cpp spec, Titusz).
+**Accepted cost:** a failing `build-ffi` leg blocks the tag and every publish job. **Context:** 285.

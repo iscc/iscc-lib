@@ -139,7 +139,11 @@ cleanup even if an exception is thrown during field copying.
     LICENSE in a flat directory. Built by the `build-ffi` job in `release.yml`.
 - **vcpkg**: `portfile.cmake` downloads the GitHub Release tarball for the current platform,
     installs headers into `include/iscc/` and libraries into `lib/` (DLLs into `bin/` on Windows).
-    SHA512 hashes are per-target and must be updated on each release.
+    It pins one SHA512 per target. The `prepare-release` job writes them with
+    `scripts/update_vcpkg_hashes.py` from the `build-ffi` archives, before it creates the tag, so
+    the tagged commit carries the hashes of the archives `publish-ffi` uploads. `publish-ffi` sets
+    `overwrite_files: false`, so a later `ffi` re-trigger cannot replace those archives; recover a
+    failed publish with `gh run rerun --failed`, which reuses the run's artifacts.
 - No crates.io / PyPI / npm publishing — this is a binary distribution package.
 
 ## Common Pitfalls
@@ -155,8 +159,12 @@ cleanup even if an exception is thrown during field copying.
 - **`LD_LIBRARY_PATH` required at runtime**: the shared library is not statically linked into tests.
     On Linux, set `LD_LIBRARY_PATH` to the directory containing `libiscc_ffi.so`. On macOS, use
     `DYLD_LIBRARY_PATH`. On Windows, the DLL must be on `PATH` or in the working directory.
-- **vcpkg SHA512 updates**: after each release, the SHA512 hashes in `portfile.cmake` must be
-    updated for every platform target. Stale hashes cause vcpkg install failures.
+- **vcpkg SHA512 updates**: never edit the `ISCC_SHA512` values by hand. `prepare-release` writes
+    them with `scripts/update_vcpkg_hashes.py` (`--check` verifies a downloaded set of release
+    archives). Because `prepare-release` needs `build-ffi`, a failing `build-ffi` leg blocks the tag
+    and, through `!failure()`, every publish job. This is intended: no tag whose hashes do not match
+    its archives. A new platform is a `set(ISCC_TARGET …)` branch in `portfile.cmake` plus a
+    `build-ffi` matrix entry; `tests/test_update_vcpkg_hashes.py` keeps the two sets equal.
 - **Header include order**: `iscc.hpp` wraps `iscc.h` via `extern "C" { #include "iscc.h" }`. Both
     headers must be on the include path. CMakeLists.txt sets both `packages/cpp/include` and
     `crates/iscc-ffi/include` as INTERFACE include directories.

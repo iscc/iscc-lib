@@ -100,6 +100,9 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     sites; video detach opens after frame-sig extraction. Recipe → MEMORY-archive.md
 - release.yml: static gate `scripts/check_release_workflow.py` (prek hook, opt-in
     `--check-action-inputs`) + shape (9 inputs, 97 `uses:` refs) — keep green → release-gate.md
+- vcpkg hashes (285): `prepare-release` needs `build-ffi`, runs `scripts/update_vcpkg_hashes.py`
+    before tagging; wiring pinned by `tests/test_update_vcpkg_hashes.py`. Scripts loaded by path in
+    tests: no `@dataclass` (needs `sys.modules`) — use `NamedTuple`
 - WASM returns (234) / JS ints (256, 268, 269) / published web pkg + Node init (283) →
     bindings-detail.md
 - WASM SIMD (#42): `blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt `--enable-simd` →
@@ -131,16 +134,6 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - Spec drift sweeps (259): mdformat also reformats \`\`\`js blocks; release-trigger truth =
     release.yml `on:` + each job's `if:` — grep `refs/tags`/`github.ref` too, next.md greps miss
     YAML conditions
-- Vector access per surface (280): C test = hard-coded expected values + generated
-    `data_edge_vectors.h` (no data.json); C++ = library `conformance_selftest` + header; .NET/Swift/
-    Kotlin = vendored copies; Go gen tests read `../../crates/iscc-lib/tests/data.json`, selftest
-    embeds `testdata/`. Sum-Code types: napi `NapiSumCodeResult`, Java `SumCodeResult`
-- Docs facts probed (277): Sum-Code / `gen_iscc_code_v0([data,inst])` 64-bit prefix = `KUA`; Ruby
-    integer params + list elements go through `to_int` (Float truncates toward zero, NaN →
-    `FloatDomainError`). Release auth per job: read `permissions`/`secrets.*` via a PyYAML dump of
-    release.yml jobs; `publish-ffi` is the only publish job without an exists-check
-- Release-history claims (275): verify with `git grep '<pattern>' <tag> -- <path>` per tag — next.md
-    said Go IDv1 old symbols "removed in 0.6.0"; they were never tagged
 - Guidance docs carry no counts/`path:NN` (245): write "every binding", "all Tier 1 symbols". Line
     greps miss wrapped counts — also grep each file joined via `tr '\n' ' '`
 - Spec path gate `scripts/check_spec_paths.py`: `*` one segment, `**` crosses `/`; `NOT_PATHS`

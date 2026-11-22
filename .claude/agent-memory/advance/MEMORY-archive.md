@@ -239,3 +239,16 @@ macros-backend default-handling on every major bump, not just compiler warnings.
     `gradle/`, `implementation("io.iscc:iscc-lib-kotlin:X")` only, `./gradlew -q run` (~3 min,
     background). JARs bundle native libs (JNI `META-INF/native/`, Kotlin JNA prefixes); JNA is a
     runtime-scope POM dep; Swift SPM fetches the release XCFramework. Docs say so
+
+## Archived 2026-11-22 (iter 285)
+
+- Docs facts probed (277): Sum-Code / `gen_iscc_code_v0([data,inst])` 64-bit prefix = `KUA`; Ruby
+    integer params + list elements go through `to_int` (Float truncates toward zero, NaN →
+    `FloatDomainError`). Release auth per job: read `permissions`/`secrets.*` via a PyYAML dump of
+    release.yml jobs; `publish-ffi` is the only publish job without an exists-check
+- Release-history claims (275): verify with `git grep '<pattern>' <tag> -- <path>` per tag — next.md
+    said Go IDv1 old symbols "removed in 0.6.0"; they were never tagged
+- Vector access per surface (280): C test = hard-coded expected values + generated
+    `data_edge_vectors.h` (no data.json); C++ = library `conformance_selftest` + header; .NET/Swift/
+    Kotlin = vendored copies; Go gen tests read `../../crates/iscc-lib/tests/data.json`, selftest
+    embeds `testdata/`. Sum-Code types: napi `NapiSumCodeResult`, Java `SumCodeResult`

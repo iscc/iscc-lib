@@ -211,7 +211,9 @@ Conan consumers (`pkg-config --cflags --libs iscc`); its `CMakeDeps` generator l
 
 ## Distribution
 
-- **vcpkg port**: Submit to vcpkg registry for `vcpkg install iscc`
+- **vcpkg port**: Submit to vcpkg registry for `vcpkg install iscc`. The portfile's per-target
+    SHA512s are written by the release workflow's `prepare-release` job from the `build-ffi`
+    archives, before it tags (`scripts/update_vcpkg_hashes.py`)
 - **Conan recipe**: Submit to ConanCenter for `conan install iscc`
 - **FFI tarballs**: `iscc.hpp` bundled alongside `iscc.h` in existing GitHub Release FFI tarballs
 - **No separate registry upload** — distributed via package managers and release artifacts
