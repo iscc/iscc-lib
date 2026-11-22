@@ -1,64 +1,21 @@
-## 2026-11-22 — Review of: Specs and API docs state shipped facts and the shipped error rules
+## 2026-11-22 — Step: NONE (no-op)
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Nothing was implemented. next.md says `## Step: NONE`, with this reason: "Gap analysis of
+target.md against state.md (assessed at `0e0f5d14`) finds no unmet criterion the CID loop may act
+on". The v0.8.0 release criteria are all met. Cutting the release and the v1.0.0 items are
+human-gated. The 18 open issues are all `low`, and the loop does not take those.
 
-**Summary:** The three specs now state what ships, the short-digest rule of `encode_component` is
-documented on the seven surfaces that lacked it, `docs/c-ffi-api.md` says a failed first
-`_finalize()` consumes, and the README list names Swift. The diff is comments, docs, specs and
-regenerated outputs only; no code line changed. Every documented claim was checked against the code,
-and the `[audit]` issue is closed. The reviewer corrected one sentence the step added to
-`specs/documentation.md`, because the tree contradicted it.
+**Files changed:**
+
+- `.claude/context/handoff.md`: this no-op report (the only file changed)
 
 **Verification:**
 
-- [x] The three greps (`#16`, `includes .swift. checkbox`,
-    `Python, Rust, Java, Node.js, WASM, C/C++`) print nothing; `check_spec_paths.py` exits 0 ("15
-    specs")
-- [x] The `encode_component` doc block in each of the 7 files states the short-digest rejection
-    (`bit_length / 8` or `bitLength / 8`, one hit per file); `docs/c-ffi-api.md`'s streaming warning
-    says a failed first `_finalize()` consumes; `README.md`'s "What is iscc-lib" list names Swift
-- [x] Generated outputs are fresh: after a forced `iscc-ffi` rebuild and the CI cbindgen command,
-    `git diff --exit-code` on `NativeMethods.g.cs` and `iscc.h` exits 0; the UniFFI freshness step
-    body from `ci.yml`, run with `bash -e`, exits 0
-- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` clean;
-    `cargo test -p iscc-uniffi -p iscc-ffi`: 121 + 31 passed, 0 failed
-- [x] `uv run zensical build` exits 0 ("No issues found"); `mise run check` exits 0, tree clean
+- `grep -nE '^## .*(critical|normal)' .claude/context/issues.md` printed nothing (exit 1)
+- No source, test or doc file was touched. Before this commit, `git status --short` showed only the
+    runner-owned `.claude/context/iterations.jsonl`, which advance does not stage
 
-Beyond next.md: the short-digest rule is pinned on all 12 surfaces by the `encode_component` rows in
-`data-edge.json`; `iscc_*_hasher_finalize` takes the state before the core call (read);
-`cargo tree -p iscc-lib --no-default-features` shows no Unicode crate and no
-`serde_json_canonicalizer`, and still shows `serde_json`, as `c-ffi-dx.md` §5 now says.
+**Next:** The review agent should signal IDLE. Cutting the v0.8.0 release (`/release`) is Titusz's
+call. Loop work resumes only when he promotes a `low` issue to `normal`.
 
-**Issues found:**
-
-- Fixed by the reviewer (`specs/documentation.md`): the step wrote "other pages follow the same
-    order" for tabs. `docs/tutorials/getting-started.md` uses Python, Rust, Node.js, Java, Go, WASM,
-    while `docs/index.md` puts WASM and Go before Java. The sentence now says the landing page has
-    one tab per entry of the README's Installation section and that `docs/index.md` sets the order
-    ("C / C++" has one tab, "C++", so "every language" was not exact either)
-- Filed `low`, untriaged: `encode_component` docs on five surfaces (C FFI, Java, Python stub, Ruby,
-    Go) give the `bit_length` range without the ISCC-ID case (64 to 96 in steps of 8; measured on
-    the Python binding). Advance reported it
-- Filed `low`, untriaged: `specs/documentation.md` says every code example is tabbed and that all
-    how-to guides use tabs; the eleven how-to pages have none. Pre-existing
-- Not filed (nits): the UniFFI comment says "Returns `IsccUniError`", and the generated Kotlin doc
-    carries that name although Kotlin throws `IsccUniException`; the napi comment writes
-    `bit_length` where the generated `.d.ts` names the parameter `bitLength`
-
-**Codex review:** No actionable findings. It confirmed that the documented error behaviour matches
-the runtime checks and that the regenerated bindings match their sources.
-
-**Next:** No `critical` or `normal` issue is left in issues.md: all 17 entries are `low`, 16 of them
-untriaged. state.md named the closed audit issue as the last blocker of v0.8.0, so if update-state
-finds no unmet gap, the right next.md is `Step: NONE`, and the release is Titusz's call
-(`/release`). Do not scope a `low` entry.
-
-**Notes:**
-
-- CI on this push runs the `c-ffi` and UniFFI freshness steps on the regenerated files; both passed
-    locally with the step bodies taken from `ci.yml`
-- Gate integrity: no suppression, skip or threshold change in the unpushed commits. No API break:
-    only `///` and `<exception>` lines changed in code files, and the UniFFI checksum of
-    `encode_component` moved (11010 → 629) because the doc comment is part of it
-- learnings.md is at its 200-line budget and decisions.md at 396 of 400: a new entry in either needs
-    an equal cut
+**Notes:** Agent memory is unchanged, since this no-op taught nothing new.
