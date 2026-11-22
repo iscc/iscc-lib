@@ -3,29 +3,30 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 304):** 303 PASS_WITH_NOTES but my notes shipped 2 defects (hand-built
-decode header `00 08` = truncated body, not a bound pin; sum-code range is 64-256 not 32-256). 304 =
-close-out: replace decode row input with the ref ENCODER output + 2 doc rows + JNI Javadoc. **An
-error row must be probed on the last release (`--with iscc-lib==0.7.0`) to prove it pins a rule.**
-Next: 3 audit `normal` issues (Conan sha256 first, then conformance table, stale specs — split);
-then v0.8.0 release-ready (human cuts). **C edge generator's `meta_text` rejects `null` meta — use
-an object.** **A Go-behaviour step is 'core-like': keep vector rows that need all 12 harnesses out
-of it.** **A Tier 2 signature change is an `API-BREAK` stop for advance — route around it.** **An
-issue's list of pinning tests can under-count (298: `tests/test_algo.py` was a 6th `0xFF` pin) —
-grep yourself.** **A signature-changing core break cannot land "alone": forced binding edits ride
-along; the data-edge fan-out stays separate.** **Behaviour-neutral call swaps don't count toward the
-cap (decision 2026-11-20 counts behaviour files)** — say so in Scope. In-crate test modules of
-`lib.rs` can't see private `conformance` items — scope `pub(crate)`. **Check a grep criterion's
-pattern against the current tree's error/doc strings too** (290). iscc-lib CI tests 3 feature sets
-(default, none, text-processing). **Any Java test needing a library outside the bundle must pass in
-BOTH layouts.** Per-iteration traps for 259-269 →
-[v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
-py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
-estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
-not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints nothing.
-**Compiler-limit issues with no compiler here: find a gcc warning that encodes the same standard
-limit** (282). **wasm-bindgen generated-JS facts: cli-support is not in the cargo registry
-(wasm-pack downloads the binary) — read `crates/cli-support/src/js/mod.rs` upstream** (283).
+**Status 2026-11-22 (iter 305):** 304 PASS. 305 = Conan SHA256 (extend `update_vcpkg_hashes.py` to
+also write `packages/cpp/conandata.yml`; no rename — decision 2026-11-22 names the script path).
+Remaining `normal`: Rust conformance dedup, spec/doc drift (9 files → split specs/docs). conan 2.34
+runs via `uv run --no-project --with conan` (e2e `conan create` locally possible). **An error row
+must be probed on the last release (`--with iscc-lib==0.7.0`) to prove it pins a rule.** After them
+v0.8.0 is release-ready (human cuts). **Renaming a script a decision names leaves the decision stale
+— extend it instead.** **C edge generator's `meta_text` rejects `null` meta — use an object.** **A
+Go-behaviour step is 'core-like': keep vector rows that need all 12 harnesses out of it.** **A Tier
+2 signature change is an `API-BREAK` stop for advance — route around it.** **An issue's list of
+pinning tests can under-count (298: `tests/test_algo.py` was a 6th `0xFF` pin) — grep yourself.**
+**A signature-changing core break cannot land "alone": forced binding edits ride along; the
+data-edge fan-out stays separate.** **Behaviour-neutral call swaps don't count toward the cap
+(decision 2026-11-20 counts behaviour files)** — say so in Scope. In-crate test modules of `lib.rs`
+can't see private `conformance` items — scope `pub(crate)`. **Check a grep criterion's pattern
+against the current tree's error/doc strings too** (290). iscc-lib CI tests 3 feature sets (default,
+none, text-processing). **Any Java test needing a library outside the bundle must pass in BOTH
+layouts.** Per-iteration traps for 259-269 → [v0.8.0 iteration ledger](v080-iteration-ledger.md).
+**Probe the ref on BOTH builds (py3.10 + py3.15) before scoping a vector. External-flake red: still
+scope a hardening. An issue's "Scope estimate" can over-count — apply the docs-excluded rule
+yourself. Dependabot alerts track `main`, not `develop`.** NONE verification:
+`grep -E '^## .*(critical|normal)' issues.md` prints nothing. **Compiler-limit issues with no
+compiler here: find a gcc warning that encodes the same standard limit** (282). **wasm-bindgen
+generated-JS facts: cli-support is not in the cargo registry (wasm-pack downloads the binary) — read
+`crates/cli-support/src/js/mod.rs` upstream** (283).
 
 ## Scope Calibration Principles
 
