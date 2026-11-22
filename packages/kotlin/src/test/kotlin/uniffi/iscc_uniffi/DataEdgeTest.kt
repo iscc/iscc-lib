@@ -61,6 +61,14 @@ object DataEdge {
         return number.toUInt()
     }
 
+    /** Read the input at [index] as a list of `UInt` features. */
+    fun uintList(inputs: JsonArray, index: Int): List<UInt> {
+        val value = inputs.get(index)
+        require(value.isJsonArray) { "input $index is not an array" }
+        val items = value.asJsonArray
+        return List(items.size()) { bits(items, it) }
+    }
+
     /** Read the input at [index] as a `UByte` (an ISCC header field). */
     fun byte(inputs: JsonArray, index: Int): UByte {
         val value = bits(inputs, index)
@@ -99,13 +107,19 @@ object DataEdge {
         return { encodeSeq(units) }
     }
 
-    /** Convert `encodeSeq` or `algSimhash` bytes to a `bytes:<hex>` value. */
+    /** Convert `encodeSeq`, `algSimhash` or `algMinhash256` bytes to a `bytes:<hex>` value. */
     fun convertSeq(result: Any): Any = bytesValue(result as ByteArray)
 
     /** Prepare `algSimhash` on the vector's digest list. */
     fun prepareSimhash(inputs: JsonArray): () -> Any {
         val digests = bytesList(inputs, 0)
         return { algSimhash(digests) }
+    }
+
+    /** Prepare `algMinhash256` on the vector's feature list. */
+    fun prepareMinhash(inputs: JsonArray): () -> Any {
+        val features = uintList(inputs, 0)
+        return { algMinhash256(features) }
     }
 
     /** Prepare `algCdcChunks` on the vector's data, `utf32` flag and average size. */
@@ -225,6 +239,7 @@ object DataEdge {
         "gen_video_code_v0" to EdgeCaller(::prepareVideo, ::convertVideo),
         "alg_cdc_chunks" to EdgeCaller(::prepareCdc, ::convertChunks),
         "encode_component" to EdgeCaller(::prepareComponent, ::convertString),
+        "alg_minhash_256" to EdgeCaller(::prepareMinhash, ::convertSeq),
     )
 
     /** Load and parse the vendored data-edge.json from the test resources. */
