@@ -1,14 +1,15 @@
-<!-- assessed-at: 284e2416d0e3e16046560214590ddf8bc04b665b -->
+<!-- assessed-at: c15b55959ee0c043b3652ee4e4755cafe3c300e3 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 6 `normal` issues block the release
+## Phase: v0.8.0 — features done; 5 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 291 made the Rust
-in-crate tests read `data.json` through the `conformance.rs` parsers, and the runner issue was cut
-down to the wrong-type rows. 6 `normal` and 15 `low` issues are open.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 292 made every
+`@iscc/wasm` snippet on the README, docs home and getting-started pages call `init()`, and cut the
+WASM agent guidance down to the published `--target web` build. 5 `normal` and 15 `low` issues are
+open.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -29,13 +30,12 @@ down to the wrong-type rows. 6 `normal` and 15 `low` issues are open.
 
 - Tier 1 has 35 symbols at the crate root, plus the Tier 2 `read_unit` and `SEQ_MAINTYPES`.
     `conformance_selftest` runs the seq vectors; `src/` has 319 `#[test]`
-- `conformance.rs` is the only file in `src/` that parses `data.json`; the `lib.rs`, `codec.rs` and
-    `streaming.rs` tests use its `pub(crate)` parsers. A short inputs list is a parse failure, not a
-    panic
+- `conformance.rs` is the only file in `src/` that parses `data.json`; the other in-crate tests use
+    its `pub(crate)` parsers
 - `normal`: `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises; no decision yet
-- `normal` (narrowed): the Rust and Go runners still disagree on five wrong-type/range rows (`bits`
-    as a float, `null` description, non-object `meta`, non-string code-list entry, pixel out of
-    range) and on unknown top-level keys. No shared rule is recorded
+- `normal`: the Rust and Go runners still disagree on five wrong-type/range rows (`bits` as a float,
+    `null` description, non-object `meta`, non-string code-list entry, pixel out of range) and on
+    unknown top-level keys. No shared rule is recorded
 - **Postponed (human):** `>= 1.0.0`, MSRV, `no_std`
 
 ## Python Bindings
@@ -57,17 +57,18 @@ down to the wrong-type rows. 6 `normal` and 15 `low` issues are open.
 
 ## WASM Bindings
 
-**Status**: partially met (two `normal`, two `low`)
+**Status**: partially met (one `normal`, two `low`)
 
 - 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust;
     `gen_sum_code_v0` feeds one core `streaming::SumHasher`
+- Init/target guidance met: all 8 snippets on `README.md`, `docs/index.md` and the getting-started
+    tutorial call `await init();`; `crates/iscc-wasm/CLAUDE.md` and `specs/wasm-bindings.md` name
+    only `--target web`; `tests/test_wasm_docs.py` guards both
 - `normal`: hasher `finalize()` consumes the hasher when the core rejects `bits`, but not when JS
     rejects it. No cross-binding rule is recorded and no test covers it
-- `normal`: init/target guidance is wrong outside the two pages `tests/test_wasm_docs.py` guards.
-    Getting-started WASM tabs skip `init()`; `crates/iscc-wasm/CLAUDE.md` and
-    `specs/wasm-bindings.md` name targets other than the published `--target web` build
 - `low`: byte/string conversion in the glue code; a list element that throws during the serde read
-    kills the instance
+    kills the instance. `docs/howto/wasm.md` per-function snippets omit `init()` under its "Setup"
+    section (accepted form, not filed)
 
 ## C FFI
 
@@ -132,12 +133,12 @@ down to the wrong-type rows. 6 `normal` and 15 `low` issues are open.
 
 ## Documentation
 
-**Status**: partially met (one `normal`, two `low`)
+**Status**: met (two `low`)
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (22 `FULL`, 2 `EXACT`)
-- `normal`: WASM snippets in `docs/tutorials/getting-started.md`, `README.md` and `docs/index.md`
-    fail under Node or skip init (tracked under WASM)
+- WASM snippets on the README, docs home and getting-started pages now initialize the module
+    (`normal` closed in 292)
 - `low`: `target.md` and the agent prompts name `codec` as the whole of Tier 2 (Titusz's files); the
     version-sync file lists in `docs/development.md` (9 of 22) and the release skill (13 of 22) are
     partial
@@ -162,19 +163,19 @@ down to the wrong-type rows. 6 `normal` and 15 `low` issues are open.
     and `docs/index.md` have several), and skips a missing file or unmatched pattern without a
     message
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 44998322779 on the origin tip `f5ddab3f`: 24/24 check-runs green:
-    https://github.com/iscc/iscc-lib/actions/runs/44998322779
+- **Latest CI: PASSING.** Run 44999579359 on the origin tip `98c918e2`: 24/24 check-runs green:
+    https://github.com/iscc/iscc-lib/actions/runs/44999579359
 - Local HEAD adds 1 unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
-21 open in issues.md: 6 `normal`, 15 `low` (14 untriaged), no `critical`. Two `normal` need a
+20 open in issues.md: 5 `normal`, 15 `low` (14 untriaged), no `critical`. Two `normal` need a
 behaviour decision from Titusz (`alg_minhash_256([])`, WASM `finalize()`); the Go `EncodeComponent`
 one needs a recorded rule. None is blocked on upstream. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the `normal` issues that block v0.8.0. Four can be worked by the loop: one shared rule for
-wrong-type vectors on both conformance runners, the version-check gaps, the WASM init docs, and Go
-`EncodeComponent` once its rule is recorded. Two need Titusz's decision. After that, Titusz cuts
-v0.8.0 via `/release`.
+Clear the `normal` issues that block v0.8.0. Three can be worked by the loop: one shared rule for
+wrong-type vectors on both conformance runners, the `version:check` gaps, and Go `EncodeComponent`
+once its rule is recorded. Two need Titusz's decision. After that, Titusz cuts v0.8.0 via
+`/release`.
