@@ -1,93 +1,97 @@
 # Next Work Package
 
-## Step: Every WASM snippet initializes the module; WASM agent guidance names only the `--target web` build
+## Step: Both conformance runners reject a wrong-type or out-of-range vector value as unparsable
 
 ## Goal
 
-Picks up "WASM init and build-target guidance is wrong outside the two pages a test guards"
-(`normal`, `[audit]`). The getting-started WASM tabs are the first code a WASM user runs and fail
-without `init()`; the agent guidance tells roles to build and probe targets that are never
-published. Guard both with `tests/test_wasm_docs.py`.
+Picks up the `normal` [audit] issue "The Rust and Go conformance runners disagree on malformed
+vectors". It sets one rule, a wrong JSON type or an out-of-range value is a parse failure, records
+it, and applies it to `conformance.rs` and `conformance.go`, so the two selftests give the same
+verdict on every row of the issue's table.
 
 ## Alternatives Considered
 
-- **Chosen:** WASM init docs — user-facing defect on the first page a WASM user reads; the last
-    three iterations (289-291) were internal dedup, so a user-facing item is due. Docs and one test
-    only: no hot path, no CRAP or iai exposure
-- **Rejected:** Part 2 of the runner issue (one wrong-type rule for `conformance.rs` and
-    `conformance.go`) — test-infra only, needs a decisions.md entry and probably a CRAP baseline
-    refresh; next in line. `version:check` gaps (1 script) also waits a turn
+- **Chosen:** runner wrong-type rule. It is the handoff's first item, needs no human decision, and
+    the inputs in `data.json` are all well typed, so the strict rule breaks no real vector. Checked:
+    every `bits` is an int, every list holds only ints or only strings, `meta` is null, a dict or a
+    string, and every top-level key except `_metadata` is a section of cases.
+- **Rejected:** `version:check` gaps (1 file). Smaller and also ready, but the handoff puts it
+    second. It is next.
+- Not loop-ready: `alg_minhash_256([])`, WASM `finalize()` (each needs Titusz's behaviour call), Go
+    `EncodeComponent` (needs a rule recorded first, then a 12-surface vector fan-out).
 
 ## Scope
 
-- **Modify**: `docs/tutorials/getting-started.md`, `README.md`, `docs/index.md`,
-    `crates/iscc-wasm/CLAUDE.md`, `.claude/context/specs/wasm-bindings.md`,
-    `tests/test_wasm_docs.py`
-- **Reference**: `docs/howto/wasm.md` → "Setup" (the correct three forms),
-    `crates/iscc-wasm/README.md` (already correct, guarded), `.github/workflows/release.yml:439`
-    (the published build line)
+- **Modify**: `crates/iscc-lib/src/conformance.rs`, `packages/go/conformance.go`,
+    `packages/go/conformance_test.go` (test), `.crap-baseline.json` (generated, only if the gate
+    needs it), `.claude/context/decisions.md` (append one entry), `packages/go/CLAUDE.md` and
+    `crates/iscc-lib/CLAUDE.md` (one line each on the shared rule)
+- **Reference**: the issue's table in issues.md; learnings → "Fixture parsers coerce silently"
 
 ## Not In Scope
 
-- `docs/howto/wasm.md` per-function snippets: they omit `init()` under the page's "Setup" section,
-    which says to initialize first. That page-level note is the accepted form; leave them
-- Adding `crates/iscc-wasm/README.md` or the root README to the existing `WASM_DOCS` list as is:
-    `test_wasm_docs_name_sum_code_result` would then demand `WasmSumCodeResult` on pages that need
-    not name it. Use a separate list for the snippet rule
-- `notes/` (frozen design record), agent memory files, `learnings-archive.md`
-- Changing the published build (`release.yml`) or publishing a second target
+- The per-language data-edge harnesses (`tests/data_edge*.rs`, `data_edge_test.go`, the other 10
+    bindings). This rule covers only the two `data.json` selftest runners
+- Go's case-insensitive struct-tag match (`"Inputs"` matches `inputs`). Leave it unless it falls out
+    of the change for free
+- Library behaviour (`gen_*`, codec). Only fixture parsing changes; no `data.json` edit
+- Moving the iai baseline. This code is off every benchmarked path
 
 ## Implementation Notes
 
-Facts: `@iscc/wasm` is ONE `wasm-pack build --target web --release` build (with
-`RUSTFLAGS=-C target-feature=+simd128`, `--features conformance`). A bare `await init()` works in
-browsers and bundlers and fails under Node (fetch of a `file:` URL); Node needs
-`initSync({ module: readFileSync(require.resolve("@iscc/wasm/iscc_wasm_bg.wasm")) })`, exactly as
-`docs/howto/wasm.md` → "### Node.js" shows.
+**The rule (write it into decisions.md as the decision):** a vector value of the wrong JSON type, or
+a number that is not an integer or is outside the argument's range, makes the case unparsable (Rust:
+the parser returns `None`; Go: `errUnparsable`). It is never coerced, truncated, skipped or
+defaulted. The only allowed value forms:
 
-Pages and sites (line numbers at HEAD):
+- `name`, `description`, `text`, stream, `bytes:` and code entries: JSON string (`null` rejected; an
+    empty `description` still means no description)
+- `meta`: `null`, string or object. A number, bool or array is rejected
+- `bits`: integer in `u32` range. Pixel: integer 0..=255. `cv` and frame entries: integer in `i32`
+    range. Code lists (mixed, iscc, encode_seq) and decode_seq outputs: every entry a string
+- Top level: every key except `_metadata` must map to an object of case objects, or the selftest
+    fails (Go already does this; Rust ignores unknown keys today. Add a small checked helper that
+    `conformance_selftest` calls, so a test can feed it a synthetic value)
 
-- `getting-started.md`: WASM tabs at ~182, ~267, ~340, ~408, ~503 import from `"@iscc/wasm"` with no
-    init — add `init` to the import and `await init();` before the first call. The verify tab
-    (~99-107) has a bare `await init();`. Every bare `await init();` gets a preceding comment line
-    that names browsers/bundlers and points Node users to the WASM how-to (`initSync`), e.g.
-    `// Browsers and bundlers; for Node.js see the WASM how-to (initSync)`. Keep it under 100
-    columns inside the 4-space tab indent (mdformat does not reflow code, but stay readable)
-- `README.md:279-286` and `docs/index.md:111-120`: same comment above the bare `await init();`
-- `crates/iscc-wasm/CLAUDE.md`: rewrite "## Browser vs Node.js Targets" (:49-61) to state the one
-    published target (`--target web`) and how each environment initializes it (link the how-to); "##
-    Build Commands" (:63-77) shows only `--target web` builds, the release line being the
-    `release.yml` command. :202-203: prove a marshalling change from Node on a release
-    `--target web` build loaded with `initSync({ module })`, not on a `--target nodejs` package
-- `specs/wasm-bindings.md`: "## Build Process" (:86-91) lists only the `--target web` build; :128
-    "(`web`, plus `bundler` if published)" → `web` only; check :137 wording still reads right
+**Rust:** use `u32::try_from` / `u8::try_from` / `i32::try_from` on `as_u64` / `as_i64` instead of
+`as` casts. `string_entries` must fail on a non-string entry (`collect::<Option<_>>()`, as the seq
+runners already do). `meta_arg` must tell "absent" (`null`) apart from "rejected". Keep `?` chains
+flat: cargo-crap counts each `?`, and CI fails a covered function whose score rises unless
+`.crap-baseline.json` moves in the same commit.
 
-Test (`tests/test_wasm_docs.py`, keep the existing tests):
+**Go:** `json.Unmarshal` of `null` into a string, slice or number leaves the zero value with no
+error. `unmarshalInputs` must reject a raw `null` input (the meta slot is a `json.RawMessage` and
+goes through `metaArg`, which must also reject a value whose first byte is not `"` or `{`). Decode
+`bits` into `uint32` and cv/frames into `int32` directly: `encoding/json` refuses `64.0`, `64.5` and
+out-of-range numbers for integer targets. **Trap:** `[]uint8` is `[]byte`, which `encoding/json`
+decodes from a base64 *string*. Decode pixels into a wider integer slice (e.g. `[]int`) and
+range-check each one.
 
-- `javascript_blocks` matches only column-0 fences; tab content is indented 4 spaces. Add a helper
-    (or extend it) that also finds indented fences and dedents the body
-- `SNIPPET_PAGES = [README.md, docs/index.md, docs/tutorials/getting-started.md]`: every javascript
-    block that imports from `"@iscc/wasm"` calls `init(` or `initSync(`; a block whose only init is
-    a bare `init()` has a `//` comment line containing `Node`; no positional init
-- `AGENT_GUIDANCE = [crates/iscc-wasm/CLAUDE.md, specs/wasm-bindings.md]`: neither contains
-    `--target nodejs` or `--target bundler` (normalise whitespace first)
-- One negative case per rule on a synthetic string (block without init; bare init without the Node
-    comment; an indented tab block), so each rule is shown to fire
-- Before writing an absence criterion, grep the current tree: the strings above appear in the two
-    guidance files only (`notes/`, `.claude/agent-memory/`, `issues.md` are outside the check)
+**Tests (one bad case per call, learnings → "One bad case per call"):** a Rust `#[test]` in the
+`conformance.rs` test module and a Go `Test…` in `conformance_test.go`, each feeding the same table:
+`bits` `64.0`, `64.5`, `-1`, `4294967296`; description `null`; name `null`; `meta` `5` and `[]`; a
+non-string entry in a mixed and in an iscc code list; pixel `0.5`, `-256`, `256`; cv entry
+`2147483648`; and a top-level key mapped to a number. Every case carries an output the correct input
+would match, so only the parse arm can fail it. Keep one positive case per changed parser so the
+table cannot pass because everything fails. Gate the meta row with `#[cfg(feature = "meta-code")]`
+and the text row with `text-processing`, as the existing tests do.
 
 ## Verification
 
-- `uv run pytest tests/test_wasm_docs.py` passes, including the new snippet, guidance and negative
-    tests
-- `grep -nE -- '--target (nodejs|bundler)' crates/iscc-wasm/CLAUDE.md .claude/context/specs/wasm-bindings.md`
-    prints nothing
-- `uv run zensical build` exits 0
-- `uv run pytest tests/test_check_spec_paths.py tests/test_check_tier1_docs.py` pass (spec and doc
-    gates still green after the edits)
+- `cargo test -p iscc-lib`, `cargo test -p iscc-lib --no-default-features` and
+    `cargo test -p iscc-lib --no-default-features --features text-processing` pass, including the
+    new wrong-type table test; `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean
+- `CGO_ENABLED=0 go test -count=1 ./...`, `GOARCH=386 CGO_ENABLED=0 go test -count=1 ./...` and
+    `go vet ./...` pass in `packages/go`, including the new wrong-type table test
+- `grep -nE ' as (u8|u32|i32)\b' crates/iscc-lib/src/conformance.rs` prints nothing, and
+    `grep -nE 'filter_map' crates/iscc-lib/src/conformance.rs` prints nothing
+- `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info && cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    exits 0
+- `.claude/context/decisions.md` has a `## 2026-11-22 —` heading for the wrong-type rule, and
+    `uv run pytest tests/test_vendored_fixtures.py` passes (no fixture changed)
 - `mise run check` exits 0
 
 ## Done When
 
-All verification criteria pass and every `@iscc/wasm` snippet on the three snippet pages initializes
-the module in a form labelled for where it works.
+Both runners reject every row of the table as unparsable without a panic, each row is pinned by a
+test on both sides, the rule is in decisions.md, and every check above passes.
