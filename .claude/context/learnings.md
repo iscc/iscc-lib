@@ -184,10 +184,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     STATIC key set uncompared, gen `outputs` keys ⊆ the function's `data.json` keys (236: validator
     \+ C generator). `outputs: {}` is rejected. Swift `String ==` is canonical equivalence: compare
     `unicodeScalars`. Parsed `NSNumber` casts are loose: read via `DataEdge.scalar` (232)
-- **Fixture parsers coerce silently, and each language differently** (290). Go: `json.Unmarshal` of
-    `null` leaves a string untouched, `uint32(float64)` truncates, struct tags match keys in any
-    case. serde_json: `as_u64` rejects `64.0`, `filter_map(as_str)` drops entries, `v[1]` panics on
-    a short list (291: read `.get(i)?`). To align two runners, run ONE wrong-type table through both
+- **Fixture parsers coerce silently, and each language differently** (290/293). Go: `Unmarshal` of
+    `null` leaves the target untouched (scan tokens first), a `[]uint8` target reads base64, struct
+    tags match keys in any case. serde_json reads `-0` as a float, so `as_i64` rejects it where Go
+    reads 0 (rule: decisions.md 2026-11-22). To align two runners, run ONE table through both
 - **Spec paths are gated** (224/228/247): `scripts/check_spec_paths.py` checks tree entries +
     backticked paths (`.github/` too) against `git ls-files` (never disk) and fails on a tree whose
     next paragraph lacks "not every file". Specs and per-crate `CLAUDE.md` files hold NO complete

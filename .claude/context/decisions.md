@@ -29,31 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-20 — `alg_simhash` rejects an empty list
-
-**Decision:** the public `alg_simhash` (Rust core, Go port, every binding) returns an error for an
-empty list instead of 32 zero bytes. The unchecked internal helpers keep returning zeros for the
-generators. **Why:** human decision. A SimHash of nothing has no natural length, the 32-byte answer
-was undocumented and arbitrary, an empty list is almost always a caller bug, and iscc-core fails on
-it too (`IndexError`). Nothing in the library called the public function with an empty list.
-**Alternatives:** keep the zeros and record them as a divergence — rejected, it would make the
-arbitrary constant official. **Context:** human decision (Titusz, interactive session, 2026-11-20);
-issues.md carries the rollout.
-
-## 2026-11-20 — Review runs on Fable 5.2 without the advisor; no advisor call after a commit
-
-**Decision:** `review` runs on `claude-fable-5-2` at effort `high` (frontmatter) and without the
-advisor (`ADVISOR_ROLES` in `tools/cid.py`, the only place the advisor is set); every other role
-stays on Opus 5.5 with the Fable advisor but does not call it once its deliverable is committed.
-Review runs `mise run check` once on the advance work and checks its own Markdown edits with
-`uv run prek run --files`. **Why:** human decision. Over iterations 196-224 the advisor was $59 of
-$120 review spend (about $1.10 per call, transcript re-read uncached), 14 of 57 review calls came
-after commit and push, and Codex already gives review an independent opinion. Reviews ran the full
-check about 3 times each. Fable bills to plan limits on this account, not usage credits. Role
-sessions start without the claude.ai connectors (`sanitize_env`): they are not wanted unattended,
-and ISCC Expert bills an API key. **Context:** human decision (Titusz, interactive session,
-2026-11-20); supersedes the advisor scope of the 2026-11-17 entry.
-
 ## 2026-11-20 — Comment-only edits and regenerated files do not count against the 6-file cap
 
 **Decision:** review passed iteration 225 with 6 files of changed behaviour plus 4 binding sources
@@ -398,16 +373,15 @@ removes a published type). **Open:** target.md still names `codec` alone (issues
 
 ## 2026-11-22 — A wrong-type or out-of-range vector value makes a conformance case unparsable
 
-**Decision:** in the `data.json` selftest runners (`conformance.rs`, `conformance.go`), a vector
-value of the wrong JSON type, or a number that is not an integer or is outside its argument's range,
-makes the case unparsable (Rust: the parser returns `None`; Go: `errUnparsable`). It is never
-coerced, truncated, skipped or defaulted. Allowed forms: `name`, `description`, `text`, stream,
-`bytes:` and code entries are JSON strings (`null` rejected; an empty `description` still means no
-description); `meta` is `null`, a string or an object; `bits` an integer in `u32` range; a pixel an
-integer 0..=255; `cv` and frame entries integers in `i32` range; code lists and `decode_seq` outputs
-hold only strings. Every top-level key except `_metadata` maps to an object of case objects, or the
-selftest fails. **Why:** both runners must give the same verdict on every vector, and each
-language's JSON reader coerces differently (Go reads `null` as a zero value and truncates floats;
-serde_json dropped non-string list entries). No real vector is affected. **Rejected:** coercing to
-the nearest valid value (hides a corrupt fixture). **Scope:** the two selftest runners only, not the
-data-edge harnesses. **Context:** 293.
+**Decision:** in the `data.json` selftest runners (`conformance.rs`, `conformance.go`), a value of
+the wrong JSON type, a fraction or a number outside its argument's range makes the case unparsable
+(Rust `None`, Go `errUnparsable`); nothing is coerced, truncated, skipped or defaulted. Strings
+(`name`, `description`, `text`, stream, `bytes:`, code entries) reject `null`; `meta` is `null`, a
+string or an object; `bits` fits `u32`, a pixel is 0..=255, `cv` and frame entries fit `i32`. Every
+top-level key except `_metadata` maps to an object of case objects, or the selftest fails. **Why:**
+the two runners must agree, and each JSON reader coerces differently (Go reads `null` as a zero
+value and truncated floats; serde_json dropped non-string list entries). No real vector is affected.
+**Rejected:** coercing to the nearest valid value (hides a corrupt fixture). **Not covered:** the
+data-edge harnesses; `-0` as a pixel, `cv` or frame entry (serde_json reads it as a float and
+rejects it, Go reads 0); Go's case-insensitive key match. Both left as they are: no vendored vector
+can hold either, and `data.json` is gated byte-identical to iscc-core's. **Context:** 293.

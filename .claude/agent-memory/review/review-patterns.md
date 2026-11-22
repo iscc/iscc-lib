@@ -1197,3 +1197,21 @@ ties the sentence to the binding source.
     and issue text that reports an old measurement are legitimate leftovers
 - Left as nits: an `init(` inside a comment satisfies the rule, and call order is not checked
 - Codex returned in about five minutes with no finding
+
+## Fixture-parser strictness step, Rust + Go (293 — one wrong-type rule for both runners, ~25 min, PASS)
+
+- One logged script: the three `cargo test -p iscc-lib` feature sets, clippy (crate and workspace),
+    Go amd64 + `GOARCH=386` tests, both `go vet`, `gofmt -l`, the two greps, then llvm-cov + the CI
+    CRAP line. `tail -6` per command hides the lib test count: confirm the new tests by name with
+    `cargo test -p iscc-lib --lib -- <substring>` and `go test -v -run '<names>'`
+- **The probe that found something**: a
+    `git archive HEAD crates/iscc-lib packages/go Cargo.toml Cargo.lock` copy in `/tmp` (rewrite
+    `members` to the core crate, own `CARGO_TARGET_DIR`), ONE `rows.json` of `[section, raw inputs]`
+    read by a temp Rust test appended to `conformance.rs` and a temp Go test, each writing
+    `section|inputs|parsed` lines; `diff` the two files. 89 rows, 3 differed, all `-0` in a signed
+    or pixel slot (serde_json reads `-0` as a float)
+- **A regenerated `.crap-baseline.json` also records every function earlier steps left "new"**
+    (+240/−112 for two real regressions): compare old and new per `(file, function)` in Python
+    (`git show <define-next>:.crap-baseline.json`), and accept only rises the handoff names
+- Mutate each added Go helper in the copy (`containsNull` → never true, `parseSection` without the
+    object checks): each must turn named rows red. Codex found nothing here (it re-ran the suites)

@@ -184,37 +184,6 @@ Resolved when either every literal in the header is at most 2,047 bytes (a lower
 which the literal-length test follows), or an MSVC build of `test_iscc.c` shows that 4,095-byte
 pieces compile.
 
-## The Rust and Go conformance runners disagree on malformed vectors `normal` [audit]
-
-Filed by the iteration-280 audit. Each side now parses the fixture in one place
-(`crates/iscc-lib/src/conformance.rs`, `packages/go/conformance.go`), and both reject a bare-hex
-stream, a missing `iscc` output and a short inputs list. What is left is a value of the wrong JSON
-type or range. Measured in iteration 290 at 90e09661, one case per call, each with the correct
-expected output (iteration 291 moved the Rust reads into parsers without changing them):
-
-| Malformed input                 | Rust runner              | Go runner          |
-| ------------------------------- | ------------------------ | ------------------ |
-| `bits` as `64.0` or `64.5`      | parse failure            | passes (truncated) |
-| description `null`              | parse failure            | passes             |
-| `meta` a number or an array     | passes (read as no meta) | mismatch (as text) |
-| non-string entry in a code list | passes (entry skipped)   | parse failure      |
-| pixel `0.5` or `-256`           | parse failure            | passes (truncated) |
-
-Go's `parseConformanceData` also returns an error for a top-level key that is not an object of
-cases; Rust ignores unknown keys. A `bits` or pixel above the target width is cast (`as u32`,
-`as u8`, `as i32`) on the Rust side without a range check.
-
-**Why it matters:** each "mirror" selftest still passes vectors the other one rejects, and the Rust
-in-crate tests inherit the loose readings (a non-string code-list entry is skipped silently).
-
-**Suggested fix:** settle one rule for a value of the wrong JSON type or range (a parse failure is
-the simplest), record it, and pin every row on both sides.
-
-**Scope estimate:** 2 non-test files (the two parser files).
-
-Resolved when both runners give the same verdict, without a panic, on every row above, each pinned
-by a test.
-
 ## `@iscc/wasm` hasher `finalize()` consumes the hasher on some argument errors but not others `normal` [audit]
 
 Verified by the iteration-249/260/270 audits; unchanged at db1fe55. `DataHasher.finalize`,

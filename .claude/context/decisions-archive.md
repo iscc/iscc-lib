@@ -697,3 +697,28 @@ target.md already say. A bullet that only names the real mechanism is a checkabl
 acceptance criterion. Review cut advance's "(no in-repo package-version string)" clause from the Go
 bullet: it forbade something no spec forbids. **Alternatives:** revert the bullets to the false
 mechanism; escalate with HUMAN REVIEW REQUESTED. **Context:** iteration 223 review.
+
+## 2026-11-20 — `alg_simhash` rejects an empty list
+
+**Decision:** the public `alg_simhash` (Rust core, Go port, every binding) returns an error for an
+empty list instead of 32 zero bytes. The unchecked internal helpers keep returning zeros for the
+generators. **Why:** human decision. A SimHash of nothing has no natural length, the 32-byte answer
+was undocumented and arbitrary, an empty list is almost always a caller bug, and iscc-core fails on
+it too (`IndexError`). Nothing in the library called the public function with an empty list.
+**Alternatives:** keep the zeros and record them as a divergence — rejected, it would make the
+arbitrary constant official. **Context:** human decision (Titusz, interactive session, 2026-11-20);
+issues.md carries the rollout.
+
+## 2026-11-20 — Review runs on Fable 5.2 without the advisor; no advisor call after a commit
+
+**Decision:** `review` runs on `claude-fable-5-2` at effort `high` (frontmatter) and without the
+advisor (`ADVISOR_ROLES` in `tools/cid.py`, the only place the advisor is set); every other role
+stays on Opus 5.5 with the Fable advisor but does not call it once its deliverable is committed.
+Review runs `mise run check` once on the advance work and checks its own Markdown edits with
+`uv run prek run --files`. **Why:** human decision. Over iterations 196-224 the advisor was $59 of
+$120 review spend (about $1.10 per call, transcript re-read uncached), 14 of 57 review calls came
+after commit and push, and Codex already gives review an independent opinion. Reviews ran the full
+check about 3 times each. Fable bills to plan limits on this account, not usage credits. Role
+sessions start without the claude.ai connectors (`sanitize_env`): they are not wanted unattended,
+and ISCC Expert bills an API key. **Context:** human decision (Titusz, interactive session,
+2026-11-20); supersedes the advisor scope of the 2026-11-17 entry.

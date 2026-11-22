@@ -1,64 +1,72 @@
-## 2026-11-22 — Both conformance runners reject a wrong-type or out-of-range vector value as unparsable
+## 2026-11-22 — Review of: Both conformance runners reject a wrong-type or out-of-range vector value as unparsable
 
-**Done:** One rule for both `data.json` selftest runners: a wrong JSON type (incl. `null` outside
-`meta`), a fraction or an out-of-range number makes the case unparsable — Rust parsers return
-`None`, Go returns `errUnparsable`; nothing is coerced, truncated or skipped. Top-level keys other
-than `_metadata` must map to an object of case objects on both sides (Rust: new `check_sections`,
-called by `conformance_selftest`). The rule is in decisions.md and pinned by the same table on both
-sides.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-lib/src/conformance.rs`: `bits_at`/`i32_entries`/pixel parse use
-    `u32/i32/u8::try_from`; `string_entries(&Value) -> Option<Vec<&str>>` (strict, also reused by
-    `encode_seq`); `meta_arg` returns `Option<Option<String>>` (null → `Some(None)`,
-    number/bool/array → `None`); `check_sections`; tests
-    `test_wrong_type_vector_values_are_unparsable`, `…_meta_…` (meta-code), `…_text_…`
-    (text-processing), `test_seq_wrong_type_values_are_unparsable`, `test_check_sections`
-- `packages/go/conformance.go`: `parseSection` + `isJSONObject` (null section/case rejected);
-    `containsNull` (token scan) — `unmarshalInputs` rejects a null at any depth, except a
-    `*json.RawMessage` target (meta slot) which is handed through; `metaArg` rejects anything but
-    null/string/object; `bits` → `uint32`, cv/frames → `int32`/`[][]int32` directly, pixels →
-    `[]int` + 0..=255 check; `decode_seq` outputs reject null entries
-- `packages/go/conformance_test.go`: `TestWrongTypeVectorValuesAreUnparsable` (17 bad + 8 good
-    rows), `TestSeqWrongTypeValuesAreUnparsable`, `TestParseConformanceDataRejectsNonCaseSections`
-- `.crap-baseline.json`: regenerated (`mise run crap:baseline`) after `mise run check`
-- `.claude/context/decisions.md`: `## 2026-11-22 — A wrong-type or out-of-range vector value …`
-- `crates/iscc-lib/CLAUDE.md`, `packages/go/CLAUDE.md`: one bullet each naming the shared rule
+**Summary:** The Rust and Go `data.json` selftest runners now share one rule: a wrong JSON type, a
+`null` outside `meta`, a fraction or an out-of-range number makes a case unparsable, and a top-level
+key that is not an object of case objects fails the selftest. Every row of the audit issue's table
+is pinned by the same test table on both sides, so the issue is closed. The change touches fixture
+parsing only: no library behaviour, no `data.json` edit, no benchmarked path.
 
 **Verification:**
 
-- `cargo test -p iscc-lib`: 456 passed; `--no-default-features`: 388 passed;
-    `--no-default-features --features text-processing`: all result lines `ok` (291 lib tests)
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; also
-    `--tests --no-default-features`
-- `packages/go`: `CGO_ENABLED=0 go test -count=1 ./...` ok, `GOARCH=386 … go test` ok, `go vet`
-    (amd64 + 386) clean, `gofmt -l .` empty
-- Both grep criteria (` as (u8|u32|i32)\b`, `filter_map`) print nothing
-- CRAP gate against the OLD baseline: `↑ 2 regressed` — `conformance_selftest` 3.0→4.1 (the
-    `check_sections` branch) and `string_entries` 1.0→2.0 (the `?`), all ≤ 9.0. After regenerating:
-    `cargo crap … --fail-regression --fail-above` exit 0, `0 regressed · 181 unchanged`. The
-    baseline diff is large (+240/−112) because the regen also records the 17 functions that
-    iteration 291 left as "new" and the moved line numbers
-- `uv run pytest tests/test_vendored_fixtures.py`: 10 passed (no fixture changed)
-- `mise run check`: exit 0 (first run, mdformat reflowed decisions.md; second run clean)
-- Teeth proof (throwaway `git worktree` at HEAD with the new tests copied in, removed afterwards):
-    old Go fails every bad row of the table plus both seq rows and the null section/case rows; old
-    Rust fails the meta table (`meta 5` read as no meta → `(true, true)`) and the core table
-    (`(true, false)`, mixed entry skipped). `git worktree list` shows only the checkout
+- [x] `cargo test -p iscc-lib`, `--no-default-features` and
+    `--no-default-features --features text-processing` pass (all exit 0); the five new tests
+    (`test_wrong_type_*`, `test_seq_wrong_type_*`, `test_check_sections`) ran by name;
+    `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean (workspace clippy too)
+- [x] `packages/go`: `CGO_ENABLED=0 go test -count=1 ./...`, the same under `GOARCH=386`, and
+    `go vet ./...` (amd64 and 386) pass; `gofmt -l .` prints nothing; the three new tests ran by
+    name
+- [x] `grep -nE ' as (u8|u32|i32)\b'` and `grep -nE 'filter_map'` on `conformance.rs` print nothing
+- [x] `cargo llvm-cov … && cargo crap … --fail-regression --fail-above` exits 0 (`0 regressed`,
+    `181 unchanged`)
+- [x] `decisions.md` has the `## 2026-11-22 —` entry for the rule;
+    `uv run pytest tests/test_vendored_fixtures.py`: 10 passed
+- [x] `mise run check` exits 0
 
-**Next:** `version:check` passes a stale second doc snippet and skips a vanished target (the
-handoff's second item; one script plus tests).
+Three checks beyond next.md's list:
+
+- **Differential table**: 89 further malformed inputs (bools, strings for numbers, exponents, nested
+    lists, objects, bad stream prefixes, boundary values) went through every parser on both sides
+    from one shared file. 86 give the same verdict. The 3 that differ are all `-0` as a pixel, `cv`
+    or frame entry (see Issues found)
+- **Baseline regen**: old and new `.crap-baseline.json` compared per function. Only the two scores
+    the advance handoff names rose (`conformance_selftest` 3.0 → 4.1, `string_entries` 1.0 → 2.0).
+    Every other difference is a function that iteration 291 left as "new", or an improvement
+- **Mutations** in a `/tmp` copy: `containsNull` that never reports a null turns six rows red;
+    `parseSection` without its object checks turns the two `null` rows red
+
+**Issues found:**
+
+- `-0` as a pixel, `cv` or frame entry: the Rust runner rejects it (serde_json reads `-0` as a
+    float), the Go runner reads 0. Pre-existing and not in the issue's table. Not filed: no vendored
+    vector can hold it (`data.json` is gated byte-identical to iscc-core's). It is named in the
+    decision entry under "Not covered", together with Go's case-insensitive key match
+- (nothing else)
+
+**Codex review:** no actionable findings. Codex re-ran the Rust tests on all three feature sets, the
+Go tests on amd64 and 386, clippy and `go vet`.
+
+**Next:** `version:check` passes a stale second doc snippet and skips a vanished target silently
+(`normal` [audit], one script plus tests). It is the only remaining `normal` issue that needs no
+decision from Titusz. The other three wait on a recorded rule: `alg_minhash_256([])`, the WASM
+`finalize()` consumption rule, and Go `EncodeComponent` on a short digest (for that one the issue
+itself suggests rejection; define-next may record the rule in the step that applies it, but it is a
+12-surface vector fan-out).
 
 **Notes:**
 
-- Beyond next.md's table I also reject `null` *inside* lists in Go (code-list entry, pixel, cv,
-    frame, decode_seq unit) via `containsNull`: Go decodes such a null as `""`/`0`, while Rust's
-    `as_str`/`as_i64` already refuse it, so without it the runners would still disagree. A `null`
-    inside a `meta` object stays allowed on both sides (the meta slot is exempt)
-- Go's case-insensitive struct-tag match (`"Inputs"`) is untouched, as scoped
-- The Go `null`-section/`null`-case gap was found while implementing: `json.Unmarshal(null, &map)`
-    left a nil map, so `{"gen_data_code_v0": null}` used to parse as an empty, passing section. Now
-    an error, pinned by the test
-- The issue "The Rust and Go conformance runners disagree on malformed vectors" should be resolved
-    by the review (every row pinned on both sides); I did not edit issues.md
+- Closed and deleted from issues.md: "The Rust and Go conformance runners disagree on malformed
+    vectors". issues.md now holds 4 `normal` and 15 `low` entries
+- decisions.md was over budget (413 lines). I tightened the new entry to 12 lines and rotated the
+    two oldest entries into `decisions-archive.md` with the runner's own function; the file is at
+    387 lines. The rotated titles stay binding (`alg_simhash` rejects an empty list; review runs
+    without the advisor)
+- Go rejects a `null` at any depth of an input (except inside the `meta` slot), which goes one step
+    past next.md's table. It is the right reading of the rule: Rust's `as_str`/`as_i64` already
+    refuse a `null` list entry, so without it the runners would still disagree
+- Rust's top-level check lives in `check_sections`; the call from `conformance_selftest` cannot be
+    reached with synthetic data (the function reads the embedded file), so that one branch stays
+    uncovered. That is what moved its CRAP score, and it is accepted
+- No API change, no perf-relevant change: `conformance_selftest` keeps its signature and result on
+    the real vectors
