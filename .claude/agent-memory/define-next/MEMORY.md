@@ -3,13 +3,13 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 289):** 288 (tier docs) PASSED. 289 = one-shot dedup (4 files: multihash
-formatter over a digest, WASM sum via `SumHasher`, meta parse once; error texts kept byte-for-byte —
-Go mirrors "invalid JSON in meta"). `gen_data_code_v0` deliberately NOT delegated to `DataHasher`
-(tail-buffer copy costs Ir). iai baseline reads high → an Ir drop passes, no refresh.
-valgrind/iai-runner/wasm-pack ARE installed now. Next: dup `data.json` parsers (Rust/Go split).
-Minhash `[]` + WASM `finalize()` (both need a behaviour decision → HUMAN). **Any Java test needing a
-library outside the bundle must pass in BOTH layouts.** Per-iteration traps for 259-269 →
+**Status 2026-11-22 (iter 290):** 289 (one-shot dedup) PASSED. 290 = Go half of the dup `data.json`
+parsers issue, chosen over the handoff's Rust half: Rust already pins the strict policy (bare hex +
+missing `iscc` = parse failure), so only Go's verdict differs; Rust half (pure test refactor in
+lib.rs/codec.rs/streaming.rs test modules) is next. **Check a grep criterion's pattern against the
+current tree's error strings too** (290: `data.json")` also hit `t.Fatal("… data.json")`). Minhash
+`[]` + WASM `finalize()` (both need a behaviour decision → HUMAN). **Any Java test needing a library
+outside the bundle must pass in BOTH layouts.** Per-iteration traps for 259-269 →
 [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
 py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
 estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
