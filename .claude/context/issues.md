@@ -119,30 +119,19 @@ was found by reading the code. Pre-existing, measured 2026-11-21.
 Resolved when either CI runs at least the Python suite on `windows-latest`, or a decisions.md entry
 keeps CI on Linux and macOS on purpose.
 
-## Go `AlgMinhash256` still returns `0xFF` for an empty list, and no shared vector pins the error `normal` [human]
+## No shared vector pins the `alg_minhash_256` empty-list error `normal` [human]
 
 Decided on 2026-11-22 (decisions.md, "`alg_minhash_256` rejects an empty feature list"): an empty
-`features` list is an error on every surface. The Rust core and the 10 surfaces built on it report
-`features must not be empty` since iteration 298. Two parts are left:
+`features` list is an error on every surface. All 12 surfaces report `features must not be empty`
+(the Rust core and the 10 surfaces built on it since iteration 298, the Go port since 299), but
+`data-edge.json` has no `alg_minhash_256` section. The empty list has a hand-written test on the
+Rust core, C FFI, UniFFI (Rust side), Python, Java, C++ and Go only. napi, WASM, Ruby, .NET, Swift
+and Kotlin have none, although their how-to pages name the error. Measured by hand: napi and Ruby
+report the message (iteration 298), and Go and the Python binding return the same digest for
+`[7, 42, 2147483648, 4294967295]` (iteration 299), so no `except` entry is expected.
 
-- Go is its own implementation and still returns 32 bytes of `0xFF`. Its signature
-    `AlgMinhash256([]uint32) []byte` (`packages/go/minhash.go`) cannot report an error, and
-    `TestMinhash256Empty` in `packages/go/minhash_test.go` pins the old value. The approved
-    signature is `([]byte, error)`, with the same message. `docs/howto/go.md` and the Go spec row
-    follow.
-- `data-edge.json` has no `alg_minhash_256` section. The empty list has a hand-written test on the
-    Rust core, C FFI, UniFFI (Rust side), Python, Java and C++ only. napi, WASM, Ruby, .NET, Swift
-    and Kotlin have none, although their how-to pages name the error. Measured by hand in iteration
-    298: napi and Ruby report the message.
-
-Go's two internal callers (the data hasher in `code_data.go` and the text soft hash in
-`code_content_text.go`) always pass at least one feature, as in Rust; their output must not move.
-
-**Spec:** `.claude/context/specs/go-bindings.md` (the signature row of `alg_minhash_256`)
-
-Resolved when Go returns an error for an empty list, one `alg_minhash_256` section in
-`data-edge.json` pins the error row and a non-empty row on all 12 surfaces, and no test expects the
-`0xFF` value for an empty list.
+Resolved when one `alg_minhash_256` section in `data-edge.json` pins the error row and a non-empty
+row on all 12 surfaces.
 
 ## `crates/iscc-py/CLAUDE.md` still lists test files one by one `low` [review]
 

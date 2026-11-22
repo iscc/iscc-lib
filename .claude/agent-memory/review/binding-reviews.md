@@ -948,3 +948,12 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
 - "Compliant by type / by code order" surfaces: confirm by reading, then grep their suites for a
     test of the rule; none found = one `low` issue, not NEEDS_WORK
 - A code span that wraps across lines gets its spaces tripled by mdformat: reword so it fits
+
+## Go-only signature change (299, ~10 min)
+
+- A checked exported function over an unchecked unexported one (`AlgSimhash`, `AlgMinhash256`):
+    `git grep` the name repo-wide (docs, README, spec row), run both GOARCH suites, and compare one
+    non-empty input and the error text against the Python binding
+- A Go probe outside the tree: a `/tmp` module with a `replace` line to `packages/go`, run with
+    `GOFLAGS=-mod=mod "$(mise exec -- which go)" run .` from that directory (`mise exec -C` and
+    `mise which go` both fail there)
