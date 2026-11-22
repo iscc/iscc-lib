@@ -86,13 +86,15 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: c7eee56, iter 303 — incremental)
+## Current State (assessed-at: 3bf5fd0, iter 304 — incremental)
 
-- Origin tip `80897d52` run 45026413052 green (waited ~6 min, mid-run on arrival). HEAD +1
+- Origin tip `55f81415` run 45028556621 green (waited ~4 min, mid-run on arrival). HEAD +1
     `.claude`.
-- 19 open (4 `normal` + 15 `low`, 14 untriaged). 302: Go 256-bit limit DONE (`encodeLength` 32..256,
-    checked `unitBitLength`); bits issue narrowed to data-edge rows + API pages. Other `normal`: 3
-    audit (conformance dup, Conan sha256, stale specs/docs). iscc-lib `src/` `#[test]` = 341.
+- 20 open (4 `normal` + 16 `low`, 15 untriaged). 303: 256-bit rows + API pages landed; bits issue
+    REWRITTEN to remainder (decode row `iscc_decode/test_0006` doesn't pin the bound; sum-code doc
+    rows need 64 to 256). Other `normal`: 3 audit. iscc-lib `src/` `#[test]` = 341.
+- **A doc/vector row can be present yet wrong** (303): check issues.md bodies for the reviewer's
+    measured defects instead of counting rows as met.
 - **CI on a fresh tip may be mid-run** (Coverage+CRAP is the slowest job): wait with
     `until [ "$(gh run view <id> --json status --jq .status)" = completed ]` under `timeout 300`.
 - **`cid(human)` commits rewrite target.md/issues.md** — always diff both after one (297: two `low`

@@ -1,4 +1,4 @@
-<!-- assessed-at: c7eee56a6d52f0e8baf874a0fa0eee7e692552a6 -->
+<!-- assessed-at: 3bf5fd0714f9eb33778a3cdf0205f00eeaf55555 -->
 
 # Project State
 
@@ -6,19 +6,21 @@
 
 ## Phase: v0.8.0 — features done; 4 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` (11 sections) run on the Rust core and all 11 bindings. The 256-bit
-unit limit is now enforced in the Rust core (301) and the Go port (302), so all 11 surfaces reject
-units above 256 bits; the shared vector rows and the binding API pages remain. 4 `normal` issues
-still block v0.8.0.
+ISCC-SEQ and `data-edge.json` (11 sections) run on the Rust core and all 11 bindings. All 12
+surfaces reject units above 256 bits, three new rows pin the encode side and the 256 boundary, and
+the API pages state the range. The decode row does not yet pin the bound and two sum-code doc rows
+give a wrong range, so 4 `normal` issues still block v0.8.0.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
-**Status**: met for the current sections; the bits `normal` issue adds rows
+**Status**: met for the current sections; the bits `normal` issue needs one row replaced
 
 - `crates/iscc-lib/tests/data-edge.json` has 11 sections; the 5 tracked copies are byte-identical;
     all 12 harnesses run every section; C/C++ read the generated `data_edge_vectors.h`
-- Pending: a `bits` above 256 encode row (marked `diverges`, iscc-core 1.5.0 accepts it) and a
-    decode row for a unit header longer than 256 bits; both pinned on all 12 surfaces
+- 256-bit rows present: `gen_meta_code_v0` `test_0005_bits_above_256`, `encode_component`
+    `test_0003`/`test_0004`, `encode_seq` `test_0007`, `iscc_decode` `test_0006_unit_above_256`
+- Defect: the `iscc_decode` `test_0006` input is a truncated body that 0.7.0 (no bound) rejects too,
+    so it does not pin the limit, and its `note` is false
 - `low`: the 4,095-byte string pieces exceed the 2,048 bytes one MSVC reference page allows
 
 ## Rust Core Crate
@@ -26,22 +28,21 @@ still block v0.8.0.
 **Status**: partially met (v0.8.0 features met; one `normal` audit issue open)
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `codec` (incl. `read_unit`, `SEQ_MAINTYPES`) and
-    `streaming::SumHasher` exist; 341 `#[test]` in `src/`
-- 256-bit limit met: `codec::encode_length` accepts only 32 to 256 for Meta through Flake;
-    `pub(crate)` helper `codec::unit_bit_length` checks every internal decode
+    `streaming::SumHasher` exist; 341 `#[test]` in `src/`; 256-bit limit enforced
 - `normal` (audit): `conformance.rs` lists sections by hand in three places and runs runners up to
     three times; `lib.rs` has 5 iscc-only conformance loops; WASM `tests/conformance.rs` copies
     parsers with silent casts
-- `low`: `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects
+- `low`: `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects; `gen_mixed_code_v0` with
+    `bits` below 8 panics in debug builds (`soft_hash_codes_v0` underflow)
 - **Postponed (human):** `>= 1.0.0`, MSRV, `no_std`
 
 ## Python Bindings
 
-**Status**: met (v0.8.0 scope; inherits the core's 256-bit limit)
+**Status**: met (v0.8.0 scope)
 
 - 35 Tier 1 symbols with `.pyi` stubs and `__all__`; abi3-py310 wheels for 4 platforms; 12
     `py.detach` sites; 0.7.0 on PyPI; data-edge harness cross-checks iscc-core; CI 3.10/3.15
-- `_lowlevel.pyi` still documents `bits` as "multiple of 32" only (bits issue, API pages part)
+- `_lowlevel.pyi` now states the 32 to 256 range
 - `low`: `crates/iscc-py/CLAUDE.md` still lists test files one by one
 
 ## Node.js Bindings
@@ -63,8 +64,8 @@ still block v0.8.0.
 
 **Status**: met (one `low`; doc gaps under Documentation)
 
-- 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
-    check; `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md`
+- 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` (range comment
+    updated) with a freshness check; `examples/iscc_sum.c` + CMake; 0.7.0 tarballs
 - `low`: no test pins "a failed first `finalize` consumes" on C FFI, C++, .NET, Swift, Kotlin
 
 ## Java Bindings
@@ -76,13 +77,11 @@ still block v0.8.0.
 
 ## Go Bindings
 
-**Status**: met (v0.8.0 scope)
+**Status**: met (v0.8.0 scope; one `low`)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all
-    11 sections; the `go` CI job also runs as `GOARCH=386`
-- 256-bit limit met: `encodeLength` (`packages/go/codec.go`) accepts only 32 to 256; the only
-    `decodeLength` caller outside its definition is the checked `unitBitLength`; `Above256` tests
-    cover every gen function, both hashers, `GenSumCodeV0`, decode and the wide ISCC-CODE path
+    11 sections; the `go` CI job also runs as `GOARCH=386`; 256-bit limit enforced
+- `low`: `GenMixedCodeV0` with `bits` 0 to 7 panics (`softHashCodesV0` index out of range)
 
 ## C# / .NET Bindings
 
@@ -119,13 +118,14 @@ still block v0.8.0.
 
 ## Documentation
 
-**Status**: partially met (one `normal` from the audit, bits API-page part pending, one `low`)
+**Status**: partially met (two `normal` items open, one `low`)
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate
-- `docs/rust-api.md`, `docs/howto/go.md` and the Go doc comments state the 32 to 256 range; the C
-    FFI, Java, Ruby reference pages, the other how-to pages, `iscc.h`, `IsccLib.java` and
-    `_lowlevel.pyi` still say only "multiple of 32"
+- Range 32 to 256 now on the C FFI, Java, Ruby pages, all how-to pages, `iscc.h`, `IsccLib.java`,
+    `_lowlevel.pyi`; only test comments and wrapped `streaming.rs` lines say "multiple of 32" alone
+- Defect (bits issue): the `gen_sum_code_v0` `bits` rows in `docs/rust-api.md` and
+    `docs/java-api.md` say "32 to 256"; the valid range is 64 to 256
 - `normal` (audit): stale specs (`swift-bindings.md` checkbox, `documentation.md` counts,
     `c-ffi-dx.md` feature flags); `docs/c-ffi-api.md` omits the failed-finalize rule; the
     `encode_component` short-digest error is missing on 6 surfaces; `README.md` omits Swift
@@ -146,19 +146,19 @@ still block v0.8.0.
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 22
     version-sync targets at 0.7.0; every ecosystem installs from a lockfile
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 45026413052 on the origin tip `80897d52`, all jobs green:
-    https://github.com/iscc/iscc-lib/actions/runs/45026413052
+- **Latest CI: PASSING.** Run 45028556621 on the origin tip `55f81415`, all jobs green:
+    https://github.com/iscc/iscc-lib/actions/runs/45028556621
 - Local HEAD adds 1 unpushed `cid(log)` commit that touches only `.claude`
 
 ## Open Issues
 
-19 open in issues.md: 4 `normal`, 15 `low` (14 untriaged), no `critical`. The bits `normal` issue
-(decided by Titusz 2026-11-22) now covers only the shared vector rows and the API pages; the 3 audit
-`normal` issues are loop-workable. None is blocked on the human or upstream.
+20 open in issues.md: 4 `normal`, 16 `low` (15 untriaged), no `critical`. The bits `normal` issue is
+down to one decode row and two sum-code doc rows; the 3 audit `normal` issues are loop-workable.
+None is blocked on the human or upstream. New `low`: the `gen_mixed_code_v0` `bits` below 8 panic.
 
 ## Next Milestone
 
-Clear the 4 open `normal` issues that block v0.8.0: the remaining 256-bit limit work
-(`data-edge.json` rows on all 12 surfaces, binding API pages) and the three audit findings (Rust
-conformance-table duplication, Conan checksum, stale specs and API docs). After that, Titusz cuts
-v0.8.0 via `/release`.
+Clear the 4 open `normal` issues that block v0.8.0: finish the 256-bit limit issue (a decode row
+that actually pins the bound, correct sum-code range on the API pages) and the three audit findings
+(Rust conformance-table duplication, Conan checksum, stale specs and API docs). After that, Titusz
+cuts v0.8.0 via `/release`.
