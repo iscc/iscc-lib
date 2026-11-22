@@ -3,10 +3,11 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 303):** 302 Go bound PASSED. 303 = bits issue closer: 4 data-edge rows
-(meta+encode_component 288 `diverges`, encode_component 256 ok, iscc_decode 288-bit unit) in
-EXISTING sections (no harness edits) + API-page/comment 'multiple of 32' sweep (0 behaviour files).
-Next: 3 audit `normal` issues (conformance table, Conan sha256, stale specs/docs — 9 files, split);
+**Status 2026-11-22 (iter 304):** 303 PASS_WITH_NOTES but my notes shipped 2 defects (hand-built
+decode header `00 08` = truncated body, not a bound pin; sum-code range is 64-256 not 32-256). 304 =
+close-out: replace decode row input with the ref ENCODER output + 2 doc rows + JNI Javadoc. **An
+error row must be probed on the last release (`--with iscc-lib==0.7.0`) to prove it pins a rule.**
+Next: 3 audit `normal` issues (Conan sha256 first, then conformance table, stale specs — split);
 then v0.8.0 release-ready (human cuts). **C edge generator's `meta_text` rejects `null` meta — use
 an object.** **A Go-behaviour step is 'core-like': keep vector rows that need all 12 harnesses out
 of it.** **A Tier 2 signature change is an `API-BREAK` stop for advance — route around it.** **An
