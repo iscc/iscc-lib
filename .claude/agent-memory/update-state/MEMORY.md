@@ -86,13 +86,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 4a4674e, iter 288 — incremental)
+## Current State (assessed-at: cf3caf0, iter 289 — incremental)
 
-- Origin tip `bddf428c` run 44990006975 GREEN 24/24 (Kotlin finished mid-iteration). HEAD +1
+- Origin tip `031d6de9` run 44991356360 GREEN 24/24 (Kotlin finished mid-iteration). HEAD +1
     `.claude`.
-- 18 open (5 `normal` + 13 `low`, 12 untriaged). 287 closed `publish-ffi` rerun `normal`
-    (`scripts/ffi_release_assets.py` stale/verify, 12 tests). Tier 1 doc gate: 22 FULL, 2 EXACT.
-    Version-sync TARGETS = **22**.
+- 18 open (4 `normal` + 14 `low`, 13 untriaged). 288 closed the Rust API tier-docs `normal`
+    (`SumHasher` = Tier 2 in `rust-core.md`; filed `low` target.md/prompts still say codec = Tier
+    2). Tier 1 doc gate: 22 FULL, 2 EXACT. Version-sync TARGETS = **22**.
 - **CI still running at assess time?** Write state, then re-check the run before committing — the
     Kotlin job is the slowest and usually finishes within the iteration (287).
 - `prepare-release` needs `build-ffi`; runs `scripts/update_vcpkg_hashes.py ffi-staging`.

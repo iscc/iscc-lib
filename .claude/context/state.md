@@ -1,15 +1,15 @@
-<!-- assessed-at: 4a4674ee726933ba23d2fdc890e9730ef79c91bf -->
+<!-- assessed-at: cf3caf071ad4c9e003c0e965fbd46bcc286c0bd6 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; CI green; 5 `normal` issues block the release
+## Phase: v0.8.0 — features done; CI green; 4 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 287 closed the
-`publish-ffi` rerun gap: the job now deletes staged FFI assets that are not `uploaded` before the
-upload and fails unless every staged archive ends up `uploaded`. 5 `normal` and 13 `low` issues
-remain.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 288 closed the
+Rust API tier-docs issue: every public `iscc-lib` path now has a tier (Tier 2 = `codec` plus
+`streaming::SumHasher`), and the docs no longer cite an `iscc_lib::api` module. 4 `normal` and 14
+`low` issues remain.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -26,18 +26,18 @@ remain.
 
 ## Rust Core Crate
 
-**Status**: partially met (v0.8.0 features met; four `normal` issues)
+**Status**: partially met (v0.8.0 features met; three `normal` issues)
 
 - Tier 1 has 35 symbols at the crate root, plus the Tier 2 `read_unit` and `SEQ_MAINTYPES`.
     `conformance_selftest` runs the seq vectors; `src/` has 315 `#[test]`
+- Tier list complete: `rust-core.md` names `streaming::SumHasher` as Tier 2 under the same SemVer
+    lock as `codec`; `IsccError`/`IsccResult` and `types` structs are uncounted support types
 - `normal`: `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises; no decision yet
 - `normal`: the one-shot gen functions re-implement streaming (BLAKE3 runs twice, `meta` is parsed
     twice)
 - `normal`: nine `test_gen_*_conformance` tests in `lib.rs` re-parse `data.json` beside
-    `conformance.rs`, and the Rust and Go runners disagree on malformed vectors
-- `normal`: the public `streaming::SumHasher` and `IsccError` appear in no tier list, and the docs
-    and `CLAUDE.md` cite an `iscc_lib::api` module that does not exist. **Postponed (human):**
-    `>= 1.0.0`, MSRV, `no_std`
+    `conformance.rs`, and the Rust and Go runners disagree on malformed vectors. **Postponed
+    (human):** `>= 1.0.0`, MSRV, `no_std`
 
 ## Python Bindings
 
@@ -53,8 +53,7 @@ remain.
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and strict data-edge tests;
     `@iscc/lib` 0.7.0 on npm (OIDC); committed `package-lock.json`, `npm ci` in CI and release
-- `crates/iscc-napi/README.md` names all 35 Tier 1 symbols and the `NapiSumCodeResult` return; it is
-    `FULL` in the Tier 1 doc gate
+- `crates/iscc-napi/README.md` names all 35 Tier 1 symbols; `FULL` in the Tier 1 doc gate
 - `low`: `napi build` fails in the devcontainer checkout (the 9p mount rejects `link()`); CI is
     unaffected. The napi `Buffer` reference leak is postponed (`postponed.md`)
 
@@ -75,7 +74,7 @@ remain.
 
 - 51 exports, including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
-- The release upload now prunes unfinished assets and verifies every archive (see CI/CD)
+- The release upload prunes unfinished assets and verifies every archive (see CI/CD)
 
 ## Java Bindings
 
@@ -109,8 +108,7 @@ remain.
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job
 - `packages/cpp/portfile.cmake` pins the five v0.7.0 SHA512s; `scripts/update_vcpkg_hashes.py`
-    writes them in `prepare-release` from the built archives, so each release tag carries matching
-    hashes
+    writes them in `prepare-release` from the built archives
 - `low`: the port fails one vcpkg post-build check (debug/release binary count); matters only for a
     vcpkg registry submission
 
@@ -134,13 +132,14 @@ remain.
 
 ## Documentation
 
-**Status**: partially met (one `normal`, one `low`)
+**Status**: partially met (two `low`)
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (22 `FULL`, 2 `EXACT`)
-- `docs/development.md` describes the current FFI upload: prune `starter` assets, keep uploaded
-    archives, fail unless all are `uploaded`
-- `normal`: Rust API tier docs (see Rust core)
+- `docs/architecture.md`, `docs/rust-api.md`, root and crate `CLAUDE.md` now match `lib.rs`: no
+    `iscc_lib::api` reference outside `notes/`; `SumHasher` documented as Tier 2
+- `low`: `target.md` and the advance/review prompts still name `codec` as the whole of Tier 2
+    (Titusz's files)
 - `low`: the version-sync file lists in `docs/development.md` (9 of 22 targets) and the release
     skill (13 of 22) are partial
 
@@ -159,22 +158,21 @@ remain.
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles;
     `prepare-release` commits the vcpkg hashes with the Swift checksum before tagging; 22
     version-sync targets at 0.7.0; every ecosystem installs from a lockfile
-- `publish-ffi` runs `scripts/ffi_release_assets.py stale` (delete non-`uploaded` staged assets)
-    before the upload and `verify` after it; 12 tests in `tests/test_ffi_release_assets.py`. A live
-    `starter` deletion is unproven (needs a failed upload); `release.yml` is never run by CI
+- `publish-ffi` runs `scripts/ffi_release_assets.py stale` before the upload and `verify` after it.
+    A live `starter` deletion is unproven (needs a failed upload); `release.yml` is never run by CI
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 44990006975 on the origin tip `bddf428c`: 24/24 check-runs green:
-    https://github.com/iscc/iscc-lib/actions/runs/44990006975
+- **Latest CI: PASSING.** Run 44991356360 on the origin tip `031d6de9`: 24/24 check-runs green:
+    https://github.com/iscc/iscc-lib/actions/runs/44991356360
 - Local HEAD adds one unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
-18 open in issues.md: 5 `normal`, 13 `low` (12 untriaged), no `critical`. Two need a behaviour
+18 open in issues.md: 4 `normal`, 14 `low` (13 untriaged), no `critical`. Two need a behaviour
 decision first (`alg_minhash_256([])`, WASM `finalize()`). None is blocked on upstream. 7 sit in
 `postponed.md`.
 
 ## Next Milestone
 
-Clear the 5 `normal` issues that block v0.8.0: the Rust API tier docs, the duplicate `data.json`
-parsers, the one-shot/streaming duplication, and the two behaviour decisions (these need Titusz).
-Then Titusz cuts v0.8.0 via `/release`.
+Clear the 4 `normal` issues that block v0.8.0: the one-shot/streaming duplication, the duplicate
+`data.json` parsers, and the two behaviour decisions (these need Titusz). Then Titusz cuts v0.8.0
+via `/release`.
