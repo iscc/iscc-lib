@@ -295,25 +295,6 @@ Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact
 on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
 that both `bench_instance_code` rows are within the tolerance of a current run.
 
-## `version:check` passes a stale second doc snippet and skips a vanished target silently `normal` [audit]
-
-Verified by the iteration-290 audit at b3869b91. `_get_doc_dep_version`
-(`scripts/version_sync.py:250-263`) returns the first Maven, else Gradle, else SPM match, so in
-`README.md` (Maven :103, SPM :139, Gradle :150) and `docs/index.md` (4 versioned snippets) only one
-snippet is checked; `sync_mode` skips the file when that one is current and never repairs the rest.
-`check_mode` and `sync_mode` (:315-350) `continue` without a message when a target file is missing
-or its getter finds nothing, so a renamed file or reworded line drops out of the gate. Tests cover
-only the npm lockfile and the real tree.
-
-**Why it matters:** `version-check` is the only CI guard over 22 version references; it stays green
-while a release ships docs with mixed versions. **Suggested fix:** the doc getter returns every
-match and reports a mismatch if any differs; sync rewrites when any differs; "file missing" and
-"pattern not found" become `MISMATCH` in check mode. Pin each with a test on a synthetic doc.
-**Scope estimate:** 1 non-test file.
-
-Resolved when `version_sync.py --check` fails on a doc with one current and one stale snippet and on
-a target whose file or pattern is gone, each pinned by a test.
-
 ## Go `EncodeComponent` truncates a short digest where every Rust-backed surface raises `normal` [audit]
 
 Verified by the iteration-290 audit at b3869b91. `packages/go/codec.go:508-515` clamps the body to

@@ -1215,3 +1215,25 @@ ties the sentence to the binding source.
     (`git show <define-next>:.crap-baseline.json`), and accept only rises the handoff names
 - Mutate each added Go helper in the copy (`containsNull` → never true, `parseSection` without the
     object checks): each must turn named rows red. Codex found nothing here (it re-ran the suites)
+
+## Version-sync script hardening (294 — getters list every site, ~10 min, PASS)
+
+`scripts/version_sync.py` + `tests/test_version_sync.py` only. Beyond next.md's criteria, three
+probes settled it:
+
+- **Round trip in a `git archive` copy** (`git init` + commit there): bump `Cargo.toml` to `9.8.7`,
+    run the sync (expect 22 `Synced` lines, exit 0), `--check` (22 `OK:`), then `git checkout`
+    `Cargo.toml` and sync back: `git status --porcelain` must be empty. This is the proof that a
+    regex or backreference change corrupts no target; `git diff --numstat` shows the sites per file
+- **CLI failure modes in the same copy**: one stale second snippet, one deleted target, one reworded
+    pattern, then `--check` and the sync: both exit 1, each problem has its own line
+- **Literal count against the getter**: for each `TARGETS` entry, `text.count(<workspace version>)`
+    equals `len(getter(text))`. No output means every literal version in a target file is a sync
+    site
+
+Known limit, not filed: in a file with several snippets, one that stops matching goes unseen while a
+sibling still matches (no expected count per file; `test_doc_getter_reports_every_snippet` pins
+`docs/index.md` at 4). Turning the literal count into a test was considered and left out: a "since
+X.Y.Z" sentence would turn the release commit red.
+
+Python edits need the pre-push gates: `uv run ty check` and `uv run ruff check --select S,C901`.
