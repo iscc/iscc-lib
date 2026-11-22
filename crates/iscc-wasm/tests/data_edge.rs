@@ -37,6 +37,7 @@ const SECTIONS: &[(&str, Caller)] = &[
     ("gen_meta_code_v0", call_meta),
     ("gen_video_code_v0", call_video),
     ("alg_cdc_chunks", call_cdc),
+    ("encode_component", call_encode_component),
 ];
 
 /// Parse the embedded `data-edge.json`.
@@ -245,6 +246,24 @@ fn call_cdc(inputs: &[Value]) -> Result<Outcome, String> {
     Ok(to_outcome(
         iscc_wasm::alg_cdc_chunks(&data, JsValue::from(utf32), JsValue::from(avg)),
         chunks_json,
+    ))
+}
+
+/// Read the input at `index` as a `u32`, converted to a JS number.
+fn number_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
+    u32_arg(inputs, index).map(JsValue::from)
+}
+
+/// Run `encode_component` on the vector's header fields, bit length and digest.
+fn call_encode_component(inputs: &[Value]) -> Result<Outcome, String> {
+    let mtype = number_arg(inputs, 0)?;
+    let stype = number_arg(inputs, 1)?;
+    let version = number_arg(inputs, 2)?;
+    let bit_length = number_arg(inputs, 3)?;
+    let digest = bytes_arg(inputs, 4)?;
+    Ok(to_outcome(
+        iscc_wasm::encode_component(mtype, stype, version, bit_length, &digest),
+        Value::String,
     ))
 }
 
