@@ -38,6 +38,7 @@ const SECTIONS: &[(&str, Caller)] = &[
     ("gen_video_code_v0", call_video),
     ("alg_cdc_chunks", call_cdc),
     ("encode_component", call_encode_component),
+    ("alg_minhash_256", call_minhash),
 ];
 
 /// Parse the embedded `data-edge.json`.
@@ -131,6 +132,15 @@ fn frames_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
     serde_wasm_bindgen::to_value(&frames).map_err(|e| format!("input {index}: {e}"))
 }
 
+/// Read the input at `index` as a list of `u32` features, converted to a JS array.
+fn u32_list_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
+    let features: Vec<u32> = inputs
+        .get(index)
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .ok_or_else(|| format!("input {index} is not a list of u32"))?;
+    serde_wasm_bindgen::to_value(&features).map_err(|e| format!("input {index}: {e}"))
+}
+
 /// Read the input at `index` as a `u32`.
 fn u32_arg(inputs: &[Value], index: usize) -> Result<u32, String> {
     inputs
@@ -156,7 +166,7 @@ fn iscc_json(iscc: String) -> Value {
     json!({ "iscc": iscc })
 }
 
-/// Encode `encode_seq` or `alg_simhash` bytes as a `bytes:<hex>` fixture value.
+/// Encode `encode_seq`, `alg_simhash` or `alg_minhash_256` bytes as a `bytes:<hex>` fixture value.
 fn seq_json(data: Vec<u8>) -> Value {
     bytes_value(&data)
 }
@@ -265,6 +275,12 @@ fn call_encode_component(inputs: &[Value]) -> Result<Outcome, String> {
         iscc_wasm::encode_component(mtype, stype, version, bit_length, &digest),
         Value::String,
     ))
+}
+
+/// Run `alg_minhash_256` on the vector's feature list.
+fn call_minhash(inputs: &[Value]) -> Result<Outcome, String> {
+    let features = u32_list_arg(inputs, 0)?;
+    Ok(to_outcome(iscc_wasm::alg_minhash_256(features), seq_json))
 }
 
 /// Look up the caller of a function section; `None` for an unknown section.
