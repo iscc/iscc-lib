@@ -1,62 +1,69 @@
-## 2026-11-22 — Go parses `data.json` once and adopts the Rust runner's malformed-vector policy
+## 2026-11-22 — Review of: Go parses `data.json` once and adopts the Rust runner's malformed-vector policy
 
-**Done:** `conformance.go` now parses every `data.json` section once, into one `vectorEntry` type
-whose outputs stay raw. `seqVector`, `seqSections` and `parseSeqConformanceData` are gone. Each gen
-runner is split into an inputs parser (`metaInputs`, `textInputs`, `imageInputs`, `audioInputs`,
-`videoInputs`, `mixedInputs`, `streamInputs`, `isccInputs`, plus `decodeSeqInputs`) and the call.
-`expectedISCC` returns `(string, error)` and runs before the gen function. Bare hex without
-`stream:` and a missing or null `iscc` output now return `errUnparsable`, as in Rust. Every
-per-function test reads the embedded fixture through `conformanceSection(t, name)` and the shared
-parsers.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/go/conformance.go`: one parse; shared input parsers; `decodeStream` uses `CutPrefix`;
-    `expectedISCC` matches the `iscc` key exactly and rejects null or non-string values
-- `packages/go/conformance_test.go`: `loadConformance` (`sync.OnceValues`), `loadConformanceData`,
-    `conformanceSection`; added the `bare_hex` and `no_iscc` failure arms; new test
-    `TestGenRunnerRejectsMalformedVectorsAsUnparsable` (`errors.Is(err, errUnparsable)` for
-    bare_hex, no_iscc, null_iscc, and a seq-shaped `outputs` string)
-- `code_{meta,data,instance,iscc}_test.go`, `code_content_{text,image,audio,video,mixed}_test.go`:
-    shared parsers plus `expectedISCC`; the extra fields are read from a per-test struct over
-    `vec.Outputs`. The inline meta dispatch and the `TrimPrefix` stream decoding are deleted
-- `packages/go/codec_test.go`: both data.json tests use `conformanceSection` + `isccInputs` /
-    `expectedISCC` (helper `decodeExpectedISCC`); the `t.Skipf` calls are gone
-- `packages/go/seq_test.go`: the roundtrip test uses `decodeSeqInputs`
-- `packages/go/CLAUDE.md`: updated "Conformance tests" and the "Conformance vector path" pitfall
+**Summary:** `packages/go/conformance.go` now parses every section of the embedded fixture once,
+into one `vectorEntry` type. Each gen runner is an inputs parser plus the call, and the per-function
+tests read their inputs through those parsers. A bare-hex stream and a missing or null `iscc` output
+are parse failures, as in the Rust runner. The diff touches one non-test file and the package's
+`CLAUDE.md`; no check was lost.
 
 **Verification:**
 
-- `CGO_ENABLED=0 go test ./...` ok; `go vet ./...` clean; `GOARCH=386 go test ./...` ok; `gofmt -l`
-    prints nothing
-- `grep -n 'tests/data\.json"' packages/go/*.go` → nothing.
-    `grep -n 'parseSeqConformanceData\|seqVector\|TrimPrefix(.*"stream:"'` → nothing.
-    `grep -c 'func metaArg' conformance.go` → `1`
-- `go test -run 'TestGenSectionFailureArms|TestGenSectionPositiveCase|TestGenRunnerRejects…' -v`:
-    PositiveCase PASS. FailureArms printed 7 FAILED lines, one per case (5 × "could not parse", 1
-    mismatch, 1 error), and PASS. The errUnparsable test PASS
-- No check lost: I diffed the sorted `go test -v | grep -- '--- PASS'` output against a
-    `git archive HEAD` copy in `/tmp`. Old 566, new 567; the only added line is the new test, so
-    every per-vector subtest still runs
-- Mutation probes in a throwaway copy, now deleted. (a) Putting `TrimPrefix` back in `decodeStream`
-    made the new test fail: `bare_hex: got error <nil>, want errUnparsable`. (b) Mapping a nil
-    `iscc` to `""` made it fail: `null_iscc: …`. A missing key (`{}`) is caught by the Unmarshal
-    error on its own
-- `mise run check` → all hooks Passed
+- [x] `CGO_ENABLED=0 go test ./... && go vet ./...` exits 0, and `GOARCH=386 go test ./...` exits 0
+    — all three ok; `GOARCH=386 go vet` and `gofmt -l` are clean too
+- [x] `grep -n 'tests/data\.json"' packages/go/*.go` prints nothing
+- [x] `grep -n 'parseSeqConformanceData\|seqVector\|TrimPrefix(.*"stream:"' packages/go/*.go` prints
+    nothing, and `grep -c 'func metaArg' packages/go/conformance.go` prints `1`
+- [x] `go test -run 'TestGenSectionFailureArms|TestGenSectionPositiveCase' -v ./...` — the positive
+    case passes; the failure arms print seven `FAILED` lines (five parse failures, among them
+    `bare_hex` and `no_iscc`, one mismatch, one error);
+    `TestGenRunnerRejectsMalformedVectorsAsUnparsable` passes
+- [x] `mise run check` exits 0
+- [x] Probe, "keep every existing check": the sorted `--- PASS` list of `go test -v` against a
+    `git archive` copy of the define-next commit is 566 → 567 lines, and the only difference is the
+    new test
+- [x] Probe, the same malformed vectors through both runners: see **Issues found**
 
-**Next:** the Rust half of the same `[audit]` issue: the per-function tests in the `lib.rs`,
-`codec.rs` and `streaming.rs` test modules should read through `conformance.rs`'s parsers. The
-policy is already the same on both sides.
+**Issues found:**
+
+- The two runners agree on the two cases this step named, but not on six other malformed shapes. I
+    ran one table through both (Rust through a throwaway test in a `/tmp` copy): a short inputs list
+    makes the Rust runner panic, although `conformance_selftest` documents "Does not panic". A float
+    `bits`, a `null` description and a fractional or negative pixel pass in Go and fail in Rust. A
+    number or array as `meta` and a non-string entry in a code list pass in Rust and fail in Go.
+    None of this is reachable with the real fixture. The audit entry in issues.md is rewritten to
+    this remaining problem (table included) and stays `normal`
+- Note, not filed separately: `parseConformanceData` now returns an error for a top-level key that
+    is not an object of cases (next.md asked for it); the Rust runner ignores unknown keys. It is
+    one line in the same issue entry
+
+**Codex review:** no actionable findings. Codex ran the Go tests and vet on amd64 and 386, a
+race-enabled shuffled run and the vendored-fixture check, all green.
+
+**Next:** the Rust half of the rewritten `[audit]` issue "Rust tests re-parse `data.json`, and the
+two runners still disagree on malformed vectors". Two parts, which can be one step or two:
+
+1. The test modules of `crates/iscc-lib/src/lib.rs`, `codec.rs` and `streaming.rs` read inputs
+    through `conformance.rs`'s case parsers instead of decoding the fixture by hand (test-only
+    refactor; `conformance.rs` is the one non-test file).
+2. One rule for a value of the wrong JSON type or range, applied to both runners and pinned per row
+    of the table in the issue. "Parse failure, never a panic, a skip or a truncation" is the
+    simplest rule. It touches `conformance.rs` (indexing, `string_entries`, the `meta` fallback)
+    and `conformance.go` (`bits`, description, pixel and `cv` conversions, `metaArg`).
+
+Part 1 is easier to review if the parsers are split out first, as the Go step did. Part 2 then
+changes only those parsers. `alg_minhash_256([])` and WASM `finalize()` still wait on Titusz.
 
 **Notes:**
 
-- The per-function tests are slightly stricter than before. A missing `iscc` output is now
-    `t.Fatalf`; the meta test used to skip the iscc check when the key was absent. The real fixture
-    passes either way
-- `expectedISCC` reads the outputs as `map[string]json.RawMessage` instead of a struct, because Go
-    matches struct tags case-insensitively. That way an `"ISCC"` key is not accepted where Rust
-    would reject it
-- `parseConformanceData` now fails if any non-`_metadata` section is not an object of cases. Today
-    every section is one. A future non-object top-level key would make `ConformanceSelftest` return
-    an error rather than skipping that key
-- Memory: MEMORY.md is at 141 lines, one over its soft budget of 140
+- Rust facts for part 2, measured: `inputs[1]` on a `Vec<Value>` panics on a short list (use
+    `.get()`); `as_u64()` rejects `64.0`; `string_entries` drops non-string entries with
+    `filter_map`; a `meta` that is neither null, string nor object becomes `None`
+- Go facts for part 2, measured: `json.Unmarshal` of `null` into a string is a no-op;
+    `uint32(float64)` and `byte(float64)` truncate, and their result for a negative or out-of-range
+    value is implementation-defined
+- The Rust runner is a benchmark-free path, but `conformance.rs` and the test modules are scored by
+    the CRAP gate: a new branch in a covered function needs the baseline moved in the same step
+    (learnings → "CRAP gate")
+- learnings.md is at its 200-line budget: one bullet went to `learnings-archive.md` to make room

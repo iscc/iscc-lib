@@ -1150,3 +1150,20 @@ ties the sentence to the binding source.
     judging. Here the pattern matched the field of the one implementation that had to stay
 - One verification script with a `step` function that logs name, `rc` and seconds per criterion to a
     progress file ran all nine commands in the background while the diff was read
+
+## Go test-refactor onto shared parsers + runner policy alignment (290, ~15 min, PASS)
+
+- "No check lost" in a test refactor:
+    `git archive '<define-next>' packages/go crates/iscc-lib/tests` into `/tmp`, run
+    `go test -count=1 -v ./... | grep -- '--- PASS' | sed 's/ (.*//' | sort` in both trees and
+    `diff` the lists (about 20 s). `go test` prints nothing from `fmt.Println` without `-v`
+- A step that aligns two "mirror" runners on NAMED malformed cases leaves the unnamed ones. Run one
+    table of wrong-type values (per input position: float, negative, `null`, non-string list entry,
+    short list) through both runners and rewrite the issue to the rows that differ. Six rows
+    differed here, in both directions, and the Rust runner panicked on a short list
+- Rust side without touching the checkout:
+    `git archive HEAD packages/go crates Cargo.toml Cargo.lock` into `/tmp`, append a `#[test]` with
+    `std::panic::catch_unwind` to the module's `tests` block, then
+    `CARGO_TARGET_DIR=<repo>/target cargo test -p iscc-lib --lib <path> -- --nocapture` (4 s: the
+    dependencies are reused)
+- Codex had no findings; both gaps came from the differential

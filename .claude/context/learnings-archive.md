@@ -1169,3 +1169,10 @@ runs on `opus`. Deliberate — do not "unify" them.
     shadow result class with a throwing ctor first on a child `-cp`
 - **`setup-dotnet` installs the latest LTS runtime before each requested version** (260), a private
     `DOTNET_INSTALL_DIR` included; `skip-lts-prepass: true` stops it (262: SDK 10 still drives)
+
+## Archived from learnings.md (review 290)
+
+- **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
+    total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
+    design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
+    "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)

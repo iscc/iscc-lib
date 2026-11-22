@@ -184,10 +184,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     STATIC key set uncompared, gen `outputs` keys ⊆ the function's `data.json` keys (236: validator
     \+ C generator). `outputs: {}` is rejected. Swift `String ==` is canonical equivalence: compare
     `unicodeScalars`. Parsed `NSNumber` casts are loose: read via `DataEdge.scalar` (232)
-- **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
-    total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
-    design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
-    "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)
+- **Fixture parsers coerce silently, and each language differently** (290). Go: `json.Unmarshal` of
+    `null` leaves a string untouched, `uint32(float64)` truncates, struct tags match keys in any
+    case. serde_json: `as_u64` rejects `64.0`, `filter_map(as_str)` drops entries, `inputs[1]` on a
+    short list panics. To align two runners, run ONE table of wrong-type values through both
 - **Spec paths are gated** (224/228/247): `scripts/check_spec_paths.py` checks tree entries +
     backticked paths (`.github/` too) against `git ls-files` (never disk) and fails on a tree whose
     next paragraph lacks "not every file". Specs and per-crate `CLAUDE.md` files hold NO complete

@@ -184,38 +184,45 @@ Resolved when either every literal in the header is at most 2,047 bytes (a lower
 which the literal-length test follows), or an MSVC build of `test_iscc.c` shows that 4,095-byte
 pieces compile.
 
-## Rust and Go per-function tests re-parse `data.json` beside the conformance runners `normal` [audit]
+## Rust tests re-parse `data.json`, and the two runners still disagree on malformed vectors `normal` [audit]
 
-Verified by the iteration-280 audit at db1fe55. The rewritten runners
-(`crates/iscc-lib/src/conformance.rs`, `packages/go/conformance.go`) parse every `gen_*` section,
-but parallel parsers remain:
+Filed by the iteration-280 audit. The Go package now parses the fixture in one place
+(`packages/go/conformance.go`), and both runners reject a bare-hex stream and a missing `iscc`
+output. Two parts are left.
 
-- Rust: nine `test_gen_*_conformance` tests in `crates/iscc-lib/src/lib.rs` (plus one in `codec.rs`)
-    `include_str!` the fixture and decode inputs by hand. The meta dispatch in
-    `test_gen_meta_code_v0_conformance` and the `stream:` decoding in the data and instance tests
-    repeat `conformance.rs:126-131` and `:228-231`.
-- Go: about ten `*_test.go` files `os.ReadFile` the monorepo path instead of the embedded copy.
-    `code_meta_test.go:49-63` copies `metaArg`, and `code_data_test.go:37` and
-    `code_instance_test.go:37` copy `decodeStream`. `conformance.go` itself parses the document
-    twice through `parseConformanceData` (`:29`) and `parseSeqConformanceData` (`:345`), with two
-    vector types.
-- The runners disagree on malformed vectors. Rust `strip_prefix("stream:")?` rejects a bare hex
-    string, while Go `TrimPrefix` (`conformance.go:270`) accepts it. A missing `iscc` output is a
-    parse failure in Rust (`conformance.rs:111-113`, pinned `:391`), but Go's `expectedISCC` reports
-    a mismatch. The Go failure-arm tests leave out both cases.
+**Rust re-parses.** The test modules of `crates/iscc-lib/src/lib.rs`, `codec.rs` and `streaming.rs`
+`include_str!` the fixture and decode inputs by hand. The meta dispatch in
+`test_gen_meta_code_v0_conformance` and the `stream:` decoding in the data, instance and streaming
+tests repeat `run_meta_tests` and `decode_stream` of `conformance.rs`.
 
-**Why it matters:** a `data.json` schema change has to be fixed in three or four places per
-language, and the two "mirror" selftests already give different verdicts on the same fixture.
+**The runners disagree on other malformed shapes.** Measured in iteration 290 at 90e09661, one case
+per call, each with the correct expected output:
 
-**Suggested fix:** expose the runners' case parsers to the in-crate and in-package tests, and keep
-only the checks of the extra output fields (`metahash`, `datahash`, …) in the per-function tests.
-Use one Go parse with `Outputs json.RawMessage`. Settle one malformed-vector policy and pin it on
-both sides.
+| Malformed input                             | Rust runner                  | Go runner          |
+| ------------------------------------------- | ---------------------------- | ------------------ |
+| inputs list too short (`[]`, `["stream:"]`) | panics (index out of bounds) | parse failure      |
+| `bits` as `64.0` or `64.5`                  | parse failure                | passes (truncated) |
+| description `null`                          | parse failure                | passes             |
+| `meta` a number or an array                 | passes (read as no meta)     | mismatch (as text) |
+| non-string entry in a code list             | passes (entry skipped)       | parse failure      |
+| pixel `0.5` or `-256`                       | parse failure                | passes (truncated) |
 
-**Scope estimate:** needs audit-scope step (≤8 files); Rust and Go can be separate steps.
+`conformance_selftest` documents "Does not panic". Go's `parseConformanceData` also returns an error
+for a top-level key that is not an object of cases; Rust ignores unknown keys.
 
-Resolved when each language parses `data.json` inputs in one place and both runners give the same
-verdict on the same malformed case.
+**Why it matters:** a `data.json` schema change has to be fixed in several places in Rust, and each
+"mirror" selftest still passes vectors the other one rejects.
+
+**Suggested fix:** let the in-crate tests read inputs through the runner's case parsers and keep
+only the extra-field checks there. Settle one rule for a value of the wrong JSON type or range (a
+parse failure is the simplest) and pin it on both sides.
+
+**Scope estimate:** audit-scope step (≤8 files); the Rust tests and the shared rule can be separate
+steps.
+
+Resolved when `conformance.rs` is the only file under `crates/iscc-lib/src` that parses `data.json`
+inputs, and both runners give the same verdict, without a panic, on every row above, each pinned by
+a test.
 
 ## `@iscc/wasm` hasher `finalize()` consumes the hasher on some argument errors but not others `normal` [audit]
 
