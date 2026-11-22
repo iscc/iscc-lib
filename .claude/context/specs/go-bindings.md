@@ -18,8 +18,8 @@ is a native Go implementation — not an FFI wrapper, CGO bridge, or WASM embed.
 **Why pure Go (not WASM/wazero bridge):**
 
 - **Zero distribution friction** — `go get` fetches source code only, no binary artifacts in git
-- **Native performance** — compiled to machine code, no WASM interpreter overhead. BLAKE3 and xxHash
-    Go libraries have SIMD-optimized implementations
+- **Native performance** — compiled to machine code, no WASM interpreter overhead. The BLAKE3 Go
+    library has a SIMD-optimized implementation
 - **First-class debugging** — Go developers can step into ISCC code, profile it, read the source
 - **Cross-compilation works** — `GOOS=linux GOARCH=arm64 go build` just works
 - **No build artifacts in git** — avoids polluting git history with binaries
@@ -158,9 +158,11 @@ All well-maintained, pure Go:
 | Module                               | Purpose                        |
 | ------------------------------------ | ------------------------------ |
 | `github.com/zeebo/blake3`            | BLAKE3 cryptographic hash      |
-| `github.com/cespare/xxhash/v2`       | xxHash for feature hashing     |
 | `golang.org/x/text/unicode/norm`     | Unicode NFKC/NFD normalization |
 | `encoding/base32`, `encoding/base64` | Standard library encoding      |
+
+The xxh32 feature hash is implemented in the package (`packages/go/xxh32.go`), so it needs no
+module.
 
 ## Distribution
 
