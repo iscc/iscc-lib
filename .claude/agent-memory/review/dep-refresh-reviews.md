@@ -475,3 +475,28 @@ Full text of entries compacted out of `MEMORY.md`.
     "for the human" must live in issues.md
 - **Stale hand-written runtime versions** hide in `docs/development.md` ("Included Tools") and
     `ci-cd.md` "Tool Management": grep them whenever a Dockerfile or CI runtime version moves
+
+## npm lockfile committed + `npm ci` in CI and release (iter 284, ~35 min, PASS_WITH_NOTES)
+
+- **Lock completeness in one Python pass**: for every `packages` entry resolve each name in
+    `dependencies`, `optionalDependencies` and non-optional `peerDependencies` up the `node_modules`
+    chain. An unresolved name is a dropped platform package (npm/cli#4828). Also check
+    `hasInstallScript`, the `resolved` host and that every entry has `integrity`.
+- **Never run the napi build criterion in the checkout**: on the 9p mount cli 3.10 fails with
+    hard-link `ENOENT` and leaves a 20 MB untracked debris
+    (`rm -rf .napi-rs-filesystem-transaction.swp ./.*.tmp` in `crates/iscc-napi`). Use
+    `git archive HEAD | tar -x -C /tmp/x`, `git init` + commit there, an own `CARGO_TARGET_DIR` (~2
+    min cold), then `npm ci && npx napi build --platform && npm test && git status --porcelain .`.
+- **Two probes that paid for themselves**: `npx -y npm@11 ci` (the publish job runs Node 24 and no
+    CI run exercises it), and a version-bump round trip (`sed` the version in `Cargo.toml`,
+    `python3 scripts/version_sync.py`, `npm ci`, `cmp` the lock before and after).
+- **An `AggregateError` from the napi cli hides its causes**: import `NapiCli` from
+    `node_modules/@napi-rs/cli/dist/index.js`,
+    `await (await new NapiCli().build({platform:true})).task` and print `e.errors` recursively.
+- **Goal "CI is red"**: verdict from local evidence first, then push the advance commits and read
+    the job log before writing the handoff (recipe in `gha-workflow-reviews.md`). The `Node.js` job
+    finished about 90 seconds after the push; pin `added 73 packages` and `# pass 238`.
+- **A new version-sync target has a doc trail**: `git grep -n 'iscc-napi/package\.json'` found two
+    specs (fixed as file-list realignment, the advance handoff named them), `docs/development.md`
+    and the release skill (filed `low`).
+- Codex: clean, and it had run the npm 10 and npm 11 installs itself.

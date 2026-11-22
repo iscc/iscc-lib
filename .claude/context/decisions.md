@@ -389,3 +389,12 @@ the 256 KB added-file hook limit); adjacent literal pieces (MSVC caps the joined
 bytes); limiting the test programs to gcc and clang. **Accepted cost:** the buffers are not `const`,
 and a harness that forgets the call reads NUL bytes. C fails on that; C++ would not notice while the
 only long row expects an error, so a pytest asserts the call in both sources. **Context:** 282.
+
+## 2026-11-22 — napi dev dependencies install from a committed lockfile with `npm ci`
+
+**Decision:** `crates/iscc-napi/package-lock.json` is tracked, CI and both `release.yml` napi jobs
+run `npm ci`, `version_sync.py` owns the lock's two root `version` fields, and the release
+dependency pass regenerates the lock. **Why:** an unlocked install fetched a transitive version two
+minutes after its publication and got a 404 (red CI on `bd79145`), and the publish job installed an
+unlocked tree while it held the OIDC token. **Rejected:** a `min-release-age` `.npmrc` (npm 10.9 on
+Node 22 ignores the key). **Open:** the locked cli 3.10 cannot build in the 9p checkout (issues.md).

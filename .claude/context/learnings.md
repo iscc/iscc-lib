@@ -92,10 +92,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `String[]` is declared survives every element read — assert `getClass().getName()` and probe
     under `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test`. **`-DargLine=…`
     is a no-op** (208): the pom's `<argLine>` beats the user property. CI runs no `-Xcheck:jni`.
-    **jni 0.22 (230)**: `*_with_catch*` calls (`new_string`, `find_class`) CLEAR the JVM exception
-    (OOM → `NoMemory`), `post_check_ex` ones (`new_object`) leave it pending. HotSpot 17
-    `-Xcheck:jni` is SILENT on `ThrowNew` over a pending exception: assert the class. Trigger:
-    shadow result class with a throwing ctor first on a child `-cp`
 - **`version_sync.py` covers only the Maven/Gradle/SPM doc snippets**: write no other version (244)
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are gated: `scripts/check_release_workflow.py` (prek hook + tests) and the CI-only
@@ -103,8 +99,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     tag** (259): `git tag … || echo` keeps it, so a hand-pushed tag stays on the pre-checksum
     commit. **`test-jni` runs `mvn test` on libraries bundled as JAR resources, with NO
     `target/debug`** (278); the CI `java` job runs that layout as its second step (279)
-- **`setup-dotnet` installs the latest LTS runtime before each requested version** (260), a private
-    `DOTNET_INSTALL_DIR` included; `skip-lts-prepass: true` stops it (262: SDK 10 still drives)
+- **napi installs from the committed `crates/iscc-napi/package-lock.json` with `npm ci`** (284).
+    Refresh it only from scratch (`rm -rf node_modules package-lock.json && npm install`): a lock
+    written over `node_modules` can drop other platforms' optional packages. **`napi build` with the
+    locked cli 3.10 FAILS in the checkout** (9p mount: hard-link `ENOENT`; it leaves untracked
+    `.*.tmp` files and `.napi-rs-filesystem-transaction.swp/`): build in a `git archive` copy in
+    `/tmp`
 - **A docs install claim is a claim about the PUBLISHED artifact: install it** (238: source gems up
     to 0.7.0 do not build). **npm `@iscc/wasm` is ONE `--target web` build** (283): in Node a bare
     `init()` fails on its `file:` fetch, so pass the bytes via `initSync({ module })`; guard
@@ -140,8 +140,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 - **`cargo deny` is not the only advisory source** (235): it was green with rustix 1.1.4 while osv
     listed RUSTSEC-2026-0486. One pass over the tracked lockfiles, run from an empty `/tmp` dir:
     `go run github.com/google/osv-scanner/v2/cmd/osv-scanner@latest scan source -r <repo>` (~1 min;
-    Cargo, uv, Gemfile, Maven, .NET, Go — NOT npm, Gradle or Actions pins). Expected: exit 1 with
-    exactly the 3 unmaintained crates that `deny.toml` ignores
+    Cargo, uv, Gemfile, Maven, .NET, Go — NOT Gradle or Actions pins; the npm lock is unmeasured).
+    Expected: exit 1 with exactly the 3 unmaintained crates that `deny.toml` ignores
 - **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
     dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = tag misses). `.pyi` is tagged
     `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A

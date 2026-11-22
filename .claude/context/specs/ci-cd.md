@@ -435,7 +435,7 @@ so releases never ship stale or vulnerable pins.
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Rust      | root `Cargo.toml` (`workspace.dependencies`) + `Cargo.lock`                                                                                                       |
 | Python    | `pyproject.toml` + `uv.lock` (dev environment; runtime ships as abi3 wheel)                                                                                       |
-| npm       | `crates/iscc-napi/package.json`                                                                                                                                   |
+| npm       | `crates/iscc-napi/package.json` + `package-lock.json`                                                                                                             |
 | Ruby      | `crates/iscc-rb/Gemfile` + `iscc-lib.gemspec` (+ `Gemfile.lock`)                                                                                                  |
 | Java      | `crates/iscc-jni/java/pom.xml`                                                                                                                                    |
 | Kotlin    | `packages/kotlin/build.gradle.kts`                                                                                                                                |
@@ -462,7 +462,8 @@ compatibility promises that only the human raises.
 
 - No dependency in any manifest above lags its latest stable release by a major version without a
     documented hold-back reason
-- Lockfiles (`Cargo.lock`, `uv.lock`, `Gemfile.lock`) are regenerated on the refreshed set
+- Lockfiles (`Cargo.lock`, `uv.lock`, `Gemfile.lock`, `crates/iscc-napi/package-lock.json`) are
+    regenerated on the refreshed set
 - All CI quality gates and conformance suites pass on the refreshed set
 
 ## Verification Criteria

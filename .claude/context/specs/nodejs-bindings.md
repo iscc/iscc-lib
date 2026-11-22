@@ -156,9 +156,10 @@ nodejs:
 
 ## Version Sync
 
-| Target                          | What is synced       |
-| ------------------------------- | -------------------- |
-| `crates/iscc-napi/package.json` | `"version": "X.Y.Z"` |
+| Target                               | What is synced                                 |
+| ------------------------------------ | ---------------------------------------------- |
+| `crates/iscc-napi/package.json`      | `"version": "X.Y.Z"`                           |
+| `crates/iscc-napi/package-lock.json` | top-level `version` and `packages[""].version` |
 
 ## Documentation
 

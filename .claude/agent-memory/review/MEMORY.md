@@ -83,7 +83,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **New gate script / gate hardening / parity gate (142–146/163, ~10 min)**: write your OWN
     mutations, probe equal-empty and duplicated-row blind spots → `review-patterns.md`
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
-    deps changed → `gate-reviews.md` Audit)
+    deps changed → `gate-reviews.md`); **npm lock, napi off 9p (284)** → `dep-refresh-reviews.md`
 - **Pytest config / test-fixture speed (254, ~6 min)**: an ini-wide `addopts` reaches EVERY pytest
     invocation → `review-patterns.md` "Pytest config / test-fixture speed step (254)"
 - **Bumps** (generated artifact, MSRV, lockfile, wrapper, framework major) and **security-pass /

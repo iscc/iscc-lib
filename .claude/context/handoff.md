@@ -1,70 +1,70 @@
-## 2026-11-22 — napi installs from a committed `package-lock.json` with `npm ci` in CI and release
+## 2026-11-22 — Review of: napi installs from a committed `package-lock.json` with `npm ci` in CI and release
 
-**Done:** I generated the napi lockfile from scratch
-(`rm -rf node_modules package-lock.json && npm install`, npm 10.9.9 / Node v22.23.5) and committed
-it. The `nodejs` CI job and both `release.yml` napi install steps now run `npm ci`.
-`version_sync.py` treats the lock as a 22nd target and keeps both of its root version fields in
-sync.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `crates/iscc-napi/package-lock.json`: created, lockfileVersion 3, 114 packages, `@napi-rs/cli`
-    3.10.12 (what `^3` resolves to today)
-- `crates/iscc-napi/.gitignore`: dropped the `package-lock.json` line, kept `node_modules/`
-- `.github/workflows/ci.yml` (`nodejs`), `.github/workflows/release.yml` (`build-napi` line 325,
-    `napi-publish` line 382): `npm install` → `npm ci`
-- `scripts/version_sync.py`: `_get_package_lock_version` returns the version only when the top-level
-    and `packages[""]` copies agree. Otherwise it returns a `MISMATCH(...)` string, which makes
-    `--check` fail. `_sync_package_lock` writes both copies with `json.dumps(indent=2)` plus a
-    trailing newline. Also a TARGETS entry and a docstring line
-- `tests/test_version_sync.py`: created, 6 tests: the lock is registered, sync rewrites both fields,
-    a stale `packages[""]` alone is caught, a stale top-level alone is caught, syncing the real lock
-    leaves it byte-identical, the real tree passes `check_mode`
-- `.claude/context/specs/ci-cd.md`: the `nodejs` row now says `npm ci`
+**Summary:** The napi lockfile is committed, the `nodejs` CI job and both `release.yml` napi jobs
+install with `npm ci`, and `version_sync.py` keeps the lock's two root version fields in step. CI is
+green again: run 44966745935 on `33d9b437` finished with every job successful. The one note: the
+napi build does not work in the devcontainer checkout with the locked cli, only on a normal
+filesystem (filed `low`).
 
 **Verification:**
 
-- `git ls-files` lists the lock (it is staged). `grep -c package-lock crates/iscc-napi/.gitignore`
-    prints 0
-- `grep -nE 'run: npm install'` over both workflows prints nothing. Lines 93, 325 and 382 now read
-    `run: npm ci`
-- Lock platforms: 43 packages carry `os`, 6 of them darwin and 9 win32 (for example
-    `@napi-rs/lzma-darwin-arm64` and `@napi-rs/lzma-win32-arm64-msvc`). No package has
-    `hasInstallScript`
-- Round trip: `json.dumps(json.loads(lock), indent=2) + "\n" == lock` is True
-- `mise run version:check` exits 0 and prints `OK: crates/iscc-napi/package-lock.json = 0.7.0`
-- `uv run pytest tests/test_version_sync.py tests/test_check_ci_job_table.py tests/test_check_release_workflow.py`:
-    42 passed
-- `mise run check`: exit 0
-- **napi build criterion, with a caveat.** In the checkout, `rm -rf node_modules && npm ci`
-    succeeds. `npx napi build --platform` then fails twice in a row with
-    `AggregateError:   Filesystem transaction failed and its recovery state could not be removed from   .../.napi-rs-filesystem-transaction.swp`.
-    The cause is the cli 3.10.x filesystem transaction on this devcontainer's Windows 9p (drvfs)
-    `/workspace` mount. To check that, I ran the same lock in a throwaway `git worktree` under
-    `/tmp` (overlay fs), with `CARGO_TARGET_DIR=/workspace/iscc-lib/target`: `npm ci` →
-    `napi build --platform` exit 0 → `npm test` `# pass 238`, `# fail 0`. `npm ci` left the lock
-    byte-identical (`cmp`). I removed the worktree, and `git worktree list` shows only the checkout.
-    I deleted the leftover `.napi-rs-filesystem-transaction.swp/` and `.*.tmp` files from the
-    checkout, so `git status --porcelain crates/iscc-napi` shows only this step's `.gitignore` and
-    the lock
+- [x] `git ls-files crates/iscc-napi/package-lock.json` prints the path, and `grep -c package-lock`
+    on the napi `.gitignore` prints `0`
+- [x] `grep -nE 'run: npm install'` over `ci.yml` and `release.yml` prints nothing. Lines 93, 325
+    and 382 read `run: npm ci`
+- [x] `rm -rf node_modules && npm ci && npx napi build --platform && npm test`, then a clean
+    `git status` — passes in a `git archive HEAD` copy under `/tmp` (`added 73 packages`,
+    `# pass 238`, `# fail 0`, lock byte-identical, status empty) and in the CI `nodejs` job. **It
+    fails in the checkout itself**: `napi build` exits 1 on the 9p mount (see Issues found)
+- [x] The lock has 6 packages with `darwin` and 9 with `win32` in `os`. Every dependency edge of
+    every locked package resolves inside the lock (only optional peers are absent), so no platform
+    package was dropped
+- [x] `mise run version:check` exits 0 and lists the lock, and the three pytest files pass (42
+    tests)
+- [x] `mise run check` exits 0. The pre-push gates passed too (clippy, cargo test, ty, pytest)
 
-**Next:** Vcpkg portfile hashes (`normal` `[audit]`), then the napi README result-type sentence.
+Beyond next.md: `npx npm@11 ci` installs the lock unchanged (the publish job runs Node 24, and no CI
+run exercises it). A version bump through `version_sync.py` rewrites both lock fields, and `npm ci`
+then leaves the bumped lock byte-identical.
+
+**Issues found:**
+
+- **`napi build` fails in the devcontainer checkout** with the locked `@napi-rs/cli` 3.10.12. The
+    cli publishes its outputs through hard links, and the Windows 9p mount answers `link()` with
+    `ENOENT`. Each failed run leaves untracked files behind, one of them a 20 MB copy of the addon.
+    The step did not choose the version (`^3` resolved to it for every fresh install already). Filed
+    `low`, untriaged. Until it is fixed, build napi in a `git archive` copy under `/tmp`
+    (learnings.md)
+- **Partial version-sync file lists** in `docs/development.md` (9 of 22 targets) and the release
+    skill (13 of 22) now also lack the lockfile. Filed `low`, untriaged
+- Fixed here as file-list realignment, as advance asked: `specs/ci-cd.md` (the npm manifest row and
+    the lockfile list of the dependency-freshness criterion) and the "Version Sync" table in
+    `specs/nodejs-bindings.md` now name the lock
+- Not filed: `publish-npm-lib` runs `npm ci` although `npm publish` needs no dev dependency (the
+    package has no `prepack` or `prepublishOnly` script). Dropping that step would remove the last
+    install from the job that holds the OIDC token. next.md called this job `napi-publish`
+
+**Codex review:** No actionable findings. Codex ran the 42 Python tests, the version check, clean
+installs with npm 10 and npm 11, the addon build and the 238 Node tests itself, all green.
+
+**Next:** The vcpkg portfile hashes (`normal` `[audit]`): `packages/cpp/portfile.cmake` still pins
+the SHA512 values of the v0.2.0 tarballs, so the port has failed its hash check for five releases.
+After that, the `@iscc/lib` npm README result-type sentence (`normal`), a docs-only step.
 
 **Notes:**
 
-- **Devcontainer napi builds are broken on the 9p mount with any cli 3.10.x.** This did not start
-    with this step. The old local, gitignored lock pinned cli 3.5.1, and any fresh unlocked
-    `npm install` already pulled 3.10.12, published 2026-11-03. CI runners are unaffected (the probe
-    above passed on overlay fs). Review may want to file it (`low`). Possible fixes: build from a
-    Docker volume, or pin the cli below the 3.10 transaction code. Both are out of scope here: no
-    bumps or pins
-- The fresh lock has 43 `os` packages, the stale local lock had 46. The difference comes from the
-    cli version (3.10.12 vs 3.5.1), not from dropped platforms: darwin and win32 entries are present
-- Left alone as out of scope (next.md limited `ci-cd.md` to line 26): the "Manifest surface" table
-    row `npm` → `crates/iscc-napi/package.json`, and "Lockfiles (`Cargo.lock`, `uv.lock`,
-    `Gemfile.lock`) are regenerated" in the same spec. Both now leave out
-    `crates/iscc-napi/package-lock.json`. Two one-line spec edits for review
-- `crates/iscc-napi/CLAUDE.md` does not describe the install step, so it is unchanged. The other
-    `npm install` hits in specs (`nodejs-bindings.md:175`, `wasm-bindings.md:191`) are about
-    consumers installing published packages
-- No Rust change: no CRAP, iai, semver or API impact
+- I pushed the define-next and advance commits before writing this handoff, to read the CI result.
+    The `nodejs` job log shows `npm ci` → `added 73 packages`, `found 0 vulnerabilities`, then
+    `# pass 238`. The `version-check` job prints `OK: crates/iscc-napi/package-lock.json = 0.7.0`
+- The lock pins `@napi-rs/cli` 3.10.12, which is what CI has resolved since 2026-11-03. Its
+    generated `index.d.ts` differs from the one cli 3.5.1 wrote: it adds an exported constant
+    `__napiBindingTarget` and writes `export declare const` for the constants. The next `@iscc/lib`
+    release carries that; a step that documents or gates the napi type surface should build with the
+    locked cli
+- The lock is refreshed only from scratch (`rm -rf node_modules package-lock.json && npm install`).
+    A lock written over an existing `node_modules` can drop other platforms' packages, and
+    `build-napi` runs `npm ci` on macOS and Windows, where no CI run would notice
+- New decision: "napi dev dependencies install from a committed lockfile with `npm ci`". No Rust
+    change, so no CRAP, iai, semver or API impact

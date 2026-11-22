@@ -329,3 +329,40 @@ false claims outlive their pages).
 
 Resolved when every public path of `iscc-lib` is classified in one tier list and the cited sentences
 match `lib.rs`.
+
+## `napi build` fails in the devcontainer checkout with the locked `@napi-rs/cli` 3.10.12 `low` [review]
+
+**Triage:** untriaged. Anyone who builds `@iscc/lib` in the devcontainer on a Windows host (the
+checkout is a 9p bind mount) gets exit 1, and the CID roles cannot build napi in the checkout; CI
+runners and users of the published package are unaffected.
+
+Measured in iteration 284 at 33d9b43: after `npm ci`, `npx napi build --platform` in
+`crates/iscc-napi` compiles and then fails with "Filesystem transaction failed and its recovery
+state could not be removed". The nested errors are `ENOENT` from `link()`: the cli publishes its
+outputs through hard links, which the drvfs 9p mount does not handle. Each failed run leaves
+untracked files in the crate directory (`.*.tmp`, one of them a 20 MB copy of the addon, and
+`.napi-rs-filesystem-transaction.swp/`), and the `.gitignore` does not cover them. The same commit
+builds and passes its 238 tests in a `git archive` copy under `/tmp` and in the CI `nodejs` job. The
+step did not choose the version: `^3` resolved to 3.10.12 for every fresh install already. The
+earlier untracked local lock held 3.5.1, which works. Not measured: the first cli version that
+fails.
+
+Resolved when `npm ci && npx napi build --platform && npm test` passes in the devcontainer checkout
+and leaves `git status` clean, or a decisions.md entry keeps napi builds out of the checkout.
+
+## Version-sync file lists in `docs/development.md` and the release skill are partial `low` [review]
+
+**Triage:** untriaged. A maintainer who stages a release commit from the release skill's list of
+"expected candidates" would leave synced files out (the napi lockfile since iteration 284), and the
+`version-check` CI job would fail on that commit; users are unaffected.
+
+`docs/development.md` ("`version:sync` updates these files automatically") lists 9 files, and
+`.claude/skills/release/SKILL.md` → Step 4.1 lists 15 paths, 13 of them sync targets. `TARGETS` in
+`scripts/version_sync.py` has 22 entries. Both lists lack `crates/iscc-napi/package-lock.json`, the
+Swift and Kotlin targets, `docs/index.md` and the Swift and Kotlin how-to pages and READMEs; the
+docs table also lacks the Ruby, .NET, vcpkg and Conan manifests. Pre-existing as a pattern, and
+iteration 284 added one more missing row. The skill also tells the reader to stage what
+`git diff --name-only` shows, which is why nothing has gone wrong so far.
+
+Resolved when neither page carries a file list that can fall behind `TARGETS` (point to the list in
+`scripts/version_sync.py`, as the specs do), or a test ties each list to `TARGETS`.

@@ -1160,3 +1160,12 @@ runs on `opus`. Deliberate — do not "unify" them.
     derive it from the FIXTURE (166: `data.json` vector counts + static `@Test` count). **`mvn test`
     reuses stale test classes** ("Nothing to compile"), so only `mvn clean test` proves the new
     framework compiles
+
+## Archived from learnings.md (review 284)
+
+- **jni 0.22 (230)**: `*_with_catch*` calls (`new_string`, `find_class`) CLEAR the JVM exception
+    (OOM → `NoMemory`), `post_check_ex` ones (`new_object`) leave it pending. HotSpot 17
+    `-Xcheck:jni` is SILENT on `ThrowNew` over a pending exception: assert the class. Trigger:
+    shadow result class with a throwing ctor first on a child `-cp`
+- **`setup-dotnet` installs the latest LTS runtime before each requested version** (260), a private
+    `DOTNET_INSTALL_DIR` included; `skip-lts-prepass: true` stops it (262: SDK 10 still drives)
