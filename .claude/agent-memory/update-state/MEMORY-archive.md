@@ -156,3 +156,9 @@ vectors, 151 WASM+Ruby, 152 the vendored-fixture drift gate, 153 napi+Java, 154 
 - Tier 1 doc gate registry near top of `scripts/check_tier1_docs.py`; count via its own output line.
 - **CI still running at assess time?** Write state, then re-check the run before committing — the
     Kotlin job is the slowest and usually finishes within the iteration (287).
+
+## Archived iter 299
+
+- **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
+- JNI test path is `crates/iscc-jni/java/src/test/...` (note the `java/` level) — use
+    `git ls-files '*DataEdgeTest.java'`.

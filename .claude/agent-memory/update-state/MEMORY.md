@@ -103,16 +103,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     issues.md bodies after a `cid(audit)` commit.
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
     `` `low` ``.
-- **mdformat escapes `[audit]` after a code span** as `\[audit\]` — write `(audit)` instead.
 - `ci.yml` = **22 job keys** (`dotnet-test` matrix .NET 8/10 + `dotnet` aggregator); Python
     3.10/3.15. issues.md budget 400 (`ARTIFACT_BUDGETS`).
 - **Untriaged count**: `awk '/^## /{t=$0} /untriaged/{print t}' issues.md | sort -u` — drop the
     blank first line (preamble legend mentions "untriaged").
 - FFI extern count: `grep -c '#\[unsafe(no_mangle)\]'` = 51; a `pub ... extern "C" fn` regex gives
     50 (misses one) — use the attribute grep.
-- JNI test path is `crates/iscc-jni/java/src/test/...` (note the `java/` level) — use
-    `git ls-files '*DataEdgeTest.java'`.
-- **A fixed issue is often REWRITTEN to its remainder, not closed** (250, 251) — title changes,
+- **A fixed issue is often REWRITTEN to its remainder, not closed** (250, 251, 298) — title changes,
     count holds; diff issues.md bodies.
 - **An audit or `cid(human)` commit can flip DONE-adjacent → workable with zero code change** —
     always diff issues.md after an audit iteration (249 filed 4, 260 filed 5).
