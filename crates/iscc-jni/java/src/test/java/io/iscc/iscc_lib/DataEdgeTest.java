@@ -47,7 +47,8 @@ class DataEdgeTest {
             "alg_simhash", DataEdgeTest::callSimhash,
             "gen_meta_code_v0", DataEdgeTest::callMeta,
             "gen_video_code_v0", DataEdgeTest::callVideo,
-            "alg_cdc_chunks", DataEdgeTest::callCdc);
+            "alg_cdc_chunks", DataEdgeTest::callCdc,
+            "encode_component", DataEdgeTest::callEncodeComponent);
 
     /** Load and parse the canonical data-edge.json. */
     private static JsonObject loadDoc() throws Exception {
@@ -181,6 +182,18 @@ class DataEdgeTest {
         boolean utf32 = inputs.get(1).getAsBoolean();
         int avg = inputs.get(2).getAsInt();
         return new Prepared(() -> IsccLib.algCdcChunks(data, utf32, avg), DataEdgeTest::chunksArray);
+    }
+
+    /** Prepare {@code encodeComponent} on the vector's header fields, bit length and digest. */
+    private static Prepared callEncodeComponent(JsonArray inputs) {
+        int mtype = inputs.get(0).getAsInt();
+        int stype = inputs.get(1).getAsInt();
+        int version = inputs.get(2).getAsInt();
+        int bitLength = inputs.get(3).getAsInt();
+        byte[] digest = decodeBytes(inputs.get(4));
+        return new Prepared(
+                () -> IsccLib.encodeComponent(mtype, stype, version, bitLength, digest),
+                r -> new JsonPrimitive((String) r));
     }
 
     /** Prepare {@code genMetaCodeV0} (an empty description means none). */
