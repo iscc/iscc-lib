@@ -273,16 +273,17 @@ func decodeHeader(data []byte) (MainType, SubType, Version, uint32, []byte, erro
 // encodeLength encodes bit length to header length field value.
 //
 // Semantics depend on MainType:
-//   - META/SEMANTIC/CONTENT/DATA/INSTANCE/FLAKE: (bitLength / 32) - 1
+//   - META/SEMANTIC/CONTENT/DATA/INSTANCE/FLAKE: (bitLength / 32) - 1, for a
+//     multiple of 32 from 32 to 256 (an ISCC-UNIT is at most 256 bits)
 //   - ISCC: pass-through (0–7, unit composition flags)
 //   - ID: (bitLength - 64) / 8
 func encodeLength(mtype MainType, length uint32) (uint32, error) {
 	switch mtype {
 	case MTMeta, MTSemantic, MTContent, MTData, MTInstance, MTFlake:
-		if length >= 32 && length%32 == 0 {
+		if length >= 32 && length <= 256 && length%32 == 0 {
 			return length/32 - 1, nil
 		}
-		return 0, fmt.Errorf("iscc: invalid length %d for MainType %d (must be multiple of 32, >= 32)", length, mtype)
+		return 0, fmt.Errorf("iscc: invalid length %d for MainType %d (must be a multiple of 32 from 32 to 256)", length, mtype)
 	case MTIscc:
 		if length <= 7 {
 			return length, nil
@@ -305,6 +306,10 @@ func encodeLength(mtype MainType, length uint32) (uint32, error) {
 //   - ISCC + Wide: 256
 //   - ISCC + other: popcount(length) * 64 + 128
 //   - ID: length * 8 + 64
+//
+// The length field is not range-checked: a META..FLAKE index above 7 decodes
+// to more than 256 bits, which is not a valid ISCC-UNIT. Decoders call
+// unitBitLength, which applies that rule.
 func decodeLength(mtype MainType, length uint32, stype SubType) uint32 {
 	switch mtype {
 	case MTMeta, MTSemantic, MTContent, MTData, MTInstance, MTFlake:
@@ -319,6 +324,19 @@ func decodeLength(mtype MainType, length uint32, stype SubType) uint32 {
 	default:
 		return 0
 	}
+}
+
+// unitBitLength decodes a header length field to the bit length of a valid ISCC header.
+//
+// Same result as decodeLength, but a META..FLAKE length index above 7 (more
+// than 256 bits) is an error, mirroring iscc-core's LN lookup. ISCC and ID
+// lengths decode unchanged.
+func unitBitLength(mtype MainType, length uint32, stype SubType) (uint32, error) {
+	bits := decodeLength(mtype, length, stype)
+	if bits > 256 && mtype != MTIscc && mtype != MTId {
+		return 0, fmt.Errorf("iscc: invalid length %d bits for MainType %d (an ISCC-UNIT is at most 256 bits)", bits, mtype)
+	}
+	return bits, nil
 }
 
 // popcount returns the number of 1-bits in v.
@@ -476,7 +494,9 @@ func JsonToDataUrl(jsonStr string) (string, error) {
 // EncodeComponent encodes an ISCC-UNIT with header and body as a base32 string.
 // Produces the base32-encoded string (without "ISCC:" prefix).
 // Returns an error if a type value is out of range, if mtype is MTIscc (use
-// gen_iscc_code_v0 instead), or if digest is shorter than bitLength/8 bytes.
+// gen_iscc_code_v0 instead), if bitLength is not a multiple of 32 from 32 to 256
+// (an ISCC-UNIT is at most 256 bits), or if digest is shorter than bitLength/8
+// bytes.
 func EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest []byte) (string, error) {
 	mt := MainType(mtype)
 	st := SubType(stype)
@@ -638,7 +658,10 @@ func IsccDecompose(isccCode string) ([]string, error) {
 
 		// Standard ISCC-UNIT with tail continuation
 		if mt != MTIscc {
-			lnBits := decodeLength(mt, ln, st)
+			lnBits, err := unitBitLength(mt, ln, st)
+			if err != nil {
+				return nil, err
+			}
 			nbytes := int(lnBits / 8)
 			if len(body) < nbytes {
 				return nil, fmt.Errorf("iscc: truncated ISCC body: expected %d bytes, got %d", nbytes, len(body))
@@ -789,7 +812,10 @@ func IsccDecode(iscc string) (*DecodeResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	bitLength := decodeLength(mt, lengthIndex, st)
+	bitLength, err := unitBitLength(mt, lengthIndex, st)
+	if err != nil {
+		return nil, err
+	}
 	nbytes := int(bitLength / 8)
 	// No length check here: normalization guarantees an exact body. IsccDecompose
 	// rejects a short unit body and truncates each unit to its encoded length, and

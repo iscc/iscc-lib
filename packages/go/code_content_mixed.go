@@ -73,7 +73,10 @@ func softHashCodesV0(ccDigests [][]byte, bits uint32) ([]byte, error) {
 		if mtype != MTContent {
 			return nil, fmt.Errorf("all codes must be Content-Codes")
 		}
-		unitBits := decodeLength(mtype, blen, stype)
+		unitBits, err := unitBitLength(mtype, blen, stype)
+		if err != nil {
+			return nil, err
+		}
 		if unitBits < bits {
 			return nil, fmt.Errorf(
 				"Content-Code too short for %d-bit length (has %d bits)", bits, unitBits,

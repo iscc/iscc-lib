@@ -115,3 +115,25 @@ func TestInstanceHasherPushSplitMatchesOneShot(t *testing.T) {
 		t.Fatalf("Push(a); Push(b) = %+v, GenInstanceCodeV0(a+b) = %+v", got, want)
 	}
 }
+
+func TestGenInstanceCodeV0Above256(t *testing.T) {
+	data := []byte("hello world")
+	_, err := GenInstanceCodeV0(data, 288)
+	assertEncodeBoundErr(t, err)
+	if _, err := GenInstanceCodeV0(data, 256); err != nil {
+		t.Fatalf("GenInstanceCodeV0 256 bits: %v", err)
+	}
+}
+
+func TestInstanceHasherFinalizeAbove256(t *testing.T) {
+	h := NewInstanceHasher()
+	if err := h.Push([]byte("hello world")); err != nil {
+		t.Fatalf("Push: %v", err)
+	}
+	_, err := h.Finalize(288)
+	assertEncodeBoundErr(t, err)
+	ok := NewInstanceHasher()
+	if _, err := ok.Finalize(256); err != nil {
+		t.Fatalf("Finalize 256 bits: %v", err)
+	}
+}

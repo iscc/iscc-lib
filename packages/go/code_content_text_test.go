@@ -53,3 +53,11 @@ func TestPureGoGenTextCodeV0FinalSigma(t *testing.T) {
 		t.Errorf("characters: got %d, want 48", result.Characters)
 	}
 }
+
+func TestGenTextCodeV0Above256(t *testing.T) {
+	_, err := GenTextCodeV0("Hello World", 288)
+	assertEncodeBoundErr(t, err)
+	if _, err := GenTextCodeV0("Hello World", 256); err != nil {
+		t.Fatalf("GenTextCodeV0 256 bits: %v", err)
+	}
+}

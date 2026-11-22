@@ -315,3 +315,11 @@ func TestGenMetaCodeV0MetaPreDecodeLimit(t *testing.T) {
 		t.Errorf("metaPreDecodeLimit = %d, want 170922", metaPreDecodeLimit)
 	}
 }
+
+func TestGenMetaCodeV0Above256(t *testing.T) {
+	_, err := GenMetaCodeV0("Hello", nil, nil, 288)
+	assertEncodeBoundErr(t, err)
+	if _, err := GenMetaCodeV0("Hello", nil, nil, 256); err != nil {
+		t.Fatalf("GenMetaCodeV0 256 bits: %v", err)
+	}
+}

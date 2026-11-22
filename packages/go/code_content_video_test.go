@@ -84,3 +84,14 @@ func TestSoftHashVideoV0EqualLengthDuplicates(t *testing.T) {
 		t.Errorf("duplicates changed digest: %x vs %x", single, doubled)
 	}
 }
+
+func TestGenVideoCodeV0Above256(t *testing.T) {
+	frameSigs := [][]int32{zeroSig(380)}
+	// AlgWtahash rejects bits above 256 before encodeLength is reached.
+	if res, err := GenVideoCodeV0(frameSigs, 288); err == nil {
+		t.Fatalf("GenVideoCodeV0 288 bits: expected error, got %q", res.Iscc)
+	}
+	if _, err := GenVideoCodeV0(frameSigs, 256); err != nil {
+		t.Fatalf("GenVideoCodeV0 256 bits: %v", err)
+	}
+}

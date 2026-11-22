@@ -43,3 +43,13 @@ func TestPureGoGenMixedCodeV0(t *testing.T) {
 		})
 	}
 }
+
+func TestGenMixedCodeV0Above256Unit(t *testing.T) {
+	valid, err := GenTextCodeV0("Hello World", 64)
+	if err != nil {
+		t.Fatalf("GenTextCodeV0: %v", err)
+	}
+	codes := []string{overlongUnit(t, MTContent, STText), valid.Iscc}
+	_, err = GenMixedCodeV0(codes, 64)
+	assertDecodeBoundErr(t, err)
+}

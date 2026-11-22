@@ -101,3 +101,25 @@ func TestDataHasherPushSplitMatchesOneShot(t *testing.T) {
 		t.Fatalf("Push(a); Push(b) = %s, GenDataCodeV0(a+b) = %s", got.Iscc, want.Iscc)
 	}
 }
+
+func TestGenDataCodeV0Above256(t *testing.T) {
+	data := []byte("hello world")
+	_, err := GenDataCodeV0(data, 288)
+	assertEncodeBoundErr(t, err)
+	if _, err := GenDataCodeV0(data, 256); err != nil {
+		t.Fatalf("GenDataCodeV0 256 bits: %v", err)
+	}
+}
+
+func TestDataHasherFinalizeAbove256(t *testing.T) {
+	h := NewDataHasher()
+	if err := h.Push([]byte("hello world")); err != nil {
+		t.Fatalf("Push: %v", err)
+	}
+	_, err := h.Finalize(288)
+	assertEncodeBoundErr(t, err)
+	ok := NewDataHasher()
+	if _, err := ok.Finalize(256); err != nil {
+		t.Fatalf("Finalize 256 bits: %v", err)
+	}
+}

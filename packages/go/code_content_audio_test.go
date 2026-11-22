@@ -26,3 +26,12 @@ func TestPureGoGenAudioCodeV0(t *testing.T) {
 		})
 	}
 }
+
+func TestGenAudioCodeV0Above256(t *testing.T) {
+	cv := []int32{1, 2, 3, 4}
+	_, err := GenAudioCodeV0(cv, 288)
+	assertEncodeBoundErr(t, err)
+	if _, err := GenAudioCodeV0(cv, 256); err != nil {
+		t.Fatalf("GenAudioCodeV0 256 bits: %v", err)
+	}
+}

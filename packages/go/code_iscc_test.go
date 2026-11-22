@@ -26,3 +26,43 @@ func TestPureGoGenIsccCodeV0(t *testing.T) {
 		})
 	}
 }
+
+// instanceUnit returns an Instance-Code of the given bits for "hello world", failing on error.
+func instanceUnit(t *testing.T, bits uint32) string {
+	t.Helper()
+	res, err := GenInstanceCodeV0([]byte("hello world"), bits)
+	if err != nil {
+		t.Fatalf("GenInstanceCodeV0: %v", err)
+	}
+	return res.Iscc
+}
+
+func TestGenIsccCodeV0WideAbove256Data(t *testing.T) {
+	codes := []string{overlongUnit(t, MTData, STNone), instanceUnit(t, 128)}
+	_, err := GenIsccCodeV0(codes, true)
+	assertDecodeBoundErr(t, err)
+	// Standard mode reads no unit length, so the over-long Data unit passes (as iscc-core).
+	if _, err := GenIsccCodeV0(codes, false); err != nil {
+		t.Fatalf("GenIsccCodeV0 wide=false: %v", err)
+	}
+}
+
+func TestGenIsccCodeV0WideAbove256InstanceAfterShortData(t *testing.T) {
+	data, err := GenDataCodeV0([]byte("hello world"), 64)
+	if err != nil {
+		t.Fatalf("GenDataCodeV0: %v", err)
+	}
+	codes := []string{data.Iscc, overlongUnit(t, MTInstance, STNone)}
+	// The 64-bit Data unit ends the wide check before the Instance length is read.
+	wide, err := GenIsccCodeV0(codes, true)
+	if err != nil {
+		t.Fatalf("GenIsccCodeV0 wide=true: %v", err)
+	}
+	std, err := GenIsccCodeV0(codes, false)
+	if err != nil {
+		t.Fatalf("GenIsccCodeV0 wide=false: %v", err)
+	}
+	if wide.Iscc != std.Iscc {
+		t.Errorf("wide=true got %q, want the standard code %q", wide.Iscc, std.Iscc)
+	}
+}

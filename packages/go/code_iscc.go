@@ -81,12 +81,17 @@ func GenIsccCodeV0(codes []string, wide bool) (*IsccCodeResult, error) {
 		return nil, fmt.Errorf("Data-Code and Instance-Code are mandatory")
 	}
 
-	// Step 8: Determine wide composite
-	isWide := wide &&
-		n == 2 &&
-		mainTypes[0] == MTData && mainTypes[1] == MTInstance &&
-		decodeLength(decoded[0].mt, decoded[0].len_, decoded[0].st) >= 128 &&
-		decodeLength(decoded[1].mt, decoded[1].len_, decoded[1].st) >= 128
+	// Step 8: Determine wide composite. Unit lengths are read in order and the
+	// loop stops at the first unit below 128 bits, so a later over-long unit
+	// is only rejected when every earlier unit reaches 128 bits (as iscc-core).
+	isWide := wide && n == 2 && mainTypes[0] == MTData && mainTypes[1] == MTInstance
+	for i := 0; isWide && i < n; i++ {
+		bits, err := unitBitLength(decoded[i].mt, decoded[i].len_, decoded[i].st)
+		if err != nil {
+			return nil, err
+		}
+		isWide = bits >= 128
+	}
 
 	// Step 9: Determine SubType
 	var st SubType

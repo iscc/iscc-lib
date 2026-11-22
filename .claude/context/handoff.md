@@ -1,72 +1,49 @@
-## 2026-11-22 — Review of: Rust core rejects ISCC-UNITs above 256 bits (encode and decode)
+## 2026-11-22 — Go port rejects ISCC-UNITs above 256 bits (encode and decode)
 
-**Verdict:** PASS
+**Done:** `encodeLength` now accepts only 32 to 256 bits (multiple of 32) for Meta through Flake,
+with the Rust error wording. A checked helper `unitBitLength` replaces all four `decodeLength`
+callers outside its own tests (`IsccDecompose`, `IsccDecode` before the `make`, mixed, the wide
+check). The wide check is a short loop that stops at the first unit below 128 bits, so a later
+over-long unit is only read when every earlier one reaches 128 bits.
 
-**Summary:** `codec::encode_length` now accepts only 32 to 256 bits for Meta through Flake, and a
-`pub(crate)` checked helper `codec::unit_bit_length` replaces all four internal `decode_length`
-calls. No `codec` signature changed, the diff stays inside next.md's scope (3 core files,
-`docs/rust-api.md`, the regenerated CRAP baseline), and every criterion passes. A differential
-against iscc-core 1.5.0 through the Python binding agrees on all six decode cases; the encode side
-diverges on purpose (decision of 2026-11-22, upstream iscc-core#142).
+**Files changed:**
+
+- `packages/go/codec.go`: `encodeLength` bound + message + doc; `unitBitLength` (new, unexported);
+    `decodeLength` doc notes it is unchecked; `IsccDecompose`/`IsccDecode` call the helper;
+    `EncodeComponent` doc names the 32 to 256 range
+- `packages/go/code_content_mixed.go`: `softHashCodesV0` calls `unitBitLength`
+- `packages/go/code_iscc.go`: step 8 wide check as an in-order loop over `unitBitLength`
+- `docs/howto/go.md`: line 493 comment ("multiple of 32 from 32 to 256")
+- Tests: `codec_test.go` (helpers `overlongUnit`, `assertEncodeBoundErr`, `assertDecodeBoundErr`;
+    encodeLength, unitBitLength, EncodeComponent, IsccDecode, IsccDecompose), and one `Above256`
+    test each in `code_meta`, `code_content_{text,image,audio,video,mixed}`, `code_data` (gen +
+    hasher), `code_instance` (gen + hasher), `code_iscc` (two wide cases) `_test.go`
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` (lib 341) and `--no-default-features` (lib 284) pass;
-    `cargo test -p iscc-lib above_256` runs 16 tests, 0 failed
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` clean
-- [x] `decode_length` signature grep prints one line (`codec.rs:414`);
-    `git grep -n "decode_length(" crates/iscc-lib/src/lib.rs` prints nothing
-- [x] `mise run coverage && cargo crap … --fail-regression --fail-above` exits 0 (0 regressed, 0
-    new, 0 moved, 190 unchanged, so the committed baseline equals a fresh run)
-- [x] `mise run bench:iai:check` exits 0: 16 benchmarks within 10% (`bench_mixed_code` −4.22% and
-    `bench_iscc_code` −5.24% against the committed baseline)
-- [x] `uv run pytest tests/test_rust_api_signatures.py` 5 passed; `mise run check` exits 0
-- [x] Extra: feature sets `text-processing` and `meta-code` alone pass; `uv run zensical build`
-    reports no issues; no binding test or doc example calls a gen function, a `finalize` or
-    `encode_component` with more than 256 bits (repo-wide `git grep`)
+- `CGO_ENABLED=0 go test -count=1 ./...` ok; `GOARCH=386 CGO_ENABLED=0 go test -count=1 ./...` ok
+- `go test -run Above256 -v ./...`: 17 tests PASS — encode (meta, text, image, audio, video, data,
+    instance, both hashers' `Finalize`, `EncodeComponent`, `encodeLength`), decode (`IsccDecode`,
+    `IsccDecompose`, `unitBitLength`), mixed, wide Data-288 (fails with `true`, succeeds with
+    `false`) and wide Data-64 + Instance-288 (succeeds with `true`, equals the `false` result)
+- `go vet ./...` and `GOARCH=386 go vet ./...` clean; `gofmt -l .` empty
+- `git grep -n "decodeLength(" -- packages/go ':!*_test.go'`: `codec.go:313` (definition) and
+    `codec.go:335` (inside `unitBitLength`) only
+- `git grep -n ">= 32)" -- packages/go`: nothing.
+    `git grep -n "32 to 256" -- packages/go   docs/howto/go.md`: `encodeLength` (277 doc, 286
+    message), `EncodeComponent` comment (497), the how-to line, plus a pre-existing `codec.go:903`
+    comment (`IsccNormalizeSeq`) and the test helper
+- `mise run check` exits 0
 
-**Issues found:**
-
-- Filed `low`, untriaged: "`iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects". Old
-    behaviour that next.md excluded; measured while checking the decode side. Lengths above 96 are
-    rejected by both
-- Not filed (nit): `test_iscc_decode_above_256` and `test_iscc_decompose_above_256` stay green with
-    the helper removed, because `iscc_decompose` re-encodes each unit and the encode bound then
-    rejects it with a message that also contains "256". The rejection itself is pinned; the helper
-    is pinned by its own test and by the mixed and wide tests
-- Not filed (nit): the `gen_image_code_v0` row in `docs/rust-api.md` says "max 256" and not
-    "multiple of 32, 32 to 256". True, but worded differently from the eight other rows
-- No gen function in `lib.rs` has an `# Errors` section, so there was nothing to update there
-
-**Codex review:** no actionable findings ("The 256-bit checks preserve the intended composite and ID
-behavior").
-
-**Next:** the Go port of the same bound, which is the next link of the chain to v0.8.0. The issue is
-rewritten to the three parts that remain (Go, shared vector, API pages). For Go:
-
-- `encodeLength` (`packages/go/codec.go:279`) gets the 32 to 256 bound and the Rust error wording
-    ("must be a multiple of 32 from 32 to 256"); `codec_test.go` asserts on the old text
-- `decodeLength` has four unchecked callers, the same four as in Rust: `codec.go:641`
-    (`IsccDecompose`), `codec.go:792` (`IsccDecode`), `code_content_mixed.go:76` and the wide check
-    in `code_iscc.go:88-89`. The wide check already short-circuits through `&&`; keep that order, so
-    a 64-bit Data unit next to a 288-bit Instance unit still succeeds as in iscc-core
-- Expected results to copy for the Go tests, all measured on Rust and iscc-core: a 288-bit Meta unit
-    fails `IsccDecode` and `IsccDecompose`; a 288-bit Content unit fails mixed; a 288-bit Data unit
-    fails `GenIsccCodeV0(.., wide=true)` and succeeds with `wide=false`
-
-After Go: the `data-edge.json` rows (`diverges`), then the binding API pages. The pages that still
-say only "multiple of 32" are listed by `git grep -c "multiple of 32" -- docs crates packages`.
+**Next:** the `data-edge.json` rows (`diverges`) across all 12 harnesses. Per the iter-301 note, use
+a gen function without input units (e.g. meta/data with `bits=288`) for the encode row; mixed at 288
+already failed before this bound.
 
 **Notes:**
 
-- The 10 surfaces on the core inherit the bound without an edit. Measured on the Python binding
-    only: `bits=288` on meta, text, audio, data, instance, both hashers' `finalize` and
-    `encode_component(…, 512, …)` raise `ValueError`. The other bindings are pinned once the
-    `data-edge.json` rows exist
-- Mixed with `bits=288` was already rejected before this step ("Content-Code too short"), because no
-    valid input unit has 288 bits. The data-edge row for mixed therefore proves nothing about the
-    encode bound; use a gen function without input units for that row
-- Error order differs from iscc-core in mixed (Rust checks main type then length per code, the
-    reference all main types first). Both reject, only the message can differ
-- `.iai-baseline.json` was left alone, as next.md asked; the stale `bench_instance_code` rows are
-    the existing `low` issue
+- Decode tests assert the "an ISCC-UNIT is at most 256 bits" message, which only `unitBitLength`
+    produces, so they pin the helper itself (the Rust decompose test passes through the encode bound
+    instead, see the iter-301 nit). Encode tests assert "must be a multiple of 32 from 32 to 256"
+- Image and video fail BEFORE `encodeLength` with their own errors (`softHashImageV0` "bits must be
+    \<= 256", `AlgWtahash` "\<= 256"); their tests only require an error, as next.md allowed
+- Arithmetic stays `uint32`; no new `int` conversions. Go-only step: no CRAP or iai impact

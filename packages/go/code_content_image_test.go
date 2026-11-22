@@ -72,3 +72,14 @@ func TestSoftHashImageV0QuadrantLayout(t *testing.T) {
 		}
 	}
 }
+
+func TestGenImageCodeV0Above256(t *testing.T) {
+	pixels := make([]byte, 1024)
+	// softHashImageV0 rejects bits above 256 before encodeLength is reached.
+	if res, err := GenImageCodeV0(pixels, 288); err == nil {
+		t.Fatalf("GenImageCodeV0 288 bits: expected error, got %q", res.Iscc)
+	}
+	if _, err := GenImageCodeV0(pixels, 256); err != nil {
+		t.Fatalf("GenImageCodeV0 256 bits: %v", err)
+	}
+}

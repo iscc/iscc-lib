@@ -490,7 +490,7 @@ handling. Errors indicate invalid input (wrong bit count, empty data where conte
 etc.):
 
 ```go
-_, err := iscc.GenTextCodeV0("Hello", 13) // bits must be a multiple of 32
+_, err := iscc.GenTextCodeV0("Hello", 13) // bits must be a multiple of 32 from 32 to 256
 if err != nil {
 	fmt.Printf("Invalid input: %v\n", err)
 }

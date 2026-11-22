@@ -1266,3 +1266,76 @@ func mainTypeSliceEqual(a, b []MainType) bool {
 	}
 	return true
 }
+
+// ---- ISCC-UNIT 256-bit limit ----
+
+// overlongUnit returns a base32 ISCC-UNIT with length index 8 (288 bits),
+// one step past the 256-bit limit, with a 36-byte body.
+func overlongUnit(t *testing.T, mt MainType, st SubType) string {
+	t.Helper()
+	header, err := encodeHeader(mt, st, VSV0, 8)
+	if err != nil {
+		t.Fatalf("encodeHeader: %v", err)
+	}
+	return encodeBase32(append(header, make([]byte, 36)...))
+}
+
+// assertEncodeBoundErr fails unless err is the 32-to-256 unit length error.
+func assertEncodeBoundErr(t *testing.T, err error) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), "must be a multiple of 32 from 32 to 256") {
+		t.Fatalf("got %v, want the 32 to 256 length error", err)
+	}
+}
+
+// assertDecodeBoundErr fails unless err is the 256-bit unit decode error.
+func assertDecodeBoundErr(t *testing.T, err error) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), "an ISCC-UNIT is at most 256 bits") {
+		t.Fatalf("got %v, want the at most 256 bits error", err)
+	}
+}
+
+func TestCodecEncodeLengthAbove256(t *testing.T) {
+	for _, mt := range []MainType{MTMeta, MTSemantic, MTContent, MTData, MTInstance, MTFlake} {
+		_, err := encodeLength(mt, 288)
+		assertEncodeBoundErr(t, err)
+		got, err := encodeLength(mt, 256)
+		if err != nil || got != 7 {
+			t.Fatalf("encodeLength(%d, 256): got %d, %v; want 7", mt, got, err)
+		}
+	}
+}
+
+func TestUnitBitLengthAbove256(t *testing.T) {
+	_, err := unitBitLength(MTMeta, 8, STNone)
+	assertDecodeBoundErr(t, err)
+	if bits, err := unitBitLength(MTMeta, 7, STNone); err != nil || bits != 256 {
+		t.Fatalf("unitBitLength(Meta, 7): got %d, %v; want 256", bits, err)
+	}
+	// ISCC and ID lengths decode unchanged, including composites above 256 bits.
+	if bits, err := unitBitLength(MTIscc, 7, STNone); err != nil || bits != 320 {
+		t.Fatalf("unitBitLength(ISCC, 7): got %d, %v; want 320", bits, err)
+	}
+	if bits, err := unitBitLength(MTId, 4, STNone); err != nil || bits != 96 {
+		t.Fatalf("unitBitLength(ID, 4): got %d, %v; want 96", bits, err)
+	}
+}
+
+func TestEncodeComponentAbove256(t *testing.T) {
+	_, err := EncodeComponent(0, 0, 0, 288, make([]byte, 36))
+	assertEncodeBoundErr(t, err)
+	if _, err := EncodeComponent(0, 0, 0, 256, make([]byte, 32)); err != nil {
+		t.Fatalf("EncodeComponent 256 bits: %v", err)
+	}
+}
+
+func TestIsccDecodeAbove256(t *testing.T) {
+	_, err := IsccDecode(overlongUnit(t, MTMeta, STNone))
+	assertDecodeBoundErr(t, err)
+}
+
+func TestIsccDecomposeAbove256(t *testing.T) {
+	_, err := IsccDecompose(overlongUnit(t, MTMeta, STNone))
+	assertDecodeBoundErr(t, err)
+}
