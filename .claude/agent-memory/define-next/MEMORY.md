@@ -3,26 +3,27 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 302):** 301 Rust core bits>256 PASSED. 302 = Go port bound ALONE
-(`encodeLength` + checked `unitBitLength` helper, 4 callers; Go how-to line rides along). Next:
-`data-edge.json` rows (`diverges`, gen fn without input units + decode/mixed rows) — consider
-bundling the all-surface API-page sweep with it (docs don't count) — then the 3 audit `normal`
-issues; then v0.8.0 release-ready (human cuts). **A Go-behaviour step is 'core-like': keep vector
-rows that need all 12 harnesses out of it.** **A Tier 2 signature change is an `API-BREAK` stop for
-advance — route around it.** **An issue's list of pinning tests can under-count (298:
-`tests/test_algo.py` was a 6th `0xFF` pin) — grep yourself.** **A signature-changing core break
-cannot land "alone": forced binding edits ride along; the data-edge fan-out stays separate.**
-**Behaviour-neutral call swaps don't count toward the cap (decision 2026-11-20 counts behaviour
-files)** — say so in Scope. In-crate test modules of `lib.rs` can't see private `conformance` items
-— scope `pub(crate)`. **Check a grep criterion's pattern against the current tree's error/doc
-strings too** (290). iscc-lib CI tests 3 feature sets (default, none, text-processing). **Any Java
-test needing a library outside the bundle must pass in BOTH layouts.** Per-iteration traps for
-259-269 → [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds
-(py3.10 + py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's
-"Scope estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track
-`main`, not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints
-nothing. **Compiler-limit issues with no compiler here: find a gcc warning that encodes the same
-standard limit** (282). **wasm-bindgen generated-JS facts: cli-support is not in the cargo registry
+**Status 2026-11-22 (iter 303):** 302 Go bound PASSED. 303 = bits issue closer: 4 data-edge rows
+(meta+encode_component 288 `diverges`, encode_component 256 ok, iscc_decode 288-bit unit) in
+EXISTING sections (no harness edits) + API-page/comment 'multiple of 32' sweep (0 behaviour files).
+Next: 3 audit `normal` issues (conformance table, Conan sha256, stale specs/docs — 9 files, split);
+then v0.8.0 release-ready (human cuts). **C edge generator's `meta_text` rejects `null` meta — use
+an object.** **A Go-behaviour step is 'core-like': keep vector rows that need all 12 harnesses out
+of it.** **A Tier 2 signature change is an `API-BREAK` stop for advance — route around it.** **An
+issue's list of pinning tests can under-count (298: `tests/test_algo.py` was a 6th `0xFF` pin) —
+grep yourself.** **A signature-changing core break cannot land "alone": forced binding edits ride
+along; the data-edge fan-out stays separate.** **Behaviour-neutral call swaps don't count toward the
+cap (decision 2026-11-20 counts behaviour files)** — say so in Scope. In-crate test modules of
+`lib.rs` can't see private `conformance` items — scope `pub(crate)`. **Check a grep criterion's
+pattern against the current tree's error/doc strings too** (290). iscc-lib CI tests 3 feature sets
+(default, none, text-processing). **Any Java test needing a library outside the bundle must pass in
+BOTH layouts.** Per-iteration traps for 259-269 →
+[v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
+py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
+estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
+not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints nothing.
+**Compiler-limit issues with no compiler here: find a gcc warning that encodes the same standard
+limit** (282). **wasm-bindgen generated-JS facts: cli-support is not in the cargo registry
 (wasm-pack downloads the binary) — read `crates/cli-support/src/js/mod.rs` upstream** (283).
 
 ## Scope Calibration Principles
