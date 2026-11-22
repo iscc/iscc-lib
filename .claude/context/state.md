@@ -1,4 +1,4 @@
-<!-- assessed-at: be24eb9b2d4e5f7ec1878df8934b82570af4f56e -->
+<!-- assessed-at: fd9b6af71490e7cb02e938e40990915e9d187852 -->
 
 # Project State
 
@@ -6,10 +6,10 @@
 
 ## Phase: v0.8.0 — features done; 2 decided `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` (10 sections) run on the Rust core and all 11 bindings. Iteration 298
-made `alg_minhash_256([])` an error on the Rust core and the 10 surfaces built on it; Go and a
-shared `data-edge.json` section remain for that issue. The other `normal` issue (a unit above 256
-bits must be rejected) is untouched.
+ISCC-SEQ and `data-edge.json` (10 sections) run on the Rust core and all 11 bindings. All 12
+surfaces now reject an empty `alg_minhash_256` list (Go since iteration 299); only the shared
+`data-edge.json` section for it remains. The other `normal` issue (a unit above 256 bits must be
+rejected) is untouched.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -18,8 +18,8 @@ bits must be rejected) is untouched.
 - `crates/iscc-lib/tests/data-edge.json` has 10 sections, `encode_component` included; the 5 tracked
     copies are byte-identical; all 12 harnesses run every section
 - C/C++ read the generated `data_edge_vectors.h`
-- Pending: an `alg_minhash_256` section (error row + non-empty row) and a `bits` above 256 rejection
-    vector
+- Pending: an `alg_minhash_256` section (error row + non-empty row, no `except` expected) and a
+    `bits` above 256 rejection vector
 - Java's `DataEdgeTest` section table uses `Map.of`, which tops out at 10 pairs; the next section
     needs `Map.ofEntries`
 - `low`: the 4,095-byte string pieces exceed the 2,048 bytes one MSVC reference page allows
@@ -31,7 +31,7 @@ bits must be rejected) is untouched.
 - Tier 1 has 35 symbols at the crate root; Tier 2 `codec` (incl. `read_unit`, `SEQ_MAINTYPES`) and
     `streaming::SumHasher` exist. `src/` has 325 `#[test]`
 - `alg_minhash_256` returns `IsccResult<Vec<u8>>` and rejects an empty list with
-    `features must not be empty`; internal callers use an unchecked helper. Spec row updated
+    `features must not be empty`; internal callers use an unchecked helper
 - `normal` (decided, upstream iscc/iscc-core#142): gen functions, hasher `finalize` and
     `encode_component` must reject a unit above 256 bits, and decode must reject such a header.
     Today meta/text/audio/data/instance return codes `iscc_decode` rejects
@@ -82,12 +82,13 @@ bits must be rejected) is untouched.
 
 ## Go Bindings
 
-**Status**: partially met (both core `normal` issues need Go changes)
+**Status**: partially met (the bits `normal` issue needs Go changes)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all
     10 sections; the `go` CI job also runs as `GOARCH=386`
-- `AlgMinhash256([]uint32) []byte` (`minhash.go:202`) still returns 32 bytes of `0xFF` for an empty
-    list, pinned by `TestMinhash256Empty`; now diverges from every other surface
+- `AlgMinhash256(features []uint32) ([]byte, error)` (`minhash.go:204`) rejects an empty or nil list
+    with `features must not be empty`, pinned by `TestMinhash256Empty`; generators call the
+    unchecked `algMinhash256`. Spec row and `docs/howto/go.md` updated
 - `GenDataCodeV0` accepts 512 bits
 
 ## C# / .NET Bindings
@@ -96,6 +97,7 @@ bits must be rejected) is untouched.
 
 - `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 10 sections; 0.7.0 on NuGet; `dotnet-test`
     on .NET 8.0 and 10.0; `NativeMethods.g.cs` regenerated for the minhash error
+- Nit: the XML doc of `AlgMinhash256` in `IsccLib.cs` does not name the empty-list error
 - .NET 8 reached end of support on 2026-11-10; raising the `net8.0` floor is the human's call
 
 ## C++ Bindings
@@ -104,6 +106,7 @@ bits must be rejected) is untouched.
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job;
     empty-list `alg_minhash_256` test expects the error
+- Nit: the `///` comment of `alg_minhash_256` in `iscc.hpp` does not name the error
 - `low`: the port fails one vcpkg post-build check (debug/release binary count)
 
 ## Ruby Bindings
@@ -129,8 +132,7 @@ bits must be rejected) is untouched.
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate
-- How-to pages for 10 Rust-backed surfaces plus API pages name the empty-list minhash error;
-    `docs/howto/go.md` does not yet
+- All 11 how-to pages plus the API pages name the empty-list minhash error
 - `low`: partial version-sync file lists: `docs/development.md` names 9 of 22, the release skill 13
 - Pending with the bits work: API pages must state the 32 to 256 `bits` range
 
@@ -151,19 +153,19 @@ bits must be rejected) is untouched.
     `prepare-release` commits vcpkg hashes with the Swift checksum before tagging; 22 version-sync
     targets at 0.7.0; every ecosystem installs from a lockfile; CRAP baseline regenerated
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 45015694066 on the origin tip `16dcf23d`, 24/24 check-runs green
-    (incl. Swift and Semver): https://github.com/iscc/iscc-lib/actions/runs/45015694066
+- **Latest CI: PASSING.** Run 45017462731 on the origin tip `898b99a1`, 24/24 check-runs green:
+    https://github.com/iscc/iscc-lib/actions/runs/45017462731
 - Local HEAD adds 1 unpushed `cid(log)` commit that touches only `.claude`
 
 ## Open Issues
 
 16 open in issues.md: 2 `normal`, 14 `low` (13 untriaged), no `critical`. Both `normal` are decided
-by Titusz (2026-11-22) and loop-workable: the minhash issue is narrowed to Go plus the shared vector
-section; the 256-bit unit limit has an upstream report but is not blocked on it. 7 sit in
-`postponed.md`.
+by Titusz (2026-11-22) and loop-workable: the minhash issue is narrowed to the shared
+`data-edge.json` section; the 256-bit unit limit has an upstream report but is not blocked on it. 7
+sit in `postponed.md`.
 
 ## Next Milestone
 
-Finish the `alg_minhash_256([])` error (Go port and a shared `data-edge.json` section on all 12
-surfaces), then implement the decided 256-bit unit limit across the core and all surfaces. After
+Close the `alg_minhash_256` empty-list issue with a shared `data-edge.json` section running on all
+12 surfaces, then implement the decided 256-bit unit limit across the core and all surfaces. After
 that, Titusz cuts v0.8.0 via `/release`.

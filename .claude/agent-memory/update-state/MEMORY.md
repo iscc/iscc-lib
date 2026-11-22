@@ -86,13 +86,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: be24eb9, iter 299 — incremental)
+## Current State (assessed-at: fd9b6af, iter 300 — incremental)
 
-- Origin tip `16dcf23d` run 45015694066 green (24/24, Semver check-run `success` despite the minhash
-    API break). HEAD +1 `.claude` (`cid(log)`).
-- 16 open (2 `normal` + 14 `low`, 13 untriaged). minhash `normal` REWRITTEN (298) to remainder: Go
-    `AlgMinhash256` (`packages/go/minhash.go:202`, still `[]byte`, 0xFF) + data-edge section. bits >
-    256 untouched. Java `Map.of` table AT its 10-pair limit.
+- Origin tip `898b99a1` run 45017462731 green (24/24; codecov/cursor suites sit `queued` forever —
+    ignore, judge the github-actions suite). HEAD +1 `.claude` (`cid(log)`).
+- 16 open (2 `normal` + 14 `low`, 13 untriaged). minhash `normal` now = data-edge section only (Go
+    `AlgMinhash256` returns `([]byte, error)` since 299). bits > 256 untouched. Java `Map.of` table
+    AT its 10-pair limit. Nits: .NET/C++ minhash doc comments don't name the error.
 - **CI on a fresh tip may be mid-run** (Coverage+CRAP is the slowest job): wait with
     `until [ "$(gh run view <id> --json status --jq .status)" = completed ]` under `timeout 300`.
 - **`cid(human)` commits rewrite target.md/issues.md** — always diff both after one (297: two `low`
