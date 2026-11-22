@@ -416,6 +416,7 @@ public static partial class IsccLib
 
     /// <summary>Compute a SimHash digest from a set of byte-array digests.</summary>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="digests"/> or a digest is null.</exception>
+    /// <exception cref="IsccException">Thrown when <paramref name="digests"/> is empty.</exception>
     public static byte[] AlgSimhash(byte[][] digests)
     {
         using PinnedRows rows = PinnedRows.Pin(digests, nameof(digests));
@@ -432,6 +433,7 @@ public static partial class IsccLib
     }
 
     /// <summary>Compute a 256-bit MinHash digest from 32-bit integer features.</summary>
+    /// <exception cref="IsccException">Thrown when <paramref name="features"/> is empty.</exception>
     public static byte[] AlgMinhash256(ReadOnlySpan<uint> features)
     {
         unsafe

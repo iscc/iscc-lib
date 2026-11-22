@@ -33,6 +33,7 @@ public class DataEdgeTests
         ["gen_video_code_v0"] = CallVideo,
         ["alg_cdc_chunks"] = CallCdc,
         ["encode_component"] = CallEncodeComponent,
+        ["alg_minhash_256"] = CallMinhash,
     };
 
     /// <summary>Load and parse testdata/data-edge.json from the test output directory.</summary>
@@ -80,6 +81,15 @@ public class DataEdgeTests
         foreach (byte[] chunk in (byte[][])result)
             chunks.Add(BytesValue(chunk));
         return chunks;
+    }
+
+    /// <summary>Convert a JSON array of uint32 values to a uint array.</summary>
+    private static uint[] ToUIntArray(JsonElement array)
+    {
+        uint[] result = new uint[array.GetArrayLength()];
+        for (int i = 0; i < result.Length; i++)
+            result[i] = array[i].GetUInt32();
+        return result;
     }
 
     /// <summary>Convert a JSON array of integer lists to one int array per item.</summary>
@@ -157,6 +167,13 @@ public class DataEdgeTests
     {
         byte[][] digests = ToByteArrays(inputs[0]);
         return new Prepared(() => IsccLib.AlgSimhash(digests), r => BytesValue((byte[])r));
+    }
+
+    /// <summary>Prepare AlgMinhash256 on the vector's feature list.</summary>
+    private static Prepared CallMinhash(JsonElement inputs)
+    {
+        uint[] features = ToUIntArray(inputs[0]);
+        return new Prepared(() => IsccLib.AlgMinhash256(features), r => BytesValue((byte[])r));
     }
 
     /// <summary>Prepare AlgCdcChunks on the vector's data, <c>utf32</c> flag and average size.</summary>
