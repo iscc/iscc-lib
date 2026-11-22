@@ -74,9 +74,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 - **A data-driven fixture is self-referential — assert CONTENT, not shape** (141): ungate guards on
     version, case counts, code points + skip-list keys (ASCII no-op swaps stay green forever). A
-    test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin it
-    **Per-algorithm internals**, normalization order, `data.json` counts, API-parameter facts,
-    **ISCC-IDv1** details, the three codec rules → `learnings-archive.md`
+    test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin
+    it. Swift pins every `data.json` count, core + WASM a floor (306). **Per-algorithm internals**,
+    normalization order, `data.json` counts, API-parameter facts, **ISCC-IDv1** details, the three
+    codec rules → `learnings-archive.md`
 - **A header is a varnibble sequence, not two bytes** (303): a length index from 8 up takes two
     nibbles, so Meta at 288 bits is `00 08 00`. A hand-built `00 08` + 36 bytes parses as a 35-byte
     body, which a build without the 256-bit bound rejects as truncated. Take a decode vector from
@@ -129,12 +130,12 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a
     new branch in a covered fn is green locally, red in CI unless the baseline moves in the SAME
-    step. A pure line shift passes (288: 4 comment lines, `↔ 33 moved`, 0 regressed). **A new stable
-    rustc re-scores untouched fns** (195): read the toolchain in CI's CRAP log before blaming the
-    diff. **Rust test helpers (`crates/iscc-lib/tests/*.rs`) score at 0% coverage** (pessimistic;
-    CRAP = cc² + cc): cc > 5 fails `--fail-above` in CI only (215: 210). Fix = a `const` table of
-    small `fn` callers (216). cargo-crap 0.2.2 counts `?`, `||`, `if`, top-level `match` arms; NOT
-    closure bodies, `let … else`, `.then()`. Run the CI CRAP lines on `tests/*.rs`
+    step. A loop over a `fn` table RAISES the driver's score (306). A pure line shift passes (288).
+    **A new stable rustc re-scores untouched fns** (195): read the toolchain in CI's CRAP log before
+    blaming the diff. **Rust test helpers (`crates/iscc-lib/tests/*.rs`) score at 0% coverage**
+    (pessimistic; CRAP = cc² + cc): cc > 5 fails `--fail-above` in CI only (215: 210). Fix = a
+    `const` table of small `fn` callers (216). cargo-crap 0.2.2 counts `?`, `||`, `if`, top-level
+    `match` arms; NOT closure bodies, `let … else`, `.then()`. Run the CI CRAP lines on `tests/*.rs`
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
     load-bearing (stripped → `summary: 0` false-green). **NOT in `mise run check`**: run
     `mise run bench:iai:check` on any hot-path change (191: +36% reached red CI). **It fails only

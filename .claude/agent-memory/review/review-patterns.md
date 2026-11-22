@@ -1319,3 +1319,25 @@ Python edits need the pre-push gates: `uv run ty check` and `uv run ruff check -
     it `low` untriaged, with the data-edge "Resolved when"
 - No binding suite ran (only pytest at pre-push): a repo-wide `git grep` showed no binding test or
     doc example above 256 bits, and the data-edge rows pin the bindings in a later step
+
+## Conformance-runner table / test-loop dedup step (306, ~25 min)
+
+One `SECTIONS` table replaced eleven runners in `conformance.rs`, five duplicate loops left
+`lib.rs`, and the WASM conformance harness moved to strict shared readers. PASS, Codex clean.
+
+- **A deleted duplicate test takes its side asserts with it.** The five loops held the core's only
+    case-count pins for their sections, and an empty section passes `conformance_selftest`. List
+    every assert a deleted test made and ask which one survives elsewhere (here: Swift pins every
+    count on a gated byte-identical copy; the reviewer added a non-empty floor test)
+- **Decisive bad-vector probe for a strict reader**: mutate a value whose truncation is the ORIGINAL
+    value (pixel 0 to 256, `bits` 64 to 2^32+64). The old cast passes it silently, so a failure with
+    the reader's message proves the reader. Run it in a `git archive` copy with its own
+    `CARGO_TARGET_DIR`, `wasm-pack test --node crates/iscc-wasm --test conformance` only (the unit
+    suite's selftest reads the same file). About 90 seconds
+- **CRAP baseline diff by score**: load `git show HEAD~1:.crap-baseline.json` and the file, key
+    `entries` by (file, function), compare (cyclomatic, coverage, crap). Only the step's file may
+    show up. Functions inside `#[cfg(test)] mod tests` are not scored, so a test-module edit is safe
+- `cargo clippy -p iscc-lib --no-default-features --all-targets` fails on the benches (they import
+    the meta and text functions): use `--tests` for the reduced feature sets
+- A `for f in "" "--a --b"` loop does not word-split in zsh: run feature-set loops from a bash
+    script

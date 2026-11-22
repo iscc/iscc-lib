@@ -234,33 +234,6 @@ the tests in `crates/iscc-uniffi/src/lib.rs`, `SmokeTests.cs`). The Rust core ne
 Resolved when the C FFI, C++, .NET and UniFFI suites each have a test in which `finalize(13)` fails
 and a following `finalize(64)` reports the finalized state.
 
-## Rust conformance runs each `data.json` section up to three times and lists the sections by hand in three places `normal` [audit]
-
-**Evidence:** `crates/iscc-lib/src/conformance.rs:32-65` (`conformance_selftest`) calls all 11
-runners and `test_conformance_selftest_passes` (:401) runs it. `test_gen_sections_run` (:445-455)
-calls 7 of those runners again, `test_seq_sections_run` (:406-413) the two seq runners, and
-`probe()` (:514-530) is a third hand-written section-to-runner `match`. In `lib.rs`, the image
-(:1506), audio (:1585), video (:1702), data (:1818) and iscc (:1913) `*_conformance` tests walk the
-same vectors again and compare only `.iscc`, as the runners already do, with hard-coded counts
-(3/5/3/4/5). `crates/iscc-wasm/tests/conformance.rs` (359 lines, 11 loops) copies the parsers
-(`prepare_meta_arg` :18, `decode_bytes`/`decode_stream` :28-45) and reads with silent casts (`as u8`
-:117, `as i32` :178) that the decision of 2026-11-22 rules out in the core runners. The strict
-readers in the sibling `tests/data_edge.rs` cannot be reused there: the crate has no
-`tests/common/mod.rs`.
-
-**Why it matters:** a new section or vector shape needs edits in three lists, and nothing fails when
-one is missed. Rust now has four reader families for the same JSON files, and only two follow the
-strict-parsing rule.
-
-**Suggested fix:** one `const` section-to-runner table in `conformance.rs` that drives
-`conformance_selftest` and `probe`; delete `test_gen_sections_run` and the five iscc-only loops in
-`lib.rs` (keep the meta/text/mixed/instance loops for their extra output fields). In
-`iscc-wasm/tests`, move the strict readers into `common/mod.rs`, use them in both files, and read
-case counts from the file.
-
-**Scope estimate:** 2 non-test files (`conformance.rs`, `lib.rs` test module) plus 3 WASM test
-files.
-
 ## Specs and API docs still describe shipped work as planned, or leave out shipped rules `normal` [audit]
 
 **Evidence:** `specs/swift-bindings.md:397` requires a `swift` `workflow_dispatch` checkbox that the

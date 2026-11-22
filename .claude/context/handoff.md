@@ -1,70 +1,67 @@
-## 2026-11-22 — One section table drives Rust conformance; WASM conformance uses strict shared readers
+## 2026-11-22 — Review of: One section table drives Rust conformance; WASM conformance uses strict shared readers
 
-**Done:** `conformance.rs` has one `SECTIONS: &[(&str, CaseCheck)]` table (meta/text rows
-cfg-gated). `conformance_selftest` runs every row without stopping at a failure. Each `run_*_tests`
-closure became a named `<x>_case(tc) -> Option<Verdict>` check, so a section name appears only in
-its table row. `probe()` and the failure-arm tests look the check up in the table (`check_of`). A
-`meta-code` test compares the table names with the `data.json` keys as sets, with a length check.
-The five duplicate gen loops left `lib.rs`. The WASM conformance tests read vectors through strict
-readers (shared ones in `tests/common/mod.rs`), with no casts and counts taken from `data.json`.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-lib/src/conformance.rs`: `SECTIONS` table, `CaseCheck`/`Verdict` types, generic
-    `judge`, eleven `<x>_case` fns. Deleted `run_*_tests` and `Case<T>`.
-    `audio_inputs`/`video_inputs` are now private (`iscc_inputs` stays `pub(crate)`, because
-    codec.rs tests call it). Tests: added `check_of`/`run` helpers and
-    `test_sections_match_data_json`; deleted `test_gen_sections_run`; `test_seq_sections_run` →
-    `test_seq_section_counts` (count asserts only)
-- `crates/iscc-lib/src/lib.rs` (tests only): deleted the image/audio/video/data/iscc `_conformance`
-    tests
-- `crates/iscc-wasm/tests/common/mod.rs` (new): `str_arg`, `str_list_arg`, `bytes_item`,
-    `bytes_arg`, `frames_arg`, `u32_arg`, moved from `data_edge.rs`
-- `crates/iscc-wasm/tests/data_edge.rs`: `mod common;` plus import; the moved readers are deleted
-- `crates/iscc-wasm/tests/conformance.rs`: rewritten as `check_gen_section(section, caller)` plus
-    nine `call_*` fns. Readers used only here: `opt_meta_arg` (null → None), `pixels_arg` (serde
-    `Vec<u8>`), `i32_list_arg`, `stream_arg`. Asserts `tested == cases.len()`, and `section_cases`
-    fails an empty section
-- `.crap-baseline.json`: refreshed (see Verification)
-- Docs: `crates/iscc-lib/CLAUDE.md` and `crates/iscc-wasm/CLAUDE.md` described the per-gen test
-    loops and the hard-coded counts. Both now describe the table and the strict readers
+**Summary:** `conformance.rs` now has one `SECTIONS` table that drives `conformance_selftest`, the
+test helpers and a table-vs-`data.json` test; the five duplicate loops left `lib.rs`. The WASM
+conformance harness reads every vector through strict readers (shared ones in `tests/common/mod.rs`)
+and takes case counts from the file. The work matches next.md, the public signature of
+`conformance_selftest` is unchanged, and the `[audit]` issue is closed.
 
 **Verification:**
 
-- `cargo test -p iscc-lib`: 468 passed / 0 failed. `--no-default-features`: 397/0.
-    `--no-default-features --features text-processing`: 432/0
-- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` is clean, and so is
-    `cargo clippy -p iscc-lib --no-default-features -- -D warnings` (also `--tests` under none and
-    under text-processing)
-- `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
-    exits 0: conformance 11 passed, data_edge 8, unit 136, no warnings in the log
-- Section grep: lines 39–50 (inside `SECTIONS`) are the only matches before `mod tests` (line 403)
-- `fn test_gen_(…)_conformance|fn test_gen_sections_run` grep: empty.
-    `as (u8|i32|u32)\b|tested, [0-9]` grep on the WASM conformance.rs: empty
-- Teeth: with the `("gen_audio_code_v0", audio_case)` row deleted, `test_sections_match_data_json`
-    FAILED ("table rows differ from data.json sections"; right side lists `gen_audio_code_v0`). A
-    duplicated `decode_seq` row FAILED ("a section has two table rows"). The file was restored from
-    a /tmp copy both times, and `cmp` reported it identical
-- CRAP gate: before the refresh, `cargo crap --baseline … --fail-regression --fail-above` exited 1:
-    `conformance_selftest` went 4.08 → 5.58 (cc 5, 71.4%; the two early-return error arms are
-    uncovered and the loop adds a decision). Ran `mise run crap:baseline` after `mise run check`;
-    the gate now exits 0 (0 regressed, 191 unchanged). A baseline diff by score shows changes only
-    in `conformance.rs`: 12 new `*_case`/`judge` (max 7.0, `decode_seq_case`), 11 `run_*_tests`
-    removed
-- `mise run check`: exit 0. The first run reformatted the new files (rustfmt, mdformat); the second
-    run was clean
+- [x] `cargo test -p iscc-lib` (469 passed), `--no-default-features` (398),
+    `--no-default-features --features text-processing` (433), 0 failed in each (counts include the
+    reviewer's one added test)
+- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` and
+    `cargo clippy -p iscc-lib --no-default-features -- -D warnings` clean (also the full workspace,
+    and `--tests` under both reduced feature sets)
+- [x] `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
+    exits 0: conformance 11, data_edge 8, unit 136
+- [x] Section-name grep: lines 39–50 (the table) are the only matches before `mod tests`
+- [x] Both "prints nothing" greps are empty; no other `as` cast is left in the WASM conformance
+    files
+- [x] Table test has teeth, re-run by the reviewer in a `/tmp` copy: without the audio row
+    `test_sections_match_data_json` fails and names `gen_audio_code_v0`
+- [x] `mise run check` exit 0
 
-**Next:** the spec/API-doc drift `[audit]` issue (9 files, needs an audit-scope or a specs/docs
-split).
+Reviewer probes: (1) WASM harness on a `/tmp` copy with a pixel of 256 and a text `bits` of 2^32+64,
+two values the old `as u8` / `as u32` casts turned back into the original: both tests now fail with
+the reader's message ("is not a list of u8", "is not a u32"), the other 9 pass. (2)
+`.crap-baseline.json` compared by score with the previous commit: only `conformance.rs` rows differ
+(12 new, 11 gone, `conformance_selftest` 4.08 → 5.58).
+
+**Issues found:**
+
+- Fixed in this review: deleting the five `lib.rs` loops removed the core's only case-count pins for
+    image, audio, video, data and iscc, and an empty section passes `conformance_selftest`. Added
+    `test_sections_have_cases` (every table row has at least one case, all feature sets). Exact
+    counts are still pinned by the Swift suite on its gated byte-identical copy
+- Not filed (nit): `assert_eq!(tested, cases.len())` in the WASM harness cannot fail, because the
+    loop panics on any bad case. The floor in `section_cases` is the real guard
+- Not filed (nit): the WASM harness has no section-list guard of its own; its `CLAUDE.md` says so,
+    and the core's table test fails first on a new section
+
+**Codex review:** no actionable findings. It re-ran the Rust tests under all three feature sets, the
+WASM tests and clippy for both crates.
+
+**Next:** the remaining `normal` blocker, the `[audit]` issue "Specs and API docs still describe
+shipped work as planned, or leave out shipped rules" (9 files). Suggested split into two steps:
+
+1. Docs and API comments under the audit-scope valve (7 files: `docs/c-ffi-api.md`, `IsccLib.cs`,
+    `iscc.hpp`, the napi, WASM and UniFFI comments, `README.md`). A `///` edit on a `iscc-ffi` or
+    UniFFI export regenerates tracked outputs (`iscc.h`, `NativeMethods.g.cs`, the UniFFI
+    bindings); list them as regenerated files, which do not count against the cap.
+2. The three specs (`swift-bindings.md`, `documentation.md`, `c-ffi-dx.md`). These are mechanically
+    checkable facts (a checkbox that does not exist, page lists, a closed GitHub issue), so no
+    escalation is needed; point to the nav and `release.yml` where a list would be copied.
 
 **Notes:**
 
-- next.md expected the table loop to lower `conformance_selftest`'s CRAP score. It rose, because the
-    old body was straight-line `&=` calls. The baseline moved in this step, as the gate rule
-    requires.
-- `probe`'s parse flag is `check(&tc).is_some()`. That also requires `outputs.iscc` to parse, which
-    every probe row supplies, so it matches the old `<x>_inputs().is_some()`. No second table was
-    needed.
-- The WASM strictness relies on serde (`Vec<u8>`, `Vec<i32>`, `Vec<Vec<i32>>`) and `u32::try_from`.
-    No wasm-side negative test was added, because next.md asked for none. Not probed with a bad
-    vector.
+- `conformance_selftest`'s CRAP score rose (4.08 → 5.58, limit 30), against next.md's expectation: a
+    loop adds one decision and removes covered straight-line calls, so the two unreachable error
+    arms weigh more. The baseline moved in the same commit, as the gate rule requires. The
+    reviewer's added test sits in the test module, which the gate does not score.
+- The meta, text, mixed and instance loops in `lib.rs` stay, hard-coded counts included.
+- The CRAP and Perf gates run in CI only; the first CI run on this push is the proof for the
+    refreshed baseline.

@@ -442,6 +442,16 @@ mod tests {
     }
 
     #[test]
+    fn test_sections_have_cases() {
+        // An empty section passes the selftest, so every table row needs at least one case.
+        let data = test_data().unwrap();
+        for &(name, _) in SECTIONS {
+            let count = cases(&data, name).map_or(0, Map::len);
+            assert!(count > 0, "section {name} has no cases");
+        }
+    }
+
+    #[test]
     fn test_seq_section_counts() {
         let data = test_data().unwrap();
         assert_eq!(data["encode_seq"].as_object().unwrap().len(), 4);
