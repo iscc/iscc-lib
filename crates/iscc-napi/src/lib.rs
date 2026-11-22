@@ -4,7 +4,8 @@
 //! npm package. Each function is a thin wrapper around the corresponding
 //! `iscc_lib` API, converting napi types to Rust types and mapping errors.
 
-use napi::bindgen_prelude::Buffer;
+use napi::ValueType;
+use napi::bindgen_prelude::{Buffer, Unknown};
 use napi_derive::napi;
 use std::fmt::Display;
 
@@ -43,6 +44,25 @@ fn to_i32(value: f64, name: impl Display) -> napi::Result<i32> {
 /// Narrow an optional JS number to `u32`, using `default` for `undefined`/`null`.
 fn opt_u32(value: Option<f64>, default: u32, name: &str) -> napi::Result<u32> {
     value.map_or(Ok(default), |v| to_u32(v, name))
+}
+
+/// Read an optional untyped JS value as a number, rejecting every non-number.
+///
+/// Taking `Unknown` instead of `f64` defers the type check into the method
+/// body, so a hasher's `finalize` can consume its state before rejecting a
+/// non-number argument. `undefined` and `null` arrive as `None`.
+fn opt_number(value: Option<Unknown<'_>>, name: &str) -> napi::Result<Option<f64>> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    if value.get_type()? != ValueType::Number {
+        return Err(napi::Error::from_reason(format!(
+            "Invalid {name}: expected a number"
+        )));
+    }
+    // SAFETY: `get_type` just reported `number`, the type `f64`'s
+    // `FromNapiValue` (`napi_get_value_double`) requires.
+    unsafe { value.cast::<f64>() }.map(Some)
 }
 
 /// Narrow every element of a JS number array to `u32`, naming a bad one by index.
@@ -537,15 +557,19 @@ impl NapiDataHasher {
 
     /// Consume the hasher and produce a Data-Code ISCC string.
     ///
-    /// After calling `finalize`, subsequent calls to `update` or `finalize`
-    /// will throw. Default `bits` is 64.
+    /// After the first `finalize` call, even one that throws on an argument,
+    /// subsequent calls to `update` or `finalize` will throw. Default `bits`
+    /// is 64.
     #[napi(js_name = "finalize")]
-    pub fn finalize_code(&mut self, bits: Option<f64>) -> napi::Result<String> {
-        let bits = opt_u32(bits, 64, "bits")?;
+    pub fn finalize_code(
+        &mut self,
+        #[napi(ts_arg_type = "number | undefined | null")] bits: Option<Unknown<'_>>,
+    ) -> napi::Result<String> {
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| napi::Error::from_reason("DataHasher already finalized"))?;
+        let bits = opt_u32(opt_number(bits, "bits")?, 64, "bits")?;
         hasher
             .finalize(bits)
             .map(|r| r.iscc)
@@ -591,15 +615,19 @@ impl NapiInstanceHasher {
 
     /// Consume the hasher and produce an Instance-Code ISCC string.
     ///
-    /// After calling `finalize`, subsequent calls to `update` or `finalize`
-    /// will throw. Default `bits` is 64.
+    /// After the first `finalize` call, even one that throws on an argument,
+    /// subsequent calls to `update` or `finalize` will throw. Default `bits`
+    /// is 64.
     #[napi(js_name = "finalize")]
-    pub fn finalize_code(&mut self, bits: Option<f64>) -> napi::Result<String> {
-        let bits = opt_u32(bits, 64, "bits")?;
+    pub fn finalize_code(
+        &mut self,
+        #[napi(ts_arg_type = "number | undefined | null")] bits: Option<Unknown<'_>>,
+    ) -> napi::Result<String> {
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| napi::Error::from_reason("InstanceHasher already finalized"))?;
+        let bits = opt_u32(opt_number(bits, "bits")?, 64, "bits")?;
         hasher
             .finalize(bits)
             .map(|r| r.iscc)

@@ -743,12 +743,24 @@ describe('integer range: bits', () => {
         strictEqual(gen_text_code_v0('text', null), expected);
     });
 
-    it('a rejected finalize leaves the hasher usable', () => {
-        const hasher = new DataHasher();
-        hasher.update(Buffer.from('data'));
-        throws(() => hasher.finalize(-1), /Invalid bits: -1/);
-        strictEqual(hasher.finalize(64), gen_data_code_v0(Buffer.from('data'), 64));
-    });
+    // The first finalize consumes a hasher whatever rejects its argument:
+    // one bad argument per fresh hasher, then a valid finalize must throw.
+    const hashers = { DataHasher, InstanceHasher };
+    const badBits = {
+        'binding-rejected bits -1': [-1, /Invalid bits: -1/],
+        'binding-rejected bits "x"': ['x', /Invalid bits: expected a number/],
+        'core-rejected bits 13': [13, /invalid length 13/],
+    };
+    for (const [name, Hasher] of Object.entries(hashers)) {
+        for (const [label, [bits, expected]] of Object.entries(badBits)) {
+            it(`${name}.finalize with ${label} consumes the hasher`, () => {
+                const hasher = new Hasher();
+                hasher.update(Buffer.from('data'));
+                throws(() => hasher.finalize(bits), expected);
+                throws(() => hasher.finalize(64), new RegExp(`${name} already finalized`));
+            });
+        }
+    }
 });
 
 describe('integer range: scalar parameters', () => {

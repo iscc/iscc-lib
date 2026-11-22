@@ -238,8 +238,9 @@ const iscc = hasher.finalize();
 console.log(iscc); // Identical to gen_instance_code_v0(entireFile)
 ```
 
-Both hashers accept `Buffer` input in `update()`. After calling `finalize()`, the hasher is consumed
-and further calls throw an error.
+Both hashers accept `Buffer` input in `update()`. The first `finalize()` call consumes the hasher,
+even when it fails (for example on an invalid `bits` value). After that, further calls throw an
+error.
 
 The optional `bits` parameter can be passed to `finalize()`:
 
