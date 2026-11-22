@@ -1,14 +1,15 @@
-<!-- assessed-at: dbbe46ec619a7cf15d3eea083938ee808c7ead88 -->
+<!-- assessed-at: 4a4674ee726933ba23d2fdc890e9730ef79c91bf -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; CI green; 6 `normal` issues block the release
+## Phase: v0.8.0 — features done; CI green; 5 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 286 fixed the
-`@iscc/lib` npm README: it now states that `gen_sum_code_v0` returns a `NapiSumCodeResult` and names
-all 35 Tier 1 symbols. Review closed that `normal`, so 6 `normal` and 13 `low` issues remain.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 287 closed the
+`publish-ffi` rerun gap: the job now deletes staged FFI assets that are not `uploaded` before the
+upload and fails unless every staged archive ends up `uploaded`. 5 `normal` and 13 `low` issues
+remain.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -52,12 +53,10 @@ all 35 Tier 1 symbols. Review closed that `normal`, so 6 `normal` and 13 `low` i
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and strict data-edge tests;
     `@iscc/lib` 0.7.0 on npm (OIDC); committed `package-lock.json`, `npm ci` in CI and release
-- `crates/iscc-napi/README.md` states the `NapiSumCodeResult` return of `gen_sum_code_v0` and names
-    all 35 Tier 1 symbols; it is `FULL` in the Tier 1 doc gate and pinned by
-    `tests/test_napi_docs.py`
-- `low`: `napi build` fails in the devcontainer checkout (the locked cli hard-links its outputs and
-    the 9p mount rejects `link()`); CI is unaffected
-- The napi `Buffer` reference leak is postponed (`postponed.md`)
+- `crates/iscc-napi/README.md` names all 35 Tier 1 symbols and the `NapiSumCodeResult` return; it is
+    `FULL` in the Tier 1 doc gate
+- `low`: `napi build` fails in the devcontainer checkout (the 9p mount rejects `link()`); CI is
+    unaffected. The napi `Buffer` reference leak is postponed (`postponed.md`)
 
 ## WASM Bindings
 
@@ -76,7 +75,7 @@ all 35 Tier 1 symbols. Review closed that `normal`, so 6 `normal` and 13 `low` i
 
 - 51 exports, including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
-- The FFI release upload has a rerun gap (tracked under CI/CD)
+- The release upload now prunes unfinished assets and verifies every archive (see CI/CD)
 
 ## Java Bindings
 
@@ -109,9 +108,9 @@ all 35 Tier 1 symbols. Review closed that `normal`, so 6 `normal` and 13 `low` i
 **Status**: met (v0.8.0 scope; one `low`)
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job
-- `packages/cpp/portfile.cmake` pins the five v0.7.0 SHA512s; `scripts/update_vcpkg_hashes.py` (13
-    tests) writes them in `prepare-release` from the built archives, so each release tag carries
-    matching hashes. No CI gate on `develop` can install the port (it needs the published release)
+- `packages/cpp/portfile.cmake` pins the five v0.7.0 SHA512s; `scripts/update_vcpkg_hashes.py`
+    writes them in `prepare-release` from the built archives, so each release tag carries matching
+    hashes
 - `low`: the port fails one vcpkg post-build check (debug/release binary count); matters only for a
     vcpkg registry submission
 
@@ -139,11 +138,11 @@ all 35 Tier 1 symbols. Review closed that `normal`, so 6 `normal` and 13 `low` i
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (22 `FULL`, 2 `EXACT`)
+- `docs/development.md` describes the current FFI upload: prune `starter` assets, keep uploaded
+    archives, fail unless all are `uploaded`
 - `normal`: Rust API tier docs (see Rust core)
 - `low`: the version-sync file lists in `docs/development.md` (9 of 22 targets) and the release
     skill (13 of 22) are partial
-- `docs/development.md` still describes the old FFI upload behaviour (part of the `publish-ffi`
-    `normal`)
 
 ## Benchmarks
 
@@ -155,26 +154,27 @@ all 35 Tier 1 symbols. Review closed that `normal`, so 6 `normal` and 13 `low` i
 
 ## CI/CD and Publishing
 
-**Status**: partially met (CI green; one `normal`, one `low`)
+**Status**: partially met (CI green; one `low`)
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles;
-    `prepare-release` needs `build-ffi` and commits the vcpkg hashes with the Swift checksum before
-    tagging; 22 version-sync targets at 0.7.0; every ecosystem installs from a lockfile
-- `normal`: `publish-ffi` uses `overwrite_files: false`, so a `gh run rerun --failed` after a failed
-    upload skips an empty `starter` asset of the same name and reports success
+    `prepare-release` commits the vcpkg hashes with the Swift checksum before tagging; 22
+    version-sync targets at 0.7.0; every ecosystem installs from a lockfile
+- `publish-ffi` runs `scripts/ffi_release_assets.py stale` (delete non-`uploaded` staged assets)
+    before the upload and `verify` after it; 12 tests in `tests/test_ffi_release_assets.py`. A live
+    `starter` deletion is unproven (needs a failed upload); `release.yml` is never run by CI
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 44988632391 on the origin tip `5953d235`: 24/24 check-runs green,
-    check-suite `success`: https://github.com/iscc/iscc-lib/actions/runs/44988632391
+- **Latest CI: PASSING.** Run 44990006975 on the origin tip `bddf428c`: 24/24 check-runs green:
+    https://github.com/iscc/iscc-lib/actions/runs/44990006975
 - Local HEAD adds one unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
-19 open in issues.md: 6 `normal`, 13 `low` (12 untriaged), no `critical`. Two need a behaviour
+18 open in issues.md: 5 `normal`, 13 `low` (12 untriaged), no `critical`. Two need a behaviour
 decision first (`alg_minhash_256([])`, WASM `finalize()`). None is blocked on upstream. 7 sit in
 `postponed.md`.
 
 ## Next Milestone
 
-Clear the 6 `normal` issues that block v0.8.0: the `publish-ffi` rerun gap on the release path, the
-Rust API tier docs, the duplicate `data.json` parsers, the one-shot/streaming duplication, and the
-two behaviour decisions (these need Titusz). Then Titusz cuts v0.8.0 via `/release`.
+Clear the 5 `normal` issues that block v0.8.0: the Rust API tier docs, the duplicate `data.json`
+parsers, the one-shot/streaming duplication, and the two behaviour decisions (these need Titusz).
+Then Titusz cuts v0.8.0 via `/release`.
