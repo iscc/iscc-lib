@@ -35,6 +35,7 @@ const SECTIONS: &[(&str, Caller)] = &[
     ("gen_video_code_v0", call_video),
     ("alg_cdc_chunks", call_cdc),
     ("encode_component", call_encode_component),
+    ("alg_minhash_256", call_minhash),
 ];
 
 /// Load and parse `tests/data-edge.json` from the crate source tree.
@@ -143,6 +144,22 @@ fn frames_arg(inputs: &[Value], index: usize) -> Result<Vec<Vec<i32>>, String> {
         .and_then(Value::as_array)
         .ok_or_else(|| format!("input {index} is not a list"))?;
     items.iter().map(|v| frame_item(v, index)).collect()
+}
+
+/// Read one feature item as a `u32`.
+fn u32_item(item: &Value, index: usize) -> Result<u32, String> {
+    item.as_u64()
+        .and_then(|n| u32::try_from(n).ok())
+        .ok_or_else(|| format!("input {index} holds a non-u32 feature"))
+}
+
+/// Read the input at `index` as a list of `u32` features.
+fn u32_list_arg(inputs: &[Value], index: usize) -> Result<Vec<u32>, String> {
+    let items = inputs
+        .get(index)
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("input {index} is not a list"))?;
+    items.iter().map(|v| u32_item(v, index)).collect()
 }
 
 /// Read the input at `index` as a `u32`.
@@ -299,6 +316,16 @@ fn call_encode_component(inputs: &[Value]) -> Result<Option<Outcome>, String> {
     Ok(Some(to_outcome(
         iscc_lib::encode_component(mtype, stype, version, bit_length, &digest),
         Value::String,
+    )))
+}
+
+/// Run `alg_minhash_256` on the vector's feature list.
+fn call_minhash(inputs: &[Value]) -> Result<Option<Outcome>, String> {
+    let features = u32_list_arg(inputs, 0)?;
+    let encode = |data: Vec<u8>| bytes_value(&data);
+    Ok(Some(to_outcome(
+        iscc_lib::alg_minhash_256(&features),
+        encode,
     )))
 }
 
