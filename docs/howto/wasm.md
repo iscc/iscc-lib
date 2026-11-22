@@ -515,7 +515,7 @@ Additional primitives:
 - `alg_simhash(hashDigests)` — compute a SimHash digest from an array of equal-length Uint8Arrays,
     returns Uint8Array
 - `alg_minhash_256(features)` — compute a 256-bit MinHash digest from 32-bit integer features,
-    returns Uint8Array
+    returns Uint8Array; throws on an empty array
 - `alg_cdc_chunks(data, utf32, avgChunkSize?)` — split data into content-defined chunks (default
     average chunk size 1024), returns an array of `Uint8Array` chunks
 

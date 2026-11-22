@@ -601,13 +601,13 @@ pub fn alg_simhash(hash_digests: JsValue) -> Result<Vec<u8>, JsError> {
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 ///
 /// Uses 64 universal hash functions with bit-interleaved compression to
-/// produce a 32-byte similarity-preserving digest.
+/// produce a 32-byte similarity-preserving digest. Throws on an empty list.
 #[wasm_bindgen]
 pub fn alg_minhash_256(
     #[wasm_bindgen(unchecked_param_type = "ArrayLike<number>")] features: JsValue,
 ) -> Result<Vec<u8>, JsError> {
     let features = to_u32_vec(&number_vec(&features, "features")?, "features")?;
-    Ok(iscc_lib::alg_minhash_256(&features))
+    iscc_lib::alg_minhash_256(&features).map_err(|e| JsError::new(&e.to_string()))
 }
 
 /// Split data into content-defined chunks using gear rolling hash.
