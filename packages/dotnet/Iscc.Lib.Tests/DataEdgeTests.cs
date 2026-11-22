@@ -32,6 +32,7 @@ public class DataEdgeTests
         ["gen_meta_code_v0"] = CallMeta,
         ["gen_video_code_v0"] = CallVideo,
         ["alg_cdc_chunks"] = CallCdc,
+        ["encode_component"] = CallEncodeComponent,
     };
 
     /// <summary>Load and parse testdata/data-edge.json from the test output directory.</summary>
@@ -165,6 +166,19 @@ public class DataEdgeTests
         bool utf32 = inputs[1].GetBoolean();
         uint avg = inputs[2].GetUInt32();
         return new Prepared(() => IsccLib.AlgCdcChunks(data, utf32, avg), ChunksArray);
+    }
+
+    /// <summary>Prepare EncodeComponent on the vector's header fields, bit length and digest.</summary>
+    private static Prepared CallEncodeComponent(JsonElement inputs)
+    {
+        byte mtype = inputs[0].GetByte();
+        byte stype = inputs[1].GetByte();
+        byte version = inputs[2].GetByte();
+        uint bitLength = inputs[3].GetUInt32();
+        byte[] digest = ToBytes(inputs[4]);
+        return new Prepared(
+            () => IsccLib.EncodeComponent(mtype, stype, version, bitLength, digest),
+            r => JsonValue.Create((string)r));
     }
 
     /// <summary>Prepare GenMetaCodeV0 (an empty description means none).</summary>
