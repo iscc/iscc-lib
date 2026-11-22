@@ -66,7 +66,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 ## Review Shortcuts (detail in the topic files named above)
 
 - **Rust-only**: `cargo test -p iscc-lib` + clippy workspace + `mise run check`; version sync adds
-    `version_sync.py --check`. **Core dedup (289)**, **test-parser dedup (291)** → topic file
+    `version_sync.py --check`. **Core dedup (289)**, **parser dedup (291)**, **bound (301)** → topic
 - **Core + Go behaviour / integer-width fix (250/263)**: boundary differential, bare `rustc` =
     edition 2015, host-type check → `review-patterns.md` "Core + Go … (250)"; parsers: "(293)"
 - **Go-only serializer / validation fix (251/266/295, ~8–15 min)**: Go criteria + ONE differential

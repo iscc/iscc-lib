@@ -1280,3 +1280,27 @@ Python edits need the pre-push gates: `uv run ty check` and `uv run ruff check -
     data-edge section pins them later): probe two by hand, read the wrapper for the rest
 - **Rewrite the issue to the smaller problem** when a multi-step `[human]` issue is partly done (Go
     port + data-edge section left); do not delete it and do not log progress in it
+
+## Core validation bound, no signature change (301, ~25 min)
+
+`encode_length` capped at 256 bits and a `pub(crate)` checked decode helper replaced four internal
+`decode_length` calls. PASS, Codex clean in 10 minutes.
+
+- **One logged script** (`step <name> <cmd>`, exit code per step): `mise run check`, core tests in 4
+    feature sets, the name-filtered test run, clippy workspace, `mise run coverage` + the CI CRAP
+    line, `mise run bench:iai:check`, the signature pytest. 2 minutes with a warm target
+- **CRAP baseline honesty without a regen**: the CI CRAP line printing `0 new, 0 moved, N unchanged`
+    means the committed baseline equals a fresh run. A refreshed baseline also picks up functions
+    that earlier steps added (new functions never fail the gate), so its diff is larger than the
+    step's own four rows
+- **The decisive probe is a differential through the Python binding** (`mise run py:develop`, then
+    one script that runs each case on `iscc_lib` and `iscc_core`): build headers with
+    `ic.encode_header(mt, 0, 0, idx)` + zero body + unpadded base32. Include the short-circuit case
+    (a short first unit hides a bad second one) and the non-wide case. iscc-core's
+    `gen_data_code_v0` wants a stream, not bytes
+- **A decode test through `iscc_decompose` cannot tell a decode check from the encode bound**: it
+    re-encodes each unit, so the encode bound rejects the same input with a similar message
+- **Adjacent old deviation found by widening the same probe by one loop** (ID length indexes): file
+    it `low` untriaged, with the data-edge "Resolved when"
+- No binding suite ran (only pytest at pre-push): a repo-wide `git grep` showed no binding test or
+    doc example above 256 bits, and the data-edge rows pin the bindings in a later step

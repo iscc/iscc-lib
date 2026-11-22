@@ -217,19 +217,23 @@ Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact
 on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
 that both `bench_instance_code` rows are within the tolerance of a current run.
 
-## Gen functions accept `bits` above 256 and return a unit that no decoder reads `normal` [human]
+## Go accepts `bits` above 256, no vector pins the rejection, and most API pages lack the range `normal` [human]
 
-Decided on 2026-11-22 (decisions.md, "A unit is at most 256 bits"): iscc-lib rejects it. Measured on
-2026-11-22 with `bits=288` on the Python binding: `gen_meta_code_v0`, `gen_text_code_v0`,
-`gen_audio_code_v0`, `gen_data_code_v0` and `gen_instance_code_v0` return a code whose header says
-288 bits over a 32-byte body, and `iscc_decode` rejects it ("truncated ISCC body: expected 36 bytes,
-got 32"). The image, video and mixed functions already reject it. Go returned the same code as the
-Python binding for `gen_data_code_v0(b"abc", 512)` in iteration 295. The public
-`encode_component(0, 0, 0, 512, <64 bytes>)` returns a unit that iscc-lib decodes and iscc-core
-rejects ("512 is not a valid LN"). Cause: `codec::encode_length` accepts any multiple of 32,
-`codec::decode_length` has no upper bound, and the internal encode path clamps the body to the
-digest (kept on purpose, decisions.md 2026-11-22). Most API pages say only "multiple of 32". Not
-measured: the hashers' `finalize(bits)` on any surface.
+Decided on 2026-11-22 (decisions.md, "A unit is at most 256 bits"): iscc-lib rejects a unit above
+256 bits. The Rust core does, on encode and decode, and the surfaces built on it inherit that
+(measured on the Python binding at 809e317f for the gen functions, both hashers' `finalize`,
+`encode_component`, `iscc_decode` and `iscc_decompose`). Three parts of the problem remain:
+
+- **Go port.** `encodeLength` (`packages/go/codec.go`) accepts any multiple of 32, so the gen
+    functions, the hashers and `EncodeComponent` return a unit that no decoder reads (measured for
+    `gen_data_code_v0(b"abc", 512)` in iteration 295). `decodeLength` has no upper bound, and its
+    four callers use it unchecked: `IsccDecompose` and `IsccDecode` in `codec.go`, the mixed length
+    check in `code_content_mixed.go`, and the wide check in `code_iscc.go`.
+- **No shared vector.** Only the in-crate Rust tests pin the rejection; no `data-edge.json` row
+    does, so no binding suite and no Go test would see the bound disappear.
+- **API pages.** Outside `docs/rust-api.md` the pages and API comments say only "multiple of 32"
+    (`git grep -c "multiple of 32" -- docs crates packages` lists them: the C FFI, Java and Ruby
+    reference pages, nine how-to pages, `iscc.h`, `IsccLib.java`, `_lowlevel.pyi` among them).
 
 **Upstream:** iscc/iscc-core, filed as https://github.com/iscc/iscc-core/issues/142 (iscc-core 1.5.0
 returns the same undecodable codes for meta, text, audio, video, data and instance)
@@ -326,3 +330,20 @@ for lists instead of copying them; add the failed-finalize sentence to `c-ffi-ap
 rule to the six API comments and pages that lack it; add Swift to the README list.
 
 **Scope estimate:** 9 non-test files: needs audit-scope step (≤8 files), or split specs from docs.
+
+## `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects `low` [review]
+
+**Triage:** untriaged. Only a caller who decodes a hand-built ISCC-ID with length index 3 would see
+it; no generator on any surface emits an 88-bit ID.
+
+Measured in iteration 301 on the Python binding against iscc-core 1.5.0 (CPython 3.13), with an ID
+header of length index 3 over an 11-byte body, for subtype 0 version 0 and subtype 1 version 1:
+`iscc_lib.iscc_decode` returns the tuple, `iscc_core.iscc_decode` raises "88 is not a valid LN".
+Length indexes 0, 1, 2 and 4 (64, 72, 80 and 96 bits) decode on both, and 5 and above fail on both.
+Cause: `codec::decode_length` returns `length * 8 + 64` for an ID and `codec::encode_length` accepts
+64 to 96 in steps of 8, while iscc-core's `LN` enum has no 88. Pre-existing, and outside the
+decision of 2026-11-22, which covers Meta through Flake. Not measured: the Go port, and
+`encode_component(6, …, 88, …)` on either side.
+
+Resolved when a `data-edge.json` vector pins the outcome for an 88-bit ID: rejected as in iscc-core,
+or accepted and marked `diverges` with a decisions.md entry that says why.
