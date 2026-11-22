@@ -61,6 +61,13 @@ object DataEdge {
         return number.toUInt()
     }
 
+    /** Read the input at [index] as a `UByte` (an ISCC header field). */
+    fun byte(inputs: JsonArray, index: Int): UByte {
+        val value = bits(inputs, index)
+        require(value <= UByte.MAX_VALUE) { "input $index is not a UByte" }
+        return value.toUByte()
+    }
+
     /** Read the input at [index] as a boolean. */
     fun bool(inputs: JsonArray, index: Int): Boolean {
         val value = inputs.get(index)
@@ -111,6 +118,19 @@ object DataEdge {
 
     /** Convert `algCdcChunks` chunks to a list of `bytes:<hex>` values. */
     fun convertChunks(result: Any): Any = (result as List<*>).map { bytesValue(it as ByteArray) }
+
+    /** Prepare `encodeComponent` on the vector's header fields, bit length and digest. */
+    fun prepareComponent(inputs: JsonArray): () -> Any {
+        val mtype = byte(inputs, 0)
+        val stype = byte(inputs, 1)
+        val version = byte(inputs, 2)
+        val bitLength = bits(inputs, 3)
+        val digest = decodeBytes(str(inputs, 4))
+        return { encodeComponent(mtype, stype, version, bitLength, digest) }
+    }
+
+    /** Return a bare `String` result (`encodeComponent`) unchanged. */
+    fun convertString(result: Any): Any = result as String
 
     /** Prepare `genTextCodeV0` on the vector's text and bits. */
     fun prepareText(inputs: JsonArray): () -> Any {
@@ -204,6 +224,7 @@ object DataEdge {
         "gen_meta_code_v0" to EdgeCaller(::prepareMeta, ::convertMeta),
         "gen_video_code_v0" to EdgeCaller(::prepareVideo, ::convertVideo),
         "alg_cdc_chunks" to EdgeCaller(::prepareCdc, ::convertChunks),
+        "encode_component" to EdgeCaller(::prepareComponent, ::convertString),
     )
 
     /** Load and parse the vendored data-edge.json from the test resources. */
