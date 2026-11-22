@@ -401,6 +401,57 @@ def test_encode_component_non_string_unit_fails_closed(tmp_path):
         gen.render(mutated)
 
 
+def test_u32_list_array_renders_suffixed_values_and_empty_sentinel():
+    """A feature list renders `u`-suffixed uint32 values; an empty one gets a 0u sentinel."""
+    lines, init = gen.u32_list_array("ident", [7, 4294967295])
+    assert lines == [
+        "static const uint32_t ident_values[] = {",
+        "    7u, 4294967295u,",
+        "};",
+    ]
+    assert init == "{ident_values, 2}"
+    empty_lines, empty_init = gen.u32_list_array("ident", [])
+    assert empty_lines[1] == "    0u,"
+    assert empty_init == "{ident_values, 0}"
+
+
+def test_alg_minhash_256_rows_render_features_and_digest():
+    """The alg_minhash_256 rows carry the features, the digest and an empty-list error row."""
+    fixture = load_fixture()
+    text = HEADER.read_text(encoding="utf-8")
+    for index, (name, vector) in enumerate(fixture["alg_minhash_256"].items()):
+        ident = f"iscc_edge_alg_minhash_256_{index}"
+        lines, init = gen.u32_list_array(ident, vector["inputs"][0])
+        assert all(line in text for line in lines), name
+        assert f'{{"{name}", ' in text and init in text, name
+    empty, _ = find_vector(fixture, "alg_minhash_256", [[]])
+    assert f'{{"{empty}", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,' in text
+    assert "    7u, 42u, 2147483648u, 4294967295u," in text
+    assert "{iscc_edge_alg_minhash_256_0_values, 0}, {0, 0}}," in text
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ([2**32], "uint32"),
+        ([-1], "non-negative integer"),
+        ([True], "non-negative integer"),
+        ([1.5], "non-negative integer"),
+        ("7", "list of uint32"),
+    ],
+)
+def test_alg_minhash_256_bad_feature_fails_closed(tmp_path, value, message):
+    """An alg_minhash_256 feature list of the wrong type or range refuses to render."""
+
+    def mutate(fixture):
+        _, vector = find_vector(fixture, "alg_minhash_256", [[]])
+        vector["inputs"] = [value]
+
+    mutated = write_mutated_fixture(tmp_path, mutate)
+    with pytest.raises(SystemExit, match=message):
+        gen.render(mutated)
+
+
 def test_mutated_expected_value_renders_different_header(tmp_path):
     """A changed expected value changes the render, so the staleness gate fires."""
 

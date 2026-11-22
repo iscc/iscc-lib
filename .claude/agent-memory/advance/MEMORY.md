@@ -20,7 +20,7 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     `encode_seq` + 4 `decode_seq`, outputs `bytes:<hex>`/list). Vendored copies
     (packages/{dotnet,go,kotlin,swift}) gated by `tests/test_vendored_fixtures.py` — any NEW tracked
     `data.json` copy → register in `VENDORED_COPIES` or the test reds
-- Data-edge vectors (215-296, 10 sections; fixture hand-formatted, splice as text):
+- Data-edge vectors (215-300, 11 sections; fixture hand-formatted, splice as text):
     `crates/iscc-lib/tests/data-edge.json`, 12 harnesses, C/C++ via generated header, sections,
     output subset, Swift scalars, throwaway proof → data-edge.md
 - GOTCHA: `clippy --all-targets --no-default-features` fails on benches (ungated imports) —

@@ -65,3 +65,8 @@ metadata:
     `Map.of` SECTIONS is now at its 10-pair max: the next section needs `Map.ofEntries`. Test each
     harness against the uncommitted JSON, commit harnesses one by one (JSON stays unstaged), then
     JSON + header last. Regression proof: restore pre-fix Go files from `<fix>^` in a temp copy
+- Sections (300): 11 incl. `alg_minhash_256` (`[[u32, ...]]` → `bytes:`). C struct
+    `iscc_edge_u32_list {values, count}` + `u32_list_array` (`Nu` literals, `0u` sentinel). Java
+    SECTIONS is `Map.ofEntries` now (no pair cap). Java uint32 → `int` bit pattern via `getAsLong`
+    - range check (Gson `getAsInt` rejects > 2^31-1). Whole 12-surface run ≈ $3.5; napi
+        `git ls-files | tar` copy to /tmp + `CARGO_TARGET_DIR=/tmp/napi-target npx napi build`

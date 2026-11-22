@@ -90,6 +90,8 @@ HEADER_PREAMBLE = """\
  * A meta object is rendered as its JSON text (gen_meta_code_v0).
  * alg_cdc_chunks data is one byte string; its chunks are a byte-string list.
  * encode_component takes a binary digest and returns its unit as text.
+ * An alg_minhash_256 feature list is a uint32 array with an explicit count;
+ * an empty list points at a one-element sentinel array with count 0.
  * Error rows carry zeroed outputs.
  *
  * Regenerate with: uv run --script scripts/gen_data_edge_vectors.py
@@ -122,6 +124,12 @@ struct iscc_edge_list {
 struct iscc_edge_frames {
     const int32_t *const *frames;
     const uintptr_t *lens;
+    size_t count;
+};
+
+/* A list of uint32 values (alg_minhash_256 features). */
+struct iscc_edge_u32_list {
+    const uint32_t *values;
     size_t count;
 };
 
@@ -231,13 +239,22 @@ struct iscc_edge_encode_component_vector {
     struct iscc_edge_str digest;
     struct iscc_edge_str unit;
 };
+
+/* alg_minhash_256: uint32 feature list -> bytes. */
+struct iscc_edge_alg_minhash_256_vector {
+    const char *name;
+    int c;
+    int cpp;
+    struct iscc_edge_u32_list features;
+    struct iscc_edge_str minhash;
+};
 """
 
 HEADER_POSTAMBLE = "#endif /* ISCC_DATA_EDGE_VECTORS_H */\n"
 
 NULL_STR = "{0, 0}"
 NULL_LIST = "{0, 0, 0}"
-# Frame values per line in a rendered int32 array.
+# Values per line in a rendered int32 or uint32 array.
 INT32_PER_LINE = 20
 # The longest string literal ISO C99 requires a compiler to accept, in bytes; longer
 # strings are filled into static buffers at runtime (MSVC rejects long literals).
@@ -344,6 +361,13 @@ def require_u8(value: object, where: str) -> int:
     if number >= 2**8:
         raise SystemExit(f"{where}: expected a uint8 integer, got {value!r}")
     return number
+
+
+def require_u32_list(value: object, where: str) -> list[int]:
+    """Return value as a list of `uint32_t` integers, else fail closed."""
+    if not isinstance(value, list):
+        raise SystemExit(f"{where}: expected a list of uint32 integers, got {value!r}")
+    return [require_u32(item, where) for item in value]
 
 
 def require_bool(value: object, where: str) -> bool:
@@ -502,6 +526,20 @@ def int32_array(ident: str, values: list[int]) -> list[str]:
     return [f"static const int32_t {ident}[] = {{", *body, "};"]
 
 
+def u32_list_array(ident: str, values: list[int]) -> tuple[list[str], str]:
+    """Return the lines of one static uint32 array, wrapped, and its list initialiser.
+
+    An empty list gets a one-element `0u` sentinel so the pointer is never NULL.
+    """
+    padded = values or [0]
+    chunks = [
+        padded[i : i + INT32_PER_LINE] for i in range(0, len(padded), INT32_PER_LINE)
+    ]
+    body = [f"    {', '.join(f'{v}u' for v in chunk)}," for chunk in chunks]
+    lines = [f"static const uint32_t {ident}_values[] = {{", *body, "};"]
+    return lines, f"{{{ident}_values, {len(values)}}}"
+
+
 def frame_arrays(ident: str, frames: list[list[int]]) -> tuple[list[str], str]:
     """Return the static frame/length array lines of one frame list and its initialiser.
 
@@ -656,6 +694,18 @@ def row_encode_component(
     return [], f"{head}, {c_str(unit, f'{ident}_unit', bufs)}"
 
 
+def row_alg_minhash_256(
+    vector: dict, where: str, ident: str, bufs: list[tuple[str, bytes]]
+) -> tuple[list[str], str]:
+    """Return the feature-array lines and fields of one `alg_minhash_256` row."""
+    (features,) = require_arity(vector["inputs"], (1,), where)
+    lines, features_init = u32_list_array(ident, require_u32_list(features, where))
+    if "error" in vector:
+        return lines, f"{features_init}, {NULL_STR}"
+    minhash = c_str(fixture_bytes(vector["outputs"], where), f"{ident}_minhash", bufs)
+    return lines, f"{features_init}, {minhash}"
+
+
 # Section name -> row renderer; the section order is the header order.
 RENDERERS = {
     "iscc_decode": row_iscc_decode,
@@ -668,6 +718,7 @@ RENDERERS = {
     "gen_video_code_v0": row_gen_video_code_v0,
     "alg_cdc_chunks": row_alg_cdc_chunks,
     "encode_component": row_encode_component,
+    "alg_minhash_256": row_alg_minhash_256,
 }
 
 

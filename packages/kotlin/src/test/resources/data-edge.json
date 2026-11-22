@@ -350,5 +350,26 @@
       "outputs": "AAAQAAICAMCAKBQH",
       "note": "A digest of exactly bit_length/8 bytes encodes to the same unit on every surface and in iscc-core."
     }
+  },
+  "alg_minhash_256": {
+    "test_0001_empty_list": {
+      "inputs": [
+        []
+      ],
+      "error": "features must not be empty",
+      "note": "An empty feature list must be rejected rather than hashed into 32 0xFF bytes."
+    },
+    "test_0002_four_features": {
+      "inputs": [
+        [
+          7,
+          42,
+          2147483648,
+          4294967295
+        ]
+      ],
+      "outputs": "bytes:de7197a4343a0d7422964c15b69982ffa3706205863421259c99cdf30668b4b8",
+      "note": "Features at both ends of the uint32 range hash to the same digest on every surface and in iscc-core."
+    }
   }
 }

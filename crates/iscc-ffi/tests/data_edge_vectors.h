@@ -18,6 +18,8 @@
  * A meta object is rendered as its JSON text (gen_meta_code_v0).
  * alg_cdc_chunks data is one byte string; its chunks are a byte-string list.
  * encode_component takes a binary digest and returns its unit as text.
+ * An alg_minhash_256 feature list is a uint32 array with an explicit count;
+ * an empty list points at a one-element sentinel array with count 0.
  * Error rows carry zeroed outputs.
  *
  * Regenerate with: uv run --script scripts/gen_data_edge_vectors.py
@@ -50,6 +52,12 @@ struct iscc_edge_list {
 struct iscc_edge_frames {
     const int32_t *const *frames;
     const uintptr_t *lens;
+    size_t count;
+};
+
+/* A list of uint32 values (alg_minhash_256 features). */
+struct iscc_edge_u32_list {
+    const uint32_t *values;
     size_t count;
 };
 
@@ -158,6 +166,15 @@ struct iscc_edge_encode_component_vector {
     uint32_t bit_length;
     struct iscc_edge_str digest;
     struct iscc_edge_str unit;
+};
+
+/* alg_minhash_256: uint32 feature list -> bytes. */
+struct iscc_edge_alg_minhash_256_vector {
+    const char *name;
+    int c;
+    int cpp;
+    struct iscc_edge_u32_list features;
+    struct iscc_edge_str minhash;
 };
 
 #define ISCC_EDGE_ISCC_DECODE_COUNT 5
@@ -378,7 +395,21 @@ static const struct iscc_edge_encode_component_vector iscc_edge_encode_component
      0, 0, 0, 64u, {"\000\001\002\003\004\005\006\007", 8}, {"AAAQAAICAMCAKBQH", 16}},
 };
 
-#define ISCC_EDGE_TOTAL_COUNT 29
+static const uint32_t iscc_edge_alg_minhash_256_0_values[] = {
+    0u,
+};
+static const uint32_t iscc_edge_alg_minhash_256_1_values[] = {
+    7u, 42u, 2147483648u, 4294967295u,
+};
+#define ISCC_EDGE_ALG_MINHASH_256_COUNT 2
+static const struct iscc_edge_alg_minhash_256_vector iscc_edge_alg_minhash_256[ISCC_EDGE_ALG_MINHASH_256_COUNT] = {
+    {"test_0001_empty_list", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
+     {iscc_edge_alg_minhash_256_0_values, 0}, {0, 0}},
+    {"test_0002_four_features", ISCC_EDGE_OK, ISCC_EDGE_OK,
+     {iscc_edge_alg_minhash_256_1_values, 4}, {"\336q\227\2444:\015t\"\226L\025\266\231\202\377\243pb\005\2064!%\234\231\315\363\006h\264\270", 32}},
+};
+
+#define ISCC_EDGE_TOTAL_COUNT 31
 
 /* Fill the static buffers of strings over 4095 bytes; call once before use. */
 static void iscc_edge_init(void) {
