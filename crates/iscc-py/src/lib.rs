@@ -569,10 +569,11 @@ fn alg_simhash(hash_digests: Vec<Vec<u8>>) -> PyResult<Vec<u8>> {
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 ///
 /// Uses 64 universal hash functions with bit-interleaved compression to
-/// produce a 32-byte similarity-preserving digest.
+/// produce a 32-byte similarity-preserving digest. Raises `ValueError` on an
+/// empty list.
 #[pyfunction]
-fn alg_minhash_256(features: Vec<u32>) -> Vec<u8> {
-    iscc_lib::alg_minhash_256(&features)
+fn alg_minhash_256(features: Vec<u32>) -> PyResult<Vec<u8>> {
+    iscc_lib::alg_minhash_256(&features).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Split data into content-defined chunks using gear rolling hash.

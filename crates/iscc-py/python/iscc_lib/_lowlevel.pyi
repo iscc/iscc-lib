@@ -294,8 +294,9 @@ def alg_minhash_256(features: list[int]) -> bytes:
     Uses 64 universal hash functions with bit-interleaved compression to
     produce a 32-byte similarity-preserving digest.
 
-    :param features: List of 32-bit unsigned integer features.
+    :param features: Non-empty list of 32-bit unsigned integer features.
     :return: 32-byte MinHash digest.
+    :raises ValueError: If the list is empty.
     """
 
 def alg_cdc_chunks(data: bytes, utf32: bool, avg_chunk_size: int = 1024) -> list[bytes]:

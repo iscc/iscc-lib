@@ -493,7 +493,7 @@ Additional primitives:
 - `alg_simhash(hash_digests: list[bytes]) -> bytes` — compute a SimHash digest from equal-length
     digests
 - `alg_minhash_256(features: list[int]) -> bytes` — compute a 256-bit MinHash digest from 32-bit
-    features
+    features; raises `ValueError` on an empty list
 - `alg_cdc_chunks(data: bytes, utf32: bool, avg_chunk_size: int = 1024) -> list[bytes]` — split data
     into content-defined chunks
 

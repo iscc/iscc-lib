@@ -68,9 +68,9 @@ def test_alg_minhash_256_returns_32_bytes():
 
 
 def test_alg_minhash_256_empty_features():
-    """Verify empty features return 32 bytes of 0xFF."""
-    result = alg_minhash_256([])
-    assert result == b"\xff" * 32
+    """Verify empty features raise ValueError."""
+    with pytest.raises(ValueError, match="features must not be empty"):
+        alg_minhash_256([])
 
 
 def test_alg_minhash_256_deterministic():
