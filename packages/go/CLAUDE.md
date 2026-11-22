@@ -108,6 +108,8 @@ CI confirms the package has no cgo dependencies.
 - `conformance.go` parses `data.json` once (`parseConformanceData`, one `vectorEntry` type with raw
     outputs) and follows the Rust runner's malformed-vector policy: a stream input without the
     `stream:` prefix and a gen case without a string `iscc` output are unparsable, not a mismatch
+- Both runners share one wrong-type rule (decisions.md, 2026-11-22): a `null`, a wrong JSON type, a
+    fraction or an out-of-range number in a vector is `errUnparsable`, never coerced or defaulted
 
 ### Unit tests
 

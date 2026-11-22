@@ -5,11 +5,13 @@
 package iscc
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -26,8 +28,9 @@ type vectorEntry struct {
 }
 
 // parseConformanceData unmarshals every test vector section of data.json.
-// "_metadata" holds no test vectors and is skipped. A missing section is left
-// out, so its runner reports it as missing.
+// "_metadata" holds no test vectors and is skipped; every other key must map
+// to an object of case objects. A missing section is left out, so its runner
+// reports it as missing.
 func parseConformanceData(raw []byte) (map[string]map[string]vectorEntry, error) {
 	var sections map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &sections); err != nil {
@@ -39,13 +42,37 @@ func parseConformanceData(raw []byte) (map[string]map[string]vectorEntry, error)
 		if key == "_metadata" {
 			continue
 		}
-		var cases map[string]vectorEntry
-		if err := json.Unmarshal(rawSection, &cases); err != nil {
-			return nil, fmt.Errorf("could not parse section %s: %w", key, err)
+		cases, err := parseSection(key, rawSection)
+		if err != nil {
+			return nil, err
 		}
 		data[key] = cases
 	}
 	return data, nil
+}
+
+// isJSONObject reports whether a raw JSON value is an object.
+func isJSONObject(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return len(trimmed) > 0 && trimmed[0] == '{'
+}
+
+// parseSection unmarshals one data.json section, which must be an object of
+// case objects (a null section or case is rejected, not read as empty).
+func parseSection(key string, raw json.RawMessage) (map[string]vectorEntry, error) {
+	var rawCases map[string]json.RawMessage
+	if !isJSONObject(raw) || json.Unmarshal(raw, &rawCases) != nil {
+		return nil, fmt.Errorf("could not parse section %s: not an object of cases", key)
+	}
+	cases := make(map[string]vectorEntry, len(rawCases))
+	for name, rawCase := range rawCases {
+		var tc vectorEntry
+		if !isJSONObject(rawCase) || json.Unmarshal(rawCase, &tc) != nil {
+			return nil, fmt.Errorf("could not parse case %s.%s: not an object", key, name)
+		}
+		cases[name] = tc
+	}
+	return cases, nil
 }
 
 // ConformanceSelftest validates every gen function and ISCC-SEQ conformance
@@ -113,14 +140,37 @@ func reportCase(funcName, tcName, got, want string, err error) bool {
 	return false
 }
 
+// containsNull reports whether a raw JSON value holds a null at any depth.
+// encoding/json leaves a string, number or slice element untouched on null,
+// so a strict reader rejects it first. Malformed JSON counts as containing one.
+func containsNull(raw json.RawMessage) bool {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return !errors.Is(err, io.EOF)
+		}
+		if tok == nil {
+			return true
+		}
+	}
+}
+
 // unmarshalInputs decodes the leading test inputs into targets, in order.
-// Returns errUnparsable if an input is missing or does not decode.
+// A *json.RawMessage target receives the input as is, for its caller to
+// check. Returns errUnparsable if an input is missing, holds a null, or does
+// not decode into its target (a wrong JSON type, a fraction for an integer
+// target, or a number outside the target's range).
 func unmarshalInputs(inputs []json.RawMessage, targets ...any) error {
 	if len(inputs) < len(targets) {
 		return errUnparsable
 	}
 	for i, target := range targets {
-		if json.Unmarshal(inputs[i], target) != nil {
+		if raw, ok := target.(*json.RawMessage); ok {
+			*raw = inputs[i]
+			continue
+		}
+		if containsNull(inputs[i]) || json.Unmarshal(inputs[i], target) != nil {
 			return errUnparsable
 		}
 	}
@@ -139,14 +189,18 @@ func expectedISCC(tc vectorEntry) (string, error) {
 }
 
 // metaArg converts a raw gen_meta_code_v0 meta input (null, string, or JSON
-// object) into the meta argument of GenMetaCodeV0.
+// object) into the meta argument of GenMetaCodeV0. Any other JSON type is
+// errUnparsable.
 func metaArg(raw json.RawMessage) (*string, error) {
 	text := string(raw)
 	if text == "null" {
 		return nil, nil
 	}
-	if raw[0] != '"' {
+	if isJSONObject(raw) {
 		return &text, nil
+	}
+	if len(raw) == 0 || raw[0] != '"' {
+		return nil, errUnparsable
 	}
 	var meta string
 	if json.Unmarshal(raw, &meta) != nil {
@@ -164,13 +218,13 @@ type metaInput struct {
 }
 
 // metaInputs parses the [name, description, meta, bits] inputs of a
-// gen_meta_code_v0 case. An empty or null description means no description.
+// gen_meta_code_v0 case. An empty description means no description; a null
+// one is unparsable.
 func metaInputs(tc vectorEntry) (metaInput, error) {
 	var in metaInput
 	var descStr string
 	var rawMeta json.RawMessage
-	var bits float64
-	if err := unmarshalInputs(tc.Inputs, &in.name, &descStr, &rawMeta, &bits); err != nil {
+	if err := unmarshalInputs(tc.Inputs, &in.name, &descStr, &rawMeta, &in.bits); err != nil {
 		return metaInput{}, err
 	}
 	meta, err := metaArg(rawMeta)
@@ -181,73 +235,66 @@ func metaInputs(tc vectorEntry) (metaInput, error) {
 		in.desc = &descStr
 	}
 	in.meta = meta
-	in.bits = uint32(bits)
 	return in, nil
 }
 
 // textInputs parses the [text, bits] inputs of a gen_text_code_v0 case.
 func textInputs(tc vectorEntry) (string, uint32, error) {
 	var text string
-	var bits float64
+	var bits uint32
 	if err := unmarshalInputs(tc.Inputs, &text, &bits); err != nil {
 		return "", 0, err
 	}
-	return text, uint32(bits), nil
+	return text, bits, nil
 }
 
 // imageInputs parses the [pixels, bits] inputs of a gen_image_code_v0 case.
+// Pixels decode into []int first: encoding/json reads a []byte target from a
+// base64 string, not from a list of numbers. Each pixel must be 0..=255.
 func imageInputs(tc vectorEntry) ([]byte, uint32, error) {
-	var pixelsJSON []float64
-	var bits float64
+	var pixelsJSON []int
+	var bits uint32
 	if err := unmarshalInputs(tc.Inputs, &pixelsJSON, &bits); err != nil {
 		return nil, 0, err
 	}
 	pixels := make([]byte, len(pixelsJSON))
 	for i, v := range pixelsJSON {
+		if v < 0 || v > 255 {
+			return nil, 0, errUnparsable
+		}
 		pixels[i] = byte(v)
 	}
-	return pixels, uint32(bits), nil
+	return pixels, bits, nil
 }
 
 // audioInputs parses the [cv, bits] inputs of a gen_audio_code_v0 case.
 func audioInputs(tc vectorEntry) ([]int32, uint32, error) {
-	var cvJSON []float64
-	var bits float64
-	if err := unmarshalInputs(tc.Inputs, &cvJSON, &bits); err != nil {
+	var cv []int32
+	var bits uint32
+	if err := unmarshalInputs(tc.Inputs, &cv, &bits); err != nil {
 		return nil, 0, err
 	}
-	cv := make([]int32, len(cvJSON))
-	for i, v := range cvJSON {
-		cv[i] = int32(v)
-	}
-	return cv, uint32(bits), nil
+	return cv, bits, nil
 }
 
 // videoInputs parses the [frame_sigs, bits] inputs of a gen_video_code_v0 case.
 func videoInputs(tc vectorEntry) ([][]int32, uint32, error) {
-	var framesJSON [][]float64
-	var bits float64
-	if err := unmarshalInputs(tc.Inputs, &framesJSON, &bits); err != nil {
+	var frameSigs [][]int32
+	var bits uint32
+	if err := unmarshalInputs(tc.Inputs, &frameSigs, &bits); err != nil {
 		return nil, 0, err
 	}
-	frameSigs := make([][]int32, len(framesJSON))
-	for i, frame := range framesJSON {
-		frameSigs[i] = make([]int32, len(frame))
-		for j, v := range frame {
-			frameSigs[i][j] = int32(v)
-		}
-	}
-	return frameSigs, uint32(bits), nil
+	return frameSigs, bits, nil
 }
 
 // mixedInputs parses the [codes, bits] inputs of a gen_mixed_code_v0 case.
 func mixedInputs(tc vectorEntry) ([]string, uint32, error) {
 	var codes []string
-	var bits float64
+	var bits uint32
 	if err := unmarshalInputs(tc.Inputs, &codes, &bits); err != nil {
 		return nil, 0, err
 	}
-	return codes, uint32(bits), nil
+	return codes, bits, nil
 }
 
 // decodeStream decodes a "stream:<hex>" value into bytes. A value without the
@@ -267,7 +314,7 @@ func decodeStream(s string) ([]byte, error) {
 // or gen_instance_code_v0 case.
 func streamInputs(tc vectorEntry) ([]byte, uint32, error) {
 	var streamStr string
-	var bits float64
+	var bits uint32
 	if err := unmarshalInputs(tc.Inputs, &streamStr, &bits); err != nil {
 		return nil, 0, err
 	}
@@ -275,7 +322,7 @@ func streamInputs(tc vectorEntry) ([]byte, uint32, error) {
 	if err != nil {
 		return nil, 0, errUnparsable
 	}
-	return inputBytes, uint32(bits), nil
+	return inputBytes, bits, nil
 }
 
 // isccInputs parses the [codes] input of a gen_iscc_code_v0 case.
@@ -483,7 +530,7 @@ func runDecodeSeqCase(tc vectorEntry) (got, want string, err error) {
 		return "", "", err
 	}
 	var expected []string
-	if json.Unmarshal(tc.Outputs, &expected) != nil {
+	if containsNull(tc.Outputs) || json.Unmarshal(tc.Outputs, &expected) != nil {
 		return "", "", errUnparsable
 	}
 

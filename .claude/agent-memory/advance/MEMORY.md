@@ -4,7 +4,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 [doc-checks.md](doc-checks.md), UniFFI/Swift/Kotlin (Gradle+JNA):
 [uniffi-swift-kotlin.md](uniffi-swift-kotlin.md), [deps-refresh.md](deps-refresh.md),
 [wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md), [release-gate.md](release-gate.md),
-[api-design.md](api-design.md), [bindings-detail.md](bindings-detail.md), Archived phases:
+[api-design.md](api-design.md), [bindings-detail.md](bindings-detail.md),
+[conformance-runners.md](conformance-runners.md), Archived phases:
 [MEMORY-archive.md](MEMORY-archive.md).
 
 **Size budget:** Keep under 140 lines. Move detail to topic files; archive stale entries.
@@ -40,19 +41,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - Go pure: `packages/go/` — one `.go` per algorithm/code-type (codec, utils, cdc, minhash, simhash,
     dct, wtahash, xxh32, `code_*.go`, conformance.go); pure Go only. IDv1, decode guards, gofmt,
     386, hashers, CDC → go-idv1.md
-- Conformance selftest (276): ONE runner per language — Rust `run_section` + generic `report_case`
-    over `Case<T> = Option<(IsccResult<T>, T)>` (section logic in closures: not CRAP-counted); Go
-    `runSection[V any]` + `run<X>Case(tc) (got, want, err)`, `errUnparsable`, `unmarshalInputs`. A
-    new section = one closure/case fn. rustfmt reflow shifts lines → regen CRAP baseline AFTER check
-- Rust data.json (291): only `conformance.rs` parses it — `pub(crate)` `test_data()`, `cases()`,
-    `expected_iscc`, `<x>_inputs(tc) -> Option<…>` (`.get(i)?`, never `inputs[i]`); in-crate tests
-    call `conformance::<x>_inputs(tc).unwrap_or_else(|| panic!(..))`. New CRAP fns = "new", not
-    regressions → baseline untouched. Count-proof: diff sorted `--lib -- --list` vs archive copy
-- Go data.json (290): ONE parse (`vectorEntry{Inputs, Outputs json.RawMessage}`, all sections);
-    per-section input parsers (`metaInputs`, `streamInputs`, …) + `expectedISCC` → `(string, error)`
-    shared by runners and `code_*_test.go` via `conformanceSection(t, name)` (sync.OnceValues). Bare
-    hex / missing `iscc` = `errUnparsable` (Rust policy). Count-proof: diff sorted
-    `go test -v | grep -- '--- PASS'` vs a `git archive HEAD` copy in /tmp
+- Conformance runners (276/290/291/293: one parse per language, shared parsers, wrong-type rule,
+    CRAP + count-proof recipes) → conformance-runners.md
 
 ## Build and Tooling
 

@@ -112,6 +112,8 @@ new() -> update(&[u8]) -> ... -> update(&[u8]) -> finalize(bits) -> IsccResult<*
 - Each `gen_*_v0` also has `#[test]` functions that run the same vectors and panic on mismatch. They
     read the inputs through the `pub(crate)` parsers in `conformance.rs`, the only file under `src`
     that parses `data.json`: a test adds its extra-field checks, never its own input decoding
+- The parsers share the Go runner's wrong-type rule (decisions.md, 2026-11-22): a wrong JSON type, a
+    fraction or an out-of-range number makes a case unparsable (`None`), never coerced or skipped
 - Streaming types (`DataHasher`/`InstanceHasher`) are tested against one-shot functions at multiple
     chunk sizes including byte-at-a-time
 - No network access in tests -- all vectors are `include_str!` from `tests/data.json`

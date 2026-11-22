@@ -395,3 +395,19 @@ public surface, so it is locked in fact; `rust-core.md` already put `codec` unde
 **Rejected:** Tier 1 (a crate-root re-export bound on every surface changes target.md's count of 35,
 which is Titusz's call); hiding it (`pub(crate)` or `#[doc(hidden)]` breaks the two bindings or
 removes a published type). **Open:** target.md still names `codec` alone (issues.md, from 288).
+
+## 2026-11-22 — A wrong-type or out-of-range vector value makes a conformance case unparsable
+
+**Decision:** in the `data.json` selftest runners (`conformance.rs`, `conformance.go`), a vector
+value of the wrong JSON type, or a number that is not an integer or is outside its argument's range,
+makes the case unparsable (Rust: the parser returns `None`; Go: `errUnparsable`). It is never
+coerced, truncated, skipped or defaulted. Allowed forms: `name`, `description`, `text`, stream,
+`bytes:` and code entries are JSON strings (`null` rejected; an empty `description` still means no
+description); `meta` is `null`, a string or an object; `bits` an integer in `u32` range; a pixel an
+integer 0..=255; `cv` and frame entries integers in `i32` range; code lists and `decode_seq` outputs
+hold only strings. Every top-level key except `_metadata` maps to an object of case objects, or the
+selftest fails. **Why:** both runners must give the same verdict on every vector, and each
+language's JSON reader coerces differently (Go reads `null` as a zero value and truncates floats;
+serde_json dropped non-string list entries). No real vector is affected. **Rejected:** coercing to
+the nearest valid value (hides a corrupt fixture). **Scope:** the two selftest runners only, not the
+data-edge harnesses. **Context:** 293.

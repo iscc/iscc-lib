@@ -37,6 +37,10 @@ pub fn conformance_selftest() -> bool {
             return false;
         }
     };
+    if let Err(e) = check_sections(&data) {
+        eprintln!("FAILED: {e}");
+        return false;
+    }
 
     let mut passed = true;
 
@@ -64,6 +68,25 @@ pub fn conformance_selftest() -> bool {
 /// Parse the embedded conformance vectors.
 pub(crate) fn test_data() -> serde_json::Result<Value> {
     serde_json::from_str(TEST_DATA)
+}
+
+/// Check that every top-level key except `_metadata` maps to an object of case objects.
+///
+/// Returns a message naming the first key that does not.
+fn check_sections(data: &Value) -> Result<(), String> {
+    let sections = data
+        .as_object()
+        .ok_or("conformance data is not an object")?;
+    let bad = sections.iter().find(|(key, section)| {
+        *key != "_metadata"
+            && !section
+                .as_object()
+                .is_some_and(|cases| cases.values().all(Value::is_object))
+    });
+    match bad {
+        Some((key, _)) => Err(format!("section {key} is not an object of cases")),
+        None => Ok(()),
+    }
 }
 
 /// Return the cases of one `data.json` section, keyed by case name.
@@ -128,22 +151,26 @@ fn inputs(tc: &Value) -> Option<&[Value]> {
 }
 
 /// Read the `bits` argument at position `index` of an inputs list.
+///
+/// Returns `None` unless the value is an integer in `u32` range.
 fn bits_at(inputs: &[Value], index: usize) -> Option<u32> {
-    inputs.get(index)?.as_u64().map(|bits| bits as u32)
+    u32::try_from(inputs.get(index)?.as_u64()?).ok()
 }
 
 /// Read a JSON array of integers as `i32` values.
+///
+/// Returns `None` if any entry is not an integer in `i32` range.
 fn i32_entries(value: &Value) -> Option<Vec<i32>> {
     value
         .as_array()?
         .iter()
-        .map(|v| v.as_i64().map(|n| n as i32))
+        .map(|v| i32::try_from(v.as_i64()?).ok())
         .collect()
 }
 
-/// Collect the string entries of a JSON array, skipping any non-string entry.
-fn string_entries(values: &[Value]) -> Vec<&str> {
-    values.iter().filter_map(Value::as_str).collect()
+/// Read a JSON array of strings; `None` if it is not an array or any entry is not a string.
+fn string_entries(value: &Value) -> Option<Vec<&str>> {
+    value.as_array()?.iter().map(Value::as_str).collect()
 }
 
 /// Decode a `"stream:<hex>"` value into bytes.
@@ -167,12 +194,14 @@ pub(crate) struct MetaInputs<'a> {
 
 /// Convert a vector's `meta` value into the `meta` argument.
 ///
-/// `null` and any value that is neither a string nor an object become `None`.
+/// `null` is no meta (`Some(None)`), a string is a data URL as given and an
+/// object is serialized. Any other JSON type is rejected (`None`).
 #[cfg(feature = "meta-code")]
-fn meta_arg(value: &Value) -> Option<String> {
+fn meta_arg(value: &Value) -> Option<Option<String>> {
     match value {
-        Value::String(s) => Some(s.clone()),
-        Value::Object(_) => serde_json::to_string(value).ok(),
+        Value::Null => Some(None),
+        Value::String(s) => Some(Some(s.clone())),
+        Value::Object(_) => serde_json::to_string(value).ok().map(Some),
         _ => None,
     }
 }
@@ -183,7 +212,7 @@ pub(crate) fn meta_inputs(tc: &Value) -> Option<MetaInputs<'_>> {
     let inputs = inputs(tc)?;
     let name = inputs.first()?.as_str()?;
     let description = inputs.get(1)?.as_str()?;
-    let meta = meta_arg(inputs.get(2)?);
+    let meta = meta_arg(inputs.get(2)?)?;
     let bits = bits_at(inputs, 3)?;
     Some(MetaInputs {
         name,
@@ -207,7 +236,7 @@ pub(crate) fn image_inputs(tc: &Value) -> Option<(Vec<u8>, u32)> {
         .first()?
         .as_array()?
         .iter()
-        .map(|v| v.as_u64().map(|n| n as u8))
+        .map(|v| u8::try_from(v.as_u64()?).ok())
         .collect::<Option<Vec<u8>>>()?;
     Some((pixels, bits_at(inputs, 1)?))
 }
@@ -233,8 +262,7 @@ pub(crate) fn video_inputs(tc: &Value) -> Option<(Vec<Vec<i32>>, u32)> {
 /// Parse the inputs `[codes, bits]` of a `gen_mixed_code_v0` case.
 pub(crate) fn mixed_inputs(tc: &Value) -> Option<(Vec<&str>, u32)> {
     let inputs = inputs(tc)?;
-    let codes = string_entries(inputs.first()?.as_array()?);
-    Some((codes, bits_at(inputs, 1)?))
+    Some((string_entries(inputs.first()?)?, bits_at(inputs, 1)?))
 }
 
 /// Parse the inputs `["stream:<hex>", bits]` of a Data-Code or Instance-Code case.
@@ -246,7 +274,7 @@ pub(crate) fn stream_inputs(tc: &Value) -> Option<(Vec<u8>, u32)> {
 
 /// Parse the inputs `[codes]` of a `gen_iscc_code_v0` case.
 pub(crate) fn iscc_inputs(tc: &Value) -> Option<Vec<&str>> {
-    Some(string_entries(inputs(tc)?.first()?.as_array()?))
+    string_entries(inputs(tc)?.first()?)
 }
 
 /// Run conformance tests for `gen_meta_code_v0`.
@@ -346,11 +374,7 @@ fn decode_bytes(s: &str) -> Option<Vec<u8>> {
 /// Both sides are compared as lower-case hex so a mismatch reads as hex.
 fn run_encode_seq_tests(data: &Value) -> bool {
     run_section(data, "encode_seq", |tc| {
-        let units_json = tc["inputs"].as_array()?.first()?.as_array()?;
-        let units: Vec<&str> = units_json
-            .iter()
-            .map(Value::as_str)
-            .collect::<Option<_>>()?;
+        let units = string_entries(tc["inputs"].as_array()?.first()?)?;
         let expected = hex::encode(decode_bytes(tc["outputs"].as_str()?)?);
         Some((encode_seq(&units).map(hex::encode), expected))
     })
@@ -484,5 +508,218 @@ mod tests {
         assert!(!run_iscc_tests(
             &serde_json::json!({"gen_iscc_code_v0": {"case": tc}})
         ));
+    }
+
+    /// Parse and run one synthetic case of `section`; return `(parsed, passed)`.
+    fn probe(section: &str, inputs: Value, iscc: &str) -> (bool, bool) {
+        let tc = serde_json::json!({"inputs": inputs, "outputs": {"iscc": iscc}});
+        let data = serde_json::json!({section: {"case": tc.clone()}});
+        match section {
+            #[cfg(feature = "meta-code")]
+            "gen_meta_code_v0" => (meta_inputs(&tc).is_some(), run_meta_tests(&data)),
+            #[cfg(feature = "text-processing")]
+            "gen_text_code_v0" => (text_inputs(&tc).is_some(), run_text_tests(&data)),
+            "gen_image_code_v0" => (image_inputs(&tc).is_some(), run_image_tests(&data)),
+            "gen_audio_code_v0" => (audio_inputs(&tc).is_some(), run_audio_tests(&data)),
+            "gen_video_code_v0" => (video_inputs(&tc).is_some(), run_video_tests(&data)),
+            "gen_mixed_code_v0" => (mixed_inputs(&tc).is_some(), run_mixed_tests(&data)),
+            "gen_data_code_v0" => (stream_inputs(&tc).is_some(), run_data_tests(&data)),
+            "gen_iscc_code_v0" => (iscc_inputs(&tc).is_some(), run_iscc_tests(&data)),
+            _ => panic!("no runner for {section}"),
+        }
+    }
+
+    /// Return 1024 pixel values, all zero except the first, which is `first`.
+    fn pixels_with(first: Value) -> Value {
+        let mut pixels = vec![Value::from(0); 1024];
+        pixels[0] = first;
+        Value::from(pixels)
+    }
+
+    /// Return one 380-entry frame signature, all zero except the first, which is `first`.
+    fn frame_with(first: Value) -> Value {
+        let mut frame = vec![Value::from(0); 380];
+        frame[0] = first;
+        Value::from(frame)
+    }
+
+    /// One synthetic case: `(section, inputs, expected iscc)`.
+    type Row = (&'static str, Value, String);
+
+    /// Assert that every `bad` row fails the parse arm alone and every `good` row passes.
+    ///
+    /// Each bad row's output is what the coerced, truncated or skipped reading
+    /// would produce, so only the parse arm can fail it.
+    fn assert_rows(bad: Vec<Row>, good: Vec<Row>) {
+        for (section, inputs, iscc) in bad {
+            let shown: String = inputs.to_string().chars().take(60).collect();
+            assert_eq!(
+                probe(section, inputs, &iscc),
+                (false, false),
+                "{section} {shown}"
+            );
+        }
+        for (section, inputs, iscc) in good {
+            let shown: String = inputs.to_string().chars().take(60).collect();
+            assert_eq!(
+                probe(section, inputs, &iscc),
+                (true, true),
+                "{section} {shown}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_wrong_type_vector_values_are_unparsable() {
+        // One bad case per call: every row must fail the parse arm alone.
+        use serde_json::json;
+        let data64 = gen_data_code_v0(&[], 64).unwrap().iscc;
+        let image = gen_image_code_v0(&[0; 1024], 64).unwrap().iscc;
+        let audio = gen_audio_code_v0(&[i32::MIN], 64).unwrap().iscc;
+        let mut frame = vec![0; 380];
+        frame[0] = i32::MIN;
+        let video = gen_video_code_v0(&[frame], 64).unwrap().iscc;
+        let audio_ok = gen_audio_code_v0(&[1, 2, 3], 64).unwrap().iscc;
+        let mixed = gen_mixed_code_v0(&[&image, &audio_ok], 64).unwrap().iscc;
+        let instance = gen_instance_code_v0(&[], 64).unwrap().iscc;
+        let iscc = gen_iscc_code_v0(&[&data64, &instance], false).unwrap().iscc;
+        let wrapped = json!(2147483648_i64);
+        let bad = vec![
+            ("gen_data_code_v0", json!(["stream:", 64.0]), data64.clone()),
+            ("gen_data_code_v0", json!(["stream:", 64.5]), data64.clone()),
+            ("gen_data_code_v0", json!(["stream:", -1]), data64.clone()),
+            (
+                "gen_data_code_v0",
+                json!(["stream:", 4294967296_u64]),
+                data64.clone(),
+            ),
+            (
+                "gen_mixed_code_v0",
+                json!([[&image, &audio_ok, 1], 64]),
+                mixed.clone(),
+            ),
+            (
+                "gen_mixed_code_v0",
+                json!([[&image, &audio_ok, null], 64]),
+                mixed.clone(),
+            ),
+            (
+                "gen_iscc_code_v0",
+                json!([[&data64, &instance, 1]]),
+                iscc.clone(),
+            ),
+            (
+                "gen_image_code_v0",
+                json!([pixels_with(json!(0.5)), 64]),
+                image.clone(),
+            ),
+            (
+                "gen_image_code_v0",
+                json!([pixels_with(json!(-256)), 64]),
+                image.clone(),
+            ),
+            (
+                "gen_image_code_v0",
+                json!([pixels_with(json!(256)), 64]),
+                image.clone(),
+            ),
+            ("gen_audio_code_v0", json!([[wrapped.clone()], 64]), audio),
+            (
+                "gen_video_code_v0",
+                json!([[frame_with(wrapped)], 64]),
+                video,
+            ),
+        ];
+        let good = vec![
+            ("gen_data_code_v0", json!(["stream:", 64]), data64.clone()),
+            ("gen_mixed_code_v0", json!([[&image, &audio_ok], 64]), mixed),
+            ("gen_iscc_code_v0", json!([[&data64, &instance]]), iscc),
+            (
+                "gen_image_code_v0",
+                json!([pixels_with(json!(0)), 64]),
+                image,
+            ),
+            ("gen_audio_code_v0", json!([[1, 2, 3], 64]), audio_ok),
+        ];
+        assert_rows(bad, good);
+    }
+
+    #[cfg(feature = "meta-code")]
+    #[test]
+    fn test_wrong_type_meta_values_are_unparsable() {
+        // A null name or description and a number or array meta fail the parse arm.
+        use serde_json::json;
+        let meta = gen_meta_code_v0("Name", None, None, 64).unwrap().iscc;
+        let with_meta = gen_meta_code_v0("Name", None, Some(r#"{"a":1}"#), 64);
+        let bad = vec![
+            (
+                "gen_meta_code_v0",
+                json!(["Name", null, null, 64]),
+                meta.clone(),
+            ),
+            (
+                "gen_meta_code_v0",
+                json!([null, "", null, 64]),
+                meta.clone(),
+            ),
+            ("gen_meta_code_v0", json!(["Name", "", 5, 64]), meta.clone()),
+            (
+                "gen_meta_code_v0",
+                json!(["Name", "", [], 64]),
+                meta.clone(),
+            ),
+        ];
+        let good = vec![
+            ("gen_meta_code_v0", json!(["Name", "", null, 64]), meta),
+            (
+                "gen_meta_code_v0",
+                json!(["Name", "", {"a": 1}, 64]),
+                with_meta.unwrap().iscc,
+            ),
+        ];
+        assert_rows(bad, good);
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_wrong_type_text_value_is_unparsable() {
+        // A null text fails the parse arm; an empty text parses.
+        use serde_json::json;
+        let text = gen_text_code_v0("", 64).unwrap().iscc;
+        let bad = vec![("gen_text_code_v0", json!([null, 64]), text.clone())];
+        let good = vec![("gen_text_code_v0", json!(["", 64]), text)];
+        assert_rows(bad, good);
+    }
+
+    #[test]
+    fn test_seq_wrong_type_values_are_unparsable() {
+        // A non-string unit fails encode_seq; a null output unit fails decode_seq.
+        let encode = serde_json::json!({"inputs": [["ISCC:GAAAAAAAAA", null]],
+            "outputs": "bytes:300000000000"});
+        assert!(!run_encode_seq_tests(
+            &serde_json::json!({"encode_seq": {"case": encode}})
+        ));
+        let decode = serde_json::json!({"inputs": ["bytes:300000000000"],
+            "outputs": ["ISCC:GAAAAAAAAA", null]});
+        assert!(!run_decode_seq_tests(
+            &serde_json::json!({"decode_seq": {"case": decode}})
+        ));
+    }
+
+    #[test]
+    fn test_check_sections() {
+        // Every key but `_metadata` must map to an object of case objects.
+        assert_eq!(check_sections(&test_data().unwrap()), Ok(()));
+        let ok = serde_json::json!({"_metadata": 5, "encode_seq": {"case": {}}});
+        assert_eq!(check_sections(&ok), Ok(()));
+        let bad = [
+            serde_json::json!({"gen_data_code_v0": 5}),
+            serde_json::json!({"gen_data_code_v0": null}),
+            serde_json::json!({"gen_data_code_v0": {"case": 5}}),
+            serde_json::json!([]),
+        ];
+        for data in bad {
+            assert!(check_sections(&data).is_err(), "{data}");
+        }
     }
 }

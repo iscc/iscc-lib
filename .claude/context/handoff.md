@@ -1,64 +1,64 @@
-## 2026-11-22 — Review of: Every WASM snippet initializes the module; WASM agent guidance names only the `--target web` build
+## 2026-11-22 — Both conformance runners reject a wrong-type or out-of-range vector value as unparsable
 
-**Verdict:** PASS
+**Done:** One rule for both `data.json` selftest runners: a wrong JSON type (incl. `null` outside
+`meta`), a fraction or an out-of-range number makes the case unparsable — Rust parsers return
+`None`, Go returns `errUnparsable`; nothing is coerced, truncated or skipped. Top-level keys other
+than `_metadata` must map to an object of case objects on both sides (Rust: new `check_sections`,
+called by `conformance_selftest`). The rule is in decisions.md and pinned by the same table on both
+sides.
 
-**Summary:** All eight `@iscc/wasm` snippets on the README, the docs home page and the
-getting-started tutorial now call `await init();` under a comment that sends Node.js readers to the
-how-to. `crates/iscc-wasm/CLAUDE.md` and `specs/wasm-bindings.md` name only the published
-`--target web` build, and the release command they quote matches `release.yml` (the `run` line and
-its `RUSTFLAGS` env). `tests/test_wasm_docs.py` guards both rules. The diff touches five doc and
-guidance files and one test, no code, and nothing listed under Not In Scope.
+**Files changed:**
+
+- `crates/iscc-lib/src/conformance.rs`: `bits_at`/`i32_entries`/pixel parse use
+    `u32/i32/u8::try_from`; `string_entries(&Value) -> Option<Vec<&str>>` (strict, also reused by
+    `encode_seq`); `meta_arg` returns `Option<Option<String>>` (null → `Some(None)`,
+    number/bool/array → `None`); `check_sections`; tests
+    `test_wrong_type_vector_values_are_unparsable`, `…_meta_…` (meta-code), `…_text_…`
+    (text-processing), `test_seq_wrong_type_values_are_unparsable`, `test_check_sections`
+- `packages/go/conformance.go`: `parseSection` + `isJSONObject` (null section/case rejected);
+    `containsNull` (token scan) — `unmarshalInputs` rejects a null at any depth, except a
+    `*json.RawMessage` target (meta slot) which is handed through; `metaArg` rejects anything but
+    null/string/object; `bits` → `uint32`, cv/frames → `int32`/`[][]int32` directly, pixels →
+    `[]int` + 0..=255 check; `decode_seq` outputs reject null entries
+- `packages/go/conformance_test.go`: `TestWrongTypeVectorValuesAreUnparsable` (17 bad + 8 good
+    rows), `TestSeqWrongTypeValuesAreUnparsable`, `TestParseConformanceDataRejectsNonCaseSections`
+- `.crap-baseline.json`: regenerated (`mise run crap:baseline`) after `mise run check`
+- `.claude/context/decisions.md`: `## 2026-11-22 — A wrong-type or out-of-range vector value …`
+- `crates/iscc-lib/CLAUDE.md`, `packages/go/CLAUDE.md`: one bullet each naming the shared rule
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_wasm_docs.py` passes, including the new snippet, guidance and
-    negative tests — 17 passed
-- [x] `grep -nE -- '--target (nodejs|bundler)' crates/iscc-wasm/CLAUDE.md .claude/context/specs/wasm-bindings.md`
-    prints nothing — exit 1, no output
-- [x] `uv run zensical build` exits 0 — "No issues found"
-- [x] `uv run pytest tests/test_check_spec_paths.py tests/test_check_tier1_docs.py` pass — 58 passed
-- [x] `mise run check` exits 0 — every hook passed on the first run
+- `cargo test -p iscc-lib`: 456 passed; `--no-default-features`: 388 passed;
+    `--no-default-features --features text-processing`: all result lines `ok` (291 lib tests)
+- `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; also
+    `--tests --no-default-features`
+- `packages/go`: `CGO_ENABLED=0 go test -count=1 ./...` ok, `GOARCH=386 … go test` ok, `go vet`
+    (amd64 + 386) clean, `gofmt -l .` empty
+- Both grep criteria (` as (u8|u32|i32)\b`, `filter_map`) print nothing
+- CRAP gate against the OLD baseline: `↑ 2 regressed` — `conformance_selftest` 3.0→4.1 (the
+    `check_sections` branch) and `string_entries` 1.0→2.0 (the `?`), all ≤ 9.0. After regenerating:
+    `cargo crap … --fail-regression --fail-above` exit 0, `0 regressed · 181 unchanged`. The
+    baseline diff is large (+240/−112) because the regen also records the 17 functions that
+    iteration 291 left as "new" and the moved line numbers
+- `uv run pytest tests/test_vendored_fixtures.py`: 10 passed (no fixture changed)
+- `mise run check`: exit 0 (first run, mdformat reflowed decisions.md; second run clean)
+- Teeth proof (throwaway `git worktree` at HEAD with the new tests copied in, removed afterwards):
+    old Go fails every bad row of the table plus both seq rows and the null section/case rows; old
+    Rust fails the meta table (`meta 5` read as no meta → `(true, true)`) and the core table
+    (`(true, false)`, mixed entry skipped). `git worktree list` shows only the checkout
 
-Probes beyond the list:
-
-- The new rule helpers, run over the pages as they were before the step, report 5 snippets without
-    init and 3 unlabelled bare `init()` calls, and both unpublished targets in each guidance file.
-    On the current pages they report nothing
-- A repo-wide `git grep` finds `--target nodejs|bundler` only in `notes/`, agent memory, archives,
-    the test's own ban list and one issue that reports an old measurement. Every `from "@iscc/wasm"`
-    import in the repository sits on a page a test now covers
-- `ty` and ruff `S`/`C901` pass on the edited test file
-
-**Issues found:**
-
-- The snippet rule saw only fences tagged `javascript`: a future tab tagged `js` or `typescript`
-    would have escaped it. Fixed in this review: the page test now requires that every `@iscc/wasm`
-    import on a snippet page sits inside a checked block. Proven on a `git archive` copy with one
-    tutorial fence retagged `js` (the test fails with "imports @iscc/wasm outside a javascript
-    block")
-- Nits, not filed: an `init(` inside a comment satisfies the rule, and the rule does not check that
-    `init()` comes before the first call
-- The issue "WASM init and build-target guidance is wrong outside the two pages a test guards" is
-    resolved and deleted
-
-**Codex review:** No actionable findings. Codex confirmed that the init examples and the build
-guidance match the WASM wrapper and the release workflow.
-
-**Next:** Five `normal` issues remain. Suggested order:
-
-1. The Rust and Go conformance runners disagree on malformed vectors (one wrong-type rule for
-    `conformance.rs` and `conformance.go`). It needs a decisions.md entry and the CRAP baseline in
-    the same step if a covered function gains a branch
-2. `version:check` passes a stale second doc snippet and skips a vanished target (one script plus
-    tests). It is the smallest of the five and guards the release
-
-The other three (`alg_minhash_256([])`, Go `EncodeComponent` short digest, WASM hasher `finalize`)
-each start with a behaviour decision and, for the first two, a `data-edge.json` fan-out.
+**Next:** `version:check` passes a stale second doc snippet and skips a vanished target (the
+handoff's second item; one script plus tests).
 
 **Notes:**
 
-- The spec edit is a realignment of checkable facts (the build command list and the published
-    target), covered by the decision of 2026-11-20. No new decision was needed
-- `docs/howto/wasm.md` per-function snippets still omit `init()` under the page's "Setup" section.
-    next.md accepted that form, and they are outside `SNIPPET_PAGES`
-- learnings.md is at its 200-line budget: a new bullet needs an equal cut in the same commit
+- Beyond next.md's table I also reject `null` *inside* lists in Go (code-list entry, pixel, cv,
+    frame, decode_seq unit) via `containsNull`: Go decodes such a null as `""`/`0`, while Rust's
+    `as_str`/`as_i64` already refuse it, so without it the runners would still disagree. A `null`
+    inside a `meta` object stays allowed on both sides (the meta slot is exempt)
+- Go's case-insensitive struct-tag match (`"Inputs"`) is untouched, as scoped
+- The Go `null`-section/`null`-case gap was found while implementing: `json.Unmarshal(null, &map)`
+    left a nil map, so `{"gen_data_code_v0": null}` used to parse as an empty, passing section. Now
+    an error, pinned by the test
+- The issue "The Rust and Go conformance runners disagree on malformed vectors" should be resolved
+    by the review (every row pinned on both sides); I did not edit issues.md

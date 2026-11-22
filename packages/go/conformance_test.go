@@ -5,6 +5,8 @@ package iscc
 import (
 	"encoding/json"
 	"errors"
+	"math"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -252,6 +254,157 @@ func TestGenRunnerRejectsMalformedVectorsAsUnparsable(t *testing.T) {
 		tc := genCase(c[0], c[1])["gen_data_code_v0"]["case"]
 		if _, _, err := runDataCase(tc); !errors.Is(err, errUnparsable) {
 			t.Errorf("%s: got error %v, want errUnparsable", name, err)
+		}
+	}
+}
+
+// probeCase builds one gen_* case from raw JSON inputs and an expected iscc.
+func probeCase(t *testing.T, inputs, iscc string) vectorEntry {
+	t.Helper()
+	outputs, _ := json.Marshal(map[string]string{"iscc": iscc})
+	var tc vectorEntry
+	if err := json.Unmarshal([]byte(`{"inputs": `+inputs+`, "outputs": `+string(outputs)+`}`), &tc); err != nil {
+		t.Fatalf("bad probe inputs %s: %v", inputs, err)
+	}
+	return tc
+}
+
+// mustISCC returns the iscc of a gen result, failing the test on an error.
+func mustISCC(t *testing.T, iscc string, err error) string {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return iscc
+}
+
+// listWith renders a JSON list of n zeros whose first entry is first.
+func listWith(first string, n int) string {
+	return "[" + first + strings.Repeat(",0", n-1) + "]"
+}
+
+// wrongTypeRow is one synthetic gen_* case for the wrong-type table.
+type wrongTypeRow struct {
+	section, inputs, iscc string
+}
+
+// wrongTypeRows returns the wrong-type table and its positive mirrors. Each
+// bad row's output is what the coerced, truncated or skipped reading would
+// produce, so only the parse arm can fail it.
+func wrongTypeRows(t *testing.T) (bad, good []wrongTypeRow) {
+	r1, err := GenDataCodeV0([]byte{}, 64)
+	data64 := mustISCC(t, r1.Iscc, err)
+	r2, err := GenImageCodeV0(make([]byte, 1024), 64)
+	image := mustISCC(t, r2.Iscc, err)
+	r3, err := GenAudioCodeV0([]int32{math.MinInt32}, 64)
+	audio := mustISCC(t, r3.Iscc, err)
+	frame := make([]int32, 380)
+	frame[0] = math.MinInt32
+	r4, err := GenVideoCodeV0([][]int32{frame}, 64)
+	video := mustISCC(t, r4.Iscc, err)
+	r5, err := GenAudioCodeV0([]int32{1, 2, 3}, 64)
+	audioOK := mustISCC(t, r5.Iscc, err)
+	r6, err := GenMixedCodeV0([]string{image, audioOK}, 64)
+	mixed := mustISCC(t, r6.Iscc, err)
+	r7, err := GenInstanceCodeV0([]byte{}, 64)
+	instance := mustISCC(t, r7.Iscc, err)
+	r8, err := GenIsccCodeV0([]string{data64, instance}, false)
+	iscc := mustISCC(t, r8.Iscc, err)
+	r9, err := GenMetaCodeV0("Name", nil, nil, 64)
+	meta := mustISCC(t, r9.Iscc, err)
+	metaObj := `{"a":1}`
+	r10, err := GenMetaCodeV0("Name", nil, &metaObj, 64)
+	withMeta := mustISCC(t, r10.Iscc, err)
+	r11, err := GenTextCodeV0("", 64)
+	text := mustISCC(t, r11.Iscc, err)
+
+	codes := `"` + image + `", "` + audioOK + `"`
+	pair := `"` + data64 + `", "` + instance + `"`
+	bad = []wrongTypeRow{
+		{"gen_data_code_v0", `["stream:", 64.0]`, data64},
+		{"gen_data_code_v0", `["stream:", 64.5]`, data64},
+		{"gen_data_code_v0", `["stream:", -1]`, data64},
+		{"gen_data_code_v0", `["stream:", 4294967296]`, data64},
+		{"gen_mixed_code_v0", `[[` + codes + `, 1], 64]`, mixed},
+		{"gen_mixed_code_v0", `[[` + codes + `, null], 64]`, mixed},
+		{"gen_iscc_code_v0", `[[` + pair + `, 1]]`, iscc},
+		{"gen_image_code_v0", `[` + listWith("0.5", 1024) + `, 64]`, image},
+		{"gen_image_code_v0", `[` + listWith("-256", 1024) + `, 64]`, image},
+		{"gen_image_code_v0", `[` + listWith("256", 1024) + `, 64]`, image},
+		{"gen_audio_code_v0", `[[2147483648], 64]`, audio},
+		{"gen_video_code_v0", `[[` + listWith("2147483648", 380) + `], 64]`, video},
+		{"gen_meta_code_v0", `["Name", null, null, 64]`, meta},
+		{"gen_meta_code_v0", `[null, "", null, 64]`, meta},
+		{"gen_meta_code_v0", `["Name", "", 5, 64]`, meta},
+		{"gen_meta_code_v0", `["Name", "", [], 64]`, meta},
+		{"gen_text_code_v0", `[null, 64]`, text},
+	}
+	good = []wrongTypeRow{
+		{"gen_data_code_v0", `["stream:", 64]`, data64},
+		{"gen_mixed_code_v0", `[[` + codes + `], 64]`, mixed},
+		{"gen_iscc_code_v0", `[[` + pair + `]]`, iscc},
+		{"gen_image_code_v0", `[` + listWith("0", 1024) + `, 64]`, image},
+		{"gen_audio_code_v0", `[[1, 2, 3], 64]`, audioOK},
+		{"gen_meta_code_v0", `["Name", "", null, 64]`, meta},
+		{"gen_meta_code_v0", `["Name", "", {"a": 1}, 64]`, withMeta},
+		{"gen_text_code_v0", `["", 64]`, text},
+	}
+	return bad, good
+}
+
+func TestWrongTypeVectorValuesAreUnparsable(t *testing.T) {
+	// One bad case per call: every row must fail the parse arm alone.
+	runners := map[string]func(vectorEntry) (string, string, error){
+		"gen_meta_code_v0":  runMetaCase,
+		"gen_text_code_v0":  runTextCase,
+		"gen_image_code_v0": runImageCase,
+		"gen_audio_code_v0": runAudioCase,
+		"gen_video_code_v0": runVideoCase,
+		"gen_mixed_code_v0": runMixedCase,
+		"gen_data_code_v0":  runDataCase,
+		"gen_iscc_code_v0":  runIsccCase,
+	}
+	bad, good := wrongTypeRows(t)
+	for _, row := range bad {
+		if _, _, err := runners[row.section](probeCase(t, row.inputs, row.iscc)); !errors.Is(err, errUnparsable) {
+			t.Errorf("%s %.60s: got error %v, want errUnparsable", row.section, row.inputs, err)
+		}
+	}
+	for _, row := range good {
+		got, want, err := runners[row.section](probeCase(t, row.inputs, row.iscc))
+		if err != nil || got != want {
+			t.Errorf("%s %.60s: got (%s, %v), want %s", row.section, row.inputs, got, err, want)
+		}
+	}
+}
+
+func TestSeqWrongTypeValuesAreUnparsable(t *testing.T) {
+	// A null unit fails encode_seq; a null output unit fails decode_seq.
+	encode := seqCase("encode_seq", `[["ISCC:GAAAAAAAAA", null]]`, `"bytes:300000000000"`)
+	if _, _, err := runEncodeSeqCase(encode["encode_seq"]["case"]); !errors.Is(err, errUnparsable) {
+		t.Errorf("encode_seq null unit: got error %v, want errUnparsable", err)
+	}
+	decode := seqCase("decode_seq", `["bytes:300000000000"]`, `["ISCC:GAAAAAAAAA", null]`)
+	if _, _, err := runDecodeSeqCase(decode["decode_seq"]["case"]); !errors.Is(err, errUnparsable) {
+		t.Errorf("decode_seq null output unit: got error %v, want errUnparsable", err)
+	}
+}
+
+func TestParseConformanceDataRejectsNonCaseSections(t *testing.T) {
+	// Every key but "_metadata" must map to an object of case objects.
+	ok := `{"_metadata": 5, "encode_seq": {"case": {}}}`
+	if _, err := parseConformanceData([]byte(ok)); err != nil {
+		t.Errorf("%s: unexpected error %v", ok, err)
+	}
+	for _, raw := range []string{
+		`{"gen_data_code_v0": 5}`,
+		`{"gen_data_code_v0": null}`,
+		`{"gen_data_code_v0": {"case": 5}}`,
+		`{"gen_data_code_v0": {"case": null}}`,
+		`[]`,
+	} {
+		if _, err := parseConformanceData([]byte(raw)); err == nil {
+			t.Errorf("%s: parsed without error", raw)
 		}
 	}
 }
