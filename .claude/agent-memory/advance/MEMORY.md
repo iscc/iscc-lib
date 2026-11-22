@@ -129,6 +129,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     symbols). New API symbol → update every FULL doc + both `tier1:begin` blocks in the same step.
     Fail-closed lib.rs parse (242): `scan_lib` classifies each column-0 `pub` by offset; a new
     non-derived crate-root item needs an `EXCLUDED_ITEMS` entry (named, never kind-wide)
+- Docs-claim tests (286): a banned-phrase literal in a test matches next.md's repo-wide `git grep`
+    criterion — split it (`"a " + "b"`) with a comment. Prove with the HEAD doc
 - Per-crate `CLAUDE.md` files carry no file trees/tables (246): a rule goes in prose against a file
     name. Line-range edits via an anchored `/tmp` Python script; mdformat reflows inserted lines
 - Spec drift sweeps (259): mdformat also reformats \`\`\`js blocks; release-trigger truth =
