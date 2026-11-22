@@ -34,10 +34,10 @@ not objects). Then the Tier-1 33→35 doc/count sweep (like IDv1 iter 190).
     MainType) — canonical ISCC-CODE for the MainType arm: `ISCC:KUAALNA7GRZESMRFUURK6SRMTS7WU`
 - **Go DONE (iter 202)**: `EncodeSeq`/`DecodeSeq` in `codec.go` (pure Go, own port); unexported
     `readUnit`/`seqMainTypes` on raw helpers `encodeHeaderRaw`/`decodeHeaderRaw` (u32, returns
-    `tailStart`); typed `encodeHeader`/`decodeHeader` wrap them. Selftest: separate
-    `parseSeqConformanceData` + `runEncodeSeqTests`/`runDecodeSeqTests` (`seqVector` raw outputs).
-    Tests `seq_test.go`. GOTCHA: `testing.AllocsPerRun` on an inlinable fn with `_ =` result can
-    elide the copy → false 0; assign to a package-level sink var
+    `tailStart`); typed `encodeHeader`/`decodeHeader` wrap them. Selftest: one
+    `parseConformanceData` (all sections, raw outputs) + `runEncodeSeqCase`/`runDecodeSeqCase`
+    (290). Tests `seq_test.go`. GOTCHA: `testing.AllocsPerRun` on an inlinable fn with `_ =` result
+    can elide the copy → false 0; assign to a package-level sink var
 - **napi + WASM DONE (iter 204)**: napi `encode_seq(Vec<String>) -> Buffer`
     (`Buffer::from(Vec<u8>)`), `decode_seq(Buffer)`; wasm `encode_seq(JsValue)` via
     `serde_wasm_bindgen::from_value` (JS string → `TypeError: Reflect.get…`; napi →

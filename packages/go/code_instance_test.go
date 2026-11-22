@@ -2,75 +2,43 @@
 package iscc
 
 import (
-	"encoding/hex"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 )
 
 func TestPureGoGenInstanceCodeV0(t *testing.T) {
-	data, err := os.ReadFile("../../crates/iscc-lib/tests/data.json")
-	if err != nil {
-		t.Fatalf("read data.json: %v", err)
-	}
-
-	allVectors, err := parseConformanceData(data)
-	if err != nil {
-		t.Fatalf("parse data.json: %v", err)
-	}
-
-	vectors, ok := allVectors["gen_instance_code_v0"]
-	if !ok {
-		t.Fatal("gen_instance_code_v0 section not found in data.json")
-	}
-
-	for name, vec := range vectors {
+	for name, vec := range conformanceSection(t, "gen_instance_code_v0") {
 		t.Run(name, func(t *testing.T) {
-			// Parse inputs: [stream_hex, bits]
-			var streamStr string
-			if err := json.Unmarshal(vec.Inputs[0], &streamStr); err != nil {
-				t.Fatalf("parse stream input: %v", err)
+			inputBytes, bits, err := streamInputs(vec)
+			if err != nil {
+				t.Fatalf("parse inputs: %v", err)
+			}
+			wantISCC, err := expectedISCC(vec)
+			if err != nil {
+				t.Fatalf("parse iscc output: %v", err)
+			}
+			var want struct {
+				Datahash string `json:"datahash"`
+				Filesize uint64 `json:"filesize"`
+			}
+			if err := json.Unmarshal(vec.Outputs, &want); err != nil {
+				t.Fatalf("parse outputs: %v", err)
 			}
 
-			// Decode "stream:<hex>" format
-			hexData := strings.TrimPrefix(streamStr, "stream:")
-			var inputBytes []byte
-			if hexData != "" {
-				inputBytes, err = hex.DecodeString(hexData)
-				if err != nil {
-					t.Fatalf("decode hex: %v", err)
-				}
-			} else {
-				inputBytes = []byte{}
-			}
-
-			var bits float64
-			if err := json.Unmarshal(vec.Inputs[1], &bits); err != nil {
-				t.Fatalf("parse bits input: %v", err)
-			}
-
-			result, err := GenInstanceCodeV0(inputBytes, uint32(bits))
+			result, err := GenInstanceCodeV0(inputBytes, bits)
 			if err != nil {
 				t.Fatalf("GenInstanceCodeV0: %v", err)
 			}
 
-			// Verify ISCC code
-			wantISCC, _ := vec.Outputs["iscc"].(string)
 			if result.Iscc != wantISCC {
 				t.Errorf("iscc: got %q, want %q", result.Iscc, wantISCC)
 			}
-
-			// Verify datahash
-			wantDatahash, _ := vec.Outputs["datahash"].(string)
-			if result.Datahash != wantDatahash {
-				t.Errorf("datahash: got %q, want %q", result.Datahash, wantDatahash)
+			if result.Datahash != want.Datahash {
+				t.Errorf("datahash: got %q, want %q", result.Datahash, want.Datahash)
 			}
-
-			// Verify filesize
-			wantFilesize, _ := vec.Outputs["filesize"].(float64)
-			if result.Filesize != uint64(wantFilesize) {
-				t.Errorf("filesize: got %d, want %d", result.Filesize, uint64(wantFilesize))
+			if result.Filesize != want.Filesize {
+				t.Errorf("filesize: got %d, want %d", result.Filesize, want.Filesize)
 			}
 		})
 	}

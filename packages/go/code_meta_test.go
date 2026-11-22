@@ -4,108 +4,51 @@ package iscc
 import (
 	"encoding/hex"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 )
 
 func TestPureGoGenMetaCodeV0(t *testing.T) {
-	data, err := os.ReadFile("../../crates/iscc-lib/tests/data.json")
-	if err != nil {
-		t.Fatalf("read data.json: %v", err)
-	}
-
-	allVectors, err := parseConformanceData(data)
-	if err != nil {
-		t.Fatalf("parse data.json: %v", err)
-	}
-
-	vectors, ok := allVectors["gen_meta_code_v0"]
-	if !ok {
-		t.Fatal("gen_meta_code_v0 section not found in data.json")
-	}
-
-	for name, vec := range vectors {
+	for name, vec := range conformanceSection(t, "gen_meta_code_v0") {
 		t.Run(name, func(t *testing.T) {
-			// Parse inputs: [name, description, meta, bits]
-			var inputName string
-			if err := json.Unmarshal(vec.Inputs[0], &inputName); err != nil {
-				t.Fatalf("parse name: %v", err)
+			in, err := metaInputs(vec)
+			if err != nil {
+				t.Fatalf("parse inputs: %v", err)
+			}
+			wantISCC, err := expectedISCC(vec)
+			if err != nil {
+				t.Fatalf("parse iscc output: %v", err)
+			}
+			var want struct {
+				Name        *string `json:"name"`
+				Description *string `json:"description"`
+				Meta        *string `json:"meta"`
+				Metahash    *string `json:"metahash"`
+			}
+			if err := json.Unmarshal(vec.Outputs, &want); err != nil {
+				t.Fatalf("parse outputs: %v", err)
 			}
 
-			// Description can be string or null
-			var desc *string
-			var descStr string
-			if string(vec.Inputs[1]) != "null" {
-				if err := json.Unmarshal(vec.Inputs[1], &descStr); err != nil {
-					t.Fatalf("parse description: %v", err)
-				}
-				if descStr != "" {
-					desc = &descStr
-				}
-			}
-
-			// Meta can be null, string (data-URL), or JSON object
-			var meta *string
-			rawMeta := string(vec.Inputs[2])
-			if rawMeta != "null" {
-				// Check if it's a string (starts with quote) or a JSON object
-				if rawMeta[0] == '"' {
-					var metaStr string
-					if err := json.Unmarshal(vec.Inputs[2], &metaStr); err != nil {
-						t.Fatalf("parse meta string: %v", err)
-					}
-					meta = &metaStr
-				} else {
-					// JSON object — marshal to string for our API
-					metaStr := string(vec.Inputs[2])
-					meta = &metaStr
-				}
-			}
-
-			var bits float64
-			if err := json.Unmarshal(vec.Inputs[3], &bits); err != nil {
-				t.Fatalf("parse bits: %v", err)
-			}
-
-			result, err := GenMetaCodeV0(inputName, desc, meta, uint32(bits))
+			result, err := GenMetaCodeV0(in.name, in.desc, in.meta, in.bits)
 			if err != nil {
 				t.Fatalf("GenMetaCodeV0: %v", err)
 			}
 
-			// Verify ISCC code
-			if wantISCC, ok := vec.Outputs["iscc"].(string); ok {
-				if result.Iscc != wantISCC {
-					t.Errorf("iscc: got %q, want %q", result.Iscc, wantISCC)
-				}
+			if result.Iscc != wantISCC {
+				t.Errorf("iscc: got %q, want %q", result.Iscc, wantISCC)
 			}
-
-			// Verify name
-			if wantName, ok := vec.Outputs["name"].(string); ok {
-				if result.Name != wantName {
-					t.Errorf("name: got %q, want %q", result.Name, wantName)
-				}
+			// name, description, meta and metahash are checked when present
+			if want.Name != nil && result.Name != *want.Name {
+				t.Errorf("name: got %q, want %q", result.Name, *want.Name)
 			}
-
-			// Verify description (may be absent in outputs)
-			if wantDesc, ok := vec.Outputs["description"].(string); ok {
-				if result.Description != wantDesc {
-					t.Errorf("description: got %q, want %q", result.Description, wantDesc)
-				}
+			if want.Description != nil && result.Description != *want.Description {
+				t.Errorf("description: got %q, want %q", result.Description, *want.Description)
 			}
-
-			// Verify meta (may be absent in outputs)
-			if wantMeta, ok := vec.Outputs["meta"].(string); ok {
-				if result.Meta != wantMeta {
-					t.Errorf("meta: got %q, want %q", result.Meta, wantMeta)
-				}
+			if want.Meta != nil && result.Meta != *want.Meta {
+				t.Errorf("meta: got %q, want %q", result.Meta, *want.Meta)
 			}
-
-			// Verify metahash
-			if wantHash, ok := vec.Outputs["metahash"].(string); ok {
-				if result.Metahash != wantHash {
-					t.Errorf("metahash: got %q, want %q", result.Metahash, wantHash)
-				}
+			if want.Metahash != nil && result.Metahash != *want.Metahash {
+				t.Errorf("metahash: got %q, want %q", result.Metahash, *want.Metahash)
 			}
 		})
 	}

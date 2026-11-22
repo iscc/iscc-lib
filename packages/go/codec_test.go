@@ -3,8 +3,6 @@ package iscc
 
 import (
 	"encoding/base64"
-	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 )
@@ -1102,38 +1100,18 @@ func TestCodecDecomposeTruncatedBody(t *testing.T) {
 // ---- IsccDecompose conformance tests using data.json ----
 
 func TestCodecDecomposeConformanceVectors(t *testing.T) {
-	dataJSON, err := os.ReadFile("../../crates/iscc-lib/tests/data.json")
-	if err != nil {
-		t.Skipf("data.json not found: %v", err)
-	}
-
-	var data map[string]json.RawMessage
-	if err := json.Unmarshal(dataJSON, &data); err != nil {
-		t.Fatal(err)
-	}
-
-	// Parse gen_iscc_code_v0 section
-	var isccSection map[string]struct {
-		Inputs  []json.RawMessage `json:"inputs"`
-		Outputs struct {
-			ISCC string `json:"iscc"`
-		} `json:"outputs"`
-	}
-	if err := json.Unmarshal(data["gen_iscc_code_v0"], &isccSection); err != nil {
-		t.Fatal(err)
-	}
-
-	for name, tc := range isccSection {
+	for name, tc := range conformanceSection(t, "gen_iscc_code_v0") {
 		t.Run(name, func(t *testing.T) {
-			isccCode := strings.TrimPrefix(tc.Outputs.ISCC, "ISCC:")
-
-			// Count input codes
-			var inputCodes []string
-			if err := json.Unmarshal(tc.Inputs[0], &inputCodes); err != nil {
-				t.Fatal(err)
+			inputCodes, err := isccInputs(tc)
+			if err != nil {
+				t.Fatalf("parse inputs: %v", err)
+			}
+			iscc, err := expectedISCC(tc)
+			if err != nil {
+				t.Fatalf("parse iscc output: %v", err)
 			}
 
-			decomposed, err := IsccDecompose(isccCode)
+			decomposed, err := IsccDecompose(strings.TrimPrefix(iscc, "ISCC:"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1171,33 +1149,25 @@ func TestCodecDecomposeConformanceVectors(t *testing.T) {
 
 // ---- IsccDecode conformance: decode all gen_meta_code_v0 and gen_data_code_v0 vectors ----
 
-func TestCodecIsccDecodeConformanceVectors(t *testing.T) {
-	dataJSON, err := os.ReadFile("../../crates/iscc-lib/tests/data.json")
+// decodeExpectedISCC decodes the expected "iscc" output of a gen_* case.
+func decodeExpectedISCC(t *testing.T, tc vectorEntry) *DecodeResult {
+	t.Helper()
+	iscc, err := expectedISCC(tc)
 	if err != nil {
-		t.Skipf("data.json not found: %v", err)
+		t.Fatalf("parse iscc output: %v", err)
 	}
-
-	var data map[string]json.RawMessage
-	if err := json.Unmarshal(dataJSON, &data); err != nil {
+	result, err := IsccDecode(iscc)
+	if err != nil {
 		t.Fatal(err)
 	}
+	return result
+}
 
-	// Test Meta-Code vectors
+func TestCodecIsccDecodeConformanceVectors(t *testing.T) {
 	t.Run("gen_meta_code_v0", func(t *testing.T) {
-		var section map[string]struct {
-			Outputs struct {
-				ISCC string `json:"iscc"`
-			} `json:"outputs"`
-		}
-		if err := json.Unmarshal(data["gen_meta_code_v0"], &section); err != nil {
-			t.Fatal(err)
-		}
-		for name, tc := range section {
+		for name, tc := range conformanceSection(t, "gen_meta_code_v0") {
 			t.Run(name, func(t *testing.T) {
-				result, err := IsccDecode(tc.Outputs.ISCC)
-				if err != nil {
-					t.Fatal(err)
-				}
+				result := decodeExpectedISCC(t, tc)
 				if result.Maintype != uint8(MTMeta) {
 					t.Errorf("maintype: got %d, want %d", result.Maintype, MTMeta)
 				}
@@ -1208,22 +1178,10 @@ func TestCodecIsccDecodeConformanceVectors(t *testing.T) {
 		}
 	})
 
-	// Test Data-Code vectors
 	t.Run("gen_data_code_v0", func(t *testing.T) {
-		var section map[string]struct {
-			Outputs struct {
-				ISCC string `json:"iscc"`
-			} `json:"outputs"`
-		}
-		if err := json.Unmarshal(data["gen_data_code_v0"], &section); err != nil {
-			t.Fatal(err)
-		}
-		for name, tc := range section {
+		for name, tc := range conformanceSection(t, "gen_data_code_v0") {
 			t.Run(name, func(t *testing.T) {
-				result, err := IsccDecode(tc.Outputs.ISCC)
-				if err != nil {
-					t.Fatal(err)
-				}
+				result := decodeExpectedISCC(t, tc)
 				if result.Maintype != uint8(MTData) {
 					t.Errorf("maintype: got %d, want %d", result.Maintype, MTData)
 				}

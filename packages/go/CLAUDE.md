@@ -101,11 +101,13 @@ CI confirms the package has no cgo dependencies.
     (`specs/edge-vectors.md`; only this test reads the file, it is never embedded), honours
     `except.go`, and fails on an unknown section. A vector added to a handled section needs no
     harness edit
-- **`code_*_test.go`** — per-function conformance tests that read
-    `../../crates/iscc-lib/tests/data.json` and verify every output field (iscc, name, description,
-    meta, metahash, datahash, filesize, etc.)
-- Conformance tests that read from `../../crates/iscc-lib/tests/data.json` use `t.Skipf` or
-    `t.Fatalf` if the file is missing (the embedded copy in `testdata/data.json` always works)
+- **`code_*_test.go`** — per-function conformance tests over the embedded `testdata/data.json`
+    (`conformanceSection` in `conformance_test.go`, parsed once per test binary). They read inputs
+    through the runner's parsers (`metaInputs`, `streamInputs`, …) and `expectedISCC`, then verify
+    the extra output fields (name, description, meta, metahash, datahash, filesize, parts, etc.)
+- `conformance.go` parses `data.json` once (`parseConformanceData`, one `vectorEntry` type with raw
+    outputs) and follows the Rust runner's malformed-vector policy: a stream input without the
+    `stream:` prefix and a gen case without a string `iscc` output are unparsable, not a mismatch
 
 ### Unit tests
 
@@ -162,10 +164,10 @@ feeding both hashers from the same read loop.
 
 ## Common Pitfalls
 
-- **Conformance vector path**: per-function conformance tests reference
-    `../../crates/iscc-lib/tests/data.json` via relative path. Tests will skip or fail if run from a
-    directory other than `packages/go/`. The embedded `testdata/data.json` copy used by
-    `ConformanceSelftest` is always available.
+- **Conformance vector path**: every `data.json` test reads the embedded `testdata/data.json` (a
+    vendored copy of `crates/iscc-lib/tests/data.json`, kept equal by
+    `tests/test_vendored_fixtures.py`). No test reads the monorepo path; only `data_edge_test.go`
+    reads a file (`testdata/data-edge.json`) relative to `packages/go/`.
 - **Unicode character counting**: `SlidingWindow` and `TextCollapse` operate on `[]rune`, not bytes.
     Use `len([]rune(s))` for character counts, not `len(s)`.
 - **JSON canonicalization**: `parseMetaJSON` writes RFC 8785 canonical JSON itself, recursively:

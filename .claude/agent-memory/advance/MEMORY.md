@@ -33,18 +33,22 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
-- Ruby: `crates/iscc-rb/` — src/lib.rs (Magnus), lib/iscc_lib.rb (wrapper); Cargo lib name `iscc_rb`
-- Ruby floor/dev-Ruby pin (270/271), devcontainer skip-worktree edit (271) → bindings-detail.md
+- Ruby: `crates/iscc-rb/` (Magnus src/lib.rs, lib/iscc_lib.rb; lib `iscc_rb`); pins →
+    bindings-detail.md
 - UniFFI: `crates/iscc-uniffi/` — proc-macro interface for Swift/Kotlin, `publish = false`. Full
     detail → uniffi-swift-kotlin.md
 - Go pure: `packages/go/` — one `.go` per algorithm/code-type (codec, utils, cdc, minhash, simhash,
-    dct, wtahash, xxh32, `code_*.go`, conformance.go); pure Go only. ISCC-IDv1, decode guards, gofmt
-    caveat → go-idv1.md
-- Go 386 CI step (267), Go hashers (261), CDC params (263) → go-idv1.md
+    dct, wtahash, xxh32, `code_*.go`, conformance.go); pure Go only. IDv1, decode guards, gofmt,
+    386, hashers, CDC → go-idv1.md
 - Conformance selftest (276): ONE runner per language — Rust `run_section` + generic `report_case`
     over `Case<T> = Option<(IsccResult<T>, T)>` (section logic in closures: not CRAP-counted); Go
     `runSection[V any]` + `run<X>Case(tc) (got, want, err)`, `errUnparsable`, `unmarshalInputs`. A
     new section = one closure/case fn. rustfmt reflow shifts lines → regen CRAP baseline AFTER check
+- Go data.json (290): ONE parse (`vectorEntry{Inputs, Outputs json.RawMessage}`, all sections);
+    per-section input parsers (`metaInputs`, `streamInputs`, …) + `expectedISCC` → `(string, error)`
+    shared by runners and `code_*_test.go` via `conformanceSection(t, name)` (sync.OnceValues). Bare
+    hex / missing `iscc` = `errUnparsable` (Rust policy). Count-proof: diff sorted
+    `go test -v | grep -- '--- PASS'` vs a `git archive HEAD` copy in /tmp
 
 ## Build and Tooling
 

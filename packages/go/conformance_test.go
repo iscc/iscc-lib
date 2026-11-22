@@ -4,6 +4,8 @@ package iscc
 
 import (
 	"encoding/json"
+	"errors"
+	"sync"
 	"testing"
 )
 
@@ -17,33 +19,46 @@ func TestPureGoConformanceSelftest(t *testing.T) {
 	}
 }
 
-// loadSeqData parses the ISCC-SEQ sections of the embedded data.json.
-func loadSeqData(t *testing.T) map[string]map[string]seqVector {
+// loadConformance parses the embedded data.json once per test binary.
+var loadConformance = sync.OnceValues(func() (map[string]map[string]vectorEntry, error) {
+	return parseConformanceData([]byte(conformanceData))
+})
+
+// loadConformanceData returns every section of the embedded data.json.
+func loadConformanceData(t *testing.T) map[string]map[string]vectorEntry {
 	t.Helper()
-	data, err := parseSeqConformanceData([]byte(conformanceData))
+	data, err := loadConformance()
 	if err != nil {
-		t.Fatalf("parseSeqConformanceData: %v", err)
+		t.Fatalf("parseConformanceData: %v", err)
 	}
 	return data
 }
 
+// conformanceSection returns one non-empty section of the embedded data.json.
+func conformanceSection(t *testing.T, name string) map[string]vectorEntry {
+	t.Helper()
+	cases := loadConformanceData(t)[name]
+	if len(cases) == 0 {
+		t.Fatalf("section %s has no vectors", name)
+	}
+	return cases
+}
+
 // seqCase builds a single-case ISCC-SEQ section map from raw JSON fragments.
-func seqCase(section, inputs, outputs string) map[string]map[string]seqVector {
+func seqCase(section, inputs, outputs string) map[string]map[string]vectorEntry {
 	var in []json.RawMessage
 	if err := json.Unmarshal([]byte(inputs), &in); err != nil {
 		panic(err)
 	}
-	return map[string]map[string]seqVector{
+	return map[string]map[string]vectorEntry{
 		section: {"case": {Inputs: in, Outputs: json.RawMessage(outputs)}},
 	}
 }
 
 func TestSeqSectionsRun(t *testing.T) {
-	data := loadSeqData(t)
-	for _, section := range seqSections {
-		if len(data[section]) == 0 {
-			t.Fatalf("section %s has no vectors", section)
-		}
+	data := loadConformanceData(t)
+	for _, section := range []string{"encode_seq", "decode_seq"} {
+		conformanceSection(t, section)
 	}
 	if !runSection(data, "encode_seq", runEncodeSeqCase) {
 		t.Error("encode_seq runner failed on the real vectors")
@@ -54,7 +69,7 @@ func TestSeqSectionsRun(t *testing.T) {
 }
 
 func TestSeqSectionsMissingFail(t *testing.T) {
-	empty := map[string]map[string]seqVector{}
+	empty := map[string]map[string]vectorEntry{}
 	if runSection(empty, "encode_seq", runEncodeSeqCase) {
 		t.Error("encode_seq runner passed without an encode_seq section")
 	}
@@ -64,7 +79,7 @@ func TestSeqSectionsMissingFail(t *testing.T) {
 }
 
 func TestEncodeSeqRunnerMutatedVectorFails(t *testing.T) {
-	data := loadSeqData(t)
+	data := loadConformanceData(t)
 	for name, tc := range data["encode_seq"] {
 		var out string
 		if err := json.Unmarshal(tc.Outputs, &out); err != nil {
@@ -77,7 +92,7 @@ func TestEncodeSeqRunnerMutatedVectorFails(t *testing.T) {
 			flipped = '1'
 		}
 		mutatedOut, _ := json.Marshal(out[:len(out)-1] + string(flipped))
-		mutated := map[string]map[string]seqVector{
+		mutated := map[string]map[string]vectorEntry{
 			"encode_seq": {name: {Inputs: tc.Inputs, Outputs: mutatedOut}},
 		}
 		if runSection(mutated, "encode_seq", runEncodeSeqCase) {
@@ -89,7 +104,7 @@ func TestEncodeSeqRunnerMutatedVectorFails(t *testing.T) {
 }
 
 func TestDecodeSeqRunnerMutatedVectorFails(t *testing.T) {
-	data := loadSeqData(t)
+	data := loadConformanceData(t)
 	for name, tc := range data["decode_seq"] {
 		var out []string
 		if err := json.Unmarshal(tc.Outputs, &out); err != nil {
@@ -102,7 +117,7 @@ func TestDecodeSeqRunnerMutatedVectorFails(t *testing.T) {
 			out[0] += "A"
 		}
 		mutatedOut, _ := json.Marshal(out)
-		mutated := map[string]map[string]seqVector{
+		mutated := map[string]map[string]vectorEntry{
 			"decode_seq": {name: {Inputs: tc.Inputs, Outputs: mutatedOut}},
 		}
 		if runSection(mutated, "decode_seq", runDecodeSeqCase) {
@@ -165,10 +180,7 @@ func genCase(inputs, outputs string) map[string]map[string]vectorEntry {
 }
 
 func TestGenSectionsRun(t *testing.T) {
-	data, err := parseConformanceData([]byte(conformanceData))
-	if err != nil {
-		t.Fatalf("parseConformanceData: %v", err)
-	}
+	data := loadConformanceData(t)
 	sections := map[string]func(vectorEntry) (string, string, error){
 		"gen_meta_code_v0":     runMetaCase,
 		"gen_text_code_v0":     runTextCase,
@@ -181,9 +193,7 @@ func TestGenSectionsRun(t *testing.T) {
 		"gen_iscc_code_v0":     runIsccCase,
 	}
 	for section, runCase := range sections {
-		if len(data[section]) == 0 {
-			t.Fatalf("section %s has no vectors", section)
-		}
+		conformanceSection(t, section)
 		if !runSection(data, section, runCase) {
 			t.Errorf("%s runner failed on the real vectors", section)
 		}
@@ -219,10 +229,29 @@ func TestGenSectionFailureArms(t *testing.T) {
 		"parse_input":  {`[1, 64]`, `{"iscc": "ISCC:X"}`},
 		"parse_stream": {`["stream:zz", 64]`, `{"iscc": "ISCC:X"}`},
 		"no_inputs":    {`[]`, `{"iscc": "ISCC:X"}`},
+		"bare_hex":     {`["00ff", 64]`, `{"iscc": "ISCC:X"}`},
+		"no_iscc":      {`["stream:", 64]`, `{}`},
 	}
 	for name, c := range cases {
 		if runSection(genCase(c[0], c[1]), "gen_data_code_v0", runDataCase) {
 			t.Errorf("gen_data_code_v0 runner passed the %s case", name)
+		}
+	}
+}
+
+func TestGenRunnerRejectsMalformedVectorsAsUnparsable(t *testing.T) {
+	// The Rust runner's policy: a stream without "stream:" and a case without
+	// a string "iscc" output fail the parse arm, not the comparison.
+	cases := map[string][2]string{
+		"bare_hex":  {`["00ff", 64]`, `{"iscc": "ISCC:X"}`},
+		"no_iscc":   {`["stream:", 64]`, `{}`},
+		"null_iscc": {`["stream:", 64]`, `{"iscc": null}`},
+		"seq_shape": {`["stream:", 64]`, `"bytes:00"`},
+	}
+	for name, c := range cases {
+		tc := genCase(c[0], c[1])["gen_data_code_v0"]["case"]
+		if _, _, err := runDataCase(tc); !errors.Is(err, errUnparsable) {
+			t.Errorf("%s: got error %v, want errUnparsable", name, err)
 		}
 	}
 }

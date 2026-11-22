@@ -5,7 +5,6 @@ package iscc
 import (
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -372,20 +371,11 @@ func TestSeqRepeatedKeysKeepOrder(t *testing.T) {
 }
 
 func TestSeqConformanceDecodeVectorsRoundtrip(t *testing.T) {
-	data, err := parseSeqConformanceData([]byte(conformanceData))
-	if err != nil {
-		t.Fatal(err)
-	}
-	cases := data["decode_seq"]
-	if len(cases) == 0 {
-		t.Fatal("no decode_seq vectors")
-	}
-	for name, tc := range cases {
-		var input string
-		if err := json.Unmarshal(tc.Inputs[0], &input); err != nil {
-			t.Fatal(err)
+	for name, tc := range conformanceSection(t, "decode_seq") {
+		raw, err := decodeSeqInputs(tc)
+		if err != nil {
+			t.Fatalf("%s: parse input: %v", name, err)
 		}
-		raw := hx(t, strings.TrimPrefix(input, "bytes:"))
 		if got := mustEncodeSeq(t, mustDecodeSeq(t, raw)); !byteSliceEqual(got, raw) {
 			t.Errorf("%s: got %x", name, got)
 		}

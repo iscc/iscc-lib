@@ -1,34 +1,18 @@
 // Conformance tests for GenIsccCodeV0 against data.json vectors.
 package iscc
 
-import (
-	"encoding/json"
-	"os"
-	"testing"
-)
+import "testing"
 
 func TestPureGoGenIsccCodeV0(t *testing.T) {
-	data, err := os.ReadFile("../../crates/iscc-lib/tests/data.json")
-	if err != nil {
-		t.Fatalf("read data.json: %v", err)
-	}
-
-	allVectors, err := parseConformanceData(data)
-	if err != nil {
-		t.Fatalf("parse data.json: %v", err)
-	}
-
-	vectors, ok := allVectors["gen_iscc_code_v0"]
-	if !ok {
-		t.Fatal("gen_iscc_code_v0 section not found in data.json")
-	}
-
-	for name, vec := range vectors {
+	for name, vec := range conformanceSection(t, "gen_iscc_code_v0") {
 		t.Run(name, func(t *testing.T) {
-			// Parse inputs[0] as []string (array of ISCC code strings)
-			var codes []string
-			if err := json.Unmarshal(vec.Inputs[0], &codes); err != nil {
-				t.Fatalf("parse codes input: %v", err)
+			codes, err := isccInputs(vec)
+			if err != nil {
+				t.Fatalf("parse inputs: %v", err)
+			}
+			wantISCC, err := expectedISCC(vec)
+			if err != nil {
+				t.Fatalf("parse iscc output: %v", err)
 			}
 
 			result, err := GenIsccCodeV0(codes, false)
@@ -36,8 +20,6 @@ func TestPureGoGenIsccCodeV0(t *testing.T) {
 				t.Fatalf("GenIsccCodeV0: %v", err)
 			}
 
-			// Verify ISCC code
-			wantISCC, _ := vec.Outputs["iscc"].(string)
 			if result.Iscc != wantISCC {
 				t.Errorf("iscc: got %q, want %q", result.Iscc, wantISCC)
 			}

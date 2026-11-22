@@ -1,65 +1,62 @@
-## 2026-11-22 — Review of: One-shot gen functions stop re-implementing their streaming counterparts
+## 2026-11-22 — Go parses `data.json` once and adopts the Rust runner's malformed-vector policy
 
-**Verdict:** PASS
+**Done:** `conformance.go` now parses every `data.json` section once, into one `vectorEntry` type
+whose outputs stay raw. `seqVector`, `seqSections` and `parseSeqConformanceData` are gone. Each gen
+runner is split into an inputs parser (`metaInputs`, `textInputs`, `imageInputs`, `audioInputs`,
+`videoInputs`, `mixedInputs`, `streamInputs`, `isccInputs`, plus `decodeSeqInputs`) and the call.
+`expectedISCC` returns `(string, error)` and runs before the gen function. Bare hex without
+`stream:` and a missing or null `iscc` output now return `errUnparsable`, as in Rust. Every
+per-function test reads the embedded fixture through `conformanceSection(t, name)` and the shared
+parsers.
 
-**Summary:** The three duplicated computations of the `[audit]` issue each exist once now:
-`utils::blake3_multihash_hex` writes the multihash prefix, WASM `gen_sum_code_v0` calls the core
-`SumHasher`, and `canonicalize_json` parses JSON meta once. `gen_instance_code_v0` hashes its input
-once, which halves its instruction count. Four non-test files, no public signature, error text or
-result changed. The issue is closed and deleted.
+**Files changed:**
+
+- `packages/go/conformance.go`: one parse; shared input parsers; `decodeStream` uses `CutPrefix`;
+    `expectedISCC` matches the `iscc` key exactly and rejects null or non-string values
+- `packages/go/conformance_test.go`: `loadConformance` (`sync.OnceValues`), `loadConformanceData`,
+    `conformanceSection`; added the `bare_hex` and `no_iscc` failure arms; new test
+    `TestGenRunnerRejectsMalformedVectorsAsUnparsable` (`errors.Is(err, errUnparsable)` for
+    bare_hex, no_iscc, null_iscc, and a seq-shaped `outputs` string)
+- `code_{meta,data,instance,iscc}_test.go`, `code_content_{text,image,audio,video,mixed}_test.go`:
+    shared parsers plus `expectedISCC`; the extra fields are read from a per-test struct over
+    `vec.Outputs`. The inline meta dispatch and the `TrimPrefix` stream decoding are deleted
+- `packages/go/codec_test.go`: both data.json tests use `conformanceSection` + `isccInputs` /
+    `expectedISCC` (helper `decodeExpectedISCC`); the `t.Skipf` calls are gone
+- `packages/go/seq_test.go`: the roundtrip test uses `decodeSeqInputs`
+- `packages/go/CLAUDE.md`: updated "Conformance tests" and the "Conformance vector path" pitfall
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` and both feature legs pass — 450 / 384 (`--no-default-features`) /
-    417 (`text-processing`) passed, 0 failed; both clippy lines clean (also with `--tests` on the
-    no-default leg)
-- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` — 11 + 8 + 127 passed, the new
-    `test_gen_sum_code_v0_matches_sum_hasher_wide_with_units` among them
-- [x] `mise run bench:iai:check` exits 0 — `bench_instance_code.bytes_1m` 5,236,470 → 2,621,027 Ir
-    (−49.95%), `bytes_64k` −49.22%; the other 14 rows between +0.00% and −7.65% (known drift)
-- [x] `cargo llvm-cov … && cargo crap … --fail-regression --fail-above` exits 0 — 0 regressed, 2
-    improved, 2 new, 31 moved, 1 removed (`parse_meta_json`)
-- [x] The three greps — `multi_hash_blake3` in `gen_instance_code_v0` = 0, `serde_json::from_str` in
-    `gen_meta_code_v0` = 0, `instance_hasher\|1e20{` in `crates/iscc-wasm/src/lib.rs` = 0. In
-    `streaming.rs` the same pattern prints 11, not 0: it matches `SumHasher`'s own `instance_hasher`
-    field (the one implementation that is meant to stay) and seven test names. The count was 12
-    before the step, and `1e20{` alone is 0. The criterion was written too broadly; its intent is
-    met
-- [x] `mise run check` exits 0
+- `CGO_ENABLED=0 go test ./...` ok; `go vet ./...` clean; `GOARCH=386 go test ./...` ok; `gofmt -l`
+    prints nothing
+- `grep -n 'tests/data\.json"' packages/go/*.go` → nothing.
+    `grep -n 'parseSeqConformanceData\|seqVector\|TrimPrefix(.*"stream:"'` → nothing.
+    `grep -c 'func metaArg' conformance.go` → `1`
+- `go test -run 'TestGenSectionFailureArms|TestGenSectionPositiveCase|TestGenRunnerRejects…' -v`:
+    PositiveCase PASS. FailureArms printed 7 FAILED lines, one per case (5 × "could not parse", 1
+    mismatch, 1 error), and PASS. The errUnparsable test PASS
+- No check lost: I diffed the sorted `go test -v | grep -- '--- PASS'` output against a
+    `git archive HEAD` copy in `/tmp`. Old 566, new 567; the only added line is the new test, so
+    every per-vector subtest still runs
+- Mutation probes in a throwaway copy, now deleted. (a) Putting `TrimPrefix` back in `decodeStream`
+    made the new test fail: `bare_hex: got error <nil>, want errUnparsable`. (b) Mapping a nil
+    `iscc` to `""` made it fail: `null_iscc: …`. A missing key (`{}`) is caught by the Unmarshal
+    error on its own
+- `mise run check` → all hooks Passed
 
-**Probes beyond next.md (1 of 3 used):** one program run against the core at `HEAD~1` and at `HEAD`
-with 27 `meta` inputs × 3 `bits` values, `json_to_data_url` on each, and instance inputs through
-both the one-shot function and `InstanceHasher`. The 134 output lines are identical (57 `Ok`, and
-every error arm: both parse prefixes, both size limits, base64, recursion limit, invalid `bits`).
-
-**Issues found:**
-
-- Filed `low`, untriaged: "iai baseline for `bench_instance_code` is twice the measured cost". The
-    perf check fails only above +10% of the baseline, so with the old rows still in
-    `.iai-baseline.json` a second BLAKE3 pass could come back unnoticed. The step left the baseline
-    alone as next.md asked. Every refresh so far was a `cid(human)` commit, so this one is for
-    Titusz
-- Not filed (nit): `gen_meta_code_v0` builds the data URL before the post-decode size check, so an
-    oversized JSON payload pays one base64 encode before it is rejected. The pre-decode limit bounds
-    that at about 171 kB
-- `multi_hash_blake3` is gated `#[cfg(any(feature = "meta-code", test))]`. That is correct scoping
-    (Meta-Code is its only non-test caller), not a lint suppression
-- Two open issues cited line numbers that this step shifted. They name the functions now
-
-**Codex review:** no actionable findings. Codex ran the core tests under the three feature
-configurations and the WASM suite and reported that outputs and error handling are preserved.
-
-**Next:** the Rust half of "Rust and Go per-function tests re-parse `data.json` beside the
-conformance runners" (`normal`, `[audit]`, up to 8 files). It includes settling one malformed-vector
-policy that the Rust and Go runners share (bare hex without `stream:`, missing `iscc` output). Of
-the three `normal` issues left, it is the only one the loop can do without Titusz: both
-`alg_minhash_256([])` and the WASM `finalize()` rule wait for his decision.
+**Next:** the Rust half of the same `[audit]` issue: the per-function tests in the `lib.rs`,
+`codec.rs` and `streaming.rs` test modules should read through `conformance.rs`'s parsers. The
+policy is already the same on both sides.
 
 **Notes:**
 
-- Do not write a `grep -c` criterion whose pattern also matches the code that is meant to stay (here
-    the struct field of the one remaining implementation). Test the pattern on the current tree
-    first and count what must go
-- The CI `perf` job uploads its run as the `iai-baseline` artifact. A baseline refresh from it would
-    also remove the 3–8% drift on nine other rows
-- No decision recorded: the step chose between no real alternatives
+- The per-function tests are slightly stricter than before. A missing `iscc` output is now
+    `t.Fatalf`; the meta test used to skip the iscc check when the key was absent. The real fixture
+    passes either way
+- `expectedISCC` reads the outputs as `map[string]json.RawMessage` instead of a struct, because Go
+    matches struct tags case-insensitively. That way an `"ISCC"` key is not accepted where Rust
+    would reject it
+- `parseConformanceData` now fails if any non-`_metadata` section is not an object of cases. Today
+    every section is one. A future non-object top-level key would make `ConformanceSelftest` return
+    an error rather than skipping that key
+- Memory: MEMORY.md is at 141 lines, one over its soft budget of 140
