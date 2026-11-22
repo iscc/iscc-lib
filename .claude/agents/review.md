@@ -349,10 +349,10 @@ it must have a comment explaining why. Approve these case by case.
 The `iscc-lib` core is used in downstream production, and a break costs every binding and consumer.
 Treat these as release-blocking unless the advance handoff explicitly flagged and justified them:
 
-- **API breaks**: if the diff changes the signature, name, or type of any Tier 1 / Tier 2 `codec`
-    public symbol without an `**API-BREAK:**` flag in the handoff, verdict is **NEEDS_WORK**. When
-    in doubt, run `cargo semver-checks check-release` (if installed) against the last published
-    release and report the result.
+- **API breaks**: if the diff changes the signature, name, or type of any Tier 1 / Tier 2 (`codec`,
+    `streaming::SumHasher`) public symbol without an `**API-BREAK:**` flag in the handoff, verdict
+    is **NEEDS_WORK**. When in doubt, run `cargo semver-checks check-release` (if installed) against
+    the last published release and report the result.
 - **Performance regressions**: if the diff touches a benchmarked hot path, confirm the advance agent
     reported before/after numbers. If a benchmarked path regresses > 10% without justification,
     verdict is **NEEDS_WORK**. Note accepted regressions/improvements in the handoff so the perf

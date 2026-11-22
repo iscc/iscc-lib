@@ -1,13 +1,13 @@
-> **HUMAN REVIEW REQUESTED**: the two `normal` issues that still block v0.8.0 each need a behaviour
-> decision from Titusz; the loop has no `normal` work left that it can choose itself. (1)
-> `alg_minhash_256([])` returns 32 bytes of `0xFF`, iscc-core raises `ValueError`. Recommended:
-> reject the empty list, as decided for `alg_simhash` on 2026-11-20. Cost: the function returns a
-> bare value today (Rust `Vec<u8>`, Go `[]byte`), so rejecting changes both Tier 1 signatures to
-> carry an error, an API break. The alternative is to keep `0xFF` and record it as a divergence. (2)
-> `@iscc/wasm` hasher `finalize()` stays usable after a `bits` the JS-side check rejects (`-1`,
-> `1.5`) but is consumed after one the core rejects (`13`). Recommended: the first `finalize()`
-> consumes whatever its outcome, as Go, Rust and the Python binding do (decisions.md 2026-11-21). A
-> one-line answer per question in issues.md or decisions.md unblocks both.
+> **HUMAN REVIEW RESOLVED (2026-11-22, Titusz → reject, consume, bound at 256):** both questions are
+> answered and one more rule is decided; all three are in decisions.md and each has a `normal` entry
+> in issues.md. (1) `alg_minhash_256` reports an error for an empty list on every surface; the
+> breaking signature change is approved. (2) The first `finalize()` consumes a hasher whatever its
+> outcome; `@iscc/wasm` is the surface to fix. (3) `bits` above 256 is rejected in iscc-lib (the
+> former `low` issue, now `normal`; reported upstream as iscc/iscc-core#142). The "Next" section
+> below predates these answers: there is `normal` work again, so `## Step: NONE` no longer applies.
+> Also done in the same commit: target.md and the Swift spec say the release tags once, and
+> target.md and the agent API-break rules name `streaming::SumHasher` as Tier 2 (both `low` issues
+> removed).
 
 ## 2026-11-22 — Review of: `encode_component` data-edge section on all 12 surfaces
 

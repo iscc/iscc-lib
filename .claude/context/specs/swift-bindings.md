@@ -392,7 +392,8 @@ Release asset (uses existing `contents: write` permission).
 - Cache key covers `crates/iscc-uniffi/**`, `crates/iscc-lib/**`, `Cargo.lock`
 - `build_xcframework.sh` script works on local macOS and in CI
 - XCFramework zip uploaded as GitHub Release asset named `IsccLib.xcframework.zip`
-- Release workflow force-updates tag after updating checksum in `Package.swift`
+- Release workflow commits the checksum to `Package.swift` and tags that commit once; an existing
+    tag is never moved
 - Release workflow includes `swift` checkbox in `workflow_dispatch` inputs
 - `swift package compute-checksum` used for checksum (not raw sha256sum)
 - `ditto -c -k --sequesterRsrc --keepParent` used for zipping

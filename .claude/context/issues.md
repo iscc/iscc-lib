@@ -119,24 +119,26 @@ was found by reading the code. Pre-existing, measured 2026-11-21.
 Resolved when either CI runs at least the Python suite on `windows-latest`, or a decisions.md entry
 keeps CI on Linux and macOS on purpose.
 
-## `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises, with no decision `normal` [audit]
+## `alg_minhash_256([])` returns 32 bytes of `0xFF` instead of an error `normal` [human]
 
-Verified by the iteration-270 audit at 34303a6. The reference computes `min([...])` over the
-features (`reference/iscc-core/iscc_core/minhash.py:14-16`), so an empty list raises `ValueError`.
-The core's `minhash` falls back to `MAXH` (`crates/iscc-lib/src/minhash.rs:156-164`), so
-`alg_minhash_256` returns all `0xFF`. Five hand-written tests pin the divergence
-(`tests/test_algorithm_primitives.rs:146`, `iscc-ffi/src/tests.rs:784`, `IsccLibTest.java:932`,
-`packages/cpp/tests/test_iscc.cpp:688`, `packages/go/minhash_test.go:79`); `data-edge.json` has no
-`alg_minhash_256` section, and no decision or edge-vector rule mentions it. The closest decision
-(2026-11-20) made `alg_simhash` reject an empty list, the opposite direction.
+Decided on 2026-11-22 (decisions.md, "`alg_minhash_256` rejects an empty feature list"): an empty
+`features` list is an error on every surface, and the breaking signature change is approved. Found
+by the iteration-270 audit. Today the core's `minhash` falls back to `MAXH`
+(`crates/iscc-lib/src/minhash.rs`), so `alg_minhash_256` returns all `0xFF` where iscc-core raises
+`ValueError` (`reference/iscc-core/iscc_core/minhash.py:14-16`). Five hand-written tests pin the old
+value (`tests/test_algorithm_primitives.rs:146`, `iscc-ffi/src/tests.rs:784`,
+`IsccLibTest.java:932`, `packages/cpp/tests/test_iscc.cpp:688`, `packages/go/minhash_test.go:79`),
+and `data-edge.json` has no `alg_minhash_256` section. The Rust signature is `fn(&[u32]) -> Vec<u8>`
+and Go's is `AlgMinhash256([]uint32) []byte`: neither can report an error yet. The three internal
+callers (`gen_data_code_v0`, `DataHasher::finalize`, `soft_hash_text_v0`) always pass at least one
+feature; their output and their iai rows must not move.
 
-**Why it matters:** a Tier 1 function silently differs from the normative reference on one input,
-and the per-surface tests freeze it without anyone having chosen it. **Suggested fix:** decide:
-reject empty input in the core (as `alg_simhash` does) or keep `0xFF` with a decisions.md entry;
-either way pin it with one `data-edge.json` vector instead of per-surface tests. **Scope estimate:**
-1-2 non-test files plus the vector fan-out.
+**Spec:** `.claude/context/specs/rust-core.md` and `.claude/context/specs/go-bindings.md` (the
+signature rows of `alg_minhash_256`)
 
-Resolved when the empty-input behavior is a recorded decision pinned by a shared vector.
+Resolved when every surface reports an error for an empty list, one `alg_minhash_256` section in
+`data-edge.json` pins the error row and a non-empty row on all 12 surfaces, and the five tests of
+the `0xFF` value are gone.
 
 ## `crates/iscc-py/CLAUDE.md` still lists test files one by one `low` [review]
 
@@ -151,23 +153,6 @@ reported by advance in iteration 275. No other `crates/*/CLAUDE.md` or `packages
 has such a list.
 
 Resolved when the section states its conventions as rules on file names and lists no modules.
-
-## target.md and the Swift spec criterion say the release workflow force-updates the tag `low` [review]
-
-**Triage:** untriaged. An agent that reads the Swift section of `target.md` would expect a release
-to move the tag and could plan work around a mechanism that does not exist; users are unaffected.
-
-`target.md` → Swift ("force-update tag for checksum", and the criterion "Release workflow
-force-updates the tag after updating checksum in `Package.swift`") and the same criterion under
-"Verification Criteria" in `specs/swift-bindings.md` describe Ferrostar's pattern. `release.yml`
-commits the checksum first and creates the tag once; an existing tag is never moved (learnings →
-"prepare-release", and the spec's own Release Flow since iteration 277). The loop may realign the
-sub-spec line (decision of 2026-11-20), but `target.md` is Titusz's to edit.
-
-**Spec:** `.claude/context/target.md` → Swift bindings; `.claude/context/specs/swift-bindings.md` →
-Verification Criteria
-
-Resolved when both criteria say the workflow tags the checksum commit once and moves no tag.
 
 ## Generated C header fills long strings from 4,095-byte literals, over one documented MSVC limit `low` [review]
 
@@ -184,47 +169,22 @@ Resolved when either every literal in the header is at most 2,047 bytes (a lower
 which the literal-length test follows), or an MSVC build of `test_iscc.c` shows that 4,095-byte
 pieces compile.
 
-## `@iscc/wasm` hasher `finalize()` consumes the hasher on some argument errors but not others `normal` [audit]
+## `@iscc/wasm` hasher `finalize()` stays usable after some rejected arguments `normal` [human]
 
-Verified by the iteration-249/260/270 audits; unchanged at db1fe55. `DataHasher.finalize`,
-`InstanceHasher.finalize` and `SumHasher.finalize` (the three `finalize` methods in
-`crates/iscc-wasm/src/lib.rs`) run `opt_u32`/`opt_bool` *before* `inner.take()`. So a `bits` that
-the JS-side check rejects (`-1`, `1.5`, `"x"`) throws and leaves the hasher usable. A `bits` that
-the core rejects (e.g. `13`) throws *after* `take()` and consumes it. `docs/howto/wasm.md:338` says
-"After calling `finalize()`, the hasher is consumed". Go decided that the first `Finalize` consumes
-even when it fails (decisions.md, 2026-11-21). No other surface states its rule, and no test pins
-either branch.
+Decided on 2026-11-22 (decisions.md, "The first `finalize()` consumes a hasher on every surface,
+whatever its outcome"). Found by the iteration-249 audit. Today `DataHasher.finalize`,
+`InstanceHasher.finalize` and `SumHasher.finalize` in `crates/iscc-wasm/src/lib.rs` run
+`opt_u32`/`opt_bool` *before* `inner.take()`. A `bits` that the JS-side check rejects (`-1`, `1.5`,
+`"x"`) throws and leaves the hasher usable; a `bits` that the core rejects (e.g. `13`) throws
+*after* `take()` and consumes it. No test pins either branch, and `docs/howto/wasm.md` says only
+"After calling `finalize()`, the hasher is consumed".
 
-**Why it matters:** whether a caller can retry after a bad argument depends on which validator
-caught it. That is an implementation accident, and copying it to other surfaces makes it the API.
+Not measured: whether the napi, JNI, .NET, Ruby, UniFFI and C FFI hashers consume on a first
+`finalize` that fails.
 
-**Suggested fix:** decide the cross-binding rule (follow Go: the first `finalize` consumes, whatever
-its outcome, or validate everything before consuming) and record it. Apply it to the three WASM
-hashers, pin both error kinds with a test, and state the rule in `wasm.md`.
-
-**Scope estimate:** 2 non-test files.
-
-Resolved when a rejected `bits` leaves every WASM hasher in the same state, whichever check rejects
-it, as decided and pinned by a test.
-
-## target.md and the agent prompts name `codec` as the whole of Tier 2 `low` [review]
-
-**Triage:** untriaged. An agent that reads `target.md` or the API-break rule in its own prompt would
-treat `streaming::SumHasher` as outside every tier and outside the SemVer lock; users are
-unaffected, the published docs are correct.
-
-Since iteration 288 the docs, `specs/rust-core.md` and decisions.md (2026-11-22) classify
-`iscc_lib::streaming::SumHasher` as Tier 2 beside `codec`. `target.md` ("**Tier 2 API** — `codec`
-module (Rust-only, not bound)") still names `codec` alone, and its item list also lacks
-`decode_units` and the enum-typed `codec::encode_component`. The API-break rules in
-`.claude/agents/advance.md` and `.claude/agents/review.md` say "Tier 1 or Tier 2 `codec` symbol".
-All three files are Titusz's to edit. He may also overrule the classification (for example make
-`SumHasher` Tier 1, which changes the count of 35).
-
-**Spec:** `.claude/context/target.md` → Tier 2 API
-
-Resolved when `target.md` and both agent rules name `streaming::SumHasher` as Tier 2, or a new
-decisions.md entry classifies it differently.
+Resolved when a rejected argument of either kind leaves each of the three WASM hashers consumed, a
+test pins both kinds, `wasm.md` states the rule, and every other surface with a hasher has been
+checked against the rule (a deviation is fixed or filed).
 
 ## `napi build` fails in the devcontainer checkout with the locked `@napi-rs/cli` 3.10.12 `low` [review]
 
@@ -295,23 +255,24 @@ Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact
 on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
 that both `bench_instance_code` rows are within the tolerance of a current run.
 
-## Gen functions accept `bits` above 256 and return a unit that no decoder reads `low` [review]
+## Gen functions accept `bits` above 256 and return a unit that no decoder reads `normal` [human]
 
-**Triage:** untriaged. A caller who passes `bits` of 288 or more to a gen function gets a code that
-`iscc_decode` rejects; ISO 24138 units are 32 to 256 bits, but most API pages say only "multiple of
-32".
+Decided on 2026-11-22 (decisions.md, "A unit is at most 256 bits"): iscc-lib rejects it. Measured on
+2026-11-22 with `bits=288` on the Python binding: `gen_meta_code_v0`, `gen_text_code_v0`,
+`gen_audio_code_v0`, `gen_data_code_v0` and `gen_instance_code_v0` return a code whose header says
+288 bits over a 32-byte body, and `iscc_decode` rejects it ("truncated ISCC body: expected 36 bytes,
+got 32"). The image, video and mixed functions already reject it. Go returned the same code as the
+Python binding for `gen_data_code_v0(b"abc", 512)` in iteration 295. The public
+`encode_component(0, 0, 0, 512, <64 bytes>)` returns a unit that iscc-lib decodes and iscc-core
+rejects ("512 is not a valid LN"). Cause: `codec::encode_length` accepts any multiple of 32,
+`codec::decode_length` has no upper bound, and the internal encode path clamps the body to the
+digest (kept on purpose, decisions.md 2026-11-22). Most API pages say only "multiple of 32". Not
+measured: the hashers' `finalize(bits)` on any surface.
 
-Measured in iteration 295: `gen_data_code_v0(b"abc", 512)` returns
-`ISCC:GAEHA6W7RKLGNVVVKKJZC3YRAK357XX6X7HKIOLPOBY7BC5QBONX2BKZ` on Go, on the Python binding and on
-iscc-core 1.5.0: a header that says 512 bits over a 32-byte body. `bits=288` and `gen_text_code_v0`,
-`gen_instance_code_v0` behave the same; the image function rejects `bits` above 256. `iscc_decode`
-and `iscc_decompose` reject the result ("truncated ISCC body: expected 64 bytes, got 32"), and so
-does iscc-core ("512 is not a valid LN"). Cause: the internal encode path clamps the body to the
-digest (kept on purpose, decisions.md 2026-11-22) and `encode_length` accepts any multiple of 32.
-Pre-existing and identical to the reference, so rejecting it is a divergence only Titusz can choose.
+**Upstream:** iscc/iscc-core, filed as https://github.com/iscc/iscc-core/issues/142 (iscc-core 1.5.0
+returns the same undecodable codes for meta, text, audio, video, data and instance)
 
-**Upstream:** iscc/iscc-core (its gen functions do not bound `bits`; evidence above)
-
-Resolved when a decisions.md entry fixes the behaviour (reject `bits` above the digest length, or
-keep the reference's output and state the range on every API page) and a `data-edge.json` vector
-pins it.
+Resolved when every gen function, every hasher `finalize` and `encode_component` reject a unit
+length above 256 on all 12 surfaces, a unit header longer than 256 bits fails to decode, a
+`data-edge.json` vector pins the rejection (marked `diverges`, naming the decision), and the API
+pages state the range of 32 to 256.

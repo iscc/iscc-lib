@@ -356,7 +356,7 @@ has been public since v0.5.0 and Python and WASM wrap it, and `cargo-semver-chec
 public surface, so it is locked in fact; `rust-core.md` already put `codec` under the lock.
 **Rejected:** Tier 1 (a crate-root re-export bound on every surface changes target.md's count of 35,
 which is Titusz's call); hiding it (`pub(crate)` or `#[doc(hidden)]` breaks the two bindings or
-removes a published type). **Open:** target.md still names `codec` alone (issues.md, from 288).
+removes a published type). target.md and the agent API-break rules name both since 2026-11-22.
 
 ## 2026-11-22 — A wrong-type or out-of-range vector value makes a conformance case unparsable
 
@@ -386,3 +386,40 @@ unit, and eleven surfaces already raised; Go was the one that truncated. **Rejec
 iscc-core (hands out malformed units); rejecting gen `bits` beyond the digest in the same change (a
 separate behaviour, shared with iscc-core). **Pinned by:** the `encode_component` section of
 `data-edge.json`, run on all 12 surfaces (296). **Context:** 295.
+
+## 2026-11-22 — `alg_minhash_256` rejects an empty feature list
+
+**Decision:** (Titusz) the Tier 1 `alg_minhash_256` reports an error for an empty `features` list on
+every surface. The function gains the surface's error channel (Rust `IsccResult<Vec<u8>>`, Go
+`([]byte, error)`). This breaking Tier 1 signature change is approved: the step flags
+`**API-BREAK:**` and proceeds. **Why:** iscc-core raises `ValueError` (`min()` of an empty list) and
+`alg_simhash` already rejects an empty list (2026-11-20). 32 bytes of `0xFF` look like a real digest
+and make every empty input identical, and nobody had chosen that value. Titusz does not weigh a
+breaking signature change as a cost before 1.0. **Alternatives:** keep `0xFF` and record the
+divergence (no break, but a silent difference from the reference). **Context:** answer to the
+iteration 296 escalation. Performance is no factor: one length check per call, and the three
+internal callers always pass at least one feature.
+
+## 2026-11-22 — The first `finalize()` consumes a hasher on every surface, whatever its outcome
+
+**Decision:** (Titusz) the first `finalize()` call on a `DataHasher`, `InstanceHasher` or
+`SumHasher` consumes it, also when the call fails, whichever check rejects the argument. A later
+call reports the finalized state. `@iscc/wasm` takes the inner hasher before it validates `bits`,
+`wide` and `add_units`. **Why:** Rust (`finalize(self)`), the Python binding and Go (2026-11-21)
+already behave this way; in WASM the outcome depended on whether the JS-side check or the core
+caught the value. **Alternatives:** validate every argument before consuming (allows a retry, but
+differs from the other surfaces). **Context:** answer to the iteration 296 escalation. Not measured
+then: the napi, JNI, .NET, Ruby, UniFFI and C FFI hashers.
+
+## 2026-11-22 — A unit is at most 256 bits: a larger `bits` or `bit_length` is rejected
+
+**Decision:** (Titusz) iscc-lib rejects `bits` above 256 on every surface. The bound covers every
+gen function, every hasher `finalize` and the public `encode_component`; decoding a unit header
+longer than 256 bits fails, as it does on iscc-core. **Why:** ISO 24138 units are 32 to 256 bits.
+iscc-core 1.5.0 accepts `bits=288` in six gen functions and returns a code that its own
+`iscc_decode` rejects (`288 is not a valid LN`), reported as iscc/iscc-core#142. Rejecting is a
+deliberate divergence on the encode side and follows the reference on the decode side.
+**Alternatives:** keep the reference's output and state the range on the API pages. **Context:**
+interactive session after iteration 296. Titusz ruled on `bits`; including `encode_component` and
+the decode side is the session's reading (`encode_component(0, 0, 0, 512, <64 bytes>)` decodes on
+iscc-lib and fails on iscc-core). The internal clamp of 2026-11-22 stays.

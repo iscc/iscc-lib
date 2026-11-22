@@ -104,9 +104,13 @@ Detailed spec: `.claude/context/specs/rust-core.md`
 - 2 streaming types: `DataHasher`, `InstanceHasher`
 - 1 diagnostic: `conformance_selftest`
 
-**Tier 2 API** — `codec` module (Rust-only, not bound): `MainType`, `SubType`, `Version` enums,
-`encode_header`, `decode_header`, `encode_base32`, `decode_base32`, `encode_length`,
-`decode_length`, `encode_units`, and the ISCC-SEQ helpers `read_unit` and `SEQ_MAINTYPES`.
+**Tier 2 API** — public Rust API outside the every-language contract:
+
+- `codec` module (Rust-only, not bound): `MainType`, `SubType`, `Version` enums, `encode_header`,
+    `decode_header`, `encode_base32`, `decode_base32`, `encode_length`, `decode_length`,
+    `encode_units`, `decode_units`, the enum-typed `codec::encode_component`, and the ISCC-SEQ
+    helpers `read_unit` and `SEQ_MAINTYPES`
+- `streaming::SumHasher` (wrapped by the Python and WASM bindings only)
 
 **Verified when:**
 
@@ -278,8 +282,9 @@ A Swift package providing idiomatic Swift access via UniFFI-generated bindings w
 XCFramework for zero-friction installation. **Primary audience: iOS and macOS developers.** Shares
 the UniFFI scaffolding crate (`crates/iscc-uniffi/`) with Kotlin bindings. Distributed via Swift
 Package Manager (SPM) using Git tags and `.binaryTarget` — no Rust toolchain required for consumers.
-Follows the Ferrostar monorepo pattern (variable toggle in root `Package.swift`, force-update tag
-for checksum).
+Follows the Ferrostar monorepo pattern for the variable toggle in root `Package.swift`. Unlike
+Ferrostar, the release workflow commits the checksum first and tags that commit once; it never moves
+a tag.
 
 Detailed spec: `.claude/context/specs/swift-bindings.md`
 
@@ -291,7 +296,8 @@ Detailed spec: `.claude/context/specs/swift-bindings.md`
 - XCFramework bundles static libraries for macOS (arm64, x86_64) and iOS (device + simulator)
 - Root `Package.swift` uses `.binaryTarget(url:checksum:)` with local/remote toggle variable
 - XCFramework build is cached — unchanged sources skip the expensive native build
-- Release workflow force-updates the tag after updating checksum in `Package.swift`
+- Release workflow commits the checksum to `Package.swift` and tags that commit once; an existing
+    tag is never moved
 - Version synced from root `Cargo.toml` via `mise run version:sync`
 
 ## Kotlin Bindings — Android and JVM via Maven Central
