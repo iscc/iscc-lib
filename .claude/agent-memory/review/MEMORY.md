@@ -109,8 +109,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 - **Doc-parity gate / doc-listing (233)**, **parser-only (242)**, **Rust docs completion (243)**,
     **C++ how-to / doc-example (244)** → `review-patterns.md` "Doc-parity gate (233)"
 - **Derived-fact removal (245)**, **file-list removal (246)**, **spec-list gate (247)**, **spec
-    drift realignment (259/275: every "so that" clause is a claim; release history per tag)** →
-    `review-patterns.md`, sections of the same names
+    drift realignment (259/275: every "so that" clause is a claim; release history per tag)**,
+    **spec + API-comment sweep (307)** → `review-patterns.md`, sections of the same names
 - **Docs install/packaging-claim step (238, 257, 283 npm)**: install the PUBLISHED artifact in a
     clean prefix; simulate a foreign platform for any fallback sentence (`java -Dos.arch=…`) →
     `review-patterns.md` "Install-claim probe (238)"

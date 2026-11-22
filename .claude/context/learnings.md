@@ -169,8 +169,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `#[deprecated]` claim into a criterion** (139, 148, 168: a "must not appear" grep banned an
     *undeprecated* API, reverted 169). Confirm attributes in the crate source under
     `~/.cargo/registry/src/`; assert the *gate* (exit code); copy gate lines from `ci.yml`
-- **A false docs claim outlives the pages its issue names** (277: `ecosystem.md` and two `///`
-    comments kept it): scope and review with a repo-wide `git grep` on the claim's key phrase
+- **A false docs claim outlives the pages its issue names** (277): scope and review with a repo-wide
+    `git grep` on its key phrase. **A spec rule that replaces a list claims EVERY page**: check each
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
     (142: an unworkable rule; 143: two false claims shipped into published docs). advance implements
     the *intent* and documents any deviation; review re-derives every "never/always" claim

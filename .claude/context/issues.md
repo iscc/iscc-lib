@@ -234,30 +234,6 @@ the tests in `crates/iscc-uniffi/src/lib.rs`, `SmokeTests.cs`). The Rust core ne
 Resolved when the C FFI, C++, .NET and UniFFI suites each have a test in which `finalize(13)` fails
 and a following `finalize(64)` reports the finalized state.
 
-## Specs and API docs still describe shipped work as planned, or leave out shipped rules `normal` [audit]
-
-**Evidence:** `specs/swift-bindings.md:397` requires a `swift` `workflow_dispatch` checkbox that the
-same spec rules out at :265-267 and `release.yml` does not have.
-`specs/documentation.md:50,52,94-95` lists 6 how-to languages, 4 reference pages and 9 bindings,
-while `zensical.toml` has 11 how-tos and 5 reference pages, Swift and Kotlin included.
-`specs/c-ffi-dx.md:134-138` calls feature flags future work "tracked as GitHub Issue #16": #16 is
-closed, the `text-processing`/`meta-code` features ship, and `serde_json` is not optional.
-`docs/c-ffi-api.md:742-744` does not say that a *failed* first `_finalize()` consumes, which
-`docs/howto/c-cpp.md:185-189` states. The short-digest rejection of `encode_component` is documented
-on 5 surfaces (rust-api, `_lowlevel.pyi`, Go, Java, Ruby) and missing from `c-ffi-api.md`,
-`IsccLib.cs:363`, `iscc.hpp:304`, napi, WASM and UniFFI. `README.md:49-51` lists the bindings
-without Swift, which the same page's feature list (:26-27) includes.
-
-**Why it matters:** define-next scopes from the specs, so a criterion that the tree contradicts can
-be scoped as work or block a target section from counting as met. A C, C++, .NET or JS caller cannot
-learn the error contract from the reference page of their own surface.
-
-**Suggested fix:** state the shipped facts in the three specs and point to the nav or `release.yml`
-for lists instead of copying them; add the failed-finalize sentence to `c-ffi-api.md` and the digest
-rule to the six API comments and pages that lack it; add Swift to the README list.
-
-**Scope estimate:** 9 non-test files: needs audit-scope step (≤8 files), or split specs from docs.
-
 ## `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects `low` [review]
 
 **Triage:** untriaged. Only a caller who decodes a hand-built ISCC-ID with length index 3 would see
@@ -291,3 +267,37 @@ The other `gen_*_v0` functions and both hashers return an error for 0 and 4.
 
 Resolved when both return an error for `bits` below 8, pinned by a `data-edge.json` row in the
 existing `gen_mixed_code_v0` section (`error`, and no `diverges`, since iscc-core raises too).
+
+## `encode_component` docs on five surfaces give the `bit_length` range without the ISCC-ID case `low` [review]
+
+**Triage:** untriaged. A caller who builds an ISCC-ID unit from the C FFI, Java, Python, Ruby or Go
+docs would read that 72 or 80 is invalid and that 32 or 128 is valid; the call itself returns the
+right result or a clear error.
+
+The `bit_length` parameter is described as "multiple of 32, 32 to 256" in `docs/c-ffi-api.md` and
+the `iscc_encode_component` `///` in `crates/iscc-ffi/src/lib.rs`, in `docs/java-api.md` and the
+`IsccLib.java` Javadoc, in `_lowlevel.pyi`, in `docs/ruby-api.md` and in the comment in
+`packages/go/codec.go`. For MainType ID the core takes 64 to 96 in steps of 8, which only
+`docs/rust-api.md` says. Pre-existing, reported by advance in iteration 307
+(`git grep -n '32 to 256'`).
+
+Resolved when each of these descriptions names the ID range or limits its range to Meta through
+Flake, with the two generated files (`iscc.h`, `NativeMethods.g.cs`) regenerated.
+
+## `specs/documentation.md` says every code example is tabbed, and the how-to guides have no tabs `low` [review]
+
+**Triage:** untriaged. No user is affected; define-next could scope tabs into the eleven how-to
+pages from a criterion that describes a layout the site never had.
+
+**Spec:** `.claude/context/specs/documentation.md` → "Per-Language Code Examples" and the
+verification criterion "All code examples use tabbed multi-language format".
+
+The spec says all code examples use the tabbed format and that "all how-to guides use this pattern".
+Tabs exist on two pages only: `docs/index.md` and `docs/tutorials/getting-started.md` (plus the
+Maven/Gradle install tabs in `docs/java-api.md`). Each how-to guide covers one language and uses
+plain fences (`git grep -c '=== "' docs/howto` finds nothing). Pre-existing, seen in iteration 307
+next to the sentences that step rewrote.
+
+Resolved when the section and the criterion name the pages that show several languages side by side,
+as a rule and without a page list that can fall behind (decision of 2026-11-20 on criteria that name
+a mechanism that does not exist).

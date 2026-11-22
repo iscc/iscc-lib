@@ -59,10 +59,9 @@ config format.
 ## Per-Language Code Examples
 
 All code examples use tabbed format (`pymdownx.tabbed`) showing equivalent code in multiple
-languages. The landing page tabs cover every language the README's Installation section installs, in
-the order the `docs/index.md` Quick Start uses; other pages follow the same order. Only languages
-relevant to the example are included. The landing page quick start and all how-to guides use this
-pattern.
+languages. The landing page Quick Start has one tab per entry of the README's Installation section;
+`docs/index.md` sets the tab order. Only languages relevant to the example are included. The landing
+page quick start and all how-to guides use this pattern.
 
 ## Custom Domain
 

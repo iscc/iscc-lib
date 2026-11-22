@@ -1341,3 +1341,23 @@ One `SECTIONS` table replaced eleven runners in `conformance.rs`, five duplicate
     the meta and text functions): use `--tests` for the reduced feature sets
 - A `for f in "" "--a --b"` loop does not word-split in zsh: run feature-set loops from a bash
     script
+
+## Spec + API-comment sweep (307, ~20 min)
+
+Three specs restated to shipped facts, one error sentence added to seven `encode_component` doc
+blocks, four regenerated outputs. PASS_WITH_NOTES, Codex clean, no code line changed.
+
+- **A list restated as a rule is a new claim about every page it covers.** advance wrote "other
+    pages follow the same order" for tabs; one loop over `git grep -l '=== "' docs` printing each
+    page's tab order showed the tutorial disagreeing. Run that kind of loop for every rule that
+    replaces a list. The reviewer may correct such a sentence in a sub-spec (a checkable fact the
+    step itself wrote); false sentences beside it that the step did not write go to issues.md `low`
+- An error sentence copied to N surfaces needs no per-surface probe when a `data-edge.json` row pins
+    the rule on all 12: read the section's rows instead
+- A parameter-range row sits next to each error sentence (`git grep '32 to 256'`): the step may
+    leave it stale, as here for the ISCC-ID range. File it `low` when it predates the step
+- Freshness in one script: `touch crates/iscc-ffi/src/lib.rs`, build, `git diff --exit-code` on the
+    `.g.cs`, the CI cbindgen line, then the UniFFI step body from PyYAML with
+    `RUNNER_TEMP=/tmp/x bash -e`. About 10 seconds on a warm target
+- `cargo tree -p iscc-lib --no-default-features -e normal --prefix none` proves a feature-flag
+    sentence in a spec (`unicode-ident` there is a proc-macro dependency, not a Unicode table)
