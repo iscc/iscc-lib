@@ -1,8 +1,12 @@
 //! High-performance Rust implementation of ISO 24138:2024 (ISCC).
 //!
-//! This crate provides the core ISCC algorithm implementations. All 10 `gen_*_v0`
-//! functions are the public Tier 1 API surface, designed to be compatible with
-//! the `iscc-core` Python reference implementation.
+//! This crate provides the core ISCC algorithm implementations, designed to be
+//! compatible with the `iscc-core` Python reference implementation. The Tier 1
+//! API is the set of symbols defined or re-exported at the crate root: the
+//! `gen_*` functions, utilities, codec functions, constants, `DataHasher`,
+//! `InstanceHasher` and `conformance_selftest`, with their result structs and
+//! `IsccError`. The `codec` module and `streaming::SumHasher` are Tier 2:
+//! public Rust API that is not bound in every language.
 
 pub(crate) mod cdc;
 pub mod codec;

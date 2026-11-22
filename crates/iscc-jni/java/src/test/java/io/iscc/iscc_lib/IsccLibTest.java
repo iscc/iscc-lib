@@ -1,5 +1,6 @@
 /**
- * Conformance tests for all 10 gen_*_v0 JNI functions against data.json vectors.
+ * Conformance tests for the gen_*_v0 JNI functions against data.json vectors.
+ * genSumCodeV0 has no vectors and is checked against its Data-Code + Instance-Code composition.
  *
  * <p>Mirrors the Node.js conformance tests in crates/iscc-napi/__tests__/conformance.test.mjs.
  * Uses JUnit 6 {@code @TestFactory} with {@code DynamicTest} for data-driven test names

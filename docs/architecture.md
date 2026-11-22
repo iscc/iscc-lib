@@ -138,10 +138,30 @@ bound in all languages. Changes require a SemVer MAJOR bump.
 
 See the [Rust API reference](rust-api.md) for signatures.
 
+Two kinds of crate-root items support Tier 1 but are not counted as Tier 1 symbols:
+
+- **Result structs** (`MetaCodeResult`, `SumCodeResult`, …): the return types of the Tier 1
+    functions, defined in `iscc_lib::types` and re-exported at the crate root by `pub use types::*`.
+    `iscc_lib::types::X` and `iscc_lib::X` name the same item.
+- **`IsccError` and `IsccResult<T>`**: the error every fallible Tier 1 call returns. They live at
+    the crate root (`iscc_lib::IsccError`), not in `codec`. Each binding maps them to its own error
+    idiom.
+
+`DataHasher` and `InstanceHasher` are Tier 1 crate-root re-exports; their `iscc_lib::streaming::`
+paths name the same items.
+
 ### Tier 2 — Public Rust API
 
-The `codec` module is public for Rust consumers but not exposed through FFI bindings. It provides
-base32 encoding/decoding and header manipulation utilities. May change in MINOR releases.
+Public Rust items outside the Tier 1 contract (not bound in every language):
+
+- **`codec` module**: `MainType`, `SubType`, `Version`, header and base32 encoding/decoding, unit
+    and length helpers, `read_unit`, `SEQ_MAINTYPES`. Not exposed through the bindings.
+- **`streaming::SumHasher`**: single-pass streaming ISCC-SUM (Data-Code + Instance-Code). Not
+    re-exported at the crate root. The Python and WASM bindings wrap it as an extra; the other
+    bindings do not.
+
+Tier 2 is part of the public Rust API and falls under the same SemVer contract as Tier 1, checked by
+`cargo-semver-checks` (informational until v1.0.0).
 
 ### Internal Modules
 
@@ -160,7 +180,8 @@ external Rust consumers. Free to change at any time.
 ## Streaming Pattern
 
 ISCC operations are **CPU-bound, not I/O-bound** — hashing and chunking are pure computation on byte
-slices. The core library takes bytes, not file paths. File I/O is the caller's responsibility.
+slices. The core library takes bytes and leaves file I/O to the caller, with one exception:
+`gen_sum_code_v0` takes a file path and reads the file itself.
 
 This drives a key design decision: **the Rust core is synchronous**. Each binding adapts to its
 runtime's async model outside the core.

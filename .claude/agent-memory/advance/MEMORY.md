@@ -120,6 +120,9 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - ISCC-SEQ #45: core (195) + all 11 surfaces bound (197-210, UniFFI last); docs swept 33→35 (211) →
     iscc-seq.md. iscc-ffi tests in `src/tests.rs` (231); exports MUST stay in lib.rs (csbindgen
     reads only it)
+- Tier map (288): Tier 1 = crate-root symbols (35); support types `IsccError`/`IsccResult` + `types`
+    structs (not counted); Tier 2 = `codec` + `streaming::SumHasher` (Py/WASM wrap it). Tier 2 is
+    under SemVer (rust-core.md), not "may change in MINOR"
 - Video ragged input (250), Python int range (265), Go meta JCS (251/266), `alg_simhash([])` (225),
     `json_to_data_url` → api-design.md
 

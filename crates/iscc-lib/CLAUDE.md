@@ -37,12 +37,23 @@ require the `text-processing` feature. `gen_meta_code_v0`, `json_to_data_url`, `
 `META_TRIM_DESCRIPTION`, and `META_TRIM_META` require the `meta-code` feature (which implies
 `text-processing`). The `default` feature set includes `meta-code`.
 
-**Tier 2 -- `pub mod codec`, Rust-only, not exposed through bindings:**
+**Tier 1 support types -- crate root, not counted as Tier 1 symbols:**
 
-- `MainType`, `SubType`, `Version` enums
-- `encode_header`, `decode_header`, `encode_base32`, `decode_base32`
-- `encode_length`, `decode_length`, `encode_units`, `decode_units`
-- `read_unit`, `SEQ_MAINTYPES`
+- `IsccError`, `IsccResult<T>`: the error every fallible Tier 1 call returns (excluded from the
+    symbol count in `EXCLUDED_ITEMS` of `scripts/check_tier1_docs.py`)
+- The `*CodeResult` structs of `types`, re-exported by `pub use types::*`; `types::X` and the
+    crate-root `X` are the same item. Likewise `streaming::DataHasher`/`streaming::InstanceHasher`
+    are the Tier 1 re-exports, not separate items
+
+**Tier 2 -- public Rust API outside the every-language contract (covered by SemVer):**
+
+- `pub mod codec`, not exposed through bindings:
+    - `MainType`, `SubType`, `Version` enums
+    - `encode_header`, `decode_header`, `encode_base32`, `decode_base32`
+    - `encode_length`, `decode_length`, `encode_units`, `decode_units`
+    - `read_unit`, `SEQ_MAINTYPES`
+- `streaming::SumHasher` (not re-exported at the crate root): Python and WASM wrap it as an extra;
+    the other bindings do not
 
 **Internal -- `pub(crate)` or private, free to change:**
 

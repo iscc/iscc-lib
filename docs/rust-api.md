@@ -637,6 +637,39 @@ assert_eq!(data_hasher.finalize(64)?.iscc, "ISCC:GAAW53FRSZTRHOFE");
 assert_eq!(instance_hasher.finalize(64)?.iscc, "ISCC:IAAUD6BZIEI6W4J2");
 ```
 
+### SumHasher
+
+`iscc_lib::streaming::SumHasher` is Tier 2: public Rust API, but not re-exported at the crate root
+and not bound in every language (Python and WASM wrap it). It feeds each chunk to an inner
+`DataHasher` and `InstanceHasher` in one pass and composes the ISCC-SUM. The result is identical to
+`gen_sum_code_v0` on a file holding the same bytes.
+
+```rust
+impl SumHasher {
+    pub fn new() -> Self
+    pub fn update(&mut self, data: &[u8])
+    pub fn finalize(self, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult>
+}
+```
+
+```rust
+use iscc_lib::streaming::SumHasher;
+
+let mut hasher = SumHasher::new();
+for chunk in [b"Hello ".as_slice(), b"World".as_slice()] {
+    hasher.update(chunk);
+}
+let result = hasher.finalize(64, false, true)?;
+assert_eq!(result.filesize, 11);
+assert_eq!(
+    result.units,
+    Some(vec![
+        "ISCC:GAAW53FRSZTRHOFE".to_string(),
+        "ISCC:IAAUD6BZIEI6W4J2".to_string(),
+    ])
+);
+```
+
 ## Constants
 
 Algorithm parameters shared with the reference implementation. The `META_TRIM_*` constants require
@@ -678,16 +711,10 @@ assert!(conformance_selftest());
 
 ## Types
 
-The `codec` module provides Tier 2 types available to Rust consumers. These types are part of the
-public Rust API but are not exposed through FFI bindings (Python, Node.js, WASM, C).
-
-!!! note
-
-    Import codec types with `use iscc_lib::codec::{MainType, SubType, ...}`.
-
 ### IsccError
 
-Error type for ISCC operations.
+Error type for ISCC operations, at the crate root (`use iscc_lib::IsccError;`). It supports the Tier
+1 API: every fallible Tier 1 function returns it, and each binding maps it to its own error idiom.
 
 ```rust
 pub enum IsccError {
@@ -697,6 +724,11 @@ pub enum IsccError {
 
 Every fallible function returns `IsccResult<T>`, an alias for `Result<T, IsccError>`. The only error
 variant is `InvalidInput`, used for malformed or out-of-range parameters.
+
+### Codec types
+
+The `codec` module is Tier 2: part of the public Rust API, but not exposed through the bindings.
+Import its items from the module path, for example `use iscc_lib::codec::{MainType, SubType};`.
 
 ### MainType
 

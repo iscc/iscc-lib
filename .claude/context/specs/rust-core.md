@@ -696,7 +696,10 @@ The full public API surface bound in all languages:
 <!-- tier1:end -->
 
 `scripts/check_tier1_docs.py` keeps the list above in parity with the crate-root exports in
-`lib.rs`. The `codec` module remains Tier 2 Rust-only for header encode/decode internals.
+`lib.rs`. Tier 2 is public Rust API outside the every-language contract: the `codec` module (header
+encode/decode internals, Rust-only) and `streaming::SumHasher` (not re-exported at the crate root;
+Python and WASM wrap it as an extra). `IsccError`/`IsccResult` and the `types` result structs are
+crate-root support types of Tier 1, not counted among its symbols.
 
 `gen_iscc_id_v1` is Tier 1 for binding-surface purposes (every language exposes it) but is **exempt
 from the v1.0.0 stability lock** below while the upstream format is still evolving.
@@ -723,10 +726,11 @@ change is explicitly sanctioned by a human and reflected in the version number.
     identical to the conformance vectors and to `iscc-core`. This is the primary contract for
     downstream consumers and is covered by the existing conformance suite.
 - **API compatibility** (new gate): the public surface of `iscc-lib` (the Tier 1 symbols + the Tier
-    2 `codec` module) must not change in a backward-incompatible way without a major version bump.
-    Enforced by `cargo-semver-checks` in CI against the previously published release. The
-    experimental ISCC-IDv1 symbol `gen_iscc_id_v1` is carved out of this lock until the upstream
-    format settles — the carve-out is documented here and in its doc comment, not implied.
+    2 `codec` module and `streaming::SumHasher`) must not change in a backward-incompatible way
+    without a major version bump. Enforced by `cargo-semver-checks` in CI against the previously
+    published release. The experimental ISCC-IDv1 symbol `gen_iscc_id_v1` is carved out of this lock
+    until the upstream format settles — the carve-out is documented here and in its doc comment, not
+    implied.
 - **SemVer contract:** the crate follows strict SemVer from v1.0.0 — breaking changes require a
     major bump (2.0.0), additive changes are minor, fixes are patch. The 0.4.0 → 1.0.0 transition is
     the one release allowed to break freely; after it, 1.x is locked.

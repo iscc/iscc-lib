@@ -151,8 +151,9 @@ the specs or the code, they win. Do not update `notes/` in sweeps.
 
 - **Sync core, streaming interface**: Rust core is synchronous. Each binding adapts async
     idiomatically. Pattern: `new() -> update(&[u8]) -> finalize() -> Result<T>`
-- **Tiered API surface**: Only `iscc_lib::api` (Tier 1) is bound to foreign languages. Internal
-    modules use `pub(crate)` and are never exposed across FFI.
+- **Tiered API surface**: Only Tier 1 (the symbols `lib.rs` defines or re-exports at the crate root)
+    is bound to foreign languages. Internal modules use `pub(crate)` and are never exposed across
+    FFI.
 - **Hub-and-spoke crate model**: All binding crates depend on the pure-Rust `iscc-lib` core crate.
 
 ## Design Constraints
@@ -214,8 +215,10 @@ would require re-staging.
 
 ## Conformance
 
-Official test vectors from `iscc-core/data.json` are the correctness baseline. All 10 `gen_*_v0`
-functions must produce output matching `iscc-core` for every vector.
+Official test vectors from `iscc-core/data.json` are the correctness baseline. Every `gen_*_v0`
+function with a `data.json` section must produce output matching `iscc-core` for every vector
+(`gen_sum_code_v0` has no section; it must equal `gen_iscc_code_v0` over its Data-Code and
+Instance-Code).
 
 ## Command Execution
 
