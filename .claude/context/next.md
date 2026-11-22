@@ -1,96 +1,100 @@
 # Next Work Package
 
-## Step: `encode_component` data-edge section on all 12 surfaces
+## Step: The first hasher `finalize()` consumes on every surface, whatever rejects the argument
 
 ## Goal
 
-Pin the decided short-digest rule of the Tier 1 `encode_component` (decisions.md 2026-11-22) with a
-shared vector run by every harness. Picks up the `normal` [audit] issue "No shared vector pins the
-short-digest rule of `encode_component`"; it is the only `normal` issue the loop can move without
-Titusz.
+Pick up the `normal` issue "`@iscc/wasm` hasher `finalize()` stays usable after some rejected
+arguments" and apply the decision "The first `finalize()` consumes a hasher on every surface,
+whatever its outcome" (2026-11-22) to every binding that still checks arguments before it takes the
+inner hasher. Probing found that WASM is not the only one: napi and JNI check `bits` first too, and
+Python and Ruby convert their arguments before the body runs.
 
 ## Alternatives Considered
 
-- **Chosen:** the `encode_component` section fan-out: decided behaviour, already implemented on the
-    core and Go, and its absence blocks v0.8.0
-- **Rejected:** `alg_minhash_256([])` and the WASM hasher `finalize()` rule. Both `normal` issues
-    need a behaviour decision from Titusz first. Everything else open is `low`
+- **Chosen:** finalize-consumes fan-out. The decision is settled, no core change is needed, each
+    surface has its own suite, and it closes one of the three `normal` issues that block v0.8.0.
+- **Rejected:** `alg_minhash_256([])` error (`IsccResult` in the Rust core and `([]byte, error)` in
+    Go). It is a core API break that every binding crate must follow, so it is a larger step. It
+    comes next, alone, and its `data-edge.json` section follows as a fan-out.
 
 ## Scope
 
-- **Fan-out:** the decided `encode_component` short-digest rule, applied to rust, python, nodejs,
-    wasm, c, cpp, java, go, ruby, dotnet, swift, kotlin (one commit per surface). No library file
-    changes behaviour
-- **Modify**: `crates/iscc-lib/tests/data-edge.json` and its 4 vendored copies
-    (`packages/dotnet/Iscc.Lib.Tests/testdata/`, `packages/go/testdata/`,
-    `packages/kotlin/src/test/resources/`, `packages/swift/Tests/IsccLibTests/`);
-    `scripts/gen_data_edge_vectors.py` + regenerated `crates/iscc-ffi/tests/data_edge_vectors.h`;
-    harnesses `crates/iscc-lib/tests/test_data_edge.rs`, `tests/test_data_edge.py`,
-    `crates/iscc-napi/__tests__/data_edge.test.mjs`, `crates/iscc-wasm/tests/data_edge.rs`,
-    `crates/iscc-ffi/tests/test_iscc.c`, `packages/cpp/tests/test_iscc.cpp`,
-    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java`,
-    `packages/go/data_edge_test.go`, `crates/iscc-rb/test/test_data_edge.rb`,
-    `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs`,
-    `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/DataEdgeTest.kt`,
-    `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift`; `tests/test_gen_data_edge_vectors.py`
-- **Reference**: commits `80eee7d9`..`8b24a5b2` (the `alg_cdc_chunks` section fan-out, same shape:
-    one commit per harness, then JSON + generator). `specs/edge-vectors.md`.
-    `reference/iscc-core/iscc_core/codec.py` (`encode_component`, slices the digest)
+**Fan-out:** a hasher's first `finalize()` takes the inner hasher before any argument conversion or
+check, so every rejected argument leaves it consumed. Applies to 5 surfaces: WASM, napi, JNI,
+Python, Ruby.
+
+- **Modify**: `crates/iscc-wasm/src/lib.rs`, `crates/iscc-napi/src/lib.rs`,
+    `crates/iscc-jni/src/lib.rs`, `crates/iscc-py/src/lib.rs`, `crates/iscc-rb/src/lib.rs`
+- **Modify (tests)**: `crates/iscc-wasm/tests/unit.rs`,
+    `crates/iscc-napi/__tests__/functions.test.mjs`,
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`,
+    `tests/test_streaming.py`, the Ruby hasher tests under `crates/iscc-rb/test/`
+- **Modify (docs)**: the hasher single-use sentence in `docs/howto/wasm.md` (line ~353),
+    `docs/howto/nodejs.md` (~241), `docs/howto/python.md` (~315), `docs/howto/ruby.md` (~328),
+    `docs/ruby-api.md` (~724), and `docs/java-api.md` (the two `IllegalStateException` notes,
+    ~707/762). For one wording across the docs, update the same sentence in `dotnet.md`,
+    `kotlin.md`, `swift.md` and `c-cpp.md` too. Copy the wording from `docs/howto/go.md:288-289`
+- **Reference**: decisions.md (the 2026-11-22 finalize entry; "Ruby integer parameters keep Ruby's
+    implicit `to_int` conversion", 2026-11-21); `crates/iscc-wasm/src/lib.rs:690-821` (current
+    order)
+- Each surface commits on its own (fan-out rule)
 
 ## Not In Scope
 
-- A row with a digest longer than `bit_length/8`: only Go and the Python binding were compared
-- Rows with two faults (bad Version plus short digest): Go and Rust name different faults
-- Rows for `bits` above 256 (the open `low` upstream issue), and any library-code change
-- Comparing error messages on any surface
+- `bits` above 256 and the `alg_minhash_256` empty-list error: these are separate `normal` steps. Do
+    not add range checks here
+- Go, .NET, C FFI, C++, Swift/Kotlin (UniFFI) and the Rust core already comply: their `bits` is
+    unsigned by type, and the core rejects only after `take()`. Change no code there, and say why in
+    the handoff (this is the "every other surface checked" part of the issue)
+- No `data-edge.json` vector: hasher state cannot be expressed in JSON
+- Do not change exception classes or messages a caller sees today (Python `OverflowError`/
+    `TypeError`/`ValueError`, Ruby `RangeError`/`TypeError`, JNI `IllegalArgumentException`)
+- `update()` argument handling is out of scope
 
 ## Implementation Notes
 
-Two vectors, inputs `[mtype, stype, version, bit_length, "bytes:<hex>"]`, `outputs` a plain string
-(the unit without `ISCC:`, as the core returns it). Probed by define-next on iscc-core 1.5.0 under
-Python 3.10 and 3.15 (same result) and on the local Python binding:
-
-- `test_0001_short_digest`: `[0, 0, 0, 64, "bytes:01020304"]`, `error` (digest shorter than
-    bit_length/8), `diverges` naming decisions.md 2026-11-22 "encode_component rejects a digest
-    shorter than bit_length/8". iscc-core returns `AAAQCAQDAQ`; iscc_lib raises
-- `test_0002_exact_length_digest`: `[0, 0, 0, 64, "bytes:0001020304050607"]`, outputs
-    `"AAAQAAICAMCAKBQH"` on iscc-core and iscc_lib
-
-Each note is one sentence naming the idiosyncrasy (iscc-core slices a short digest and emits a unit
-whose header claims more bits than its body). Python: `iscc_core.encode_component` takes the same
-five arguments, so the cross-check needs only a preparer that decodes the digest.
-
-Per-surface argument types: uniffi (Swift `UInt8`/`UInt32`, Kotlin `UByte`/`UInt`) takes
-`(mtype, stype, version: u8, bit_length: u32, digest)`. Check the Java, .NET, napi, WASM, Ruby and C
-signatures in each surface's existing `encode_component` smoke test. C generator: add a struct and
-`row_encode_component`. The generator and every harness fail closed on an unhandled section, so all
-must land before the final JSON commit is green.
-
-Traps: Rust `tests/*.rs` helpers score 0% coverage under CRAP, keep each at cyclomatic complexity ≤
-5 (CI-only `--fail-above`). napi: `napi build` fails in the 9p checkout, so build and test in a
-`git archive` copy under `/tmp` (learnings). Swift toolchain recipe: `packages/swift/CLAUDE.md`.
-Kotlin: read the JUnit XML, not the exit code. No hot-path or Rust `src/` change, so iai and semver
-do not move.
+- **WASM** (3 hashers): move `opt_u32`/`opt_bool` after `self.inner.take()…?`.
+- **napi** (DataHasher, InstanceHasher; napi has no SumHasher): moving `opt_u32` after `take()`
+    covers `-1` and `1.5`. A non-number (`"x"`) is still rejected by napi's `Option<f64>` conversion
+    before the body. To cover it, take `bits: Option<Unknown>` (napi 3.11,
+    `napi::bindgen_prelude::Unknown`, `src/js_values/unknown.rs`) with
+    `#[napi(ts_arg_type = "number | undefined | null")]`. After `take()`, read it as a number and
+    route it through the existing `to_u32` helper. A non-number gets a `bits must be a number`-style
+    error. Treat `undefined` and `null` as the default 64, as today. The generated `index.d.ts` must
+    keep `finalize(bits?: number | undefined | null)`, so diff the built file's `finalize` lines
+    against the current build.
+- **JNI** (2 hashers): order becomes zero-handle check → `take()` (else `throw_state_error`) →
+    `non_negative(bits)` → `finalize`. A zero handle still throws before anything else.
+- **Python** (3 `_lowlevel` hashers): PyO3 converts `bits: u32` and `wide`/`add_units: bool` before
+    the body. Take them as `&Bound<'_, PyAny>`, or as `Option<…>` with `signature = (bits=None, …)`
+    mapping `None` to the old defaults, and `.extract::<u32>()`/`.extract::<bool>()` after `take()`.
+    `extract` raises the same exception types as today. `_lowlevel.pyi` keeps `bits: int = 64`.
+- **Ruby** (2 hashers, `_finalize`): take `bits: Value` and convert with `u32::try_convert` after
+    `take()`. That is the conversion Magnus applied before, so `to_int` behaviour is unchanged.
+- **Tests, per surface and hasher:** case A, an argument the binding rejects (WASM/napi `-1` and
+    `"x"`, JNI `-1`, Python `-1`, Ruby `-1`); case B, a `bits` the core rejects (`13`). After each,
+    a valid `finalize(64)` must raise the surface's "already finalized" error. Use a fresh hasher
+    for each case, one bad case per hasher (learnings: one bad case per call). For SumHasher in WASM
+    and Python, also cover a rejected `wide` (`"x"`).
+- Binding-only step: neither CRAP nor iai is touched (no `crates/iscc-lib` change).
 
 ## Verification
 
-- `cargo test -p iscc-lib --test test_data_edge` passes, and the CI CRAP lines from `ci.yml`
-    (llvm-cov then cargo crap with `--fail-regression --fail-above`) exit 0
-- `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py` and
-    `uv run pytest tests/test_vendored_fixtures.py` pass, with the iscc-core cross-check running
-    both `encode_component` vectors
-- After `uv run python scripts/gen_data_edge_vectors.py`, `git status --porcelain crates/iscc-ffi`
-    prints nothing
-- nodejs `npm test` (in a `/tmp` copy), wasm `wasm-pack test --node crates/iscc-wasm` with the
-    conformance feature, java `mvn test -f crates/iscc-jni/java/pom.xml`, go
-    `CGO_ENABLED=0 go test ./...`, ruby `bundle exec rake test`, dotnet
-    `dotnet test packages/dotnet` all pass
-- c `test_iscc` and cpp `test_iscc` (build lines from `ci.yml`) pass; kotlin JUnit XML shows
-    `DataEdgeTest` with 0 failures; swift `swift test --filter DataEdge` passes
-- `python3 -c "import json;assert len(json.load(open('crates/iscc-lib/tests/data-edge.json'))['encode_component'])==2"`
-    exits 0, and `mise run check` exits 0
+- WASM: `wasm-pack test --node crates/iscc-wasm --features conformance` passes, including the new
+    consumption tests for all 3 hashers
+- napi, in a `git archive HEAD` copy under `/tmp` (9p `link()` issue):
+    `npm ci && npx napi build --platform && npm test` passes. The built `index.d.ts` still types
+    both `finalize` methods as `(bits?: number | undefined | null)`
+- JNI: `cargo build -p iscc-jni && mvn -f crates/iscc-jni/java/pom.xml test` passes
+- Python: `uv run maturin develop -m crates/iscc-py/Cargo.toml && uv run pytest tests/` passes (new
+    cases in `tests/test_streaming.py`). `uv run ty check` is clean
+- Ruby: `LANG=C.UTF-8 mise exec -- bundle exec rake compile test` in `crates/iscc-rb` passes
+- `cargo clippy --workspace --all-targets -- -D warnings` and `mise run check` exit 0
+- `grep -il "even when"` over `docs/howto/{wasm,nodejs,python,ruby}.md` and `docs/java-api.md` lists
+    all 5 files
 
 ## Done When
 
-The `encode_component` section runs green on all 12 surfaces and in the Python iscc-core
-cross-check.
+All 7 verification criteria pass, and the handoff names each of the 12 surfaces with how it meets
+the rule (fixed here, or compliant by type).
