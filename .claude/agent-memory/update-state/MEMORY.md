@@ -86,13 +86,12 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 3bf5fd0, iter 304 — incremental)
+## Current State (assessed-at: 113c61b, iter 305 — incremental)
 
-- Origin tip `55f81415` run 45028556621 green (waited ~4 min, mid-run on arrival). HEAD +1
+- Origin tip `3b956483` run 45029771700 green (waited ~3 min, mid-run on arrival). HEAD +1
     `.claude`.
-- 20 open (4 `normal` + 16 `low`, 15 untriaged). 303: 256-bit rows + API pages landed; bits issue
-    REWRITTEN to remainder (decode row `iscc_decode/test_0006` doesn't pin the bound; sum-code doc
-    rows need 64 to 256). Other `normal`: 3 audit. iscc-lib `src/` `#[test]` = 341.
+- 19 open (3 `normal` audit + 16 `low`, 15 untriaged). 304 closed the 256-bit bits issue (decode row
+    now the encoder's 288-bit Meta-Code; sum-code docs 64 to 256). iscc-lib `src/` `#[test]` = 341.
 - **A doc/vector row can be present yet wrong** (303): check issues.md bodies for the reviewer's
     measured defects instead of counting rows as met.
 - **CI on a fresh tip may be mid-run** (Coverage+CRAP is the slowest job): wait with
