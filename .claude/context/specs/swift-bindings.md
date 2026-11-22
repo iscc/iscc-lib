@@ -394,7 +394,8 @@ Release asset (uses existing `contents: write` permission).
 - XCFramework zip uploaded as GitHub Release asset named `IsccLib.xcframework.zip`
 - Release workflow commits the checksum to `Package.swift` and tags that commit once; an existing
     tag is never moved
-- Release workflow includes `swift` checkbox in `workflow_dispatch` inputs
+- The release workflow builds the XCFramework only when the `version` input is set; there is no
+    `swift` checkbox in the `workflow_dispatch` inputs
 - `swift package compute-checksum` used for checksum (not raw sha256sum)
 - `ditto -c -k --sequesterRsrc --keepParent` used for zipping
 - `DataHasher` / `InstanceHasher` streaming types work correctly

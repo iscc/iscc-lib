@@ -361,6 +361,7 @@ public static partial class IsccLib
     }
 
     /// <summary>Encode ISCC header fields and digest bytes into an ISCC string.</summary>
+    /// <exception cref="IsccException">Thrown for out-of-range enum values, for MainType ISCC (5), for an invalid <paramref name="bitLength"/>, or when <paramref name="digest"/> is shorter than <c>bitLength / 8</c> bytes.</exception>
     public static string EncodeComponent(
         byte mtype, byte stype, byte version, uint bitLength,
         ReadOnlySpan<byte> digest)

@@ -430,7 +430,9 @@ namespace Iscc.Lib
         ///  # Returns
         ///
         ///  Heap-allocated C string on success, `NULL` on error.
-        ///  Caller must free with `iscc_free_string()`.
+        ///  Caller must free with `iscc_free_string()`. Returns `NULL` and sets the last
+        ///  error for out-of-range enum values, for MainType ISCC (5), for an invalid
+        ///  `bit_length`, or when the digest is shorter than `bit_length / 8` bytes.
         ///
         ///  # Safety
         ///

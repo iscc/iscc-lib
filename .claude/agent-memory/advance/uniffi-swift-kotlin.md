@@ -101,3 +101,6 @@ Detail moved out of MEMORY.md index. See also [[ci-gates]] for the swift/kotlin 
     `cargo test -p iscc-uniffi --target i686-unknown-linux-musl` (target installed, ~50 s build).
 - Swift toolchain cached at `/tmp/swifttc/swift-6.1.2-RELEASE-debian12/usr/bin/swift` (may vanish).
     Kotlin: `packages/kotlin/gradlew -p packages/kotlin test` after `cargo build -p iscc-uniffi`.
+- The Bash tool shell is zsh: `$gen ...` with `gen="cargo run ..."` does NOT word-split ("command
+    not found"). Run the CI `gen=` lines under `bash -c '...'`, or extract the step with PyYAML and
+    `bash -e` it (iter 307).

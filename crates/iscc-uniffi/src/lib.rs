@@ -423,6 +423,10 @@ pub fn iscc_decompose(iscc_code: String) -> Result<Vec<String>, IsccUniError> {
 }
 
 /// Encode header and digest into an ISCC component string.
+///
+/// Returns `IsccUniError` for out-of-range enum values, for MainType ISCC (5),
+/// for an invalid `bit_length`, or when `digest` is shorter than
+/// `bit_length / 8` bytes.
 #[uniffi::export]
 pub fn encode_component(
     mtype: u8,

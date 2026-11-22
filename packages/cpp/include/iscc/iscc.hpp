@@ -302,6 +302,8 @@ inline std::string json_to_data_url(const std::string& json) {
 }
 
 /// Encode raw ISCC header components and digest into a base32 ISCC unit string.
+/// Throws IsccError for out-of-range enum values, for MainType ISCC (5), for an
+/// invalid `bit_length`, or when `digest` is shorter than `bit_length / 8` bytes.
 inline std::string encode_component(uint8_t mtype, uint8_t stype, uint8_t version,
                                     uint32_t bit_length,
                                     const std::vector<uint8_t>& digest) {

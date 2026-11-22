@@ -121,7 +121,9 @@ pub const TEXT_NGRAM_SIZE: u32 = iscc_lib::TEXT_NGRAM_SIZE as u32;
 /// Encode raw ISCC header components and digest into a base32 ISCC unit string.
 ///
 /// Takes integer type identifiers and a raw digest, returns a base32-encoded
-/// ISCC unit string (without "ISCC:" prefix).
+/// ISCC unit string (without "ISCC:" prefix). Throws an `Error` for
+/// out-of-range values, for MainType ISCC (5), for an invalid `bit_length`, or
+/// when `digest` is shorter than `bit_length / 8` bytes.
 #[napi(js_name = "encode_component")]
 pub fn encode_component(
     mtype: f64,

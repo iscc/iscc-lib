@@ -1,67 +1,59 @@
-## 2026-11-22 — Review of: One section table drives Rust conformance; WASM conformance uses strict shared readers
+## 2026-11-22 — Specs and API docs state shipped facts and the shipped error rules
 
-**Verdict:** PASS
+**Done:** The three specs now state what shipped (no `swift` checkbox; doc lists restated as rules
+that point to the `zensical.toml` nav, the README Installation section and the `docs/index.md` tab
+order; feature flags as they are in `crates/iscc-lib/Cargo.toml`). `encode_component`'s short-digest
+rule is documented on the 7 missing surfaces, `c-ffi-api.md`'s streaming warning says a failed first
+`_finalize()` consumes, and the README list names Swift. Comments and docs only, no code changes.
 
-**Summary:** `conformance.rs` now has one `SECTIONS` table that drives `conformance_selftest`, the
-test helpers and a table-vs-`data.json` test; the five duplicate loops left `lib.rs`. The WASM
-conformance harness reads every vector through strict readers (shared ones in `tests/common/mod.rs`)
-and takes case counts from the file. The work matches next.md, the public signature of
-`conformance_selftest` is unchanged, and the `[audit]` issue is closed.
+**Files changed:**
+
+- `.claude/context/specs/swift-bindings.md`: :397 criterion now says the XCFramework builds only
+    when `version` is set and there is no `swift` checkbox
+- `.claude/context/specs/documentation.md`: how-to/reference bullets point to the `zensical.toml`
+    nav; tab order = README Installation languages in `docs/index.md` Quick Start order; bindings
+    criterion = every language in the README Installation section. No language or page lists left
+- `.claude/context/specs/c-ffi-dx.md` §5: #16 and "~82K lines" gone; states
+    `default =   ["meta-code"]`, which features pull in which crates, and that `serde_json` is not
+    optional
+- `docs/c-ffi-api.md`: error sentence after the `iscc_encode_component` table; streaming warning
+    rewritten like `howto/c-cpp.md`
+- `README.md`: Swift added to the "What is iscc-lib" list
+- `crates/iscc-ffi/src/lib.rs` (`# Returns`), `crates/iscc-napi/src/lib.rs`,
+    `crates/iscc-wasm/src/lib.rs` (JS `Error`), `crates/iscc-uniffi/src/lib.rs` (`IsccUniError`),
+    `packages/cpp/include/iscc/iscc.hpp` (`IsccError`, which is what `check_ptr` throws),
+    `packages/dotnet/Iscc.Lib/IsccLib.cs` (`<exception cref="IsccException">`, which is what
+    `ConsumeNativeString` throws): `encode_component` doc comment names the out-of-range, MainType
+    ISCC (5), invalid `bit_length` and digest-shorter-than-`bit_length / 8` cases
+- Regenerated: `crates/iscc-ffi/include/iscc.h`, `packages/dotnet/Iscc.Lib/NativeMethods.g.cs`,
+    `packages/swift/Sources/IsccLib/iscc_uniffi.swift` and
+    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (doc comment plus the
+    `encode_component` checksum, 11010 → 629). The stray `iscc_uniffiFFI.h`/`.modulemap` were
+    deleted; the generated FFI header matched the committed one apart from whitespace
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` (469 passed), `--no-default-features` (398),
-    `--no-default-features --features text-processing` (433), 0 failed in each (counts include the
-    reviewer's one added test)
-- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` and
-    `cargo clippy -p iscc-lib --no-default-features -- -D warnings` clean (also the full workspace,
-    and `--tests` under both reduced feature sets)
-- [x] `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
-    exits 0: conformance 11, data_edge 8, unit 136
-- [x] Section-name grep: lines 39–50 (the table) are the only matches before `mod tests`
-- [x] Both "prints nothing" greps are empty; no other `as` cast is left in the WASM conformance
-    files
-- [x] Table test has teeth, re-run by the reviewer in a `/tmp` copy: without the audio row
-    `test_sections_match_data_json` fails and names `gen_audio_code_v0`
-- [x] `mise run check` exit 0
+- The three "prints nothing" greps (`#16`, `includes .swift. checkbox`,
+    `Python, Rust, Java, Node.js, WASM, C/C++`) print nothing; `check_spec_paths.py`: "OK: every
+    tree entry and backticked path in 15 specs resolves", exit 0
+- `grep -c 'bit_length / 8\|bitLength / 8'` gives 1 in each of the 7 files
+- Freshness: after `touch crates/iscc-ffi/src/lib.rs && cargo build -p iscc-ffi` plus the CI
+    cbindgen command, `git diff --exit-code` on `NativeMethods.g.cs` and `iscc.h` gives exit 0
+    (staged state compared). The UniFFI step's `run` body, pulled out of `ci.yml` with PyYAML and
+    run with `RUNNER_TEMP=/tmp/rt bash -e`, gives exit 0
+- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` clean;
+    `cargo test -p iscc-uniffi -p iscc-ffi`: 121 + 31 passed, 0 failed
+- `uv run zensical build` exit 0 ("No issues found"); `mise run check` exit 0 on the third run (runs
+    1 and 2 rewrote whitespace in the uniffi output. Kotlin needs two passes: trimming trailing
+    spaces leaves a blank line at EOF for end-of-file-fixer)
 
-Reviewer probes: (1) WASM harness on a `/tmp` copy with a pixel of 256 and a text `bits` of 2^32+64,
-two values the old `as u8` / `as u32` casts turned back into the original: both tests now fail with
-the reader's message ("is not a list of u8", "is not a u32"), the other 9 pass. (2)
-`.crap-baseline.json` compared by score with the previous commit: only `conformance.rs` rows differ
-(12 new, 11 gone, `conformance_selftest` 4.08 → 5.58).
-
-**Issues found:**
-
-- Fixed in this review: deleting the five `lib.rs` loops removed the core's only case-count pins for
-    image, audio, video, data and iscc, and an empty section passes `conformance_selftest`. Added
-    `test_sections_have_cases` (every table row has at least one case, all feature sets). Exact
-    counts are still pinned by the Swift suite on its gated byte-identical copy
-- Not filed (nit): `assert_eq!(tested, cases.len())` in the WASM harness cannot fail, because the
-    loop panics on any bad case. The floor in `section_cases` is the real guard
-- Not filed (nit): the WASM harness has no section-list guard of its own; its `CLAUDE.md` says so,
-    and the core's table test fails first on a new section
-
-**Codex review:** no actionable findings. It re-ran the Rust tests under all three feature sets, the
-WASM tests and clippy for both crates.
-
-**Next:** the remaining `normal` blocker, the `[audit]` issue "Specs and API docs still describe
-shipped work as planned, or leave out shipped rules" (9 files). Suggested split into two steps:
-
-1. Docs and API comments under the audit-scope valve (7 files: `docs/c-ffi-api.md`, `IsccLib.cs`,
-    `iscc.hpp`, the napi, WASM and UniFFI comments, `README.md`). A `///` edit on a `iscc-ffi` or
-    UniFFI export regenerates tracked outputs (`iscc.h`, `NativeMethods.g.cs`, the UniFFI
-    bindings); list them as regenerated files, which do not count against the cap.
-2. The three specs (`swift-bindings.md`, `documentation.md`, `c-ffi-dx.md`). These are mechanically
-    checkable facts (a checkbox that does not exist, page lists, a closed GitHub issue), so no
-    escalation is needed; point to the nav and `release.yml` where a list would be copied.
+**Next:** No `normal` blockers left for v0.8.0 in this issue's area. The `[audit]` issue can be
+closed, since none of its evidence matches the tree any more.
 
 **Notes:**
 
-- `conformance_selftest`'s CRAP score rose (4.08 → 5.58, limit 30), against next.md's expectation: a
-    loop adds one decision and removes covered straight-line calls, so the two unreachable error
-    arms weigh more. The baseline moved in the same commit, as the gate rule requires. The
-    reviewer's added test sits in the test module, which the gate does not score.
-- The meta, text, mixed and instance loops in `lib.rs` stay, hard-coded counts included.
-- The CRAP and Perf gates run in CI only; the first CI run on this push is the proof for the
-    refreshed baseline.
+- Out of scope, seen while editing: the `bit_length` row in the `c-ffi-api.md` table and the FFI
+    `///` say "multiple of 32, 32 to 256" and leave out the ID range (64 to 96 in steps of 8) that
+    `rust-api.md` gives. My error sentences say "invalid `bit_length`" and do not repeat a range
+- `documentation.md` tab rule: "other pages follow the same order" is my restatement of the old
+    "standard tab order" rule. It covers how-to/docs pages that show fewer languages

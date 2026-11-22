@@ -649,7 +649,9 @@ char* iscc_encode_component(
 | `digest`     | `const uint8_t*` | Pointer to raw digest bytes                          |
 | `digest_len` | `size_t`         | Number of bytes in the digest buffer                 |
 
-Free the result with `iscc_free_string()`.
+Returns `NULL` and sets the last error for out-of-range enum values, for MainType ISCC (5), for an
+invalid `bit_length`, or when the digest is shorter than `bit_length / 8` bytes. Free the result
+with `iscc_free_string()`.
 
 ---
 
@@ -741,8 +743,9 @@ Streaming hashers for processing large data incrementally. Each hasher follows t
 
 !!! warning
 
-    `_finalize()` consumes the hasher state. After finalizing, subsequent `_update()` or `_finalize()`
-    calls will fail. You must still call `_free()` to release the wrapper.
+    The first `_finalize()` call consumes the hasher state, even when it fails (for example on an
+    invalid `bits` value). After it, subsequent `_update()` or `_finalize()` calls will fail. You must
+    still call `_free()` to release the wrapper.
 
 ### DataHasher
 

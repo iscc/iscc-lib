@@ -48,8 +48,8 @@ and general digital asset management use-cases.
 
 `iscc-lib` is a high-performance polyglot implementation of the ISCC core algorithms
 ([ISO 24138](https://www.iso.org/standard/77899.html)). Built in Rust with language bindings for
-Python, Java, Go, Ruby, C#, C++, Kotlin, Node.js, WebAssembly, and C, it serves developers across
-multiple ecosystems who need fast, reliable content identification.
+Python, Java, Go, Ruby, C#, C++, Swift, Kotlin, Node.js, WebAssembly, and C, it serves developers
+across multiple ecosystems who need fast, reliable content identification.
 
 `iscc-lib` is conformance-tested against the official Python reference implementation
 [iscc-core](https://github.com/iscc/iscc-core) and produces identical results for all test vectors.

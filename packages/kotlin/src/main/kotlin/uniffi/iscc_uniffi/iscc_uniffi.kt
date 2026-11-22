@@ -992,7 +992,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_iscc_uniffi_checksum_func_encode_base64() != 43598) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_iscc_uniffi_checksum_func_encode_component() != 11010) {
+    if (lib.uniffi_iscc_uniffi_checksum_func_encode_component() != 629) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_iscc_uniffi_checksum_func_encode_seq() != 49172) {
@@ -3043,6 +3043,10 @@ public object FfiConverterSequenceSequenceInt: FfiConverterRustBuffer<List<List<
 
         /**
          * Encode header and digest into an ISCC component string.
+         *
+         * Returns `IsccUniError` for out-of-range enum values, for MainType ISCC (5),
+         * for an invalid `bit_length`, or when `digest` is shorter than
+         * `bit_length / 8` bytes.
          */
     @Throws(IsccUniException::class) fun `encodeComponent`(`mtype`: kotlin.UByte, `stype`: kotlin.UByte, `version`: kotlin.UByte, `bitLength`: kotlin.UInt, `digest`: kotlin.ByteArray): kotlin.String {
             return FfiConverterString.lift(

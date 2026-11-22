@@ -2145,6 +2145,10 @@ public func encodeBase64(data: Data) -> String  {
 }
 /**
  * Encode header and digest into an ISCC component string.
+ *
+ * Returns `IsccUniError` for out-of-range enum values, for MainType ISCC (5),
+ * for an invalid `bit_length`, or when `digest` is shorter than
+ * `bit_length / 8` bytes.
  */
 public func encodeComponent(mtype: UInt8, stype: UInt8, version: UInt8, bitLength: UInt32, digest: Data)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
@@ -2502,7 +2506,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_iscc_uniffi_checksum_func_encode_base64() != 43598) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_encode_component() != 11010) {
+    if (uniffi_iscc_uniffi_checksum_func_encode_component() != 629) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_iscc_uniffi_checksum_func_encode_seq() != 49172) {

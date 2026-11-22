@@ -440,7 +440,9 @@ pub fn encode_base64(data: &[u8]) -> String {
 /// Encode raw ISCC header components and digest into a base32 ISCC unit string.
 ///
 /// Takes integer type identifiers and a raw digest, returns a base32-encoded
-/// ISCC unit string (without "ISCC:" prefix).
+/// ISCC unit string (without "ISCC:" prefix). Throws an `Error` for
+/// out-of-range values, for MainType ISCC (5), for an invalid `bit_length`, or
+/// when `digest` is shorter than `bit_length / 8` bytes.
 #[wasm_bindgen]
 pub fn encode_component(
     #[wasm_bindgen(unchecked_param_type = "number")] mtype: JsValue,

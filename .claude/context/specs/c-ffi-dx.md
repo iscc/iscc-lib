@@ -133,6 +133,8 @@ Add to `release.yml`:
 
 ## 5. Feature Flags for Minimal Builds
 
-Tracked separately as GitHub Issue #16. Allows `default-features = false` to build only Data-Code +
-Instance-Code, stripping ~82K lines of serde/unicode dependencies. Relevant for embedded consumers
-but not blocking for the DX improvements above.
+Shipped in the `iscc-lib` crate (`crates/iscc-lib/Cargo.toml` `[features]`).
+`default = ["meta-code"]`. `text-processing` brings in the Unicode crates (`unicode-normalization`,
+`unicode-general-category`); `meta-code` enables `text-processing` and adds
+`serde_json_canonicalizer`. `serde_json` is not optional. With `default-features = false` the crate
+builds without the Unicode crates and without `serde_json_canonicalizer`, for embedded consumers.
