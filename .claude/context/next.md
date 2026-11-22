@@ -1,97 +1,89 @@
 # Next Work Package
 
-## Step: Both conformance runners reject a wrong-type or out-of-range vector value as unparsable
+## Step: `version:check` checks every version occurrence and fails on a vanished target
 
 ## Goal
 
-Picks up the `normal` [audit] issue "The Rust and Go conformance runners disagree on malformed
-vectors". It sets one rule, a wrong JSON type or an out-of-range value is a parse failure, records
-it, and applies it to `conformance.rs` and `conformance.go`, so the two selftests give the same
-verdict on every row of the issue's table.
+Pick up the `normal` [audit] issue "`version:check` passes a stale second doc snippet and skips a
+vanished target silently": `scripts/version_sync.py` must see every version occurrence it would
+rewrite, and must report a missing target file or an unmatched pattern instead of skipping it. It is
+the only open `normal` issue that needs no decision from Titusz, and `version-check` is the sole CI
+guard over the 22 version references a release ships.
 
 ## Alternatives Considered
 
-- **Chosen:** runner wrong-type rule. It is the handoff's first item, needs no human decision, and
-    the inputs in `data.json` are all well typed, so the strict rule breaks no real vector. Checked:
-    every `bits` is an int, every list holds only ints or only strings, `meta` is null, a dict or a
-    string, and every top-level key except `_metadata` is a section of cases.
-- **Rejected:** `version:check` gaps (1 file). Smaller and also ready, but the handoff puts it
-    second. It is next.
-- Not loop-ready: `alg_minhash_256([])`, WASM `finalize()` (each needs Titusz's behaviour call), Go
-    `EncodeComponent` (needs a rule recorded first, then a 12-surface vector fan-out).
+- **Chosen:** harden `version_sync.py` — one script plus tests, fully verifiable locally, unblocks
+    one of the four release-blocking `normal` issues.
+- **Rejected:** Go `EncodeComponent` short-digest rule — it changes Go port behaviour *and* adds a
+    `data-edge.json` section (an unsplittable 12-surface fan-out); core changes go first and alone,
+    and the rule still has to be recorded. The other two `normal` issues (`alg_minhash_256([])`,
+    WASM `finalize()`) need Titusz's behaviour decision.
 
 ## Scope
 
-- **Modify**: `crates/iscc-lib/src/conformance.rs`, `packages/go/conformance.go`,
-    `packages/go/conformance_test.go` (test), `.crap-baseline.json` (generated, only if the gate
-    needs it), `.claude/context/decisions.md` (append one entry), `packages/go/CLAUDE.md` and
-    `crates/iscc-lib/CLAUDE.md` (one line each on the shared rule)
-- **Reference**: the issue's table in issues.md; learnings → "Fixture parsers coerce silently"
+- **Modify**: `scripts/version_sync.py`
+- **Modify (tests)**: `tests/test_version_sync.py`
+- **Reference**: `.github/workflows/ci.yml` (`version-check` job runs
+    `python scripts/version_sync.py --check`), `mise.toml` (`version:sync` / `version:check` tasks)
 
 ## Not In Scope
 
-- The per-language data-edge harnesses (`tests/data_edge*.rs`, `data_edge_test.go`, the other 10
-    bindings). This rule covers only the two `data.json` selftest runners
-- Go's case-insensitive struct-tag match (`"Inputs"` matches `inputs`). Leave it unless it falls out
-    of the change for free
-- Library behaviour (`gen_*`, codec). Only fixture parsing changes; no `data.json` edit
-- Moving the iai baseline. This code is off every benchmarked path
+- The partial file lists in `docs/development.md` and `.claude/skills/release/SKILL.md` (a separate
+    `low` issue) — do not edit either.
+- Adding new sync targets or new snippet kinds (napi/npm install lines etc.); `TARGETS` keeps its 22
+    entries.
+- Rewording the docs snippets themselves; every target is at 0.7.0 today and must stay so.
 
 ## Implementation Notes
 
-**The rule (write it into decisions.md as the decision):** a vector value of the wrong JSON type, or
-a number that is not an integer or is outside the argument's range, makes the case unparsable (Rust:
-the parser returns `None`; Go: `errUnparsable`). It is never coerced, truncated, skipped or
-defaulted. The only allowed value forms:
+**Probe done while scoping (read-only):** every one of the 22 targets exists and its getter finds a
+version today, so strict "missing / not found = failure" breaks nothing on the real tree. Multi-site
+files today: `README.md` (Maven, Gradle, SPM), `docs/index.md` (Maven, Gradle, 2× SPM),
+`docs/java-api.md` (Maven, Gradle), `mise.toml` (`--version 0.7.0` on lines 111 and 113, getter
+reads the first only) and `scripts/test_install.py` (fallback `version or "0.7.0"` plus docstring
+`--version 0.7.0`; getter reads the fallback only).
 
-- `name`, `description`, `text`, stream, `bytes:` and code entries: JSON string (`null` rejected; an
-    empty `description` still means no description)
-- `meta`: `null`, string or object. A number, bool or array is rejected
-- `bits`: integer in `u32` range. Pixel: integer 0..=255. `cv` and frame entries: integer in `i32`
-    range. Code lists (mixed, iscc, encode_seq) and decode_seq outputs: every entry a string
-- Top level: every key except `_metadata` must map to an object of case objects, or the selftest
-    fails (Go already does this; Rust ignores unknown keys today. Add a small checked helper that
-    `conformance_selftest` calls, so a test can feed it a synthetic value)
+**Finish the pattern** (the "getter reads one site, sync rewrites all" defect is not doc-only):
+every getter must report each occurrence its sync function rewrites. Suggested contract: a getter
+returns a list of every version string it finds (empty list = pattern not found). Single-site
+getters return `[v]` or `[]`; the package-lock getter can return `[top, root]` (drop its
+`MISMATCH(...)` string); `_get_doc_dep_version` returns all Maven + Gradle + SPM matches; mise and
+test_install return all matches of the patterns their sync functions rewrite. A different shape is
+fine if every multi-site getter covers every site.
 
-**Rust:** use `u32::try_from` / `u8::try_from` / `i32::try_from` on `as_u64` / `as_i64` instead of
-`as` casts. `string_entries` must fail on a non-string entry (`collect::<Option<_>>()`, as the seq
-runners already do). `meta_arg` must tell "absent" (`null`) apart from "rejected". Keep `?` chains
-flat: cargo-crap counts each `?`, and CI fails a covered function whose score rises unless
-`.crap-baseline.json` moves in the same commit.
+`check_mode`:
 
-**Go:** `json.Unmarshal` of `null` into a string, slice or number leaves the zero value with no
-error. `unmarshalInputs` must reject a raw `null` input (the meta slot is a `json.RawMessage` and
-goes through `metaArg`, which must also reject a value whose first byte is not `"` or `{`). Decode
-`bits` into `uint32` and cv/frames into `int32` directly: `encoding/json` refuses `64.0`, `64.5` and
-out-of-range numbers for integer targets. **Trap:** `[]uint8` is `[]byte`, which `encoding/json`
-decodes from a base64 *string*. Decode pixels into a wider integer slice (e.g. `[]int`) and
-range-check each one.
+- file missing → print `MISMATCH: <path> missing` (or similar) and fail;
+- getter finds nothing → print a `MISMATCH: <path> pattern not found` line and fail;
+- any found version ≠ workspace version → `MISMATCH` line naming the found versions, fail;
+- otherwise `OK: <path> = <version>` (keep this exact prefix — `test_real_tree_passes_check` greps
+    `OK: crates/iscc-napi/package-lock.json`).
 
-**Tests (one bad case per call, learnings → "One bad case per call"):** a Rust `#[test]` in the
-`conformance.rs` test module and a Go `Test…` in `conformance_test.go`, each feeding the same table:
-`bits` `64.0`, `64.5`, `-1`, `4294967296`; description `null`; name `null`; `meta` `5` and `[]`; a
-non-string entry in a mixed and in an iscc code list; pixel `0.5`, `-256`, `256`; cv entry
-`2147483648`; and a top-level key mapped to a number. Every case carries an output the correct input
-would match, so only the parse arm can fail it. Keep one positive case per changed parser so the
-table cannot pass because everything fails. Gate the meta row with `#[cfg(feature = "meta-code")]`
-and the text row with `text-processing`, as the existing tests do.
+`sync_mode`: rewrite when **any** occurrence differs; a missing file or unmatched pattern must not
+be skipped silently — print it and make `main()` exit 1 (a release sync that drops a target is the
+same defect). Keep the byte-identical no-op on a current file.
+
+Tests: make `check_mode`/`sync_mode` testable on synthetic trees by monkeypatching `vs.ROOT` (to
+`tmp_path`) and `vs.TARGETS` (pytest `monkeypatch.setattr`), or by giving both functions optional
+`root`/`targets` parameters — pick one. One bad case per test (learnings: one bad case per call).
+Update the module docstring of the test file (it says "napi lockfile" only). Python only: no
+CRAP/iai impact.
 
 ## Verification
 
-- `cargo test -p iscc-lib`, `cargo test -p iscc-lib --no-default-features` and
-    `cargo test -p iscc-lib --no-default-features --features text-processing` pass, including the
-    new wrong-type table test; `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean
-- `CGO_ENABLED=0 go test -count=1 ./...`, `GOARCH=386 CGO_ENABLED=0 go test -count=1 ./...` and
-    `go vet ./...` pass in `packages/go`, including the new wrong-type table test
-- `grep -nE ' as (u8|u32|i32)\b' crates/iscc-lib/src/conformance.rs` prints nothing, and
-    `grep -nE 'filter_map' crates/iscc-lib/src/conformance.rs` prints nothing
-- `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info && cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
-    exits 0
-- `.claude/context/decisions.md` has a `## 2026-11-22 —` heading for the wrong-type rule, and
-    `uv run pytest tests/test_vendored_fixtures.py` passes (no fixture changed)
+- `uv run pytest tests/test_version_sync.py` passes, including new tests that each assert
+    `check_mode` returns False for exactly one of: (a) a doc with one current and one stale snippet
+    (e.g. Maven current, SPM stale), (b) a target file that does not exist, (c) a target file whose
+    getter finds no version, (d) `mise.toml`-style text with a stale second `--version`
+- A test asserts `sync_mode` on a synthetic doc with a current first and a stale second snippet
+    rewrites the stale one (reading the file back shows only the workspace version)
+- `python scripts/version_sync.py --check` exits 0 on the real tree and prints 22 lines starting
+    with `OK:`
+- `uv run ruff check scripts/version_sync.py tests/test_version_sync.py` and
+    `uv run ty check scripts/version_sync.py` exit 0
 - `mise run check` exits 0
 
 ## Done When
 
-Both runners reject every row of the table as unparsable without a panic, each row is pinned by a
-test on both sides, the rule is in decisions.md, and every check above passes.
+All verification criteria pass and `version:check` fails on any stale occurrence, missing target or
+unmatched pattern, each pinned by a test.
