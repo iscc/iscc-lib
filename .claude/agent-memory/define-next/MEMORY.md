@@ -3,26 +3,26 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 300):** 299 Go `AlgMinhash256` error PASSED. 300 = `alg_minhash_256`
-data-edge section fan-out (12 surfaces, template = encode_component commits `6064506d..7041f47f`;
-Java `SECTIONS` → `Map.ofEntries`; .NET/C++ doc nit on BOTH minhash + simhash). iscc-core 1.5.0
-raises `ValueError` on `alg_minhash_256([])` (both builds) → no `diverges`. Next: bits>256 core
-(alone), then its fan-out, then v0.8.0 is release-ready (human cuts). **An issue's list of pinning
-tests can under-count (298: `tests/test_algo.py` was a 6th `0xFF` pin) — grep yourself.** **A
-signature-changing core break cannot land "alone": forced binding edits ride along; the data-edge
-fan-out stays separate.** **Behaviour-neutral call swaps don't count toward the cap (decision
-2026-11-20 counts behaviour files)** — say so in Scope. In-crate test modules of `lib.rs` can't see
-private `conformance` items — scope `pub(crate)`. **Check a grep criterion's pattern against the
-current tree's error/doc strings too** (290). iscc-lib CI tests 3 feature sets (default, none,
-text-processing). **Any Java test needing a library outside the bundle must pass in BOTH layouts.**
-Per-iteration traps for 259-269 → [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the
-ref on BOTH builds (py3.10 + py3.15) before scoping a vector. External-flake red: still scope a
-hardening. An issue's "Scope estimate" can over-count — apply the docs-excluded rule yourself.
-Dependabot alerts track `main`, not `develop`.** NONE verification:
-`grep -E '^## .*(critical|normal)' issues.md` prints nothing. **Compiler-limit issues with no
-compiler here: find a gcc warning that encodes the same standard limit** (282). **wasm-bindgen
-generated-JS facts: cli-support is not in the cargo registry (wasm-pack downloads the binary) — read
-`crates/cli-support/src/js/mod.rs` upstream** (283).
+**Status 2026-11-22 (iter 301):** 300 minhash data-edge fan-out PASSED; audit filed 3 `normal`
+(conformance-table dup, Conan sha256, stale specs/docs 9 files). 301 = bits>256 Rust core ALONE
+(encode_length bound + `pub(crate)` checked decode helper; `decode_length` keeps its u32 signature —
+**a Tier 2 signature change is an `API-BREAK` stop for advance, so route around it**). Next: Go port
+bound, then data-edge rows (`diverges`) + all-surface API pages "32 to 256", then the 3 audit
+issues; then v0.8.0 release-ready (human cuts). **An issue's list of pinning tests can under-count
+(298: `tests/test_algo.py` was a 6th `0xFF` pin) — grep yourself.** **A signature-changing core
+break cannot land "alone": forced binding edits ride along; the data-edge fan-out stays separate.**
+**Behaviour-neutral call swaps don't count toward the cap (decision 2026-11-20 counts behaviour
+files)** — say so in Scope. In-crate test modules of `lib.rs` can't see private `conformance` items
+— scope `pub(crate)`. **Check a grep criterion's pattern against the current tree's error/doc
+strings too** (290). iscc-lib CI tests 3 feature sets (default, none, text-processing). **Any Java
+test needing a library outside the bundle must pass in BOTH layouts.** Per-iteration traps for
+259-269 → [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds
+(py3.10 + py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's
+"Scope estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track
+`main`, not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints
+nothing. **Compiler-limit issues with no compiler here: find a gcc warning that encodes the same
+standard limit** (282). **wasm-bindgen generated-JS facts: cli-support is not in the cargo registry
+(wasm-pack downloads the binary) — read `crates/cli-support/src/js/mod.rs` upstream** (283).
 
 ## Scope Calibration Principles
 

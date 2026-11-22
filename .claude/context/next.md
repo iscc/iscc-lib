@@ -1,110 +1,95 @@
 # Next Work Package
 
-## Step: `alg_minhash_256` data-edge section on all 12 surfaces
+## Step: Rust core rejects ISCC-UNITs above 256 bits (encode and decode)
 
 ## Goal
 
-Pin the decided empty-list rejection of `alg_minhash_256` (decisions.md 2026-11-22) with a shared
-vector that every harness runs. Picks up the `normal` issue "No shared vector pins the
-`alg_minhash_256` empty-list error"; it closes that issue and unblocks one of the two v0.8.0
-blockers.
+First slice of the `normal` issue "Gen functions accept `bits` above 256 and return a unit that no
+decoder reads" (decision 2026-11-22, "A unit is at most 256 bits"): the Rust core alone rejects a
+unit length above 256 on every encode path and on every header decode path. The 10 surfaces built on
+the core inherit it; the Go port, the `data-edge.json` rows and the per-surface API pages come
+after.
 
 ## Alternatives Considered
 
-- **Chosen:** the `alg_minhash_256` section fan-out: behaviour decided and implemented on all 12
-    surfaces since iteration 299, so the step is harness and generator work only
-- **Rejected:** the 256-bit unit limit in the Rust core (the other `normal` issue). It is a core
-    behaviour change and must land alone; finishing the minhash issue first closes one coherent
-    feature before opening the next
+- **Chosen:** the core bound — the longest remaining chain toward v0.8.0 (core → Go → vectors →
+    docs) starts here, and core changes go first and alone.
+- **Rejected:** Conan recipe checksum (`[audit]`, 3 files) — independent and short, so it can go in
+    any later iteration; starting the 4-step bits chain first shortens the path to release. The
+    conformance-table refactor and the specs/docs audit issue likewise wait.
 
 ## Scope
 
-- **Fan-out:** the decided `alg_minhash_256` empty-list rejection, applied to rust, python, nodejs,
-    wasm, c, cpp, java, go, ruby, dotnet, swift, kotlin (one commit per surface, then the JSON +
-    generator commit). No library code changes behaviour
-- **Modify**: `crates/iscc-lib/tests/data-edge.json` and its 4 vendored copies
-    (`packages/dotnet/Iscc.Lib.Tests/testdata/`, `packages/go/testdata/`,
-    `packages/kotlin/src/test/resources/`, `packages/swift/Tests/IsccLibTests/`);
-    `scripts/gen_data_edge_vectors.py` + regenerated `crates/iscc-ffi/tests/data_edge_vectors.h`;
-    harnesses `crates/iscc-lib/tests/test_data_edge.rs`, `tests/test_data_edge.py`,
-    `crates/iscc-napi/__tests__/data_edge.test.mjs`, `crates/iscc-wasm/tests/data_edge.rs`,
-    `crates/iscc-ffi/tests/test_iscc.c`, `packages/cpp/tests/test_iscc.cpp`,
-    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/DataEdgeTest.java`,
-    `packages/go/data_edge_test.go`, `crates/iscc-rb/test/test_data_edge.rb`,
-    `packages/dotnet/Iscc.Lib.Tests/DataEdgeTests.cs`,
-    `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/DataEdgeTest.kt`,
-    `packages/swift/Tests/IsccLibTests/DataEdgeTests.swift`; `tests/test_gen_data_edge_vectors.py`
-- **Modify (doc comments only, the review nit of iteration 298):**
-    `packages/dotnet/Iscc.Lib/IsccLib.cs` and `packages/cpp/include/iscc/iscc.hpp`
-- **Reference**: commits `6064506d`..`7041f47f` (the `encode_component` section fan-out, same
-    shape); the `alg_simhash` section in `data-edge.json` and its handler in each harness (closest
-    model: a list input, a `bytes:<hex>` output, an empty-list error row); `specs/edge-vectors.md`
+- **Modify**: `crates/iscc-lib/src/codec.rs`, `crates/iscc-lib/src/lib.rs`,
+    `crates/iscc-lib/src/streaming.rs` (doc comments and tests only), `docs/rust-api.md`;
+    `.crap-baseline.json` only if the CRAP gate requires it (generated, not counted)
+- **Reference**: `reference/iscc-core/iscc_core/codec.py` (`decode_length` → `LN(...)` raises for
+    288), `reference/iscc-core/iscc_core/iscc_code.py:73-80`,
+    `reference/iscc-core/iscc_core/code_content_mixed.py:83-89`
 
 ## Not In Scope
 
-- Any change to library behaviour or error messages on any surface; comparing error text
-- More rows (duplicates, a single feature, large lists): two rows as below, nothing else
-- Hand-written empty-list tests on napi, WASM, Ruby, .NET, Swift or Kotlin: the section replaces
-    them
-- The `bits` above 256 work, and the other `low` issues in issues.md
+- **No signature change to any `codec` symbol.** `codec::decode_length` stays
+    `fn(MainType, u32, SubType) -> u32` (Tier 2 is under the SemVer contract; a signature change
+    would be an `**API-BREAK:**` stop). Add a checked crate-internal helper instead (see notes).
+- The Go port (`packages/go`), `data-edge.json` rows, and binding docs / how-to pages: later steps.
+- ID length validation (iscc-core's `LN` has no 88; Rust accepts it) — not part of the decision.
+- Non-wide `gen_iscc_code_v0` reading a >256-bit unit: unchanged, it matches iscc-core (which calls
+    `decode_length` only in the wide check).
+- Do not refresh `.iai-baseline.json` (stale `bench_instance_code` rows are a separate `low` issue).
 
 ## Implementation Notes
 
-Two vectors in a new `alg_minhash_256` section, inputs `[[<uint32>, ...]]`, outputs `bytes:<hex>`
-(as in `alg_simhash`). Probed by define-next on iscc-core 1.5.0 under Python 3.10 (compiled) and
-3.15 (pure Python), and on the local Python binding:
+**Encode side.** `codec::encode_length` for Meta/Semantic/Content/Data/Instance/Flake accepts only
+`32..=256` in steps of 32; error text along the lines of
+`invalid length {length} for {mtype:?} (must be a multiple of 32 from 32 to 256)`. Every gen
+function that ends in `codec::encode_component` (meta, text, audio, mixed, data, instance, sum),
+`DataHasher`/`InstanceHasher`/`SumHasher::finalize` and Tier 1 `encode_component` then reject
+`bits=288`. Image and video already reject (`soft_hash_image_v0` checks `bits > 256`).
 
-- `test_0001_empty_list`: `[[]]`, `error` `"features must not be empty"`. iscc-core raises
-    `ValueError` on both builds (`min()` of an empty sequence), so no `diverges`; no `except`
-- `test_0002_four_features`: `[[7, 42, 2147483648, 4294967295]]`, outputs
-    `"bytes:de7197a4343a0d7422964c15b69982ffa3706205863421259c99cdf30668b4b8"` on iscc-core (both
-    builds), iscc_lib and Go. The values span both ends of `uint32`, so each harness's integer
-    conversion is exercised (Java `int[]` needs the unsigned values as their `int` bit pattern;
-    check each surface's existing `alg_minhash_256` test for its parameter type)
+**Decode side.** Add one `pub(crate)` helper in `codec.rs` (name it e.g. `unit_bit_length`) that
+returns `IsccResult<u32>`: it calls `decode_length` and rejects a Meta..Flake length index above 7
+(over 256 bits), mirroring iscc-core's `LN(288)` ValueError. ISCC (up to 320) and ID keep their
+current results. Switch **every** internal `decode_length` call to it (pattern rule — all four):
+`codec.rs` `iscc_decompose` (~:662), `lib.rs` `iscc_decode` (~:301), `gen_mixed_code_v0` (~:834,
+before the "too short" comparison, as in the reference), and the wide check in `gen_iscc_code_v0`
+(~:1003; keep the short-circuit order so only a wide request with Data+Instance reaches it). Note on
+`decode_length`'s doc comment that it does not validate the range and point to the rule.
 
-Each `note` is one sentence naming the idiosyncrasy (an empty list was hashed into 32 `0xFF` bytes
-before the decision). Python: `iscc_core.alg_minhash_256` is exported at top level; add the empty
-row to the rejection list next to `("alg_simhash", [[]])` and a converter for the bytes output. The
-existing `REJECTIONS` tuple already holds `ValueError`.
+**Docs.** In `docs/rust-api.md`, every `bits` row that says "multiple of 32" and the
+`encode_component` `bit_length` row state "multiple of 32, 32 to 256". Update the `# Errors` text of
+the touched core doc comments (`encode_component`, `iscc_decode`, the gen functions that have an
+`# Errors` section, the hashers' `finalize`). `tests/test_rust_api_signatures.py` must stay green.
 
-Java: the `SECTIONS` table in `DataEdgeTest.java` is `Map.of` with 10 pairs, its maximum; switch it
-to `Map.ofEntries(Map.entry(...), ...)`. C generator: add a struct and a row renderer for a
-`uint32_t` list (an empty row must render; mirror the `alg_simhash` empty-row handling). The
-generator and every harness fail closed on an unhandled section, so all must land before the final
-JSON commit is green.
+**Tests** (in-crate test modules; names containing `above_256` so one filter runs them): for each of
+meta, text, audio, mixed, data, instance and sum `bits=288` is an error and `bits=256` still
+succeeds; `DataHasher`, `InstanceHasher` and `SumHasher` `finalize(288)` error; Tier 1
+`encode_component(0, 0, 0, 512, &[0; 64])` and `(…, 288, &[0; 36])` error; a hand-built 288-bit Meta
+unit (`codec::encode_header(Meta, None, V0, 8)` + 36 body bytes → `encode_base32`) fails
+`iscc_decode` and `iscc_decompose`; `gen_mixed_code_v0` with a hand-built 288-bit Content-Code
+fails; `gen_iscc_code_v0(.., wide=true)` with a 288-bit Data unit fails. One bad case per call.
+Update `test_encode_length_invalid` (288, 512 rejected) and the helper's own boundary test (7 ok, 8
+error).
 
-Doc nits: name the empty-list error on `AlgMinhash256` AND `AlgSimhash` in `IsccLib.cs`
-(`<exception cref="IsccException">Thrown when ... is empty.</exception>`, as on line 383) and on
-`alg_minhash_256` AND `alg_simhash` in `iscc.hpp` (`/// Throws IsccError if ... is empty.`, as on
-line 353). Both functions reject an empty list, so both get the line. A `///` edit in `iscc.hpp` or
-`IsccLib.cs` touches no exported FFI item, so `iscc.h` and `NativeMethods.g.cs` must not move.
-
-Traps: Rust `tests/*.rs` helpers score 0% coverage under CRAP, keep each at cyclomatic complexity ≤
-5 (CI-only `--fail-above`). napi: `napi build` fails in the 9p checkout, so build and test in a
-`git archive` copy under `/tmp` (learnings). Swift toolchain recipe: `packages/swift/CLAUDE.md`.
-Kotlin: read the JUnit XML, not the exit code. No hot-path or Rust `src/` change, so iai, CRAP on
-`src/` and semver do not move.
+**Gates this step trips.** `encode_length` is on every gen hot path: run `mise run bench:iai:check`
+(valgrind + runner are installed) and report the numbers. A new `?`/branch in a covered function can
+fail CI's CRAP `--fail-regression` while green locally: run the CI lines below; only if they fail,
+refresh with `mise run crap:baseline` and commit `.crap-baseline.json` in this step.
 
 ## Verification
 
-- `cargo test -p iscc-lib --test test_data_edge` passes, and the CI CRAP lines from `ci.yml`
-    (llvm-cov then cargo crap with `--fail-regression --fail-above`) exit 0
-- `uv run pytest tests/test_data_edge.py tests/test_gen_data_edge_vectors.py tests/test_vendored_fixtures.py`
-    passes, with the iscc-core cross-check running both `alg_minhash_256` vectors
-- After `uv run python scripts/gen_data_edge_vectors.py`, `git status --porcelain crates/iscc-ffi`
-    prints nothing
-- nodejs `npm test` (in a `/tmp` copy), wasm `wasm-pack test --node crates/iscc-wasm` with the
-    conformance feature, java `mvn test -f crates/iscc-jni/java/pom.xml`, go
-    `CGO_ENABLED=0 go test ./...` (also `GOARCH=386`), ruby `bundle exec rake test`, dotnet
-    `dotnet test packages/dotnet` all pass
-- c `test_iscc` and cpp `test_iscc` (build lines from `ci.yml`) pass; kotlin JUnit XML shows
-    `DataEdgeTest` with 0 failures; swift `swift test --filter DataEdge` passes
-- `python3 -c "import json;d=json.load(open('crates/iscc-lib/tests/data-edge.json'))['alg_minhash_256'];assert len(d)==2 and not any('except' in v or 'diverges' in v for v in d.values())"`
-    exits 0; `grep -B4 -E 'Alg(Minhash256|Simhash)\(' packages/dotnet/Iscc.Lib/IsccLib.cs` and
-    `grep -B4 -E 'alg_(minhash_256|simhash)\(const' packages/cpp/include/iscc/iscc.hpp` show an
-    empty-list error line above each of the four functions; `mise run check` exits 0
+- `cargo test -p iscc-lib` and `cargo test -p iscc-lib --no-default-features` pass, and
+    `cargo test -p iscc-lib above_256` runs the new tests (non-zero count, 0 failed)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean (no binding edit needed)
+- `git grep -n "pub fn decode_length(mtype: MainType, length: u32, stype: SubType) -> u32" crates/iscc-lib/src/codec.rs`
+    prints one line, and `git grep -n "decode_length(" crates/iscc-lib/src/lib.rs` shows no call
+    outside test code
+- `mise run coverage && cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    exits 0
+- `mise run bench:iai:check` exits 0
+- `uv run pytest tests/test_rust_api_signatures.py` passes and `mise run check` exits 0
 
 ## Done When
 
-The `alg_minhash_256` section runs green on all 12 surfaces and in the Python iscc-core cross-check,
-with no `except` or `diverges` entry.
+All six verification criteria pass with the core rejecting a >256-bit unit on encode and decode, and
+no `codec` signature changed.
