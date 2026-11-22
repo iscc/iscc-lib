@@ -973,3 +973,23 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     count is the `Executed N tests` line above it
 - Never `grep -A` the generated C header: its `iscc_edge_init()` lines are 4 kB each
 - Codex needs `--base <define-next sha>` for a 13-commit fan-out (~4 min)
+
+### Rows in existing data-edge sections + docs range sweep (iter 303, ~30 min) — PASS_WITH_NOTES, Codex clean
+
+- `/tmp/r303-verify.sh` pattern: 31 steps, ~3 min warm, all green, and it proved nothing about the
+    two real defects. Both came from three small probe scripts run from an empty `/tmp` dir
+- **Run every new error row on a build WITHOUT the rule**:
+    `uv run -q --no-project --python 3.13 --with iscc-lib==<last release> python probe.py`. The
+    decode row (header `00 08` + 36 bytes, from next.md) was rejected there too, as "truncated ISCC
+    body": a length index from 8 up takes two nibbles, so the real header is `00 08 00`. The right
+    input is the reference encoder's own output; the release must DECODE it, HEAD must reject it
+- **Probe a docs range per function, at both ends**: one table over all `gen_*_v0` functions and
+    both hashers with `bits` in (0, 4, 8, 32, 64, 256, 288), catching `BaseException`, on the HEAD
+    build, the release wheel and iscc-core. Found: sum code rejects 32 (rows said "32 to 256"), and
+    mixed code panics below 8 (debug core, Go port). A debug Python build raises `PanicException`
+- A Go probe needs no checkout edit: `git archive HEAD packages/go crates/iscc-lib/tests` into
+    `/tmp`, add a `_test.go` with `recover()`, run `go test -C … -run <name> -v .`
+- A rewritten `[human]` issue keeps its tag and priority; a defect the step introduced goes into the
+    same entry as "the remaining problem", not a second entry
+- Codex (`--commit HEAD`, ~4 min) ran the suites and found neither defect: a green run plus a clean
+    second opinion is not evidence that a vector pins its rule

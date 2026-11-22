@@ -25,8 +25,8 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
 
 - Verification greps false-positive (`grep -qv`, substring `grep -c`, exact counts, 139): test the
     criterion against `HEAD~1` before believing advance broke it
-- **next.md's Implementation Notes are a HYPOTHESIS** (142, 143, 149, 239): re-derive every number,
-    command and expected value from source → `review-patterns.md` "Claim-Probing"
+- **next.md's Implementation Notes are a HYPOTHESIS** (142, 143, 149, 239, 303: a vector's bytes):
+    re-derive every number, command and expected value → `review-patterns.md` "Claim-Probing"
 - `iscc_decompose` returns units WITHOUT "ISCC:" prefix. Docs site: `https://lib.iscc.codes/`
 - **A docs-only sweep can FABRICATE a return type** (190); a `#[deprecated]` claim is a hypothesis
     (168) → `review-patterns.md` "Moved from the index"
@@ -92,7 +92,7 @@ every entry below: `review-patterns.md` "Moved from the index (251)".
     data-edge SECTION = 12-surface script (226, 264, 300: both iscc-core builds) + **diff each new
     `UNCOMPARED` row against the function's `data.json` keys (252: Codex caught a missed key)**,
     **validator / C-generator (236)**, **harness-compare fan-out (237)**, **throwaway-vector proof
-    (253)**, **new vector (281), C header literal fix (282)** → `binding-reviews.md`
+    (253)**, **new vector (281), C header (282), rows + range probe (303)** → `binding-reviews.md`
 - **C FFI marshalling-helper step (255, ~35 min)**: read per-row closures for allocations (no perf
     gate covers `iscc-ffi`), ASAN-probe new C macros with a forced mismatch → `binding-reviews.md`
 - **JS marshalling step (256, 268, 269)**: Node probes on a RELEASE WASM build, whole-`.d.ts` diff

@@ -77,6 +77,13 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin it
     **Per-algorithm internals**, normalization order, `data.json` counts, API-parameter facts,
     **ISCC-IDv1** details, the three codec rules → `learnings-archive.md`
+- **A header is a varnibble sequence, not two bytes** (303): a length index from 8 up takes two
+    nibbles, so Meta at 288 bits is `00 08 00`. A hand-built `00 08` + 36 bytes parses as a 35-byte
+    body, which a build without the 256-bit bound rejects as truncated. Take a decode vector from
+    the reference ENCODER's output. **An error row pins a rule only if a build WITHOUT the rule
+    accepts its input**: run it on the last release (`uv run --no-project --with iscc-lib==0.7.0`)
+- **A `bits` range differs per function** (303): `gen_sum_code_v0` needs 64 to 256 (32 fails, an
+    ISCC-CODE takes 64-bit units). Probe a range claim at both ends on EVERY function a row names
 - **Integer widths differ per platform**: Go `int(x)` of a `uint32` wraps on 386 (263: subtract
     unsigned, then `clampInt`); CI runs the Go suite as `GOARCH=386` too (267), 386 `vet` sees no
     wrap. C `long` is 32 bits on Windows (265: `PyLong_AsLongLong`; no Windows CI, prove it from the
@@ -91,10 +98,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     after a dep bump `strings <artifact>` shows the dep version linked in (167). Local-only. The
     Python `.so` is rebuilt (debug build) by pre-push pytest and `mise run test` through
     `mise run py:develop` (274); a bare `pytest` still imports whatever is there
-- **The JVM type-checks nothing a native method returns** (168): an `Object[]` returned where
-    `String[]` is declared survives every element read — assert `getClass().getName()` and probe
-    under `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test`. **`-DargLine=…`
-    is a no-op** (208): the pom's `<argLine>` beats the user property. CI runs no `-Xcheck:jni`.
 - **`version_sync.py` covers only the Maven/Gradle/SPM doc snippets**: write no other version (244)
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are gated: `scripts/check_release_workflow.py` (prek hook + tests) and the CI-only
@@ -146,11 +149,6 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `go run github.com/google/osv-scanner/v2/cmd/osv-scanner@latest scan source -r <repo>` (~1 min;
     Cargo, uv, Gemfile, Maven, .NET, Go — NOT Gradle or Actions pins; the npm lock is unmeasured).
     Expected: exit 1 with exactly the 3 unmaintained crates that `deny.toml` ignores
-- **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
-    dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = tag misses). `.pyi` is tagged
-    `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A
-    `files:`-scoped hook never sees deletions** — pair any consistency hook with a pytest anchor
-    test against the real tree. Formatter caveats → `learnings-archive.md`
 - **JVM/Gradle gotchas** (128, 165) → `learnings-archive.md`, read before touching `pom.xml`/`.kts`
 - **Prove a new gate with a REAL regression in a THROWAWAY repo, not a synthetic typo** (iters
     144/152/163): `git archive HEAD | tar -x -C /tmp/x && git init` gives a probe tree where

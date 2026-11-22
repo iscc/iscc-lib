@@ -217,26 +217,32 @@ Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact
 on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
 that both `bench_instance_code` rows are within the tolerance of a current run.
 
-## No vector pins the 256-bit unit limit, and most API pages lack the range `normal` [human]
+## The decode vector does not pin the 256-bit unit limit, and two sum-code rows give a wrong range `normal` [human]
 
-Decided on 2026-11-22 (decisions.md, "A unit is at most 256 bits"): iscc-lib rejects a unit above
-256 bits. The Rust core and the Go port both do, on encode and decode (Go since iteration 302; the
-two agree on 291 probe cases, the surfaces built on the core inherit it). Two parts of the problem
-remain:
+Decided on 2026-11-22 (decisions.md, "A unit is at most 256 bits"). The core and the Go port reject
+a unit above 256 bits, three `data-edge.json` rows pin the encode side and the 256-bit boundary on
+all 12 surfaces, and the API pages state the range. Two defects remain, both measured in iteration
+303:
 
-- **No shared vector.** Only the Rust in-crate tests and the Go `Above256` tests pin the rejection;
-    no `data-edge.json` row does, so no binding suite would see the bound disappear.
-- **API pages.** Outside `docs/rust-api.md`, the Go doc comments and `docs/howto/go.md` the pages
-    and API comments say only "multiple of 32"
-    (`git grep -c "multiple of 32" -- docs crates packages` lists them: the C FFI, Java and Ruby
-    reference pages, the other how-to pages, `iscc.h`, `IsccLib.java`, `_lowlevel.pyi` among them).
+- **`iscc_decode/test_0006_unit_above_256` stays green without the bound.** Its input is `00 08`
+    over the bytes `00..23`. A length index of 8 takes two nibbles, so the header is `00 08 00` and
+    the body has 35 bytes. Published iscc-lib 0.7.0, which has no bound, rejects the string as well
+    ("truncated ISCC body: expected 36 bytes, got 35"). The row's `note` says the core and the Go
+    port decoded it before the limit was set, which is false. The string that pins the bound is the
+    reference encoder's own output (`iscc_core.encode_component(0, 0, 0, 288, bytes(range(36)))`),
+    `ISCC:AAEAAAABAIBQIBIGA4EASCQLBQGQ4DYQCEJBGFAVCYLRQGI2DMOB2HQ7EAQSEIY`: 0.7.0 decodes it to
+    `(0, 0, 0, 8, 00..23)`, the core and the Go port at 5d76cc84 reject it for its length, and
+    iscc-core 1.5.0 raises "288 is not a valid LN" on CPython 3.10 and 3.15 (so no `diverges`).
+- **The `gen_sum_code_v0` rows say "32 to 256", and 32 fails.** `docs/rust-api.md` (since 301) and
+    `docs/java-api.md` (since 303) give the sum code's `bits` row that range. On the Python binding
+    `bits=32` raises ("ISCC unit code too short (min 16 chars)"), 64 and 256 return a code, and 288
+    raises. An ISCC-CODE takes units of 64 bits or more, so the range is 64 to 256.
 
-**Upstream:** iscc/iscc-core, filed as https://github.com/iscc/iscc-core/issues/142 (iscc-core 1.5.0
-returns the same undecodable codes for meta, text, audio, video, data and instance)
+**Upstream:** iscc/iscc-core, filed as https://github.com/iscc/iscc-core/issues/142
 
-Resolved when a `data-edge.json` vector pins the rejection on all 12 surfaces (an encode row marked
-`diverges`, naming the decision, and a unit header longer than 256 bits that fails to decode), and
-the API pages state the range of 32 to 256.
+Resolved when the decode row's input is a string that iscc-lib 0.7.0 decodes and HEAD rejects (in
+the 5 fixture copies and the regenerated C header, with a true `note`), and both sum-code rows state
+64 to 256.
 
 ## No test pins "a failed first `finalize` consumes" on C FFI, C++, .NET, Swift and Kotlin `low` [review]
 
@@ -342,3 +348,20 @@ decision of 2026-11-22, which covers Meta through Flake. Not measured: the Go po
 
 Resolved when a `data-edge.json` vector pins the outcome for an 88-bit ID: rejected as in iscc-core,
 or accepted and marked `diverges` with a decisions.md entry that says why.
+
+## `gen_mixed_code_v0` with `bits` below 8 panics in the Go port and in debug builds of the core `low` [review]
+
+**Triage:** untriaged. A Go caller who passes a `bits` value from 0 to 7 to `GenMixedCodeV0` gets a
+runtime panic instead of an error, and a Rust user gets one in a dev-profile build; the published
+release builds of the Rust-backed bindings return an error.
+
+Measured in iteration 303 with two 256-bit Text-Codes and `bits` 0 and 4. Go: panic "index out of
+range [0] with length 0" (`softHashCodesV0` in `code_content_mixed.go` writes `entry[0]` into a
+slice of `bits / 8` bytes). Rust: `soft_hash_codes_v0` in `lib.rs` computes `nbytes - 1` with
+`nbytes = 0`, which panics with "attempt to subtract with overflow" under overflow checks (the debug
+Python extension raises `PanicException`); the release wheel 0.7.0 returns `ValueError`. iscc-core
+1.5.0 raises `ValueError`. With `bits = 8` every one of them returns an error. Pre-existing in both.
+The other `gen_*_v0` functions and both hashers return an error for 0 and 4.
+
+Resolved when both return an error for `bits` below 8, pinned by a `data-edge.json` row in the
+existing `gen_mixed_code_v0` section (`error`, and no `diverges`, since iscc-core raises too).

@@ -1183,3 +1183,15 @@ runs on `opus`. Deliberate — do not "unify" them.
     away): assign to a package-level sink (202). Check that each "mismatch" fixture reaches the
     comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed earlier, with "Trailing data". Positive mirror:
     one input form per trim site (200: outer-only forms missed the post-colon trims)
+
+## Archived from learnings.md (review 303)
+
+- **The JVM type-checks nothing a native method returns** (168): an `Object[]` returned where
+    `String[]` is declared survives every element read — assert `getClass().getName()` and probe
+    under `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test`. **`-DargLine=…`
+    is a no-op** (208): the pom's `<argLine>` beats the user property. CI runs no `-Xcheck:jni`.
+- **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
+    dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = tag misses). `.pyi` is tagged
+    `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A
+    `files:`-scoped hook never sees deletions** — pair any consistency hook with a pytest anchor
+    test against the real tree. Formatter caveats → `learnings-archive.md`

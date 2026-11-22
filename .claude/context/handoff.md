@@ -1,60 +1,64 @@
-## 2026-11-22 — Shared vectors and API pages for the 256-bit unit limit
+## 2026-11-22 — Review of: Shared vectors and API pages for the 256-bit unit limit
 
-**Done:** Added the four `data-edge.json` rows from next.md (meta `bits=288` error,
-`encode_component` 288 error and 256 output, `iscc_decode` 288-bit unit error) to the canonical
-fixture and its 4 vendored copies, and regenerated the C header. Every API page, how-to and API
-comment that said only "multiple of 32" now gives the range of 32 to 256. No harness code changed.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `crates/iscc-lib/tests/data-edge.json`: `gen_meta_code_v0/test_0005_bits_above_256`,
-    `encode_component/test_0003_bit_length_above_256`, `encode_component/test_0004_bit_length_256`,
-    `iscc_decode/test_0006_unit_above_256`. The two encode-288 rows carry
-    `"diverges": "decisions.md 2026-11-22: A unit is at most 256 bits"` and cite iscc/iscc-core#142
-    in `note`. The decode row has no `diverges`
-- `packages/{dotnet/Iscc.Lib.Tests/testdata,go/testdata,kotlin/src/test/resources,swift/Tests/IsccLibTests}/data-edge.json`:
-    byte-for-byte copies (`cp`)
-- `crates/iscc-ffi/tests/data_edge_vectors.h`: regenerated (4 new row names present)
-- `crates/iscc-ffi/src/lib.rs` (`///` only) → `crates/iscc-ffi/include/iscc.h` (cbindgen line from
-    next.md) + `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (`cargo build -p iscc-ffi`)
-- `crates/iscc-jni/java/.../IsccLib.java`, `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: comment
-    text only
-- `docs/{c-ffi-api,java-api,ruby-api}.md`: `bits` rows → `(default: 64, multiple of 32, 32 to 256)`,
-    `bit_length` rows → `(multiple of 32, 32 to 256)` (mdformat realigned the tables)
-- `docs/howto/{dotnet,java,kotlin,nodejs,python,ruby,swift,wasm}.md`: error example comment →
-    `bits must be a multiple of 32 from 32 to 256` (same wording as `docs/howto/go.md`)
+**Summary:** The step did what next.md asked: four `data-edge.json` rows in the 5 fixture copies and
+the C header, and the range "32 to 256" on every API page and comment that said only "multiple of
+32". All suites are green on all 12 surfaces. Two defects came in with it, both from next.md's own
+notes, so the bits issue stays open in a smaller form: the decode row does not pin the bound, and
+the sum-code `bits` row got a range whose lower end the code rejects.
 
 **Verification:**
 
-- The decode string was re-derived: base32 of `00 08` + bytes `00..23` =
-    `ISCC:AAEAAAICAMCAKBQHBAEQUCYMBUHA6EARCIJRIFIWC4MBSGQ3DQOR4HZAEERCG`, as in next.md
-- `uv run pytest tests/test_data_edge.py tests/test_vendored_fixtures.py tests/test_gen_data_edge_vectors.py`:
-    211 passed, 0 skipped (includes the iscc-core cross-check of the `diverges` markers)
-- `cargo test -p iscc-lib --test test_data_edge`: 7 passed. `CGO_ENABLED=0 go test -count=1 ./...`
-    passes on amd64 and on `GOARCH=386`
-- Surface suites, run in sequence in the background, all OK: Python (`maturin develop` + all of
-    `tests/`, 950 passed), `cargo test -p iscc-ffi`, .NET (155 passed), C++ via `g++` (127 passed),
-    Java `mvn clean test` (exit 0), Ruby `rake compile test` (175 runs, 0 failures), Kotlin gradle
-    `:test` (ran fresh, `DataEdgeTest` result written), Swift (`DataEdgeTests` 11 tests, 30 total, 0
-    failures), WASM `wasm-pack test --node` (8 + 135 passed). napi built in a `git ls-files | tar`
-    copy under `/tmp` with `CARGO_TARGET_DIR=/tmp/napi-target`: 243/243 passed
-- Re-running the header generator and cbindgen, and the builds above, add no new `git status`
-    entries (same 24 paths before and after)
-- `uv run zensical build`: exit 0 ("No issues found"). `mise run check`: exit 0 on the second run
-    (the first run's mdformat realigned the edited tables)
-- `git grep -n "multiple of 32" -- docs crates packages | grep -v 256` prints the two test comments
-    (`codec.rs:1220`, `codec_test.go:275`) plus three `crates/iscc-lib/src/streaming.rs` lines
-    (43/128/197). Those are false hits: each `///` sentence continues on the next line with "from 32
-    to 256." (already in place since 301), and a line-based grep cannot see that. I left them
-    unchanged
+- [x] `uv run pytest tests/test_data_edge.py tests/test_vendored_fixtures.py tests/test_gen_data_edge_vectors.py`
+    — 211 passed (includes the iscc-core cross-check of the `diverges` markers)
+- [x] `cargo test -p iscc-lib --test test_data_edge` (also the three CI feature sets) and
+    `CGO_ENABLED=0 go test -count=1 ./...` (amd64 and `GOARCH=386`) pass; the 4 row names are in the
+    canonical file, and the 5 copies have one md5
+- [x] Header generator, `cargo build -p iscc-ffi` (after `cargo clean -p iscc-ffi`, so `build.rs`
+    ran) and the cbindgen line leave `git status` empty
+- [x] `git grep -n "multiple of 32" -- docs crates packages | grep -v 256` — prints the two test
+    comments plus three `streaming.rs` lines. Those are false hits: each `///` sentence continues
+    with "from 32 to 256." on the next line (in place since 301)
+- [x] `uv run zensical build` exits 0, `mise run check` exits 0
+- [x] .NET (155), Java (125), Ruby, C (gcc), C++ (cmake + ASAN), Kotlin (`DataEdgeTest` 6/6), Swift
+    (11 `DataEdge` tests), napi (in a `git archive` copy) and WASM (8 + 136) pass
 
-**Next:** The bits issue should now be closed. Next are the three `[audit]` `normal` issues, e.g.
-the conformance-table refactor in `conformance.rs`/`lib.rs`.
+**Issues found:**
+
+- **The decode row passes without the bound** (`normal`, in the rewritten bits issue). next.md built
+    the string as header `00 08` over 36 bytes. A length index of 8 takes two nibbles, so the header
+    is `00 08 00` and the body has 35 bytes. Published iscc-lib 0.7.0, which has no bound, rejects
+    the row as "truncated ISCC body". The row's `note` is false as well. The right string is in the
+    issue, with measurements on 0.7.0, HEAD, the Go port and both iscc-core builds
+- **Sum-code rows say "32 to 256", and `bits=32` fails** (`normal`, same issue): `docs/java-api.md`
+    (this step) and `docs/rust-api.md` (since 301). The valid range is 64 to 256. Every other
+    function with a changed row accepts 32 and 256 and rejects 0 and 288 (measured on the Python
+    binding: meta, text, image, audio, video, mixed, data, instance, both hashers)
+- **Filed `low`, untriaged:** `gen_mixed_code_v0` with `bits` below 8 panics in the Go port and in
+    debug builds of the Rust core. Pre-existing; found by the range probe. Not for the loop
+- Both reference claims in the other three rows hold on iscc-core 1.5.0 under CPython 3.10 (compiled
+    wheel) and 3.15 (pure Python)
+
+**Codex review:** No actionable findings. It ran the Rust, Python, C and Go tests, including 32-bit
+Go.
+
+**Next:** Close the rest of the bits issue. It is a small rows-and-docs step with no harness change:
+
+- Replace the input of `iscc_decode/test_0006_unit_above_256` with
+    `ISCC:AAEAAAABAIBQIBIGA4EASCQLBQGQ4DYQCEJBGFAVCYLRQGI2DMOB2HQ7EAQSEIY` and correct its `note`,
+    in the canonical file and the 4 copies, then regenerate the C header
+- Change the two `gen_sum_code_v0` `bits` rows (`docs/rust-api.md`, `docs/java-api.md`) to "64 to
+    256"
+- Verification that proves the row this time: the string decodes on the last release
+    (`uv run --no-project --with iscc-lib==0.7.0 python -c "import iscc_lib; print(iscc_lib.iscc_decode('<string>'))"`,
+    run from an empty directory) and fails at HEAD
+
+After that, the three `[audit]` `normal` issues remain.
 
 **Notes:**
 
-- The meta row's input is the object `{"a": 1}`, as next.md specified (the C generator's `meta_text`
-    needs an object or a string). `error` texts are short reasons that no harness matches
-- No CRAP, iai or semver impact: no Rust behaviour changed (only test fixtures, comments and docs)
-- Issue ledger: the issue "No vector pins the 256-bit unit limit, and most API pages lack the range"
-    is resolved by this step. issues.md is not mine to edit
+- A grep criterion of the form `git grep "multiple of 32" | grep -v 256` is line-based. The three
+    wrapped `///` sentences in `streaming.rs` will always show up; name them as expected hits
+- The step changed no behaviour: no CRAP, iai or semver impact. No quality gate was touched
+- `/tmp/r303-verify.sh` runs all 31 checks in about 3 minutes on a warm tree
