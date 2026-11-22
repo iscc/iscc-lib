@@ -86,12 +86,12 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: da761ca, iter 285 — incremental)
+## Current State (assessed-at: 3f4f2c2, iter 286 — incremental)
 
-- Origin tip `cac7c1f5` run 44967270838 GREEN 24/24 (napi lockfile + `npm ci` fixed the 284 red).
-    Local HEAD +1 `.claude`-only.
-- 19 open (7 `normal` + 12 `low`, 11 untriaged); 284 review filed 2 `low` (napi 9p build, partial
-    version-sync lists). Version-sync TARGETS = **22** (napi lock joined).
+- Origin tip `1595d076` run 44987550038 GREEN 24/24 (suite success). Local HEAD +1 `.claude`-only.
+- 20 open (7 `normal` + 13 `low`, 12 untriaged). 285 closed vcpkg-hash `normal` (C++ now met), filed
+    `publish-ffi` rerun `normal` + vcpkg post-build `low`. Version-sync TARGETS = **22**.
+- `prepare-release` needs `build-ffi`; runs `scripts/update_vcpkg_hashes.py ffi-staging`.
 - **JNI layouts:** CI `java` job runs Maven twice since 279 — `target/debug` layout, then
     bundled-resource-only (mirrors `release.yml` → `test-jni`).
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked

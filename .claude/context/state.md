@@ -1,4 +1,4 @@
-<!-- assessed-at: da761cae4c9c951c49b630fa17e0a0d01874d6e4 -->
+<!-- assessed-at: 3f4f2c2bfa6430ab6206da7d9341bcd12e850e6e -->
 
 # Project State
 
@@ -6,10 +6,10 @@
 
 ## Phase: v0.8.0 — features done; CI green; 7 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 284 committed the
-napi `package-lock.json` and switched CI and release to `npm ci`, which turned CI green again (24/24
-on the origin tip). Review filed two `low` follow-ups: the locked napi cli cannot build on the
-devcontainer's 9p mount, and two version-sync file lists are partial.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 285 fixed the
+vcpkg port: `packages/cpp/portfile.cmake` now carries the v0.7.0 SHA512s, and `release.yml` writes
+them from the `build-ffi` archives before it tags. Review closed that `normal`, filed a `normal` for
+a rerun gap in the FFI upload, and a `low` vcpkg post-build warning, so the count of 7 holds.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -52,10 +52,7 @@ devcontainer's 9p mount, and two version-sync file lists are partial.
 **Status**: partially met (one `normal`, one `low`)
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and strict data-edge tests;
-    `@iscc/lib` 0.7.0 on npm (OIDC)
-- `crates/iscc-napi/package-lock.json` is tracked (pins `@napi-rs/cli` 3.10.12); the `nodejs` CI job
-    and both `release.yml` napi jobs run `npm ci`; `version_sync.py` owns the lock's two root
-    version fields
+    `@iscc/lib` 0.7.0 on npm (OIDC); committed `package-lock.json`, `npm ci` in CI and release
 - `normal`: `crates/iscc-napi/README.md:52` says every code generator returns a string, but
     `gen_sum_code_v0` returns a `NapiSumCodeResult`
 - `low`: `napi build` fails in the devcontainer checkout (the locked cli hard-links its outputs and
@@ -66,9 +63,8 @@ devcontainer's 9p mount, and two version-sync file lists are partial.
 
 **Status**: partially met (one `normal`, two `low`)
 
-- 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust
-- `docs/howto/wasm.md` and the crate README show a working Node.js setup for the `--target web`
-    package, pinned by `tests/test_wasm_docs.py`; the README is registered `FULL` in the doc gate
+- 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust; Node.js setup
+    for the `--target web` package documented and pinned by `tests/test_wasm_docs.py`
 - `normal`: hasher `finalize()` consumes the hasher when the core rejects `bits`, but not when JS
     rejects it. No cross-binding rule is recorded and no test covers it
 - `low`: byte and string parameters are converted in the glue code; a list element that throws
@@ -80,6 +76,7 @@ devcontainer's 9p mount, and two version-sync file lists are partial.
 
 - 51 exports, including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
     check; `examples/iscc_sum.c` + CMake; 0.7.0 tarballs; `docs/howto/c-cpp.md` gated `FULL`
+- The FFI release upload has a rerun gap (tracked under CI/CD)
 
 ## Java Bindings
 
@@ -109,11 +106,14 @@ devcontainer's 9p mount, and two version-sync file lists are partial.
 
 ## C++ Bindings
 
-**Status**: partially met (one `normal`)
+**Status**: met (v0.8.0 scope; one `low`)
 
 - `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job
-- `normal`: `packages/cpp/portfile.cmake` still pins the five SHA512s of the v0.2.0 tarballs while
-    the URL follows `vcpkg.json` 0.7.0, so the vcpkg port cannot install; no gate checks it
+- `packages/cpp/portfile.cmake` pins the five v0.7.0 SHA512s; `scripts/update_vcpkg_hashes.py` (13
+    tests) writes them in `prepare-release` from the built archives, so each release tag carries
+    matching hashes. No CI gate on `develop` can install the port (it needs the published release)
+- `low`: the port fails one vcpkg post-build check (debug/release binary count); matters only for a
+    vcpkg registry submission
 
 ## Ruby Bindings
 
@@ -142,6 +142,8 @@ devcontainer's 9p mount, and two version-sync file lists are partial.
 - `normal`: napi README result-type sentence (see Node.js); Rust API tier docs (see Rust core)
 - `low`: the version-sync file lists in `docs/development.md` (9 of 22 targets) and the release
     skill (13 of 22) are partial
+- `docs/development.md` still describes the old FFI upload behaviour (part of the `publish-ffi`
+    `normal`)
 
 ## Benchmarks
 
@@ -153,25 +155,27 @@ devcontainer's 9p mount, and two version-sync file lists are partial.
 
 ## CI/CD and Publishing
 
-**Status**: partially met (CI green; one `low`)
+**Status**: partially met (CI green; one `normal`, one `low`)
 
-- `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 22
-    version-sync targets at 0.7.0 (the napi lockfile joined); every ecosystem now installs from a
-    committed lockfile
+- `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles;
+    `prepare-release` now needs `build-ffi` and commits the vcpkg hashes with the Swift checksum
+    before tagging; 22 version-sync targets at 0.7.0; every ecosystem installs from a lockfile
+- `normal`: `publish-ffi` uses `overwrite_files: false`, so a `gh run rerun --failed` after a failed
+    upload skips an empty `starter` asset of the same name and reports success
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 44967270838 on the origin tip `cac7c1f5`: 24/24 check-runs green. The
-    code commit `33d9b437` was green too (run 44966745935):
-    https://github.com/iscc/iscc-lib/actions/runs/44967270838
+- **Latest CI: PASSING.** Run 44987550038 on the origin tip `1595d076`: 24/24 check-runs green,
+    check-suite `success`: https://github.com/iscc/iscc-lib/actions/runs/44987550038
 - Local HEAD adds one unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
-19 open in issues.md: 7 `normal`, 12 `low` (11 untriaged), no `critical`. Two need a behaviour
+20 open in issues.md: 7 `normal`, 13 `low` (12 untriaged), no `critical`. Two need a behaviour
 decision first (`alg_minhash_256([])`, WASM `finalize()`). None is blocked on upstream. 7 sit in
 `postponed.md`.
 
 ## Next Milestone
 
-Clear the 7 `normal` issues that block v0.8.0. The vcpkg portfile hashes and the napi README are the
-user-facing ones; the Rust API tier docs, the duplicate `data.json` parsers, the one-shot/streaming
-duplication and the two behaviour decisions follow. Then Titusz cuts v0.8.0 via `/release`.
+Clear the 7 `normal` issues that block v0.8.0: the release-path and user-facing ones (the
+`publish-ffi` rerun gap, the napi README), the Rust API tier docs, the duplicate `data.json`
+parsers, the one-shot/streaming duplication, and the two behaviour decisions. Then Titusz cuts
+v0.8.0 via `/release`.
