@@ -25,7 +25,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
     UNRELIABLE (none at 170) — never park a finding for it.
 - **Counts + the glob/grep trap for each → `counts.md`** (204: 426 iscc-lib `#[test]`, 264 Go; 199:
-    118 CRAP; 196: 12 READMEs, 22 docs pages, 179 Go, 51 ffi externs (205), 21 version_sync, 5
+    118 CRAP; 196: 12 READMEs, 22 docs pages, 179 Go, 51 ffi externs (205), 22 version_sync, 5
     fixture copies).
 - **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
     (163).
@@ -86,13 +86,12 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 06a5afd, iter 284 — incremental)
+## Current State (assessed-at: da761ca, iter 285 — incremental)
 
-- Origin tip `bd79145` run 44965003618 RED 23/24: napi `npm install` 404 on `@inquirer/ansi@2.1.1`
-    (published 2 min before the run; transitive via `@napi-rs/cli`). External, napi code unchanged
-    since green `2ccf9f1`. Rerun once npm serves it. Local HEAD +1 `.claude`-only.
-- 17 open (7 `normal` + 10 `low`, 9 untriaged); 283 closed WASM Node docs `normal`, review filed
-    napi README `normal`. Tier 1 doc gate now 21 FULL (WASM README added).
+- Origin tip `cac7c1f5` run 44967270838 GREEN 24/24 (napi lockfile + `npm ci` fixed the 284 red).
+    Local HEAD +1 `.claude`-only.
+- 19 open (7 `normal` + 12 `low`, 11 untriaged); 284 review filed 2 `low` (napi 9p build, partial
+    version-sync lists). Version-sync TARGETS = **22** (napi lock joined).
 - **JNI layouts:** CI `java` job runs Maven twice since 279 — `target/debug` layout, then
     bundled-resource-only (mirrors `release.yml` → `test-jni`).
 - **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
@@ -127,11 +126,10 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 - **Review policy widened at 171:** `review` may correct a *mechanically checkable fact* (version,
     path, count) in a sub-spec under `.claude/context/specs/` with NO escalation; `target.md` +
     rationale/criteria/scope still need the human. Report stale spec FACTS.
-- **Every ecosystem has a lockfile EXCEPT napi** (284: `crates/iscc-napi/.gitignore` ignores
-    `package-lock.json`, so CI resolves npm unlocked — a fresh upstream publish can red CI) (170:
-    .NET `packages.lock.json` `--locked-mode`; a bump needs `--force-evaluate` same commit).
-    Propagation invariant: `git ls-files -- '*data.json'` = **5** (canonical + 4 vendored) ==
-    `VENDORED_COPIES` in `tests/test_vendored_fixtures.py`.
+- **Every ecosystem has a committed lockfile** (napi's since 284, `npm ci` in ci/release) (170: .NET
+    `packages.lock.json` `--locked-mode`; a bump needs `--force-evaluate` same commit). Propagation
+    invariant: `git ls-files -- '*data.json'` = **5** (canonical + 4 vendored) == `VENDORED_COPIES`
+    in `tests/test_vendored_fixtures.py`.
 - **Loop infra (162):** `ARTIFACT_BUDGETS` (`tools/cid.py`) caps state 200; `decisions.md` rotates
     into `decisions-archive.md` (grep BOTH) — dirty `decisions*.md` = runner, not crash.
 - **Issue count: never carry forward** — re-grep `^## ` headers each iteration (a legend inflates a

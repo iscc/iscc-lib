@@ -1,15 +1,15 @@
-<!-- assessed-at: 06a5afdb0c695f30c5a6a5c5af1b5764933cdeef -->
+<!-- assessed-at: da761cae4c9c951c49b630fa17e0a0d01874d6e4 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; CI red on the tip; 7 `normal` issues block the release
+## Phase: v0.8.0 — features done; CI green; 7 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 283 fixed the
-`@iscc/wasm` Node.js docs, which closes that `normal` issue. Review filed the sibling napi README
-sentence as a new `normal`. CI on the origin tip `bd79145` is red: the napi job's `npm install` hit
-a registry 404 for a transitive dependency that was published two minutes before the run.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 284 committed the
+napi `package-lock.json` and switched CI and release to `npm ci`, which turned CI green again (24/24
+on the origin tip). Review filed two `low` follow-ups: the locked napi cli cannot build on the
+devcontainer's 9p mount, and two version-sync file lists are partial.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -49,14 +49,17 @@ a registry 404 for a transitive dependency that was published two minutes before
 
 ## Node.js Bindings
 
-**Status**: partially met (one `normal`)
+**Status**: partially met (one `normal`, one `low`)
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and strict data-edge tests;
     `@iscc/lib` 0.7.0 on npm (OIDC)
+- `crates/iscc-napi/package-lock.json` is tracked (pins `@napi-rs/cli` 3.10.12); the `nodejs` CI job
+    and both `release.yml` napi jobs run `npm ci`; `version_sync.py` owns the lock's two root
+    version fields
 - `normal`: `crates/iscc-napi/README.md:52` says every code generator returns a string, but
     `gen_sum_code_v0` returns a `NapiSumCodeResult`
-- `crates/iscc-napi/package-lock.json` is gitignored, so CI's `npm install` resolves the
-    `@napi-rs/cli` tree with no lock. That is why the CI tip went red (see CI/CD)
+- `low`: `napi build` fails in the devcontainer checkout (the locked cli hard-links its outputs and
+    the 9p mount rejects `link()`); CI is unaffected
 - The napi `Buffer` reference leak is postponed (`postponed.md`)
 
 ## WASM Bindings
@@ -64,9 +67,8 @@ a registry 404 for a transitive dependency that was published two minutes before
 **Status**: partially met (one `normal`, two `low`)
 
 - 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust
-- `docs/howto/wasm.md` and the crate README show a Node.js setup that works on the `--target web`
-    package (`init({ module_or_path })`) and name the `gen_sum_code_v0` result type. Both are pinned
-    by `tests/test_wasm_docs.py`; the README is registered `FULL` in the Tier 1 doc gate
+- `docs/howto/wasm.md` and the crate README show a working Node.js setup for the `--target web`
+    package, pinned by `tests/test_wasm_docs.py`; the README is registered `FULL` in the doc gate
 - `normal`: hasher `finalize()` consumes the hasher when the core rejects `bits`, but not when JS
     rejects it. No cross-binding rule is recorded and no test covers it
 - `low`: byte and string parameters are converted in the glue code; a list element that throws
@@ -133,13 +135,13 @@ a registry 404 for a transitive dependency that was published two minutes before
 
 ## Documentation
 
-**Status**: partially met (two `normal` issues)
+**Status**: partially met (two `normal`, one `low`)
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (21 `FULL`, 2 `EXACT`)
 - `normal`: napi README result-type sentence (see Node.js); Rust API tier docs (see Rust core)
-- Root README, `docs/index.md` and the getting-started page show a bare `await init()` for WASM.
-    That is correct for browsers, and none of them claims to cover Node (not filed)
+- `low`: the version-sync file lists in `docs/development.md` (9 of 22 targets) and the release
+    skill (13 of 22) are partial
 
 ## Benchmarks
 
@@ -151,30 +153,25 @@ a registry 404 for a transitive dependency that was published two minutes before
 
 ## CI/CD and Publishing
 
-**Status**: partially met (CI red; one `low`)
+**Status**: partially met (CI green; one `low`)
 
-- `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; its
-    WASM smoke script and `scripts/test_install.py` now call `init({ module_or_path })`; 21
-    version-sync targets at 0.7.0
+- `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 22
+    version-sync targets at 0.7.0 (the napi lockfile joined); every ecosystem now installs from a
+    committed lockfile
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: FAILING.** Run 44965003618 on the origin tip `bd79145`: 23/24 green, and
-    `Node.js (napi build, test)` failed at `npm install`. The registry returned a 404 for the
-    tarball of `@inquirer/ansi@2.1.1` (published 00:04 UTC, fetched 00:06, still 404 at 00:09). It
-    is a transitive dependency of `@napi-rs/cli` and resolves with no lock. The napi code is
-    unchanged since the green run 44963348649 (`2ccf9f1`):
-    https://github.com/iscc/iscc-lib/actions/runs/44965003618
+- **Latest CI: PASSING.** Run 44967270838 on the origin tip `cac7c1f5`: 24/24 check-runs green. The
+    code commit `33d9b437` was green too (run 44966745935):
+    https://github.com/iscc/iscc-lib/actions/runs/44967270838
 - Local HEAD adds one unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
-17 open in issues.md: 7 `normal`, 10 `low` (9 untriaged), no `critical`. Two need a behaviour
+19 open in issues.md: 7 `normal`, 12 `low` (11 untriaged), no `critical`. Two need a behaviour
 decision first (`alg_minhash_256([])`, WASM `finalize()`). None is blocked on upstream. 7 sit in
 `postponed.md`.
 
 ## Next Milestone
 
-Get CI green on `develop` first: the napi job fails on an unlocked npm dependency the registry
-cannot serve. Then clear the 7 `normal` issues that block v0.8.0. The vcpkg hashes and the napi
-README are the user-facing ones; the Rust API tier docs, the duplicate `data.json` parsers, the
-one-shot/streaming duplication and the two behaviour decisions follow. Then Titusz cuts v0.8.0 via
-`/release`.
+Clear the 7 `normal` issues that block v0.8.0. The vcpkg portfile hashes and the napi README are the
+user-facing ones; the Rust API tier docs, the duplicate `data.json` parsers, the one-shot/streaming
+duplication and the two behaviour decisions follow. Then Titusz cuts v0.8.0 via `/release`.
