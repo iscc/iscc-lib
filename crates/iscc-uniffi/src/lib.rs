@@ -352,9 +352,11 @@ pub fn sliding_window(seq: String, width: u32) -> Result<Vec<String>, IsccUniErr
 }
 
 /// Compute a 256-bit MinHash from a set of u32 features.
+///
+/// Throws on an empty feature list.
 #[uniffi::export]
-pub fn alg_minhash_256(features: Vec<u32>) -> Vec<u8> {
-    iscc_lib::alg_minhash_256(&features)
+pub fn alg_minhash_256(features: Vec<u32>) -> Result<Vec<u8>, IsccUniError> {
+    Ok(iscc_lib::alg_minhash_256(&features)?)
 }
 
 /// Split data into content-defined chunks.
@@ -671,8 +673,14 @@ mod tests {
 
     #[test]
     fn test_alg_minhash_256() {
-        let result = alg_minhash_256(vec![1, 2, 3]);
+        let result = alg_minhash_256(vec![1, 2, 3]).unwrap();
         assert_eq!(result.len(), 32);
+    }
+
+    #[test]
+    fn test_alg_minhash_256_empty() {
+        let err = alg_minhash_256(vec![]).unwrap_err();
+        assert!(err.to_string().contains("features must not be empty"));
     }
 
     #[test]

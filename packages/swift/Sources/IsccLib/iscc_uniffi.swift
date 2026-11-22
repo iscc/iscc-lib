@@ -2087,9 +2087,11 @@ public func algCdcChunks(data: Data, utf32: Bool, avgChunkSize: UInt32)throws  -
 }
 /**
  * Compute a 256-bit MinHash from a set of u32 features.
+ *
+ * Throws on an empty feature list.
  */
-public func algMinhash256(features: [UInt32]) -> Data  {
-    return try!  FfiConverterData.lift(try! rustCall() {
+public func algMinhash256(features: [UInt32])throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
         uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_alg_minhash_256(
         FfiConverterSequenceUInt32.lower(features),uniffiCallStatus
@@ -2485,7 +2487,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_iscc_uniffi_checksum_func_alg_cdc_chunks() != 23469) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_alg_minhash_256() != 31368) {
+    if (uniffi_iscc_uniffi_checksum_func_alg_minhash_256() != 23807) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_iscc_uniffi_checksum_func_alg_simhash() != 16431) {

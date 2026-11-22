@@ -449,7 +449,7 @@ Additional primitives:
 - `algSimhash(hashDigests: List<ByteArray>)` — compute a SimHash digest from equal-length byte
     arrays, returns `ByteArray`
 - `algMinhash256(features: List<UInt>)` — compute a 256-bit MinHash digest from 32-bit features,
-    returns `ByteArray`
+    returns `ByteArray`; throws `IsccUniException` on an empty list
 - `algCdcChunks(data: ByteArray, utf32: Boolean, avgChunkSize: UInt)` — split data into
     content-defined chunks, returns `List<ByteArray>`
 - `softHashVideoV0(frameSigs: List<List<Int>>, bits: UInt)` — compute a similarity-preserving hash

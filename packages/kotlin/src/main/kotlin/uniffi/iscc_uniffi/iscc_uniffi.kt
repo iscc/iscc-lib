@@ -977,7 +977,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_iscc_uniffi_checksum_func_alg_cdc_chunks() != 23469) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_iscc_uniffi_checksum_func_alg_minhash_256() != 31368) {
+    if (lib.uniffi_iscc_uniffi_checksum_func_alg_minhash_256() != 23807) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_iscc_uniffi_checksum_func_alg_simhash() != 16431) {
@@ -2967,9 +2967,12 @@ public object FfiConverterSequenceSequenceInt: FfiConverterRustBuffer<List<List<
 
         /**
          * Compute a 256-bit MinHash from a set of u32 features.
-         */ fun `algMinhash256`(`features`: List<kotlin.UInt>): kotlin.ByteArray {
+         *
+         * Throws on an empty feature list.
+         */
+    @Throws(IsccUniException::class) fun `algMinhash256`(`features`: List<kotlin.UInt>): kotlin.ByteArray {
             return FfiConverterByteArray.lift(
-    uniffiRustCall() { _status ->
+    uniffiRustCallWithError(IsccUniException) { _status ->
     UniffiLib.uniffi_iscc_uniffi_fn_func_alg_minhash_256(
 
 

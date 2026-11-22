@@ -424,7 +424,7 @@ Additional primitives:
 - `algSimhash(hashDigests: [Data])` — compute a SimHash digest from equal-length byte arrays,
     returns `Data`
 - `algMinhash256(features: [UInt32])` — compute a 256-bit MinHash digest from 32-bit features,
-    returns `Data`
+    returns `Data`; throws `IsccUniError` on an empty array
 - `algCdcChunks(data: Data, utf32: Bool, avgChunkSize: UInt32)` — split data into content-defined
     chunks, returns `[Data]`
 - `softHashVideoV0(frameSigs: [[Int32]], bits: UInt32)` — compute a similarity-preserving hash from
