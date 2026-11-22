@@ -21,6 +21,9 @@ to `MEMORY-archive.md`.
 - iter 290 @ b3869b91: filed 3 (version_sync check blind spots, Go EncodeComponent short digest,
     WASM init/target drift). 4 finders piped into 4 batch skeptics + 1 watch skeptic = 9 agents,
     about $19.6; 38 of 38 survived, 30 of 31 watch items held. Conan entry cut for the line budget.
+- iter 300 @ 9cf983e5: filed 3 (Rust conformance triple runs + wasm reader copy, Conan sha256, spec
+    and API-doc drift). 4 finders piped into 4 batch skeptics + 1 watch skeptic = 9 agents, about
+    $20; 22 of 23 survived, 25 of 25 watch items held. Workflow ran ~29 min.
 
 ## Clean areas
 
@@ -38,8 +41,8 @@ to `MEMORY-archive.md`.
 
 ## Operating notes
 
-- issues.md budget is 400 lines (391 after iter 290: room for ~2 entries, so file the sharpest two
-    or three); run the prek `mdformat` hook on it before committing (wrapping adds lines).
+- issues.md budget is 400 lines (328 after iter 300); run the prek `mdformat` hook on it before
+    committing (wrapping adds lines).
 - Downloading a published artifact settles a packaging claim cheaply (iter 280: vcpkg hashes matched
     the v0.2.0 tarball, not v0.7.0).
 - Handing the watch list to the skeptics works: it refuted 4 stale items (incl. the 2-pass IDv1

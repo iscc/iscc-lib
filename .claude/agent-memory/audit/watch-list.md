@@ -5,8 +5,9 @@ metadata:
   type: project
 ---
 
-Every item below was verified (or re-verified) at b3869b91 (iter 290); the tag shows the pass that
-first verified it. Re-check against the tree before filing; drop any a commit has fixed.
+Every item below was verified (or re-verified) at 9cf983e5 (iter 300; 25 of 25 held); the tag shows
+the pass that first verified it. Re-check against the tree before filing; drop any a commit has
+fixed.
 
 **Why:** each survived a skeptic pass; only the cap, the 400-line issues.md budget or ownership kept
 it out. **How to apply:** hand every item to the verify phase next pass; file the top ones first.
@@ -14,12 +15,19 @@ target.md/decisions items are `low` + `**Triage:** untriaged` (human-owned).
 
 Code (CID-fixable), ranked:
 
-- (290) Conan: `packages/cpp/conanfile.py:84` `download()` without sha256 (vcpkg is pinned); its
-    `_target_triple` table (:28-66) is a third copy of the build-ffi matrix that no test reads.
-    Dropped from iter 290 only because of the issues.md budget, so file it first.
-- (270) Data-edge harness duplication: `iscc-lib/tests/test_data_edge.rs:40-157` vs
-    `iscc-wasm/tests/data_edge.rs:43-134`; Python `tests/test_data_edge.py:74,162` vs
-    `scripts/gen_data_edge_vectors.py:298-404`. Has waited 3 passes.
+- (270) Data-edge harness duplication: `iscc-lib/tests/test_data_edge.rs` vs
+    `iscc-wasm/tests/data_edge.rs`; Python `tests/test_data_edge.py` vs
+    `scripts/gen_data_edge_vectors.py`. Has waited 4 passes; grows with every section.
+- (300) C/C++ data-edge path is ~half of every section's cost (alg_minhash_256: ~170 of ~350 harness
+    lines): one struct + `row_<section>` + generator test per section; generator stack 1,904 lines.
+    Fix: generic tagged-value rows. File when the next section is scoped.
+- (300) Core `gen_meta_code_v0` (lib.rs:357-475) and Go `code_meta.go:81-139` repeat the encode +
+    result tail in both branches; `gen_iscc_code_v0` 115 lines, inline 5-tuple.
+- (300) Swift/Kotlin suites never call the streaming hashers, text utils or conformanceSelftest
+    though their specs list them as verification criteria.
+- (300) Error wording: napi typed-param errors vs `opt_number` text; .NET "Hasher already finalized"
+    (others name the type); minhash.rs:271 wrapper-vs-inner test cannot fail.
+- (300) tests/: `normalise_whitespace` etc. copied in test_napi/ruby_gem/wasm_docs.py.
 - (290) Go conformance: nine identical `run*Case` (conformance.go:291-433) + five per-generator
     tests re-running them (audio/image/video/data/iscc `_test.go`).
 - (290) Rust one-shot `gen_data/instance_code_v0` (lib.rs:889-935) still copy the hashers' result
@@ -51,11 +59,16 @@ Code (CID-fixable), ranked:
 
 Docs (CID-fixable):
 
+- (300) development.md Quality Gates omits 4 prek hooks (check-ci-job-table, check-spec-paths,
+    standardrb x2); Python/.NET/Node runtime floors stated nowhere in README/how-to.
+
 - (290) architecture.md: Go tests no longer read `crates/iscc-lib/tests/`; Tier 1 "MAJOR bump" vs
     SemVer-binding-from-1.0 (spec still names 0.4). c-ffi-dx spec: publish-ffi no longer creates the
     Release. napi package.json uses v2 config keys (`name`, `triples`).
+
 - (280) C++/root README include path the tarball lacks; `cargo bench` runs iai; Implementors Guide
     gen_sum_code_v0 source + no Swift; Go README no version floor; LoaderProbe Javadoc placement.
+
 - (270) Ruby how-to names only RuntimeError (decision says RangeError too); getting-started Go
     streaming drops errors, says Go 1.21+ (go.mod 1.26.1); `_lowlevel.pyi` mtype 0-6; development.md
     tables (besides the tracked version list).
@@ -70,11 +83,18 @@ Context drift:
 
 Loop tooling (meta-improve/human, not the CID queue):
 
+- (300) review.md runs Codex on `--commit HEAD` only while fan-out steps span 6-13 commits; CRAP
+    gate has no local enforcing task (`mise run crap` report-only, 4+ red CI/NEEDS_WORK); cid.py
+    logs timed-out runs as $0/0 turns (cid.py:281-293); audit cost $0.9 -> ~$20/pass.
+
 - (280) review-patterns.md agent memory keeps growing; topic files unbounded.
+
 - (280/290) 15 skipped `low` entries are inlined into define-next/review every iteration (~65% of
     issues.md); normal issues needing Titusz escalate only when the loop runs dry; meta-improve
     proposal unanswered since iter 248. This watch list itself is a shadow backlog (~60 items).
+
 - (270/290) metrics.py: single-sample gate timings, times other commands than the gates, blind to
     C++/JS/C#/Swift/wasm tests and Go skips, counts gitignored CMake files as TypeScript.
+
 - (290) Docs site builds only on push to main (develop ~634 commits ahead); release.yml only on
     publish; advance.md step 6 runs no ty/clippy.

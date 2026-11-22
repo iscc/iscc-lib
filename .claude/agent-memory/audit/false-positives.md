@@ -7,8 +7,8 @@ metadata:
 
 Do not file these:
 
-- **`gen_*` accept bits > 256 and emit codes `iscc_decode` rejects**: iscc-core returns the
-    identical string (`gen_text_code_v0('Hello', 512)`), so this is reference parity.
+- **`gen_*` accept bits > 256**: was reference parity; since 2026-11-22 decided (reject) and tracked
+    by a `[human]` issue in issues.md — do not file again.
 - **Go conformance tests `t.Skipf` when data.json is missing**: sibling tests read the same path and
     `t.Fatalf`, so CI still fails.
 - **UniFFI (Swift/Kotlin) exports have no default arguments**: declared on purpose in
@@ -29,3 +29,5 @@ tests or decisions.md refutes them. **How to apply:** before verifying a "surpri
 - **Archived decision "JS-number IDv1 surfaces take f64" vs wasm `JsValue`**: wasm reads the number
     as f64 and runs `checked()` before narrowing, which is what the decision requires (refuted iter
     280).
+- **C/C++ `encode_component` empty-digest tests "cannot fail"**: the C++ test fails on a NULL
+    message, so it does discriminate (refuted iter 300).

@@ -255,3 +255,74 @@ the tests in `crates/iscc-uniffi/src/lib.rs`, `SmokeTests.cs`). The Rust core ne
 
 Resolved when the C FFI, C++, .NET and UniFFI suites each have a test in which `finalize(13)` fails
 and a following `finalize(64)` reports the finalized state.
+
+## Rust conformance runs each `data.json` section up to three times and lists the sections by hand in three places `normal` [audit]
+
+**Evidence:** `crates/iscc-lib/src/conformance.rs:32-65` (`conformance_selftest`) calls all 11
+runners and `test_conformance_selftest_passes` (:401) runs it. `test_gen_sections_run` (:445-455)
+calls 7 of those runners again, `test_seq_sections_run` (:406-413) the two seq runners, and
+`probe()` (:514-530) is a third hand-written section-to-runner `match`. In `lib.rs`, the image
+(:1506), audio (:1585), video (:1702), data (:1818) and iscc (:1913) `*_conformance` tests walk the
+same vectors again and compare only `.iscc`, as the runners already do, with hard-coded counts
+(3/5/3/4/5). `crates/iscc-wasm/tests/conformance.rs` (359 lines, 11 loops) copies the parsers
+(`prepare_meta_arg` :18, `decode_bytes`/`decode_stream` :28-45) and reads with silent casts (`as u8`
+:117, `as i32` :178) that the decision of 2026-11-22 rules out in the core runners. The strict
+readers in the sibling `tests/data_edge.rs` cannot be reused there: the crate has no
+`tests/common/mod.rs`.
+
+**Why it matters:** a new section or vector shape needs edits in three lists, and nothing fails when
+one is missed. Rust now has four reader families for the same JSON files, and only two follow the
+strict-parsing rule.
+
+**Suggested fix:** one `const` section-to-runner table in `conformance.rs` that drives
+`conformance_selftest` and `probe`; delete `test_gen_sections_run` and the five iscc-only loops in
+`lib.rs` (keep the meta/text/mixed/instance loops for their extra output fields). In
+`iscc-wasm/tests`, move the strict readers into `common/mod.rs`, use them in both files, and read
+case counts from the file.
+
+**Scope estimate:** 2 non-test files (`conformance.rs`, `lib.rs` test module) plus 3 WASM test
+files.
+
+## Conan recipe downloads the FFI archive without a checksum `normal` [audit]
+
+**Evidence:** `packages/cpp/conanfile.py:84` calls `download(self, url, archive_path)` with no
+`sha256`, then unpacks and packages the binary. The vcpkg port pins the SHA512 of every archive,
+written by `prepare-release` (`release.yml:103-112`, `scripts/update_vcpkg_hashes.py`); no decision
+covers Conan. The recipe's `_target_triple` table (:28-66) is a third copy of the `build-ffi`
+platform matrix, and no test reads it (the only other reference is the version pair in
+`scripts/version_sync.py`). Verified at b3869b91 and again at 9cf983e5.
+
+**Why it matters:** a Conan user links a prebuilt native library that nothing checks, so a replaced
+or corrupted release asset goes unnoticed, while the vcpkg path catches it. A platform added to
+`build-ffi` and missing from the table fails only on a user's machine.
+
+**Suggested fix:** have `prepare-release` write the per-target SHA256 into the recipe (a dict next
+to `_target_triple`, or `conandata.yml`) with the same script pattern as the vcpkg hashes, and pass
+it to `download(..., sha256=...)`. Add a test that ties the table's targets to the `build-ffi`
+matrix, as the vcpkg tests do.
+
+**Scope estimate:** 3 non-test files (`conanfile.py`, a hash script, `release.yml`).
+
+## Specs and API docs still describe shipped work as planned, or leave out shipped rules `normal` [audit]
+
+**Evidence:** `specs/swift-bindings.md:397` requires a `swift` `workflow_dispatch` checkbox that the
+same spec rules out at :265-267 and `release.yml` does not have.
+`specs/documentation.md:50,52,94-95` lists 6 how-to languages, 4 reference pages and 9 bindings,
+while `zensical.toml` has 11 how-tos and 5 reference pages, Swift and Kotlin included.
+`specs/c-ffi-dx.md:134-138` calls feature flags future work "tracked as GitHub Issue #16": #16 is
+closed, the `text-processing`/`meta-code` features ship, and `serde_json` is not optional.
+`docs/c-ffi-api.md:742-744` does not say that a *failed* first `_finalize()` consumes, which
+`docs/howto/c-cpp.md:185-189` states. The short-digest rejection of `encode_component` is documented
+on 5 surfaces (rust-api, `_lowlevel.pyi`, Go, Java, Ruby) and missing from `c-ffi-api.md`,
+`IsccLib.cs:363`, `iscc.hpp:304`, napi, WASM and UniFFI. `README.md:49-51` lists the bindings
+without Swift, which the same page's feature list (:26-27) includes.
+
+**Why it matters:** define-next scopes from the specs, so a criterion that the tree contradicts can
+be scoped as work or block a target section from counting as met. A C, C++, .NET or JS caller cannot
+learn the error contract from the reference page of their own surface.
+
+**Suggested fix:** state the shipped facts in the three specs and point to the nav or `release.yml`
+for lists instead of copying them; add the failed-finalize sentence to `c-ffi-api.md` and the digest
+rule to the six API comments and pages that lack it; add Swift to the README list.
+
+**Scope estimate:** 9 non-test files: needs audit-scope step (≤8 files), or split specs from docs.
