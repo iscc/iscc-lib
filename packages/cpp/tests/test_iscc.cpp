@@ -273,6 +273,20 @@ static bool check_edge_alg_cdc_chunks(const iscc_edge_alg_cdc_chunks_vector& v) 
     return v.cpp == ISCC_EDGE_OK && chunks == edge_byte_lists(v.chunks);
 }
 
+/// Check one encode_component edge row against its cpp expectation (rejection = IsccError).
+static bool check_edge_encode_component(const iscc_edge_encode_component_vector& v) {
+    const std::vector<uint8_t> digest = edge_bytes(v.digest);
+    std::string unit;
+    try {
+        unit = iscc::encode_component(v.mtype, v.stype, v.version, v.bit_length, digest);
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && unit == edge_string(v.unit);
+}
+
 /// Run every row of one data-edge section: skip rows marked cpp skip, check the rest,
 /// print PASS/FAIL per row, and return the number of rows visited (run or skipped).
 template <typename Row, typename Check>
@@ -814,6 +828,8 @@ int main() {
                                  ISCC_EDGE_GEN_VIDEO_CODE_V0_COUNT, check_edge_gen_video_code_v0);
         seen += run_edge_section("alg_cdc_chunks", iscc_edge_alg_cdc_chunks,
                                  ISCC_EDGE_ALG_CDC_CHUNKS_COUNT, check_edge_alg_cdc_chunks);
+        seen += run_edge_section("encode_component", iscc_edge_encode_component,
+                                 ISCC_EDGE_ENCODE_COMPONENT_COUNT, check_edge_encode_component);
         assert_eq(seen, ISCC_EDGE_TOTAL_COUNT, "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
     }
 
