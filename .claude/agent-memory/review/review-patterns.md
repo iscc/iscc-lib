@@ -895,6 +895,21 @@ A step that changes how the Go port serializes something the core also serialize
 - Build every backslash-u sequence in the script as `chr(92) + "u2028"`. The Edit tool decoded the
     escapes in an `issues.md` edit and the edit failed to match; write such text with a Python
     script that builds the backslash the same way
+- 302 (Go port of a bound the core already has; PASS in about 20 minutes): the differential ran the
+    other way round and is the better shape for a bound. One Python script writes a JSON table of
+    CASES (op + arguments, no expected values), a `zz_probe_test.go` in the `/tmp` copy and a Python
+    runner over `iscc_lib` each write one `OK <result>` / `ERR <message>` line per case, and a third
+    script compares status and `OK` payloads. Paths go in through environment variables. Run
+    `mise run py:develop` first, and run the Go side as `GOARCH=386` too and `cmp` the outputs
+- Name everything in the probe file `zz…`: the package already has a `probeCase` type, and a
+    redeclaration shows up only as `[build failed]` (`go vet -C <copy> .` prints the reason)
+- Build hand-made unit headers in Python with a varnibble helper, so one table feeds both sides.
+    Vary the length index (7, 8, 9, 15, 71, 72), the body length, the position in a sequence, and
+    for `gen_iscc_code_v0` the unit count and `wide`
+- A differential finds the cases the step's tests do not cover (302: `GenSumCodeV0`, the second unit
+    of the wide check). Each was a ten-line Go test: add it in review instead of filing it
+- mdformat pads a code span that wraps over a line end with extra spaces: keep each backticked
+    command on one line in `issues.md` and the handoff, and read the diff after formatting
 - When the step fixes part of an issue, rewrite the entry to the remainder and keep its priority.
     `issues.md` sat at 298 of 300 lines: a new entry needed cuts in other `low` `[review]` entries
 - 295 (public-function validation tightened, internal clamping helper kept; PASS in about 12

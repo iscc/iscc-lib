@@ -217,31 +217,26 @@ Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact
 on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
 that both `bench_instance_code` rows are within the tolerance of a current run.
 
-## Go accepts `bits` above 256, no vector pins the rejection, and most API pages lack the range `normal` [human]
+## No vector pins the 256-bit unit limit, and most API pages lack the range `normal` [human]
 
 Decided on 2026-11-22 (decisions.md, "A unit is at most 256 bits"): iscc-lib rejects a unit above
-256 bits. The Rust core does, on encode and decode, and the surfaces built on it inherit that
-(measured on the Python binding at 809e317f for the gen functions, both hashers' `finalize`,
-`encode_component`, `iscc_decode` and `iscc_decompose`). Three parts of the problem remain:
+256 bits. The Rust core and the Go port both do, on encode and decode (Go since iteration 302; the
+two agree on 291 probe cases, the surfaces built on the core inherit it). Two parts of the problem
+remain:
 
-- **Go port.** `encodeLength` (`packages/go/codec.go`) accepts any multiple of 32, so the gen
-    functions, the hashers and `EncodeComponent` return a unit that no decoder reads (measured for
-    `gen_data_code_v0(b"abc", 512)` in iteration 295). `decodeLength` has no upper bound, and its
-    four callers use it unchecked: `IsccDecompose` and `IsccDecode` in `codec.go`, the mixed length
-    check in `code_content_mixed.go`, and the wide check in `code_iscc.go`.
-- **No shared vector.** Only the in-crate Rust tests pin the rejection; no `data-edge.json` row
-    does, so no binding suite and no Go test would see the bound disappear.
-- **API pages.** Outside `docs/rust-api.md` the pages and API comments say only "multiple of 32"
+- **No shared vector.** Only the Rust in-crate tests and the Go `Above256` tests pin the rejection;
+    no `data-edge.json` row does, so no binding suite would see the bound disappear.
+- **API pages.** Outside `docs/rust-api.md`, the Go doc comments and `docs/howto/go.md` the pages
+    and API comments say only "multiple of 32"
     (`git grep -c "multiple of 32" -- docs crates packages` lists them: the C FFI, Java and Ruby
-    reference pages, nine how-to pages, `iscc.h`, `IsccLib.java`, `_lowlevel.pyi` among them).
+    reference pages, the other how-to pages, `iscc.h`, `IsccLib.java`, `_lowlevel.pyi` among them).
 
 **Upstream:** iscc/iscc-core, filed as https://github.com/iscc/iscc-core/issues/142 (iscc-core 1.5.0
 returns the same undecodable codes for meta, text, audio, video, data and instance)
 
-Resolved when every gen function, every hasher `finalize` and `encode_component` reject a unit
-length above 256 on all 12 surfaces, a unit header longer than 256 bits fails to decode, a
-`data-edge.json` vector pins the rejection (marked `diverges`, naming the decision), and the API
-pages state the range of 32 to 256.
+Resolved when a `data-edge.json` vector pins the rejection on all 12 surfaces (an encode row marked
+`diverges`, naming the decision, and a unit header longer than 256 bits that fails to decode), and
+the API pages state the range of 32 to 256.
 
 ## No test pins "a failed first `finalize` consumes" on C FFI, C++, .NET, Swift and Kotlin `low` [review]
 

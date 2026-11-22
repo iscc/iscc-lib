@@ -66,3 +66,14 @@ func TestGenIsccCodeV0WideAbove256InstanceAfterShortData(t *testing.T) {
 		t.Errorf("wide=true got %q, want the standard code %q", wide.Iscc, std.Iscc)
 	}
 }
+
+func TestGenIsccCodeV0WideAbove256InstanceAfterWideData(t *testing.T) {
+	data, err := GenDataCodeV0([]byte("hello world"), 128)
+	if err != nil {
+		t.Fatalf("GenDataCodeV0: %v", err)
+	}
+	codes := []string{data.Iscc, overlongUnit(t, MTInstance, STNone)}
+	// The 128-bit Data unit keeps the wide check going, so the Instance length is read.
+	_, err = GenIsccCodeV0(codes, true)
+	assertDecodeBoundErr(t, err)
+}

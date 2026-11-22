@@ -1,49 +1,64 @@
-## 2026-11-22 — Go port rejects ISCC-UNITs above 256 bits (encode and decode)
+## 2026-11-22 — Review of: Go port rejects ISCC-UNITs above 256 bits (encode and decode)
 
-**Done:** `encodeLength` now accepts only 32 to 256 bits (multiple of 32) for Meta through Flake,
-with the Rust error wording. A checked helper `unitBitLength` replaces all four `decodeLength`
-callers outside its own tests (`IsccDecompose`, `IsccDecode` before the `make`, mixed, the wide
-check). The wide check is a short loop that stops at the first unit below 128 bits, so a later
-over-long unit is only read when every earlier one reaches 128 bits.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/go/codec.go`: `encodeLength` bound + message + doc; `unitBitLength` (new, unexported);
-    `decodeLength` doc notes it is unchecked; `IsccDecompose`/`IsccDecode` call the helper;
-    `EncodeComponent` doc names the 32 to 256 range
-- `packages/go/code_content_mixed.go`: `softHashCodesV0` calls `unitBitLength`
-- `packages/go/code_iscc.go`: step 8 wide check as an in-order loop over `unitBitLength`
-- `docs/howto/go.md`: line 493 comment ("multiple of 32 from 32 to 256")
-- Tests: `codec_test.go` (helpers `overlongUnit`, `assertEncodeBoundErr`, `assertDecodeBoundErr`;
-    encodeLength, unitBitLength, EncodeComponent, IsccDecode, IsccDecompose), and one `Above256`
-    test each in `code_meta`, `code_content_{text,image,audio,video,mixed}`, `code_data` (gen +
-    hasher), `code_instance` (gen + hasher), `code_iscc` (two wide cases) `_test.go`
+**Summary:** The Go port now applies the 256-bit unit limit on encode (`encodeLength`) and on decode
+(a checked `unitBitLength` at all four former `decodeLength` call sites). The diff stays in scope (3
+Go source files, one how-to comment, tests). A differential of 291 cases against the Rust core
+(through `iscc_lib`, built from HEAD) shows no difference in outcome or output, on amd64 and 386.
 
 **Verification:**
 
-- `CGO_ENABLED=0 go test -count=1 ./...` ok; `GOARCH=386 CGO_ENABLED=0 go test -count=1 ./...` ok
-- `go test -run Above256 -v ./...`: 17 tests PASS — encode (meta, text, image, audio, video, data,
-    instance, both hashers' `Finalize`, `EncodeComponent`, `encodeLength`), decode (`IsccDecode`,
-    `IsccDecompose`, `unitBitLength`), mixed, wide Data-288 (fails with `true`, succeeds with
-    `false`) and wide Data-64 + Instance-288 (succeeds with `true`, equals the `false` result)
-- `go vet ./...` and `GOARCH=386 go vet ./...` clean; `gofmt -l .` empty
-- `git grep -n "decodeLength(" -- packages/go ':!*_test.go'`: `codec.go:313` (definition) and
-    `codec.go:335` (inside `unitBitLength`) only
-- `git grep -n ">= 32)" -- packages/go`: nothing.
-    `git grep -n "32 to 256" -- packages/go   docs/howto/go.md`: `encodeLength` (277 doc, 286
-    message), `EncodeComponent` comment (497), the how-to line, plus a pre-existing `codec.go:903`
-    comment (`IsccNormalizeSeq`) and the test helper
-- `mise run check` exits 0
+- [x] `CGO_ENABLED=0 go test -count=1 ./...` and the `GOARCH=386` run pass;
+    `go test -run Above256 -v ./...` lists passing tests for encode (7 gen functions, both hashers,
+    `EncodeComponent`, `encodeLength`), decode (`IsccDecode`, `IsccDecompose`, `unitBitLength`),
+    mixed and the wide cases (19 tests with the two added in review)
+- [x] `go vet ./...` and `GOARCH=386 go vet ./...` clean; `gofmt -l .` empty
+- [x] `git grep -n "decodeLength(" -- packages/go ':!*_test.go'` prints `codec.go:313` (definition)
+    and `codec.go:335` (inside `unitBitLength`) only
+- [x] `git grep -n ">= 32)" -- packages/go` prints nothing; `git grep -n "32 to 256"` shows
+    `encodeLength`, the `EncodeComponent` comment and the how-to line (plus the older
+    `IsccNormalizeSeq` comment and the test helper)
+- [x] `mise run check` exits 0
+- [x] Beyond next.md: differential Go vs Rust core, 291 cases (over-long units of every MainType at
+    length indexes 7 to 72, short bodies, sequences, mixed, `GenIsccCodeV0` wide and standard with 2
+    and 3 units, every gen function, both hashers, `GenSumCodeV0` and `EncodeComponent` at 13 `bits`
+    values up to 2^32-1): 0 differences, no panic, amd64 output equals 386 output
 
-**Next:** the `data-edge.json` rows (`diverges`) across all 12 harnesses. Per the iter-301 note, use
-a gen function without input units (e.g. meta/data with `bits=288`) for the encode row; mixed at 288
-already failed before this bound.
+**Issues found:**
+
+- `GenSumCodeV0` had no `Above256` test (Rust has one), and no Go test read the second unit in the
+    wide check (128-bit Data + 288-bit Instance, `wide=true`). Both behave correctly; I added
+    `TestGenSumCodeV0Above256` and `TestGenIsccCodeV0WideAbove256InstanceAfterWideData` (tests only)
+- Nit, not filed: the `unitBitLength` error branch inside `IsccDecode` cannot be reached, because
+    `isccNormalize` runs `IsccDecompose` first and that rejects the unit. `TestIsccDecodeAbove256`
+    therefore passes through the decompose check. The call is harmless (same shape as in Rust, see
+    the iteration-301 nit)
+- The bits issue is rewritten to the remaining problem (shared vector, API pages), still `normal`
+
+**Codex review:** no actionable findings ("The 256-bit limits preserve composite and ISCC-ID
+behavior").
+
+**Next:** the `data-edge.json` rows for the 256-bit limit across all 12 harnesses (issue "No vector
+pins the 256-bit unit limit, and most API pages lack the range"). Facts measured in this review that
+the rows can rely on, identical on Go and the Rust core:
+
+- Encode: `bits=288` fails for meta, text, audio, data, instance, both hashers, sum and
+    `encode_component`. Image and video also fail, with their own earlier errors. Use a gen function
+    without input units for the encode row (iteration-301 note)
+- Decode: a 288-bit unit of MainType 0 to 4 and 7 fails `iscc_decode` and `iscc_decompose`, alone or
+    as any member of a sequence
+- `gen_iscc_code_v0`: an over-long Data or Instance unit fails only with `wide=true` and only when
+    the wide check reaches it (288-bit Data + any Instance; 128-bit Data + 288-bit Instance). With
+    `wide=false`, with a 64-bit Data unit first, or with three units, the call succeeds and returns
+    the standard code. Do not write a row that expects a rejection there
+- Check each row on both iscc-core builds (CPython 3.10 and 3.15) before marking it `diverges`: the
+    decode rejection matches iscc-core, the encode rejection is the divergence
+
+After that, the API-page docs step, then the three `[audit]` `normal` issues.
 
 **Notes:**
 
-- Decode tests assert the "an ISCC-UNIT is at most 256 bits" message, which only `unitBitLength`
-    produces, so they pin the helper itself (the Rust decompose test passes through the encode bound
-    instead, see the iter-301 nit). Encode tests assert "must be a multiple of 32 from 32 to 256"
-- Image and video fail BEFORE `encodeLength` with their own errors (`softHashImageV0` "bits must be
-    \<= 256", `AlgWtahash` "\<= 256"); their tests only require an error, as next.md allowed
-- Arithmetic stays `uint32`; no new `int` conversions. Go-only step: no CRAP or iai impact
+- No new decision and no new learning: the step ports a decided behaviour, and learnings.md is at
+    its 200-line budget
+- Go-only step: no CRAP, iai or semver impact; the core crate is untouched

@@ -3,6 +3,7 @@ package iscc
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -261,5 +262,19 @@ func TestGenSumCodeV0UnitsContent(t *testing.T) {
 	}
 	if result.Units[1] != instanceResult.Iscc {
 		t.Errorf("unit[1] mismatch: got %q, want %q", result.Units[1], instanceResult.Iscc)
+	}
+}
+
+// TestGenSumCodeV0Above256 verifies that a unit length above 256 bits is
+// rejected and that 256 bits still succeeds.
+func TestGenSumCodeV0Above256(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sum-above-256.bin")
+	if err := os.WriteFile(path, []byte("some file content"), 0o600); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	_, err := GenSumCodeV0(path, 288, false, false)
+	assertEncodeBoundErr(t, err)
+	if _, err := GenSumCodeV0(path, 256, false, false); err != nil {
+		t.Fatalf("GenSumCodeV0 256 bits: %v", err)
 	}
 }
