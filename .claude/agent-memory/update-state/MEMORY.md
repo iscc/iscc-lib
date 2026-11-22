@@ -86,13 +86,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: c15b555, iter 293 — incremental)
+## Current State (assessed-at: 962c4ff, iter 294 — incremental)
 
-- Origin tip `98c918e2` run 44999579359 GREEN 24/24 (Kotlin finished during assess). HEAD +1
+- Origin tip `37ef63b7` run 45001524612 (Perf iai is the LAST job to finish, after Kotlin). HEAD +1
     `.claude`.
-- 20 open (5 `normal` + 15 `low`, 14 untriaged). 292 closed WASM init/target docs `normal` (guarded
-    by `tests/test_wasm_docs.py`); Documentation section flipped to met. 319 `#[test]` in `src/`,
-    305 Go `func Test`.
+- 19 open (4 `normal` + 15 `low`, 14 untriaged). 293 closed the Rust/Go runner wrong-type `normal`
+    (decision 2026-11-22; `check_sections` in conformance.rs, `containsNull`/`parseSection` in
+    conformance.go). 324 `#[test]` in `src/`, 308 Go `func Test`.
 - **Audit iterations add issues with zero code change** (290: 3→6 `normal`) — always re-read
     issues.md bodies after a `cid(audit)` commit.
 - **CI still running at assess time?** Write state, then re-check the run before committing — the

@@ -1,15 +1,14 @@
-<!-- assessed-at: c15b55959ee0c043b3652ee4e4755cafe3c300e3 -->
+<!-- assessed-at: 962c4ff0e07bd74ac7013bc4935725fc45825d19 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; 5 `normal` issues block the release
+## Phase: v0.8.0 — features done; 4 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 292 made every
-`@iscc/wasm` snippet on the README, docs home and getting-started pages call `init()`, and cut the
-WASM agent guidance down to the published `--target web` build. 5 `normal` and 15 `low` issues are
-open.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 293 gave the Rust
+and Go `data.json` selftest runners one shared rule for wrong-type and out-of-range vector values,
+closing that `normal` issue. 4 `normal` and 15 `low` issues are open.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -26,16 +25,16 @@ open.
 
 ## Rust Core Crate
 
-**Status**: partially met (v0.8.0 features met; two `normal` issues)
+**Status**: partially met (v0.8.0 features met; one `normal` issue)
 
 - Tier 1 has 35 symbols at the crate root, plus the Tier 2 `read_unit` and `SEQ_MAINTYPES`.
-    `conformance_selftest` runs the seq vectors; `src/` has 319 `#[test]`
-- `conformance.rs` is the only file in `src/` that parses `data.json`; the other in-crate tests use
-    its `pub(crate)` parsers
+    `conformance_selftest` runs the seq vectors; `src/` has 324 `#[test]`
+- `conformance.rs` is the only file in `src/` that parses `data.json`. A wrong JSON type, a stray
+    `null`, a fraction or an out-of-range number makes a case unparsable; `check_sections` fails the
+    selftest on a malformed top-level key (decision 2026-11-22)
 - `normal`: `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises; no decision yet
-- `normal`: the Rust and Go runners still disagree on five wrong-type/range rows (`bits` as a float,
-    `null` description, non-object `meta`, non-string code-list entry, pixel out of range) and on
-    unknown top-level keys. No shared rule is recorded
+- Known, unfiled: `-0` as a pixel, `cv` or frame entry is rejected by Rust and read as 0 by Go; no
+    vendored vector can hold it (listed under "Not covered" in the decision)
 - **Postponed (human):** `>= 1.0.0`, MSRV, `no_std`
 
 ## Python Bindings
@@ -61,14 +60,12 @@ open.
 
 - 35 Tier 1 symbols; SIMD release build met; scalar parameters type-checked in Rust;
     `gen_sum_code_v0` feeds one core `streaming::SumHasher`
-- Init/target guidance met: all 8 snippets on `README.md`, `docs/index.md` and the getting-started
-    tutorial call `await init();`; `crates/iscc-wasm/CLAUDE.md` and `specs/wasm-bindings.md` name
-    only `--target web`; `tests/test_wasm_docs.py` guards both
+- Init/target guidance met: every snippet on `README.md`, `docs/index.md` and the getting-started
+    tutorial calls `await init();`; guarded by `tests/test_wasm_docs.py`
 - `normal`: hasher `finalize()` consumes the hasher when the core rejects `bits`, but not when JS
     rejects it. No cross-binding rule is recorded and no test covers it
 - `low`: byte/string conversion in the glue code; a list element that throws during the serde read
-    kills the instance. `docs/howto/wasm.md` per-function snippets omit `init()` under its "Setup"
-    section (accepted form, not filed)
+    kills the instance
 
 ## C FFI
 
@@ -87,12 +84,12 @@ open.
 
 ## Go Bindings
 
-**Status**: partially met (one `normal`, plus its half of the runner issue)
+**Status**: partially met (one `normal`)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all 9
-    sections; the `go` CI job also runs as `GOARCH=386`; 305 `func Test`
-- `conformance.go` parses every fixture section once; the per-function tests read inputs through its
-    parsers
+    sections; the `go` CI job also runs as `GOARCH=386`; 308 `func Test`
+- `conformance.go` follows the same wrong-type rule as Rust: `parseSection` checks each section is
+    an object of case objects and `containsNull` rejects a `null` outside `meta`
 - `normal`: `EncodeComponent` clamps a short digest and emits a header that claims more bits than
     the body has. Every Rust-backed surface raises; iscc-core slices like Go. No decision is
     recorded
@@ -137,8 +134,6 @@ open.
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (22 `FULL`, 2 `EXACT`)
-- WASM snippets on the README, docs home and getting-started pages now initialize the module
-    (`normal` closed in 292)
 - `low`: `target.md` and the agent prompts name `codec` as the whole of Tier 2 (Titusz's files); the
     version-sync file lists in `docs/development.md` (9 of 22) and the release skill (13 of 22) are
     partial
@@ -159,23 +154,23 @@ open.
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles;
     `prepare-release` commits the vcpkg hashes with the Swift checksum before tagging; 22
     version-sync targets at 0.7.0; every ecosystem installs from a lockfile
+- `.crap-baseline.json` regenerated in 293 (only `conformance_selftest` and `string_entries` rose)
 - `normal`: `scripts/version_sync.py` checks only the first versioned snippet per doc (`README.md`
     and `docs/index.md` have several), and skips a missing file or unmatched pattern without a
     message
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 44999579359 on the origin tip `98c918e2`: 24/24 check-runs green:
-    https://github.com/iscc/iscc-lib/actions/runs/44999579359
+- **Latest CI: PASSING.** Run 45001524612 on the origin tip `37ef63b7`: 24/24 check-runs green:
+    https://github.com/iscc/iscc-lib/actions/runs/45001524612
 - Local HEAD adds 1 unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
-20 open in issues.md: 5 `normal`, 15 `low` (14 untriaged), no `critical`. Two `normal` need a
+19 open in issues.md: 4 `normal`, 15 `low` (14 untriaged), no `critical`. Two `normal` need a
 behaviour decision from Titusz (`alg_minhash_256([])`, WASM `finalize()`); the Go `EncodeComponent`
 one needs a recorded rule. None is blocked on upstream. 7 sit in `postponed.md`.
 
 ## Next Milestone
 
-Clear the `normal` issues that block v0.8.0. Three can be worked by the loop: one shared rule for
-wrong-type vectors on both conformance runners, the `version:check` gaps, and Go `EncodeComponent`
-once its rule is recorded. Two need Titusz's decision. After that, Titusz cuts v0.8.0 via
-`/release`.
+Clear the `normal` issues that block v0.8.0. The `version:check` gaps can be worked by the loop
+without a decision; Go `EncodeComponent` needs its rule recorded first, and two need Titusz's
+decision. After that, Titusz cuts v0.8.0 via `/release`.
