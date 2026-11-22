@@ -1523,31 +1523,6 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_image_code_v0_conformance() {
-        let data = conformance::test_data().unwrap();
-        let cases = conformance::cases(&data, "gen_image_code_v0").unwrap();
-
-        let mut tested = 0;
-
-        for (tc_name, tc) in cases {
-            let (pixels, bits) = conformance::image_inputs(tc)
-                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
-            let expected_iscc = conformance::expected_iscc(tc).unwrap();
-
-            let result = gen_image_code_v0(&pixels, bits)
-                .unwrap_or_else(|e| panic!("gen_image_code_v0 failed for {tc_name}: {e}"));
-            assert_eq!(
-                result.iscc, expected_iscc,
-                "ISCC mismatch in test case {tc_name}"
-            );
-
-            tested += 1;
-        }
-
-        assert_eq!(tested, 3, "expected 3 conformance tests to run");
-    }
-
-    #[test]
     fn test_soft_hash_image_v0_256_quadrant_layout() {
         // Blocks follow the top-left, top-right, bottom-left and bottom-right 8×8 DCT squares
         let data = conformance::test_data().unwrap();
@@ -1599,31 +1574,6 @@ mod tests {
             result.iscc,
             "ISCC:EIDQAAAAAH777777AAAAAAAAAAAACAAAAAAP777774AAAAAAAAAAAAI"
         );
-    }
-
-    #[test]
-    fn test_gen_audio_code_v0_conformance() {
-        let data = conformance::test_data().unwrap();
-        let cases = conformance::cases(&data, "gen_audio_code_v0").unwrap();
-
-        let mut tested = 0;
-
-        for (tc_name, tc) in cases {
-            let (cv, bits) = conformance::audio_inputs(tc)
-                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
-            let expected_iscc = conformance::expected_iscc(tc).unwrap();
-
-            let result = gen_audio_code_v0(&cv, bits)
-                .unwrap_or_else(|e| panic!("gen_audio_code_v0 failed for {tc_name}: {e}"));
-            assert_eq!(
-                result.iscc, expected_iscc,
-                "ISCC mismatch in test case {tc_name}"
-            );
-
-            tested += 1;
-        }
-
-        assert_eq!(tested, 5, "expected 5 conformance tests to run");
     }
 
     #[test]
@@ -1719,31 +1669,6 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_video_code_v0_conformance() {
-        let data = conformance::test_data().unwrap();
-        let cases = conformance::cases(&data, "gen_video_code_v0").unwrap();
-
-        let mut tested = 0;
-
-        for (tc_name, tc) in cases {
-            let (frame_sigs, bits) = conformance::video_inputs(tc)
-                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
-            let expected_iscc = conformance::expected_iscc(tc).unwrap();
-
-            let result = gen_video_code_v0(&frame_sigs, bits)
-                .unwrap_or_else(|e| panic!("gen_video_code_v0 failed for {tc_name}: {e}"));
-            assert_eq!(
-                result.iscc, expected_iscc,
-                "ISCC mismatch in test case {tc_name}"
-            );
-
-            tested += 1;
-        }
-
-        assert_eq!(tested, 3, "expected 3 conformance tests to run");
-    }
-
-    #[test]
     fn test_gen_mixed_code_v0_conformance() {
         let data = conformance::test_data().unwrap();
         let cases = conformance::cases(&data, "gen_mixed_code_v0").unwrap();
@@ -1835,31 +1760,6 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_data_code_v0_conformance() {
-        let data = conformance::test_data().unwrap();
-        let cases = conformance::cases(&data, "gen_data_code_v0").unwrap();
-
-        let mut tested = 0;
-
-        for (tc_name, tc) in cases {
-            let (input_bytes, bits) = conformance::stream_inputs(tc)
-                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
-            let expected_iscc = conformance::expected_iscc(tc).unwrap();
-
-            let result = gen_data_code_v0(&input_bytes, bits)
-                .unwrap_or_else(|e| panic!("gen_data_code_v0 failed for {tc_name}: {e}"));
-            assert_eq!(
-                result.iscc, expected_iscc,
-                "ISCC mismatch in test case {tc_name}"
-            );
-
-            tested += 1;
-        }
-
-        assert_eq!(tested, 4, "expected 4 conformance tests to run");
-    }
-
-    #[test]
     fn test_gen_instance_code_v0_empty() {
         let result = gen_instance_code_v0(b"", 64).unwrap();
         assert_eq!(result.iscc, "ISCC:IAA26E2JXH27TING");
@@ -1927,31 +1827,6 @@ mod tests {
                 "filesize should match input length in test case {name}"
             );
         }
-    }
-
-    #[test]
-    fn test_gen_iscc_code_v0_conformance() {
-        let data = conformance::test_data().unwrap();
-        let cases = conformance::cases(&data, "gen_iscc_code_v0").unwrap();
-
-        let mut tested = 0;
-
-        for (tc_name, tc) in cases {
-            let codes = conformance::iscc_inputs(tc)
-                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
-            let expected_iscc = conformance::expected_iscc(tc).unwrap();
-
-            let result = gen_iscc_code_v0(&codes, false)
-                .unwrap_or_else(|e| panic!("gen_iscc_code_v0 failed for {tc_name}: {e}"));
-            assert_eq!(
-                result.iscc, expected_iscc,
-                "ISCC mismatch in test case {tc_name}"
-            );
-
-            tested += 1;
-        }
-
-        assert_eq!(tested, 5, "expected 5 conformance tests to run");
     }
 
     #[test]

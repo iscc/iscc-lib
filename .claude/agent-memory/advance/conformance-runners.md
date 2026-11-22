@@ -25,3 +25,11 @@ metadata:
     `containsNull` token scan in `unmarshalInputs` (meta `*json.RawMessage` exempt), typed
     `uint32`/`int32` targets, pixels via `[]int` (never `[]uint8`: base64). Teeth proof = new tests
     on HEAD code in a throwaway worktree; never print 1024-entry inputs in failure msgs (`%.60s`)
+- Rust section table (306): `SECTIONS: &[(&str, CaseCheck)]` in conformance.rs is the ONLY section
+    list (meta/text rows `#[cfg]`-gated); `<x>_case(tc) -> Option<Verdict>` per section, generic
+    `judge`. Tests use `check_of(section)` / `run(data, section)`; `test_sections_match_data_json`
+    (meta-code) = set + len guard. lib.rs keeps only meta/text/mixed/instance extra-field loops.
+    `iscc_inputs` stays `pub(crate)` (codec.rs tests). Selftest loop raised CRAP 4.1→5.6: baseline
+    moved
+- WASM conformance (306): strict readers shared with data_edge in `tests/common/mod.rs` (only the
+    readers BOTH files use → no dead_code allow); file-local readers stay local

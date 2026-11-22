@@ -181,7 +181,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "meta_inputs",
-      "line": 211,
+      "line": 218,
       "cyclomatic": 9.0,
       "coverage": 100.0,
       "crap": 9.0
@@ -251,6 +251,14 @@
       "crap": 7.0
     },
     {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "decode_seq_case",
+      "line": 392,
+      "cyclomatic": 7.0,
+      "coverage": 100.0,
+      "crap": 7.0
+    },
+    {
       "file": "./crates/iscc-lib/src/simhash.rs",
       "function": "alg_simhash_inner",
       "line": 41,
@@ -269,7 +277,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "image_inputs",
-      "line": 233,
+      "line": 240,
       "cyclomatic": 6.0,
       "coverage": 88.88888888888889,
       "crap": 6.049382716049383
@@ -277,7 +285,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "video_inputs",
-      "line": 251,
+      "line": 258,
       "cyclomatic": 6.0,
       "coverage": 88.88888888888889,
       "crap": 6.049382716049383
@@ -309,7 +317,15 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "stream_inputs",
-      "line": 269,
+      "line": 276,
+      "cyclomatic": 6.0,
+      "coverage": 100.0,
+      "crap": 6.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "encode_seq_case",
+      "line": 385,
       "cyclomatic": 6.0,
       "coverage": 100.0,
       "crap": 6.0
@@ -435,6 +451,14 @@
       "crap": 6.0
     },
     {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "conformance_selftest",
+      "line": 61,
+      "cyclomatic": 5.0,
+      "coverage": 71.42857142857143,
+      "crap": 5.5830903790087465
+    },
+    {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "gen_sum_code_v0",
       "line": 1092,
@@ -469,7 +493,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "meta_arg",
-      "line": 200,
+      "line": 207,
       "cyclomatic": 5.0,
       "coverage": 100.0,
       "crap": 5.0
@@ -477,7 +501,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "text_inputs",
-      "line": 227,
+      "line": 234,
       "cyclomatic": 5.0,
       "coverage": 100.0,
       "crap": 5.0
@@ -485,7 +509,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "audio_inputs",
-      "line": 245,
+      "line": 252,
       "cyclomatic": 5.0,
       "coverage": 100.0,
       "crap": 5.0
@@ -493,7 +517,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "mixed_inputs",
-      "line": 263,
+      "line": 270,
       "cyclomatic": 5.0,
       "coverage": 100.0,
       "crap": 5.0
@@ -547,14 +571,6 @@
       "crap": 5.0
     },
     {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "conformance_selftest",
-      "line": 32,
-      "cyclomatic": 4.0,
-      "coverage": 82.6086956521739,
-      "crap": 4.084162077751294
-    },
-    {
       "file": "./crates/iscc-lib/src/lib.rs",
       "function": "transpose_matrix",
       "line": 516,
@@ -605,7 +621,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "check_sections",
-      "line": 76,
+      "line": 89,
       "cyclomatic": 4.0,
       "coverage": 100.0,
       "crap": 4.0
@@ -613,7 +629,15 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "report_case",
-      "line": 125,
+      "line": 127,
+      "cyclomatic": 4.0,
+      "coverage": 100.0,
+      "crap": 4.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "judge",
+      "line": 142,
       "cyclomatic": 4.0,
       "coverage": 100.0,
       "crap": 4.0
@@ -693,7 +717,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "bits_at",
-      "line": 156,
+      "line": 163,
       "cyclomatic": 3.0,
       "coverage": 100.0,
       "crap": 3.0
@@ -701,7 +725,79 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "iscc_inputs",
-      "line": 276,
+      "line": 283,
+      "cyclomatic": 3.0,
+      "coverage": 100.0,
+      "crap": 3.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "meta_case",
+      "line": 289,
+      "cyclomatic": 3.0,
+      "coverage": 100.0,
+      "crap": 3.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "text_case",
+      "line": 298,
+      "cyclomatic": 3.0,
+      "coverage": 100.0,
+      "crap": 3.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "image_case",
+      "line": 308,
+      "cyclomatic": 3.0,
+      "coverage": 100.0,
+      "crap": 3.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "audio_case",
+      "line": 318,
+      "cyclomatic": 3.0,
+      "coverage": 100.0,
+      "crap": 3.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "video_case",
+      "line": 328,
+      "cyclomatic": 3.0,
+      "coverage": 100.0,
+      "crap": 3.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "mixed_case",
+      "line": 336,
+      "cyclomatic": 3.0,
+      "coverage": 100.0,
+      "crap": 3.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "data_case",
+      "line": 346,
+      "cyclomatic": 3.0,
+      "coverage": 100.0,
+      "crap": 3.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "instance_case",
+      "line": 356,
+      "cyclomatic": 3.0,
+      "coverage": 100.0,
+      "crap": 3.0
+    },
+    {
+      "file": "./crates/iscc-lib/src/conformance.rs",
+      "function": "iscc_case",
+      "line": 366,
       "cyclomatic": 3.0,
       "coverage": 100.0,
       "crap": 3.0
@@ -805,7 +901,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "run_section",
-      "line": 107,
+      "line": 113,
       "cyclomatic": 2.0,
       "coverage": 100.0,
       "crap": 2.0
@@ -813,7 +909,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "i32_entries",
-      "line": 163,
+      "line": 170,
       "cyclomatic": 2.0,
       "coverage": 100.0,
       "crap": 2.0
@@ -821,7 +917,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "string_entries",
-      "line": 172,
+      "line": 179,
       "cyclomatic": 2.0,
       "coverage": 100.0,
       "crap": 2.0
@@ -829,7 +925,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "decode_stream",
-      "line": 177,
+      "line": 184,
       "cyclomatic": 2.0,
       "coverage": 100.0,
       "crap": 2.0
@@ -837,7 +933,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "decode_bytes",
-      "line": 367,
+      "line": 377,
       "cyclomatic": 2.0,
       "coverage": 100.0,
       "crap": 2.0
@@ -1245,7 +1341,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "test_data",
-      "line": 69,
+      "line": 82,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -1253,7 +1349,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "cases",
-      "line": 93,
+      "line": 106,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -1261,7 +1357,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "expected_iscc",
-      "line": 144,
+      "line": 151,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0
@@ -1269,95 +1365,7 @@
     {
       "file": "./crates/iscc-lib/src/conformance.rs",
       "function": "inputs",
-      "line": 149,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_meta_tests",
-      "line": 282,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_text_tests",
-      "line": 293,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_image_tests",
-      "line": 302,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_audio_tests",
-      "line": 311,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_video_tests",
-      "line": 320,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_mixed_tests",
-      "line": 330,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_data_tests",
-      "line": 339,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_instance_tests",
-      "line": 348,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_iscc_tests",
-      "line": 357,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_encode_seq_tests",
-      "line": 375,
-      "cyclomatic": 1.0,
-      "coverage": 100.0,
-      "crap": 1.0
-    },
-    {
-      "file": "./crates/iscc-lib/src/conformance.rs",
-      "function": "run_decode_seq_tests",
-      "line": 384,
+      "line": 156,
       "cyclomatic": 1.0,
       "coverage": 100.0,
       "crap": 1.0

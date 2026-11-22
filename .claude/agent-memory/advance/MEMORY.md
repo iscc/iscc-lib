@@ -43,8 +43,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     386, hashers, CDC → go-idv1.md
 - Go encode split (295): public `EncodeComponent` = enum checks + short-digest error; gen +
     decompose call `encodeComponentInternal` (typed, clamps) — mirrors Rust lib.rs vs codec.rs
-- Conformance runners (276/290/291/293: one parse per language, shared parsers, wrong-type rule,
-    CRAP + count-proof recipes) → conformance-runners.md
+- Conformance runners (276/290/291/293/306: one parse per language, shared parsers, wrong-type rule,
+    Rust `SECTIONS` table, WASM `tests/common`, CRAP + count-proof recipes) → conformance-runners.md
 
 ## Build and Tooling
 

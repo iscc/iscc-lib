@@ -7,6 +7,9 @@
 //!
 //! Runs in a Node.js WASM runtime via `wasm-pack test --node`.
 
+mod common;
+
+use common::{bytes_arg, bytes_item, frames_arg, str_arg, str_list_arg, u32_arg};
 use serde_json::{Value, json};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
@@ -59,39 +62,6 @@ fn to_outcome<T>(result: Result<T, wasm_bindgen::JsError>, encode: fn(T) -> Valu
     }
 }
 
-/// Read the input at `index` as a string.
-fn str_arg(inputs: &[Value], index: usize) -> Result<&str, String> {
-    inputs
-        .get(index)
-        .and_then(Value::as_str)
-        .ok_or_else(|| format!("input {index} is not a string"))
-}
-
-/// Read the input at `index` as a list of strings, converted to a JS array.
-fn str_list_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
-    let items: Vec<String> = inputs
-        .get(index)
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or_else(|| format!("input {index} is not a list of strings"))?;
-    serde_wasm_bindgen::to_value(&items).map_err(|e| format!("input {index}: {e}"))
-}
-
-/// Decode one `bytes:<hex>` list item into bytes.
-fn bytes_item(item: &Value, index: usize) -> Result<Vec<u8>, String> {
-    item.as_str()
-        .and_then(|s| s.strip_prefix("bytes:"))
-        .and_then(|h| hex::decode(h).ok())
-        .ok_or_else(|| format!("input {index} holds a non-`bytes:<hex>` item"))
-}
-
-/// Read the input at `index` as one `bytes:<hex>` byte string.
-fn bytes_arg(inputs: &[Value], index: usize) -> Result<Vec<u8>, String> {
-    inputs
-        .get(index)
-        .ok_or_else(|| format!("input {index} is missing"))
-        .and_then(|v| bytes_item(v, index))
-}
-
 /// Read the input at `index` as a boolean.
 fn bool_arg(inputs: &[Value], index: usize) -> Result<bool, String> {
     inputs
@@ -123,15 +93,6 @@ fn meta_arg(inputs: &[Value], index: usize) -> Result<String, String> {
     }
 }
 
-/// Read the input at `index` as a list of integer frame signatures, converted to a JS array.
-fn frames_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
-    let frames: Vec<Vec<i32>> = inputs
-        .get(index)
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or_else(|| format!("input {index} is not a list of i32 lists"))?;
-    serde_wasm_bindgen::to_value(&frames).map_err(|e| format!("input {index}: {e}"))
-}
-
 /// Read the input at `index` as a list of `u32` features, converted to a JS array.
 fn u32_list_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
     let features: Vec<u32> = inputs
@@ -139,15 +100,6 @@ fn u32_list_arg(inputs: &[Value], index: usize) -> Result<JsValue, String> {
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .ok_or_else(|| format!("input {index} is not a list of u32"))?;
     serde_wasm_bindgen::to_value(&features).map_err(|e| format!("input {index}: {e}"))
-}
-
-/// Read the input at `index` as a `u32`.
-fn u32_arg(inputs: &[Value], index: usize) -> Result<u32, String> {
-    inputs
-        .get(index)
-        .and_then(Value::as_u64)
-        .and_then(|n| u32::try_from(n).ok())
-        .ok_or_else(|| format!("input {index} is not a u32"))
 }
 
 /// Encode an `iscc_decode` result as `[mt, st, vs, li, "bytes:<hex>"]`.

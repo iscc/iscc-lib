@@ -21,6 +21,35 @@ use std::fmt::Debug;
 /// Embedded conformance test vectors (compile-time).
 const TEST_DATA: &str = include_str!("../tests/data.json");
 
+/// Outcome of one parsed conformance case: `Err` holds the failure description.
+type Verdict = Result<(), String>;
+
+/// Parse one case, call the function under test and judge its result.
+///
+/// `None` means the case's inputs or expected outputs could not be parsed.
+type CaseCheck = fn(&Value) -> Option<Verdict>;
+
+/// Every `data.json` section, each with the check that runs one of its cases.
+///
+/// This table is the only list of sections: `conformance_selftest` runs every
+/// row, and a test compares the row names with the `data.json` keys. Rows whose
+/// feature flag is disabled are left out, so their sections are skipped.
+const SECTIONS: &[(&str, CaseCheck)] = &[
+    #[cfg(feature = "meta-code")]
+    ("gen_meta_code_v0", meta_case),
+    #[cfg(feature = "text-processing")]
+    ("gen_text_code_v0", text_case),
+    ("gen_image_code_v0", image_case),
+    ("gen_audio_code_v0", audio_case),
+    ("gen_video_code_v0", video_case),
+    ("gen_mixed_code_v0", mixed_case),
+    ("gen_data_code_v0", data_case),
+    ("gen_instance_code_v0", instance_case),
+    ("gen_iscc_code_v0", iscc_case),
+    ("encode_seq", encode_seq_case),
+    ("decode_seq", decode_seq_case),
+];
+
 /// Run conformance tests against vendored test vectors.
 ///
 /// Tests each `gen_*_v0` section (comparing the result's `.iscc` field) and the
@@ -43,25 +72,9 @@ pub fn conformance_selftest() -> bool {
     }
 
     let mut passed = true;
-
-    #[cfg(feature = "meta-code")]
-    {
-        passed &= run_meta_tests(&data);
+    for &(name, check) in SECTIONS {
+        passed &= run_section(&data, name, check);
     }
-    #[cfg(feature = "text-processing")]
-    {
-        passed &= run_text_tests(&data);
-    }
-    passed &= run_image_tests(&data);
-    passed &= run_audio_tests(&data);
-    passed &= run_video_tests(&data);
-    passed &= run_mixed_tests(&data);
-    passed &= run_data_tests(&data);
-    passed &= run_instance_tests(&data);
-    passed &= run_iscc_tests(&data);
-    passed &= run_encode_seq_tests(&data);
-    passed &= run_decode_seq_tests(&data);
-
     passed
 }
 
@@ -94,21 +107,10 @@ pub(crate) fn cases<'a>(data: &'a Value, section: &str) -> Option<&'a Map<String
     data[section].as_object()
 }
 
-/// One parsed conformance case: the function's result and the expected output.
-///
-/// `None` means the case's inputs or expected outputs could not be parsed.
-type Case<T> = Option<(IsccResult<T>, T)>;
-
 /// Run every case of one `data.json` section and report each failure.
 ///
-/// `run_case` parses a case, calls the function under test and returns its
-/// result with the expected output. Returns `false` if the section is missing
-/// or any case fails.
-fn run_section<T, F>(data: &Value, func_name: &str, run_case: F) -> bool
-where
-    T: PartialEq + Debug,
-    F: Fn(&Value) -> Case<T>,
-{
+/// Returns `false` if the section is missing or any case fails.
+fn run_section(data: &Value, func_name: &str, check: CaseCheck) -> bool {
     let Some(section) = cases(data, func_name) else {
         eprintln!("FAILED: {func_name} section missing from conformance data");
         return false;
@@ -116,27 +118,32 @@ where
 
     let mut passed = true;
     for (tc_name, tc) in section {
-        passed &= report_case(func_name, tc_name, run_case(tc));
+        passed &= report_case(func_name, tc_name, check(tc));
     }
     passed
 }
 
 /// Report the outcome of one conformance case; returns whether it passed.
-fn report_case<T: PartialEq + Debug>(func_name: &str, tc_name: &str, case: Case<T>) -> bool {
-    let Some((result, expected)) = case else {
-        eprintln!("FAILED: {func_name}.{tc_name} — could not parse test inputs");
-        return false;
-    };
+fn report_case(func_name: &str, tc_name: &str, verdict: Option<Verdict>) -> bool {
+    match verdict {
+        None => {
+            eprintln!("FAILED: {func_name}.{tc_name} — could not parse test inputs");
+            false
+        }
+        Some(Ok(())) => true,
+        Some(Err(reason)) => {
+            eprintln!("FAILED: {func_name}.{tc_name} — {reason}");
+            false
+        }
+    }
+}
+
+/// Judge a function result against the expected output.
+fn judge<T: PartialEq + Debug>(result: IsccResult<T>, expected: T) -> Verdict {
     match result {
-        Ok(actual) if actual == expected => true,
-        Ok(actual) => {
-            eprintln!("FAILED: {func_name}.{tc_name} — expected {expected:?}, got {actual:?}");
-            false
-        }
-        Err(e) => {
-            eprintln!("FAILED: {func_name}.{tc_name} — error: {e}");
-            false
-        }
+        Ok(actual) if actual == expected => Ok(()),
+        Ok(actual) => Err(format!("expected {expected:?}, got {actual:?}")),
+        Err(e) => Err(format!("error: {e}")),
     }
 }
 
@@ -242,13 +249,13 @@ pub(crate) fn image_inputs(tc: &Value) -> Option<(Vec<u8>, u32)> {
 }
 
 /// Parse the inputs `[cv, bits]` of a `gen_audio_code_v0` case.
-pub(crate) fn audio_inputs(tc: &Value) -> Option<(Vec<i32>, u32)> {
+fn audio_inputs(tc: &Value) -> Option<(Vec<i32>, u32)> {
     let inputs = inputs(tc)?;
     Some((i32_entries(inputs.first()?)?, bits_at(inputs, 1)?))
 }
 
 /// Parse the inputs `[frame_sigs, bits]` of a `gen_video_code_v0` case.
-pub(crate) fn video_inputs(tc: &Value) -> Option<(Vec<Vec<i32>>, u32)> {
+fn video_inputs(tc: &Value) -> Option<(Vec<Vec<i32>>, u32)> {
     let inputs = inputs(tc)?;
     let frame_sigs = inputs
         .first()?
@@ -277,90 +284,93 @@ pub(crate) fn iscc_inputs(tc: &Value) -> Option<Vec<&str>> {
     string_entries(inputs(tc)?.first()?)
 }
 
-/// Run conformance tests for `gen_meta_code_v0`.
+/// Check one `gen_meta_code_v0` case.
 #[cfg(feature = "meta-code")]
-fn run_meta_tests(data: &Value) -> bool {
-    run_section(data, "gen_meta_code_v0", |tc| {
-        let m = meta_inputs(tc)?;
-        let expected = expected_iscc(tc)?;
-        let result = gen_meta_code_v0(m.name, m.description, m.meta.as_deref(), m.bits);
-        Some((result.map(|r| r.iscc), expected))
-    })
+fn meta_case(tc: &Value) -> Option<Verdict> {
+    let m = meta_inputs(tc)?;
+    let expected = expected_iscc(tc)?;
+    let result = gen_meta_code_v0(m.name, m.description, m.meta.as_deref(), m.bits);
+    Some(judge(result.map(|r| r.iscc), expected))
 }
 
-/// Run conformance tests for `gen_text_code_v0`.
+/// Check one `gen_text_code_v0` case.
 #[cfg(feature = "text-processing")]
-fn run_text_tests(data: &Value) -> bool {
-    run_section(data, "gen_text_code_v0", |tc| {
-        let (text, bits) = text_inputs(tc)?;
-        let expected = expected_iscc(tc)?;
-        Some((gen_text_code_v0(text, bits).map(|r| r.iscc), expected))
-    })
+fn text_case(tc: &Value) -> Option<Verdict> {
+    let (text, bits) = text_inputs(tc)?;
+    let expected = expected_iscc(tc)?;
+    Some(judge(
+        gen_text_code_v0(text, bits).map(|r| r.iscc),
+        expected,
+    ))
 }
 
-/// Run conformance tests for `gen_image_code_v0`.
-fn run_image_tests(data: &Value) -> bool {
-    run_section(data, "gen_image_code_v0", |tc| {
-        let (pixels, bits) = image_inputs(tc)?;
-        let expected = expected_iscc(tc)?;
-        Some((gen_image_code_v0(&pixels, bits).map(|r| r.iscc), expected))
-    })
+/// Check one `gen_image_code_v0` case.
+fn image_case(tc: &Value) -> Option<Verdict> {
+    let (pixels, bits) = image_inputs(tc)?;
+    let expected = expected_iscc(tc)?;
+    Some(judge(
+        gen_image_code_v0(&pixels, bits).map(|r| r.iscc),
+        expected,
+    ))
 }
 
-/// Run conformance tests for `gen_audio_code_v0`.
-fn run_audio_tests(data: &Value) -> bool {
-    run_section(data, "gen_audio_code_v0", |tc| {
-        let (cv, bits) = audio_inputs(tc)?;
-        let expected = expected_iscc(tc)?;
-        Some((gen_audio_code_v0(&cv, bits).map(|r| r.iscc), expected))
-    })
+/// Check one `gen_audio_code_v0` case.
+fn audio_case(tc: &Value) -> Option<Verdict> {
+    let (cv, bits) = audio_inputs(tc)?;
+    let expected = expected_iscc(tc)?;
+    Some(judge(
+        gen_audio_code_v0(&cv, bits).map(|r| r.iscc),
+        expected,
+    ))
 }
 
-/// Run conformance tests for `gen_video_code_v0`.
-fn run_video_tests(data: &Value) -> bool {
-    run_section(data, "gen_video_code_v0", |tc| {
-        let (frame_sigs, bits) = video_inputs(tc)?;
-        let expected = expected_iscc(tc)?;
-        let result = gen_video_code_v0(&frame_sigs, bits);
-        Some((result.map(|r| r.iscc), expected))
-    })
+/// Check one `gen_video_code_v0` case.
+fn video_case(tc: &Value) -> Option<Verdict> {
+    let (frame_sigs, bits) = video_inputs(tc)?;
+    let expected = expected_iscc(tc)?;
+    let result = gen_video_code_v0(&frame_sigs, bits);
+    Some(judge(result.map(|r| r.iscc), expected))
 }
 
-/// Run conformance tests for `gen_mixed_code_v0`.
-fn run_mixed_tests(data: &Value) -> bool {
-    run_section(data, "gen_mixed_code_v0", |tc| {
-        let (codes, bits) = mixed_inputs(tc)?;
-        let expected = expected_iscc(tc)?;
-        Some((gen_mixed_code_v0(&codes, bits).map(|r| r.iscc), expected))
-    })
+/// Check one `gen_mixed_code_v0` case.
+fn mixed_case(tc: &Value) -> Option<Verdict> {
+    let (codes, bits) = mixed_inputs(tc)?;
+    let expected = expected_iscc(tc)?;
+    Some(judge(
+        gen_mixed_code_v0(&codes, bits).map(|r| r.iscc),
+        expected,
+    ))
 }
 
-/// Run conformance tests for `gen_data_code_v0`.
-fn run_data_tests(data: &Value) -> bool {
-    run_section(data, "gen_data_code_v0", |tc| {
-        let (bytes, bits) = stream_inputs(tc)?;
-        let expected = expected_iscc(tc)?;
-        Some((gen_data_code_v0(&bytes, bits).map(|r| r.iscc), expected))
-    })
+/// Check one `gen_data_code_v0` case.
+fn data_case(tc: &Value) -> Option<Verdict> {
+    let (bytes, bits) = stream_inputs(tc)?;
+    let expected = expected_iscc(tc)?;
+    Some(judge(
+        gen_data_code_v0(&bytes, bits).map(|r| r.iscc),
+        expected,
+    ))
 }
 
-/// Run conformance tests for `gen_instance_code_v0`.
-fn run_instance_tests(data: &Value) -> bool {
-    run_section(data, "gen_instance_code_v0", |tc| {
-        let (bytes, bits) = stream_inputs(tc)?;
-        let expected = expected_iscc(tc)?;
-        Some((gen_instance_code_v0(&bytes, bits).map(|r| r.iscc), expected))
-    })
+/// Check one `gen_instance_code_v0` case.
+fn instance_case(tc: &Value) -> Option<Verdict> {
+    let (bytes, bits) = stream_inputs(tc)?;
+    let expected = expected_iscc(tc)?;
+    Some(judge(
+        gen_instance_code_v0(&bytes, bits).map(|r| r.iscc),
+        expected,
+    ))
 }
 
-/// Run conformance tests for `gen_iscc_code_v0`.
-fn run_iscc_tests(data: &Value) -> bool {
-    run_section(data, "gen_iscc_code_v0", |tc| {
-        let codes = iscc_inputs(tc)?;
-        let expected = expected_iscc(tc)?;
-        // Conformance vectors use default (non-wide) mode
-        Some((gen_iscc_code_v0(&codes, false).map(|r| r.iscc), expected))
-    })
+/// Check one `gen_iscc_code_v0` case.
+fn iscc_case(tc: &Value) -> Option<Verdict> {
+    let codes = iscc_inputs(tc)?;
+    let expected = expected_iscc(tc)?;
+    // Conformance vectors use default (non-wide) mode
+    Some(judge(
+        gen_iscc_code_v0(&codes, false).map(|r| r.iscc),
+        expected,
+    ))
 }
 
 /// Decode a `"bytes:<hex>"` value into bytes.
@@ -369,53 +379,80 @@ fn decode_bytes(s: &str) -> Option<Vec<u8>> {
     hex::decode(hex_data).ok()
 }
 
-/// Run conformance tests for `encode_seq` (inputs `[[str…]]`, output `"bytes:<hex>"`).
+/// Check one `encode_seq` case (inputs `[[str…]]`, output `"bytes:<hex>"`).
 ///
 /// Both sides are compared as lower-case hex so a mismatch reads as hex.
-fn run_encode_seq_tests(data: &Value) -> bool {
-    run_section(data, "encode_seq", |tc| {
-        let units = string_entries(tc["inputs"].as_array()?.first()?)?;
-        let expected = hex::encode(decode_bytes(tc["outputs"].as_str()?)?);
-        Some((encode_seq(&units).map(hex::encode), expected))
-    })
+fn encode_seq_case(tc: &Value) -> Option<Verdict> {
+    let units = string_entries(tc["inputs"].as_array()?.first()?)?;
+    let expected = hex::encode(decode_bytes(tc["outputs"].as_str()?)?);
+    Some(judge(encode_seq(&units).map(hex::encode), expected))
 }
 
-/// Run conformance tests for `decode_seq` (inputs `["bytes:<hex>"]`, output `[str…]`).
-fn run_decode_seq_tests(data: &Value) -> bool {
-    run_section(data, "decode_seq", |tc| {
-        let seq = decode_bytes(tc["inputs"].as_array()?.first()?.as_str()?)?;
-        let expected: Vec<String> = tc["outputs"]
-            .as_array()?
-            .iter()
-            .map(|v| v.as_str().map(String::from))
-            .collect::<Option<_>>()?;
-        Some((decode_seq(&seq), expected))
-    })
+/// Check one `decode_seq` case (inputs `["bytes:<hex>"]`, output `[str…]`).
+fn decode_seq_case(tc: &Value) -> Option<Verdict> {
+    let seq = decode_bytes(tc["inputs"].as_array()?.first()?.as_str()?)?;
+    let expected: Vec<String> = tc["outputs"]
+        .as_array()?
+        .iter()
+        .map(|v| v.as_str().map(String::from))
+        .collect::<Option<_>>()?;
+    Some(judge(decode_seq(&seq), expected))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Look up the case check of `section` in [`SECTIONS`]; panics if it has no row.
+    fn check_of(section: &str) -> CaseCheck {
+        SECTIONS
+            .iter()
+            .find(|(name, _)| *name == section)
+            .map(|&(_, check)| check)
+            .unwrap_or_else(|| panic!("no runner for {section}"))
+    }
+
+    /// Run the `section` cases of `data` through that section's table row.
+    fn run(data: &Value, section: &str) -> bool {
+        run_section(data, section, check_of(section))
+    }
+
     #[test]
     fn test_conformance_selftest_passes() {
         assert!(conformance_selftest());
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
-    fn test_seq_sections_run() {
+    fn test_sections_match_data_json() {
+        // The table must name every data.json section exactly once, and nothing else.
+        use std::collections::BTreeSet;
+        let data = test_data().unwrap();
+        let keys: BTreeSet<&str> = data
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .filter(|key| *key != "_metadata")
+            .collect();
+        let names: BTreeSet<&str> = SECTIONS.iter().map(|&(name, _)| name).collect();
+        assert_eq!(names.len(), SECTIONS.len(), "a section has two table rows");
+        assert!(!keys.is_empty(), "data.json has no sections");
+        assert_eq!(names, keys, "table rows differ from data.json sections");
+    }
+
+    #[test]
+    fn test_seq_section_counts() {
         let data = test_data().unwrap();
         assert_eq!(data["encode_seq"].as_object().unwrap().len(), 4);
         assert_eq!(data["decode_seq"].as_object().unwrap().len(), 4);
-        assert!(run_encode_seq_tests(&data));
-        assert!(run_decode_seq_tests(&data));
     }
 
     #[test]
     fn test_seq_sections_missing_fail() {
         let empty = serde_json::json!({});
-        assert!(!run_encode_seq_tests(&empty));
-        assert!(!run_decode_seq_tests(&empty));
+        assert!(!run(&empty, "encode_seq"));
+        assert!(!run(&empty, "decode_seq"));
     }
 
     #[test]
@@ -428,7 +465,7 @@ mod tests {
         ];
         for tc in encode_cases {
             let data = serde_json::json!({"encode_seq": {"case": tc}});
-            assert!(!run_encode_seq_tests(&data), "{data}");
+            assert!(!run(&data, "encode_seq"), "{data}");
         }
         let decode_cases = [
             serde_json::json!({"inputs": ["bytes:300000000000"], "outputs": ["ISCC:X"]}),
@@ -437,27 +474,15 @@ mod tests {
         ];
         for tc in decode_cases {
             let data = serde_json::json!({"decode_seq": {"case": tc}});
-            assert!(!run_decode_seq_tests(&data), "{data}");
+            assert!(!run(&data, "decode_seq"), "{data}");
         }
-    }
-
-    #[test]
-    fn test_gen_sections_run() {
-        let data = test_data().unwrap();
-        assert!(run_image_tests(&data));
-        assert!(run_audio_tests(&data));
-        assert!(run_video_tests(&data));
-        assert!(run_mixed_tests(&data));
-        assert!(run_data_tests(&data));
-        assert!(run_instance_tests(&data));
-        assert!(run_iscc_tests(&data));
     }
 
     #[test]
     fn test_gen_section_missing_fails() {
         let empty = serde_json::json!({});
-        assert!(!run_data_tests(&empty));
-        assert!(!run_iscc_tests(&empty));
+        assert!(!run(&empty, "gen_data_code_v0"));
+        assert!(!run(&empty, "gen_iscc_code_v0"));
     }
 
     #[test]
@@ -465,8 +490,9 @@ mod tests {
         // Guards the failure-arm test: the same shape with a correct output passes.
         let iscc = gen_data_code_v0(&[], 64).unwrap().iscc;
         let tc = serde_json::json!({"inputs": ["stream:", 64], "outputs": {"iscc": iscc}});
-        assert!(run_data_tests(
-            &serde_json::json!({"gen_data_code_v0": {"case": tc}})
+        assert!(run(
+            &serde_json::json!({"gen_data_code_v0": {"case": tc}}),
+            "gen_data_code_v0"
         ));
     }
 
@@ -487,7 +513,7 @@ mod tests {
         ];
         for tc in cases {
             let data = serde_json::json!({"gen_data_code_v0": {"case": tc}});
-            assert!(!run_data_tests(&data), "{data}");
+            assert!(!run(&data, "gen_data_code_v0"), "{data}");
         }
     }
 
@@ -499,14 +525,16 @@ mod tests {
             let tc =
                 serde_json::json!({"inputs": ["Name", "", null], "outputs": {"iscc": "ISCC:X"}});
             assert!(meta_inputs(&tc).is_none());
-            assert!(!run_meta_tests(
-                &serde_json::json!({"gen_meta_code_v0": {"case": tc}})
+            assert!(!run(
+                &serde_json::json!({"gen_meta_code_v0": {"case": tc}}),
+                "gen_meta_code_v0"
             ));
         }
         let tc = serde_json::json!({"inputs": [], "outputs": {"iscc": "ISCC:X"}});
         assert!(iscc_inputs(&tc).is_none());
-        assert!(!run_iscc_tests(
-            &serde_json::json!({"gen_iscc_code_v0": {"case": tc}})
+        assert!(!run(
+            &serde_json::json!({"gen_iscc_code_v0": {"case": tc}}),
+            "gen_iscc_code_v0"
         ));
     }
 
@@ -514,19 +542,8 @@ mod tests {
     fn probe(section: &str, inputs: Value, iscc: &str) -> (bool, bool) {
         let tc = serde_json::json!({"inputs": inputs, "outputs": {"iscc": iscc}});
         let data = serde_json::json!({section: {"case": tc.clone()}});
-        match section {
-            #[cfg(feature = "meta-code")]
-            "gen_meta_code_v0" => (meta_inputs(&tc).is_some(), run_meta_tests(&data)),
-            #[cfg(feature = "text-processing")]
-            "gen_text_code_v0" => (text_inputs(&tc).is_some(), run_text_tests(&data)),
-            "gen_image_code_v0" => (image_inputs(&tc).is_some(), run_image_tests(&data)),
-            "gen_audio_code_v0" => (audio_inputs(&tc).is_some(), run_audio_tests(&data)),
-            "gen_video_code_v0" => (video_inputs(&tc).is_some(), run_video_tests(&data)),
-            "gen_mixed_code_v0" => (mixed_inputs(&tc).is_some(), run_mixed_tests(&data)),
-            "gen_data_code_v0" => (stream_inputs(&tc).is_some(), run_data_tests(&data)),
-            "gen_iscc_code_v0" => (iscc_inputs(&tc).is_some(), run_iscc_tests(&data)),
-            _ => panic!("no runner for {section}"),
-        }
+        let check = check_of(section);
+        (check(&tc).is_some(), run_section(&data, section, check))
     }
 
     /// Return 1024 pixel values, all zero except the first, which is `first`.
@@ -696,13 +713,15 @@ mod tests {
         // A non-string unit fails encode_seq; a null output unit fails decode_seq.
         let encode = serde_json::json!({"inputs": [["ISCC:GAAAAAAAAA", null]],
             "outputs": "bytes:300000000000"});
-        assert!(!run_encode_seq_tests(
-            &serde_json::json!({"encode_seq": {"case": encode}})
+        assert!(!run(
+            &serde_json::json!({"encode_seq": {"case": encode}}),
+            "encode_seq"
         ));
         let decode = serde_json::json!({"inputs": ["bytes:300000000000"],
             "outputs": ["ISCC:GAAAAAAAAA", null]});
-        assert!(!run_decode_seq_tests(
-            &serde_json::json!({"decode_seq": {"case": decode}})
+        assert!(!run(
+            &serde_json::json!({"decode_seq": {"case": decode}}),
+            "decode_seq"
         ));
     }
 

@@ -111,7 +111,9 @@ wasm-pack test --node crates/iscc-wasm --test unit
 - Tests use `#[wasm_bindgen_test]` attribute, not `#[test]`.
 - Conformance vectors are loaded at compile time via
     `include_str!("../../iscc-lib/tests/data.json")`.
-- Each conformance test function asserts an exact count of test cases to catch missing vectors.
+- `conformance.rs` reads vectors through the strict readers in `tests/common/mod.rs` (shared with
+    `data_edge.rs`): a wrong JSON type or an out-of-range number fails the test, never cast or
+    truncated. Each section's case count comes from `data.json`; an empty section fails.
 - `data_edge.rs` hardcodes no vector count: adding a vector to a handled section needs no edit.
 - No network access in tests. All test data is vendored.
 
@@ -200,7 +202,7 @@ crate-root Tier 1 re-export) and its `finalize(bits?, wide?, add_units?)` return
 - **`#[wasm_bindgen_test]` calls the Rust function directly and skips the JS glue.** Prove a
     marshalling change from Node as well, on a release `--target web` build ("Build Commands")
     loaded with `initSync({ module })`.
-- **Conformance test counts are hardcoded.** When upstream `data.json` adds test cases, update the
-    `assert_eq!(tested, N, ...)` counts in `conformance.rs`.
+- **A new `data.json` section needs a test in `conformance.rs`.** The core's `SECTIONS` table test
+    fails on an unhandled section; the WASM harness has no such guard of its own.
 - **`crate-type` must include `cdylib`.** The `rlib` target is included for test compilation. Do not
     remove either.

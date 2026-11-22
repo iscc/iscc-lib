@@ -108,10 +108,13 @@ new() -> update(&[u8]) -> ... -> update(&[u8]) -> finalize(bits) -> IsccResult<*
 - Every `gen_*_v0` function except `gen_sum_code_v0` must match `iscc-core` output for every test
     vector (`gen_sum_code_v0` has no conformance vectors — it composes Data-Code + Instance-Code
     internally)
-- `conformance_selftest()` runs all vectors at runtime (non-panicking, returns bool)
-- Each `gen_*_v0` also has `#[test]` functions that run the same vectors and panic on mismatch. They
-    read the inputs through the `pub(crate)` parsers in `conformance.rs`, the only file under `src`
-    that parses `data.json`: a test adds its extra-field checks, never its own input decoding
+- `conformance_selftest()` runs all vectors at runtime (non-panicking, returns bool). The `SECTIONS`
+    table in `conformance.rs` is the only list of `data.json` sections, and a test fails when its
+    rows differ from the `data.json` keys: a new section needs a table row
+- The meta, text, mixed and instance `#[test]` loops in `lib.rs` re-run their vectors to check the
+    extra output fields. They read the inputs through the `pub(crate)` parsers in `conformance.rs`,
+    the only file under `src` that parses `data.json`: a test adds its extra-field checks, never its
+    own input decoding
 - The parsers share the Go runner's wrong-type rule (decisions.md, 2026-11-22): a wrong JSON type, a
     fraction or an out-of-range number makes a case unparsable (`None`), never coerced or skipped
 - Streaming types (`DataHasher`/`InstanceHasher`) are tested against one-shot functions at multiple
