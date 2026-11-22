@@ -327,28 +327,6 @@ iteration 284 added one more missing row. The skill also tells the reader to sta
 Resolved when neither page carries a file list that can fall behind `TARGETS` (point to the list in
 `scripts/version_sync.py`, as the specs do), or a test ties each list to `TARGETS`.
 
-## `publish-ffi` skips a half-uploaded FFI archive on a rerun `normal` [review]
-
-Since iteration 285 `publish-ffi` sets `overwrite_files: false` on `softprops/action-gh-release@v3`,
-so that an `ffi` re-trigger cannot replace archives whose SHA512s the tagged vcpkg portfile pins.
-The action then skips every file whose name is already on the release (`src/github.ts`, `upload`:
-"already exists and overwrite_files is false", `return null`) and does not look at the asset's
-state. GitHub documents that a failed upload (502) can leave an empty asset in state `starter` under
-the intended name. A `gh run rerun --failed` after such a failure, which is the recovery
-`packages/cpp/CLAUDE.md` names, would report success and leave that archive unusable. The release
-skill's check afterwards only greps asset names. With the default (`true`) a rerun deleted and
-re-uploaded the asset. Read from the action source at `v3` (40c2ca6) and GitHub's REST docs ("Upload
-a release asset"). Not reproduced: a 502 cannot be forced. Found by Codex.
-
-`docs/development.md` ("The FFI job has no such check: it uploads its tarballs", and the re-publish
-paragraph after it) still describes the old behaviour. An `ffi` re-trigger now adds only the
-archives the release lacks.
-
-Resolved when `publish-ffi` fails unless every archive it staged is on the release in state
-`uploaded` with the size or digest of the staged file (or it removes `starter` assets before it
-uploads), a wiring test like those in `tests/test_update_vcpkg_hashes.py` pins that, and
-`docs/development.md` says what an `ffi` re-trigger does to archives that exist.
-
 ## vcpkg port fails one post-build check `low` [review]
 
 **Triage:** untriaged. Whoever submits the port to the vcpkg registry (`specs/cpp-bindings.md` →

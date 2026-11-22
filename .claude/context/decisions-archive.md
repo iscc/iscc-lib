@@ -672,3 +672,16 @@ ISCC-SEQ bindings took 8 iterations because the valve required mechanically iden
 **Trial — kept** (Titusz, 2026-11-20): iterations 215-224 had 1 NEEDS_WORK, every fan-out push was
 green in CI, and the edge vectors reached all 12 surfaces in 5 iterations at $11.1 per iteration.
 **Context:** human decision (Titusz, interactive session, 2026-11-19).
+
+## 2026-11-20 — .NET jagged-array inputs: null check first, one `PinnedRows` helper
+
+**Decision:** the six .NET jagged-array methods pin through one private `PinnedRows` helper. A null
+array or element throws `ArgumentNullException` (parameter name and `name[i]`) before any UTF-8
+conversion or pinning, so a null element wins over an embedded NUL anywhere in the input. That is a
+small change for `EncodeSeq`, which checked element by element. An empty input passes `(NULL, 0)`,
+which the FFI reads as empty, so `[]` reaches the core's error (the original `max(Count, 1)` padding
+was removed in iteration 273, per the 2026-11-21 triage entry). **Why:** one validation order and
+one code path for all six, no `count == 0` branch at a call site. **Alternatives:** a stack sentinel
+per call site (next.md's suggestion; six extra branches); interleaving the null and NUL checks per
+element (keeps the old `EncodeSeq` order, splits the helper); `IsccException` for null (not the .NET
+idiom). **Context:** iteration 220 review.

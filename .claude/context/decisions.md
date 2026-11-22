@@ -29,19 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-20 — .NET jagged-array inputs: null check first, one `PinnedRows` helper
-
-**Decision:** the six .NET jagged-array methods pin through one private `PinnedRows` helper. A null
-array or element throws `ArgumentNullException` (parameter name and `name[i]`) before any UTF-8
-conversion or pinning, so a null element wins over an embedded NUL anywhere in the input. That is a
-small change for `EncodeSeq`, which checked element by element. An empty input passes `(NULL, 0)`,
-which the FFI reads as empty, so `[]` reaches the core's error (the original `max(Count, 1)` padding
-was removed in iteration 273, per the 2026-11-21 triage entry). **Why:** one validation order and
-one code path for all six, no `count == 0` branch at a call site. **Alternatives:** a stack sentinel
-per call site (next.md's suggestion; six extra branches); interleaving the null and NUL checks per
-element (keeps the old `EncodeSeq` order, splits the helper); `IsccException` for null (not the .NET
-idiom). **Context:** iteration 220 review.
-
 ## 2026-11-20 — A spec criterion naming a mechanism that does not exist is realigned, not escalated
 
 **Decision:** the wasm and go "Verification Criteria" bullets "Version synced from root `Cargo.toml`
@@ -395,3 +382,15 @@ Node 22 ignores the key). **Open:** the locked cli 3.10 cannot build in the 9p c
 tagged commit must carry the hashes of the archives it publishes. **Rejected:** a post-publish job
 committing to `main` (the tag keeps stale hashes); dropping the port (amends the cpp spec, Titusz).
 **Accepted cost:** a failing `build-ffi` leg blocks the tag and every publish job. **Context:** 285.
+
+## 2026-11-22 — `publish-ffi` checks asset state only; an uploaded FFI archive is never compared or replaced
+
+**Decision:** `publish-ffi` deletes the assets of its staged archives that are not in state
+`uploaded`, uploads with `overwrite_files: false`, then fails unless every staged name is `uploaded`
+(`scripts/ffi_release_assets.py`). It compares neither size nor digest. **Why:** an `ffi` re-trigger
+rebuilds the archives in a new run, so its bytes can differ from those whose SHA512s the tagged
+portfile pins; the asset on the release is the correct one. **Rejected:** a size or digest check
+(fails every legitimate re-trigger); verifying without pruning (a rerun never recovers). **Not
+proven:** that GitHub lists a live `starter` asset and lets it be deleted (a 502 cannot be forced).
+If it is not listed, the upload gets a 422 or the verify step reports it missing: the job fails
+either way. **Context:** 287.

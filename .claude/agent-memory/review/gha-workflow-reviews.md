@@ -260,3 +260,22 @@ to polling loops.
     `microsoft/vcpkg` into `/tmp`, `bootstrap-vcpkg.sh -disableMetrics`, then
     `vcpkg install iscc --overlay-ports=<dir with only portfile.cmake + vcpkg.json>`. It installs
     only while the release named in `vcpkg.json` exists, so it cannot be a CI check on `develop`.
+
+## release.yml `run` step that calls `gh` (287, ~15 min, PASS)
+
+- Three probes cover what the static gate and the wiring tests cannot. (1) The script against the
+    REAL payload (`gh release view v0.7.0 --repo iscc/iscc-lib --json assets`, a staging dir filled
+    with the asset names): fixtures only copy the shape. (2) Both `run` bodies, extracted with
+    PyYAML and run under `bash -e` (no `shell:` key = no pipefail) with a stub `gh` first on PATH
+    that logs its argv: two stale assets, a failing DELETE, an empty staging dir. (3) The action
+    source for the path the step relies on (softprops `upload`: skip by name; a 422 `already_exists`
+    is not retried when `overwrite_files: false`; `release()` creates a draft and finalizes after
+    the uploads). `prepare-release` creates the release (XCFramework) first.
+- A `while read … done < file` loop loses lines when a command in its body reads stdin. Real
+    `gh api` does not (three-line file, `gh api -X GET rate_limit` in the body, all three read).
+- The harness blocks a command that does `cd <dir>` and later `rm <relative glob>`: run step bodies
+    in a subshell `(cd "$S/work" && bash -e …)` and delete by absolute path.
+- zsh: an unmatched glob aborts an `&&` chain (`rm -f dir/*` on an empty dir), and an unquoted
+    `?ref=` in a `gh api` path is a glob. Quote both.
+- Codex ran its own mocked shell checks and found nothing; its `gh` is unauthenticated, so it cannot
+    check live GitHub state.

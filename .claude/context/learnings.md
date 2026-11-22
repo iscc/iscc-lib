@@ -100,7 +100,7 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `target/debug`** (278); the CI `java` job runs that layout as its second step (279).
     **`prepare-release` needs `build-ffi`** (285: vcpkg hashes are written before the tag), and
     `failure()` sees EVERY ancestor: a failed FFI leg skips every chain. `overwrite_files: false`
-    skips by asset NAME
+    skips by asset NAME, so `publish-ffi` prunes non-`uploaded` assets first (287)
 - **napi installs from the committed `crates/iscc-napi/package-lock.json` with `npm ci`** (284).
     Refresh it only from scratch (`rm -rf node_modules package-lock.json && npm install`): a lock
     written over `node_modules` can drop other platforms' optional packages. **`napi build` with the
@@ -153,8 +153,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `git add`/`git rm` are free; the cheapest *real* regression is the guarded file's own previous
     version (`git show HEAD~1:<path>`). A **set-equality** gate is blind twice: equal *empty* sets
     pass (hence a count floor) and a **duplicated** row passes (keep row order to count repeats —
-    163). Test-framework majors (164/166) → `learnings-archive.md`. **Run a CI step body as CI
-    does** (274): extract `run` with PyYAML, then `bash --noprofile --norc -eo pipefail <file>`
+    163). **Run a CI step body as CI does** (274): extract `run` with PyYAML, then `bash -e <file>`;
+    only a step with `shell: bash` gets `--noprofile --norc -eo pipefail` (287: gate no pipe)
 
 ## CID Process
 
