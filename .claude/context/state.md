@@ -1,4 +1,4 @@
-<!-- assessed-at: 2a8c08e6581070f39aca093c36d318bfdfffc119 -->
+<!-- assessed-at: c7eee56a6d52f0e8baf874a0fa0eee7e692552a6 -->
 
 # Project State
 
@@ -6,10 +6,10 @@
 
 ## Phase: v0.8.0 — features done; 4 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` (11 sections) run on the Rust core and all 11 bindings. Iteration 301
-landed the 256-bit unit limit in the Rust core (encode and decode), so the 10 core-backed surfaces
-inherit it; Go, the shared vector rows and the binding API pages remain. 4 `normal` issues still
-block v0.8.0.
+ISCC-SEQ and `data-edge.json` (11 sections) run on the Rust core and all 11 bindings. The 256-bit
+unit limit is now enforced in the Rust core (301) and the Go port (302), so all 11 surfaces reject
+units above 256 bits; the shared vector rows and the binding API pages remain. 4 `normal` issues
+still block v0.8.0.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -17,8 +17,8 @@ block v0.8.0.
 
 - `crates/iscc-lib/tests/data-edge.json` has 11 sections; the 5 tracked copies are byte-identical;
     all 12 harnesses run every section; C/C++ read the generated `data_edge_vectors.h`
-- Pending: `bits` above 256 rejection rows (marked `diverges`, iscc-core 1.5.0 accepts them); per
-    the review, use a gen function without input units, not mixed
+- Pending: a `bits` above 256 encode row (marked `diverges`, iscc-core 1.5.0 accepts it) and a
+    decode row for a unit header longer than 256 bits; both pinned on all 12 surfaces
 - `low`: the 4,095-byte string pieces exceed the 2,048 bytes one MSVC reference page allows
 
 ## Rust Core Crate
@@ -27,12 +27,12 @@ block v0.8.0.
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `codec` (incl. `read_unit`, `SEQ_MAINTYPES`) and
     `streaming::SumHasher` exist; 341 `#[test]` in `src/`
-- 256-bit limit met: `codec::encode_length` accepts only 32 to 256 for Meta through Flake, and the
-    `pub(crate)` helper `codec::unit_bit_length` checks every internal decode; no signature changed
+- 256-bit limit met: `codec::encode_length` accepts only 32 to 256 for Meta through Flake;
+    `pub(crate)` helper `codec::unit_bit_length` checks every internal decode
 - `normal` (audit): `conformance.rs` lists sections by hand in three places and runs runners up to
     three times; `lib.rs` has 5 iscc-only conformance loops; WASM `tests/conformance.rs` copies
     parsers with silent casts
-- `low` (new, 301): `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects
+- `low`: `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects
 - **Postponed (human):** `>= 1.0.0`, MSRV, `no_std`
 
 ## Python Bindings
@@ -76,12 +76,13 @@ block v0.8.0.
 
 ## Go Bindings
 
-**Status**: partially met (the bits `normal` issue's Go part is open)
+**Status**: met (v0.8.0 scope)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all
     11 sections; the `go` CI job also runs as `GOARCH=386`
-- Missing: `encodeLength` (`packages/go/codec.go`) accepts any multiple of 32 (`GenDataCodeV0`
-    returns a 512-bit unit); `decodeLength` has no upper bound and four unchecked callers
+- 256-bit limit met: `encodeLength` (`packages/go/codec.go`) accepts only 32 to 256; the only
+    `decodeLength` caller outside its definition is the checked `unitBitLength`; `Above256` tests
+    cover every gen function, both hashers, `GenSumCodeV0`, decode and the wide ISCC-CODE path
 
 ## C# / .NET Bindings
 
@@ -122,8 +123,9 @@ block v0.8.0.
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
     section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate
-- `docs/rust-api.md` states the 32 to 256 range; the C FFI, Java, Ruby reference pages, nine how-to
-    pages, `iscc.h`, `IsccLib.java` and `_lowlevel.pyi` still say only "multiple of 32"
+- `docs/rust-api.md`, `docs/howto/go.md` and the Go doc comments state the 32 to 256 range; the C
+    FFI, Java, Ruby reference pages, the other how-to pages, `iscc.h`, `IsccLib.java` and
+    `_lowlevel.pyi` still say only "multiple of 32"
 - `normal` (audit): stale specs (`swift-bindings.md` checkbox, `documentation.md` counts,
     `c-ffi-dx.md` feature flags); `docs/c-ffi-api.md` omits the failed-finalize rule; the
     `encode_component` short-digest error is missing on 6 surfaces; `README.md` omits Swift
@@ -143,21 +145,20 @@ block v0.8.0.
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 22
     version-sync targets at 0.7.0; every ecosystem installs from a lockfile
-- `.crap-baseline.json` regenerated in 301 (190 entries unchanged under `--fail-regression`)
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 45024759664 on the origin tip `f642b239`, all jobs green:
-    https://github.com/iscc/iscc-lib/actions/runs/45024759664
+- **Latest CI: PASSING.** Run 45026413052 on the origin tip `80897d52`, all jobs green:
+    https://github.com/iscc/iscc-lib/actions/runs/45026413052
 - Local HEAD adds 1 unpushed `cid(log)` commit that touches only `.claude`
 
 ## Open Issues
 
-19 open in issues.md: 4 `normal`, 15 `low` (14 untriaged), no `critical`. The bits `normal` issue is
-decided by Titusz (2026-11-22) and now covers only Go, the shared vector rows and the API pages; the
-3 audit `normal` issues are loop-workable. None is blocked on the human or upstream.
+19 open in issues.md: 4 `normal`, 15 `low` (14 untriaged), no `critical`. The bits `normal` issue
+(decided by Titusz 2026-11-22) now covers only the shared vector rows and the API pages; the 3 audit
+`normal` issues are loop-workable. None is blocked on the human or upstream.
 
 ## Next Milestone
 
-Clear the 4 open `normal` issues that block v0.8.0: the remaining 256-bit limit work (Go port,
-`data-edge.json` rows, binding API pages) and the three audit findings (Rust conformance-table
-duplication, Conan checksum, stale specs and API docs). After that, Titusz cuts v0.8.0 via
-`/release`.
+Clear the 4 open `normal` issues that block v0.8.0: the remaining 256-bit limit work
+(`data-edge.json` rows on all 12 surfaces, binding API pages) and the three audit findings (Rust
+conformance-table duplication, Conan checksum, stale specs and API docs). After that, Titusz cuts
+v0.8.0 via `/release`.

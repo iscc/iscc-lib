@@ -86,14 +86,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 2a8c08e, iter 302 — incremental)
+## Current State (assessed-at: c7eee56, iter 303 — incremental)
 
-- Origin tip `f642b239` run 45024759664 green (waited ~5 min, mid-run on arrival). HEAD +1
+- Origin tip `80897d52` run 45026413052 green (waited ~6 min, mid-run on arrival). HEAD +1
     `.claude`.
-- 19 open (4 `normal` + 15 `low`, 14 untriaged). 301: Rust core 256-bit limit DONE (`encode_length`
-    32..256, `pub(crate) unit_bit_length`); bits issue REWRITTEN to Go + data-edge rows + API pages;
-    new `low` 88-bit ISCC-ID. Other `normal`: 3 audit (conformance dup, Conan sha256, stale
-    specs/docs). iscc-lib `src/` `#[test]` = 341.
+- 19 open (4 `normal` + 15 `low`, 14 untriaged). 302: Go 256-bit limit DONE (`encodeLength` 32..256,
+    checked `unitBitLength`); bits issue narrowed to data-edge rows + API pages. Other `normal`: 3
+    audit (conformance dup, Conan sha256, stale specs/docs). iscc-lib `src/` `#[test]` = 341.
 - **CI on a fresh tip may be mid-run** (Coverage+CRAP is the slowest job): wait with
     `until [ "$(gh run view <id> --json status --jq .status)" = completed ]` under `timeout 300`.
 - **`cid(human)` commits rewrite target.md/issues.md** — always diff both after one (297: two `low`
