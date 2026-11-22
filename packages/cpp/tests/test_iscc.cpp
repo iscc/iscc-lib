@@ -287,6 +287,21 @@ static bool check_edge_encode_component(const iscc_edge_encode_component_vector&
     return v.cpp == ISCC_EDGE_OK && unit == edge_string(v.unit);
 }
 
+/// Check one alg_minhash_256 edge row against its cpp expectation (rejection = IsccError).
+static bool check_edge_alg_minhash_256(const iscc_edge_alg_minhash_256_vector& v) {
+    const std::vector<uint32_t> features(v.features.values,
+                                         v.features.values + v.features.count);
+    std::vector<uint8_t> minhash;
+    try {
+        minhash = iscc::alg_minhash_256(features);
+    } catch (const iscc::IsccError&) {
+        return v.cpp == ISCC_EDGE_ERROR;
+    } catch (...) {
+        return false;
+    }
+    return v.cpp == ISCC_EDGE_OK && minhash == edge_bytes(v.minhash);
+}
+
 /// Run every row of one data-edge section: skip rows marked cpp skip, check the rest,
 /// print PASS/FAIL per row, and return the number of rows visited (run or skipped).
 template <typename Row, typename Check>
@@ -832,6 +847,8 @@ int main() {
                                  ISCC_EDGE_ALG_CDC_CHUNKS_COUNT, check_edge_alg_cdc_chunks);
         seen += run_edge_section("encode_component", iscc_edge_encode_component,
                                  ISCC_EDGE_ENCODE_COMPONENT_COUNT, check_edge_encode_component);
+        seen += run_edge_section("alg_minhash_256", iscc_edge_alg_minhash_256,
+                                 ISCC_EDGE_ALG_MINHASH_256_COUNT, check_edge_alg_minhash_256);
         assert_eq(seen, ISCC_EDGE_TOTAL_COUNT, "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
     }
 

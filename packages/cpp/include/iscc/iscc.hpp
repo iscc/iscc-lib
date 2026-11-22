@@ -388,6 +388,8 @@ inline std::vector<std::string> sliding_window(const std::string& seq, uint32_t 
 // ---------------------------------------------------------------------------
 
 /// Compute a SimHash digest from an array of byte digests.
+///
+/// Throws IsccError if `digests` is empty.
 inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>& digests) {
     std::vector<const uint8_t*> ptrs;
     std::vector<size_t> lens;
@@ -407,6 +409,8 @@ inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>&
 }
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
+///
+/// Throws IsccError if `features` is empty.
 inline std::vector<uint8_t> alg_minhash_256(const std::vector<uint32_t>& features) {
     detail::UniqueByteBuffer buf(
         iscc_alg_minhash_256(features.data(), features.size()));
