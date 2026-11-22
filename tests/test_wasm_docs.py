@@ -7,7 +7,8 @@ So ``docs/howto/wasm.md`` and ``crates/iscc-wasm/README.md`` must not tell reade
 pass the WASM bytes through the wasm-bindgen options object (``initSync({ module })`` or
 ``init({ module_or_path })``). Both pages name ``WasmSumCodeResult``, the object
 ``gen_sum_code_v0`` returns, and the ``test-wasm`` smoke script uses the options object rather
-than the deprecated positional ``init(bytes)``. No network, no mocks.
+than the deprecated positional ``init(bytes)``, and so does the registry install check in
+``scripts/test_install.py``. No network, no mocks.
 """
 
 import re
@@ -19,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 HOWTO = ROOT / "docs" / "howto" / "wasm.md"
 README = ROOT / "crates" / "iscc-wasm" / "README.md"
+INSTALL_SCRIPT = ROOT / "scripts" / "test_install.py"
 WASM_DOCS = [HOWTO, README]
 BANNED_PHRASES = ["--target nodejs", "Both browser and Node.js targets"]
 OPTIONS_INIT_RE = re.compile(r"\binitSync\(\s*\{|\binit\(\s*\{")
@@ -102,6 +104,15 @@ def test_wasm_smoke_script_uses_options_object():
     assert "init(" in script, "test-wasm runs no init call"
     assert OPTIONS_INIT_RE.search(script)
     assert not POSITIONAL_INIT_RE.search(script), script
+
+
+def test_install_script_uses_options_object():
+    """The registry install check initializes ``@iscc/wasm`` with an options object."""
+    source = INSTALL_SCRIPT.read_text(encoding="utf-8")
+    assert OPTIONS_INIT_RE.search(source), (
+        "scripts/test_install.py runs no options-object init"
+    )
+    assert not POSITIONAL_INIT_RE.search(source)
 
 
 def test_positional_init_pattern_matches_deprecated_forms():

@@ -138,30 +138,20 @@ was found by reading the code. Pre-existing, measured 2026-11-21.
 Resolved when either CI runs at least the Python suite on `windows-latest`, or a decisions.md entry
 keeps CI on Linux and macOS on purpose.
 
-## `@iscc/wasm` docs show a Node.js setup the published package cannot run `normal` [audit]
+## `@iscc/lib` npm README says every code generator returns a string `normal` [review]
 
-Verified by the iteration-270 audit at 34303a6. The npm package is built with
-`wasm-pack build --target web` (`release.yml:427`). Its default `init()` builds a URL from
-`import.meta.url` and calls `fetch()` on it, which Node's `fetch` refuses for `file:` URLs.
+`crates/iscc-napi/README.md:52` says "All code generators return ISCC strings directly." The napi
+`gen_sum_code_v0` returns a `NapiSumCodeResult` object (`crates/iscc-napi/src/lib.rs:326-344`, with
+`iscc`, `datahash`, `filesize` and `units`), so a reader who uses its result as a string gets
+`[object Object]`. It is the sentence the `@iscc/wasm` README carried until iteration 283, left on
+the sibling npm page because that step was scoped by two other phrases. `docs/howto/nodejs.md:39`
+already states the result type. The README's Encoding and Codec lines also name only `encode_base64`
+and `iscc_decompose`. Filling them may cross the 30-symbol discovery threshold of
+`scripts/check_tier1_docs.py`, as it did for the WASM README, which is now registered as `FULL`.
 
-- `docs/howto/wasm.md` → "Node.js" (:58-72) imports from `"@iscc/wasm"` and calls `gen_text_code_v0`
-    with no init at all, after telling the reader to build with `--target nodejs` (the reader
-    installed the npm package and has no build). :42 says most bundlers initialize WASM
-    automatically, which a web-target package never does.
-- `crates/iscc-wasm/README.md:28-37`: the quick start's `await init()` fails under Node, and the
-    next line says "Both browser and Node.js targets are supported."
-- `docs/howto/wasm.md:82` and `README.md:56` say every gen function returns a string;
-    `gen_sum_code_v0` returns `WasmSumCodeResult` (`lib.rs:348-353`, and the how-to's own example
-    reads `result.iscc`). The README's Streaming line omits `SumHasher`.
-
-**Why it matters:** the registry page and how-to are the first thing a Node user copies, and both
-paths fail on the published artifact. **Suggested fix:** show the Node path for the web build
-(`initSync({ module: readFileSync(...) })` or bytes passed to `init`), probed against a packed
-release build; drop the bundler and "both targets" claims; correct the return-type sentences.
-**Scope estimate:** 2 non-test files.
-
-Resolved when the Node example runs against a `--target web` release build and both pages state
-`gen_sum_code_v0`'s result type.
+Resolved when the README states the result type of `gen_sum_code_v0`, pinned by a docs test like
+`tests/test_wasm_docs.py`, and `git grep -n 'return ISCC strings directly'` finds no page of a
+binding whose `gen_sum_code_v0` returns an object.
 
 ## `alg_minhash_256([])` returns 32 bytes of `0xFF` where iscc-core raises, with no decision `normal` [audit]
 

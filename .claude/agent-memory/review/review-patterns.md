@@ -685,6 +685,23 @@ nothing here; the probes that did:
 - A work-producing iteration that leaves only `low` issues is PASS without `**IDLE**`: the next
     `Step: NONE` iteration signals it
 
+### npm `@iscc/wasm` Node-setup docs step (283, ~25 min, PASS)
+
+- Strongest probe is the registry package, not only the packed HEAD build: in an empty `/tmp` dir
+    `npm init -y && npm install @iscc/wasm@<published version>`, then run each page's Node block
+    verbatim as `.mjs`. Extract the blocks with the docs test's own helpers (`sys.path.insert` of
+    `tests/`, then `javascript_blocks(markdown_section(...))`), so the mdformat-reflowed text runs
+- HEAD build:
+    `RUSTFLAGS="-C target-feature=+simd128" wasm-pack build --target web --release   --out-dir /tmp/x/pkg crates/iscc-wasm --features conformance`
+    (17 s on a warm target), set `name` in a COPY, `npm pack`, install the tarball. Run the
+    `test-wasm` step body next to a `pkg/` copy
+- Compare the README's export list against the published package with `import * as m` and a
+    `typeof m[name]` filter: names missing there are unreleased additions, not errors
+- Sibling sweep that found the leftovers: `git grep -nE 'init\(wasmBytes\)|await init\(\)'` (a
+    positional init in `scripts/test_install.py`, fixed in step 9 with a guard test) and
+    `git grep -n 'return ISCC strings directly'` (the napi README kept the false sentence: filed)
+- `uv run scripts/test_install.py --npm --version <v>` runs both npm packages from the registry
+
 ## Moved from the index (239)
 
 Detail of index entries that were cut to one or two lines when the index was compacted.

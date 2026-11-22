@@ -105,10 +105,10 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `target/debug`** (278); the CI `java` job runs that layout as its second step (279)
 - **`setup-dotnet` installs the latest LTS runtime before each requested version** (260), a private
     `DOTNET_INSTALL_DIR` included; `skip-lts-prepass: true` stops it (262: SDK 10 still drives)
-- **A docs install claim is a claim about the PUBLISHED artifact — install it** (238): source gems
-    up to 0.7.0 do not build. Probe: `gem fetch iscc-lib --platform ruby`, then
-    `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local`. **A platform-fallback claim needs
-    a foreign-platform run** (257: `java -Dos.arch=riscv64`)
+- **A docs install claim is a claim about the PUBLISHED artifact: install it** (238: source gems up
+    to 0.7.0 do not build). **npm `@iscc/wasm` is ONE `--target web` build** (283): in Node a bare
+    `init()` fails on its `file:` fetch, so pass the bytes via `initSync({ module })`; guard
+    `tests/test_wasm_docs.py`. **A fallback claim needs a foreign-platform run** (257: `os.arch`)
 - **Ruby source gem = `scripts/build_ruby_source_gem.py` only** (239-241). `cross-gem@v1` reads the
     rb_sys pin UNANCHORED (first `Gemfile.lock` line containing `rb_sys`), so the gemspec declares
     `rb_sys` only next to `core/`. The staged manifest is its own workspace: of the root, only

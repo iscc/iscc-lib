@@ -253,7 +253,7 @@ const wasmPkgPath = require.resolve('@iscc/wasm');
 const wasmPath = wasmPkgPath.replace(/[^\\/\\\\]*$/, 'iscc_wasm_bg.wasm');
 const wasmBytes = await readFile(wasmPath);
 const {{ default: init, gen_meta_code_v0 }} = await import('@iscc/wasm');
-await init(wasmBytes);
+await init({{ module_or_path: wasmBytes }});
 const result = gen_meta_code_v0('Hello World');
 const expected = '{EXPECTED_ISCC}';
 if (result !== expected) {{
