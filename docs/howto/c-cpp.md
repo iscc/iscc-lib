@@ -185,8 +185,9 @@ int main(int argc, char *argv[])
 
 !!! warning "Finalize is single-use"
 
-    After calling `_finalize()`, the hasher's internal state is consumed. Subsequent `_update()` or
-    `_finalize()` calls will fail. You must still call `_free()` to release the wrapper memory.
+    The first `_finalize()` call consumes the hasher's internal state, even when it fails (for example
+    on an invalid `bits` value). Subsequent `_update()` or `_finalize()` calls will fail. You must still
+    call `_free()` to release the wrapper memory.
 
 A complete example with full error handling is available at
 [`crates/iscc-ffi/examples/iscc_sum.c`](https://github.com/iscc/iscc-lib/blob/develop/crates/iscc-ffi/examples/iscc_sum.c).
@@ -466,9 +467,9 @@ int main() {
 
 !!! warning "Finalize is single-use"
 
-    After calling `finalize()`, the hasher's internal state is consumed. Subsequent `update()` or
-    `finalize()` calls will throw `iscc::IsccError`. The destructor still runs to release the wrapper
-    memory.
+    The first `finalize()` call consumes the hasher's internal state, even when it throws (for example
+    on an invalid `bits` value). Subsequent `update()` or `finalize()` calls will throw
+    `iscc::IsccError`. The destructor still runs to release the wrapper memory.
 
 ### Error handling
 

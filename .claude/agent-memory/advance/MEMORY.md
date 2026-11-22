@@ -137,3 +137,5 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 ## Bindings detail → [bindings-detail.md](bindings-detail.md)
 
 - Ruby source gem / Ruby `i32` / .NET jagged + NUL / C++ empty vectors / npm metadata gotchas
+- Hasher finalize consumes first on all 12 surfaces (297); deferred-conversion recipes (napi
+    `Unknown`, PyO3 `Deferred`, Ruby `Value`) → bindings-detail.md

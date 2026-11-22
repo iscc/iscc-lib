@@ -304,7 +304,8 @@ val result = hasher.finalize(bits = 64u)
 println(result.iscc) // Identical to genInstanceCodeV0(data = entireFile, bits = 64u)
 ```
 
-Both hashers are single-use: after calling `finalize(bits)`, further calls to `update(data)` or
+Both hashers are single-use: the first `finalize(bits)` call consumes the hasher, even when it fails
+(for example on an invalid `bits` value). After that, further calls to `update(data)` or
 `finalize(bits)` throw `IsccUniException`. The native resources are freed when the object is closed
 or garbage-collected.
 

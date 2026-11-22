@@ -276,7 +276,8 @@ InstanceCodeResult result = hasher.Finalize();
 Console.WriteLine(result.Iscc); // Identical to IsccLib.GenInstanceCodeV0(entireFile)
 ```
 
-Both hashers are single-use: after calling `Finalize()`, further calls to `Update()` or `Finalize()`
+Both hashers are single-use: the first `Finalize()` call consumes the hasher, even when it fails
+(for example on an invalid `bits` value). After that, further calls to `Update()` or `Finalize()`
 throw `InvalidOperationException`. The `using` statement ensures the native resources are freed even
 if an exception occurs.
 

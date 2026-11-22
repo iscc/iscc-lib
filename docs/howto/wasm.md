@@ -350,8 +350,9 @@ console.log(result.filesize); // Size in bytes
 console.log(result.units); // [dataCode, instanceCode]
 ```
 
-All three hashers accept `Uint8Array` input. The first `finalize()` call consumes the hasher, even
-when it fails (for example on an invalid `bits` value). After that, further calls throw an error.
+All three hashers accept `Uint8Array` input. Each is single-use: the first `finalize()` call
+consumes the hasher, even when it fails (for example on an invalid `bits` value). After that,
+further calls throw an error.
 
 ## Text utilities
 

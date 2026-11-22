@@ -74,3 +74,13 @@ metadata:
     `Node`. Content-tab fences are indented 4: use `indented_javascript_blocks`, not
     `javascript_blocks`. `AGENT_GUIDANCE` (iscc-wasm CLAUDE.md, wasm-bindings spec) bans
     `--target nodejs|bundler`. `WASM_DOCS` (howto + crate README) also demands `WasmSumCodeResult`
+- Deferred argument conversion (297, hasher finalize-consumes rule): typed params convert BEFORE the
+    body. napi: `Option<Unknown<'_>>` + `#[napi(ts_arg_type = "number | undefined | null")]`,
+    private `opt_number` (get_type check, then SAFETY-commented `cast::<f64>`); d.ts unchanged.
+    PyO3: private `Deferred<'py>` enum (FromPyObject keeps any obj incl. None; signature default
+    `Deferred::Default` + explicit `text_signature`); `.or(default, name)` re-adds PyO3 0.29's
+    `while processing '<name>'` `__notes__` entry. Option\<…> would turn `finalize(None)` from
+    TypeError into success — avoided. Ruby: `bits: Value` + `u32::try_convert` (same `to_int`). ty
+    flags deliberate bad-type calls: pass via `pytest.mark.parametrize`, no `# ty: ignore`
+- mdformat reflow can split a phrase that a next.md grep criterion needs (`even\nwhen`): reword the
+    sentence and re-run `grep` AFTER prek, not before
