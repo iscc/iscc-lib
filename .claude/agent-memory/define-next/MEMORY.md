@@ -3,20 +3,22 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 290):** 289 (one-shot dedup) PASSED. 290 = Go half of the dup `data.json`
-parsers issue, chosen over the handoff's Rust half: Rust already pins the strict policy (bare hex +
-missing `iscc` = parse failure), so only Go's verdict differs; Rust half (pure test refactor in
-lib.rs/codec.rs/streaming.rs test modules) is next. **Check a grep criterion's pattern against the
-current tree's error strings too** (290: `data.json")` also hit `t.Fatal("… data.json")`). Minhash
-`[]` + WASM `finalize()` (both need a behaviour decision → HUMAN). **Any Java test needing a library
-outside the bundle must pass in BOTH layouts.** Per-iteration traps for 259-269 →
-[v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the ref on BOTH builds (py3.10 +
-py3.15) before scoping a vector. External-flake red: still scope a hardening. An issue's "Scope
-estimate" can over-count — apply the docs-excluded rule yourself. Dependabot alerts track `main`,
-not `develop`.** NONE verification: `grep -E '^## .*(critical|normal)' issues.md` prints nothing.
-**Compiler-limit issues with no compiler here: find a gcc warning that encodes the same standard
-limit** (282). **wasm-bindgen generated-JS facts: cli-support is not in the cargo registry
-(wasm-pack downloads the binary) — read `crates/cli-support/src/js/mod.rs` upstream** (283).
+**Status 2026-11-22 (iter 291):** 290 (Go dedup) PASSED. 291 = Rust dedup part 1 (in-crate tests
+read inputs via `conformance.rs` `pub(crate)` parsers + `.get()` short-inputs panic fix); part 2
+(one wrong-type rule on both runners) next, then `version:check` gaps (1 file) and WASM init docs.
+Go `EncodeComponent` needs a decision recorded + 12-surface vector fan-out. In-crate test modules of
+`lib.rs` can't see private `conformance` items — scope `pub(crate)`. **Check a grep criterion's
+pattern against the current tree's error/doc strings too** (290). iscc-lib CI tests 3 feature sets
+(default, none, text-processing). Minhash `[]` + WASM `finalize()` (both need a behaviour decision →
+HUMAN). **Any Java test needing a library outside the bundle must pass in BOTH layouts.**
+Per-iteration traps for 259-269 → [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the
+ref on BOTH builds (py3.10 + py3.15) before scoping a vector. External-flake red: still scope a
+hardening. An issue's "Scope estimate" can over-count — apply the docs-excluded rule yourself.
+Dependabot alerts track `main`, not `develop`.** NONE verification:
+`grep -E '^## .*(critical|normal)' issues.md` prints nothing. **Compiler-limit issues with no
+compiler here: find a gcc warning that encodes the same standard limit** (282). **wasm-bindgen
+generated-JS facts: cli-support is not in the cargo registry (wasm-pack downloads the binary) — read
+`crates/cli-support/src/js/mod.rs` upstream** (283).
 
 ## Scope Calibration Principles
 
