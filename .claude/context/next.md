@@ -1,111 +1,103 @@
 # Next Work Package
 
-## Step: One section table drives Rust conformance; WASM conformance uses strict shared readers
+## Step: Specs and API docs state shipped facts and the shipped error rules
 
 ## Goal
 
-Picks up the `[audit]` issue "Rust conformance runs each `data.json` section up to three times and
-lists the sections by hand in three places". One table in `conformance.rs` becomes the only section
-list, so a section without a runner fails a test. The WASM conformance tests read vectors through
-the strict readers the data-edge harness already uses, with no silent casts.
+Close the `[audit]` issue "Specs and API docs still describe shipped work as planned, or leave out
+shipped rules", the last `normal` blocker of v0.8.0: three specs say what shipped, and every surface
+documents the short-digest rule of `encode_component` and the failed-finalize rule.
 
 ## Alternatives Considered
 
-- **Chosen:** the conformance runner issue. The handoff names it first, it touches 2 non-test files,
-    and the test-only WASM part does not count toward the cap.
-- **Rejected:** the spec/API-doc drift issue. It is 9 files and needs an audit-scope or a specs/docs
-    split. It blocks v0.8.0 too, so it comes next, with nothing lost by waiting.
+- **Chosen:** the whole issue in one step. Every edit is a spec, a docs page or a `///` /
+    `<summary>` comment, plus regenerated outputs. None of those count against the cap (decision
+    2026-11-20: comment-only edits and regenerated files), so the reviewer's two-step split is not
+    needed. It would cost one more iteration before the release.
+- **Rejected:** the docs and comments first and the specs in a later step (the handoff's split). The
+    two halves share no risk, and the spec edits are deletions and pointer sentences.
 
 ## Scope
 
-- **Create**: `crates/iscc-wasm/tests/common/mod.rs` (test file)
-- **Modify**: `crates/iscc-lib/src/conformance.rs`, `crates/iscc-lib/src/lib.rs` (test module only);
-    test files `crates/iscc-wasm/tests/conformance.rs` and `crates/iscc-wasm/tests/data_edge.rs`
-- **Reference**: `crates/iscc-lib/tests/data.json`, decision 2026-11-22 "A wrong-type or
-    out-of-range vector value makes a conformance case unparsable"
-
-Rule invoked: default (2 non-test files; the 3 WASM test files are tests).
+- **Modify** (specs/docs, not counted): `.claude/context/specs/swift-bindings.md`,
+    `.claude/context/specs/documentation.md`, `.claude/context/specs/c-ffi-dx.md`,
+    `docs/c-ffi-api.md`, `README.md`
+- **Modify** (comment-only, not counted): `packages/dotnet/Iscc.Lib/IsccLib.cs`,
+    `packages/cpp/include/iscc/iscc.hpp`, `crates/iscc-napi/src/lib.rs`,
+    `crates/iscc-wasm/src/lib.rs`, `crates/iscc-uniffi/src/lib.rs`, `crates/iscc-ffi/src/lib.rs`
+- **Regenerated** (not counted): `crates/iscc-ffi/include/iscc.h`,
+    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs`,
+    `packages/swift/Sources/IsccLib/iscc_uniffi.swift`,
+    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt`
+- **Reference**: `docs/rust-api.md` (the `encode_component` error sentence, about line 566),
+    `docs/howto/c-cpp.md:185-189` (failed-finalize wording), `zensical.toml` nav,
+    `.github/workflows/release.yml` inputs, `crates/iscc-lib/Cargo.toml` `[features]`,
+    `.github/workflows/ci.yml` (`c-ffi` freshness diff; UniFFI freshness step about line 368)
 
 ## Not In Scope
 
-- The meta/text/mixed/instance `*_conformance` loops in `lib.rs`. They check extra output fields, so
-    keep them, hard-coded counts included.
-- Any change to what `conformance_selftest` checks or reports, or to its public signature. It is a
-    Tier 1 symbol, and a signature change is an `API-BREAK` stop.
-- The data-edge runners of other surfaces, `crates/iscc-lib/tests/*.rs`, and other bindings'
-    conformance harnesses.
-- The spec/doc drift issue.
+- Code changes of any kind. The rules already hold on every surface. Only the text is missing
+- The how-to pages of .NET, C++, JS, Swift and Kotlin, and `docs/index.md`. The issue names
+    reference pages and API comments only
+- The `low` issues about version-sync file lists, the Python `CLAUDE.md` test list, or the
+    failed-finalize tests on C FFI/C++/.NET/UniFFI. They stay `low`
+- Copying a list of pages, languages or bindings into a spec. Point to the nav or the README instead
 
 ## Implementation Notes
 
-**`conformance.rs`:**
+**Specs:**
 
-- Add one `const` table of sections, e.g. `&[(&str, fn(&Value) -> bool)]`, or a small struct if
-    `probe` also needs a parse check per section. Put `#[cfg(feature = "meta-code")]` /
-    `#[cfg(feature = "text-processing")]` on the meta/text elements; cfg on array-literal elements
-    works on stable. Give each runner its section name in one place only: the table entry or the
-    runner, not both. Today every `run_*_tests` repeats the string.
-- `conformance_selftest` keeps `test_data()` + `check_sections()`, then runs every table entry. Do
-    not stop at the first failure: every runner must still run and print its failures.
-- `probe()` (test module) looks sections up in the same table, not in its own `match`. Its `parsed`
-    flag needs a per-section parse check: either a third field in the table, or a small test-only
-    table of input parsers next to `probe`. Pick whichever keeps the table the only list of section
-    names. Today `probe` has no instance entry; it does not need one.
-- Delete `test_gen_sections_run`. In `test_seq_sections_run`, keep the two count asserts or remove
-    the test; `test_conformance_selftest_passes` already runs the seq runners.
-- Add a test under `#[cfg(feature = "meta-code")]` (meta-code enables text-processing): the table's
-    section names equal the `data.json` keys minus `_metadata`, compared as sets, with a length
-    check so a duplicate row fails. This is the guard the issue says is missing.
-- Keep the existing failure-arm tests (`test_gen_section_failure_arms_fail` etc.) passing. They call
-    runners directly, and that is fine.
+- `swift-bindings.md:397`: the criterion "Release workflow includes `swift` checkbox" contradicts
+    :265-267 and `release.yml`. Replace it with the shipped fact: the XCFramework is built only when
+    the `version` input is set, and there is no `swift` checkbox.
+- `documentation.md`: the how-to list (:50), the reference list (:52), the tab order (:61) and the
+    "Available Bindings" criterion (:94-95) copy stale lists. Restate them as rules. One how-to
+    guide and the Tier 1 reference pages per language, as in the `zensical.toml` nav. Tabs cover the
+    languages the README installs, in the order `docs/index.md` uses (read it, do not invent one).
+    The bindings table lists every language in the README's Installation section. No language or
+    page lists.
+- `c-ffi-dx.md` §5 (:134-138): GitHub #16 is closed. State what ships. `default = ["meta-code"]`;
+    `text-processing` brings in the Unicode crates; `meta-code` adds `serde_json_canonicalizer`;
+    `serde_json` is not optional. Read `crates/iscc-lib/Cargo.toml` for the exact facts. Drop the
+    "~82K lines" figure unless you measure it.
+- Run `uv run python scripts/check_spec_paths.py`. Spec paths are gated against `git ls-files`.
 
-**`lib.rs` test module:** delete `test_gen_image_code_v0_conformance`, `..._audio_...`,
-`..._video_...`, `..._data_...` and `..._iscc_code_v0_conformance`. Keep the other tests that read
-`conformance::cases` (e.g. `test_soft_hash_image_v0_256_quadrant_layout`). Any `conformance::`
-helper left without a caller can lose its `pub(crate)` or be deleted, as long as clippy stays clean
-in all 3 CI feature sets.
+**Docs and comments:**
 
-**WASM tests:**
-
-- Move the strict readers in `data_edge.rs` (`str_arg`, `str_list_arg`, `bytes_item`, `u32_arg`,
-    `frames_arg`, `u32_list_arg`, …) into `tests/common/mod.rs`. Declare `mod common;` in both
-    files, and use the readers in both. If one file leaves a helper unused, rustc warns and CI
-    clippy runs `--all-targets -- -D warnings` on the host, so handle that: put
-    `#[allow(dead_code)]` on the `mod common;` declaration, or keep the helper in the file that uses
-    it.
-- `conformance.rs` needs readers that `data_edge.rs` lacks: a `stream:<hex>` reader (an empty hex is
-    valid), a `u8` pixel list (from `serde_json::from_value::<Vec<u8>>`, or `u8::try_from(as_u64)`),
-    and a meta reader that maps `null` to `None`. The data-edge `meta_arg` rejects `null` on
-    purpose, so keep that one as it is. Remove every `as u8` / `as i32` / `as u32` cast on vector
-    values. A value out of range must fail the test, not be truncated.
-- Replace each hard-coded `assert_eq!(tested, N)` with the section's case count read from
-    `data.json`, plus a floor (`> 0`) so an empty section fails.
-- `cargo test -p iscc-wasm` runs none of these tests. Only `wasm-pack test --node` does (in `$PATH`
-    here).
-
-**Gates:** `conformance.rs` is a non-test file in a crate the CI-only CRAP `--fail-regression` gate
-measures. A table loop should lower `conformance_selftest`'s score. If any function scores higher,
-move the baseline in this step (`mise run coverage && mise run crap:baseline`). No hot path is
-touched, so the iai gate does not apply.
+- `docs/c-ffi-api.md:742-744` warning: add that the first `_finalize()` consumes the state even when
+    it fails (e.g. invalid `bits`), worded as in `docs/howto/c-cpp.md`.
+- `encode_component` error contract: add a sentence adapted from `rust-api.md` to `c-ffi-api.md`
+    (after the parameter table: returns `NULL` and sets the last error), the FFI `///` (the
+    `# Returns` section), `IsccLib.cs` `<summary>`/`<exception>`, `iscc.hpp`, napi, WASM and UniFFI.
+    Use each surface's error idiom: NULL plus last error / `IsccException` / `iscc::IsccError` or
+    whatever `check_ptr` throws (read it) / JS `Error` / `IsccUniError`. Every surface must name the
+    case where the digest is shorter than `bit_length / 8` bytes, and may also list the other
+    invalid inputs.
+- `README.md` "What is iscc-lib" (:49-51): add Swift to the language list.
+- Regeneration: a `///` edit on an `iscc-ffi` export moves `iscc.h` **and** `NativeMethods.g.cs`
+    (`cargo build -p iscc-ffi`, then cbindgen as `ci.yml`'s `c-ffi` job does; commit both). A `///`
+    edit on a UniFFI export moves its checksum in both the Swift and the Kotlin bindings. Regenerate
+    with the `ci.yml` UniFFI step's `gen=` command and delete any stray `.modulemap`. uniffi output
+    is not hook-clean, so compare modulo trailing whitespace, as the CI step does. napi's
+    `index.d.ts` is not tracked.
 
 ## Verification
 
-- `cargo test -p iscc-lib` and `cargo test -p iscc-lib --no-default-features` pass, and so does
-    `cargo test -p iscc-lib --no-default-features --features text-processing`
-- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` and
-    `cargo clippy -p iscc-lib --no-default-features -- -D warnings` are clean
-- `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
-    passes
-- `git grep -nE '"gen_(image|audio|video|data|iscc)_code_v0"|"gen_(meta|text|mixed|instance)_code_v0"|"(en|de)code_seq"' crates/iscc-lib/src/conformance.rs`
-    shows each section name once outside the test module (inside the table)
-- `git grep -nE 'fn test_gen_(image|audio|video|data|iscc)_code_v0_conformance|fn test_gen_sections_run' crates/iscc-lib/src`
-    prints nothing, and
-    `git grep -nE 'as (u8|i32|u32)\b|tested, [0-9]' crates/iscc-wasm/tests/conformance.rs` prints
-    nothing
-- The table-vs-`data.json` test fails if one table row is removed (shown once by the advance agent
-    and the result reported in the handoff; the tree stays unchanged)
+- `grep -n '#16' .claude/context/specs/c-ffi-dx.md`,
+    `grep -n 'includes .swift. checkbox' .claude/context/specs/swift-bindings.md` and
+    `grep -n 'Python, Rust, Java, Node.js, WASM, C/C++' .claude/context/specs/documentation.md` all
+    print nothing; `uv run python scripts/check_spec_paths.py` exits 0
+- The `encode_component` doc block in each of the 7 files (`docs/c-ffi-api.md`, `IsccLib.cs`,
+    `iscc.hpp`, the napi, WASM, UniFFI and FFI `lib.rs`) states the short-digest rejection
+    (`bit_length / 8` or `bitLength / 8`); `docs/c-ffi-api.md`'s streaming warning says a failed
+    first `_finalize()` consumes; `README.md`'s "What is iscc-lib" list names Swift
+- Generated outputs are fresh: the `c-ffi` job's header and `NativeMethods.g.cs` diff, and the
+    UniFFI freshness step body extracted from `ci.yml` and run with `bash -e`, both exit 0
+- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` clean and
+    `cargo test -p iscc-uniffi -p iscc-ffi` passes
+- `uv run zensical build` exits 0 and `mise run check` exits 0
 
 ## Done When
 
-All six verification criteria pass, and `conformance.rs` holds the only list of `data.json` sections
-in the Rust core.
+All verification criteria pass with no behaviour change on any surface, and the audit issue's
+evidence list no longer matches the tree.
