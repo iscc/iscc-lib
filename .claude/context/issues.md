@@ -251,23 +251,6 @@ decision of 2026-11-22, which covers Meta through Flake. Not measured: the Go po
 Resolved when a `data-edge.json` vector pins the outcome for an 88-bit ID: rejected as in iscc-core,
 or accepted and marked `diverges` with a decisions.md entry that says why.
 
-## `gen_mixed_code_v0` with `bits` below 8 panics in the Go port and in debug builds of the core `low` [review]
-
-**Triage:** untriaged. A Go caller who passes a `bits` value from 0 to 7 to `GenMixedCodeV0` gets a
-runtime panic instead of an error, and a Rust user gets one in a dev-profile build; the published
-release builds of the Rust-backed bindings return an error.
-
-Measured in iteration 303 with two 256-bit Text-Codes and `bits` 0 and 4. Go: panic "index out of
-range [0] with length 0" (`softHashCodesV0` in `code_content_mixed.go` writes `entry[0]` into a
-slice of `bits / 8` bytes). Rust: `soft_hash_codes_v0` in `lib.rs` computes `nbytes - 1` with
-`nbytes = 0`, which panics with "attempt to subtract with overflow" under overflow checks (the debug
-Python extension raises `PanicException`); the release wheel 0.7.0 returns `ValueError`. iscc-core
-1.5.0 raises `ValueError`. With `bits = 8` every one of them returns an error. Pre-existing in both.
-The other `gen_*_v0` functions and both hashers return an error for 0 and 4.
-
-Resolved when both return an error for `bits` below 8, pinned by a `data-edge.json` row in the
-existing `gen_mixed_code_v0` section (`error`, and no `diverges`, since iscc-core raises too).
-
 ## `encode_component` docs on five surfaces give the `bit_length` range without the ISCC-ID case `low` [review]
 
 **Triage:** untriaged. A caller who builds an ISCC-ID unit from the C FFI, Java, Python, Ruby or Go

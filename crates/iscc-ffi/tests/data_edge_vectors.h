@@ -237,10 +237,14 @@ static const struct iscc_edge_gen_text_code_v0_vector iscc_edge_gen_text_code_v0
 
 static const char *const iscc_edge_gen_mixed_code_v0_0_items[] = {""};
 static const size_t iscc_edge_gen_mixed_code_v0_0_lens[] = {0};
-#define ISCC_EDGE_GEN_MIXED_CODE_V0_COUNT 1
+static const char *const iscc_edge_gen_mixed_code_v0_1_items[] = {"EUA6GIKXN42IQV3S", "EIAUKMOUIOYZCKA5"};
+static const size_t iscc_edge_gen_mixed_code_v0_1_lens[] = {16, 16};
+#define ISCC_EDGE_GEN_MIXED_CODE_V0_COUNT 2
 static const struct iscc_edge_gen_mixed_code_v0_vector iscc_edge_gen_mixed_code_v0[ISCC_EDGE_GEN_MIXED_CODE_V0_COUNT] = {
     {"test_0001_empty_list", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
      {iscc_edge_gen_mixed_code_v0_0_items, iscc_edge_gen_mixed_code_v0_0_lens, 0}, 64, {0, 0}},
+    {"test_0002_bits_below_one_byte", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
+     {iscc_edge_gen_mixed_code_v0_1_items, iscc_edge_gen_mixed_code_v0_1_lens, 2}, 4, {0, 0}},
 };
 
 static const char *const iscc_edge_gen_iscc_code_v0_0_items[] = {""};
@@ -417,7 +421,7 @@ static const struct iscc_edge_alg_minhash_256_vector iscc_edge_alg_minhash_256[I
      {iscc_edge_alg_minhash_256_1_values, 4}, {"\336q\227\2444:\015t\"\226L\025\266\231\202\377\243pb\005\2064!%\234\231\315\363\006h\264\270", 32}},
 };
 
-#define ISCC_EDGE_TOTAL_COUNT 35
+#define ISCC_EDGE_TOTAL_COUNT 36
 
 /* Fill the static buffers of strings over 4095 bytes; call once before use. */
 static void iscc_edge_init(void) {

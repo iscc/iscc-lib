@@ -158,6 +158,17 @@
       ],
       "error": "at least two Content-Codes are required",
       "note": "An empty code list must be rejected rather than mixed into an empty digest."
+    },
+    "test_0002_bits_below_one_byte": {
+      "inputs": [
+        [
+          "EUA6GIKXN42IQV3S",
+          "EIAUKMOUIOYZCKA5"
+        ],
+        4
+      ],
+      "error": "bits is not a valid Content-Code length",
+      "note": "A bits value below 8 leaves no byte for the digest and must be rejected rather than indexing an empty buffer."
     }
   },
   "gen_iscc_code_v0": {

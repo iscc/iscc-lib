@@ -815,7 +815,8 @@ pub fn gen_video_code_v0<S: AsRef<[i32]> + Ord>(
 /// Takes raw decoded ISCC bytes (header + body) for each Content-Code and
 /// produces a SimHash digest. Each input is trimmed to `bits/8` bytes by
 /// keeping the first header byte (encodes type info) plus `nbytes-1` body bytes.
-/// Requires at least 2 codes, all of MainType::Content.
+/// Requires at least 2 codes, all of MainType::Content, and `bits` to be a
+/// valid Content-Code length.
 fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>> {
     if cc_digests.len() < 2 {
         return Err(IsccError::InvalidInput(
@@ -823,6 +824,8 @@ fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>> 
         ));
     }
 
+    // Reject an invalid length here: `nbytes - 1` below needs at least one byte
+    codec::encode_length(codec::MainType::Content, bits)?;
     let nbytes = (bits / 8) as usize;
     let mut prepared: Vec<Vec<u8>> = Vec::with_capacity(cc_digests.len());
 
@@ -1710,6 +1713,20 @@ mod tests {
             gen_mixed_code_v0(&["EUA6GIKXN42IQV3S"], 64),
             Err(IsccError::InvalidInput(_))
         ));
+    }
+
+    #[test]
+    fn test_gen_mixed_code_v0_bits_below_one_byte() {
+        let codes = ["EUA6GIKXN42IQV3S", "EIAUKMOUIOYZCKA5"];
+        for bits in 0..8 {
+            assert!(
+                matches!(
+                    gen_mixed_code_v0(&codes, bits),
+                    Err(IsccError::InvalidInput(_))
+                ),
+                "bits {bits}"
+            );
+        }
     }
 
     /// Build raw Content-Code bytes (header + body) for a given bit length.

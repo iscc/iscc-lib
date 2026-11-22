@@ -9,7 +9,7 @@
 ISCC-SEQ and `data-edge.json` (11 sections) run on the Rust core and all 11 bindings. Iteration 307
 closed the last `normal` audit issue (spec and API-doc drift). No `critical` or `normal` issue is
 open and CI is green on the origin tip, so v0.8.0 is ready for Titusz to cut via `/release`. DONE is
-blocked by 18 open `low` issues and the human-gated v1.0.0 criteria.
+blocked by 17 open `low` issues and the human-gated v1.0.0 criteria.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -21,13 +21,12 @@ blocked by 18 open `low` issues and the human-gated v1.0.0 criteria.
 
 ## Rust Core Crate
 
-**Status**: met (v0.8.0 scope; two `low`)
+**Status**: met (v0.8.0 scope; one `low`)
 
 - Tier 1 has 35 symbols at the crate root; Tier 2 `codec` (incl. `read_unit`, `SEQ_MAINTYPES`) and
-    `streaming::SumHasher` exist; 337 `#[test]` in `src/`; one `SECTIONS` table in `conformance.rs`
+    `streaming::SumHasher` exist; 340 `#[test]` in `src/`; one `SECTIONS` table in `conformance.rs`
     drives conformance
-- `low`: `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects; `gen_mixed_code_v0` with
-    `bits` below 8 panics in debug builds
+- `low`: `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects
 - **Postponed (human):** `>= 1.0.0`, MSRV, `no_std`; semver gate stays informational until 1.0.0
 
 ## Python Bindings
@@ -72,11 +71,10 @@ blocked by 18 open `low` issues and the human-gated v1.0.0 criteria.
 
 ## Go Bindings
 
-**Status**: met (v0.8.0 scope; one `low`)
+**Status**: met (v0.8.0 scope)
 
 - Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all
     11 sections; the `go` CI job also runs as `GOARCH=386`
-- `low`: `GenMixedCodeV0` with `bits` 0 to 7 panics (`softHashCodesV0` index out of range)
 
 ## C# / .NET Bindings
 
@@ -143,8 +141,9 @@ blocked by 18 open `low` issues and the human-gated v1.0.0 criteria.
 
 ## Open Issues
 
-18 open in issues.md, all `low` (16 untriaged), no `critical` or `normal`. Iteration 307 closed the
-spec/API-doc drift audit issue and filed two `low` doc issues.
+17 open in issues.md, all `low` (16 untriaged), no `critical` or `normal`. Iteration 307 closed the
+spec/API-doc drift audit issue and filed two `low` doc issues. `gen_mixed_code_v0` returns an error
+for `bits` below 8 in the Rust core and the Go port, pinned by a `data-edge.json` row.
 
 ## Next Milestone
 

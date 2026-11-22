@@ -56,12 +56,17 @@ func GenMixedCodeV0(codes []string, bits uint32) (*MixedCodeResult, error) {
 // Takes raw decoded ISCC bytes (header + body) for each Content-Code and
 // produces a SimHash digest. Each input is trimmed to bits/8 bytes by keeping
 // the first header byte (encodes type info) plus nbytes-1 body bytes.
-// Requires at least 2 codes, all of MainType Content.
+// Requires at least 2 codes, all of MainType Content, and bits to be a valid
+// Content-Code length.
 func softHashCodesV0(ccDigests [][]byte, bits uint32) ([]byte, error) {
 	if len(ccDigests) < 2 {
 		return nil, fmt.Errorf("at least 2 Content-Codes required for mixing")
 	}
 
+	// Reject an invalid length here: entry[0] below needs at least one byte
+	if _, err := encodeLength(MTContent, bits); err != nil {
+		return nil, err
+	}
 	nbytes := int(bits / 8)
 	prepared := make([][]byte, 0, len(ccDigests))
 

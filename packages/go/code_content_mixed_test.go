@@ -53,3 +53,12 @@ func TestGenMixedCodeV0Above256Unit(t *testing.T) {
 	_, err = GenMixedCodeV0(codes, 64)
 	assertDecodeBoundErr(t, err)
 }
+
+func TestGenMixedCodeV0BitsBelowOneByte(t *testing.T) {
+	codes := []string{"EUA6GIKXN42IQV3S", "EIAUKMOUIOYZCKA5"}
+	for bits := uint32(0); bits < 8; bits++ {
+		if _, err := GenMixedCodeV0(codes, bits); err == nil {
+			t.Errorf("bits %d: expected an error", bits)
+		}
+	}
+}
