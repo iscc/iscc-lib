@@ -993,3 +993,14 @@ Use surface by surface when reviewing a fan-out (one advance commit per surface)
     same entry as "the remaining problem", not a second entry
 - Codex (`--commit HEAD`, ~4 min) ran the suites and found neither defect: a green run plus a clean
     second opinion is not evidence that a vector pins its rule
+
+### Fixture-string swap + two doc rows (iter 304, ~15 min) — PASS, Codex clean
+
+- One logged script: `mise run check`, the three pytest files, `cargo test --test test_data_edge`,
+    Go suite, generator no-op, `zensical build` (~1 min warm). Plus the release-wheel probe from an
+    empty `/tmp` dir and iscc-core on CPython 3.10 and 3.15
+- **A docs range fix leaves the same claim in source comments**: `git grep -n -i "32 to 256"` over
+    the whole tree (not only `docs/`) found the `SumHasher::finalize` rustdoc with the sum code's
+    wrong range. A one-word `///` fix is a step-9 edit (same line count, so no CRAP re-keying)
+- List every `bits` row under a heading with awk over `docs/*-api.md` to see which pages state a
+    range at all (c-ffi and ruby sum rows state none)

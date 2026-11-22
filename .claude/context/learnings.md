@@ -82,8 +82,9 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     body, which a build without the 256-bit bound rejects as truncated. Take a decode vector from
     the reference ENCODER's output. **An error row pins a rule only if a build WITHOUT the rule
     accepts its input**: run it on the last release (`uv run --no-project --with iscc-lib==0.7.0`)
-- **A `bits` range differs per function** (303): `gen_sum_code_v0` needs 64 to 256 (32 fails, an
-    ISCC-CODE takes 64-bit units). Probe a range claim at both ends on EVERY function a row names
+- **A `bits` range differs per function** (303): `gen_sum_code_v0` and `SumHasher` need 64 to 256
+    (32 fails, an ISCC-CODE takes 64-bit units). Probe a range claim at both ends on EVERY function
+    a row names; a range also sits in `///` and Javadoc comments (304: `git grep "32 to 256"`)
 - **Integer widths differ per platform**: Go `int(x)` of a `uint32` wraps on 386 (263: subtract
     unsigned, then `clampInt`); CI runs the Go suite as `GOARCH=386` too (267), 386 `vet` sees no
     wrap. C `long` is 32 bits on Windows (265: `PyLong_AsLongLong`; no Windows CI, prove it from the

@@ -195,7 +195,7 @@ impl SumHasher {
     /// # Errors
     ///
     /// Returns `IsccError::InvalidInput` if `bits` is not a multiple of 32
-    /// from 32 to 256.
+    /// from 64 to 256.
     pub fn finalize(self, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult> {
         let data_result = self.data_hasher.finalize(bits)?;
         let instance_result = self.instance_hasher.finalize(bits)?;

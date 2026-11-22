@@ -217,33 +217,6 @@ Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact
 on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
 that both `bench_instance_code` rows are within the tolerance of a current run.
 
-## The decode vector does not pin the 256-bit unit limit, and two sum-code rows give a wrong range `normal` [human]
-
-Decided on 2026-11-22 (decisions.md, "A unit is at most 256 bits"). The core and the Go port reject
-a unit above 256 bits, three `data-edge.json` rows pin the encode side and the 256-bit boundary on
-all 12 surfaces, and the API pages state the range. Two defects remain, both measured in iteration
-303:
-
-- **`iscc_decode/test_0006_unit_above_256` stays green without the bound.** Its input is `00 08`
-    over the bytes `00..23`. A length index of 8 takes two nibbles, so the header is `00 08 00` and
-    the body has 35 bytes. Published iscc-lib 0.7.0, which has no bound, rejects the string as well
-    ("truncated ISCC body: expected 36 bytes, got 35"). The row's `note` says the core and the Go
-    port decoded it before the limit was set, which is false. The string that pins the bound is the
-    reference encoder's own output (`iscc_core.encode_component(0, 0, 0, 288, bytes(range(36)))`),
-    `ISCC:AAEAAAABAIBQIBIGA4EASCQLBQGQ4DYQCEJBGFAVCYLRQGI2DMOB2HQ7EAQSEIY`: 0.7.0 decodes it to
-    `(0, 0, 0, 8, 00..23)`, the core and the Go port at 5d76cc84 reject it for its length, and
-    iscc-core 1.5.0 raises "288 is not a valid LN" on CPython 3.10 and 3.15 (so no `diverges`).
-- **The `gen_sum_code_v0` rows say "32 to 256", and 32 fails.** `docs/rust-api.md` (since 301) and
-    `docs/java-api.md` (since 303) give the sum code's `bits` row that range. On the Python binding
-    `bits=32` raises ("ISCC unit code too short (min 16 chars)"), 64 and 256 return a code, and 288
-    raises. An ISCC-CODE takes units of 64 bits or more, so the range is 64 to 256.
-
-**Upstream:** iscc/iscc-core, filed as https://github.com/iscc/iscc-core/issues/142
-
-Resolved when the decode row's input is a string that iscc-lib 0.7.0 decodes and HEAD rejects (in
-the 5 fixture copies and the regenerated C header, with a true `note`), and both sum-code rows state
-64 to 256.
-
 ## No test pins "a failed first `finalize` consumes" on C FFI, C++, .NET, Swift and Kotlin `low` [review]
 
 **Triage:** untriaged. No user is affected today; a later reordering in `iscc-ffi`, `iscc-uniffi` or
