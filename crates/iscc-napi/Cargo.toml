@@ -2,8 +2,12 @@
 name = "iscc-napi"
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
-publish = false               # Published via npm, not crates.io
+# This crate's own dependency graph sets its rustc floor: the napi crates (napi,
+# napi-derive, napi-build, napi-sys) and libloading require rustc 1.88. The crate is
+# `publish = false` and npm ships prebuilt binaries, so the published iscc-lib MSRV stays
+# at the workspace's rust-version = "1.85".
+rust-version = "1.88"
+publish = false       # Published via npm, not crates.io
 
 [lib]
 crate-type = ["cdylib"]
