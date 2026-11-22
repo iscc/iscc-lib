@@ -1,91 +1,84 @@
 # Next Work Package
 
-## Step: `@iscc/wasm` docs show a Node.js setup that runs on the published web-target package
+## Step: napi installs from a committed `package-lock.json` with `npm ci` in CI and release
 
 ## Goal
 
-Fix the `[audit]` issue "`@iscc/wasm` docs show a Node.js setup the published package cannot run":
-the how-to and the npm README show a Node path that works on the `--target web` package that
-`release.yml` publishes, and both pages state what `gen_sum_code_v0` returns.
+CI is red on `bd79145`. The `nodejs` job's unlocked `npm install` fetched `@inquirer/ansi@2.1.1` two
+minutes after it was published and got a registry 404. The tarball serves HTTP 200 now, so the red
+was transient. Commit the napi lockfile and switch every napi install to `npm ci`, as
+`specs/nodejs-bindings.md` → "CI Job" already shows. Then a just-published transitive version can no
+longer break a run, and it can no longer reach the `id-token: write` publish job.
 
 ## Alternatives Considered
 
-- **Chosen:** WASM Node.js docs — a user-facing gap on the npm registry page, 2 files, no behaviour
-    decision, and the handoff's pick.
-- **Rejected:** vcpkg portfile hashes — also user-facing, but it needs a `release.yml` step plus a
-    gate. It is a good next pick. `alg_minhash_256([])` and WASM `finalize()` need a behaviour
-    decision first.
+- **Chosen:** lockfile + `npm ci`. Red CI comes first, and an external-flake red still gets
+    hardened. The spec already says `npm ci`. Locking also closes a supply-chain hole:
+    `napi-publish` installs an unlocked tree while it holds an OIDC token.
+- **Rejected:** vcpkg portfile hashes (`normal`, the handoff's Next). They are the next user-facing
+    step, but they come after CI is green and protected. Also rejected: a `min-release-age`
+    `.npmrc`. It needs npm >= 11.10, and Node 22 ships npm 10.9, which ignores the key without a
+    word.
 
 ## Scope
 
-- **Create**: `tests/test_wasm_docs.py`
-- **Modify**: `docs/howto/wasm.md`, `crates/iscc-wasm/README.md`, `.github/workflows/release.yml`
-    (only the `test-wasm` smoke script)
-- **Reference**: `.github/workflows/release.yml` (`build-wasm` around :427, `test-wasm`),
-    `crates/iscc-wasm/src/lib.rs` (`WasmSumCodeResult`, `SumHasher`, crate-root exports),
-    `tests/test_ruby_gem_docs.py` (pattern for a docs-claim test)
+- **Create**: `crates/iscc-napi/package-lock.json` (generated, not counted),
+    `tests/test_version_sync.py`
+- **Modify**: `crates/iscc-napi/.gitignore`, `.github/workflows/ci.yml` (`nodejs` job),
+    `.github/workflows/release.yml` (the two `npm install` steps in `crates/iscc-napi`, lines ~325
+    and ~382), `scripts/version_sync.py`, `.claude/context/specs/ci-cd.md` (line 26 table row),
+    `crates/iscc-napi/CLAUDE.md` (only if it describes the install step)
+- **Reference**: `.claude/context/specs/nodejs-bindings.md` → "CI Integration",
+    `scripts/check_ci_job_table.py` (the gate that parses the ci-cd.md table)
 
 ## Not In Scope
 
-- Changing the build target, adding a second `--target nodejs` npm package, or adding an `exports`
-    map to the package.json in `build-wasm`.
-- The `low` WASM issues (byte conversion, serde getter unwinding) and the `normal` hasher
-    `finalize()` rule: leave the `wasm.md` streaming and error-handling text as it is.
-- `crates/iscc-wasm/CLAUDE.md`: its `--target nodejs` lines describe local dev builds and stay.
+- Bumping `@napi-rs/cli` or any other dependency. Lock what `^3` resolves to today
+- Adding Dependabot, a `packageManager` field, `setup-node` caching, or `--ignore-scripts`. No
+    locked package has an install script today
+- Any `@iscc/wasm` npm step (`release.yml` ~432-501 uses no `npm install`) and
+    `scripts/test_install.py` (it installs the published packages into scratch projects)
+- The napi README result-type sentence (`normal`). That is its own docs step
 
 ## Implementation Notes
 
-- Facts: `release.yml` builds with `wasm-pack build --target web --release`. The published 0.7.0
-    `package.json` (`npm view @iscc/wasm@0.7.0 --json`) has `main: iscc_wasm.js`, `type: module`,
-    and no `exports`, so `import … from "@iscc/wasm"` resolves in Node, and so does the subpath
-    `@iscc/wasm/iscc_wasm_bg.wasm`. Called with no argument, `init()` builds
-    `new URL('iscc_wasm_bg.wasm', import.meta.url)` and `fetch`es it, and Node's `fetch` rejects
-    `file:` URLs.
-- wasm-bindgen (0.2.126 in Cargo.lock) takes one options object: `init({ module_or_path })` and
-    `initSync({ module })`. A positional argument still works but logs
-    `using deprecated parameters for the initialization function; pass a single object instead`. The
-    `test-wasm` smoke script calls `init(wasmBytes)` positionally: switch it to the object form.
-    Source: https://github.com/wasm-bindgen/wasm-bindgen/blob/main/crates/cli-support/src/js/mod.rs
-- The Node example to probe and then document (hypothesis, adjust to what the probe shows):
-    `import { readFileSync } from "node:fs";` `import { createRequire } from "node:module";`, then
-    `initSync({ module: readFileSync(createRequire(import.meta.url).resolve("@iscc/wasm/iscc_wasm_bg.wasm")) })`.
-    An `import.meta.resolve` variant is fine if it runs on Node 22.
-- **Probe (required, evidence in the handoff):** build as `build-wasm` does (`RUSTFLAGS` simd128,
-    `--target web --release --features conformance`). Set `name` to `@iscc/wasm` in a COPY of `pkg/`
-    and `npm pack` it. `npm install` the tarball into a fresh `/tmp` project, and run the Node
-    snippets from both pages verbatim as `.mjs` files. They must print a code and log no deprecation
-    warning. Clean up `/tmp` and leave `crates/iscc-wasm/pkg/` untracked as it is.
-- `wasm.md` → Setup: the published package is one web-target build. Bundler: keep `await init()` and
-    drop "Most bundlers handle WASM initialization automatically". Browser: it can serve the
-    installed package, so drop "build with `--target web`". Node: the probed snippet. Keep the
-    "Prefer @iscc/lib" tip.
-- `wasm.md:82` and README "All code generators return ISCC strings directly": 9 return a string,
-    `gen_sum_code_v0` returns a `WasmSumCodeResult` (`iscc`, `datahash`, `filesize`, plus `units`
-    when asked; read the fields from `lib.rs`). README Streaming line: add `SumHasher`. While in
-    that list, fill the Codec/Encoding lines from the crate-root exports in `lib.rs`.
-- Replace README "Both browser and Node.js targets are supported." with a Node quick-start line or
-    block (the same snippet). Run `git grep -n -- '--target nodejs'` and
-    `git grep -n 'Both browser and Node'` repo-wide: no user-facing page (`docs/`, READMEs) may keep
-    the claim. `notes/` and `crates/iscc-wasm/CLAUDE.md` are exempt.
-- `tests/test_wasm_docs.py` (plain pytest functions): neither page contains `--target nodejs` or
-    "Both browser and Node.js targets"; the `wasm.md` Node section and the README use `initSync(` or
-    `init({`; both pages name `WasmSumCodeResult`; the `test-wasm` script in `release.yml` uses no
-    positional `init(wasmBytes)`. Read `release.yml` with PyYAML, as other tests do.
-- Docs/workflow-only step: no Rust change, so no CRAP, iai or semver effect.
+- Generate the lock **fresh**: `rm -rf node_modules package-lock.json && npm install` in
+    `crates/iscc-napi`. A lock written over an existing `node_modules` can drop other platforms'
+    optional packages (npm/cli#4828). The local stale lock (root version 0.6.0, @napi-rs/cli 3.5.1)
+    has 46 `os`/`cpu` packages. The fresh lock must also carry darwin and win32 entries, because
+    `build-napi` runs `npm ci` on macOS and Windows, where no CI run exercises it.
+- Remove the `package-lock.json` line from `crates/iscc-napi/.gitignore` and keep `node_modules/`.
+- The lock repeats the package version twice: top-level `version` and `packages[""].version`.
+    Register the lock as a `TARGETS` entry in `scripts/version_sync.py` (21 → 22). Use a get/sync
+    helper pair that reads and writes **both** fields; check fails if either one differs. Keep
+    `json.dumps(indent=2)` + trailing newline, which is the byte format npm writes; confirm the sync
+    leaves the file byte-identical when the versions already match. Update the module docstring
+    list. `tests/test_version_sync.py` loads the script by path (pattern:
+    `tests/test_check_ci_job_table.py`) and covers: sync rewrites both fields, get reports a
+    mismatch if only one field is stale, and the real tree passes check.
+- `setup-node@v7` turns caching on only when `package.json` has a `packageManager` /
+    `devEngines.packageManager` field. A lockfile does not trigger it, so leave the `setup-node`
+    steps alone (https://github.com/actions/setup-node/blob/v7/README.md).
+- `npm publish` never packs `package-lock.json`, so the published tarball does not change.
+- Update the `nodejs` row in `specs/ci-cd.md` to `npm ci`. Then run `git grep -n 'npm install'` over
+    the workflows, specs and the napi `CLAUDE.md` for any other claim about the napi install.
 
 ## Verification
 
-- The handoff carries the probe: `npm pack` of the web release build, installed in a scratch
-    project, runs both pages' Node snippets and prints an ISCC code with no deprecation warning
-- `uv run pytest tests/test_wasm_docs.py tests/test_check_docs_nav.py tests/test_check_tier1_docs.py`
+- `git ls-files crates/iscc-napi/package-lock.json` prints the path, and
+    `grep -c package-lock crates/iscc-napi/.gitignore` prints `0`
+- `grep -nE 'run: npm install' .github/workflows/ci.yml .github/workflows/release.yml` prints
+    nothing
+- In `crates/iscc-napi`: `rm -rf node_modules && npm ci && npx napi build --platform && npm test`
+    exits 0, and afterwards `git status --porcelain crates/iscc-napi` prints nothing
+- `python3 -c` over the lock finds at least one package with `"os"` containing `darwin` and one with
+    `win32`
+- `mise run version:check` exits 0, and
+    `uv run pytest tests/test_version_sync.py tests/test_check_ci_job_table.py tests/test_check_release_workflow.py`
     passes
-- `git grep -nE -- '--target nodejs|Both browser and Node' -- docs README.md crates/iscc-wasm/README.md`
-    prints nothing
-- `grep -c WasmSumCodeResult crates/iscc-wasm/README.md` is at least 1
-- `uv run zensical build` exits 0
-- `mise run check` exits 0 (includes the release-workflow static check)
+- `mise run check` exits 0
 
 ## Done When
 
-All six verification criteria pass, and the Node snippet on both pages has been run against a packed
-`--target web` release build.
+All six verification criteria pass: napi dependencies install only from the committed,
+version-synced lockfile, in CI and in both release jobs.
