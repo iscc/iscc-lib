@@ -128,11 +128,18 @@ def convert_chunks(result):
     return [f"bytes:{chunk.hex()}" for chunk in result]
 
 
+def prepare_encode_component(inputs):
+    """Decode the `encode_component` digest (the last input) from `bytes:<hex>` into bytes."""
+    *header, digest = inputs
+    return [*header, decode_bytes(digest)]
+
+
 # Section name -> preparer of the raw JSON inputs into call arguments. Sections not
 # listed are called with the raw JSON inputs; `bytes:` strings are decoded only here.
 PREPARERS = {
     "alg_simhash": prepare_alg_simhash,
     "alg_cdc_chunks": prepare_alg_cdc_chunks,
+    "encode_component": prepare_encode_component,
 }
 
 
@@ -156,6 +163,7 @@ CONVERTERS = {
     "gen_meta_code_v0": dict,
     "gen_video_code_v0": dict,
     "alg_cdc_chunks": convert_chunks,
+    "encode_component": str,
 }
 
 
