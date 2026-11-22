@@ -49,6 +49,7 @@ var edgeSections = map[string]edgeCaller{
 	"gen_meta_code_v0":  edgeCallMeta,
 	"gen_video_code_v0": edgeCallVideo,
 	"alg_cdc_chunks":    edgeCallCdc,
+	"encode_component":  edgeCallEncodeComponent,
 }
 
 // loadEdgeDoc reads and parses the vendored data-edge.json.
@@ -295,6 +296,30 @@ func edgeCallCdc(inputs []json.RawMessage) (edgeCall, error) {
 		}
 		return values
 	}
+	return edgeCall{call, convert}, nil
+}
+
+// edgeCallEncodeComponent prepares EncodeComponent on the vector's header fields,
+// bit length and digest.
+func edgeCallEncodeComponent(inputs []json.RawMessage) (edgeCall, error) {
+	var header [3]uint8
+	var bitLength uint32
+	for i := range header {
+		if err := edgeArg(inputs, i, &header[i]); err != nil {
+			return edgeCall{}, err
+		}
+	}
+	if err := edgeArg(inputs, 3, &bitLength); err != nil {
+		return edgeCall{}, err
+	}
+	digest, err := edgeByteArg(inputs, 4)
+	if err != nil {
+		return edgeCall{}, err
+	}
+	call := func() (any, error) {
+		return EncodeComponent(header[0], header[1], header[2], bitLength, digest)
+	}
+	convert := func(r any) any { return r.(string) }
 	return edgeCall{call, convert}, nil
 }
 
