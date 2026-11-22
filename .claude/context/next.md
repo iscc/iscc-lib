@@ -1,89 +1,107 @@
 # Next Work Package
 
-## Step: `version:check` checks every version occurrence and fails on a vanished target
+## Step: Go `EncodeComponent` rejects a digest shorter than `bit_length/8`
 
 ## Goal
 
-Pick up the `normal` [audit] issue "`version:check` passes a stale second doc snippet and skips a
-vanished target silently": `scripts/version_sync.py` must see every version occurrence it would
-rewrite, and must report a missing target file or an unmatched pattern instead of skipping it. It is
-the only open `normal` issue that needs no decision from Titusz, and `version-check` is the sole CI
-guard over the 22 version references a release ships.
+Picks up the `normal` [audit] issue "Go `EncodeComponent` truncates a short digest where every
+Rust-backed surface raises". Go's public `EncodeComponent` returns an `iscc:` error for a short
+digest, as the Rust core's Tier 1 `encode_component` does. The rule goes into decisions.md, so the
+next step can pin it with a 12-surface `encode_component` vector in `data-edge.json`.
 
 ## Alternatives Considered
 
-- **Chosen:** harden `version_sync.py` — one script plus tests, fully verifiable locally, unblocks
-    one of the four release-blocking `normal` issues.
-- **Rejected:** Go `EncodeComponent` short-digest rule — it changes Go port behaviour *and* adds a
-    `data-edge.json` section (an unsplittable 12-surface fan-out); core changes go first and alone,
-    and the rule still has to be recorded. The other two `normal` issues (`alg_minhash_256([])`,
-    WASM `finalize()`) need Titusz's behaviour decision.
+- **Chosen:** the Go behaviour change plus the recorded rule, Go only. A change to the Go port goes
+    first and alone, and the shared vector cannot pass on Go until this lands.
+- **Rejected:** Go fix and `data-edge.json` section in one step. That combines a port behaviour
+    change with a 12-surface fan-out, which the sizing rules forbid. Also rejected: making the gen
+    functions reject `bits` beyond their digest. That is a separate behaviour, shared with iscc-core
+    (see Implementation Notes), and is not ours to decide here.
 
 ## Scope
 
-- **Modify**: `scripts/version_sync.py`
-- **Modify (tests)**: `tests/test_version_sync.py`
-- **Reference**: `.github/workflows/ci.yml` (`version-check` job runs
-    `python scripts/version_sync.py --check`), `mise.toml` (`version:sync` / `version:check` tasks)
+- **Modify**: `packages/go/codec.go`: the rule lives here (the only file whose behaviour changes).
+- **Modify** (one-call swap, no behaviour change): `packages/go/code_content_audio.go`,
+    `code_content_image.go`, `code_content_mixed.go`, `code_content_text.go`,
+    `code_content_video.go`, `code_data.go`, `code_instance.go`, `code_meta.go` (2 call sites).
+    Decision 2026-11-20 counts toward the cap only files whose behaviour changes, so this is 1
+    behaviour file. Review confirms the 8 swaps are neutral from the diff and the probe below.
+- **Modify**: `.claude/context/decisions.md`: append the rule.
+- **Tests**: `packages/go/codec_test.go`.
+- **Reference**: `crates/iscc-lib/src/lib.rs` (`encode_component`, ~lines 202-230; test near 2155),
+    `crates/iscc-lib/src/codec.rs:542-564` (Tier 2 `codec::encode_component`, which clamps),
+    `reference/iscc-core/iscc_core/codec.py:43-45`.
 
 ## Not In Scope
 
-- The partial file lists in `docs/development.md` and `.claude/skills/release/SKILL.md` (a separate
-    `low` issue) — do not edit either.
-- Adding new sync targets or new snippet kinds (napi/npm install lines etc.); `TARGETS` keeps its 22
-    entries.
-- Rewording the docs snippets themselves; every target is at 0.7.0 today and must stay so.
+- The `encode_component` section in `data-edge.json` and its 12 harnesses. That is the next step (a
+    fan-out). Do not touch `data-edge.json` or any vendored copy.
+- Changing what any `Gen*` function returns for `bits` above its digest length (e.g. 512). Every
+    surface and iscc-core agree there today. Go must keep matching them.
+- Rust core changes. The core already rejects short digests (`lib.rs`), and `codec.rs` keeps
+    clamping for internal callers.
+- Changing the order of the existing MainType/SubType/Version checks in `EncodeComponent`.
 
 ## Implementation Notes
 
-**Probe done while scoping (read-only):** every one of the 22 targets exists and its getter finds a
-version today, so strict "missing / not found = failure" breaks nothing on the real tree. Multi-site
-files today: `README.md` (Maven, Gradle, SPM), `docs/index.md` (Maven, Gradle, 2× SPM),
-`docs/java-api.md` (Maven, Gradle), `mise.toml` (`--version 0.7.0` on lines 111 and 113, getter
-reads the first only) and `scripts/test_install.py` (fallback `version or "0.7.0"` plus docstring
-`--version 0.7.0`; getter reads the fallback only).
+Mirror the Rust split exactly:
 
-**Finish the pattern** (the "getter reads one site, sync rewrites all" defect is not doc-only):
-every getter must report each occurrence its sync function rewrites. Suggested contract: a getter
-returns a list of every version string it finds (empty list = pattern not found). Single-site
-getters return `[v]` or `[]`; the package-lock getter can return `[top, root]` (drop its
-`MISMATCH(...)` string); `_get_doc_dep_version` returns all Maven + Gradle + SPM matches; mise and
-test_install return all matches of the patterns their sync functions rewrite. A different shape is
-fine if every multi-site getter covers every site.
+- Rust Tier 1 `encode_component` (lib.rs) = enum validation + the digest-length check, then
+    `codec::encode_component`.
+- `codec::encode_component` (codec.rs) = the ISCC MainType rejection + length/header encoding +
+    `&digest[..nbytes.min(digest.len())]` (clamps). The Rust gen functions and decompose call this
+    one.
 
-`check_mode`:
+In Go:
 
-- file missing → print `MISMATCH: <path> missing` (or similar) and fail;
-- getter finds nothing → print a `MISMATCH: <path> pattern not found` line and fail;
-- any found version ≠ workspace version → `MISMATCH` line naming the found versions, fail;
-- otherwise `OK: <path> = <version>` (keep this exact prefix — `test_real_tree_passes_check` greps
-    `OK: crates/iscc-napi/package-lock.json`).
+1. Move today's clamping body (MTIscc rejection, `encodeLength`, `encodeHeader`, clamped append)
+    into `encodeComponentInternal` (typed `MainType`/`SubType`/`Version`). Keep it clamping, and
+    keep its doc comment true.
+2. `EncodeComponent` keeps its MainType/SubType/Version validation. Then it rejects
+    `len(digest) < int(bitLength/8)` with
+    `fmt.Errorf("iscc: digest length %d < bit_length/8 (%d)", len(digest), bitLength/8)` (same
+    wording as Rust), then calls `encodeComponentInternal`. Update its doc comment to state the
+    short-digest error.
+3. Every `Gen*` call site (the 9 calls in the 8 files above) switches from
+    `EncodeComponent(uint8(MTx), uint8(STy), uint8(VSV0), bits, d)` to
+    `encodeComponentInternal(MTx, STy, VSV0, bits, d)`. This matches Rust, where the gen functions
+    use `codec::encode_component`, and it gives the surface one form, not two. The decompose call
+    sites in `codec.go` already use the internal helper.
 
-`sync_mode`: rewrite when **any** occurrence differs; a missing file or unmatched pattern must not
-be skipped silently — print it and make `main()` exit 1 (a release sync that drops a target is the
-same defect). Keep the byte-identical no-op on a current file.
+Measured while scoping. On the Python binding (Rust-backed) and on iscc-core 1.5.0,
+`gen_data_code_v0(b"abc", 512)` returns
+`ISCC:GAEHA6W7RKLGNVVVKKJZC3YRAK357XX6X7HKIOLPOBY7BC5QBONX2BKZ` and `gen_text_code_v0("hello", 512)`
+returns `ISCC:EAEHA2J6QMX4ZG2CUO7YPWBB4MECFBWWVJDPMQLTDS4CDX62B55UGXO4`. Both have a 512-bit header
+over a 32-byte body. Go must still return exactly these after the change. Do not commit a test that
+pins this output: the behaviour has not been chosen. Run it as a temporary probe, delete it, and
+paste the output into the handoff. Name it in the handoff as a finding for review to file (gen
+`bits` above 256 gives a header that claims more bits than the body on every surface and in
+iscc-core). iscc-core `encode_component(0,0,0,64,b"\x01\x02\x03\x04")` returns `AAAQCAQDAQ` (it
+slices). The decision must say that Rust and Go diverge from it here on purpose.
 
-Tests: make `check_mode`/`sync_mode` testable on synthetic trees by monkeypatching `vs.ROOT` (to
-`tmp_path`) and `vs.TARGETS` (pytest `monkeypatch.setattr`), or by giving both functions optional
-`root`/`targets` parameters — pick one. One bad case per test (learnings: one bad case per call).
-Update the module docstring of the test file (it says "napi lockfile" only). Python only: no
-CRAP/iai impact.
+**Decision entry** (`## 2026-11-22 — encode_component rejects a digest shorter than bit_length/8`):
+the Tier 1 `encode_component` raises on every surface, where iscc-core slices. Why: a header that
+claims more bits than the body has is a malformed unit, and eleven surfaces already raise. Gen
+functions keep the reference's behaviour: the internal encode path clamps. A shared vector follows
+in the next step.
+
+Tests (codec_test.go): a short digest (4 bytes, 64 bits) returns an error that contains
+`digest length`. A zero-length digest with 32 bits is rejected. An exact-length digest still encodes
+(an existing test may already cover this). One bad case per call. This is a Go-only step, so the
+Rust CRAP and iai gates are untouched.
 
 ## Verification
 
-- `uv run pytest tests/test_version_sync.py` passes, including new tests that each assert
-    `check_mode` returns False for exactly one of: (a) a doc with one current and one stale snippet
-    (e.g. Maven current, SPM stale), (b) a target file that does not exist, (c) a target file whose
-    getter finds no version, (d) `mise.toml`-style text with a stale second `--version`
-- A test asserts `sync_mode` on a synthetic doc with a current first and a stale second snippet
-    rewrites the stale one (reading the file back shows only the workspace version)
-- `python scripts/version_sync.py --check` exits 0 on the real tree and prints 22 lines starting
-    with `OK:`
-- `uv run ruff check scripts/version_sync.py tests/test_version_sync.py` and
-    `uv run ty check scripts/version_sync.py` exit 0
+- `cd packages/go && go test ./...` passes, including the new short-digest tests
+- `cd packages/go && go vet ./...` clean and `CGO_ENABLED=0 GOARCH=386 go test ./...` passes
+- `grep -n "EncodeComponent(" packages/go/*.go | grep -v _test.go` prints only the definition and
+    doc-comment lines in `codec.go` (no gen call site uses the public function)
+- The handoff shows the probe output: Go `GenDataCodeV0([]byte("abc"), 512)` and
+    `GenTextCodeV0("hello", 512)` equal the two codes above
+- `grep -n "encode_component rejects a digest shorter" .claude/context/decisions.md` matches
 - `mise run check` exits 0
 
 ## Done When
 
-All verification criteria pass and `version:check` fails on any stale occurrence, missing target or
-unmatched pattern, each pinned by a test.
+Go's public `EncodeComponent` rejects a short digest with an `iscc:` error, the Go gen paths still
+clamp (output unchanged), the rule is in decisions.md, and every check above passes.
