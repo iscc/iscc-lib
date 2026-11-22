@@ -721,8 +721,9 @@ hash = IsccLib.soft_hash_video_v0(frame_sigs, 256)
 Streaming hashers process large data incrementally without loading the entire content into memory.
 Each hasher follows the lifecycle: `new` → `update` (repeated) → `finalize`.
 
-Both hashers are single-use: after calling `finalize`, subsequent calls to `update` or `finalize`
-raise `RuntimeError`. The `update` method returns `self` for method chaining.
+Both hashers are single-use: the first `finalize` call consumes the hasher, even when it fails (for
+example on an invalid `bits` value). After that, subsequent calls to `update` or `finalize` raise
+`RuntimeError`. The `update` method returns `self` for method chaining.
 
 ### DataHasher
 

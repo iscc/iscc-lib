@@ -325,7 +325,8 @@ puts result.datahash # Multihash of the complete data
 puts result.filesize # Total bytes processed
 ```
 
-Both hashers are single-use: after calling `finalize`, further calls to `update` or `finalize` raise
+Both hashers are single-use: the first `finalize` call consumes the hasher, even when it fails (for
+example on an invalid `bits` value). After that, further calls to `update` or `finalize` raise
 `RuntimeError`.
 
 ## Codec and diagnostics

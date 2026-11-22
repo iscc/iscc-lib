@@ -19,7 +19,7 @@
 //!   IO_READ_SIZE, TEXT_NGRAM_SIZE
 
 use magnus::{
-    Error, Integer, RArray, RHash, RString, Ruby, TryConvert, function, method, prelude::*,
+    Error, Integer, RArray, RHash, RString, Ruby, TryConvert, Value, function, method, prelude::*,
     try_convert::TryConvertOwned,
 };
 use std::cell::RefCell;
@@ -517,7 +517,11 @@ impl RbDataHasher {
     ///
     /// Returns an `RHash` with key `"iscc"`. Raises `RuntimeError` if
     /// called more than once.
-    fn finalize(&self, bits: u32) -> Result<RHash, Error> {
+    ///
+    /// `bits` is converted (Ruby's implicit `to_int`) only after the inner
+    /// hasher is taken, so the first call consumes the hasher even when it
+    /// raises on its argument.
+    fn finalize(&self, bits: Value) -> Result<RHash, Error> {
         let ruby = Ruby::get().expect("called from Ruby");
         let hasher = self.inner.borrow_mut().take().ok_or_else(|| {
             Error::new(
@@ -525,6 +529,7 @@ impl RbDataHasher {
                 "DataHasher already finalized",
             )
         })?;
+        let bits = u32::try_convert(bits)?;
         let r = hasher.finalize(bits).map_err(to_magnus_err)?;
         let hash = ruby.hash_new();
         hash.aset("iscc", r.iscc)?;
@@ -572,7 +577,11 @@ impl RbInstanceHasher {
     ///
     /// Returns an `RHash` with keys `"iscc"`, `"datahash"`, `"filesize"`.
     /// Raises `RuntimeError` if called more than once.
-    fn finalize(&self, bits: u32) -> Result<RHash, Error> {
+    ///
+    /// `bits` is converted (Ruby's implicit `to_int`) only after the inner
+    /// hasher is taken, so the first call consumes the hasher even when it
+    /// raises on its argument.
+    fn finalize(&self, bits: Value) -> Result<RHash, Error> {
         let ruby = Ruby::get().expect("called from Ruby");
         let hasher = self.inner.borrow_mut().take().ok_or_else(|| {
             Error::new(
@@ -580,6 +589,7 @@ impl RbInstanceHasher {
                 "InstanceHasher already finalized",
             )
         })?;
+        let bits = u32::try_convert(bits)?;
         let r = hasher.finalize(bits).map_err(to_magnus_err)?;
         let hash = ruby.hash_new();
         hash.aset("iscc", r.iscc)?;
