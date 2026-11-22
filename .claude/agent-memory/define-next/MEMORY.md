@@ -3,13 +3,13 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 305):** 304 PASS. 305 = Conan SHA256 (extend `update_vcpkg_hashes.py` to
-also write `packages/cpp/conandata.yml`; no rename — decision 2026-11-22 names the script path).
-Remaining `normal`: Rust conformance dedup, spec/doc drift (9 files → split specs/docs). conan 2.34
-runs via `uv run --no-project --with conan` (e2e `conan create` locally possible). **An error row
-must be probed on the last release (`--with iscc-lib==0.7.0`) to prove it pins a rule.** After them
-v0.8.0 is release-ready (human cuts). **Renaming a script a decision names leaves the decision stale
-— extend it instead.** **C edge generator's `meta_text` rejects `null` meta — use an object.** **A
+**Status 2026-11-22 (iter 306):** 305 PASS (Conan SHA256). 306 = Rust conformance section table +
+WASM strict shared readers (`tests/common/mod.rs`; CI clippy `--all-targets` sees wasm tests on host
+→ dead_code). Remaining `normal`: spec/doc drift (9 files → split specs/docs). conan 2.34 runs via
+`uv run --no-project --with conan` (e2e `conan create` locally possible). **An error row must be
+probed on the last release (`--with iscc-lib==0.7.0`) to prove it pins a rule.** After them v0.8.0
+is release-ready (human cuts). **Renaming a script a decision names leaves the decision stale —
+extend it instead.** **C edge generator's `meta_text` rejects `null` meta — use an object.** **A
 Go-behaviour step is 'core-like': keep vector rows that need all 12 harnesses out of it.** **A Tier
 2 signature change is an `API-BREAK` stop for advance — route around it.** **An issue's list of
 pinning tests can under-count (298: `tests/test_algo.py` was a 6th `0xFF` pin) — grep yourself.**

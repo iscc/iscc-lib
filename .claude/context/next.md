@@ -1,108 +1,111 @@
 # Next Work Package
 
-## Step: Conan recipe verifies the SHA256 of the FFI archive it downloads
+## Step: One section table drives Rust conformance; WASM conformance uses strict shared readers
 
 ## Goal
 
-Picks up the `[audit]` issue "Conan recipe downloads the FFI archive without a checksum": the recipe
-passes a pinned SHA256 to `download()`, `prepare-release` writes those hashes from the `build-ffi`
-archives in the same pass as the vcpkg SHA512s, and tests tie the recipe's target table to the
-`build-ffi` matrix. It is one of three `normal` issues that block v0.8.0.
+Picks up the `[audit]` issue "Rust conformance runs each `data.json` section up to three times and
+lists the sections by hand in three places". One table in `conformance.rs` becomes the only section
+list, so a section without a runner fails a test. The WASM conformance tests read vectors through
+the strict readers the data-edge harness already uses, with no silent casts.
 
 ## Alternatives Considered
 
-- **Chosen:** Conan checksum — it has a security impact (unverified native binary on a user's
-    machine), it is small (3 non-test files plus one generated data file), and the handoff ranks it
-    first.
-- **Rejected:** Rust conformance runner deduplication — test-only cleanup with no user impact; next.
-- **Rejected:** a separate `scripts/update_conan_hashes.py` — it would duplicate the archive lookup,
-    the missing-archive and `--check` logic of the vcpkg script. A rename to a neutral name would
-    leave the decision of 2026-11-22 (which names `scripts/update_vcpkg_hashes.py`) pointing at a
-    missing file, so the existing script is extended under its current name.
+- **Chosen:** the conformance runner issue. The handoff names it first, it touches 2 non-test files,
+    and the test-only WASM part does not count toward the cap.
+- **Rejected:** the spec/API-doc drift issue. It is 9 files and needs an audit-scope or a specs/docs
+    split. It blocks v0.8.0 too, so it comes next, with nothing lost by waiting.
 
 ## Scope
 
-- **Create**: `packages/cpp/conandata.yml` (data the script writes; Conan exports and loads it as
-    `self.conan_data` on its own)
-- **Modify**: `packages/cpp/conanfile.py`, `scripts/update_vcpkg_hashes.py`,
-    `.github/workflows/release.yml` (the "Commit release checksums" `git add` adds
-    `packages/cpp/conandata.yml`; rename the hash step to say vcpkg and Conan)
-- **Modify (tests)**: `tests/test_update_vcpkg_hashes.py`
-- **Modify (docs)**: `packages/cpp/CLAUDE.md` (Publishing → add Conan; Pitfalls → "never edit the
-    hashes by hand" covers `conandata.yml`; a new platform also needs a `_target_triple` entry),
-    `.claude/context/specs/cpp-bindings.md` → Distribution, the Conan line
-- **Reference**: `tests/test_ffi_release_assets.py` (workflow-reading test helpers),
-    `scripts/version_sync.py` (`_sync_conanfile`, must keep working)
+- **Create**: `crates/iscc-wasm/tests/common/mod.rs` (test file)
+- **Modify**: `crates/iscc-lib/src/conformance.rs`, `crates/iscc-lib/src/lib.rs` (test module only);
+    test files `crates/iscc-wasm/tests/conformance.rs` and `crates/iscc-wasm/tests/data_edge.rs`
+- **Reference**: `crates/iscc-lib/tests/data.json`, decision 2026-11-22 "A wrong-type or
+    out-of-range vector value makes a conformance case unparsable"
+
+Rule invoked: default (2 non-test files; the 3 WASM test files are tests).
 
 ## Not In Scope
 
-- The Rust conformance duplication issue and the spec/API-doc drift issue (their own steps)
-- The vcpkg post-build check `low` issue, any ConanCenter submission, `conan` as a dev dependency
-- Moving the os/arch → triple/lib-name table out of `conanfile.py` into YAML; changing the vcpkg
-    hash logic or the portfile beyond what sharing the archive pass requires
-- Editing decisions.md (the decision still holds: the script still writes the vcpkg hashes)
+- The meta/text/mixed/instance `*_conformance` loops in `lib.rs`. They check extra output fields, so
+    keep them, hard-coded counts included.
+- Any change to what `conformance_selftest` checks or reports, or to its public signature. It is a
+    Tier 1 symbol, and a signature change is an `API-BREAK` stop.
+- The data-edge runners of other surfaces, `crates/iscc-lib/tests/*.rs`, and other bindings'
+    conformance harnesses.
+- The spec/doc drift issue.
 
 ## Implementation Notes
 
-- **Layout** of `conandata.yml`, keyed by target triple only (no version key, so `version_sync.py`
-    stays untouched; between a version bump and the release the hashes are stale, exactly as the
-    portfile's are):
+**`conformance.rs`:**
 
-    ```text
-    # Written by scripts/update_vcpkg_hashes.py in prepare-release. Do not edit.
-    sha256:
-      aarch64-apple-darwin: <64 hex>
-      ...
-    ```
+- Add one `const` table of sections, e.g. `&[(&str, fn(&Value) -> bool)]`, or a small struct if
+    `probe` also needs a parse check per section. Put `#[cfg(feature = "meta-code")]` /
+    `#[cfg(feature = "text-processing")]` on the meta/text elements; cfg on array-literal elements
+    works on stable. Give each runner its section name in one place only: the table entry or the
+    runner, not both. Today every `run_*_tests` repeats the string.
+- `conformance_selftest` keeps `test_data()` + `check_sections()`, then runs every table entry. Do
+    not stop at the first failure: every runner must still run and print its failures.
+- `probe()` (test module) looks sections up in the same table, not in its own `match`. Its `parsed`
+    flag needs a per-section parse check: either a third field in the table, or a small test-only
+    table of input parsers next to `probe`. Pick whichever keeps the table the only list of section
+    names. Today `probe` has no instance entry; it does not need one.
+- Delete `test_gen_sections_run`. In `test_seq_sections_run`, keep the two count asserts or remove
+    the test; `test_conformance_selftest_passes` already runs the seq runners.
+- Add a test under `#[cfg(feature = "meta-code")]` (meta-code enables text-processing): the table's
+    section names equal the `data.json` keys minus `_metadata`, compared as sets, with a length
+    check so a duplicate row fails. This is the guard the issue says is missing.
+- Keep the existing failure-arm tests (`test_gen_section_failure_arms_fail` etc.) passing. They call
+    runners directly, and that is fine.
 
-    The script stays stdlib-only (`python3` on the macOS runner, no PyYAML): it renders the whole file
-    from the portfile's target list (sorted triples), it never parses YAML on write. `--check`
-    compares the rendered text with the file on disk and names each stale target. The file must be
-    byte-stable under the prek hooks (`yamlfix`, `check-yaml`, end-of-file): generate, run
-    `mise run format`, and make the renderer emit exactly what the hooks leave.
+**`lib.rs` test module:** delete `test_gen_image_code_v0_conformance`, `..._audio_...`,
+`..._video_...`, `..._data_...` and `..._iscc_code_v0_conformance`. Keep the other tests that read
+`conformance::cases` (e.g. `test_soft_hash_image_v0_256_quadrant_layout`). Any `conformance::`
+helper left without a caller can lose its `pub(crate)` or be deleted, as long as clippy stays clean
+in all 3 CI feature sets.
 
-- One pass: compute SHA512 and SHA256 per archive; the missing-archive check stays shared, so a
-    missing archive still writes neither file. Add a `--conandata` path option (default
-    `packages/cpp/conandata.yml`) next to `--portfile`/`--manifest`; update the module docstring.
+**WASM tests:**
 
-- **Recipe**: `download(self, url, archive_path, sha256=self.conan_data["sha256"][target])`
-    (`conan/tools/files/files.py` in conan 2.34:
-    `download(conanfile, url, filename, …, sha256=None)` and `conandata.yml` next to the recipe is
-    exported and loaded by `conan/internal/api/export.py`). Never let `sha256=None` reach
-    `download()` — that disables the check; a missing target must raise `ConanInvalidConfiguration`
-    naming it. Fix the docstring ("Mirrors … portfile.cmake").
+- Move the strict readers in `data_edge.rs` (`str_arg`, `str_list_arg`, `bytes_item`, `u32_arg`,
+    `frames_arg`, `u32_list_arg`, …) into `tests/common/mod.rs`. Declare `mod common;` in both
+    files, and use the readers in both. If one file leaves a helper unused, rustc warns and CI
+    clippy runs `--all-targets -- -D warnings` on the host, so handle that: put
+    `#[allow(dead_code)]` on the `mod common;` declaration, or keep the helper in the file that uses
+    it.
+- `conformance.rs` needs readers that `data_edge.rs` lacks: a `stream:<hex>` reader (an empty hex is
+    valid), a `u8` pixel list (from `serde_json::from_value::<Vec<u8>>`, or `u8::try_from(as_u64)`),
+    and a meta reader that maps `null` to `None`. The data-edge `meta_arg` rejects `null` on
+    purpose, so keep that one as it is. Remove every `as u8` / `as i32` / `as u32` cast on vector
+    values. A value out of range must fail the test, not be truncated.
+- Replace each hard-coded `assert_eq!(tested, N)` with the section's case count read from
+    `data.json`, plus a floor (`> 0`) so an empty section fails.
+- `cargo test -p iscc-wasm` runs none of these tests. Only `wasm-pack test --node` does (in `$PATH`
+    here).
 
-- **Initial hashes**: fill the file from the published v0.7.0 archives (recipe version is 0.7.0):
-    `gh release download v0.7.0 -R iscc/iscc-lib -p 'iscc-ffi-v0.7.0-*' -D /tmp/ffi070`, then
-    `python3 scripts/update_vcpkg_hashes.py /tmp/ffi070`. The portfile must come out unchanged (its
-    SHA512s are already the 0.7.0 ones); if not, stop and report rather than commit portfile edits.
-
-- **Tests** (stdlib `ast`/`yaml`, no `conan` import): the script writes a SHA256 per target and
-    `--check` fails naming a stale Conan hash (one stale case per call); the `conandata.yml` keys
-    and the triples in `_target_triple` each equal the `build-ffi` matrix targets (read the recipe
-    with `ast`); the recipe's `download(...)` call passes a `sha256=` keyword; the release commit
-    step stages `packages/cpp/conandata.yml`, after the hash step and before the tag.
-
-- End-to-end, with a throwaway `CONAN_HOME` (network is fine outside the test suite):
-    `CONAN_HOME=/tmp/conanhome uv run --no-project --with conan conan profile detect` then
-    `… conan create packages/cpp`. Then edit one hex digit of the x86_64 Linux hash in a
-    `git archive` copy of `packages/cpp` and confirm `conan create` on that copy fails on the hash.
-    Report both outcomes in the handoff. Clean `packages/cpp` of any Conan output files afterwards.
+**Gates:** `conformance.rs` is a non-test file in a crate the CI-only CRAP `--fail-regression` gate
+measures. A table loop should lower `conformance_selftest`'s score. If any function scores higher,
+move the baseline in this step (`mise run coverage && mise run crap:baseline`). No hot path is
+touched, so the iai gate does not apply.
 
 ## Verification
 
-- `uv run pytest tests/test_update_vcpkg_hashes.py tests/test_ffi_release_assets.py` passes,
-    including the new Conan tests
-- `python3 scripts/update_vcpkg_hashes.py /tmp/ffi070 --check` exits 0 on the v0.7.0 archives, and
-    `git status --porcelain packages/cpp/portfile.cmake` prints nothing
-- `conan create packages/cpp` succeeds with the committed hashes and fails with one altered digit
-    (both outputs in the handoff)
-- `git grep -n "sha256=" packages/cpp/conanfile.py` shows the `download(` call's keyword
-- `uv run scripts/check_release_workflow.py .github/workflows/release.yml` and
-    `mise run version:check` exit 0
-- `mise run check` exits 0, and running it again leaves `packages/cpp/conandata.yml` unchanged
+- `cargo test -p iscc-lib` and `cargo test -p iscc-lib --no-default-features` pass, and so does
+    `cargo test -p iscc-lib --no-default-features --features text-processing`
+- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` and
+    `cargo clippy -p iscc-lib --no-default-features -- -D warnings` are clean
+- `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
+    passes
+- `git grep -nE '"gen_(image|audio|video|data|iscc)_code_v0"|"gen_(meta|text|mixed|instance)_code_v0"|"(en|de)code_seq"' crates/iscc-lib/src/conformance.rs`
+    shows each section name once outside the test module (inside the table)
+- `git grep -nE 'fn test_gen_(image|audio|video|data|iscc)_code_v0_conformance|fn test_gen_sections_run' crates/iscc-lib/src`
+    prints nothing, and
+    `git grep -nE 'as (u8|i32|u32)\b|tested, [0-9]' crates/iscc-wasm/tests/conformance.rs` prints
+    nothing
+- The table-vs-`data.json` test fails if one table row is removed (shown once by the advance agent
+    and the result reported in the handoff; the tree stays unchanged)
 
 ## Done When
 
-All six verification criteria pass, and the Conan recipe refuses an archive whose SHA256 differs
-from the hash `prepare-release` wrote.
+All six verification criteria pass, and `conformance.rs` holds the only list of `data.json` sections
+in the Rust core.
