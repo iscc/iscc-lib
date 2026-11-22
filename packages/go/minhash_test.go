@@ -77,20 +77,25 @@ func TestMinhashCompressAllOnes(t *testing.T) {
 // ---- AlgMinhash256 tests ----
 
 func TestMinhash256Empty(t *testing.T) {
-	result := AlgMinhash256([]uint32{})
-	if len(result) != 32 {
-		t.Fatalf("length: got %d, want 32", len(result))
-	}
-	// Empty features → all MAXH → all bits set in LSB 4 → all 0xFF
-	for i, b := range result {
-		if b != 0xFF {
-			t.Errorf("byte %d: got 0x%02X, want 0xFF", i, b)
+	for name, features := range map[string][]uint32{"empty": {}, "nil": nil} {
+		result, err := AlgMinhash256(features)
+		if err == nil {
+			t.Fatalf("%s: expected error, got nil", name)
+		}
+		if err.Error() != "features must not be empty" {
+			t.Errorf("%s: error: got %q, want %q", name, err.Error(), "features must not be empty")
+		}
+		if result != nil {
+			t.Errorf("%s: result: got %v, want nil", name, result)
 		}
 	}
 }
 
 func TestMinhash256Single(t *testing.T) {
-	result := AlgMinhash256([]uint32{1})
+	result, err := AlgMinhash256([]uint32{1})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(result) != 32 {
 		t.Fatalf("length: got %d, want 32", len(result))
 	}
@@ -98,14 +103,23 @@ func TestMinhash256Single(t *testing.T) {
 
 func TestMinhash256Deterministic(t *testing.T) {
 	features := []uint32{100, 200, 300, 400, 500}
-	r1 := AlgMinhash256(features)
-	r2 := AlgMinhash256(features)
-	if len(r1) != len(r2) {
-		t.Fatalf("length mismatch: %d vs %d", len(r1), len(r2))
+	r1, err1 := AlgMinhash256(features)
+	r2, err2 := AlgMinhash256(features)
+	if err1 != nil || err2 != nil {
+		t.Fatalf("unexpected error: %v, %v", err1, err2)
 	}
-	for i := range r1 {
-		if r1[i] != r2[i] {
-			t.Errorf("byte %d: 0x%02X != 0x%02X", i, r1[i], r2[i])
-		}
+	if !byteSliceEqual(r1, r2) {
+		t.Errorf("results differ: %x vs %x", r1, r2)
+	}
+}
+
+func TestMinhash256DelegatesToUnchecked(t *testing.T) {
+	features := []uint32{7, 42, 1 << 31, 0xFFFFFFFF}
+	result, err := AlgMinhash256(features)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := algMinhash256(features); !byteSliceEqual(result, want) {
+		t.Errorf("exported %x != unchecked %x", result, want)
 	}
 }

@@ -37,5 +37,5 @@ func softHashTextV0(text string) []byte {
 	for i, ng := range ngrams {
 		features[i] = xxh32([]byte(ng), 0)
 	}
-	return AlgMinhash256(features)
+	return algMinhash256(features)
 }

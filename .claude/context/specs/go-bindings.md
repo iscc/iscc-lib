@@ -55,7 +55,7 @@ Go conventions: `PascalCase` exported functions, `error` return values, `[]byte`
 | `gen_sum_code_v0`      | `GenSumCodeV0(path string, ...) (*SumCodeResult, error)`           |
 | `text_clean`           | `TextClean(text string) string`                                    |
 | `sliding_window`       | `SlidingWindow(text string, width int) []string`                   |
-| `alg_minhash_256`      | `AlgMinhash256(features []uint32) []byte`                          |
+| `alg_minhash_256`      | `AlgMinhash256(features []uint32) ([]byte, error)`                 |
 | `DataHasher`           | `NewDataHasher() *DataHasher`                                      |
 | `conformance_selftest` | `ConformanceSelftest() bool`                                       |
 

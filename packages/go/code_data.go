@@ -85,7 +85,7 @@ func (h *DataHasher) Finalize(bits uint32) (*DataCodeResult, error) {
 		h.chunkFeatures = append(h.chunkFeatures, xxh32([]byte{}, 0))
 	}
 
-	digest := AlgMinhash256(h.chunkFeatures)
+	digest := algMinhash256(h.chunkFeatures)
 	component, err := encodeComponentInternal(
 		MTData, STNone, VSV0, bits, digest,
 	)

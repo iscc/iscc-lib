@@ -337,7 +337,8 @@ fmt.Println(windows) // ["Hell", "ello", "llo ", "lo W", "o Wo", " Wor", "Worl",
 
 Additional primitives:
 
-- `AlgMinhash256(features []uint32) []byte` — compute a 256-bit MinHash digest from features
+- `AlgMinhash256(features []uint32) ([]byte, error)` — compute a 256-bit MinHash digest from
+    features; returns an error on an empty list
 - `AlgCdcChunks(data []byte, utf32 bool, avgChunkSize uint32) ([][]byte, error)` — split data into
     content-defined chunks
 - `AlgSimhash(digests [][]byte) ([]byte, error)` — compute a SimHash from equal-length byte digests
