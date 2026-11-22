@@ -78,8 +78,9 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - Adding/renaming a ci.yml job requires updating the job table in `.claude/context/specs/ci-cd.md`
     same commit — parity-gated by `scripts/check_ci_job_table.py` (prek `check-ci-job-table` +
     pytest anchor; backticked first-column keys, count floor 10)
-- `version-check` job: `scripts/version_sync.py --check` (`TARGETS` list; exits 1 on mismatch). Go
-    CI job has zero Rust deps. napi lock (284) is a target: get/sync both root version fields
+- `version-check` job: `scripts/version_sync.py --check` (`TARGETS` list; getters return a LIST of
+    every site sync rewrites, `[]` = not found; missing/unmatched fails both modes, 294). Go CI job
+    has zero Rust deps. napi lock (284) is a target: get/sync both root version fields
 - Generated-artifact gates (274), pytest addopts (254), Kotlin plugins (262), .NET CI (260) →
     ci-gates.md
 - Python dev builds: `uv run maturin develop -m crates/iscc-py/Cargo.toml` (always via uv run).

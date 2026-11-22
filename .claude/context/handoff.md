@@ -1,72 +1,54 @@
-## 2026-11-22 — Review of: Both conformance runners reject a wrong-type or out-of-range vector value as unparsable
+## 2026-11-22 — `version:check` checks every version occurrence and fails on a vanished target
 
-**Verdict:** PASS
+**Done:** Every getter in `scripts/version_sync.py` now returns a list holding each version its sync
+function rewrites (`[]` = pattern not found). `check_mode` fails on a missing file, an unmatched
+pattern or any stale occurrence. `sync_mode` rewrites a file when any occurrence differs, reports a
+missing or unmatched target as `FAILED:` and returns False. `main()` exits 1 in both modes when that
+happens.
 
-**Summary:** The Rust and Go `data.json` selftest runners now share one rule: a wrong JSON type, a
-`null` outside `meta`, a fraction or an out-of-range number makes a case unparsable, and a top-level
-key that is not an object of case objects fails the selftest. Every row of the audit issue's table
-is pinned by the same test table on both sides, so the issue is closed. The change touches fixture
-parsing only: no library behaviour, no `data.json` edit, no benchmarked path.
+**Files changed:**
+
+- `scripts/version_sync.py`: the three snippet regexes capture the version as group 2 (the sync
+    backrefs moved from `\2` to `\3`). Added the `_first` helper for count=1 targets. Multi-site
+    getters use `findall`/`finditer`: docs (Maven+Gradle+SPM, all matches), mise (both `--version`),
+    test_install (fallback + docstring `--version`, `[]` without a fallback), Ruby, Swift, csproj.
+    The lock getter returns `[top, root]` (its `MISMATCH(...)` string is gone). The pom getter
+    reuses `MAVEN_DEP_RE`. A shared `_inspect` helper feeds both modes. Module docstring states the
+    contract
+- `tests/test_version_sync.py`: module docstring rewritten. The lock tests assert the list contract.
+    13 new tests on synthetic trees (`monkeypatch.setattr` on `vs.ROOT`/`vs.TARGETS`), one bad case
+    each: check fails on (a) a current Maven + stale SPM doc, (b) a missing target, (c) an unmatched
+    pattern, (d) a stale second mise `--version`. Sync rewrites a stale second snippet (file read
+    back equals the all-current text), leaves a current file byte-identical (same mtime), fails on a
+    missing or unmatched target, and `main()` exits 1. Getter tests: docs/index.md gives 4 versions,
+    the mise getter gives both flags, the test_install getter gives the docstring flag
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib`, `--no-default-features` and
-    `--no-default-features --features text-processing` pass (all exit 0); the five new tests
-    (`test_wrong_type_*`, `test_seq_wrong_type_*`, `test_check_sections`) ran by name;
-    `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean (workspace clippy too)
-- [x] `packages/go`: `CGO_ENABLED=0 go test -count=1 ./...`, the same under `GOARCH=386`, and
-    `go vet ./...` (amd64 and 386) pass; `gofmt -l .` prints nothing; the three new tests ran by
-    name
-- [x] `grep -nE ' as (u8|u32|i32)\b'` and `grep -nE 'filter_map'` on `conformance.rs` print nothing
-- [x] `cargo llvm-cov … && cargo crap … --fail-regression --fail-above` exits 0 (`0 regressed`,
-    `181 unchanged`)
-- [x] `decisions.md` has the `## 2026-11-22 —` entry for the rule;
-    `uv run pytest tests/test_vendored_fixtures.py`: 10 passed
-- [x] `mise run check` exits 0
+- `uv run pytest tests/test_version_sync.py -q`: 19 passed
+- `python3 scripts/version_sync.py --check`: exit 0, 22 lines starting with `OK:` (`grep -c` = 22)
+- `uv run ruff check scripts/version_sync.py tests/test_version_sync.py`: All checks passed;
+    `uv run ty check scripts/version_sync.py`: All checks passed
+- `mise run check`: exit 0
+- Mutation probe in a `/tmp` copy, three mutants. (1) Check only the first occurrence: the stale-SPM
+    and stale-mise tests go red. (2) Treat a missing file as found: the missing-target tests go red.
+    (3) Make the mise getter return only the first flag: the mise getter and mise check tests go
+    red. The real-tree tests also fail in that copy, but only because it has no repo files
 
-Three checks beyond next.md's list:
-
-- **Differential table**: 89 further malformed inputs (bools, strings for numbers, exponents, nested
-    lists, objects, bad stream prefixes, boundary values) went through every parser on both sides
-    from one shared file. 86 give the same verdict. The 3 that differ are all `-0` as a pixel, `cv`
-    or frame entry (see Issues found)
-- **Baseline regen**: old and new `.crap-baseline.json` compared per function. Only the two scores
-    the advance handoff names rose (`conformance_selftest` 3.0 → 4.1, `string_entries` 1.0 → 2.0).
-    Every other difference is a function that iteration 291 left as "new", or an improvement
-- **Mutations** in a `/tmp` copy: `containsNull` that never reports a null turns six rows red;
-    `parseSection` without its object checks turns the two `null` rows red
-
-**Issues found:**
-
-- `-0` as a pixel, `cv` or frame entry: the Rust runner rejects it (serde_json reads `-0` as a
-    float), the Go runner reads 0. Pre-existing and not in the issue's table. Not filed: no vendored
-    vector can hold it (`data.json` is gated byte-identical to iscc-core's). It is named in the
-    decision entry under "Not covered", together with Go's case-insensitive key match
-- (nothing else)
-
-**Codex review:** no actionable findings. Codex re-ran the Rust tests on all three feature sets, the
-Go tests on amd64 and 386, clippy and `go vet`.
-
-**Next:** `version:check` passes a stale second doc snippet and skips a vanished target silently
-(`normal` [audit], one script plus tests). It is the only remaining `normal` issue that needs no
-decision from Titusz. The other three wait on a recorded rule: `alg_minhash_256([])`, the WASM
-`finalize()` consumption rule, and Go `EncodeComponent` on a short digest (for that one the issue
-itself suggests rejection; define-next may record the rule in the step that applies it, but it is a
-12-surface vector fan-out).
+**Next:** The three remaining `normal` issues all need a recorded rule first: `alg_minhash_256([])`,
+the WASM `finalize()` consumption rule, and Go `EncodeComponent` on a short digest. The `low` issue
+about partial file lists in `docs/development.md` / release SKILL.md is now easier to fix: point
+both at `TARGETS`.
 
 **Notes:**
 
-- Closed and deleted from issues.md: "The Rust and Go conformance runners disagree on malformed
-    vectors". issues.md now holds 4 `normal` and 15 `low` entries
-- decisions.md was over budget (413 lines). I tightened the new entry to 12 lines and rotated the
-    two oldest entries into `decisions-archive.md` with the runner's own function; the file is at
-    387 lines. The rotated titles stay binding (`alg_simhash` rejects an empty list; review runs
-    without the advisor)
-- Go rejects a `null` at any depth of an input (except inside the `meta` slot), which goes one step
-    past next.md's table. It is the right reading of the rule: Rust's `as_str`/`as_i64` already
-    refuse a `null` list entry, so without it the runners would still disagree
-- Rust's top-level check lives in `check_sections`; the call from `conformance_selftest` cannot be
-    reached with synthetic data (the function reads the embedded file), so that one branch stays
-    uncovered. That is what moved its CRAP score, and it is accepted
-- No API change, no perf-relevant change: `conformance_selftest` keeps its signature and result on
-    the real vectors
+- Missing-file output is `MISMATCH: <path> missing`. Unmatched-pattern output is
+    `MISMATCH: <path> pattern not found` (sync prints `FAILED:` instead). The OK line keeps its
+    exact prefix and prints the workspace version
+- The package-lock getter returns `[]` when either root field is missing. `_sync_package_lock` would
+    raise a KeyError on such a lock, so sync must not call it
+- I did not add a post-sync re-check (re-running the getter on the rewritten text). Sync and getter
+    share the same regexes, so it would add nothing
+- `learnings.md` line "`version_sync.py` covers only the Maven/Gradle/SPM doc snippets" is still
+    true (no snippet kinds were added)
+- No Rust touched: no CRAP or iai impact
