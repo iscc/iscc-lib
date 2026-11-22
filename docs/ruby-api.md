@@ -663,7 +663,7 @@ IsccLib.alg_minhash_256(features)
 | ---------- | ---------------- | ----------------------------------- |
 | `features` | `Array<Integer>` | Array of 32-bit integer hash values |
 
-Returns a 32-byte binary `String`.
+Returns a 32-byte binary `String`. Raises `RuntimeError` for an empty Array.
 
 ```ruby
 features = [100, 200, 300, 400]

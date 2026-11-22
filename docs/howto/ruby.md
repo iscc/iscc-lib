@@ -442,7 +442,7 @@ puts windows.inspect
 Additional primitives:
 
 - `IsccLib.alg_minhash_256(features)` — compute a 256-bit MinHash digest from an Array of 32-bit
-    integers, returns a binary String (32 bytes)
+    integers, returns a binary String (32 bytes); raises `RuntimeError` on an empty Array
 - `IsccLib.alg_cdc_chunks(data, utf32, avg_chunk_size)` — split binary data into content-defined
     chunks, returns an Array of binary Strings
 - `IsccLib.alg_simhash(digests)` — compute a SimHash from an Array of equal-length binary Strings,

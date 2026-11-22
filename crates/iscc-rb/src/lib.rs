@@ -441,10 +441,10 @@ fn alg_simhash(hash_digests: RArray) -> Result<RString, Error> {
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 ///
-/// Returns a 32-byte binary String.
+/// Returns a 32-byte binary String. Raises on an empty Array.
 fn alg_minhash_256(features: RArray) -> Result<RString, Error> {
     let features: Vec<u32> = array_to_vec(features)?;
-    let result = iscc_lib::alg_minhash_256(&features);
+    let result = iscc_lib::alg_minhash_256(&features).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
     Ok(ruby.str_from_slice(&result))
 }
