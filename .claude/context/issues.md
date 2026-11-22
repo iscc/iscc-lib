@@ -184,45 +184,36 @@ Resolved when either every literal in the header is at most 2,047 bytes (a lower
 which the literal-length test follows), or an MSVC build of `test_iscc.c` shows that 4,095-byte
 pieces compile.
 
-## Rust tests re-parse `data.json`, and the two runners still disagree on malformed vectors `normal` [audit]
+## The Rust and Go conformance runners disagree on malformed vectors `normal` [audit]
 
-Filed by the iteration-280 audit. The Go package now parses the fixture in one place
-(`packages/go/conformance.go`), and both runners reject a bare-hex stream and a missing `iscc`
-output. Two parts are left.
+Filed by the iteration-280 audit. Each side now parses the fixture in one place
+(`crates/iscc-lib/src/conformance.rs`, `packages/go/conformance.go`), and both reject a bare-hex
+stream, a missing `iscc` output and a short inputs list. What is left is a value of the wrong JSON
+type or range. Measured in iteration 290 at 90e09661, one case per call, each with the correct
+expected output (iteration 291 moved the Rust reads into parsers without changing them):
 
-**Rust re-parses.** The test modules of `crates/iscc-lib/src/lib.rs`, `codec.rs` and `streaming.rs`
-`include_str!` the fixture and decode inputs by hand. The meta dispatch in
-`test_gen_meta_code_v0_conformance` and the `stream:` decoding in the data, instance and streaming
-tests repeat `run_meta_tests` and `decode_stream` of `conformance.rs`.
+| Malformed input                 | Rust runner              | Go runner          |
+| ------------------------------- | ------------------------ | ------------------ |
+| `bits` as `64.0` or `64.5`      | parse failure            | passes (truncated) |
+| description `null`              | parse failure            | passes             |
+| `meta` a number or an array     | passes (read as no meta) | mismatch (as text) |
+| non-string entry in a code list | passes (entry skipped)   | parse failure      |
+| pixel `0.5` or `-256`           | parse failure            | passes (truncated) |
 
-**The runners disagree on other malformed shapes.** Measured in iteration 290 at 90e09661, one case
-per call, each with the correct expected output:
+Go's `parseConformanceData` also returns an error for a top-level key that is not an object of
+cases; Rust ignores unknown keys. A `bits` or pixel above the target width is cast (`as u32`,
+`as u8`, `as i32`) on the Rust side without a range check.
 
-| Malformed input                             | Rust runner                  | Go runner          |
-| ------------------------------------------- | ---------------------------- | ------------------ |
-| inputs list too short (`[]`, `["stream:"]`) | panics (index out of bounds) | parse failure      |
-| `bits` as `64.0` or `64.5`                  | parse failure                | passes (truncated) |
-| description `null`                          | parse failure                | passes             |
-| `meta` a number or an array                 | passes (read as no meta)     | mismatch (as text) |
-| non-string entry in a code list             | passes (entry skipped)       | parse failure      |
-| pixel `0.5` or `-256`                       | parse failure                | passes (truncated) |
+**Why it matters:** each "mirror" selftest still passes vectors the other one rejects, and the Rust
+in-crate tests inherit the loose readings (a non-string code-list entry is skipped silently).
 
-`conformance_selftest` documents "Does not panic". Go's `parseConformanceData` also returns an error
-for a top-level key that is not an object of cases; Rust ignores unknown keys.
+**Suggested fix:** settle one rule for a value of the wrong JSON type or range (a parse failure is
+the simplest), record it, and pin every row on both sides.
 
-**Why it matters:** a `data.json` schema change has to be fixed in several places in Rust, and each
-"mirror" selftest still passes vectors the other one rejects.
+**Scope estimate:** 2 non-test files (the two parser files).
 
-**Suggested fix:** let the in-crate tests read inputs through the runner's case parsers and keep
-only the extra-field checks there. Settle one rule for a value of the wrong JSON type or range (a
-parse failure is the simplest) and pin it on both sides.
-
-**Scope estimate:** audit-scope step (≤8 files); the Rust tests and the shared rule can be separate
-steps.
-
-Resolved when `conformance.rs` is the only file under `crates/iscc-lib/src` that parses `data.json`
-inputs, and both runners give the same verdict, without a panic, on every row above, each pinned by
-a test.
+Resolved when both runners give the same verdict, without a panic, on every row above, each pinned
+by a test.
 
 ## `@iscc/wasm` hasher `finalize()` consumes the hasher on some argument errors but not others `normal` [audit]
 

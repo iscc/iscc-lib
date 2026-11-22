@@ -109,7 +109,9 @@ new() -> update(&[u8]) -> ... -> update(&[u8]) -> finalize(bits) -> IsccResult<*
     vector (`gen_sum_code_v0` has no conformance vectors — it composes Data-Code + Instance-Code
     internally)
 - `conformance_selftest()` runs all vectors at runtime (non-panicking, returns bool)
-- Each `gen_*_v0` also has `#[test]` functions that run the same vectors and panic on mismatch
+- Each `gen_*_v0` also has `#[test]` functions that run the same vectors and panic on mismatch. They
+    read the inputs through the `pub(crate)` parsers in `conformance.rs`, the only file under `src`
+    that parses `data.json`: a test adds its extra-field checks, never its own input decoding
 - Streaming types (`DataHasher`/`InstanceHasher`) are tested against one-shot functions at multiple
     chunk sizes including byte-at-a-time
 - No network access in tests -- all vectors are `include_str!` from `tests/data.json`

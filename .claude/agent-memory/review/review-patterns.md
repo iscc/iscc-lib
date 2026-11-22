@@ -1167,3 +1167,18 @@ ties the sentence to the binding source.
     `CARGO_TARGET_DIR=<repo>/target cargo test -p iscc-lib --lib <path> -- --nocapture` (4 s: the
     dependencies are reused)
 - Codex had no findings; both gaps came from the differential
+
+## Rust test-refactor onto shared parsers (291 — in-crate tests read `data.json` via `conformance.rs`, ~15 min, PASS)
+
+- One logged script: the three CI feature sets, clippy crate + workspace, the `--nocapture` run of
+    the failure arms. Then `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` and CI's CRAP
+    line. A split into small parsers reads "0 regressed, N new, M moved" and exits 0; the new fns
+    are outside the baseline, so only `--fail-above` sees them until someone refreshes it
+- **Reduced-feature clippy: use CI's lines** (`--no-default-features` lib-only, `--all-features`),
+    or add `--tests`. `--all-targets` with `--no-default-features` fails in the benches (they import
+    `gen_meta_code_v0`/`gen_text_code_v0` unconditionally): pre-existing, not the step's fault
+- A "prints nothing" grep on a bare variable name (`inputs\[[0-9]`) matched one local array in an
+    unrelated test. Run the grep at the define-next commit before blaming advance
+- Codex returned in about four minutes with no finding on a test-only refactor
+- The issue's "Resolved when" had two halves: rewrite the entry to the half that is left, and check
+    that the other surface pins the closed row too (`git grep` its test file) before dropping it

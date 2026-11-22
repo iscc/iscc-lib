@@ -186,8 +186,8 @@ maintains this file — append, prune, and archive completed-phase entries to `l
     `unicodeScalars`. Parsed `NSNumber` casts are loose: read via `DataEdge.scalar` (232)
 - **Fixture parsers coerce silently, and each language differently** (290). Go: `json.Unmarshal` of
     `null` leaves a string untouched, `uint32(float64)` truncates, struct tags match keys in any
-    case. serde_json: `as_u64` rejects `64.0`, `filter_map(as_str)` drops entries, `inputs[1]` on a
-    short list panics. To align two runners, run ONE table of wrong-type values through both
+    case. serde_json: `as_u64` rejects `64.0`, `filter_map(as_str)` drops entries, `v[1]` panics on
+    a short list (291: read `.get(i)?`). To align two runners, run ONE wrong-type table through both
 - **Spec paths are gated** (224/228/247): `scripts/check_spec_paths.py` checks tree entries +
     backticked paths (`.github/` too) against `git ls-files` (never disk) and fails on a tree whose
     next paragraph lacks "not every file". Specs and per-crate `CLAUDE.md` files hold NO complete
