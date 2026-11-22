@@ -29,20 +29,6 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-11-20 — data-edge output subset: allowed keys come from `data.json`, uncompared keys are fixed per harness
-
-**Decision:** in a `gen_*` section of `data-edge.json`, `outputs` holds `iscc` and only keys that
-the same function's `data.json` vectors carry; any other key fails on every surface. A surface whose
-result type lacks some allowed keys (C, C++, and the bare-string results of .NET, Java, napi and
-WASM) leaves exactly those uncompared, as a set written once per harness from the result type. A
-harness never intersects the expected keys with the returned ones. **Why:** the intersection passed
-any vector as long as one key matched, so a result that lost a key went unseen. Deriving the allowed
-set from `data.json` keeps the file's meaning independent of any one binding and needs no key list
-in the spec. **Alternatives:** a per-surface `except` value carrying reduced outputs, or a top-level
-metadata key (each a 12-surface change, and an `except` per subset surface breaks "a vector costs
-one edit"); structured results on every binding (an API decision for Titusz, not a test-harness
-one). **Context:** iteration 236; spec `edge-vectors.md` → Rules → "Output subset".
-
 ## 2026-11-20 — The Ruby source gem is staged standalone: carried core, workspace `Cargo.lock`, conditional `rb_sys`
 
 **Decision:** the `ruby`-platform gem is built only by `scripts/build_ruby_source_gem.py`. It stages
@@ -395,3 +381,16 @@ a fan-out" (2026-11-19) keep open design questions out of mechanical steps; here
 the design and the binding edits carry no choice. **Alternatives:** NEEDS_WORK (nothing to split or
 repair); a second function beside the old one (keeps the `0xFF` behaviour the ruling removes).
 **Context:** iteration 298 review. define-next names this ground in Scope when it applies.
+
+## 2026-11-22 — Conan SHA256s live in `conandata.yml`, keyed by target triple, written by the vcpkg hash script
+
+**Decision:** `packages/cpp/conandata.yml` holds one SHA256 per target triple under `sha256:`, with
+no version key. `scripts/update_vcpkg_hashes.py` renders the whole file in the pass that writes the
+vcpkg SHA512s and keeps its name. The recipe reads the hash in `build()` and raises when a target
+has none, so `None` never reaches `download()`. **Why:** one archive pass means a missing archive
+writes neither file and the tagged commit carries both hash sets; without a version key
+`version_sync.py` needs no Conan data rule, and the file is stale between a version bump and the
+release exactly as the portfile is. **Alternatives:** a dict in `conanfile.py` (generated values
+inside hand-written code); Conan's `sources: {version: …}` layout (a second version to sync, old
+entries to prune); a second script or a neutral script name (duplicates the archive checks, or
+leaves the decision of 2026-11-22 naming a missing file). **Context:** iteration 305 review.

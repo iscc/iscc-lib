@@ -791,3 +791,17 @@ matrix (doubles the job for a floor that differs only in patch level); leaving 1
 about 40 stdlib advisories in the tested toolchain). Floors stay the human's call (`ci-cd.md` →
 "Dependency Freshness" → Policy). **Context:** iteration 235; next.md flagged it "Decision for
 Titusz".
+
+## 2026-11-20 — data-edge output subset: allowed keys come from `data.json`, uncompared keys are fixed per harness
+
+**Decision:** in a `gen_*` section of `data-edge.json`, `outputs` holds `iscc` and only keys that
+the same function's `data.json` vectors carry; any other key fails on every surface. A surface whose
+result type lacks some allowed keys (C, C++, and the bare-string results of .NET, Java, napi and
+WASM) leaves exactly those uncompared, as a set written once per harness from the result type. A
+harness never intersects the expected keys with the returned ones. **Why:** the intersection passed
+any vector as long as one key matched, so a result that lost a key went unseen. Deriving the allowed
+set from `data.json` keeps the file's meaning independent of any one binding and needs no key list
+in the spec. **Alternatives:** a per-surface `except` value carrying reduced outputs, or a top-level
+metadata key (each a 12-surface change, and an `except` per subset surface breaks "a vector costs
+one edit"); structured results on every binding (an API decision for Titusz, not a test-harness
+one). **Context:** iteration 236; spec `edge-vectors.md` → Rules → "Output subset".

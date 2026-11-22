@@ -261,26 +261,6 @@ case counts from the file.
 **Scope estimate:** 2 non-test files (`conformance.rs`, `lib.rs` test module) plus 3 WASM test
 files.
 
-## Conan recipe downloads the FFI archive without a checksum `normal` [audit]
-
-**Evidence:** `packages/cpp/conanfile.py:84` calls `download(self, url, archive_path)` with no
-`sha256`, then unpacks and packages the binary. The vcpkg port pins the SHA512 of every archive,
-written by `prepare-release` (`release.yml:103-112`, `scripts/update_vcpkg_hashes.py`); no decision
-covers Conan. The recipe's `_target_triple` table (:28-66) is a third copy of the `build-ffi`
-platform matrix, and no test reads it (the only other reference is the version pair in
-`scripts/version_sync.py`). Verified at b3869b91 and again at 9cf983e5.
-
-**Why it matters:** a Conan user links a prebuilt native library that nothing checks, so a replaced
-or corrupted release asset goes unnoticed, while the vcpkg path catches it. A platform added to
-`build-ffi` and missing from the table fails only on a user's machine.
-
-**Suggested fix:** have `prepare-release` write the per-target SHA256 into the recipe (a dict next
-to `_target_triple`, or `conandata.yml`) with the same script pattern as the vcpkg hashes, and pass
-it to `download(..., sha256=...)`. Add a test that ties the table's targets to the `build-ffi`
-matrix, as the vcpkg tests do.
-
-**Scope estimate:** 3 non-test files (`conanfile.py`, a hash script, `release.yml`).
-
 ## Specs and API docs still describe shipped work as planned, or leave out shipped rules `normal` [audit]
 
 **Evidence:** `specs/swift-bindings.md:397` requires a `swift` `workflow_dispatch` checkbox that the

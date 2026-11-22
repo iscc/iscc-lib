@@ -279,3 +279,23 @@ to polling loops.
     `?ref=` in a `gh api` path is a glob. Quote both.
 - Codex ran its own mocked shell checks and found nothing; its `gh` is unauthenticated, so it cannot
     check live GitHub state.
+
+## Package-recipe hash step: Conan `conandata.yml` (305, ~25 min, PASS, Codex clean)
+
+- Criteria that pay: download the release archives into a fresh dir
+    (`gh release download v0.7.0 -R iscc/iscc-lib -p 'iscc-ffi-v0.7.0-*' -D <dir>`), run the hash
+    script with `--check`, then in WRITE mode and confirm `git status --porcelain packages/cpp` is
+    empty (the renderer equals what the prek hooks leave). Compare with `sha256sum` and the asset
+    `digest` fields of `gh release view --json assets`.
+- **Conan end to end (~1 min, network)**: a script with `CONAN_HOME=/tmp/x` and
+    `uv run --no-project --with conan conan`: `profile detect`, then `create` on two `git archive`
+    copies of `packages/cpp`, one with a hash digit changed by `sed`. Never run `conan create` in
+    the checkout. Like the vcpkg install it works only while the release named in the recipe exists.
+- The tests read the recipe with `ast` (no `conan` import), so no committed check executes it: a
+    recipe that stops raising on a missing hash is seen by the end-to-end run only.
+- `scripts/update_vcpkg_hashes.py` needs Python 3.10 or newer (`itertools.pairwise`). The `macos-15`
+    image has `python3` 3.15 (runner-images readme), so this is no finding.
+- A step that extends what the release commit carries leaves "commits the … vcpkg portfile hashes"
+    sentences behind in `specs/ci-cd.md`, `specs/swift-bindings.md` and `docs/development.md`:
+    `git grep -n "portfile hashes"` and realign them in the review.
+- decisions.md sat at 397 lines: one new entry needed the `cid.archive_overflow` rotation.

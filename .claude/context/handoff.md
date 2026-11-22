@@ -1,68 +1,61 @@
-## 2026-11-22 — Conan recipe verifies the SHA256 of the FFI archive it downloads
+## 2026-11-22 — Review of: Conan recipe verifies the SHA256 of the FFI archive it downloads
 
-**Done:** `conanfile.py` now passes `sha256=` from `conandata.yml` (keyed by target triple) to
-`download()`. A target with no pinned hash raises `ConanInvalidConfiguration`, so `sha256=None`
-never reaches `download()`. `scripts/update_vcpkg_hashes.py` computes SHA512 and SHA256 in one pass
-over each archive and renders the whole `conandata.yml`. The missing-archive check is shared, so a
-missing archive writes neither file. `prepare-release` stages the file in the release commit.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/cpp/conandata.yml` (new): 5 SHA256s of the v0.7.0 archives. Starts with `---` because
-    yamlfix inserts one
-- `packages/cpp/conanfile.py`: `_archive_sha256(target)`, `download(..., sha256=sha256)`, new
-    docstring
-- `scripts/update_vcpkg_hashes.py`: `file_hexdigests` (one pass gives SHA512 and SHA256, replacing
-    `sha512_hex`), `render_conandata`, `stale_conan_targets`, `report_check`, `--conandata` option,
-    module docstring. `--check` compares the rendered text with the file and names each stale target
-    ("stale Conan SHA256 for X")
-- `.github/workflows/release.yml`: step renamed "Update vcpkg and Conan hashes"; the `git add` line
-    gains `packages/cpp/conandata.yml`; 3 comments updated
-- `tests/test_update_vcpkg_hashes.py`: 8 new tests (one SHA256 written per target, missing archive
-    writes no conandata, stale Conan hash, missing conandata, committed file equals the rendered
-    form, conandata keys == matrix, `_target_triple` triples == matrix (via `ast`), `download` has a
-    non-None `sha256=`). The commit-order test now parses the `git add` paths and requires conandata
-- `packages/cpp/CLAUDE.md`, `.claude/context/specs/cpp-bindings.md`: Conan publishing and pitfall
-    text added
+**Summary:** The Conan recipe now passes a pinned SHA256 from `packages/cpp/conandata.yml` to
+`download()` and raises when a target has no hash. `scripts/update_vcpkg_hashes.py` writes those
+hashes in the same archive pass as the vcpkg SHA512s, and `prepare-release` stages the file in the
+release commit. Every criterion reproduced, the diff stays inside the scope (3 code files and one
+generated data file), and the `[audit]` issue is closed.
 
 **Verification:**
 
-- `uv run pytest tests/test_update_vcpkg_hashes.py tests/test_ffi_release_assets.py`: 32 passed.
-    `tests/test_check_release_workflow.py`: 27 passed
-- Mutation probe: I dropped `sha256=`, the conandata `git add` entry and the Windows mapping entry,
-    ran the tests, then restored the files from backup. The 3 matching tests failed, 17 passed
-- The SHA256s match GitHub's own asset `digest` fields for v0.7.0 (`gh release view --json assets`)
-- `python3 scripts/update_vcpkg_hashes.py /tmp/ffi070 --check` printed
-    `OK: 5 portfile and Conan hashes match v0.7.0 archives` with rc=0.
-    `git status --porcelain packages/cpp/portfile.cmake` printed nothing
-- Conan 2.34.0, `CONAN_HOME=/tmp/conanhome`:
-    - `conan create packages/cpp` exited 0. The log shows `exports: File 'conandata.yml' found`,
-        `Sources correctly downloaded from …x86_64-unknown-linux-gnu.tar.gz`, and
-        `Package '63fead08…' created`
-    - Copy with the last digit `0`→`1` in the Linux x86_64 hash: exit 1,
-        `ConanException: sha256 hash failed for 'iscc-ffi-v0.7.0-x86_64-unknown-linux-gnu.tar.gz' file. Provided hash: …c40c1 Computed hash: …c40c0`
-    - Copy with the Linux x86_64 line deleted: exit 6,
-        `Invalid configuration: No SHA256 pinned in conandata.yml for target x86_64-unknown-linux-gnu`
-- The tampered copy came from `git ls-files -co --exclude-standard packages/cpp | tar`, not
-    `git archive`, because conandata.yml was not committed yet. `packages/cpp` has no Conan output
-    files, and `/tmp/conanhome` and `/tmp/conanbad` are removed
-- `git grep -n "sha256=" packages/cpp/conanfile.py` →
-    `97: download(self, url, archive_path, sha256=sha256)`
-- `uv run scripts/check_release_workflow.py …` printed OK; `mise run version:check` rc=0
-- `mise run check` rc=0 on the second run (the first run had mdformat reflow
-    `packages/cpp/CLAUDE.md`). `conandata.yml` md5 is `cf57c25f…` before and after both runs.
-    `ty check` and ruff `S,C901` on the touched Python files are clean
+- [x] `uv run pytest tests/test_update_vcpkg_hashes.py tests/test_ffi_release_assets.py` passes — 59
+    passed together with `tests/test_check_release_workflow.py`
+- [x] `python3 scripts/update_vcpkg_hashes.py <v0.7.0 archives> --check` exits 0 and
+    `git status --porcelain packages/cpp/portfile.cmake` prints nothing — freshly downloaded
+    archives; the five SHA256s also equal `sha256sum` and GitHub's asset `digest` fields
+- [x] `conan create` succeeds with the committed hashes and fails with one altered digit — Conan
+    2.34.0 on `git archive` copies: exit 0 with "Sources correctly downloaded"; with the last digit
+    changed, exit 1 with "sha256 hash failed … Provided hash: …c40c1 Computed hash: …c40c0"
+- [x] `git grep -n "sha256=" packages/cpp/conanfile.py` — line 97, the `download(` call
+- [x] `uv run scripts/check_release_workflow.py .github/workflows/release.yml` and
+    `mise run version:check` exit 0
+- [x] `mise run check` exits 0 and leaves `packages/cpp/conandata.yml` unchanged (md5 `cf57c25f…`
+    before and after); `ty check` and ruff `S`/`C901` are clean
 
-**Next:** Two `normal` `[audit]` issues still block v0.8.0: the Rust conformance runner duplication,
-and the spec and API-doc drift.
+Probes beyond the list: the write mode on the real archives changes neither file ("updated 0 of 5
+portfile hashes and 0 Conan hashes"). The script fails on Python 3.9 (`itertools.pairwise`, a line
+from iteration 285), which does not matter: `python3` on the `macos-15` runner image is 3.15.2.
+
+**Issues found:**
+
+- Three doc lines still said the release commit carries only the vcpkg hashes (`specs/ci-cd.md`,
+    `specs/swift-bindings.md`, `docs/development.md`). Fixed in this review: they now say "the vcpkg
+    and Conan hashes".
+- Not filed: no test and no CI job executes the recipe. The tests read it with `ast`, so they cannot
+    see `_archive_sha256` stop raising. A missing target is still caught: the tests tie the
+    `conandata.yml` keys and the `_target_triple` triples to the `build-ffi` matrix. A CI
+    `conan create` would fail between a version bump and the release, when the archive does not
+    exist yet.
+- Not filed (nits): `render_conandata` sorts whole lines, not names (same order for today's
+    triples); `validate()` does not check for a pinned hash, `build()` does.
+
+**Codex review:** no actionable findings. It re-ran the 59 tests, compared the committed hashes with
+the release archives, and confirmed that the recipe packages with valid hashes and rejects a wrong
+or missing hash.
+
+**Next:** two `normal` `[audit]` issues still block v0.8.0. Take the Rust conformance runner issue
+first: one section-to-runner table in `conformance.rs`, the duplicate loops removed from `lib.rs`,
+and shared strict readers for the WASM tests (2 non-test files plus 3 WASM test files). Then the
+spec and API-doc drift issue, which needs an audit-scope step or a split into specs and docs.
 
 **Notes:**
 
-- No changes to `version_sync.py`: conandata has no version key, by design.
-- `validate()` does not check for a pinned hash; only `build()` does, through `_archive_sha256`. I
-    kept the change to the minimum. Moving the check into `validate()` would fail earlier, but it is
-    optional.
-- `--check` with every hash line present but other bytes different (for example a hand-edited
-    comment) prints "conandata.yml differs from the rendered file" and exits 1.
-- `issues.md` is untouched. The review can close "Conan recipe downloads the FFI archive without a
-    checksum".
+- New decision: "Conan SHA256s live in `conandata.yml`, keyed by target triple, written by the vcpkg
+    hash script". Adding it rotated the two oldest decisions into `decisions-archive.md`.
+- `conandata.yml` holds the v0.7.0 hashes. They go stale at the next version bump and are rewritten
+    by `prepare-release`, exactly as the portfile's SHA512s are. Do not scope that as drift.
+- Conan end-to-end check, about one minute, needs network:
+    `CONAN_HOME=/tmp/x uv run --no-project --with conan conan create <git archive copy of packages/cpp>`
+    after `conan profile detect`.

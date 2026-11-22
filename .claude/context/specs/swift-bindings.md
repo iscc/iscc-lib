@@ -267,7 +267,7 @@ the `version` input is set: there is no separate `swift` checkbox, and a registr
 does not rebuild the XCFramework. Every publish job has `prepare-release` among its ancestors in the
 `needs` graph, so the tags exist before any publish job starts. Only `build-ffi` and its smoke test
 `test-ffi` do not wait for it: `prepare-release` needs the `build-ffi` archives to write the vcpkg
-portfile hashes into the same commit (`cpp-bindings.md` → Distribution).
+and Conan hashes into the same commit (`cpp-bindings.md` → Distribution).
 
 ## Caching Strategy
 
