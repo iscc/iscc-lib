@@ -110,7 +110,8 @@ module DataEdge
     "encode_component" => [
       ->(inputs) { IsccLib.encode_component(*inputs) }, method(:convert_string),
       method(:prepare_component)
-    ]
+    ],
+    "alg_minhash_256" => [->(inputs) { IsccLib.alg_minhash_256(inputs[0]) }, method(:bytes_value)]
   }.freeze
 
   # Load and parse data-edge.json (explicit UTF-8, independent of the process locale).
