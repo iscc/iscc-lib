@@ -611,6 +611,50 @@ fn soft_hash_video_v0(
     Ok(PyBytes::new(py, &result).into())
 }
 
+/// A hasher `finalize` argument held unconverted until the hasher is consumed.
+///
+/// PyO3 converts typed parameters before the method body runs, so a `u32` or
+/// `bool` parameter would reject a bad argument while the hasher is still
+/// usable. Every given value (including `None`) is kept as `Given` and
+/// converted after `take()`, which raises the same exception the typed
+/// parameter raised (`OverflowError`, `TypeError`). `Default` marks an omitted
+/// argument.
+enum Deferred<'py> {
+    Default,
+    Given(Bound<'py, PyAny>),
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for Deferred<'py> {
+    type Error = PyErr;
+
+    /// Keep any Python object as given, without conversion.
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
+        Ok(Self::Given(obj.to_owned()))
+    }
+}
+
+impl<'py> Deferred<'py> {
+    /// Convert the given value to `T`, or return `default` for an omitted argument.
+    ///
+    /// A conversion error gets the `while processing '<name>'` note that PyO3
+    /// attaches to a typed parameter's error.
+    fn or<T>(self, default: T, name: &str) -> PyResult<T>
+    where
+        T: FromPyObjectOwned<'py>,
+    {
+        match self {
+            Self::Default => Ok(default),
+            Self::Given(value) => value.extract::<T>().map_err(|e| {
+                let err: PyErr = e.into();
+                let note = format!("while processing '{name}'");
+                // The error is raised either way; a failed `add_note` only loses the note.
+                let _ = err.value(value.py()).call_method1("add_note", (note,));
+                err
+            }),
+        }
+    }
+}
+
 /// Streaming Data-Code generator.
 ///
 /// Incrementally processes data with content-defined chunking and MinHash
@@ -645,12 +689,15 @@ impl PyDataHasher {
     }
 
     /// Consume the hasher and produce a Data-Code result dict.
-    #[pyo3(signature = (bits=64))]
-    fn finalize(&mut self, py: Python<'_>, bits: u32) -> PyResult<Py<PyAny>> {
+    ///
+    /// The first call consumes the hasher, even when it raises on an argument.
+    #[pyo3(signature = (bits=Deferred::Default), text_signature = "($self, bits=64)")]
+    fn finalize(&mut self, py: Python<'_>, bits: Deferred<'_>) -> PyResult<Py<PyAny>> {
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| PyValueError::new_err("DataHasher already finalized"))?;
+        let bits = bits.or(64u32, "bits")?;
         let r = hasher
             .finalize(bits)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -694,12 +741,15 @@ impl PyInstanceHasher {
     }
 
     /// Consume the hasher and produce an Instance-Code result dict.
-    #[pyo3(signature = (bits=64))]
-    fn finalize(&mut self, py: Python<'_>, bits: u32) -> PyResult<Py<PyAny>> {
+    ///
+    /// The first call consumes the hasher, even when it raises on an argument.
+    #[pyo3(signature = (bits=Deferred::Default), text_signature = "($self, bits=64)")]
+    fn finalize(&mut self, py: Python<'_>, bits: Deferred<'_>) -> PyResult<Py<PyAny>> {
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| PyValueError::new_err("InstanceHasher already finalized"))?;
+        let bits = bits.or(64u32, "bits")?;
         let r = hasher
             .finalize(bits)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -748,19 +798,26 @@ impl PySumHasher {
     ///
     /// Returns a dict with keys `iscc`, `datahash`, `filesize`, and optionally
     /// `units` (list of Data-Code and Instance-Code strings) when `add_units`
-    /// is true.
-    #[pyo3(signature = (bits=64, wide=false, add_units=false))]
+    /// is true. The first call consumes the hasher, even when it raises on an
+    /// argument.
+    #[pyo3(
+        signature = (bits=Deferred::Default, wide=Deferred::Default, add_units=Deferred::Default),
+        text_signature = "($self, bits=64, wide=False, add_units=False)"
+    )]
     fn finalize(
         &mut self,
         py: Python<'_>,
-        bits: u32,
-        wide: bool,
-        add_units: bool,
+        bits: Deferred<'_>,
+        wide: Deferred<'_>,
+        add_units: Deferred<'_>,
     ) -> PyResult<Py<PyAny>> {
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| PyValueError::new_err("SumHasher already finalized"))?;
+        let bits = bits.or(64u32, "bits")?;
+        let wide = wide.or(false, "wide")?;
+        let add_units = add_units.or(false, "add_units")?;
         let r = hasher
             .finalize(bits, wide, add_units)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;

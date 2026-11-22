@@ -566,3 +566,60 @@ def test_sum_hasher_exported():
     """Verify SumHasher is importable and listed in __all__."""
     assert "SumHasher" in iscc_lib.__all__
     assert iscc_lib.SumHasher is SumHasher
+
+
+# ── A rejected first finalize() still consumes the hasher ───────────────────
+
+# One bad argument per fresh hasher: (finalize kwargs, expected exception, message).
+REJECTED_FINALIZE = [
+    pytest.param({"bits": -1}, OverflowError, "too small", id="binding-bits-negative"),
+    pytest.param({"bits": "x"}, TypeError, "integer", id="binding-bits-str"),
+    pytest.param({"bits": 13}, ValueError, "invalid length 13", id="core-bits-13"),
+]
+
+
+@pytest.mark.parametrize("hasher_cls", [DataHasher, InstanceHasher, SumHasher])
+@pytest.mark.parametrize(("kwargs", "exc", "message"), REJECTED_FINALIZE)
+def test_rejected_finalize_consumes_hasher(hasher_cls, kwargs, exc, message):
+    """Verify a finalize() that raises on its argument leaves the hasher finalized."""
+    hasher = hasher_cls(b"data")
+    with pytest.raises(exc, match=message):
+        hasher.finalize(**kwargs)
+    with pytest.raises(ValueError, match=f"{hasher_cls.__name__} already finalized"):
+        hasher.finalize(bits=64)
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{"wide": "x"}, {"add_units": "x"}], ids=["wide", "add_units"]
+)
+def test_sum_hasher_rejected_flag_consumes_hasher(kwargs):
+    """Verify a SumHasher.finalize() that rejects `wide` or `add_units` leaves it finalized."""
+    hasher = SumHasher(b"data")
+    with pytest.raises(TypeError, match="bool"):
+        hasher.finalize(**kwargs)
+    with pytest.raises(ValueError, match="SumHasher already finalized"):
+        hasher.finalize(bits=64)
+
+
+@pytest.mark.parametrize("bad", ["x", None])
+def test_lowlevel_rejected_finalize_matches_typed_parameter(bad):
+    """Verify a deferred `bits` error equals a typed `bits` parameter's (message and notes)."""
+    with pytest.raises(TypeError) as typed:
+        iscc_lib._lowlevel.gen_data_code_v0(b"data", bad)
+    with pytest.raises(TypeError) as deferred:
+        iscc_lib._lowlevel.DataHasher().finalize(bad)
+    assert str(deferred.value) == str(typed.value)
+    assert getattr(deferred.value, "__notes__", None) == getattr(
+        typed.value, "__notes__", None
+    )
+
+
+def test_lowlevel_finalize_defaults_unchanged():
+    """Verify omitted finalize() arguments keep their defaults (bits 64, narrow, no units)."""
+    omitted = iscc_lib._lowlevel.SumHasher()
+    explicit = iscc_lib._lowlevel.SumHasher()
+    assert omitted.finalize() == explicit.finalize(64, False, False)
+    assert (
+        iscc_lib._lowlevel.DataHasher().finalize()
+        == iscc_lib._lowlevel.DataHasher().finalize(64)
+    )

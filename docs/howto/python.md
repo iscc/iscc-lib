@@ -311,8 +311,9 @@ print(result.filesize)  # Total bytes processed
 print(result.units)  # [Data-Code, Instance-Code] (only when add_units=True)
 ```
 
-All three hashers accept `bytes` or file-like objects in `update()`. After calling `finalize()`, the
-hasher is consumed and further calls to `update()` or `finalize()` raise an error.
+All three hashers accept `bytes` or file-like objects in `update()`. The first `finalize()` call
+consumes the hasher, even when it fails (for example on an invalid `bits` value). After that,
+further calls to `update()` or `finalize()` raise an error.
 
 ## Text utilities
 
