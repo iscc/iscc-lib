@@ -23,6 +23,7 @@ import {
     gen_video_code_v0,
     alg_cdc_chunks,
     encode_component,
+    alg_minhash_256,
 } from '../index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -104,6 +105,7 @@ const SECTIONS = {
     gen_video_code_v0: [gen_video_code_v0, convertIscc, identity],
     alg_cdc_chunks: [alg_cdc_chunks, convertChunks, prepareCdc],
     encode_component: [encode_component, identity, prepareComponent],
+    alg_minhash_256: [alg_minhash_256, bytesValue, identity],
 };
 
 /** Load and parse data-edge.json. */
