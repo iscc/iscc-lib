@@ -86,11 +86,13 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 3f4f2c2, iter 286 — incremental)
+## Current State (assessed-at: dbbe46e, iter 287 — incremental)
 
-- Origin tip `1595d076` run 44987550038 GREEN 24/24 (suite success). Local HEAD +1 `.claude`-only.
-- 20 open (7 `normal` + 13 `low`, 12 untriaged). 285 closed vcpkg-hash `normal` (C++ now met), filed
-    `publish-ffi` rerun `normal` + vcpkg post-build `low`. Version-sync TARGETS = **22**.
+- Origin tip `5953d235` run 44988632391 GREEN 24/24 (suite success). Local HEAD +1 `.claude`-only.
+- 19 open (6 `normal` + 13 `low`, 12 untriaged). 286 closed napi README `normal` (Node.js now met).
+    Tier 1 doc gate: 22 FULL, 2 EXACT. Version-sync TARGETS = **22**.
+- **CI still running at assess time?** Write state, then re-check the run before committing — the
+    Kotlin job is the slowest and usually finishes within the iteration (287).
 - `prepare-release` needs `build-ffi`; runs `scripts/update_vcpkg_hashes.py ffi-staging`.
 - **JNI layouts:** CI `java` job runs Maven twice since 279 — `target/debug` layout, then
     bundled-resource-only (mirrors `release.yml` → `test-jni`).
@@ -110,7 +112,7 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 - **An audit or `cid(human)` commit can flip DONE-adjacent → workable with zero code change** —
     always diff issues.md after an audit iteration (249 filed 4, 260 filed 5).
 - Spec trees carry a "not every file" note gated by `scripts/check_spec_paths.py` (247).
-- Tier 1 doc gate registry near top of `scripts/check_tier1_docs.py` (20 FULL, 2 EXACT, 2 EXEMPT).
+- Tier 1 doc gate registry near top of `scripts/check_tier1_docs.py`; count via its own output line.
 - data-edge.json sections (9 since 264; list via `uv run python` json keys). C/C++ read generated
     `crates/iscc-ffi/tests/data_edge_vectors.h`. Vendored check:
     `md5sum $(git ls-files -- '*data-edge.json')`.

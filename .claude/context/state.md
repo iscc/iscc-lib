@@ -1,15 +1,14 @@
-<!-- assessed-at: 3f4f2c2bfa6430ab6206da7d9341bcd12e850e6e -->
+<!-- assessed-at: dbbe46ec619a7cf15d3eea083938ee808c7ead88 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.8.0 — features done; CI green; 7 `normal` issues block the release
+## Phase: v0.8.0 — features done; CI green; 6 `normal` issues block the release
 
-ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 285 fixed the
-vcpkg port: `packages/cpp/portfile.cmake` now carries the v0.7.0 SHA512s, and `release.yml` writes
-them from the `build-ffi` archives before it tags. Review closed that `normal`, filed a `normal` for
-a rerun gap in the FFI upload, and a `low` vcpkg post-build warning, so the count of 7 holds.
+ISCC-SEQ and `data-edge.json` run on the Rust core and all 11 bindings. Iteration 286 fixed the
+`@iscc/lib` npm README: it now states that `gen_sum_code_v0` returns a `NapiSumCodeResult` and names
+all 35 Tier 1 symbols. Review closed that `normal`, so 6 `normal` and 13 `low` issues remain.
 
 ## Shared Edge-Case Vectors (`data-edge.json`)
 
@@ -49,12 +48,13 @@ a rerun gap in the FFI upload, and a `low` vcpkg post-build warning, so the coun
 
 ## Node.js Bindings
 
-**Status**: partially met (one `normal`, one `low`)
+**Status**: met (v0.8.0 scope; one `low`)
 
 - 35 Tier 1 symbols with TypeScript declarations; conformance, seq and strict data-edge tests;
     `@iscc/lib` 0.7.0 on npm (OIDC); committed `package-lock.json`, `npm ci` in CI and release
-- `normal`: `crates/iscc-napi/README.md:52` says every code generator returns a string, but
-    `gen_sum_code_v0` returns a `NapiSumCodeResult`
+- `crates/iscc-napi/README.md` states the `NapiSumCodeResult` return of `gen_sum_code_v0` and names
+    all 35 Tier 1 symbols; it is `FULL` in the Tier 1 doc gate and pinned by
+    `tests/test_napi_docs.py`
 - `low`: `napi build` fails in the devcontainer checkout (the locked cli hard-links its outputs and
     the 9p mount rejects `link()`); CI is unaffected
 - The napi `Buffer` reference leak is postponed (`postponed.md`)
@@ -135,11 +135,11 @@ a rerun gap in the FFI upload, and a `low` vcpkg post-build warning, so the coun
 
 ## Documentation
 
-**Status**: partially met (two `normal`, one `low`)
+**Status**: partially met (one `normal`, one `low`)
 
 - 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
-    section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (21 `FULL`, 2 `EXACT`)
-- `normal`: napi README result-type sentence (see Node.js); Rust API tier docs (see Rust core)
+    section; root README plus 12 per-crate/package READMEs; Tier 1 doc gate (22 `FULL`, 2 `EXACT`)
+- `normal`: Rust API tier docs (see Rust core)
 - `low`: the version-sync file lists in `docs/development.md` (9 of 22 targets) and the release
     skill (13 of 22) are partial
 - `docs/development.md` still describes the old FFI upload behaviour (part of the `publish-ffi`
@@ -158,24 +158,23 @@ a rerun gap in the FFI upload, and a `low` vcpkg post-build warning, so the coun
 **Status**: partially met (CI green; one `normal`, one `low`)
 
 - `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles;
-    `prepare-release` now needs `build-ffi` and commits the vcpkg hashes with the Swift checksum
-    before tagging; 22 version-sync targets at 0.7.0; every ecosystem installs from a lockfile
+    `prepare-release` needs `build-ffi` and commits the vcpkg hashes with the Swift checksum before
+    tagging; 22 version-sync targets at 0.7.0; every ecosystem installs from a lockfile
 - `normal`: `publish-ffi` uses `overwrite_files: false`, so a `gh run rerun --failed` after a failed
     upload skips an empty `starter` asset of the same name and reports success
 - `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
-- **Latest CI: PASSING.** Run 44987550038 on the origin tip `1595d076`: 24/24 check-runs green,
-    check-suite `success`: https://github.com/iscc/iscc-lib/actions/runs/44987550038
+- **Latest CI: PASSING.** Run 44988632391 on the origin tip `5953d235`: 24/24 check-runs green,
+    check-suite `success`: https://github.com/iscc/iscc-lib/actions/runs/44988632391
 - Local HEAD adds one unpushed log commit that touches only `.claude`
 
 ## Open Issues
 
-20 open in issues.md: 7 `normal`, 13 `low` (12 untriaged), no `critical`. Two need a behaviour
+19 open in issues.md: 6 `normal`, 13 `low` (12 untriaged), no `critical`. Two need a behaviour
 decision first (`alg_minhash_256([])`, WASM `finalize()`). None is blocked on upstream. 7 sit in
 `postponed.md`.
 
 ## Next Milestone
 
-Clear the 7 `normal` issues that block v0.8.0: the release-path and user-facing ones (the
-`publish-ffi` rerun gap, the napi README), the Rust API tier docs, the duplicate `data.json`
-parsers, the one-shot/streaming duplication, and the two behaviour decisions. Then Titusz cuts
-v0.8.0 via `/release`.
+Clear the 6 `normal` issues that block v0.8.0: the `publish-ffi` rerun gap on the release path, the
+Rust API tier docs, the duplicate `data.json` parsers, the one-shot/streaming duplication, and the
+two behaviour decisions (these need Titusz). Then Titusz cuts v0.8.0 via `/release`.
