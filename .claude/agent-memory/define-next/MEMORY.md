@@ -3,26 +3,26 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
-**Status 2026-11-22 (iter 307):** 306 PASS (SECTIONS table). 307 = whole spec/doc-drift audit issue
-in ONE step (specs + docs + comment-only + regen all fall outside the cap per decision 2026-11-20 —
-the handoff's 2-step split was unneeded). conan 2.34 runs via `uv run --no-project --with conan`
-(e2e `conan create` locally possible). **An error row must be probed on the last release
-(`--with iscc-lib==0.7.0`) to prove it pins a rule.** After them v0.8.0 is release-ready (human
-cuts). **Renaming a script a decision names leaves the decision stale — extend it instead.** **C
-edge generator's `meta_text` rejects `null` meta — use an object.** **A Go-behaviour step is
-'core-like': keep vector rows that need all 12 harnesses out of it.** **A Tier 2 signature change is
-an `API-BREAK` stop for advance — route around it.** **An issue's list of pinning tests can
-under-count (298: `tests/test_algo.py` was a 6th `0xFF` pin) — grep yourself.** **A
-signature-changing core break cannot land "alone": forced binding edits ride along; the data-edge
-fan-out stays separate.** **Behaviour-neutral call swaps don't count toward the cap (decision
-2026-11-20 counts behaviour files)** — say so in Scope. In-crate test modules of `lib.rs` can't see
-private `conformance` items — scope `pub(crate)`. **Check a grep criterion's pattern against the
-current tree's error/doc strings too** (290). iscc-lib CI tests 3 feature sets (default, none,
-text-processing). **Any Java test needing a library outside the bundle must pass in BOTH layouts.**
-Per-iteration traps for 259-269 → [v0.8.0 iteration ledger](v080-iteration-ledger.md). **Probe the
-ref on BOTH builds (py3.10 + py3.15) before scoping a vector. External-flake red: still scope a
-hardening. An issue's "Scope estimate" can over-count — apply the docs-excluded rule yourself.
-Dependabot alerts track `main`, not `develop`.** NONE verification:
+**Status 2026-11-22 (iter 308):** 307 PASS closed the last `normal` issue → 308 = `Step: NONE`
+(v0.8.0 criteria met, 18 `low`, release + v1.0.0 human-gated). Next run: NONE again unless the human
+promotes an issue or edits target.md — check `git log` for a `cid(human)` commit first. conan 2.34
+runs via `uv run --no-project --with conan` (e2e `conan create` locally possible). **An error row
+must be probed on the last release (`--with iscc-lib==0.7.0`) to prove it pins a rule.** After them
+v0.8.0 is release-ready (human cuts). **Renaming a script a decision names leaves the decision stale
+— extend it instead.** **C edge generator's `meta_text` rejects `null` meta — use an object.** **A
+Go-behaviour step is 'core-like': keep vector rows that need all 12 harnesses out of it.** **A Tier
+2 signature change is an `API-BREAK` stop for advance — route around it.** **An issue's list of
+pinning tests can under-count (298: `tests/test_algo.py` was a 6th `0xFF` pin) — grep yourself.**
+**A signature-changing core break cannot land "alone": forced binding edits ride along; the
+data-edge fan-out stays separate.** **Behaviour-neutral call swaps don't count toward the cap
+(decision 2026-11-20 counts behaviour files)** — say so in Scope. In-crate test modules of `lib.rs`
+can't see private `conformance` items — scope `pub(crate)`. **Check a grep criterion's pattern
+against the current tree's error/doc strings too** (290). iscc-lib CI tests 3 feature sets (default,
+none, text-processing). **Any Java test needing a library outside the bundle must pass in BOTH
+layouts.** Per-iteration traps for 259-269 → [v0.8.0 iteration ledger](v080-iteration-ledger.md).
+**Probe the ref on BOTH builds (py3.10 + py3.15) before scoping a vector. External-flake red: still
+scope a hardening. An issue's "Scope estimate" can over-count — apply the docs-excluded rule
+yourself. Dependabot alerts track `main`, not `develop`.** NONE verification:
 `grep -E '^## .*(critical|normal)' issues.md` prints nothing. **Compiler-limit issues with no
 compiler here: find a gcc warning that encodes the same standard limit** (282). **wasm-bindgen
 generated-JS facts: cli-support is not in the cargo registry (wasm-pack downloads the binary) — read
