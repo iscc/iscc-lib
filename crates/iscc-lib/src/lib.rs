@@ -157,29 +157,45 @@ fn decode_data_url(data_url: &str) -> IsccResult<Vec<u8>> {
         .map_err(|e| IsccError::InvalidInput(format!("invalid base64 in Data-URL: {e}")))
 }
 
-/// Parse a meta string as JSON and re-serialize to RFC 8785 (JCS) canonical bytes.
+/// JSON metadata parsed once and re-serialized to RFC 8785 (JCS) canonical bytes.
 #[cfg(feature = "meta-code")]
-fn parse_meta_json(meta_str: &str) -> IsccResult<Vec<u8>> {
-    let parsed: serde_json::Value = serde_json::from_str(meta_str)
-        .map_err(|e| IsccError::InvalidInput(format!("invalid JSON in meta: {e}")))?;
-    let mut buf = Vec::new();
-    serde_json_canonicalizer::to_writer(&parsed, &mut buf)
-        .map_err(|e| IsccError::InvalidInput(format!("JSON canonicalization failed: {e}")))?;
-    Ok(buf)
+struct CanonicalJson {
+    /// JCS canonical serialization of the parsed JSON.
+    bytes: Vec<u8>,
+    /// Whether the top-level JSON object has an `@context` key (JSON-LD).
+    is_json_ld: bool,
 }
 
-/// Build a Data-URL from canonical JSON bytes.
+/// Parse a JSON string and canonicalize it per RFC 8785 (JCS).
+///
+/// `parse_error_prefix` is prepended to the parser's error message, so each
+/// caller keeps its own error text. Canonicalization errors read
+/// `JSON canonicalization failed: …` for every caller.
+#[cfg(feature = "meta-code")]
+fn canonicalize_json(json: &str, parse_error_prefix: &str) -> IsccResult<CanonicalJson> {
+    let parsed: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| IsccError::InvalidInput(format!("{parse_error_prefix}: {e}")))?;
+    let mut bytes = Vec::new();
+    serde_json_canonicalizer::to_writer(&parsed, &mut bytes)
+        .map_err(|e| IsccError::InvalidInput(format!("JSON canonicalization failed: {e}")))?;
+    Ok(CanonicalJson {
+        bytes,
+        is_json_ld: parsed.get("@context").is_some(),
+    })
+}
+
+/// Build a Data-URL from canonical JSON.
 ///
 /// Uses `application/ld+json` media type if the JSON has an `@context` key,
 /// otherwise `application/json`. Encodes payload as standard base64 with padding.
 #[cfg(feature = "meta-code")]
-fn build_meta_data_url(json_bytes: &[u8], json_value: &serde_json::Value) -> String {
-    let media_type = if json_value.get("@context").is_some() {
+fn build_meta_data_url(json: &CanonicalJson) -> String {
+    let media_type = if json.is_json_ld {
         "application/ld+json"
     } else {
         "application/json"
     };
-    let b64 = data_encoding::BASE64.encode(json_bytes);
+    let b64 = data_encoding::BASE64.encode(&json.bytes);
     format!("data:{media_type};base64,{b64}")
 }
 
@@ -324,12 +340,10 @@ pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
 /// ```
 #[cfg(feature = "meta-code")]
 pub fn json_to_data_url(json: &str) -> IsccResult<String> {
-    let parsed: serde_json::Value = serde_json::from_str(json)
-        .map_err(|e| IsccError::InvalidInput(format!("invalid JSON: {e}")))?;
-    let mut canonical_bytes = Vec::new();
-    serde_json_canonicalizer::to_writer(&parsed, &mut canonical_bytes)
-        .map_err(|e| IsccError::InvalidInput(format!("JSON canonicalization failed: {e}")))?;
-    Ok(build_meta_data_url(&canonical_bytes, &parsed))
+    Ok(build_meta_data_url(&canonicalize_json(
+        json,
+        "invalid JSON",
+    )?))
 }
 
 /// Generate a Meta-Code from name and optional metadata.
@@ -373,15 +387,21 @@ pub fn gen_meta_code_v0(
         }
     }
 
-    // Resolve meta payload bytes (if meta is provided)
-    let meta_payload: Option<Vec<u8>> = match meta {
-        Some(meta_str) if meta_str.starts_with("data:") => Some(decode_data_url(meta_str)?),
-        Some(meta_str) => Some(parse_meta_json(meta_str)?),
+    // Resolve meta payload bytes and the result's Data-URL (if meta is provided)
+    let meta_payload: Option<(Vec<u8>, String)> = match meta {
+        Some(meta_str) if meta_str.starts_with("data:") => {
+            Some((decode_data_url(meta_str)?, meta_str.to_string()))
+        }
+        Some(meta_str) => {
+            let json = canonicalize_json(meta_str, "invalid JSON in meta")?;
+            let data_url = build_meta_data_url(&json);
+            Some((json.bytes, data_url))
+        }
         None => None,
     };
 
     // Post-decode check: reject payloads exceeding META_TRIM_META
-    if let Some(ref payload) = meta_payload {
+    if let Some((ref payload, _)) = meta_payload {
         if payload.len() > META_TRIM_META {
             return Err(IsccError::InvalidInput(format!(
                 "decoded meta payload exceeds size limit ({} > {META_TRIM_META} bytes)",
@@ -391,9 +411,9 @@ pub fn gen_meta_code_v0(
     }
 
     // Branch: meta bytes path vs. description text path
-    if let Some(ref payload) = meta_payload {
-        let meta_code_digest = soft_hash_meta_v0_with_bytes(&name, payload);
-        let metahash = utils::multi_hash_blake3(payload);
+    if let Some((payload, meta_value)) = meta_payload {
+        let meta_code_digest = soft_hash_meta_v0_with_bytes(&name, &payload);
+        let metahash = utils::multi_hash_blake3(&payload);
 
         let meta_code = codec::encode_component(
             codec::MainType::Meta,
@@ -402,17 +422,6 @@ pub fn gen_meta_code_v0(
             bits,
             &meta_code_digest,
         )?;
-
-        // Build the meta Data-URL for the result
-        let meta_value = match meta {
-            Some(meta_str) if meta_str.starts_with("data:") => meta_str.to_string(),
-            Some(meta_str) => {
-                let parsed: serde_json::Value = serde_json::from_str(meta_str)
-                    .map_err(|e| IsccError::InvalidInput(format!("invalid JSON: {e}")))?;
-                build_meta_data_url(payload, &parsed)
-            }
-            None => unreachable!(),
-        };
 
         Ok(MetaCodeResult {
             iscc: format!("ISCC:{meta_code}"),
@@ -909,7 +918,7 @@ pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<DataCodeResult> {
 /// with BLAKE3. Captures the exact binary identity of the data.
 pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<InstanceCodeResult> {
     let digest = blake3::hash(data);
-    let datahash = utils::multi_hash_blake3(data);
+    let datahash = utils::blake3_multihash_hex(&digest);
     let filesize = data.len() as u64;
     let component = codec::encode_component(
         codec::MainType::Instance,
@@ -1243,6 +1252,43 @@ mod tests {
         );
     }
 
+    /// `json_to_data_url` and the `meta` field of `gen_meta_code_v0` agree for JSON input.
+    #[cfg(feature = "meta-code")]
+    #[test]
+    fn test_json_to_data_url_matches_gen_meta_code_v0_meta() {
+        let inputs = [
+            r#"{"some":"object"}"#,
+            r#"{"b": 1.0, "a": [1e20, "x"]}"#,
+            r#"{"@context": "https://schema.org", "name": "Hello"}"#,
+        ];
+        for json in inputs {
+            let meta = gen_meta_code_v0("Hello", None, Some(json), 64)
+                .unwrap()
+                .meta;
+            assert_eq!(meta, Some(json_to_data_url(json).unwrap()), "{json}");
+        }
+        let ld_meta = json_to_data_url(inputs[2]).unwrap();
+        assert!(ld_meta.starts_with("data:application/ld+json;base64,"));
+    }
+
+    /// Each JSON entry point keeps its own parse-error prefix.
+    #[cfg(feature = "meta-code")]
+    #[test]
+    fn test_json_parse_error_texts() {
+        let meta_err = gen_meta_code_v0("Hello", None, Some("{bad"), 64)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            meta_err.starts_with("invalid input: invalid JSON in meta: "),
+            "{meta_err}"
+        );
+        let url_err = json_to_data_url("{bad").unwrap_err().to_string();
+        assert!(
+            url_err.starts_with("invalid input: invalid JSON: "),
+            "{url_err}"
+        );
+    }
+
     /// Verify that JSON metadata with float values is canonicalized per RFC 8785 (JCS).
     ///
     /// JCS serializes `1.0` as `1` (integer form), while `serde_json` preserves `1.0`.
@@ -1258,7 +1304,7 @@ mod tests {
         // Expected values from iscc-core (Python) using jcs.canonicalize()
         assert_eq!(
             result.iscc, "ISCC:AAAX4GX3RZH2I6QZ",
-            "ISCC mismatch: parse_meta_json must use RFC 8785 (JCS) canonicalization"
+            "ISCC mismatch: canonicalize_json must use RFC 8785 (JCS) canonicalization"
         );
         assert_eq!(
             result.meta,
@@ -1869,6 +1915,21 @@ mod tests {
             result.datahash,
             "1e20af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
         );
+    }
+
+    /// The one-shot datahash equals the multihash helper and the streaming result.
+    #[test]
+    fn test_gen_instance_code_v0_datahash_matches_multihash_and_streaming() {
+        let inputs: [&[u8]; 4] = [b"", b"a", b"hello world", &[0xffu8; 70_000]];
+        for data in inputs {
+            let one_shot = gen_instance_code_v0(data, 64).unwrap();
+            assert_eq!(one_shot.datahash, utils::multi_hash_blake3(data));
+            let mut hasher = InstanceHasher::new();
+            hasher.update(data);
+            let streamed = hasher.finalize(64).unwrap();
+            assert_eq!(one_shot.datahash, streamed.datahash);
+            assert_eq!(one_shot.iscc, streamed.iscc);
+        }
     }
 
     #[test]

@@ -763,6 +763,25 @@ fn test_sum_hasher_matches_gen_function() {
 }
 
 #[wasm_bindgen_test]
+fn test_gen_sum_code_v0_matches_sum_hasher_wide_with_units() {
+    // With wide and add_units set, the one-shot result equals SumHasher on
+    // the same bytes in every field, including the units.
+    let data: Vec<u8> = (0..20_000).map(|i| (i % 251) as u8).collect();
+    let oneshot =
+        iscc_wasm::gen_sum_code_v0(&data, num(128.0), JsValue::TRUE, JsValue::TRUE).unwrap();
+    let mut sh = iscc_wasm::SumHasher::new();
+    sh.update(&data).unwrap();
+    let streaming = sh
+        .finalize(num(128.0), JsValue::TRUE, JsValue::TRUE)
+        .unwrap();
+    assert_eq!(oneshot.iscc, streaming.iscc);
+    assert_eq!(oneshot.datahash, streaming.datahash);
+    assert_eq!(oneshot.filesize, streaming.filesize);
+    assert_eq!(oneshot.units, streaming.units);
+    assert_eq!(oneshot.units.map(|u| u.len()), Some(2));
+}
+
+#[wasm_bindgen_test]
 fn test_sum_hasher_multi_update_invariance() {
     // Splitting the same bytes across multiple update() calls should match a
     // single update() call and the one-shot composition. Use data large enough

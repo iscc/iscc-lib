@@ -7,7 +7,7 @@
 //! of large files without loading entire contents into memory.
 
 use crate::types::{DataCodeResult, InstanceCodeResult, SumCodeResult};
-use crate::{IsccResult, cdc, codec, gen_iscc_code_v0, minhash};
+use crate::{IsccResult, cdc, codec, gen_iscc_code_v0, minhash, utils};
 
 /// Streaming Instance-Code generator.
 ///
@@ -39,7 +39,7 @@ impl InstanceHasher {
     /// of all data passed to `update`.
     pub fn finalize(self, bits: u32) -> IsccResult<InstanceCodeResult> {
         let digest = self.hasher.finalize();
-        let datahash = format!("1e20{}", hex::encode(digest.as_bytes()));
+        let datahash = utils::blake3_multihash_hex(&digest);
         let component = codec::encode_component(
             codec::MainType::Instance,
             codec::SubType::None,

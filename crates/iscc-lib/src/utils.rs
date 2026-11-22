@@ -160,9 +160,18 @@ pub fn text_collapse(text: &str) -> String {
 /// Compute a BLAKE3 hash with multihash prefix.
 ///
 /// Returns a hex-encoded string with the BLAKE3 multicodec prefix (0x1e)
-/// and digest length (0x20 = 32 bytes).
+/// and digest length (0x20 = 32 bytes). Only Meta-Code hashes raw bytes here;
+/// callers that already hold a digest use `blake3_multihash_hex`.
+#[cfg(any(feature = "meta-code", test))]
 pub(crate) fn multi_hash_blake3(data: &[u8]) -> String {
-    let digest = blake3::hash(data);
+    blake3_multihash_hex(&blake3::hash(data))
+}
+
+/// Format an existing BLAKE3 digest as a hex-encoded multihash.
+///
+/// Prepends the BLAKE3 multicodec prefix (0x1e) and digest length
+/// (0x20 = 32 bytes) to the digest and hex-encodes the result.
+pub(crate) fn blake3_multihash_hex(digest: &blake3::Hash) -> String {
     let mut result = Vec::with_capacity(34);
     result.push(0x1e); // BLAKE3 multicodec
     result.push(0x20); // 32 bytes length

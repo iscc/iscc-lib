@@ -338,9 +338,9 @@ pub struct WasmSumCodeResult {
 
 /// Generate a composite ISCC-CODE from raw byte data in a single pass.
 ///
-/// Feeds both `DataHasher` (CDC/MinHash) and `InstanceHasher` (BLAKE3) from
-/// the same byte slice, then composes the final ISCC-CODE via
-/// `gen_iscc_code_v0`. WASM-compatible alternative to the file-based core API.
+/// Feeds the byte slice to one core `streaming::SumHasher` (Data-Code and
+/// Instance-Code in a single pass, composed via `gen_iscc_code_v0`).
+/// WASM-compatible alternative to the file-based core API.
 ///
 /// When `add_units` is `true`, the result includes the individual Data-Code
 /// and Instance-Code ISCC strings.
@@ -355,35 +355,22 @@ pub fn gen_sum_code_v0(
     let wide = opt_bool(&wide, false, "wide")?;
     let add_units = opt_bool(&add_units, false, "add_units")?;
 
-    let mut data_hasher = iscc_lib::DataHasher::new();
-    let mut instance_hasher = iscc_lib::InstanceHasher::new();
-
-    data_hasher.update(data);
-    instance_hasher.update(data);
-
-    let data_result = data_hasher
-        .finalize(bits)
+    let mut hasher = iscc_lib::streaming::SumHasher::new();
+    hasher.update(data);
+    let result = hasher
+        .finalize(bits, wide, add_units)
         .map_err(|e| JsError::new(&e.to_string()))?;
-    let instance_result = instance_hasher
-        .finalize(bits)
-        .map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(wasm_sum_result(result))
+}
 
-    // Borrow strings for gen_iscc_code_v0 before potentially moving them into units.
-    let iscc_result = iscc_lib::gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)
-        .map_err(|e| JsError::new(&e.to_string()))?;
-
-    let units = if add_units {
-        Some(vec![data_result.iscc, instance_result.iscc])
-    } else {
-        None
-    };
-
-    Ok(WasmSumCodeResult {
-        iscc: iscc_result.iscc,
-        datahash: instance_result.datahash,
-        filesize: instance_result.filesize as f64,
-        units,
-    })
+/// Convert a core `SumCodeResult` into its JS-facing form (`filesize` as `f64`).
+fn wasm_sum_result(result: iscc_lib::SumCodeResult) -> WasmSumCodeResult {
+    WasmSumCodeResult {
+        iscc: result.iscc,
+        datahash: result.datahash,
+        filesize: result.filesize as f64,
+        units: result.units,
+    }
 }
 
 // ── Text utilities ──────────────────────────────────────────────────────────
@@ -830,11 +817,6 @@ impl SumHasher {
         let result = hasher
             .finalize(bits, wide, add_units)
             .map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(WasmSumCodeResult {
-            iscc: result.iscc,
-            datahash: result.datahash,
-            filesize: result.filesize as f64,
-            units: result.units,
-        })
+        Ok(wasm_sum_result(result))
     }
 }

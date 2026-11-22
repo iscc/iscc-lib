@@ -1,65 +1,63 @@
-## 2026-11-22 — Review of: Classify every public `iscc-lib` path in one tier list and fix the false Rust API sentences
+## 2026-11-22 — One-shot gen functions stop re-implementing their streaming counterparts
 
-**Verdict:** PASS
+**Done:** Each of the three computations the `[audit]` issue cites now exists once. A
+`pub(crate) utils::blake3_multihash_hex(&blake3::Hash)` writes the `1e`/`20` prefix in one place,
+and `multi_hash_blake3`, `InstanceHasher::finalize` and `gen_instance_code_v0` all call it.
+`gen_instance_code_v0` now hashes once. WASM `gen_sum_code_v0` calls the core
+`streaming::SumHasher`. A private `canonicalize_json` parses and canonicalizes JSON meta once, for
+both `gen_meta_code_v0` and `json_to_data_url`.
 
-**Summary:** Docs and comments only. Every public `iscc-lib` path now has a tier: Tier 1 is the 35
-crate-root symbols, `IsccError`/`IsccResult` and the `types` result structs are uncounted support
-types, and Tier 2 is `codec` plus `streaming::SumHasher`. Every sentence the audit issue cited now
-matches `lib.rs`, and the issue is deleted. Review closed three small gaps in the wording (below).
+**Files changed:**
+
+- `crates/iscc-lib/src/utils.rs`: added `blake3_multihash_hex`; `multi_hash_blake3` delegates to it
+    and is gated `#[cfg(any(feature = "meta-code", test))]`. Its only non-test caller left is
+    Meta-Code, so `--no-default-features` clippy flagged it as dead code
+- `crates/iscc-lib/src/streaming.rs`: `InstanceHasher::finalize` uses the helper (no `format!`)
+- `crates/iscc-lib/src/lib.rs`: `parse_meta_json` replaced by
+    `canonicalize_json(json,   parse_error_prefix) -> CanonicalJson { bytes, is_json_ld }`.
+    `build_meta_data_url` takes `&CanonicalJson`. `gen_meta_code_v0` resolves `(payload, data_url)`
+    in one match with no second parse, and both size checks run in the same order as before.
+    `json_to_data_url` is a one-liner. `gen_instance_code_v0` formats from its own digest. 3 tests
+    added; one existing assertion *message* (not its condition) renamed `parse_meta_json` →
+    `canonicalize_json`
+- `crates/iscc-wasm/src/lib.rs`: `gen_sum_code_v0` = `SumHasher` new/update/finalize, with the arg
+    checks in the original order and the doc comment updated. Added private
+    `wasm_sum_result(SumCodeResult)`, shared with `SumHasher::finalize`, which had the same field
+    mapping
+- `crates/iscc-wasm/tests/unit.rs`: `test_gen_sum_code_v0_matches_sum_hasher_wide_with_units` (bits
+    128, wide, add_units, 20 kB input; all 4 fields equal, 2 units)
 
 **Verification:**
 
-- [x] `git grep -n 'iscc_lib::api' -- ':!notes' ':!.claude'` prints nothing
-- [x] `git grep -n -e 'bytes, not file paths' -e 'Import codec types' -- docs CLAUDE.md` prints
-    nothing
-- [x] `git grep -n 'SumHasher'` matches in each of the four files (architecture.md 1, rust-api.md 5,
-    `crates/iscc-lib/CLAUDE.md` 1, rust-core.md 2)
-- [x] `uv run pytest tests/test_rust_api_signatures.py`: 5 passed. `check_tier1_docs.py`: exit 0,
-    "22 full and 2 exact Tier 1 docs match"
-- [x] `uv run zensical build` exit 0, and `mise run check` exit 0
-- [x] Extra: the `SumHasher` example compiles and runs in a `/tmp` cargo project. The same probe
-    confirmed three claims in the new text: `SumHasher` equals `gen_sum_code_v0` on a file with the
-    same bytes, `gen_sum_code_v0` equals `gen_iscc_code_v0` over its two units, and `types::X` /
-    `streaming::DataHasher` are the crate-root items
-- [x] Extra: the CI CRAP gate on HEAD. The `//!` edit moves every function in `lib.rs` down 4 lines
-    and the baseline stores line numbers. Result: exit 0, "0 regressed, 33 moved". No baseline
-    refresh is needed
-- [x] Scope: no code change. `lib.rs` and `IsccLibTest.java` are comment-only (confirmed in the
-    diff). No gate was weakened. The other unpushed commits touch `.claude/` only
+- `cargo test -p iscc-lib`: 450 passed, 0 failed. `--no-default-features`: 384 passed.
+    `--no-default-features --features text-processing`: 417 passed
+- clippy `-p iscc-lib --no-default-features -- -D warnings`, the same with `--tests` for both
+    feature legs, and `--workspace --exclude iscc-rb --all-targets -- -D warnings`: no errors
+- `wasm-pack test --node crates/iscc-wasm --features conformance`: exit 0 (11 + 8 + 127 passed), the
+    new sum test included
+- `mise run bench:iai:check`: exit 0. `bench_instance_code.bytes_1m` 5,236,470 → 2,621,027 Ir
+    (−49.95%) and `bytes_64k` −49.22%. All other benches fall between +0.00% and −7.65%, which is
+    the known baseline drift (the meta benches pass no JSON `meta`). Baseline not refreshed
+- CRAP: `cargo llvm-cov … && cargo crap … --fail-regression --fail-above`: exit 0, "0 regressed, 2
+    improved, 2 new, 31 moved, 1 removed (parse_meta_json)". No baseline refresh
+- Greps: `multi_hash_blake3` in `gen_instance_code_v0` = 0, `serde_json::from_str` in
+    `gen_meta_code_v0` = 0, `blake3::hash` in `gen_instance_code_v0` = 1. In
+    `crates/iscc-wasm/src/lib.rs`, `instance_hasher\|1e20{` = 0. **In `streaming.rs` it prints 11,
+    not 0:** every match is `SumHasher`'s own `instance_hasher` field (the one remaining
+    implementation) or a `test_instance_hasher_*` test name. `grep -c '1e20{'` on that file = 0. I
+    did not rename the field or the tests just to make a grep pass. The criterion is over-broad
+- `mise run check`: exit 0
 
-**Issues found:**
-
-- Fixed by review: root `CLAUDE.md` still said "Only Tier 1 … is bound to foreign languages", which
-    the step's own classification contradicts (Python and WASM wrap `SumHasher`). It now names that
-    exception
-- Fixed by review: four Tier 1 functions live in `codec` (`encode_base64`, `iscc_decompose`,
-    `encode_seq`, `decode_seq`), and `codec::encode_component` is a separate enum-typed Tier 2
-    function. `docs/architecture.md` and `crates/iscc-lib/CLAUDE.md` now say so. The latter also
-    said "`*CodeResult` structs", which left out `IsccIdResult`
-- Filed `low`, untriaged: "target.md and the agent prompts name `codec` as the whole of Tier 2".
-    `target.md` and the API-break rules in `.claude/agents/advance.md` and `review.md` are Titusz's
-    to edit
-- Nit, not filed: the "Internal Modules" table in `docs/architecture.md` has no row for the
-    `pub(crate)` module `conformance`
-
-**Codex review:** no findings. It ran the docs checks, the doctests and the new example, and found
-the revised descriptions consistent with the code.
-
-**Next:** the `normal` `[audit]` issue "One-shot gen functions re-implement their streaming
-counterparts" (3 non-test files). It changes the instance hot path, so the same step must run
-`mise run bench:iai:check` (needs `valgrind` and `iai-callgrind-runner@0.16.1`, see learnings →
-Tooling) and refresh `.crap-baseline.json`, because both gates fail in CI only. The WASM part
-(`gen_sum_code_v0` calling `SumHasher`) can be split off if the step gets too large.
+**Next:** the Rust half of "Rust and Go per-function tests re-parse `data.json`", which next.md
+named as the follow-up.
 
 **Notes:**
 
-- Decision recorded (2026-11-22): `streaming::SumHasher` is Tier 2, and Tier 2 has the same SemVer
-    contract as Tier 1. `docs/architecture.md` used to say Tier 2 "may change in MINOR releases";
-    advance aligned it with `rust-core.md`, and the decision covers that change
-- Until Titusz edits the review prompt, treat a signature change to `streaming::SumHasher` like a
-    Tier 2 `codec` change: it needs an `**API-BREAK:**` flag
-- The two issues that need a behaviour decision from Titusz are still open and still `normal`:
-    `alg_minhash_256([])` and the WASM hasher `finalize()` rule. Neither is a candidate for a step
-    before he decides
-- A comment-only edit that shifts lines in a covered file does not trip the CRAP gate (learnings
-    corrected; the old line claimed it did)
+- No public signature, error text or result field changed. Error texts are pinned by the new
+    `test_json_parse_error_texts`: `invalid JSON in meta: …` from `gen_meta_code_v0` and
+    `invalid JSON: …` from `json_to_data_url`. `JSON canonicalization failed: …` is shared. The old
+    second parse in `gen_meta_code_v0` had an unreachable `invalid JSON:` arm, now gone
+- `gen_meta_code_v0` now builds the data URL (one base64 encode) before the post-decode size check.
+    Only an oversized payload that is about to be rejected pays for it, and hashing still happens
+    after the check
+- Out of scope, not touched: `gen_data_code_v0` vs `DataHasher` (as next.md says)

@@ -75,9 +75,6 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - Commit quirks (217): Ruby `standardrb --fix` hook takes minutes (long timeout); trust
     `prek run --files` over bare `uv run mdformat`; never edit files while `mise run check` runs.
     WSL `index.lock` race after prek's stash-restore: retry `git commit` in a sleep loop (226)
-- GOTCHAs: ci.yml `cancel-in-progress: true` per ref — a second develop push cancels the previous
-    sha's in-flight CI run; system `python3` lacks PyYAML (use `uv run python`); piping cargo-crap
-    or cargo-deny to a pager makes `$?` the pager's exit — redirect to a file instead
 - Ruby CI job: libclang-dev required; ruby/setup-ruby@v1 `working-directory` is a `with:` param.
     `rust` job matrix: `--no-default-features` / `--all-features` / `--features text-processing`
 - Adding/renaming a ci.yml job requires updating the job table in `.claude/context/specs/ci-cd.md`
@@ -85,11 +82,6 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     pytest anchor; backticked first-column keys, count floor 10)
 - `version-check` job: `scripts/version_sync.py --check` (`TARGETS` list; exits 1 on mismatch). Go
     CI job has zero Rust deps. napi lock (284) is a target: get/sync both root version fields
-- napi (284): `crates/iscc-napi/package-lock.json` committed, CI + release use `npm ci`; lock
-    @napi-rs/cli 3.10.12 `napi build` FAILS on the 9p `/workspace` mount (fs-transaction
-    AggregateError, deterministic) — prove builds in a `/tmp` worktree with
-    `CARGO_TARGET_DIR=/workspace/iscc-lib/target`; clean the `.napi-rs-filesystem-transaction.swp`
-    and `.*.tmp` leftovers
 - Generated-artifact gates (274), pytest addopts (254), Kotlin plugins (262), .NET CI (260) →
     ci-gates.md
 - Python dev builds: `uv run maturin develop -m crates/iscc-py/Cargo.toml` (always via uv run).
@@ -123,6 +115,10 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
 - Tier map (288): Tier 1 = crate-root symbols (35); support types `IsccError`/`IsccResult` + `types`
     structs (not counted); Tier 2 = `codec` + `streaming::SumHasher` (Py/WASM wrap it). Tier 2 is
     under SemVer (rust-core.md), not "may change in MINOR"
+- One-shot dedup (289): multihash prefix only in `utils::blake3_multihash_hex(&Hash)`; JSON meta
+    parse+JCS once in private `canonicalize_json(json, prefix)` (each caller keeps its error text);
+    WASM `gen_sum_code_v0` = core `SumHasher`. next.md grep criteria can over-match field/test names
+    — report, don't rename to game them
 - Video ragged input (250), Python int range (265), Go meta JCS (251/266), `alg_simhash([])` (225),
     `json_to_data_url` → api-design.md
 
@@ -133,15 +129,6 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md), [data-edge.md](data-edg
     symbols). New API symbol → update every FULL doc + both `tier1:begin` blocks in the same step.
     Fail-closed lib.rs parse (242): `scan_lib` classifies each column-0 `pub` by offset; a new
     non-derived crate-root item needs an `EXCLUDED_ITEMS` entry (named, never kind-wide)
-- Docs-claim tests (286): a banned-phrase literal in a test matches next.md's repo-wide `git grep`
-    criterion — split it (`"a " + "b"`) with a comment. Prove with the HEAD doc
-- Per-crate `CLAUDE.md` files carry no file trees/tables (246): a rule goes in prose against a file
-    name. Line-range edits via an anchored `/tmp` Python script; mdformat reflows inserted lines
-- Spec drift sweeps (259): mdformat also reformats \`\`\`js blocks; release-trigger truth =
-    release.yml `on:` + each job's `if:` — grep `refs/tags`/`github.ref` too, next.md greps miss
-    YAML conditions
-- Guidance docs carry no counts/`path:NN` (245): write "every binding", "all Tier 1 symbols". Line
-    greps miss wrapped counts — also grep each file joined via `tr '\n' ' '`
 - Spec path gate `scripts/check_spec_paths.py`: `*` one segment, `**` crosses `/`; `NOT_PATHS`
     backticked spans only (228). Fix phantoms in the spec, never by adding a file. Every spec tree
     needs a following paragraph with `not every file` (247); fixture line numbers shift with notes

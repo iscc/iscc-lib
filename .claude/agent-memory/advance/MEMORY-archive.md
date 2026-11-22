@@ -252,3 +252,23 @@ macros-backend default-handling on every major bump, not just compiler warnings.
     `data_edge_vectors.h` (no data.json); C++ = library `conformance_selftest` + header; .NET/Swift/
     Kotlin = vendored copies; Go gen tests read `../../crates/iscc-lib/tests/data.json`, selftest
     embeds `testdata/`. Sum-Code types: napi `NapiSumCodeResult`, Java `SumCodeResult`
+
+## Docs sweep rules (archived iter 289)
+
+- Docs-claim tests (286): a banned-phrase literal in a test matches next.md's repo-wide `git grep`
+    criterion — split it (`"a " + "b"`) with a comment. Prove with the HEAD doc
+- Per-crate `CLAUDE.md` files carry no file trees/tables (246): a rule goes in prose against a file
+    name. Line-range edits via an anchored `/tmp` Python script; mdformat reflows inserted lines
+- Spec drift sweeps (259): mdformat also reformats \`\`\`js blocks; release-trigger truth =
+    release.yml `on:` + each job's `if:` — grep `refs/tags`/`github.ref` too, next.md greps miss
+    YAML conditions
+- Guidance docs carry no counts/`path:NN` (245): write "every binding", "all Tier 1 symbols". Line
+    greps miss wrapped counts — also grep each file joined via `tr '\n' ' '`
+- GOTCHAs: ci.yml `cancel-in-progress: true` per ref — a second develop push cancels the previous
+    sha's in-flight CI run; system `python3` lacks PyYAML (use `uv run python`); piping cargo-crap
+    or cargo-deny to a pager makes `$?` the pager's exit — redirect to a file instead
+- napi (284): `crates/iscc-napi/package-lock.json` committed, CI + release use `npm ci`; lock
+    @napi-rs/cli 3.10.12 `napi build` FAILS on the 9p `/workspace` mount (fs-transaction
+    AggregateError, deterministic) — prove builds in a `/tmp` worktree with
+    `CARGO_TARGET_DIR=/workspace/iscc-lib/target`; clean the `.napi-rs-filesystem-transaction.swp`
+    and `.*.tmp` leftovers
