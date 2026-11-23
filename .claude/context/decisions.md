@@ -406,3 +406,17 @@ MSRV and supply-chain coupling of a crate; the Go port does the same. The digest
 **Alternatives:** `twox-hash` (MIT, what #46 proposed: the smaller diff, but still a dependency with
 `unsafe` code and its own MSRV); staying on `xxhash-rust`; C bindings (need a C toolchain).
 **Context:** interactive session before the v0.8.0 release; Titusz chose this over `twox-hash`.
+
+## 2026-11-23 — An ISCC-ID is 64, 72, 80 or 96 bits
+
+**Decision:** every surface rejects an ISCC-ID length of 88 bits, when encoding (`bit_length` 88 in
+`encode_component`) and when decoding (length index 3 in an ID header); every other length outside
+64, 72, 80 and 96 was already rejected. **Why:** iscc-core's `LN` enum has no 88, so its
+`iscc_decode` raises `88 is not a valid LN`, while its `encode_component(6, 0, 0, 88, …)` returns a
+unit that this decoder rejects. iscc-lib 0.7.0 accepted 88 both ways. Rejecting follows the
+reference on the decode side and is a deliberate divergence on the encode side, as for units above
+256 bits (decision of 2026-11-22). No generator emits an 88-bit ID. **Alternatives:** keep the
+reference's encoder output and reject only on decode, which leaves an encoder whose output no
+decoder reads. **Context:** interactive session before the v0.8.0 release, from the `low` issue of
+iteration 301; Titusz chose to fix it before the release, the encode side follows the 256-bit
+precedent.

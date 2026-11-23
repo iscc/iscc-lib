@@ -158,23 +158,6 @@ the tests in `crates/iscc-uniffi/src/lib.rs`, `SmokeTests.cs`). The Rust core ne
 Resolved when the C FFI, C++, .NET and UniFFI suites each have a test in which `finalize(13)` fails
 and a following `finalize(64)` reports the finalized state.
 
-## `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects `low` [review]
-
-**Triage:** untriaged. Only a caller who decodes a hand-built ISCC-ID with length index 3 would see
-it; no generator on any surface emits an 88-bit ID.
-
-Measured in iteration 301 on the Python binding against iscc-core 1.5.0 (CPython 3.13), with an ID
-header of length index 3 over an 11-byte body, for subtype 0 version 0 and subtype 1 version 1:
-`iscc_lib.iscc_decode` returns the tuple, `iscc_core.iscc_decode` raises "88 is not a valid LN".
-Length indexes 0, 1, 2 and 4 (64, 72, 80 and 96 bits) decode on both, and 5 and above fail on both.
-Cause: `codec::decode_length` returns `length * 8 + 64` for an ID and `codec::encode_length` accepts
-64 to 96 in steps of 8, while iscc-core's `LN` enum has no 88. Pre-existing, and outside the
-decision of 2026-11-22, which covers Meta through Flake. Not measured: the Go port, and
-`encode_component(6, …, 88, …)` on either side.
-
-Resolved when a `data-edge.json` vector pins the outcome for an 88-bit ID: rejected as in iscc-core,
-or accepted and marked `diverges` with a decisions.md entry that says why.
-
 ## `specs/documentation.md` says every code example is tabbed, and the how-to guides have no tabs `low` [review]
 
 **Triage:** untriaged. No user is affected; define-next could scope tabs into the eleven how-to

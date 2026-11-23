@@ -356,13 +356,17 @@ pub fn decode_header(data: &[u8]) -> IsccResult<(MainType, SubType, Version, u32
 
 // ---- Length Encoding ----
 
+/// Bit lengths of an ISCC-ID: the ID values of iscc-core's `LN` enum (no 88).
+const ID_BIT_LENGTHS: [u32; 4] = [64, 72, 80, 96];
+
 /// Encode bit length to header length field value.
 ///
 /// Semantics depend on MainType:
 /// - META/SEMANTIC/CONTENT/DATA/INSTANCE/FLAKE: `(bit_length / 32) - 1`, for a
 ///   multiple of 32 from 32 to 256 (an ISCC-UNIT is at most 256 bits)
 /// - ISCC: pass-through (0–7, unit composition flags)
-/// - ID: `(bit_length - 64) / 8`
+/// - ID: `(bit_length - 64) / 8`, for 64, 72, 80 or 96 (an 88-bit ID would not
+///   decode on iscc-core)
 pub fn encode_length(mtype: MainType, length: u32) -> IsccResult<u32> {
     match mtype {
         MainType::Meta
@@ -389,11 +393,11 @@ pub fn encode_length(mtype: MainType, length: u32) -> IsccResult<u32> {
             }
         }
         MainType::Id => {
-            if (64..=96).contains(&length) && (length - 64) % 8 == 0 {
+            if ID_BIT_LENGTHS.contains(&length) {
                 Ok((length - 64) / 8)
             } else {
                 Err(IsccError::InvalidInput(format!(
-                    "invalid length {length} for ID (must be 64-96, step 8)"
+                    "invalid length {length} for ID (must be 64, 72, 80 or 96)"
                 )))
             }
         }
@@ -432,17 +436,23 @@ pub fn decode_length(mtype: MainType, length: u32, stype: SubType) -> u32 {
 
 /// Decode a header length field to the bit length of a valid ISCC header.
 ///
-/// Same result as [`decode_length`], but a META..FLAKE length index above 7
-/// (more than 256 bits) is an error, mirroring iscc-core's `LN` lookup. ISCC
-/// and ID lengths decode unchanged.
+/// Same result as [`decode_length`], but a length that iscc-core's `LN` lookup
+/// rejects is an error: a META..FLAKE length index above 7 (more than 256 bits)
+/// and an ID length other than 64, 72, 80 or 96 bits. ISCC lengths decode
+/// unchanged.
 pub(crate) fn unit_bit_length(mtype: MainType, length: u32, stype: SubType) -> IsccResult<u32> {
     let bits = decode_length(mtype, length, stype);
-    if bits > 256 && !matches!(mtype, MainType::Iscc | MainType::Id) {
-        return Err(IsccError::InvalidInput(format!(
+    match mtype {
+        MainType::Iscc => Ok(bits),
+        MainType::Id if !ID_BIT_LENGTHS.contains(&bits) => Err(IsccError::InvalidInput(format!(
+            "invalid length {bits} bits for ID (must be 64, 72, 80 or 96)"
+        ))),
+        MainType::Id => Ok(bits),
+        _ if bits > 256 => Err(IsccError::InvalidInput(format!(
             "invalid length {bits} bits for {mtype:?} (an ISCC-UNIT is at most 256 bits)"
-        )));
+        ))),
+        _ => Ok(bits),
     }
-    Ok(bits)
 }
 
 // ---- Unit Encoding ----
@@ -1213,6 +1223,8 @@ mod tests {
         assert_eq!(encode_length(MainType::Id, 72).unwrap(), 1);
         assert_eq!(encode_length(MainType::Id, 80).unwrap(), 2);
         assert_eq!(encode_length(MainType::Id, 96).unwrap(), 4);
+        // iscc-core's LN has no 88, so its decoder rejects an 88-bit ID
+        assert!(encode_length(MainType::Id, 88).is_err());
     }
 
     #[test]
@@ -1272,12 +1284,27 @@ mod tests {
         let err = unit_bit_length(MainType::Meta, 8, SubType::None).unwrap_err();
         assert!(err.to_string().contains("256"), "unexpected error: {err}");
         assert!(unit_bit_length(MainType::Instance, 8, SubType::None).is_err());
-        // ISCC and ID lengths are unchanged
+        // ISCC lengths are unchanged
         assert_eq!(
             unit_bit_length(MainType::Iscc, 7, SubType::None).unwrap(),
             320
         );
-        assert_eq!(unit_bit_length(MainType::Id, 4, SubType::None).unwrap(), 96);
+    }
+
+    #[test]
+    fn test_unit_bit_length_id() {
+        // Length indexes 0, 1, 2 and 4 are the ID lengths of iscc-core's LN
+        for (index, bits) in [(0, 64), (1, 72), (2, 80), (4, 96)] {
+            assert_eq!(
+                unit_bit_length(MainType::Id, index, SubType::None).unwrap(),
+                bits
+            );
+        }
+        // Index 3 (88 bits) and index 5 (104 bits) are not
+        for index in [3, 5] {
+            let err = unit_bit_length(MainType::Id, index, SubType::None).unwrap_err();
+            assert!(err.to_string().contains("ID"), "unexpected error: {err}");
+        }
     }
 
     #[test]

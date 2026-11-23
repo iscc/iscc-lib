@@ -491,13 +491,13 @@ prefix).
 IsccLib.encode_component(mtype, stype, version, bit_length, digest)
 ```
 
-| Parameter    | Type      | Description                                                                                          |
-| ------------ | --------- | ---------------------------------------------------------------------------------------------------- |
-| `mtype`      | `Integer` | MainType enum value (0–255)                                                                          |
-| `stype`      | `Integer` | SubType enum value (0–255)                                                                           |
-| `version`    | `Integer` | Version enum value (0–255)                                                                           |
-| `bit_length` | `Integer` | Digest bit length (multiple of 32, 32 to 256, for Meta through Flake; 64 to 96 in steps of 8 for ID) |
-| `digest`     | `String`  | Raw digest bytes (length >= bit_length / 8)                                                          |
+| Parameter    | Type      | Description                                                                                    |
+| ------------ | --------- | ---------------------------------------------------------------------------------------------- |
+| `mtype`      | `Integer` | MainType enum value (0–255)                                                                    |
+| `stype`      | `Integer` | SubType enum value (0–255)                                                                     |
+| `version`    | `Integer` | Version enum value (0–255)                                                                     |
+| `bit_length` | `Integer` | Digest bit length (multiple of 32, 32 to 256, for Meta through Flake; 64, 72, 80 or 96 for ID) |
+| `digest`     | `String`  | Raw digest bytes (length >= bit_length / 8)                                                    |
 
 Raises `RuntimeError` on invalid input.
 

@@ -476,13 +476,13 @@ public static native String encodeComponent(
 );
 ```
 
-| Parameter   | Type     | Description                                                                                          |
-| ----------- | -------- | ---------------------------------------------------------------------------------------------------- |
-| `mtype`     | `int`    | MainType enum value (0–255)                                                                          |
-| `stype`     | `int`    | SubType enum value (0–255)                                                                           |
-| `version`   | `int`    | Version enum value (0–255)                                                                           |
-| `bitLength` | `int`    | Digest bit length (multiple of 32, 32 to 256, for Meta through Flake; 64 to 96 in steps of 8 for ID) |
-| `digest`    | `byte[]` | Raw digest bytes (length >= bitLength / 8)                                                           |
+| Parameter   | Type     | Description                                                                                    |
+| ----------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `mtype`     | `int`    | MainType enum value (0–255)                                                                    |
+| `stype`     | `int`    | SubType enum value (0–255)                                                                     |
+| `version`   | `int`    | Version enum value (0–255)                                                                     |
+| `bitLength` | `int`    | Digest bit length (multiple of 32, 32 to 256, for Meta through Flake; 64, 72, 80 or 96 for ID) |
+| `digest`    | `byte[]` | Raw digest bytes (length >= bitLength / 8)                                                     |
 
 Throws `IllegalArgumentException` on invalid input.
 

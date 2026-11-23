@@ -50,6 +50,13 @@
       ],
       "error": "unit longer than 256 bits",
       "note": "The reference encoder's 288-bit Meta-Code (header 00 08 00, 36-byte body). iscc-lib 0.7.0 decoded it; the bound rejects it, and iscc-core raises '288 is not a valid LN'."
+    },
+    "test_0007_id_88_bits": {
+      "inputs": [
+        "ISCC:MABQAAICAMCAKBQHBAEQU"
+      ],
+      "error": "ISCC-ID length 88 bits",
+      "note": "An ISCC-ID header with length index 3 (88 bits). iscc-lib 0.7.0 decoded it; iscc-core raises '88 is not a valid LN'."
     }
   },
   "encode_seq": {
@@ -403,6 +410,18 @@
       ],
       "outputs": "AADQAAICAMCAKBQHBAEQUCYMBUHA6EARCIJRIFIWC4MBSGQ3DQOR4HY",
       "note": "A 256-bit unit is the longest one, and it encodes the same on every surface and in iscc-core."
+    },
+    "test_0005_id_88_bits": {
+      "inputs": [
+        6,
+        0,
+        0,
+        88,
+        "bytes:000102030405060708090a"
+      ],
+      "error": "ISCC-ID length 88 bits",
+      "note": "iscc-core encodes an 88-bit ISCC-ID (MABQAAICAMCAKBQHBAEQU) that its own decoder rejects as an invalid length.",
+      "diverges": "decisions.md 2026-11-23: An ISCC-ID is 64, 72, 80 or 96 bits"
     }
   },
   "alg_minhash_256": {

@@ -287,6 +287,10 @@ func TestCodecEncodeLengthInvalid(t *testing.T) {
 	if _, err := encodeLength(MTId, 97); err == nil {
 		t.Error("expected error for ID length 97")
 	}
+	// iscc-core's LN has no 88, so its decoder rejects an 88-bit ID
+	if _, err := encodeLength(MTId, 88); err == nil {
+		t.Error("expected error for ID length 88")
+	}
 }
 
 func TestCodecDecodeLengthStandard(t *testing.T) {
@@ -1313,12 +1317,24 @@ func TestUnitBitLengthAbove256(t *testing.T) {
 	if bits, err := unitBitLength(MTMeta, 7, STNone); err != nil || bits != 256 {
 		t.Fatalf("unitBitLength(Meta, 7): got %d, %v; want 256", bits, err)
 	}
-	// ISCC and ID lengths decode unchanged, including composites above 256 bits.
+	// ISCC lengths decode unchanged, including composites above 256 bits.
 	if bits, err := unitBitLength(MTIscc, 7, STNone); err != nil || bits != 320 {
 		t.Fatalf("unitBitLength(ISCC, 7): got %d, %v; want 320", bits, err)
 	}
-	if bits, err := unitBitLength(MTId, 4, STNone); err != nil || bits != 96 {
-		t.Fatalf("unitBitLength(ID, 4): got %d, %v; want 96", bits, err)
+}
+
+func TestUnitBitLengthID(t *testing.T) {
+	// Length indexes 0, 1, 2 and 4 are the ID lengths of iscc-core's LN.
+	for _, tc := range []struct{ index, bits uint32 }{{0, 64}, {1, 72}, {2, 80}, {4, 96}} {
+		if bits, err := unitBitLength(MTId, tc.index, STNone); err != nil || bits != tc.bits {
+			t.Fatalf("unitBitLength(ID, %d): got %d, %v; want %d", tc.index, bits, err, tc.bits)
+		}
+	}
+	// Index 3 (88 bits) and index 5 (104 bits) are not.
+	for _, index := range []uint32{3, 5} {
+		if _, err := unitBitLength(MTId, index, STNone); err == nil || !strings.Contains(err.Error(), "ID") {
+			t.Fatalf("unitBitLength(ID, %d): got %v; want an ID length error", index, err)
+		}
 	}
 }
 

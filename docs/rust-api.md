@@ -565,10 +565,9 @@ pub fn encode_component(
 
 Encodes a raw digest as an ISCC-UNIT string (base32, without the `ISCC:` prefix). `mtype`, `stype`
 and `version` take the integer values of the `codec::MainType`, `codec::SubType` and
-`codec::Version` enums. `bit_length` is a multiple of 32, 32 to 256, for Meta through Flake (64 to
-96 in steps of 8 for ID). Returns `IsccError::InvalidInput` for out-of-range values, for
-`MainType::Iscc` (5), for an invalid `bit_length`, or when `digest` is shorter than `bit_length / 8`
-bytes.
+`codec::Version` enums. `bit_length` is a multiple of 32, 32 to 256, for Meta through Flake (64, 72,
+80 or 96 for ID). Returns `IsccError::InvalidInput` for out-of-range values, for `MainType::Iscc`
+(5), for an invalid `bit_length`, or when `digest` is shorter than `bit_length / 8` bytes.
 
 ```rust
 use iscc_lib::encode_component;

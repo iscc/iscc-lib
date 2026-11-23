@@ -247,7 +247,7 @@ public class IsccLib {
      * @param stype     SubType enum value (0-255)
      * @param version   Version enum value (0-255)
      * @param bitLength digest bit length (must be a multiple of 32, 32 to 256, for Meta
-     *                  through Flake; 64 to 96 in steps of 8 for ID)
+     *                  through Flake; 64, 72, 80 or 96 for ID)
      * @param digest    raw digest bytes (length must be >= bitLength / 8)
      * @return base32-encoded ISCC unit string (without "ISCC:" prefix)
      * @throws IllegalArgumentException on invalid input

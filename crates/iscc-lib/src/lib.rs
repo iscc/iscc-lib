@@ -209,7 +209,8 @@ fn build_meta_data_url(json: &CanonicalJson) -> String {
 ///
 /// Returns `IsccError::InvalidInput` if enum values are out of range, if `mtype` is
 /// `MainType::Iscc` (5), if `digest.len() < bit_length / 8`, or if `bit_length` is
-/// not valid for `mtype` (for Meta through Flake: a multiple of 32 from 32 to 256).
+/// not valid for `mtype` (for Meta through Flake: a multiple of 32 from 32 to 256;
+/// for ID: 64, 72, 80 or 96).
 pub fn encode_component(
     mtype: u8,
     stype: u8,
@@ -294,7 +295,8 @@ fn iscc_normalize(iscc: &str) -> IsccResult<String> {
 /// # Errors
 ///
 /// Returns `IsccError::InvalidInput` on invalid base32 input, a malformed
-/// header, a unit length above 256 bits, a body shorter than its encoded
+/// header, a unit length above 256 bits, an ISCC-ID length other than 64, 72,
+/// 80 or 96 bits, a body shorter than its encoded
 /// bit-length, or a unit sequence that cannot be composed into an ISCC-CODE.
 pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
     let normalized = iscc_normalize(iscc)?;

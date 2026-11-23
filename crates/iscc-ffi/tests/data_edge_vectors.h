@@ -177,7 +177,7 @@ struct iscc_edge_alg_minhash_256_vector {
     struct iscc_edge_str minhash;
 };
 
-#define ISCC_EDGE_ISCC_DECODE_COUNT 6
+#define ISCC_EDGE_ISCC_DECODE_COUNT 7
 static const struct iscc_edge_iscc_decode_vector iscc_edge_iscc_decode[ISCC_EDGE_ISCC_DECODE_COUNT] = {
     {"test_0001_base32_padding", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
      {"ISCC:GAAAAAAAAA======", 21}, 0, 0, 0, 0, {0, 0}},
@@ -191,6 +191,8 @@ static const struct iscc_edge_iscc_decode_vector iscc_edge_iscc_decode[ISCC_EDGE
      {"", 0}, 0, 0, 0, 0, {0, 0}},
     {"test_0006_unit_above_256", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
      {"ISCC:AAEAAAABAIBQIBIGA4EASCQLBQGQ4DYQCEJBGFAVCYLRQGI2DMOB2HQ7EAQSEIY", 68}, 0, 0, 0, 0, {0, 0}},
+    {"test_0007_id_88_bits", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
+     {"ISCC:MABQAAICAMCAKBQHBAEQU", 26}, 0, 0, 0, 0, {0, 0}},
 };
 
 static const char *const iscc_edge_encode_seq_0_items[] = {"gaawdlqng6\305\277sdpf2"};
@@ -395,7 +397,7 @@ static const struct iscc_edge_alg_cdc_chunks_vector iscc_edge_alg_cdc_chunks[ISC
      {"", 0}, 0, 1024u, {iscc_edge_alg_cdc_chunks_2_items, iscc_edge_alg_cdc_chunks_2_lens, 1}},
 };
 
-#define ISCC_EDGE_ENCODE_COMPONENT_COUNT 4
+#define ISCC_EDGE_ENCODE_COMPONENT_COUNT 5
 static const struct iscc_edge_encode_component_vector iscc_edge_encode_component[ISCC_EDGE_ENCODE_COMPONENT_COUNT] = {
     {"test_0001_short_digest", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
      0, 0, 0, 64u, {"\001\002\003\004", 4}, {0, 0}},
@@ -405,6 +407,8 @@ static const struct iscc_edge_encode_component_vector iscc_edge_encode_component
      0, 0, 0, 288u, {"\000\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037 !\"#", 36}, {0, 0}},
     {"test_0004_bit_length_256", ISCC_EDGE_OK, ISCC_EDGE_OK,
      0, 0, 0, 256u, {"\000\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037", 32}, {"AADQAAICAMCAKBQHBAEQUCYMBUHA6EARCIJRIFIWC4MBSGQ3DQOR4HY", 55}},
+    {"test_0005_id_88_bits", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR,
+     6, 0, 0, 88u, {"\000\001\002\003\004\005\006\007\010\011\012", 11}, {0, 0}},
 };
 
 static const uint32_t iscc_edge_alg_minhash_256_0_values[] = {
@@ -421,7 +425,7 @@ static const struct iscc_edge_alg_minhash_256_vector iscc_edge_alg_minhash_256[I
      {iscc_edge_alg_minhash_256_1_values, 4}, {"\336q\227\2444:\015t\"\226L\025\266\231\202\377\243pb\005\2064!%\234\231\315\363\006h\264\270", 32}},
 };
 
-#define ISCC_EDGE_TOTAL_COUNT 36
+#define ISCC_EDGE_TOTAL_COUNT 38
 
 /* Fill the static buffers of strings over 4095 bytes; call once before use. */
 static void iscc_edge_init(void) {

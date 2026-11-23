@@ -640,14 +640,14 @@ char* iscc_encode_component(
 );
 ```
 
-| Parameter    | Type             | Description                                                                                                 |
-| ------------ | ---------------- | ----------------------------------------------------------------------------------------------------------- |
-| `mtype`      | `uint8_t`        | MainType enum value (0-7)                                                                                   |
-| `stype`      | `uint8_t`        | SubType enum value (0-7)                                                                                    |
-| `version`    | `uint8_t`        | Version enum value                                                                                          |
-| `bit_length` | `uint32_t`       | Bit length of the digest (multiple of 32, 32 to 256, for Meta through Flake; 64 to 96 in steps of 8 for ID) |
-| `digest`     | `const uint8_t*` | Pointer to raw digest bytes                                                                                 |
-| `digest_len` | `size_t`         | Number of bytes in the digest buffer                                                                        |
+| Parameter    | Type             | Description                                                                                           |
+| ------------ | ---------------- | ----------------------------------------------------------------------------------------------------- |
+| `mtype`      | `uint8_t`        | MainType enum value (0-7)                                                                             |
+| `stype`      | `uint8_t`        | SubType enum value (0-7)                                                                              |
+| `version`    | `uint8_t`        | Version enum value                                                                                    |
+| `bit_length` | `uint32_t`       | Bit length of the digest (multiple of 32, 32 to 256, for Meta through Flake; 64, 72, 80 or 96 for ID) |
+| `digest`     | `const uint8_t*` | Pointer to raw digest bytes                                                                           |
+| `digest_len` | `size_t`         | Number of bytes in the digest buffer                                                                  |
 
 Returns `NULL` and sets the last error for out-of-range enum values, for MainType ISCC (5), for an
 invalid `bit_length`, or when the digest is shorter than `bit_length / 8` bytes. Free the result
