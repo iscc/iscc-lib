@@ -322,8 +322,10 @@ enforces consistency on every push.
 # 2. Propagate to all manifests and docs
 mise run version:sync
 
-# 3. Update Cargo.lock
+# 3. Update the lockfiles (each command changes the version entries only)
 cargo update -w
+uv lock
+(cd crates/iscc-rb && bundle lock)
 
 # 4. Format, stage, and commit
 mise run format
@@ -331,22 +333,14 @@ git add -A
 git commit -m "Release X.Y.Z"
 ```
 
-`version:sync` updates these files automatically:
+`version:sync` updates every file in the `TARGETS` list in `scripts/version_sync.py`: manifests,
+lockfiles, version constants and script defaults that do not derive the version at build time, and
+the dependency snippets in READMEs and docs that pin a version. `mise run version:check` names any
+of them that is out of sync.
 
-| File                            | What it updates                    |
-| ------------------------------- | ---------------------------------- |
-| `pyproject.toml`                | Root project version               |
-| `crates/iscc-napi/package.json` | npm package version                |
-| `crates/iscc-jni/java/pom.xml`  | Maven artifact version             |
-| `mise.toml`                     | Default `--version` flag           |
-| `scripts/test_install.py`       | Registry check fallback version    |
-| `README.md`                     | Maven dependency snippet           |
-| `crates/iscc-jni/README.md`     | Maven dependency snippet           |
-| `docs/howto/java.md`            | Maven dependency snippet           |
-| `docs/java-api.md`              | Maven + Gradle dependency snippets |
-
-Cargo workspace members (`Cargo.lock`) inherit the version automatically via
-`version.workspace = true`.
+Cargo workspace members inherit the version via `version.workspace = true`. `Cargo.lock`, `uv.lock`
+and `crates/iscc-rb/Gemfile.lock` record it too; their own tools write them in step 3, so they are
+not sync targets.
 
 ### Publish
 

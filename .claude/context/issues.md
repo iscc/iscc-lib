@@ -139,23 +139,6 @@ fails.
 Resolved when `npm ci && npx napi build --platform && npm test` passes in the devcontainer checkout
 and leaves `git status` clean, or a decisions.md entry keeps napi builds out of the checkout.
 
-## Version-sync file lists in `docs/development.md` and the release skill are partial `low` [review]
-
-**Triage:** untriaged. A maintainer who stages a release commit from the release skill's list of
-"expected candidates" would leave synced files out (the napi lockfile since iteration 284), and the
-`version-check` CI job would fail on that commit; users are unaffected.
-
-`docs/development.md` ("`version:sync` updates these files automatically") lists 9 files, and
-`.claude/skills/release/SKILL.md` → Step 4.1 lists 15 paths, 13 of them sync targets. `TARGETS` in
-`scripts/version_sync.py` has 22 entries. Both lists lack `crates/iscc-napi/package-lock.json`, the
-Swift and Kotlin targets, `docs/index.md` and the Swift and Kotlin how-to pages and READMEs; the
-docs table also lacks the Ruby, .NET, vcpkg and Conan manifests. Pre-existing as a pattern, and
-iteration 284 added one more missing row. The skill also tells the reader to stage what
-`git diff --name-only` shows, which is why nothing has gone wrong so far.
-
-Resolved when neither page carries a file list that can fall behind `TARGETS` (point to the list in
-`scripts/version_sync.py`, as the specs do), or a test ties each list to `TARGETS`.
-
 ## vcpkg port fails one post-build check `low` [review]
 
 **Triage:** untriaged. Whoever submits the port to the vcpkg registry (`specs/cpp-bindings.md` →
@@ -249,3 +232,29 @@ whether glibc or valgrind accounts for the difference.
 Resolved when the `perf` job and the devcontainer measure in the same system-library environment
 (for example the job runs in a container of the devcontainer's base image), all 16 rows come from
 one run, and the docstring paragraph about the three rows is gone.
+
+## A release recovery can publish an FFI archive or XCFramework zip that the tag's hash rejects `low` [human]
+
+**Triage:** untriaged. Affects the vcpkg, Conan or SwiftPM users of one release, and only after a
+recovery from a failed release run; a release that succeeds in one run is consistent.
+
+The tagged commit pins the hashes of the five FFI archives (`packages/cpp/portfile.cmake`,
+`packages/cpp/conandata.yml`) and the checksum of `IsccLib.xcframework.zip` (`Package.swift`). Two
+paths of `release.yml` put a rebuilt file, which has another hash, on a release whose tag exists:
+
+- A dispatch with `ffi=true` rebuilds the archives, and `publish-ffi` uploads every archive the
+    release lacks. It checks names and upload state only (decisions.md 2026-11-22), so it succeeds.
+- A re-run of `prepare-release` after the tag was pushed (for example when "Create GitHub Release"
+    failed) rebuilds the XCFramework, because a failed job saves no cache (unless the job restored
+    the zip from the cache at its start and the entry is still there). It commits the new checksum
+    to `main` after the tag, leaves the tag in place and uploads the new zip. A dispatch with
+    `version=` on an existing tag does the same, and commits FFI hashes that no published archive
+    has.
+
+The release skill tells the agent to avoid both paths and to compare the asset hashes with the tag
+("Assets that the tag pins by hash"); the workflow does not refuse them. Reasoned from the workflow
+text during a review on 2026-11-23, not reproduced: no release has failed this way.
+
+Resolved when `publish-ffi` refuses to upload an archive whose hash the tagged `conandata.yml` does
+not hold, `prepare-release` fails before its commit step when the tag exists and pins other
+checksums than the run produced, and a test or `scripts/check_release_workflow.py` covers both.

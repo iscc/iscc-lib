@@ -26,7 +26,8 @@ Execute a robust, self-healing release workflow. The version argument is require
 
 Before touching anything, validate the environment is ready.
 
-**Required tools:** `git`, `gh` (authenticated), `mise`, `cargo`, `uv`, `python`, `curl`, `npm`.
+**Required tools:** `git`, `gh` (authenticated), `mise`, `cargo`, `uv`, `python`, `curl`, `npm`,
+`bundle`.
 
 ### Step 1.1 — Parse arguments
 
@@ -85,7 +86,7 @@ requires the user's 2FA passkey). Then **re-run the failed jobs of that release 
 `gh run rerun <run-id> --failed`. This re-runs only the failed publish jobs, reuses the existing
 build artifacts, and touches no tags/release.
 
-> `gh workflow run release.yml --ref main -f npm=true` is the fallback when the failed run's
+> `gh workflow run release.yml --ref v<version> -f npm=true` is the fallback when the failed run's
 > artifacts have expired: every `test-*`/`publish-*` job carries a `!cancelled() && !failure()`
 > guard, so a registry-only dispatch runs the full build → test → publish chain for that registry.
 > It rebuilds all artifacts from scratch, so prefer `gh run rerun <run-id> --failed` when the
@@ -103,17 +104,22 @@ Edit the `version` field under `[workspace.package]` in root `Cargo.toml` to set
 uv run python scripts/version_sync.py
 ```
 
-This updates all 9 sync targets (manifests, docs, scripts). If it fails, read the error output,
-diagnose the issue, fix it, and retry.
+This rewrites every sync target, the `TARGETS` list in `scripts/version_sync.py`. If it fails, read
+the error output, diagnose the issue, fix it, and retry.
 
-### Step 2.3 — Update Cargo.lock
+### Step 2.3 — Update the lockfiles
 
 ```
-cargo check --workspace
+cargo update -w
+uv lock
+(cd crates/iscc-rb && bundle lock)
 ```
 
-This regenerates the lockfile entries for workspace members with the new version. Do NOT use
-`cargo update -w` which can also upgrade external dependency versions.
+`Cargo.lock`, `uv.lock` and `crates/iscc-rb/Gemfile.lock` record the workspace version and are not
+sync targets: their own tool writes them. Each command changes the version entries of the workspace
+packages only and leaves every external dependency at its locked version (`cargo update -w` updates
+workspace members only). If `git diff` shows any other change in a lockfile, stop and show it to the
+user.
 
 ### Step 2.4 — Validate consistency
 
@@ -169,15 +175,11 @@ If tests fail:
 Stage only the files modified by the version bump and sync. Use `git diff --name-only` to find which
 files were actually modified, then stage only those. Expected candidates:
 
-```
-Cargo.toml Cargo.lock pyproject.toml mise.toml
-crates/iscc-napi/package.json crates/iscc-jni/java/pom.xml
-crates/iscc-rb/lib/iscc_lib/version.rb
-packages/dotnet/Iscc.Lib/Iscc.Lib.csproj
-packages/cpp/vcpkg.json packages/cpp/conanfile.py
-scripts/test_install.py README.md crates/iscc-jni/README.md
-docs/howto/java.md docs/java-api.md
-```
+- `Cargo.toml` (Step 2.1) and the files in the `TARGETS` list in `scripts/version_sync.py` (Step
+    2.2): the version is written into them directly.
+- The three lockfiles of Step 2.3: `Cargo.lock`, `uv.lock` and `crates/iscc-rb/Gemfile.lock`. All
+    three belong in the release commit. If one is missing from `git diff`, run its command from Step
+    2.3 before staging.
 
 Do NOT use a single `git add` with all paths — `git add` fails if any listed file does not exist.
 Stage only files that appear in `git diff`. Do NOT use `git add -A` which can stage untracked files
@@ -234,7 +236,7 @@ gh pr create -B main -H develop --title "Release <version>" --body "$(cat <<'EOF
 
 Version bump and manifest sync for release <version>.
 
-Publishes to: crates.io, PyPI, npm (@iscc/lib, @iscc/wasm), Maven Central, GitHub Releases (FFI), RubyGems, Go proxy, NuGet.
+Publishes to: crates.io, PyPI, npm (@iscc/lib, @iscc/wasm), Maven Central (Java, Kotlin), RubyGems, NuGet, Go proxy, GitHub Releases (FFI archives, Swift XCFramework).
 EOF
 )"
 ```
@@ -294,10 +296,20 @@ with `git diff` and discard them with `git checkout -- .` if desired. Then jump 
 If `--skip-publish`, skip this step and Step 6.2. Report that the PR was merged and the release can
 be triggered later with `gh workflow run release.yml --ref main -f version=<version>`.
 
-Trigger the release workflow via `workflow_dispatch`. The workflow handles everything: building the
-Swift XCFramework, updating `Package.swift` with the correct checksum, committing to `main`,
-creating the `v<version>` and `packages/go/v<version>` tags, creating the GitHub Release, and
-publishing to all registries.
+Trigger the release workflow via `workflow_dispatch`. The workflow handles everything, in this
+order:
+
+1. `build-ffi` builds the FFI archives. It is the only build that runs before the tag exists.
+2. `prepare-release` builds the Swift XCFramework and writes the release checksums: the XCFramework
+    checksum into `Package.swift`, and the hashes of the FFI archives into
+    `packages/cpp/portfile.cmake` (vcpkg) and `packages/cpp/conandata.yml` (Conan). It commits them
+    to `main`, creates the `v<version>` and `packages/go/v<version>` tags on that commit and
+    creates the GitHub Release.
+3. `test-ffi` smoke-tests the Linux FFI archive at the same time as `prepare-release`. Every other
+    job waits for `prepare-release` and then builds, tests and publishes its registry.
+
+A failing `build-ffi` leg therefore blocks the tag and every publish job. A failing `test-ffi`
+blocks `publish-ffi` only: the tag and the GitHub Release can exist without FFI archives.
 
 ```
 gh workflow run release.yml --ref main -f version=<version>
@@ -317,16 +329,24 @@ Once the run is found, watch it:
 gh run watch <databaseId>
 ```
 
-Report progress. If the workflow fails, show the URL and which job failed.
+Report progress. If the workflow fails, show the URL and which job failed, then follow
+"Re-triggering a Failed Registry" at the end of this file. A failure of one registry chain (for
+example one Ruby series in `test-gem`) holds back that registry only.
 
-### Step 6.3 — Switch back to develop
+### Step 6.3 — Fast-forward develop to main
 
 ```
+git fetch origin
 git checkout develop
-git pull --ff-only
+git merge --ff-only origin/main
+git push origin develop
 ```
 
-Ensure develop is up to date after the merge.
+`main` now holds the merge commit of the release PR and the checksum commit of `prepare-release`
+(`Package.swift`, `packages/cpp/portfile.cmake`, `packages/cpp/conandata.yml`). `develop` must carry
+both: without the checksum commit its vcpkg and Conan recipes pin the hashes of the previous
+release. If the fast-forward fails because `develop` has moved on, stop and ask the user before
+merging.
 
 ## Phase 7: Release Notes and Post-Release Verification
 
@@ -411,6 +431,10 @@ curl -sf "https://search.maven.org/solrsearch/select?q=g:io.iscc+AND+a:iscc-lib-
 curl -sf "https://api.nuget.org/v3-flatcontainer/iscc.lib/<version>/iscc.lib.nuspec" > /dev/null && echo "NuGet: OK"
 ```
 
+The two GitHub Releases lines check asset names only. Also compare the hashes of the FFI archives
+and the XCFramework zip with the tag, using the commands under "Assets that the tag pins by hash" at
+the end of this file.
+
 Maven Central and Go proxy indexing can lag. If either shows "NOT FOUND" but the release workflow
 succeeded (or the tag was pushed), tell the user it may take up to 30 minutes to appear and suggest
 re-checking later with:
@@ -478,36 +502,77 @@ When any step fails:
 
 ## Re-triggering a Failed Registry
 
-If specific registries fail while others succeed, **prefer re-running the failed jobs of the same
-release run** — this reuses build artifacts, picks up any rotated secrets, and touches no
-tags/release:
+First check whether the tag exists: `git ls-remote --tags origin v<version>`.
 
-```
-gh run rerun <run-id> --failed
-```
+- **No tag yet** — nothing was published. `gh run rerun <run-id> --failed` continues the run with
+    its artifacts. If a fix has to land on `main` first, merge it and dispatch again with
+    `-f version=<version>`.
+- **The tag exists and `prepare-release` succeeded** — re-run the failed jobs of the same run with
+    `gh run rerun <run-id> --failed`.
+- **Anything else** — stop and ask the user: see "Assets that the tag pins by hash".
 
-This is the verified recovery path (used for the v0.5.0 npm token failure). It only re-runs jobs
-that reached a `failure` conclusion, so it works when a publish job ran and errored (bad token,
-transient registry error). It does NOT help if a job was `skipped`.
+`gh run rerun --failed` reuses the build artifacts, picks up rotated secrets and touches no tags. It
+re-runs the jobs that reached `failure` and the jobs that wait for them, not `skipped` jobs. It is
+the verified recovery path (the v0.5.0 npm token failure).
 
 ### Re-triggering a registry with `-f <registry>=true`
 
-If the original run's artifacts have expired (or a job was `skipped` rather than `failure`, which
-`gh run rerun --failed` cannot re-run), dispatch the workflow with only the registry flag:
+When the run's artifacts have expired or a job was `skipped`, dispatch the workflow with only the
+registry flag, from the release tag, so the jobs build the released revision:
 
 ```
-gh workflow run release.yml --ref main -f <registry>=true   # crates-io|pypi|npm|maven|ffi|rubygems|nuget|maven-kotlin
+gh workflow run release.yml --ref v<version> -f <registry>=true   # crates-io|pypi|npm|maven|rubygems|nuget|maven-kotlin
 ```
+
+If the fix for the failure landed on `main` after the tag (the v0.7.0 Maven publish needed a plugin
+bump, PR #50), dispatch with `--ref main` instead, but only after
+`git diff v<version> origin/main --stat` shows nothing except that fix.
 
 Every `test-*`/`assemble-*`/`pack-*`/`publish-*` job carries a `!cancelled() && !failure()` guard,
 so a registry-only dispatch (no `version` input, `prepare-release` skipped) runs the full build →
-test → publish chain for that registry instead of propagating the skip down the `needs` chain. The
-guards are verified statically (YAML shape + expression lint); their first real-world confirmation
-comes with the next release run. Prefer `gh run rerun <run-id> --failed` when possible — it reuses
-existing build artifacts instead of rebuilding everything.
+test → publish chain for that registry. `scripts/check_release_workflow.py` checks the guards, and a
+`maven`-only dispatch published the v0.7.0 Java artifact this way. Never dispatch `-f ffi=true` for
+a tagged release: it uploads rebuilt archives (next section).
 
-**Never pass `-f version=<version>` to recover** — that re-runs `prepare-release`, which
-force-pushes the release tags and updates the GitHub Release.
+### Assets that the tag pins by hash
+
+The tagged commit pins the hash of six release assets: the five FFI archives (SHA512 in
+`packages/cpp/portfile.cmake`, SHA256 in `packages/cpp/conandata.yml`) and `IsccLib.xcframework.zip`
+(`releaseChecksum` in `Package.swift`). A rebuild does not reproduce their bytes, and vcpkg, Conan
+and SwiftPM reject a download whose hash differs. The workflow uploads files without comparing
+hashes. Once the tag exists:
+
+- **Never delete or move the tags** `v<version>` and `packages/go/v<version>`: the Go proxy keeps
+    the module it fetched from the tag, and SwiftPM pins the tagged revision.
+- **Never dispatch `-f version=<version>` or `-f ffi=true`, and do not re-run `prepare-release`**:
+    each can build a pinned asset again and publish it.
+- **For any other failure** (`prepare-release` failed, `test-ffi` failed, a release asset is missing
+    or unfinished): stop and ask the user. Report which jobs failed and the output of the comparison
+    below.
+
+Facts the user will need for that decision:
+
+- The FFI archives that the tag pins are the artifacts of the run that built them, kept for 90 days
+    (`gh run download <run-id> --name ffi-<target>`). `test-ffi` tested them only if it passed in
+    that run.
+- A successful `prepare-release` saved the XCFramework zip in the Actions cache under the key its
+    log names (`Cache saved with key: xcf-…`). `gh cache list --key xcf-` shows whether the entry
+    still exists; GitHub evicts an entry after 7 days without use. A failed job saves nothing.
+- If no file with a pinned hash is left, the way out is a patch release.
+
+Compare the release assets with the tag:
+
+```
+git fetch origin --tags
+# Swift: both commands must print the same hash
+git show v<version>:Package.swift | grep 'releaseChecksum ='
+gh release view v<version> --json assets --jq '.assets[] | select(.name == "IsccLib.xcframework.zip") | .digest'
+# FFI: the hash of each of the five archives must be in the tagged conandata.yml
+git show v<version>:packages/cpp/conandata.yml
+gh release view v<version> --json assets --jq '.assets[] | select(.name | startswith("iscc-ffi-")) | "\(.name) \(.state) \(.digest)"'
+```
+
+For a local file, `sha256sum <file>` prints the hash to compare.
 
 ## Important Constraints
 
