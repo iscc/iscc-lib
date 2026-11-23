@@ -26,8 +26,13 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
     redirect to a file first. (Same gotcha applies to `cargo deny`.)
 - GOTCHA (iter 122): cargo-llvm-cov/cargo-crap are NOT preinstalled in the CID session env. The
     binstall'd cargo-crap 0.2.2 binary needs `GLIBC_2.39` (container glibc is older) — install it
-    from source: `cargo install cargo-crap --version 0.2.2` (~1.5 min). cargo-llvm-cov 0.8.7 via
-    `cargo binstall` works fine. Also `rustup component add llvm-tools-preview` first.
+    from source: `cargo install cargo-crap --version 0.2.2` (~1.5 min). No cargo-binstall in the
+    container (iter 195) → `cargo install cargo-llvm-cov --locked` too. Also
+    `rustup component add llvm-tools-preview` first. Iter 225: all three steps took ~2.5 min total;
+    baseline then 145 fns (26 un-baselined fns from earlier iters got baked in — new fns only face
+    `--fail-above`, never `--fail-regression`).
+- `cargo clippy -p iscc-lib --all-targets --no-default-features` ALWAYS fails (benches import gated
+    `gen_meta/text_code_v0`) — pre-existing; CI runs that feature set WITHOUT `--all-targets`.
 - GUARD GAP: the CRAP regression gate runs ONLY in CI (not in `mise run check`/pre-commit). Any
     change adding a branch/loop to a covered fn MUST refresh `.crap-baseline.json` in the SAME step
     (`mise run crap:baseline`), else the next CI push goes red (iter 121→122 incident).
@@ -38,20 +43,30 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
     nondeterministic coverage flap, by running `cargo llvm-cov`+`cargo crap` TWICE and diffing the
     JSON: identical scores = deterministic → safe to bake in. Map each moved fn to a reviewed
     commit.
+- RUST TEST FILES (iter 215/216): `crates/iscc-lib/tests/*.rs` helpers score at 0% coverage (CRAP =
+    cc² + cc), so each needs cc ≤ 5 (≤ 4 preferred). cargo-crap 0.2.2 counts +1 per `?` and per
+    `match` arm; `let … else`, closures, `.then()` count 0. Pattern: a
+    `&[(&str, fn(&[Value]) -> …)]` table of small callers instead of a `match` dispatcher
+    (`test_data_edge.rs`). cargo-crap + llvm-cov were present in the container at iter 216 (if
+    missing, install from source as in the iter-122 gotcha above); write lcov to `/tmp/lcov.info` to
+    keep the tree clean
 - `.cargo-crap.toml`: `threshold=30.0`, `missing="pessimistic"`, `exclude` globs MUST list
     `crates/iscc-lib/benches/**` (built-in excludes are repo-root only → harness leaks at CRAP ~42).
 
 ## `audit` job (`Audit (cargo-deny)`) — enforcing (iter 114)
 
 - NO `continue-on-error`. `taiki-e/install-action cargo-deny@0.19.9` → `cargo deny check`. Local:
-    `mise run audit`. cargo-deny installable in devcontainer: `cargo install cargo-binstall`
-    (~5.5min) then `cargo binstall cargo-deny@0.19.9`.
+    `mise run audit`. Fastest install (iter 196, binstall absent): curl the prebuilt
+    `cargo-deny-0.19.9-x86_64-unknown-linux-musl.tar.gz` from the EmbarkStudios GitHub release and
+    `install` it into `~/.cargo/bin` (~5s). Negative probe:
+    `cargo deny check --config <copy minus   entry> advisories`.
 - `deny.toml` (repo root) is config v2: unlisted licenses + vulns + unmaintained DENY by default (NO
     `unlicensed=`/`vulnerability=` keys); `all-features=true`; `yanked="deny"`; `allow=[...13]` incl
     `MPL-2.0`/`BSL-1.0`/`Unicode-3.0`/`Zlib` + `private={ignore=true}` (4 binding crates carry no
     `license`); `multiple-versions="warn"` (6 dup warns, non-failing); sources unknown-registry/git
     `deny`; `ignore` = 2 dev-only `iai-callgrind` unmaintained advisories (RUSTSEC-2025-0141
-    bincode, RUSTSEC-2026-0173 proc-macro-error2).
+    bincode, RUSTSEC-2026-0173 proc-macro-error2) + RUSTSEC-2026-0374 `basic-toml` (iter 196; NOT
+    dev — askama_macros ← uniffi_bindgen ← iscc-uniffi, no upgrade drops it).
 - GOTCHA: `yanked="deny"` forced a Cargo.lock bump of the wasm-bindgen family off yanked
     0.2.111/js-sys 0.3.88 (wasm-bindgen-test pins `=` exact).
 - Fresh advisory with a patched release → `cargo update -p <crate>` lockfile bump, NEVER add to
@@ -67,10 +82,12 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
 
 ## `perf` job (`Perf (iai-callgrind)`) + regression gate
 
-- iai harness COMPILES without valgrind/runner; running needs them (devcontainer HAS valgrind 3.19
-    - runner 0.16.1; local `mise run bench:iai`). CI: apt valgrind → binstall runner (`--force`
-        gotcha) → run benches → zero-collection guard → `Check perf regression` → upload
-        `iai-baseline` (`if: always()`).
+- iai harness COMPILES without valgrind/runner; running needs them. NOT preinstalled (iter 195):
+    `sudo apt-get update && sudo apt-get install -y valgrind` (install fails without the update) +
+    `cargo install iai-callgrind-runner --version 0.16.1 --locked` (no cargo-binstall in the
+    container; ~2 min). `mise run bench:iai:check` then ~3.5 min — run in background, log to file.
+    CI: apt valgrind → binstall runner (`--force` gotcha) → run benches → zero-collection guard →
+    `Check perf regression` → upload `iai-baseline` (`if: always()`).
 - PERF REGRESSION GATE (iter 109/110, issue #3): `scripts/iai_regression.py` (stdlib only) +
     committed `.iai-baseline.json` (repo root, 16 Ir entries). `--check` fails (exit 1) on any
     shared bench > `baseline*1.10`, any shared bench Ir==0 (false-green guard), or a baselined bench
@@ -81,3 +98,33 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
     `[profile.bench] strip = false, debug = true` (else stripped binary → `summary: 0` false green);
     `IAI_CALLGRIND_ALLOW_ASLR=true` (mise + ci.yml) skips iai's kernel-blocked `setarch -R` (ASLR =
     cache noise, not `Ir`).
+
+## Moved from MEMORY.md (iter 277)
+
+- Generated-artifact gates (274): pre-push `pytest` + `mise run test` rebuild the `.so` via mise
+    task `py:develop`; CI `c-ffi` diffs `NativeMethods.g.cs`, `kotlin` regenerates UniFFI
+    kt/swift/.h into `$RUNNER_TEMP` + diffs modulo trailing ws/EOF blanks. Pinned by
+    `tests/test_generated_artifact_gates.py`. Prove a step: extract `run` via PyYAML, run with
+    `bash --noprofile --norc -eo pipefail` (zsh does not word-split `$G`/`set -- $p`)
+- pytest (254): `addopts = "--benchmark-disable"` in pyproject —
+    `benchmarks/python/ --benchmark-only` needs `--benchmark-enable` too. Tier 1 doc tests cache
+    repo bytes once (`_tree_bytes`). Gate ~19 s
+- Kotlin plugins (262): `packages/kotlin/settings.gradle.kts` `pluginManagement` = mavenCentral
+    first, portal fallback (portal BOM hop failed CI). Gradle run leaves untracked `.kotlin/` —
+    delete. .NET `dotnet-test` sets `skip-lts-prepass: true`
+- .NET CI (260): `dotnet-test` legs install into private `DOTNET_INSTALL_DIR` (runner.temp) —
+    `/usr/share/dotnet` preinstalls newer majors that `LatestMajor` would pick. Verify action claims
+    via `gh api 'repos/<o>/<r>/contents/<path>?ref=<tag>' --jq .content | base64 -d`
+
+## Local suite quirks (298)
+
+- `dotnet test packages/dotnet/Iscc.Lib.Tests` needs `LD_LIBRARY_PATH=$PWD/target/debug` (else 132
+    `DllNotFoundException`)
+- C++ test without cmake:
+    `g++ -std=c++17 -o /tmp/t packages/cpp/tests/test_iscc.cpp -Ipackages/cpp/include -Icrates/iscc-ffi/include -Icrates/iscc-ffi/tests -Ltarget/debug -liscc_ffi -lpthread -ldl -lm`
+- zsh does not word-split `$gen` vars: run ci.yml step bodies with `bash -e` (extract via PyYAML)
+- UniFFI regen leaves trailing whitespace / extra EOF newlines: re-stage and re-run `mise run check`
+    until clean (Kotlin needed 2 passes); also delete the stray `iscc_uniffiFFI.modulemap` the Swift
+    generator writes into `Sources/IsccLib/`
+- Ruby CI job: libclang-dev required; ruby/setup-ruby@v1 `working-directory` is a `with:` param.
+    `rust` job matrix: `--no-default-features` / `--all-features` / `--features text-processing`

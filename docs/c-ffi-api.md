@@ -21,7 +21,7 @@ The shared library is written to `target/release/` as `libiscc_ffi.so` (Linux), 
 Generate the C header with [cbindgen](https://github.com/mozilla/cbindgen):
 
 ```bash
-cbindgen --crate iscc-ffi --output iscc.h
+cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h
 ```
 
 ## Memory Model
@@ -29,50 +29,57 @@ cbindgen --crate iscc-ffi --output iscc.h
 - Functions returning `char*` produce heap-allocated strings. Free with `iscc_free_string()`.
 - Functions returning `char**` produce NULL-terminated string arrays. Free with
     `iscc_free_string_array()`.
-- Functions returning `IsccByteBuffer` produce heap-allocated byte buffers. Free with
+- Functions returning `iscc_IsccByteBuffer` produce heap-allocated byte buffers. Free with
     `iscc_free_byte_buffer()`.
-- Functions returning `IsccByteBufferArray` produce heap-allocated buffer arrays. Free with
+- Functions returning `iscc_IsccByteBufferArray` produce heap-allocated buffer arrays. Free with
     `iscc_free_byte_buffer_array()`.
 - On error, pointer-returning functions return `NULL`. Check `iscc_last_error()` for the message.
+- An input buffer or array passed as a pointer plus its length (`data` + `data_len`, `codes` +
+    `num_codes`, a row of `frame_sigs` + its `frame_lens` entry) may be `NULL` when that length is
+    0: the call reads it as an empty input. `NULL` with a non-zero length is an error. A
+    `const char*` string must not be `NULL` unless its parameter is documented as optional.
 - Streaming hashers return opaque pointers. Free with the corresponding `_free()` function.
 
 ## Types
 
-### IsccByteBuffer
+cbindgen prefixes every exported type with `iscc_` (for example `iscc_IsccByteBuffer`). Each type
+has a `typedef`, so the `struct` keyword is optional.
+
+### iscc_IsccByteBuffer
 
 Heap-allocated byte buffer.
 
 ```c
-typedef struct {
+typedef struct iscc_IsccByteBuffer {
     uint8_t *data;  // Pointer to byte data (NULL on error)
-    size_t len;     // Number of bytes
-} IsccByteBuffer;
+    uintptr_t len;  // Number of bytes
+} iscc_IsccByteBuffer;
 ```
 
-### IsccByteBufferArray
+### iscc_IsccByteBufferArray
 
 Array of byte buffers (returned by `iscc_alg_cdc_chunks`).
 
 ```c
-typedef struct {
-    IsccByteBuffer *buffers;  // Pointer to array of IsccByteBuffer elements
-    size_t count;             // Number of buffers
-} IsccByteBufferArray;
+typedef struct iscc_IsccByteBufferArray {
+    struct iscc_IsccByteBuffer *buffers;  // Pointer to array of iscc_IsccByteBuffer elements
+    uintptr_t count;                      // Number of buffers
+} iscc_IsccByteBufferArray;
 ```
 
-### IsccDecodeResult
+### iscc_IsccDecodeResult
 
 Result of decoding an ISCC unit string (returned by `iscc_decode`).
 
 ```c
-typedef struct {
-    bool ok;               // Whether the decode succeeded
-    uint8_t maintype;      // MainType enum value (0-7)
-    uint8_t subtype;       // SubType enum value (0-7)
-    uint8_t version;       // Version enum value
-    uint8_t length;        // Length index from the header
-    IsccByteBuffer digest; // Raw digest bytes
-} IsccDecodeResult;
+typedef struct iscc_IsccDecodeResult {
+    bool ok;                           // Whether the decode succeeded
+    uint8_t maintype;                  // MainType enum value (0-7)
+    uint8_t subtype;                   // SubType enum value (0-7)
+    uint8_t version;                   // Version enum value
+    uint8_t length;                    // Length index from the header
+    struct iscc_IsccByteBuffer digest; // Raw digest bytes
+} iscc_IsccDecodeResult;
 ```
 
 ---
@@ -105,6 +112,18 @@ Returns `4096`.
 
 ---
 
+### iscc_meta_trim_meta
+
+Maximum decoded payload size in bytes for the meta element.
+
+```c
+uint32_t iscc_meta_trim_meta(void);
+```
+
+Returns `128000`.
+
+---
+
 ### iscc_io_read_size
 
 Default read buffer size for streaming I/O.
@@ -131,8 +150,10 @@ Returns `13`.
 
 ## Code Generation
 
-All 10 `iscc_gen_*_v0` functions return a heap-allocated ISCC string (prefixed with `ISCC:`) on
-success, or `NULL` on error. Free the result with `iscc_free_string()`.
+The nine `iscc_gen_*_v0` functions other than `iscc_gen_sum_code_v0`, and `iscc_gen_iscc_id_v1`,
+return a heap-allocated ISCC string (prefixed with `ISCC:`) on success, or `NULL` on error. Free the
+result with `iscc_free_string()`. `iscc_gen_sum_code_v0` returns an `iscc_IsccSumCodeResult` struct
+instead; free it with `iscc_free_sum_code_result()`.
 
 ### iscc_gen_meta_code_v0
 
@@ -147,12 +168,12 @@ char* iscc_gen_meta_code_v0(
 );
 ```
 
-| Parameter     | Type          | Description                                                        |
-| ------------- | ------------- | ------------------------------------------------------------------ |
-| `name`        | `const char*` | Title or name of the content (required, trimmed to 128 bytes)      |
-| `description` | `const char*` | Optional description text (NULL = not provided, trimmed to 4096 B) |
-| `meta`        | `const char*` | Optional JSON string or `data:` URL (NULL = not provided)          |
-| `bits`        | `uint32_t`    | Bit length of the generated code (default: 64, multiple of 32)     |
+| Parameter     | Type          | Description                                                               |
+| ------------- | ------------- | ------------------------------------------------------------------------- |
+| `name`        | `const char*` | Title or name of the content (required, trimmed to 128 bytes)             |
+| `description` | `const char*` | Optional description text (NULL = not provided, trimmed to 4096 B)        |
+| `meta`        | `const char*` | Optional JSON string or `data:` URL (NULL = not provided)                 |
+| `bits`        | `uint32_t`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -164,10 +185,10 @@ Generate a Text-Code from plain text content.
 char* iscc_gen_text_code_v0(const char *text, uint32_t bits);
 ```
 
-| Parameter | Type          | Description                                                    |
-| --------- | ------------- | -------------------------------------------------------------- |
-| `text`    | `const char*` | Plain text content (required)                                  |
-| `bits`    | `uint32_t`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type          | Description                                                               |
+| --------- | ------------- | ------------------------------------------------------------------------- |
+| `text`    | `const char*` | Plain text content (required)                                             |
+| `bits`    | `uint32_t`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -203,11 +224,11 @@ char* iscc_gen_audio_code_v0(
 );
 ```
 
-| Parameter | Type             | Description                                                    |
-| --------- | ---------------- | -------------------------------------------------------------- |
-| `cv`      | `const int32_t*` | Chromaprint signed integer fingerprint vector                  |
-| `cv_len`  | `size_t`         | Number of elements in the feature vector                       |
-| `bits`    | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type             | Description                                                               |
+| --------- | ---------------- | ------------------------------------------------------------------------- |
+| `cv`      | `const int32_t*` | Chromaprint signed integer fingerprint vector                             |
+| `cv_len`  | `size_t`         | Number of elements in the feature vector                                  |
+| `bits`    | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -224,12 +245,12 @@ char* iscc_gen_video_code_v0(
 );
 ```
 
-| Parameter    | Type                     | Description                                                    |
-| ------------ | ------------------------ | -------------------------------------------------------------- |
-| `frame_sigs` | `const int32_t *const *` | Array of pointers to frame signature arrays                    |
-| `frame_lens` | `const size_t*`          | Array of lengths for each frame signature                      |
-| `num_frames` | `size_t`                 | Number of frames                                               |
-| `bits`       | `uint32_t`               | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter    | Type                     | Description                                                               |
+| ------------ | ------------------------ | ------------------------------------------------------------------------- |
+| `frame_sigs` | `const int32_t *const *` | Array of pointers to frame signature arrays                               |
+| `frame_lens` | `const size_t*`          | Array of lengths for each frame signature                                 |
+| `num_frames` | `size_t`                 | Number of frames                                                          |
+| `bits`       | `uint32_t`               | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Each frame signature is a 380-element `int32_t` array (MPEG-7 frame signature).
 
@@ -247,11 +268,11 @@ char* iscc_gen_mixed_code_v0(
 );
 ```
 
-| Parameter   | Type                 | Description                                                    |
-| ----------- | -------------------- | -------------------------------------------------------------- |
-| `codes`     | `const char *const*` | Array of ISCC Content-Code strings (optional `ISCC:` prefix)   |
-| `num_codes` | `size_t`             | Number of code strings (must be >= 2)                          |
-| `bits`      | `uint32_t`           | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter   | Type                 | Description                                                               |
+| ----------- | -------------------- | ------------------------------------------------------------------------- |
+| `codes`     | `const char *const*` | Array of ISCC Content-Code strings (optional `ISCC:` prefix)              |
+| `num_codes` | `size_t`             | Number of code strings (must be >= 2)                                     |
+| `bits`      | `uint32_t`           | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -267,11 +288,11 @@ char* iscc_gen_data_code_v0(
 );
 ```
 
-| Parameter  | Type             | Description                                                    |
-| ---------- | ---------------- | -------------------------------------------------------------- |
-| `data`     | `const uint8_t*` | Pointer to raw byte data                                       |
-| `data_len` | `size_t`         | Number of bytes                                                |
-| `bits`     | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter  | Type             | Description                                                               |
+| ---------- | ---------------- | ------------------------------------------------------------------------- |
+| `data`     | `const uint8_t*` | Pointer to raw byte data                                                  |
+| `data_len` | `size_t`         | Number of bytes                                                           |
+| `bits`     | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -287,11 +308,11 @@ char* iscc_gen_instance_code_v0(
 );
 ```
 
-| Parameter  | Type             | Description                                                    |
-| ---------- | ---------------- | -------------------------------------------------------------- |
-| `data`     | `const uint8_t*` | Pointer to raw byte data                                       |
-| `data_len` | `size_t`         | Number of bytes                                                |
-| `bits`     | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter  | Type             | Description                                                               |
+| ---------- | ---------------- | ------------------------------------------------------------------------- |
+| `data`     | `const uint8_t*` | Pointer to raw byte data                                                  |
+| `data_len` | `size_t`         | Number of bytes                                                           |
+| `bits`     | `uint32_t`       | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ---
 
@@ -322,10 +343,10 @@ hasher (CDC/MinHash) and an Instance-Code hasher (BLAKE3) from the same read buf
 the result into an ISCC-CODE via `iscc_gen_iscc_code_v0`.
 
 Unlike the other `iscc_gen_*_v0` functions which return `char*`, this function returns an
-`IsccSumCodeResult` struct.
+`iscc_IsccSumCodeResult` struct.
 
 ```c
-IsccSumCodeResult iscc_gen_sum_code_v0(
+iscc_IsccSumCodeResult iscc_gen_sum_code_v0(
     const char *path,
     uint32_t bits,
     bool wide,
@@ -340,16 +361,16 @@ IsccSumCodeResult iscc_gen_sum_code_v0(
 | `wide`      | `bool`        | Enable 256-bit wide mode for ISCC-CODE combination                   |
 | `add_units` | `bool`        | Include individual Data-Code and Instance-Code strings in the result |
 
-#### IsccSumCodeResult
+#### iscc_IsccSumCodeResult
 
 ```c
-typedef struct {
+typedef struct iscc_IsccSumCodeResult {
     bool ok;           // Whether the operation succeeded
     char *iscc;        // Composite ISCC-CODE string (heap-allocated)
     char *datahash;    // Hex-encoded BLAKE3 multihash (heap-allocated)
     uint64_t filesize; // Byte length of the file
     char **units;      // NULL-terminated array of Data-Code and Instance-Code ISCC strings, or NULL
-} IsccSumCodeResult;
+} iscc_IsccSumCodeResult;
 ```
 
 Check `result.ok` to determine success. On error, `ok` is `false`, string pointers are `NULL`, and
@@ -358,7 +379,7 @@ Check `result.ok` to determine success. On error, `ok` is `false`, string pointe
 #### iscc_free_sum_code_result
 
 ```c
-void iscc_free_sum_code_result(IsccSumCodeResult result);
+void iscc_free_sum_code_result(iscc_IsccSumCodeResult result);
 ```
 
 Releases the `iscc`, `datahash` strings, and `units` array in the result. No-op for `NULL` pointers.
@@ -395,12 +416,12 @@ big-endian digest. The decoded `version` is `1` for ISCC-IDv1:
 char *iscc = iscc_gen_iscc_id_v1(1751831876325218ULL, 1, 0);
 // iscc == "ISCC:MAIGHFECJMOPMIAB"
 
-IsccDecodeResult d = iscc_decode(iscc);      // d.version == 1
+iscc_IsccDecodeResult d = iscc_decode(iscc); // d.version == 1
 uint64_t n = 0;
 for (size_t i = 0; i < 8; i++) n = (n << 8) | d.digest.data[i];
 uint64_t timestamp = n >> 12;                // 1751831876325218
 uint16_t hub_id = (uint16_t)(n & 0xFFF);     // 1
-uint8_t realm = d.subtype;                    // 0
+uint8_t realm = d.subtype;                   // 0
 iscc_free_decode_result(d);
 iscc_free_string(iscc);
 ```
@@ -486,7 +507,7 @@ Compute a SimHash digest from an array of byte digests. The output length matche
 length.
 
 ```c
-IsccByteBuffer iscc_alg_simhash(
+iscc_IsccByteBuffer iscc_alg_simhash(
     const uint8_t *const *digests,
     const size_t *digest_lens,
     size_t num_digests
@@ -509,7 +530,7 @@ Compute a 256-bit MinHash digest from 32-bit integer features. Uses 64 universal
 bit-interleaved compression.
 
 ```c
-IsccByteBuffer iscc_alg_minhash_256(
+iscc_IsccByteBuffer iscc_alg_minhash_256(
     const uint32_t *features,
     size_t features_len
 );
@@ -520,7 +541,9 @@ IsccByteBuffer iscc_alg_minhash_256(
 | `features`     | `const uint32_t*` | Pointer to feature values |
 | `features_len` | `size_t`          | Number of features        |
 
-Returns an `IsccByteBuffer` with 32 bytes. Free with `iscc_free_byte_buffer()`.
+Returns an `iscc_IsccByteBuffer` with 32 bytes. Free with `iscc_free_byte_buffer()`. An empty
+feature list (`features_len` 0, `features` may be `NULL`) is an error: `.data` is `NULL` and
+`iscc_last_error()` reports `features must not be empty`.
 
 ---
 
@@ -529,7 +552,7 @@ Returns an `IsccByteBuffer` with 32 bytes. Free with `iscc_free_byte_buffer()`.
 Split data into content-defined chunks using gear rolling hash.
 
 ```c
-IsccByteBufferArray iscc_alg_cdc_chunks(
+iscc_IsccByteBufferArray iscc_alg_cdc_chunks(
     const uint8_t *data,
     size_t data_len,
     bool utf32,
@@ -553,7 +576,7 @@ Free the result with `iscc_free_byte_buffer_array()`.
 Compute a similarity-preserving hash from video frame signatures.
 
 ```c
-IsccByteBuffer iscc_soft_hash_video_v0(
+iscc_IsccByteBuffer iscc_soft_hash_video_v0(
     const int32_t *const *frame_sigs,
     const size_t *frame_lens,
     size_t num_frames,
@@ -617,16 +640,18 @@ char* iscc_encode_component(
 );
 ```
 
-| Parameter    | Type             | Description                               |
-| ------------ | ---------------- | ----------------------------------------- |
-| `mtype`      | `uint8_t`        | MainType enum value (0-7)                 |
-| `stype`      | `uint8_t`        | SubType enum value (0-7)                  |
-| `version`    | `uint8_t`        | Version enum value                        |
-| `bit_length` | `uint32_t`       | Bit length of the digest (multiple of 32) |
-| `digest`     | `const uint8_t*` | Pointer to raw digest bytes               |
-| `digest_len` | `size_t`         | Number of bytes in the digest buffer      |
+| Parameter    | Type             | Description                                                                                           |
+| ------------ | ---------------- | ----------------------------------------------------------------------------------------------------- |
+| `mtype`      | `uint8_t`        | MainType enum value (0-7)                                                                             |
+| `stype`      | `uint8_t`        | SubType enum value (0-7)                                                                              |
+| `version`    | `uint8_t`        | Version enum value                                                                                    |
+| `bit_length` | `uint32_t`       | Bit length of the digest (multiple of 32, 32 to 256, for Meta through Flake; 64, 72, 80 or 96 for ID) |
+| `digest`     | `const uint8_t*` | Pointer to raw digest bytes                                                                           |
+| `digest_len` | `size_t`         | Number of bytes in the digest buffer                                                                  |
 
-Free the result with `iscc_free_string()`.
+Returns `NULL` and sets the last error for out-of-range enum values, for MainType ISCC (5), for an
+invalid `bit_length`, or when the digest is shorter than `bit_length / 8` bytes. Free the result
+with `iscc_free_string()`.
 
 ---
 
@@ -635,7 +660,7 @@ Free the result with `iscc_free_string()`.
 Decode an ISCC unit string into header components and raw digest. Strips an optional `ISCC:` prefix.
 
 ```c
-IsccDecodeResult iscc_decode(const char *iscc);
+iscc_IsccDecodeResult iscc_decode(const char *iscc);
 ```
 
 Check `result.ok` to determine success. Free with `iscc_free_decode_result()`.
@@ -654,6 +679,63 @@ Returns a NULL-terminated array of heap-allocated strings. Free with `iscc_free_
 
 ---
 
+### iscc_encode_seq
+
+Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+
+```c
+iscc_IsccByteBuffer iscc_encode_seq(const char *const *units, uintptr_t num_units);
+```
+
+| Parameter   | Type                 | Description                                 |
+| ----------- | -------------------- | ------------------------------------------- |
+| `units`     | `const char *const*` | Array of null-terminated ISCC-UNIT strings  |
+| `num_units` | `uintptr_t`          | Number of unit strings (must be at least 1) |
+
+Returns the header and body bytes of each unit, concatenated in the given order. Units may omit the
+`ISCC:` prefix and may be lowercase or contain hyphens. Base32 decoding is strict: no padding, zero
+spare bits, and ASCII-only case folding. On error `.data` is `NULL` (check `iscc_last_error()`):
+`units` is NULL with `num_units > 0`, the list is empty, or a unit is NULL, not UTF-8, malformed, or
+of an excluded MainType (ISCC-CODE, ID, FLAKE). Free with `iscc_free_byte_buffer()`.
+
+---
+
+### iscc_decode_seq
+
+Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+
+```c
+char **iscc_decode_seq(const uint8_t *data, uintptr_t data_len);
+```
+
+| Parameter  | Type             | Description                   |
+| ---------- | ---------------- | ----------------------------- |
+| `data`     | `const uint8_t*` | Pointer to the ISCC-SEQ bytes |
+| `data_len` | `uintptr_t`      | Number of bytes in `data`     |
+
+Strict byte-level reader: every unit must be well-formed and no trailing bytes are allowed. Returns
+a NULL-terminated array of `ISCC:`-prefixed unit strings in wire order, or `NULL` on empty or
+malformed input (check `iscc_last_error()`). Free with `iscc_free_string_array()`. The round trip is
+defined on bytes: `iscc_encode_seq` of the result reproduces `data`.
+
+```c
+const char *units[] = {"ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"};
+iscc_IsccByteBuffer seq = iscc_encode_seq(units, 1);
+if (seq.data == NULL) {
+    fprintf(stderr, "Error: %s\n", iscc_last_error());
+    return 1;
+}
+/* seq.len == 34, bytes start with 20 07 a8 82 48 c5 */
+
+char **decoded = iscc_decode_seq(seq.data, seq.len);
+/* decoded[0] == "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI", decoded[1] == NULL */
+
+iscc_free_string_array(decoded);
+iscc_free_byte_buffer(seq);
+```
+
+---
+
 ## Streaming
 
 Streaming hashers for processing large data incrementally. Each hasher follows the lifecycle:
@@ -661,8 +743,9 @@ Streaming hashers for processing large data incrementally. Each hasher follows t
 
 !!! warning
 
-    `_finalize()` consumes the hasher state. After finalizing, subsequent `_update()` or `_finalize()`
-    calls will fail. You must still call `_free()` to release the wrapper.
+    The first `_finalize()` call consumes the hasher state, even when it fails (for example on an
+    invalid `bits` value). After it, subsequent `_update()` or `_finalize()` calls will fail. You must
+    still call `_free()` to release the wrapper.
 
 ### DataHasher
 
@@ -670,20 +753,20 @@ Streaming Data-Code hasher using content-defined chunking and MinHash.
 
 ```c
 // Create a new DataHasher
-FfiDataHasher* iscc_data_hasher_new(void);
+iscc_FfiDataHasher* iscc_data_hasher_new(void);
 
 // Push data into the hasher (returns true on success)
 bool iscc_data_hasher_update(
-    FfiDataHasher *hasher,
+    iscc_FfiDataHasher *hasher,
     const uint8_t *data,
     size_t data_len
 );
 
 // Finalize and return the ISCC string (free with iscc_free_string)
-char* iscc_data_hasher_finalize(FfiDataHasher *hasher, uint32_t bits);
+char* iscc_data_hasher_finalize(iscc_FfiDataHasher *hasher, uint32_t bits);
 
 // Free the hasher (NULL is a no-op)
-void iscc_data_hasher_free(FfiDataHasher *hasher);
+void iscc_data_hasher_free(iscc_FfiDataHasher *hasher);
 ```
 
 ### InstanceHasher
@@ -692,20 +775,20 @@ Streaming Instance-Code hasher using BLAKE3.
 
 ```c
 // Create a new InstanceHasher
-FfiInstanceHasher* iscc_instance_hasher_new(void);
+iscc_FfiInstanceHasher* iscc_instance_hasher_new(void);
 
 // Push data into the hasher (returns true on success)
 bool iscc_instance_hasher_update(
-    FfiInstanceHasher *hasher,
+    iscc_FfiInstanceHasher *hasher,
     const uint8_t *data,
     size_t data_len
 );
 
 // Finalize and return the ISCC string (free with iscc_free_string)
-char* iscc_instance_hasher_finalize(FfiInstanceHasher *hasher, uint32_t bits);
+char* iscc_instance_hasher_finalize(iscc_FfiInstanceHasher *hasher, uint32_t bits);
 
 // Free the hasher (NULL is a no-op)
-void iscc_instance_hasher_free(FfiInstanceHasher *hasher);
+void iscc_instance_hasher_free(iscc_FfiInstanceHasher *hasher);
 ```
 
 ---
@@ -729,20 +812,20 @@ Returns `true` if all tests pass, `false` if any fail.
 Every allocation from the FFI layer must be freed with the matching function. Passing `NULL` is
 always a no-op.
 
-| Function                      | Frees                                                      |
-| ----------------------------- | ---------------------------------------------------------- |
-| `iscc_free_string`            | `char*` from any `iscc_gen_*`, text utility, or codec call |
-| `iscc_free_string_array`      | `char**` from `iscc_decompose` or `iscc_sliding_window`    |
-| `iscc_free_byte_buffer`       | `IsccByteBuffer` from algorithm primitives                 |
-| `iscc_free_byte_buffer_array` | `IsccByteBufferArray` from `iscc_alg_cdc_chunks`           |
-| `iscc_free_decode_result`     | `IsccDecodeResult` from `iscc_decode`                      |
+| Function                      | Frees                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `iscc_free_string`            | `char*` from any `iscc_gen_*`, text utility, or codec call                 |
+| `iscc_free_string_array`      | `char**` from `iscc_decompose`, `iscc_decode_seq` or `iscc_sliding_window` |
+| `iscc_free_byte_buffer`       | `iscc_IsccByteBuffer` from algorithm primitives or `iscc_encode_seq`       |
+| `iscc_free_byte_buffer_array` | `iscc_IsccByteBufferArray` from `iscc_alg_cdc_chunks`                      |
+| `iscc_free_decode_result`     | `iscc_IsccDecodeResult` from `iscc_decode`                                 |
 
 ```c
 void iscc_free_string(char *ptr);
 void iscc_free_string_array(char **arr);
-void iscc_free_byte_buffer(IsccByteBuffer buf);
-void iscc_free_byte_buffer_array(IsccByteBufferArray arr);
-void iscc_free_decode_result(IsccDecodeResult result);
+void iscc_free_byte_buffer(iscc_IsccByteBuffer buf);
+void iscc_free_byte_buffer_array(iscc_IsccByteBufferArray arr);
+void iscc_free_decode_result(iscc_IsccDecodeResult result);
 ```
 
 ### iscc_alloc / iscc_dealloc

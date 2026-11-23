@@ -17,7 +17,7 @@ Add the SPM package dependency to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/iscc/iscc-lib", from: "0.7.0"),
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.8.0"),
 ]
 ```
 
@@ -189,7 +189,7 @@ let result = try genIsccCodeV0(
     codes: [dataResult.iscc, instanceResult.iscc],
     wide: false
 )
-print(result.iscc) // "ISCC:KAA..."
+print(result.iscc) // "ISCC:KUA..."
 ```
 
 Parameters: `codes: [String]`, `wide: Bool` (`true` for 256-bit output, `false` for 128-bit).
@@ -201,7 +201,7 @@ Generate a composite ISCC-CODE from a file in a single pass:
 ```swift
 let result = try genSumCodeV0(path: "/path/to/file.bin",
                               bits: 64, wide: false, addUnits: false)
-print(result.iscc)     // "ISCC:KAA..."
+print(result.iscc)     // "ISCC:KUA..."
 print(result.datahash) // Multihash of the data
 print(result.filesize) // Size in bytes
 
@@ -284,7 +284,8 @@ let result = try hasher.finalize(bits: 64)
 print(result.iscc) // Identical to genInstanceCodeV0(data: entireFile, bits: 64)
 ```
 
-Both hashers are single-use: after calling `finalize(bits:)`, further calls to `update(data:)` or
+Both hashers are single-use: the first `finalize(bits:)` call consumes the hasher, even when it
+fails (for example on an invalid `bits` value). After that, further calls to `update(data:)` or
 `finalize(bits:)` throw `IsccUniError`. The native resources are freed when the object is
 deallocated.
 
@@ -354,6 +355,25 @@ for unit in units {
 }
 ```
 
+### ISCC-SEQ
+
+`encodeSeq(units: [String]) throws -> Data` packs an ordered list of ISCC-UNITs into an ISCC-SEQ
+byte string (IEP-0020): the header and body bytes of each unit, in the given order.
+`decodeSeq(data: Data) throws -> [String]` reads one back into `ISCC:`-prefixed unit strings. Base32
+input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and
+ISCC-FLAKE units are rejected.
+
+```swift
+let data = try encodeSeq(units: ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"])
+print(data.count) // 34, starts with 0x20 0x07 0xa8 0x82 0x48 0xc5
+
+let units = try decodeSeq(data: data)
+print(units) // ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+// The round trip is defined on bytes: encodeSeq(decodeSeq(data)) == data
+print(try encodeSeq(units: units) == data) // true
+```
+
 ## Text utilities
 
 Text normalization functions used internally by the code generation pipeline are available for
@@ -404,7 +424,7 @@ Additional primitives:
 - `algSimhash(hashDigests: [Data])` — compute a SimHash digest from equal-length byte arrays,
     returns `Data`
 - `algMinhash256(features: [UInt32])` — compute a 256-bit MinHash digest from 32-bit features,
-    returns `Data`
+    returns `Data`; throws `IsccUniError` on an empty array
 - `algCdcChunks(data: Data, utf32: Bool, avgChunkSize: UInt32)` — split data into content-defined
     chunks, returns `[Data]`
 - `softHashVideoV0(frameSigs: [[Int32]], bits: UInt32)` — compute a similarity-preserving hash from
@@ -442,7 +462,7 @@ after finalization. Use do-catch for error handling:
 
 ```swift
 do {
-    let _ = try genTextCodeV0(text: "Hello", bits: 13) // bits must be a multiple of 32
+    let _ = try genTextCodeV0(text: "Hello", bits: 13) // bits must be a multiple of 32 from 32 to 256
 } catch let error as IsccUniError {
     print("Invalid input: \(error.localizedDescription)")
 }

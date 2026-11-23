@@ -316,6 +316,11 @@ int8_t uniffi_iscc_uniffi_fn_func_conformance_selftest(RustCallStatus *_Nonnull 
 
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_DECODE_SEQ
+#define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_DECODE_SEQ
+RustBuffer uniffi_iscc_uniffi_fn_func_decode_seq(RustBuffer data, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_ENCODE_BASE64
 #define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_ENCODE_BASE64
 RustBuffer uniffi_iscc_uniffi_fn_func_encode_base64(RustBuffer data, RustCallStatus *_Nonnull out_status
@@ -324,6 +329,11 @@ RustBuffer uniffi_iscc_uniffi_fn_func_encode_base64(RustBuffer data, RustCallSta
 #ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_ENCODE_COMPONENT
 #define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_ENCODE_COMPONENT
 RustBuffer uniffi_iscc_uniffi_fn_func_encode_component(uint8_t mtype, uint8_t stype, uint8_t version, uint32_t bit_length, RustBuffer digest, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_ENCODE_SEQ
+#define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_ENCODE_SEQ
+RustBuffer uniffi_iscc_uniffi_fn_func_encode_seq(RustBuffer units, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_FN_FUNC_GEN_AUDIO_CODE_V0
@@ -740,6 +750,12 @@ uint16_t uniffi_iscc_uniffi_checksum_func_conformance_selftest(void
 
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_DECODE_SEQ
+#define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_DECODE_SEQ
+uint16_t uniffi_iscc_uniffi_checksum_func_decode_seq(void
+
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_ENCODE_BASE64
 #define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_ENCODE_BASE64
 uint16_t uniffi_iscc_uniffi_checksum_func_encode_base64(void
@@ -749,6 +765,12 @@ uint16_t uniffi_iscc_uniffi_checksum_func_encode_base64(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_ENCODE_COMPONENT
 #define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_ENCODE_COMPONENT
 uint16_t uniffi_iscc_uniffi_checksum_func_encode_component(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_ENCODE_SEQ
+#define UNIFFI_FFIDEF_UNIFFI_ISCC_UNIFFI_CHECKSUM_FUNC_ENCODE_SEQ
+uint16_t uniffi_iscc_uniffi_checksum_func_encode_seq(void
 
 );
 #endif

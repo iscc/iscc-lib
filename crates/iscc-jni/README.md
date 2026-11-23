@@ -19,12 +19,15 @@ to create a composite identifier that exhibits similarity-preserving properties 
 <dependency>
   <groupId>io.iscc</groupId>
   <artifactId>iscc-lib</artifactId>
-  <version>0.7.0</version>
+  <version>0.8.0</version>
 </dependency>
 ```
 
-The native library (`libiscc_jni.so`, `libiscc_jni.dylib`, or `iscc_jni.dll`) must be available on
-`java.library.path` at runtime. An automatic native loader is not yet included.
+The JAR bundles the native library for Linux (x86_64, aarch64), macOS (x86_64, aarch64) and Windows
+(x86_64) and loads it automatically when `IsccLib` is first used. On any other platform (for example
+FreeBSD, riscv64 or Windows aarch64), or when the bundled library fails to load (for example on musl
+Linux), the loader loads your own build (`libiscc_jni.so`, `libiscc_jni.dylib`, or `iscc_jni.dll`)
+from `java.library.path`. If that fails too, it throws `UnsatisfiedLinkError`.
 
 ## Quick Start
 

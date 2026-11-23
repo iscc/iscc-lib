@@ -10,15 +10,15 @@ Add the package dependency to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/iscc/iscc-lib", from: "0.7.0"),
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.8.0"),
 ]
 ```
 
 Then add `"IsccLib"` to your target's dependencies.
 
-> **Note:** The native `libiscc_uniffi` library must be built from source before building your
-> project. See [Building from Source](#building-from-source) below for instructions. Pre-built
-> XCFramework distribution is planned for a future release.
+SwiftPM downloads the prebuilt `IsccLib.xcframework.zip` attached to the matching GitHub Release, so
+no Rust toolchain is needed. Building the native library yourself is optional (see
+[Building from Source](#building-from-source)).
 
 ## Usage
 
@@ -48,11 +48,12 @@ assert(conformanceSelftest())
 
 - Swift 5.9+
 - macOS 13+ / iOS 16+
-- Rust toolchain (for building the native `libiscc_uniffi` library from source)
+- Rust toolchain only to build the native `libiscc_uniffi` library yourself
 
 ## Building from Source
 
-The Swift package requires the native `libiscc_uniffi` library. Build it from the repository root:
+For development on this repository, build the native `libiscc_uniffi` library from the repository
+root:
 
 ```bash
 # 1. Build the Rust native library

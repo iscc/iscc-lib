@@ -5,7 +5,6 @@ package iscc
 
 import (
 	"fmt"
-	"strings"
 )
 
 // MixedCodeResult holds the output of GenMixedCodeV0.
@@ -16,11 +15,15 @@ type MixedCodeResult struct {
 
 // GenMixedCodeV0 generates a Mixed Content-Code from multiple Content-Code strings.
 // Combines multiple ISCC Content-Codes of different types (text, image, audio,
-// video) using SimHash. Input codes may optionally include the "ISCC:" prefix.
+// video) using SimHash. Input codes are cleaned like iscc_core.codec.iscc_clean
+// (surrounding whitespace, an optional case-insensitive "ISCC:" scheme and dashes).
 func GenMixedCodeV0(codes []string, bits uint32) (*MixedCodeResult, error) {
 	decoded := make([][]byte, len(codes))
 	for i, code := range codes {
-		clean := strings.TrimPrefix(code, "ISCC:")
+		clean, err := isccClean(code)
+		if err != nil {
+			return nil, fmt.Errorf("clean code %d: %w", i, err)
+		}
 		raw, err := decodeBase32(clean)
 		if err != nil {
 			return nil, fmt.Errorf("decode code %d: %w", i, err)
@@ -33,8 +36,8 @@ func GenMixedCodeV0(codes []string, bits uint32) (*MixedCodeResult, error) {
 		return nil, err
 	}
 
-	component, err := EncodeComponent(
-		uint8(MTContent), uint8(STMixed), uint8(VSV0), bits, digest,
+	component, err := encodeComponentInternal(
+		MTContent, STMixed, VSV0, bits, digest,
 	)
 	if err != nil {
 		return nil, err
@@ -53,12 +56,17 @@ func GenMixedCodeV0(codes []string, bits uint32) (*MixedCodeResult, error) {
 // Takes raw decoded ISCC bytes (header + body) for each Content-Code and
 // produces a SimHash digest. Each input is trimmed to bits/8 bytes by keeping
 // the first header byte (encodes type info) plus nbytes-1 body bytes.
-// Requires at least 2 codes, all of MainType Content.
+// Requires at least 2 codes, all of MainType Content, and bits to be a valid
+// Content-Code length.
 func softHashCodesV0(ccDigests [][]byte, bits uint32) ([]byte, error) {
 	if len(ccDigests) < 2 {
 		return nil, fmt.Errorf("at least 2 Content-Codes required for mixing")
 	}
 
+	// Reject an invalid length here: entry[0] below needs at least one byte
+	if _, err := encodeLength(MTContent, bits); err != nil {
+		return nil, err
+	}
 	nbytes := int(bits / 8)
 	prepared := make([][]byte, 0, len(ccDigests))
 
@@ -70,7 +78,10 @@ func softHashCodesV0(ccDigests [][]byte, bits uint32) ([]byte, error) {
 		if mtype != MTContent {
 			return nil, fmt.Errorf("all codes must be Content-Codes")
 		}
-		unitBits := decodeLength(mtype, blen, stype)
+		unitBits, err := unitBitLength(mtype, blen, stype)
+		if err != nil {
+			return nil, err
+		}
 		if unitBits < bits {
 			return nil, fmt.Errorf(
 				"Content-Code too short for %d-bit length (has %d bits)", bits, unitBits,
@@ -86,7 +97,7 @@ func softHashCodesV0(ccDigests [][]byte, bits uint32) ([]byte, error) {
 		prepared = append(prepared, entry)
 	}
 
-	// All entries have identical length (nbytes), so AlgSimhash validation passes
-	result, _ := AlgSimhash(prepared)
+	// All entries have identical length (nbytes), so the unchecked algSimhash is safe
+	result := algSimhash(prepared)
 	return result, nil
 }

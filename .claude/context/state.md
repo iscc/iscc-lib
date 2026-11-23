@@ -1,154 +1,152 @@
-<!-- assessed-at: 13c08ca -->
+<!-- assessed-at: 0e0f5d1468da1aae575df46ecefb46c5f7c6a151 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.6.0 — CI RED on develop: the iscc_clean routing (iters 191/192) regressed two iai perf benches >10%; the ENFORCING Perf gate blocks green
+## Phase: v0.8.0 — release criteria met; only `low` issues remain
 
-The `iscc_clean` refactor landed (empty-cleaned guard fixed the `iscc_decompose` regression,
-reviewer PASS iter 192) and is pushed. But routing every codec-input site through `iscc_clean` added
-instruction cost to the composite `gen_iscc_code_v0` / `gen_mixed_code_v0` paths — the CI-only
-`iai-callgrind` regression check (not run by `mise run check`, so the reviewer missed it) now FAILS.
-#43 IDv1 stays fully closed on core + all 11 surfaces.
+ISCC-SEQ and `data-edge.json` (11 sections) run on the Rust core and all 11 bindings. Iteration 307
+closed the last `normal` audit issue (spec and API-doc drift). No `critical` or `normal` issue is
+open and CI is green on the origin tip, so v0.8.0 is ready for Titusz to cut via `/release`. DONE is
+blocked by 17 open `low` issues and the human-gated v1.0.0 criteria.
+
+## Shared Edge-Case Vectors (`data-edge.json`)
+
+**Status**: met
+
+- `crates/iscc-lib/tests/data-edge.json` has 11 sections; the 5 tracked copies are byte-identical;
+    all 12 harnesses run every section; C/C++ read the generated `data_edge_vectors.h`
+- `low`: the 4,095-byte string pieces exceed the 2,048 bytes one MSVC reference page allows
 
 ## Rust Core Crate
 
-**Status**: partially met — feature-complete; `iscc_clean` routing landed but introduced a perf
-regression that reds CI
+**Status**: met (v0.8.0 scope; one `low`)
 
-- 33/33 Tier 1 symbols; `gen_iscc_id_v1` oracle-matched; IDv1 decode via generic `iscc_decode`. All
-    10 `gen_*_v0` conformant, no `unsafe` outside FFI, Unicode criteria met.
-- `iscc_clean` (`codec.rs:532`) now routes the four codec-input sites and rejects empty-cleaned
-    input (`"Empty ISCC string"`, line 558) — closes the earlier `iscc_decompose` `Ok([])` gap.
-- **New regression, live on develop:** the routing costs `bench_iscc_code.four_units` +36.82%
-    (11,968→16,375 Ir) and `bench_mixed_code.two_codes` +18.30% (10,460→12,374 Ir), both past the
-    10% iai gate. The composite gen functions now call `iscc_clean` per component. Fix = reduce the
-    per-component cleaning overhead or re-baseline with justification (baseline change is human/gate
-    territory, not a silent bump).
-- Semver check-run reds (`enum_marked_non_exhaustive` on `enum Version`) but `continue-on-error`.
-- `crate >= 1.0.0` unmet (0.5.0, human-gated).
+- Tier 1 has 35 symbols at the crate root; Tier 2 `codec` (incl. `read_unit`, `SEQ_MAINTYPES`) and
+    `streaming::SumHasher` exist; 340 `#[test]` in `src/`; one `SECTIONS` table in `conformance.rs`
+    drives conformance
+- `low`: `iscc_decode` reads an 88-bit ISCC-ID that iscc-core rejects
+- **Postponed (human):** `>= 1.0.0`, MSRV, `no_std`; semver gate stays informational until 1.0.0
 
 ## Python Bindings
 
-**Status**: met — 33/33 symbols; IDv1 mint + decode both work
+**Status**: met (v0.8.0 scope; one `low`)
 
-- `crates/iscc-py` exports `gen_iscc_id_v1`; `VS` IntEnum has `V1 = 1` so `iscc_decode` round-trips.
-    Retains `IsccResult`, streaming hashers, GIL `.detach(` sites, abi3-py310 wheels.
+- 35 Tier 1 symbols with `.pyi` stubs and `__all__`; abi3-py310 wheels for 4 platforms; 12
+    `py.detach` sites; 0.7.0 on PyPI; data-edge harness cross-checks iscc-core; CI 3.10/3.15
+- `low`: `crates/iscc-py/CLAUDE.md` still lists test files one by one
 
 ## Node.js Bindings
 
-**Status**: met — 33/33 symbols
+**Status**: met (v0.8.0 scope; one `low`)
 
-- `crates/iscc-napi` exports `gen_iscc_id_v1(f64, hub_id, realm)`, golden oracle-confirmed, ordered
-    `checked()` guard (2^52/4096/2, ts→hub→realm) before narrowing. No version enum → decodes V1.
+- 35 Tier 1 symbols with TypeScript declarations; conformance, seq and data-edge tests; `@iscc/lib`
+    0.7.0 on npm (OIDC); `npm ci` from a committed lockfile
+- `low`: `napi build` fails in the devcontainer checkout (9p rejects `link()`); CI is unaffected
 
 ## WASM Bindings
 
-**Status**: met — 33/33 symbols
+**Status**: met (v0.8.0 scope; two `low`)
 
-- `crates/iscc-wasm` exports `gen_iscc_id_v1` with the same ordered validation guard; `wasm-pack`
-    test covers golden `ISCC:MAIGHFECJMOPMIAB`, decode round-trip, invalid throws. `wasm32_simd`
-    blake3 feature intact.
+- 35 Tier 1 symbols; SIMD release build; data-edge runs all 11 sections; strict shared vector
+    readers in `tests/common/mod.rs`
+- `low`: byte/string conversion in the glue; a throwing list element during serde kills the instance
 
 ## C FFI
 
-**Status**: met — 33/33 symbols
+**Status**: met (one `low`)
 
-- 50 `#[unsafe(no_mangle)]` externs; `iscc_gen_iscc_id_v1(uint64_t, uint16_t, uint8_t)` + committed
-    `iscc.h`, regen idempotent (freshness gate green). Golden + realm-error C tests. cbindgen
-    headers, `docs/howto/c-cpp.md`, `examples/iscc_sum.c` + CMake present.
+- 51 exports including `iscc_encode_seq` / `iscc_decode_seq`; committed `iscc.h` with a freshness
+    check; `examples/iscc_sum.c` + CMake; 0.7.0 tarballs
+- `docs/c-ffi-api.md` now states that a failed first `_finalize()` consumes the hasher
+- `low`: no test pins "a failed first `finalize` consumes" on C FFI, C++, .NET, Swift, Kotlin
 
-## Java Bindings (JNI)
+## Java Bindings
 
-**Status**: met — 33/33 symbols
+**Status**: met (v0.8.0 scope; one `low`)
 
-- `Java_..._genIsccIdV1` narrows to `(u64,u16,u8)` only after validating the 3 thresholds in
-    ts→hub→realm order. 4 mvn tests incl. `genIsccIdV1ValidationOrder`. Java CI green.
+- `encodeSeq` / `decodeSeq`; `DataEdgeTest` runs all 11 sections; 0.7.0 on Maven Central
+- `low`: each bundled load leaves an empty `iscc-jni-*` temp directory behind
 
-## Ruby Bindings (Magnus)
+## Go Bindings
 
-**Status**: met — 33/33 symbols
+**Status**: met (v0.8.0 scope)
 
-- `gen_iscc_id_v1(i64, i64, i64)` validates via `checked()` before narrowing; golden/validation/
-    round-trip tests. Known pathological gap (open `normal` `[review]`): args `> i64::MAX` raise
-    `RangeError` from Magnus marshalling before the ordered `checked()` runs.
-
-## Swift & Kotlin Bindings (uniffi)
-
-**Status**: met — 33/33 symbols
-
-- Shared `crates/iscc-uniffi` exports `gen_iscc_id_v1` + `IsccIdResult`; core takes exact-width
-    `(u64,u16,u8)`. 22 unit tests incl. golden + round-trip. Regenerated `genIsccIdV1` in both
-    `packages/swift` and `packages/kotlin`.
+- Pure Go, 35 Tier 1 symbols, `CGO_ENABLED=0`, IDv1 at the reference shape; data-edge green on all
+    11 sections; the `go` CI job also runs as `GOARCH=386`
 
 ## C# / .NET Bindings
 
-**Status**: met — 33/33 symbols
+**Status**: met (v0.8.0 scope)
 
-- `GenIsccIdV1(ulong, ushort, byte)` + `IsccIdResult` record over the generated P/Invoke decl.
-    Golden matches `iscc_core` byte-for-byte; 107 dotnet tests. Exact-width → exempt from Ruby gap.
+- `EncodeSeq` / `DecodeSeq`; `DataEdgeTests.cs` runs all 11 sections; 0.7.0 on NuGet; `dotnet-test`
+    on .NET 8.0 and 10.0
+- .NET 8 reached end of support on 2026-11-10; raising the `net8.0` floor is the human's call
 
-## C++ Bindings (cpp)
+## C++ Bindings
 
-**Status**: met — 33/33 symbols
+**Status**: met (v0.8.0 scope; one `low`)
 
-- `packages/cpp/include/iscc/iscc.hpp` mints via `gen_iscc_id_v1(uint64_t, uint16_t, uint8_t)` +
-    `IsccIdResult`. Golden matches `iscc_core`; 72 assertions under cmake/ASAN; CI green.
+- `iscc::encode_seq` / `iscc::decode_seq`, RAII-owned; all data-edge rows run; ASAN `cpp` job; Conan
+    recipe verifies a pinned SHA256 per target
+- `low`: the vcpkg port fails one post-build check (debug/release binary count)
+
+## Ruby Bindings
+
+**Status**: met (v0.8.0 scope; three `low`)
+
+- `encode_seq` / `decode_seq`; data-edge runs all 11 sections; floor 3.3
+- `low`: source gems up to 0.7.0 do not build; `release.yml` loads only the 3.3 binary before
+    publishing; Ruby 4.0 gets no precompiled gem (needs rb_sys newer than 0.9.123)
+
+## Swift and Kotlin Bindings
+
+**Status**: met (v0.8.0 scope)
+
+- `crates/iscc-uniffi` exports `encode_seq` / `decode_seq`; both suites run all 8 seq vectors and
+    all 11 data-edge sections; `swift` and `kotlin` CI jobs green
+- `release.yml` commits the checksum (plus vcpkg and Conan hashes), then tags once
 
 ## Documentation
 
-**Status**: partially met — 32→33 sweep + IDv1 entries done; one doc-defect issue open
+**Status**: met (three `low`)
 
-- Docs site (23 pages, 12 READMEs, 12 CLAUDE.md) builds/deploys. Tier-1 count reads 33 across all
-    shipped artifacts. `gen_iscc_id_v1` per-symbol entries in `docs/{rust,java,ruby,c-ffi}-api.md`;
-    all 11 `docs/howto/*.md` carry an IDv1 mint+decode example.
-- Open `normal` `[review]`: `docs/c-ffi-api.md` documents FFI structs under unprefixed names
-    (`IsccDecodeResult`) but cbindgen emits `iscc_IsccDecodeResult`. Pre-existing, page-wide.
+- 22 docs pages, 11 how-to guides, Diátaxis nav, ISCC branding, `llms-full.txt`, Development
+    section; root README (names Swift in every binding list) plus 12 per-crate/package READMEs
+- `encode_component` short-digest rule documented on all surfaces; `c-ffi-dx.md`, `documentation.md`
+    and `swift-bindings.md` now state shipped facts
+- `low`: `encode_component` docs on 5 surfaces omit the ISCC-ID `bit_length` case; spec says all
+    how-to guides use tabs (they have none); version-sync lists in `docs/development.md` and the
+    release skill are partial
 
 ## Benchmarks
 
-**Status**: met (existence) — the perf gate just caught a real regression (see CI)
+**Status**: met (one `low`)
 
-- 12 criterion fns + iai (11 fns/16 cases) + 18 pytest-benchmark fixtures. The iai gate FIRED on the
-    `iscc_clean` routing (2 benches >10%) — working as designed; the committed baseline is now
-    stricter than HEAD's actual cost.
-- Open `normal` `[review]`: iai text benchmarks are ASCII-only, so the gate is blind to the Unicode
-    freeze path.
+- 12 criterion benches + iai-callgrind in `crates/iscc-lib/benches/`; pytest-benchmark in
+    `benchmarks/python/`; speedups in `docs/benchmarks.md`
+- `low`: `.iai-baseline.json` holds pre-dedup `bench_instance_code` rows (about 2× measured)
 
 ## CI/CD and Publishing
 
-**Status**: NOT met — CI RED on develop; the Perf gate blocks
+**Status**: met (one `low`)
 
-- **CI check-suite FAILING on `origin/develop` = `e80cda5`** (which covers HEAD's code — the only
-    unpushed commit `13c08ca` touches `iterations.jsonl` alone). `Perf (iai-callgrind)` = `failure`,
-    an ENFORCING job (NOT `continue-on-error`): `bench_iscc_code.four_units` +36.82% and
-    `bench_mixed_code.two_codes` +18.30%. `Semver` also reds but is `continue-on-error` (expected).
-    All other 21 check names pass. Run: actions/runs/30445408022.
-- Dependency freshness met (criterion 0.8, uniffi 0.32); zero `# held:`/`authorized` pins in root
-    `Cargo.toml`. Job shape unchanged (21 keys → 22 jobs → 23 names).
-- PR **#44** `develop` → `main` OPEN; version **0.5.0**.
-- v0.6.0 "no `critical`/`normal` issue open" criterion **unmet**: 0 critical, 5 open `normal`.
+- `ci.yml` has 22 job keys; `release.yml` is `workflow_dispatch`-only with 8 registry toggles; 22
+    version-sync targets at 0.7.0; every ecosystem installs from a lockfile
+- `low`: no CI job runs a test suite on Windows; `iscc-ffi`, napi and WASM sit outside iai/CRAP
+- **Latest CI: PASSING.** Run 45036383921 on the origin tip `32cd3f91`, all 24 check runs green:
+    https://github.com/iscc/iscc-lib/actions/runs/45036383921
+- Local HEAD adds 1 unpushed `cid(log)` commit that touches only `.claude`
 
 ## Open Issues
 
-**12 entries — 0 `critical`, 5 `normal`, 7 `low`, zero HUMAN REVIEW REQUESTED.** Composition
-unchanged this cycle.
-
-- **NORMAL (all `[review]`):** c-ffi-api type names vs generated `iscc.h`; Ruby `gen_iscc_id_v1`
-    validation order for `> i64::MAX`; Go codec input cleaning diverges from `iscc_clean` (Rust half
-    now landed — Go half unblocked, must replicate the empty-cleaned guard); iai ASCII-only text
-    benchmarks; go1.27 tripwire (upstream-blocked, ~Aug 2026).
-- **LOW:** upstream `iscc-core#137` thread, 88-bit ISCC-IDv0 upstream mint, gate-script remainders,
-    v1.0.0 cut (HELD), MSRV asserted-not-verified, npm OIDC (deferred), docs language logos.
+17 open in issues.md, all `low` (16 untriaged), no `critical` or `normal`. Iteration 307 closed the
+spec/API-doc drift audit issue and filed two `low` doc issues. `gen_mixed_code_v0` returns an error
+for `bits` below 8 in the Rust core and the Go port, pinned by a `data-edge.json` row.
 
 ## Next Milestone
 
-**Fix the red Perf (iai-callgrind) gate first — CI is failing on develop.** The `iscc_clean` routing
-raised `gen_iscc_code_v0` and `gen_mixed_code_v0` instruction cost past the 10% threshold on two
-benches; the fix is either trimming the per-component cleaning overhead in those composite paths or
-a justified baseline update (a baseline bump masks a real 20-37% cost increase, so prefer the code
-fix). Nothing else can go green until this lands. After CI is green, the Go `iscc_clean` port and
-the remaining CID-doable `normal` `[review]` issues (c-ffi-api type names, Ruby wide-input
-validation, iai ASCII-only benches) gate v0.6.0 readiness; go1.27 stays upstream-blocked; the
-release cut is human-gated.
+v0.8.0 meets its release criteria: features on all 11 surfaces, `version:check` in CI, CI green, no
+`critical` or `normal` issue open. The next step is the human's: cut v0.8.0 via `/release`. The open
+`low` issues are not release blockers; whether to work any of them is a triage call.

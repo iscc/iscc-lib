@@ -45,11 +45,18 @@ jobs:
       - name: Test iscc-lib (text-processing only)
         run: cargo test -p iscc-lib --no-default-features --features text-processing
   python-test:
-    name: Python ${{ matrix.python-version }} (ruff, pytest)
-    runs-on: ubuntu-latest
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }} (ruff, pytest)
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ['3.10', '3.14']
+        os: [ubuntu-latest]
+        python-version: ['3.10', '3.15']
+        # The one job that runs a test suite on Windows before a release publishes
+        # Windows artifacts. The floor Python is the version the abi3 wheel is built for.
+        include:
+          - os: windows-latest
+            python-version: '3.10'
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -88,9 +95,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
         working-directory: crates/iscc-napi
       - name: Build native addon
         run: npx napi build --platform
@@ -133,6 +140,12 @@ jobs:
         run: cargo install cbindgen
       - name: Build FFI crate
         run: cargo build -p iscc-ffi
+      # crates/iscc-ffi/build.rs (csbindgen) rewrites NativeMethods.g.cs on every
+      # build, so any diff now means the committed copy is stale
+      - name: Check C# bindings freshness
+        run: |
+          git diff --exit-code packages/dotnet/Iscc.Lib/NativeMethods.g.cs || \
+            (echo "::error::NativeMethods.g.cs is stale. Run: cargo build -p iscc-ffi, then commit packages/dotnet/Iscc.Lib/NativeMethods.g.cs" && exit 1)
       - name: Check C header freshness
         run: |
           cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h
@@ -148,16 +161,39 @@ jobs:
           -lpthread -ldl -lm
       - name: Run C test program
         run: LD_LIBRARY_PATH=target/debug ./test_iscc
-  dotnet:
-    name: C# / .NET (dotnet build, test)
+  dotnet-test:
+    name: C# / .NET ${{ matrix.runtime }} (dotnet build, test)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The package targets net8.0, the supported floor. The 10.0 leg runs the
+        # same net8.0 build on the .NET 10 runtime, as a consumer on .NET 10 does.
+        # setup-dotnet installs the SDKs into a private DOTNET_INSTALL_DIR and
+        # skips its latest-LTS runtime pre-pass, so a leg holds only the runtimes
+        # it lists, never the newer majors the runner image preinstalls or the
+        # current LTS; LatestMajor then resolves to the newest listed major.
+        include:
+          - runtime: '8.0'
+            major: 8
+            sdks: '8.0'
+            roll-forward: Minor
+          - runtime: '10.0'
+            major: 10
+            sdks: |
+              8.0
+              10.0
+            roll-forward: LatestMajor
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-dotnet@v6
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
         with:
-          dotnet-version: '8.0'
+          dotnet-version: ${{ matrix.sdks }}
+          skip-lts-prepass: true
       - name: Build FFI native library
         run: cargo build -p iscc-ffi
       - name: Restore .NET packages (locked mode)
@@ -165,9 +201,21 @@ jobs:
       - name: Build .NET projects
         run: dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj --no-restore
       - name: Run .NET tests
+        env:
+          DOTNET_ROLL_FORWARD: ${{ matrix.roll-forward }}
         run: >
           dotnet test packages/dotnet/Iscc.Lib.Tests/ --no-restore
           -e LD_LIBRARY_PATH=${{ github.workspace }}/target/debug
+          -e DOTNET_ROLL_FORWARD=${{ matrix.roll-forward }}
+          -e ISCC_EXPECT_DOTNET_MAJOR=${{ matrix.major }}
+  dotnet:
+    name: C# / .NET (dotnet build, test)
+    if: always()
+    needs: dotnet-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all .NET runtimes passed
+        run: test "${{ needs.dotnet-test.result }}" = "success"
   java:
     name: Java (JNI build, mvn test)
     runs-on: ubuntu-latest
@@ -183,6 +231,12 @@ jobs:
         run: cargo build -p iscc-jni
       - name: Run Maven tests
         run: mvn test -f crates/iscc-jni/java/pom.xml
+      - name: 'Run Maven tests (release layout: bundled library only)'
+        run: |
+          mkdir -p crates/iscc-jni/java/src/main/resources/META-INF/native/linux-x86_64
+          cp target/debug/libiscc_jni.so crates/iscc-jni/java/src/main/resources/META-INF/native/linux-x86_64/
+          mv target/debug/libiscc_jni.so "$RUNNER_TEMP/"
+          mvn test -f crates/iscc-jni/java/pom.xml
   go:
     name: Go (go test, go vet)
     runs-on: ubuntu-latest
@@ -193,6 +247,11 @@ jobs:
           go-version-file: packages/go/go.mod
       - name: Run Go tests
         run: CGO_ENABLED=0 go test -v -count=1 ./...
+        working-directory: packages/go
+      - name: Run Go tests (32-bit, GOARCH=386)
+        run: |
+          GOARCH=386 CGO_ENABLED=0 go test -count=1 ./...
+          GOARCH=386 go vet ./...
         working-directory: packages/go
       - name: Run Go vet
         run: go vet ./...
@@ -210,7 +269,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libclang-dev
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.1'
+          ruby-version: '3.3'
           working-directory: crates/iscc-rb
           bundler-cache: true
       - name: Run standardrb
@@ -224,6 +283,36 @@ jobs:
       - name: Run tests
         run: bundle exec rake test
         working-directory: crates/iscc-rb
+  ruby-source-gem:
+    name: Ruby source gem (build, clean install)
+    runs-on: ubuntu-latest
+    # Installs the built source-gem file, not a platform gem, so it exercises the
+    # path the Ruby docs promise for a Ruby or platform without a precompiled gem
+    # (release.yml cross-gem builds 3.3 and 3.4). It runs from a
+    # directory outside the checkout into an empty gem home, and needs network
+    # access for the rb_sys gem and crates.io.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install libclang-dev
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+      # exact tag: setup-uv publishes no floating major tag past v7 (v8/v9 are
+      # exact release tags only), so @v9 does not resolve
+      - uses: astral-sh/setup-uv@v9.0.0
+      - name: Build source gem
+        run: uv run --script scripts/build_ruby_source_gem.py --out "$RUNNER_TEMP/source-gem"
+      - name: Install source gem into a clean gem home
+        working-directory: ${{ runner.temp }}
+        env:
+          LANG: C.UTF-8
+          GEM_HOME: ${{ runner.temp }}/gem-home
+          GEM_PATH: ${{ runner.temp }}/gem-home
+        run: |
+          gem install "$RUNNER_TEMP"/source-gem/iscc-lib-*.gem --no-document
+          ruby -e 'require "iscc_lib"; exit(IsccLib.conformance_selftest ? 0 : 1)'
   cpp:
     name: C++ (cmake, ASAN, test)
     runs-on: ubuntu-latest
@@ -248,7 +337,7 @@ jobs:
         working-directory: packages/cpp
   swift:
     name: Swift (swift build, swift test)
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -282,6 +371,32 @@ jobs:
           java-version: '17'
       - name: Build UniFFI native library
         run: cargo build -p iscc-uniffi
+      # Regenerate the Kotlin and Swift bindings into a temp dir and diff them
+      # against the committed copies. uniffi-bindgen is third-party: its output has
+      # trailing whitespace and EOF blank lines that the hygiene hooks rewrite, so
+      # both sides are compared modulo those. module.modulemap is hand-edited and
+      # not compared.
+      - name: Check UniFFI bindings freshness
+        run: |
+          out="$RUNNER_TEMP/uniffi"
+          gen="cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate"
+          lib=target/debug/libiscc_uniffi.so
+          $gen --language kotlin --no-format --out-dir "$out/kotlin" "$lib"
+          $gen --library "$lib" --language swift --out-dir "$out/swift"
+          kt_fix="$gen --language kotlin --no-format --out-dir packages/kotlin/src/main/kotlin/ $lib"
+          sw_fix="$gen --library $lib --language swift --out-dir packages/swift/Sources/IsccLib/"
+          norm() { sed 's/[[:space:]]*$//' "$1" | awk '/^$/ { n++; next } { for (; n; n--) print ""; print }'; }
+          stale=0
+          check() {
+            if [ -s "$1" ] && [ -s "$2" ] && diff <(norm "$1") <(norm "$2"); then return 0; fi
+            echo "::error::$2 is stale. Regenerate: $3"
+            stale=1
+          }
+          check "$out/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt" packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt "$kt_fix"
+          check "$out/swift/iscc_uniffi.swift" packages/swift/Sources/IsccLib/iscc_uniffi.swift "$sw_fix"
+          check "$out/swift/iscc_uniffiFFI.h" packages/swift/Sources/iscc_uniffiFFI/iscc_uniffiFFI.h \
+            "$sw_fix (then move iscc_uniffiFFI.h to packages/swift/Sources/iscc_uniffiFFI/)"
+          exit "$stale"
       - name: Run Gradle tests
         run: ./gradlew test
         working-directory: packages/kotlin

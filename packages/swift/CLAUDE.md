@@ -10,26 +10,6 @@ generation.
 - Does NOT implement any ISCC logic; all computation delegates through `iscc-uniffi` to `iscc-lib`
 - Distributed as a Swift Package Manager (SPM) package via Git tags (not a registry upload)
 
-## File Layout
-
-```
-packages/swift/
-  Package.swift                              # SPM package manifest (swift-tools-version: 5.9)
-  README.md                                  # Package readme with install and usage examples
-  CLAUDE.md                                  # This file
-  Sources/
-    IsccLib/
-      Constants.swift                        # Version constant (isccLibVersion)
-      iscc_uniffi.swift                      # UniFFI-generated Swift bindings (DO NOT EDIT)
-    iscc_uniffiFFI/
-      iscc_uniffiFFI.h                       # UniFFI-generated C header (DO NOT EDIT)
-      module.modulemap                       # Simplified modulemap for SPM (manual, not generated)
-  Tests/
-    IsccLibTests/
-      ConformanceTests.swift                 # data.json conformance vectors for 9 gen_*_v0 functions
-      data.json                              # Vendored ISCC conformance test vectors (SPM resource)
-```
-
 ## Build Commands
 
 ```bash
@@ -52,12 +32,26 @@ swift test \
 
 ## Test Patterns
 
+`Tests/IsccLibTests/data.json` and `data-edge.json` are vendored copies of the fixtures in
+`crates/iscc-lib/tests/`, loaded as SPM resources.
+
 ### Conformance tests (`ConformanceTests.swift`)
 
-- 9 test methods, 50 test vectors from `data.json`
-- One test method per gen function (no `gen_sum_code_v0` vectors in data.json)
+- Test methods: one per gen function with `data.json` vectors (`gen_sum_code_v0` has none),
+    `testGenIsccIdV1`, and ISCC-SEQ methods (the `encode_seq` and `decode_seq` vectors, the bytes
+    round trip, and one-bad-input-per-test negatives)
 - `decodeStream` helper converts `"stream:<hex>"` format to `Data`
 - Asserts exact ISCC string equality against expected outputs
+
+### Edge-case vectors (`DataEdgeTests.swift`)
+
+- Runs every `data-edge.json` vector through a section -> caller table; `except["swift"]` is the
+    only deviation, an unknown section fails, and a rejection must throw `IsccUniError` from the raw
+    call alone
+- Every expected output key must be present in the converted record and equal: strings by Unicode
+    scalars, Booleans and integers by JSON kind through `DataEdge.scalar` (an `NSNumber` cast
+    accepts either kind); tests: the vector run plus one-bad-case negatives, with scalar cases built
+    from JSON text
 
 ## Binding Generation
 
@@ -79,8 +73,11 @@ Generated files: `iscc_uniffi.swift` (Swift source), `iscc_uniffiFFI.h` (C heade
 
 ## CI
 
-- Swift CI job runs on `macos-14` (Apple Silicon) — Swift is not available on Linux CI runners
+- Swift CI job runs on `macos-15` (Apple Silicon) — Swift is not available on Linux CI runners
 - Steps: `cargo build -p iscc-uniffi` -> `swift build` -> `swift test` with `-Xlinker` flags
+- The ubuntu `kotlin` CI job regenerates `iscc_uniffi.swift` and `iscc_uniffiFFI.h` into a temp dir
+    and diffs them against the committed copies (modulo trailing whitespace and EOF blank lines), so
+    a stale committed copy fails CI. `module.modulemap` is hand-edited and not compared
 - Swift tests also run locally in the Linux devcontainer via the swift.org Debian 12 toolchain (see
     Common Pitfalls for the recipe)
 

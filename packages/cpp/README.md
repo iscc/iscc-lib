@@ -88,7 +88,7 @@ LD_LIBRARY_PATH=/path/to/lib ./quickstart
 - **Algorithm primitives:** `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, `sliding_window`
 - **Soft hashing:** `soft_hash_video_v0`
 - **Encoding:** `encode_base64`, `encode_component`
-- **Codec:** `iscc_decode`, `iscc_decompose`, `json_to_data_url`
+- **Codec:** `iscc_decode`, `iscc_decompose`, `encode_seq`, `decode_seq`, `json_to_data_url`
 - **Diagnostics:** `conformance_selftest`
 
 ## Links

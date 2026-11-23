@@ -21,8 +21,8 @@ func GenImageCodeV0(pixels []byte, bits uint32) (*ImageCodeResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	component, err := EncodeComponent(
-		uint8(MTContent), uint8(STImage), uint8(VSV0), bits, hashDigest,
+	component, err := encodeComponentInternal(
+		MTContent, STImage, VSV0, bits, hashDigest,
 	)
 	if err != nil {
 		return nil, err

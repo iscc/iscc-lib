@@ -68,8 +68,8 @@ available regardless of feature flags.
 
 For a minimal build with only ISCC-SUM support (Data-Code + Instance-Code):
 
-```toml
-iscc-lib = { version = "0.4", default-features = false }
+```bash
+cargo add iscc-lib --no-default-features
 ```
 
 ## Links

@@ -10,47 +10,35 @@ symbols live in the `iscc::` namespace.
 - Does NOT implement any ISCC logic; all computation delegates through `iscc-ffi` to `iscc-lib`
 - Requires the `iscc_ffi` shared library at link time and runtime
 - Distributed as pre-built tarballs attached to GitHub Releases (shared lib + static lib + `iscc.h`
-    \+ `iscc.hpp` + LICENSE) and via a vcpkg portfile
+    \+ `iscc.hpp` + LICENSE) and via a vcpkg portfile and a Conan recipe
 
-## File Layout
-
-```
-packages/cpp/
-  CMakeLists.txt           # Top-level CMake config (header-only INTERFACE library)
-  README.md                # Package documentation with API overview
-  portfile.cmake           # vcpkg portfile — downloads pre-built FFI tarballs from GitHub Releases
-  include/
-    iscc/
-      iscc.hpp             # The entire C++ wrapper (single header)
-  tests/
-    CMakeLists.txt          # Test build config (links test_iscc against iscc::iscc + iscc_ffi)
-    test_iscc.cpp           # Comprehensive smoke tests (35+ test cases)
-  build/                    # Local debug build output (gitignored)
-  build-ci/                 # CI build output (gitignored)
-  build-asan/               # AddressSanitizer build output (gitignored)
-```
+## Code Organization
 
 Single-header package. All RAII guards, result types, wrapper functions, and streaming classes live
 in `include/iscc/iscc.hpp`. Do not split into multiple headers unless the file exceeds ~1500 lines.
 
+`tests/CMakeLists.txt` adds `crates/iscc-ffi/tests` as a PRIVATE include directory of the test
+target, for `data_edge_vectors.h`. The `build/` and `build-*/` directories are gitignored build
+output.
+
 ## Type Mapping (C FFI to C++)
 
-| C FFI type                       | C++ wrapper type                    | Conversion mechanism                                              |
-| -------------------------------- | ----------------------------------- | ----------------------------------------------------------------- |
-| `char*` (returned)               | `std::string`                       | `detail::UniqueString` RAII guard + `.to_string()`                |
-| `char**` (NULL-terminated array) | `std::vector<std::string>`          | `detail::UniqueStringArray` guard + `.to_vec()`                   |
-| `iscc_IsccByteBuffer`            | `std::vector<uint8_t>`              | `detail::UniqueByteBuffer` guard + `.to_vec()`                    |
-| `iscc_IsccByteBufferArray`       | `std::vector<std::vector<uint8_t>>` | `detail::UniqueByteBufferArray` guard + `.to_vec()`               |
-| `const char*` (input)            | `const std::string&`                | `.c_str()` at call site                                           |
-| `const char*` (optional input)   | `const std::optional<std::string>&` | Ternary: `opt ? opt->c_str() : nullptr`                           |
-| `const uint8_t*` + `size_t`      | `const std::vector<uint8_t>&`       | `.data()` + `.size()`, or `detail::safe_data()` for empty vectors |
-| `const int32_t*` + `size_t`      | `const std::vector<int32_t>&`       | `.data()` + `.size()`, or `detail::safe_data()` for empty vectors |
-| `uint32_t bits`                  | `uint32_t bits = 64`                | Direct pass-through with default                                  |
-| `bool`                           | `bool`                              | Direct pass-through                                               |
-| `iscc_FfiDataHasher*`            | `iscc::DataHasher` class            | RAII class with opaque handle                                     |
-| `iscc_FfiInstanceHasher*`        | `iscc::InstanceHasher` class        | RAII class with opaque handle                                     |
-| `iscc_IsccDecodeResult`          | `iscc::DecodeResult` struct         | Copy fields + free C struct                                       |
-| `iscc_IsccSumCodeResult`         | `iscc::SumCodeResult` struct        | Copy fields + free C struct                                       |
+| C FFI type                       | C++ wrapper type                    | Conversion mechanism                                   |
+| -------------------------------- | ----------------------------------- | ------------------------------------------------------ |
+| `char*` (returned)               | `std::string`                       | `detail::UniqueString` RAII guard + `.to_string()`     |
+| `char**` (NULL-terminated array) | `std::vector<std::string>`          | `detail::UniqueStringArray` guard + `.to_vec()`        |
+| `iscc_IsccByteBuffer`            | `std::vector<uint8_t>`              | `detail::UniqueByteBuffer` guard + `.to_vec()`         |
+| `iscc_IsccByteBufferArray`       | `std::vector<std::vector<uint8_t>>` | `detail::UniqueByteBufferArray` guard + `.to_vec()`    |
+| `const char*` (input)            | `const std::string&`                | `detail::checked_c_str()` (throws on embedded NUL)     |
+| `const char*` (optional input)   | `const std::optional<std::string>&` | Ternary: `opt ? detail::checked_c_str(*opt) : nullptr` |
+| `const uint8_t*` + `size_t`      | `const std::vector<uint8_t>&`       | `.data()` + `.size()`                                  |
+| `const int32_t*` + `size_t`      | `const std::vector<int32_t>&`       | `.data()` + `.size()`                                  |
+| `uint32_t bits`                  | `uint32_t bits = 64`                | Direct pass-through with default                       |
+| `bool`                           | `bool`                              | Direct pass-through                                    |
+| `iscc_FfiDataHasher*`            | `iscc::DataHasher` class            | RAII class with opaque handle                          |
+| `iscc_FfiInstanceHasher*`        | `iscc::InstanceHasher` class        | RAII class with opaque handle                          |
+| `iscc_IsccDecodeResult`          | `iscc::DecodeResult` struct         | Copy fields + free C struct                            |
+| `iscc_IsccSumCodeResult`         | `iscc::SumCodeResult` struct        | Copy fields + free C struct                            |
 
 ## Error Handling
 
@@ -100,10 +88,19 @@ The `cpp` job in `.github/workflows/ci.yml` runs on `ubuntu-latest`:
 - Single test file: `tests/test_iscc.cpp` with 35+ test cases
 - Custom assertion helpers: `assert_str_eq`, `assert_starts_with`, `assert_eq`, `assert_true`
 - Reports pass/fail counts and exits non-zero on any failure
-- Tests cover every wrapper function: gen functions, text utilities, encoding, codec, algorithm
-    primitives, streaming hashers, constants, error paths, and move semantics
+- Tests cover every wrapper function: gen functions, text utilities, encoding, codec (incl.
+    `encode_seq`/`decode_seq`; `encode_seq` rejects an embedded NUL before calling the FFI),
+    algorithm primitives, streaming hashers, constants, error paths, and move semantics
 - Expected values match the C test suite in `crates/iscc-ffi/tests/test_iscc.c`
 - Error path tests verify that `iscc::IsccError` is thrown for invalid inputs and nonexistent files
+- Runs every `crates/iscc-lib/tests/data-edge.json` vector from the generated header
+    `crates/iscc-ffi/tests/data_edge_vectors.h`, shared with the C test (one check function per
+    section, `run_edge_section` loop, total row tally against `ISCC_EDGE_TOTAL_COUNT`). A row's
+    `cpp` field is its resolved expectation; a rejection is `iscc::IsccError` from the raw call. A
+    string over 4,095 bytes is a static buffer that `iscc_edge_init()` fills, so `main` calls it
+    once before the first edge section. Regenerate after editing the fixture:
+    `uv run --script scripts/gen_data_edge_vectors.py`; `tests/test_gen_data_edge_vectors.py` fails
+    when the header is stale
 - Temporary files for `gen_sum_code_v0` tests are created in
     `std::filesystem::temp_directory_path()` and cleaned up after
 
@@ -137,12 +134,20 @@ cleanup even if an exception is thrown during field copying.
 
 ## Publishing / Distribution
 
-- **GitHub Releases**: pre-built tarballs per platform (5 targets: linux-x64, linux-arm64,
-    macos-arm64, macos-x64, windows-x64). Each tarball contains `iscc.h`, `iscc.hpp`, shared lib,
-    static lib, and LICENSE in a flat directory. Built by the `build-ffi` job in `release.yml`.
+- **GitHub Releases**: pre-built tarballs per platform (linux-x64, linux-arm64, macos-arm64,
+    macos-x64, windows-x64). Each tarball contains `iscc.h`, `iscc.hpp`, shared lib, static lib, and
+    LICENSE in a flat directory. Built by the `build-ffi` job in `release.yml`.
 - **vcpkg**: `portfile.cmake` downloads the GitHub Release tarball for the current platform,
     installs headers into `include/iscc/` and libraries into `lib/` (DLLs into `bin/` on Windows).
-    SHA512 hashes are per-target and must be updated on each release.
+    It pins one SHA512 per target. The `prepare-release` job writes them with
+    `scripts/update_vcpkg_hashes.py` from the `build-ffi` archives, before it creates the tag, so
+    the tagged commit carries the hashes of the archives `publish-ffi` uploads. `publish-ffi` sets
+    `overwrite_files: false`, so a later `ffi` re-trigger cannot replace those archives; recover a
+    failed publish with `gh run rerun --failed`, which reuses the run's artifacts.
+- **Conan**: `conanfile.py` downloads the same archive and passes the target's SHA256 from
+    `conandata.yml` (keyed by target triple) to `download()`; a target without a pinned hash raises
+    `ConanInvalidConfiguration`. The same `scripts/update_vcpkg_hashes.py` pass in `prepare-release`
+    renders `conandata.yml`, and the release commit stages it next to the portfile.
 - No crates.io / PyPI / npm publishing — this is a binary distribution package.
 
 ## Common Pitfalls
@@ -151,14 +156,20 @@ cleanup even if an exception is thrown during field copying.
     `cargo build -p iscc-ffi` before CMake configure, and regenerate the header if FFI exports
     changed:
     `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h`
-- **Empty vector data pointers**: `std::vector::data()` returns `nullptr` for empty vectors, but
-    some C FFI functions require non-null pointers. Use `detail::safe_data()` which returns a static
-    sentinel address for empty vectors.
+- **Empty vector data pointers**: `std::vector::data()` may return `nullptr` for an empty vector.
+    The C FFI reads a NULL pointer with a count of 0 as an empty input on every pointer+length
+    parameter, inner rows of list inputs included, so input vectors, inner rows and the pointer and
+    length arrays built inside list wrappers all pass `.data()` directly.
 - **`LD_LIBRARY_PATH` required at runtime**: the shared library is not statically linked into tests.
     On Linux, set `LD_LIBRARY_PATH` to the directory containing `libiscc_ffi.so`. On macOS, use
     `DYLD_LIBRARY_PATH`. On Windows, the DLL must be on `PATH` or in the working directory.
-- **vcpkg SHA512 updates**: after each release, the SHA512 hashes in `portfile.cmake` must be
-    updated for all 5 platform targets. Stale hashes cause vcpkg install failures.
+- **vcpkg and Conan hash updates**: never edit the `ISCC_SHA512` values or `conandata.yml` by hand.
+    `prepare-release` writes both with `scripts/update_vcpkg_hashes.py` (`--check` verifies a
+    downloaded set of release archives). Because `prepare-release` needs `build-ffi`, a failing
+    `build-ffi` leg blocks the tag and, through `!failure()`, every publish job. This is intended:
+    no tag whose hashes do not match its archives. A new platform is a `set(ISCC_TARGET …)` branch
+    in `portfile.cmake`, a `_target_triple` entry in `conanfile.py` and a `build-ffi` matrix entry;
+    `tests/test_update_vcpkg_hashes.py` keeps the three sets (and the `conandata.yml` keys) equal.
 - **Header include order**: `iscc.hpp` wraps `iscc.h` via `extern "C" { #include "iscc.h" }`. Both
     headers must be on the include path. CMakeLists.txt sets both `packages/cpp/include` and
     `crates/iscc-ffi/include` as INTERFACE include directories.

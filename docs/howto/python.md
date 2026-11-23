@@ -172,7 +172,7 @@ data_result = gen_data_code_v0(data)
 instance_result = gen_instance_code_v0(data)
 
 result = gen_iscc_code_v0([data_result.iscc, instance_result.iscc])
-print(result.iscc)  # "ISCC:KAA..."
+print(result.iscc)  # "ISCC:KUA..."
 ```
 
 ### Sum-Code
@@ -185,7 +185,7 @@ from iscc_lib import gen_sum_code_v0
 
 Path("example.bin").write_bytes(b"Hello World" * 1000)
 result = gen_sum_code_v0("example.bin")
-print(result.iscc)  # "ISCC:KAA..."
+print(result.iscc)  # "ISCC:KUA..."
 print(result.datahash)  # Multihash of the data
 print(result.filesize)  # Size in bytes
 ```
@@ -311,8 +311,9 @@ print(result.filesize)  # Total bytes processed
 print(result.units)  # [Data-Code, Instance-Code] (only when add_units=True)
 ```
 
-All three hashers accept `bytes` or file-like objects in `update()`. After calling `finalize()`, the
-hasher is consumed and further calls to `update()` or `finalize()` raise an error.
+All three hashers accept `bytes` or file-like objects in `update()`. The first `finalize()` call
+consumes the hasher, even when it fails (for example on an invalid `bits` value). After that,
+further calls to `update()` or `finalize()` raise an error.
 
 ## Text utilities
 
@@ -445,6 +446,28 @@ for unit in units:
     print(unit)  # Each unit code (without "ISCC:" prefix)
 ```
 
+### ISCC-SEQ
+
+`encode_seq(units: Iterable[str]) -> bytes` packs an ordered list of ISCC-UNITs into an ISCC-SEQ
+byte string (IEP-0020): the header and body bytes of each unit, in the given order.
+`decode_seq(data) -> list[str]` reads one back into `ISCC:`-prefixed unit strings (`data` may be
+`bytes`, `bytearray` or `memoryview`). Base32 input is strict (no padding, zero spare bits) and
+upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected.
+
+```python
+from iscc_lib import decode_seq, encode_seq
+
+data = encode_seq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"])
+print(len(data))  # 34
+print(data[:6].hex())  # "2007a88248c5"
+
+units = decode_seq(data)
+print(units)  # ['ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI']
+
+# The round trip is defined on bytes: encode_seq(decode_seq(data)) == data
+assert encode_seq(units) == data
+```
+
 ### Other codec functions
 
 - `encode_base64(data: bytes) -> str` — encode bytes to base64
@@ -452,6 +475,27 @@ for unit in units:
     `data:application/json;base64,...` URL
 - `soft_hash_video_v0(frame_sigs, bits=64) -> bytes` — compute a video similarity hash from MPEG-7
     frame signatures
+
+## Algorithm primitives
+
+Low-level algorithm functions are available for advanced use cases:
+
+```python
+from iscc_lib import sliding_window
+
+# Sliding window: overlapping substrings of width Unicode characters
+windows = sliding_window("Hello World", 4)
+# ['Hell', 'ello', 'llo ', 'lo W', 'o Wo', ' Wor', 'Worl', 'orld']
+```
+
+Additional primitives:
+
+- `alg_simhash(hash_digests: list[bytes]) -> bytes` — compute a SimHash digest from equal-length
+    digests
+- `alg_minhash_256(features: list[int]) -> bytes` — compute a 256-bit MinHash digest from 32-bit
+    features; raises `ValueError` on an empty list
+- `alg_cdc_chunks(data: bytes, utf32: bool, avg_chunk_size: int = 1024) -> list[bytes]` — split data
+    into content-defined chunks
 
 ## Constants
 
@@ -462,6 +506,7 @@ through the `core_opts` namespace for iscc-core API parity:
 from iscc_lib import (
     META_TRIM_NAME,
     META_TRIM_DESCRIPTION,
+    META_TRIM_META,
     IO_READ_SIZE,
     TEXT_NGRAM_SIZE,
     core_opts,
@@ -469,12 +514,14 @@ from iscc_lib import (
 
 META_TRIM_NAME  # 128 — max byte length for name normalization
 META_TRIM_DESCRIPTION  # 4096 — max byte length for description normalization
+META_TRIM_META  # 128_000 — max decoded payload size in bytes for the meta element
 IO_READ_SIZE  # 4_194_304 — default read buffer size (4 MB)
 TEXT_NGRAM_SIZE  # 13 — n-gram size for text similarity hashing
 
 # core_opts namespace (iscc-core compatibility)
 core_opts.meta_trim_name  # 128
 core_opts.meta_trim_description  # 4096
+core_opts.meta_trim_meta  # 128_000
 core_opts.io_read_size  # 4_194_304
 core_opts.text_ngram_size  # 13
 ```
@@ -497,7 +544,21 @@ All `gen_*_v0` functions raise `ValueError` on invalid input:
 from iscc_lib import gen_text_code_v0
 
 try:
-    gen_text_code_v0("Hello", bits=13)  # bits must be a multiple of 32
+    gen_text_code_v0("Hello", bits=13)  # bits must be a multiple of 32 from 32 to 256
 except ValueError as e:
+    print(f"Invalid input: {e}")
+```
+
+An integer argument that does not fit the native type, such as a negative `bits` or `nbytes`, or an
+`int` beyond 32 bits in a feature list or a frame signature, raises `OverflowError` instead. Python
+raises it while converting the argument, before the call reaches the library. `OverflowError` is not
+a subclass of `ValueError`, so catch both to handle every invalid argument:
+
+```python
+from iscc_lib import gen_text_code_v0
+
+try:
+    gen_text_code_v0("Hello", bits=-1)
+except (ValueError, OverflowError) as e:
     print(f"Invalid input: {e}")
 ```

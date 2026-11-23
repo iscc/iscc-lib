@@ -21,6 +21,13 @@ Two modes:
 - ``--update``: rebuild `.iai-baseline.json` from a run directory. The committed baseline is
   built from the CI artifact (not a local run) so it matches the rustc the gate measures
   with; refresh it deliberately in a reviewed commit, mirroring `.crap-baseline.json`.
+  Three rows hold the devcontainer value instead: `bench_image_code.gradient_1024`,
+  `bench_iscc_code.four_units` and `bench_mixed_code.two_codes` spend much of their cost
+  in system-library code and count 15-38% more instructions in the devcontainer than on
+  the CI runner, so a CI value fails the local `mise run bench:iai:check` with no code
+  change. After an ``--update`` from a CI artifact, run `mise run bench:iai` in the
+  devcontainer at the same revision and write its counts into these three rows (the
+  `current` column of ``--check``), so they follow a cost change like every other row.
 
 Stdlib-only (no third-party deps) so the CI `perf` job can run it with bare `python3`,
 without a `uv`/Python toolchain setup step.

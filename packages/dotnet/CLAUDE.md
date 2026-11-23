@@ -11,33 +11,6 @@ code generation.
 - Does NOT implement any ISCC logic; all computation delegates through `iscc-ffi` to `iscc-lib`
 - Published to NuGet as `Iscc.Lib`
 
-## File Layout
-
-```
-packages/dotnet/
-  README.md                              # NuGet package readme (packed into .nupkg)
-  Iscc.Lib/                              # Library project
-    Iscc.Lib.csproj                      # .NET 8.0 class library, AllowUnsafeBlocks
-    NativeMethods.g.cs                   # csbindgen-generated P/Invoke declarations (DO NOT EDIT)
-    IsccLib.cs                           # Public static API: gen functions, text utils, codec, helpers
-    Results.cs                           # Typed record result types (MetaCodeResult, DataCodeResult, etc.)
-    IsccException.cs                     # Exception type for native library errors
-    IsccDataHasher.cs                    # Streaming Data-Code hasher (IDisposable, SafeHandle)
-    IsccInstanceHasher.cs                # Streaming Instance-Code hasher (IDisposable, SafeHandle)
-    runtimes/                            # Native libraries per RID (populated by CI, gitignored)
-      linux-x64/native/libiscc_ffi.so
-      linux-arm64/native/libiscc_ffi.so
-      osx-arm64/native/libiscc_ffi.dylib
-      osx-x64/native/libiscc_ffi.dylib
-      win-x64/native/iscc_ffi.dll
-  Iscc.Lib.Tests/                        # xUnit test project
-    Iscc.Lib.Tests.csproj                # References Iscc.Lib, xunit.v3, Microsoft.NET.Test.Sdk (exact pinned versions)
-    packages.lock.json                   # Committed NuGet lock file (CI restores with --locked-mode)
-    SmokeTests.cs                        # End-to-end P/Invoke validation for every public method
-    ConformanceTests.cs                  # data.json conformance vectors for all 9 gen_*_v0 functions
-    testdata/data.json                   # Vendored ISCC conformance test vectors
-```
-
 ## C FFI to C# Type Mapping
 
 | C / Rust FFI type             | C# P/Invoke type       | C# public API type     | Notes                                     |
@@ -78,6 +51,9 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 
 ## Test Patterns
 
+`Iscc.Lib.Tests/testdata/data.json` and `data-edge.json` are vendored copies of the fixtures in
+`crates/iscc-lib/tests/`.
+
 ### Smoke tests (`SmokeTests.cs`)
 
 - One `[Fact]` per public method verifying basic functionality
@@ -91,20 +67,28 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 ### Conformance tests (`ConformanceTests.cs`)
 
 - `[Theory]` + `[MemberData]` pattern for parameterized tests from `testdata/data.json`
-- One test method per gen function, all 9 gen functions covered (50 vectors total)
+- One test method per gen function with `data.json` vectors, plus `EncodeSeq` / `DecodeSeq` and
+    `SeqRoundTripBytes` (`EncodeSeq(DecodeSeq(x)) == x`)
 - Static `Lazy<JsonElement>` caches the parsed JSON across test methods
 - `DecodeStream` helper converts `"stream:<hex>"` format to `byte[]`
 - `PrepareMeta` helper handles null / string / JSON-object meta parameter variants
 - Asserts exact ISCC string equality against expected outputs
 
+### Edge-case tests (`DataEdgeTests.cs`)
+
+- Runs every vector of `testdata/data-edge.json` through a section → caller table; `except.dotnet`
+    is the only deviation and an unknown section fails. A rejection must be an `IsccException` from
+    the raw call; no vector count is hardcoded
+
 ## Publishing (NuGet)
 
 - **Package ID:** `Iscc.Lib`
+- **Readme:** `packages/dotnet/README.md` is packed into the `.nupkg` as the package readme
 - **Target framework:** `net8.0`
 - **Version source:** `<Version>` in `Iscc.Lib.csproj`, synced with workspace version via
     `mise run version:sync`
-- **Native library bundling:** CI downloads FFI artifacts for 5 targets, maps them to NuGet RID
-    directories under `runtimes/<rid>/native/`, then runs `dotnet pack`
+- **Native library bundling:** CI downloads the FFI artifact for every supported RID, maps them to
+    NuGet RID directories under `runtimes/<rid>/native/`, then runs `dotnet pack`
 - **Supported RIDs:** `linux-x64`, `linux-arm64`, `osx-arm64`, `osx-x64`, `win-x64`
 - **Smoke testing:** CI creates a fresh console project on ubuntu, macOS, and Windows, installs the
     packed `.nupkg` from a local source, runs `ConformanceSelftest()` as a sanity check
@@ -115,9 +99,10 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 
 ### String marshalling
 
-- **Input strings:** converted to NUL-terminated UTF-8 byte arrays via `ToNativeUtf8()`, then pinned
-    with `fixed` and passed as `byte*`. Optional strings pass `null` when the `byte[]?` is null (the
-    `fixed` statement produces a null pointer for null arrays).
+- **Input strings:** converted to NUL-terminated UTF-8 byte arrays via `ToNativeUtf8()` (which
+    throws `IsccException` on an embedded NUL, since the native side would truncate there), then
+    pinned with `fixed` and passed as `byte*`. Optional strings pass `null` when the `byte[]?` is
+    null (the `fixed` statement produces a null pointer for null arrays).
 - **Output strings:** native returns `byte*` (heap-allocated by Rust). `ConsumeNativeString`
     marshals to `string` via `Marshal.PtrToStringUTF8`, then frees via `iscc_free_string`. Throws
     `IsccException` if the pointer is null.
@@ -150,16 +135,24 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 
 ### Array parameter marshalling
 
-- **Jagged arrays** (e.g., `int[][] frameSigs`, `string[] codes`, `byte[][] digests`): each inner
-    array is pinned via `GCHandle.Alloc(..., GCHandleType.Pinned)`, pointers collected into a
-    `T*[]`, then that pointer array is pinned with `fixed`. Handles are freed in a `finally` block.
-- **Parallel length arrays** (e.g., `frame_lens`, `digest_lens`): a `nuint[]` is populated alongside
-    the pointer array and passed with a second `fixed`.
+- **Jagged arrays** (`int[][] frameSigs`, `byte[][] digests`, `string[] codes`/`units`): all
+    jagged-array methods go through the private `PinnedRows` helper in `IsccLib.cs` (`Pin` for
+    jagged arrays, `PinStrings` converts via `ToNativeUtf8` first) inside a `using`. It throws
+    `ArgumentNullException` (parameter name + `name[i]` in the message) for a null array or element
+    before pinning anything, pins each row with `GCHandle.Alloc(..., Pinned)`, frees already pinned
+    handles if pinning fails, and frees all handles on `Dispose`. Call sites `fixed` its `Pointers`
+    (`nint[]`, cast to `int**`/`byte**`) and pass `Count` as the length. Never add a `GCHandle` loop
+    at a call site
+- **Parallel length arrays** (`frame_lens`, `digest_lens`): `PinnedRows.Lengths` (`nuint[]`), passed
+    with a second `fixed`
 
-### Empty span sentinel
+### Empty spans
 
-- `ReadOnlySpan<byte>.Empty` produces a null pointer under `fixed`, which the native library would
-    reject. Instead, a stack-allocated `byte sentinel = 0` is used with length 0.
+- `fixed` over an empty span yields a null pointer. The C FFI treats a NULL pointer with length 0 as
+    an empty input on every pointer+length parameter, so call sites pass `fixed` pointers with no
+    special case for empty spans, and an empty input surfaces the core's own error (if any).
+- `PinnedRows` sizes `Pointers` and `Lengths` to `Count`, so a jagged `[]` passes a NULL pointer
+    with count 0, and an empty inner row passes its own pointer with length 0
 
 ## Common Pitfalls
 
@@ -170,17 +163,19 @@ dotnet pack packages/dotnet/Iscc.Lib/ -c Release -o nupkg
 - **NativeMethods.g.cs is auto-generated:** never edit this file. Regenerate it from `iscc-ffi`
     using csbindgen when the FFI surface changes.
 - **Empty spans produce null pointers:** `fixed (byte* p = ReadOnlySpan<byte>.Empty)` yields `null`.
-    Use a stack sentinel (see pattern above) for functions that reject null data pointers.
-- **GCHandle leaks:** when pinning arrays for jagged-array marshalling, always free handles in a
-    `finally` block. A missing `Free()` pins objects permanently.
+    Pass it on with length 0; the FFI accepts `(NULL, 0)`. Only a NULL pointer with a non-zero
+    length is an error.
+- **GCHandle leaks:** a missing `Free()` pins objects permanently. Pin jagged arrays only through
+    `PinnedRows` in a `using`, which frees every handle, also when pinning fails halfway.
 - **Bool marshalling:** C `bool` is 1 byte, but .NET `bool` defaults to 4 bytes.
     `[MarshalAs(UnmanagedType.U1)]` is required on both parameters and return values.
 - **Version drift:** the `<Version>` in `Iscc.Lib.csproj` must stay in sync with the workspace
     `Cargo.toml` version. Use `mise run version:sync` to update all manifests, and
     `mise run version:check` to verify.
-- **Test dependencies are pinned via a committed lock file:** `Iscc.Lib.Tests` sets
-    `RestorePackagesWithLockFile` and CI restores with `--locked-mode`, so a `PackageReference`
-    version change must regenerate `packages.lock.json` in the same commit:
+- **Test dependencies are pinned via a committed lock file:** `Iscc.Lib.Tests.csproj` pins exact
+    `PackageReference` versions and sets `RestorePackagesWithLockFile`, and CI restores with
+    `--locked-mode`, so a `PackageReference` version change must regenerate `packages.lock.json` in
+    the same commit:
     `dotnet restore packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj --force-evaluate`.
 - **runtimes/ directory is gitignored:** native libraries under `runtimes/` are populated by CI
     during the pack step. Local development uses `LD_LIBRARY_PATH` instead of bundled runtimes.

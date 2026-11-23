@@ -256,6 +256,57 @@ fn decode_varnibble_from_bytes(data: &[u8], bit_pos: usize) -> IsccResult<(u32, 
 
 // ---- Header Encoding ----
 
+/// Encode four raw header integers as padded varnibble bytes.
+///
+/// Performs no MainType/SubType/Version semantics — only the varnibble range
+/// check (0–4679). Pads an odd nibble count with a zero nibble on the right.
+fn encode_header_raw(mtype: u32, stype: u32, version: u32, length: u32) -> IsccResult<Vec<u8>> {
+    let mut bits = Vec::new();
+    bits.extend(encode_varnibble(mtype)?);
+    bits.extend(encode_varnibble(stype)?);
+    bits.extend(encode_varnibble(version)?);
+    bits.extend(encode_varnibble(length)?);
+
+    // Pad to byte boundary with zero bits (equivalent to bitarray.fill())
+    let remainder = bits.len() % 8;
+    if remainder != 0 {
+        bits.resize(bits.len() + (8 - remainder), false);
+    }
+
+    Ok(bits_to_bytes(&bits))
+}
+
+/// Decode four raw header integers from bytes without type validation.
+///
+/// Returns `(mtype, stype, version, length, tail_start)` where `tail_start` is
+/// the byte offset of the data following the header. A 4-bit zero padding
+/// nibble after a non-byte-aligned header is skipped; a non-zero nibble is not
+/// (callers needing canonical headers re-encode and compare).
+#[inline]
+fn decode_header_raw(data: &[u8]) -> IsccResult<(u32, u32, u32, u32, usize)> {
+    let mut bit_pos = 0;
+
+    let (mtype, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
+
+    let (stype, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
+
+    let (version, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
+
+    let (length, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
+
+    // Strip 4-bit zero padding if header bits are not byte-aligned.
+    // Since each varnibble is a multiple of 4 bits, misalignment is always 4 bits.
+    if bit_pos % 8 != 0 && bit_pos + 4 <= data.len() * 8 && extract_bits(data, bit_pos, 4) == 0 {
+        bit_pos += 4;
+    }
+
+    Ok((mtype, stype, version, length, bit_pos.div_ceil(8)))
+}
+
 /// Encode ISCC header fields into bytes.
 ///
 /// Concatenates varnibble-encoded MainType, SubType, Version, and length,
@@ -268,20 +319,7 @@ pub fn encode_header(
     length: u32,
 ) -> IsccResult<Vec<u8>> {
     validate_version(mtype, version)?;
-
-    let mut bits = Vec::new();
-    bits.extend(encode_varnibble(mtype as u32)?);
-    bits.extend(encode_varnibble(stype as u32)?);
-    bits.extend(encode_varnibble(version as u32)?);
-    bits.extend(encode_varnibble(length)?);
-
-    // Pad to byte boundary with zero bits (equivalent to bitarray.fill())
-    let remainder = bits.len() % 8;
-    if remainder != 0 {
-        bits.resize(bits.len() + (8 - remainder), false);
-    }
-
-    Ok(bits_to_bytes(&bits))
+    encode_header_raw(mtype as u32, stype as u32, version as u32, length)
 }
 
 /// Decode ISCC header from bytes.
@@ -291,28 +329,8 @@ pub fn encode_header(
 /// Version, length, tail_bytes)` where `tail_bytes` contains any
 /// remaining data after the header.
 pub fn decode_header(data: &[u8]) -> IsccResult<(MainType, SubType, Version, u32, Vec<u8>)> {
-    let mut bit_pos = 0;
+    let (mtype_val, stype_val, version_val, length, tail_byte_start) = decode_header_raw(data)?;
 
-    let (mtype_val, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
-    bit_pos += consumed;
-
-    let (stype_val, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
-    bit_pos += consumed;
-
-    let (version_val, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
-    bit_pos += consumed;
-
-    let (length, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
-    bit_pos += consumed;
-
-    // Strip 4-bit zero padding if header bits are not byte-aligned.
-    // Since each varnibble is a multiple of 4 bits, misalignment is always 4 bits.
-    if bit_pos % 8 != 0 && bit_pos + 4 <= data.len() * 8 && extract_bits(data, bit_pos, 4) == 0 {
-        bit_pos += 4;
-    }
-
-    // Advance to next byte boundary for tail extraction
-    let tail_byte_start = bit_pos.div_ceil(8);
     let tail = if tail_byte_start < data.len() {
         data[tail_byte_start..].to_vec()
     } else {
@@ -338,12 +356,17 @@ pub fn decode_header(data: &[u8]) -> IsccResult<(MainType, SubType, Version, u32
 
 // ---- Length Encoding ----
 
+/// Bit lengths of an ISCC-ID: the ID values of iscc-core's `LN` enum (no 88).
+const ID_BIT_LENGTHS: [u32; 4] = [64, 72, 80, 96];
+
 /// Encode bit length to header length field value.
 ///
 /// Semantics depend on MainType:
-/// - META/SEMANTIC/CONTENT/DATA/INSTANCE/FLAKE: `(bit_length / 32) - 1`
+/// - META/SEMANTIC/CONTENT/DATA/INSTANCE/FLAKE: `(bit_length / 32) - 1`, for a
+///   multiple of 32 from 32 to 256 (an ISCC-UNIT is at most 256 bits)
 /// - ISCC: pass-through (0–7, unit composition flags)
-/// - ID: `(bit_length - 64) / 8`
+/// - ID: `(bit_length - 64) / 8`, for 64, 72, 80 or 96 (an 88-bit ID would not
+///   decode on iscc-core)
 pub fn encode_length(mtype: MainType, length: u32) -> IsccResult<u32> {
     match mtype {
         MainType::Meta
@@ -352,11 +375,11 @@ pub fn encode_length(mtype: MainType, length: u32) -> IsccResult<u32> {
         | MainType::Data
         | MainType::Instance
         | MainType::Flake => {
-            if length >= 32 && length % 32 == 0 {
+            if (32..=256).contains(&length) && length % 32 == 0 {
                 Ok(length / 32 - 1)
             } else {
                 Err(IsccError::InvalidInput(format!(
-                    "invalid length {length} for {mtype:?} (must be multiple of 32, >= 32)"
+                    "invalid length {length} for {mtype:?} (must be a multiple of 32 from 32 to 256)"
                 )))
             }
         }
@@ -370,11 +393,11 @@ pub fn encode_length(mtype: MainType, length: u32) -> IsccResult<u32> {
             }
         }
         MainType::Id => {
-            if (64..=96).contains(&length) && (length - 64) % 8 == 0 {
+            if ID_BIT_LENGTHS.contains(&length) {
                 Ok((length - 64) / 8)
             } else {
                 Err(IsccError::InvalidInput(format!(
-                    "invalid length {length} for ID (must be 64-96, step 8)"
+                    "invalid length {length} for ID (must be 64, 72, 80 or 96)"
                 )))
             }
         }
@@ -388,6 +411,10 @@ pub fn encode_length(mtype: MainType, length: u32) -> IsccResult<u32> {
 /// - ISCC + Wide: 256
 /// - ISCC + other: `popcount(length) * 64 + 128`
 /// - ID: `length * 8 + 64`
+///
+/// The length field is not range-checked: a META..FLAKE index above 7 decodes
+/// to more than 256 bits, which is not a valid ISCC-UNIT (an ISCC-UNIT is at
+/// most 256 bits). The crate's own decoders apply that rule.
 pub fn decode_length(mtype: MainType, length: u32, stype: SubType) -> u32 {
     match mtype {
         MainType::Meta
@@ -404,6 +431,27 @@ pub fn decode_length(mtype: MainType, length: u32, stype: SubType) -> u32 {
             }
         }
         MainType::Id => length * 8 + 64,
+    }
+}
+
+/// Decode a header length field to the bit length of a valid ISCC header.
+///
+/// Same result as [`decode_length`], but a length that iscc-core's `LN` lookup
+/// rejects is an error: a META..FLAKE length index above 7 (more than 256 bits)
+/// and an ID length other than 64, 72, 80 or 96 bits. ISCC lengths decode
+/// unchanged.
+pub(crate) fn unit_bit_length(mtype: MainType, length: u32, stype: SubType) -> IsccResult<u32> {
+    let bits = decode_length(mtype, length, stype);
+    match mtype {
+        MainType::Iscc => Ok(bits),
+        MainType::Id if !ID_BIT_LENGTHS.contains(&bits) => Err(IsccError::InvalidInput(format!(
+            "invalid length {bits} bits for ID (must be 64, 72, 80 or 96)"
+        ))),
+        MainType::Id => Ok(bits),
+        _ if bits > 256 => Err(IsccError::InvalidInput(format!(
+            "invalid length {bits} bits for {mtype:?} (an ISCC-UNIT is at most 256 bits)"
+        ))),
+        _ => Ok(bits),
     }
 }
 
@@ -497,9 +545,9 @@ pub fn encode_base32(data: &[u8]) -> String {
     data_encoding::BASE32_NOPAD.encode(data)
 }
 
-/// Decode base32 string to bytes (case-insensitive, no padding expected).
+/// Decode base32 string to bytes (ASCII case-insensitive, no padding expected).
 pub fn decode_base32(code: &str) -> IsccResult<Vec<u8>> {
-    let upper = code.to_uppercase();
+    let upper = code.to_ascii_uppercase();
     data_encoding::BASE32_NOPAD
         .decode(upper.as_bytes())
         .map_err(|e| IsccError::InvalidInput(format!("base32 decode error: {e}")))
@@ -545,9 +593,19 @@ pub fn encode_component(
     Ok(encode_base32(&component))
 }
 
+/// Return whether Python's `str.strip()` (no arguments) removes `c`.
+///
+/// Python's whitespace set is Rust's `char::is_whitespace` set plus the four
+/// information separators U+001C..=U+001F, which `str::trim` keeps. Trimming
+/// with this predicate keeps cleaned input aligned with `iscc_core.codec.iscc_clean`.
+pub(crate) fn is_py_strip_char(c: char) -> bool {
+    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
+}
+
 /// Clean up an ISCC string to its bare base32 form.
 ///
-/// Mirrors `iscc_core.codec.iscc_clean`: trims surrounding whitespace, removes an
+/// Mirrors `iscc_core.codec.iscc_clean`: trims surrounding whitespace (the
+/// `str.strip()` set, see [`is_py_strip_char`]), removes an
 /// optional scheme prefix (matched case-insensitively against `iscc`), and strips
 /// the hyphen group separators of the canonical display form (e.g.
 /// `ISCC:KACY-PXW4-…`). A single-part input whose first character is a multibase
@@ -564,7 +622,7 @@ pub fn encode_component(
 /// input; `decode_base32("")` returns `Ok(empty)`, so an empty code would
 /// otherwise be silently accepted as a zero-unit ISCC).
 pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<Cow<'_, str>> {
-    let trimmed = iscc.trim();
+    let trimmed = iscc.trim_matches(is_py_strip_char);
     let cleaned: Cow<'_, str> = match trimmed.split_once(':') {
         None => {
             // Single part, no scheme prefix. Preserve dashes for multibase-encoded
@@ -580,8 +638,8 @@ pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<Cow<'_, str>> {
             }
         }
         Some((scheme, rest)) => {
-            let scheme = scheme.trim();
-            let code = rest.trim();
+            let scheme = scheme.trim_matches(is_py_strip_char);
+            let code = rest.trim_matches(is_py_strip_char);
             // A second colon means the string is malformed (more than one part).
             if code.contains(':') {
                 return Err(IsccError::InvalidInput(format!(
@@ -608,10 +666,19 @@ pub(crate) fn iscc_clean(iscc: &str) -> IsccResult<Cow<'_, str>> {
 
 /// Decompose a composite ISCC-CODE or ISCC sequence into individual ISCC-UNITs.
 ///
-/// Accepts a normalized ISCC-CODE or a concatenated sequence of ISCC-UNITs.
+/// Accepts a normalized ISCC-CODE or the base32 form of concatenated ISCC-UNIT
+/// bytes. The second form is the display form of an ISCC-SEQ (IEP-0020): `ISCC:`
+/// followed by the base32 encoding of the ISCC-SEQ bytes (see [`encode_seq`]).
+/// Concatenating ISCC-UNIT *strings*, with or without hyphens, yields such a
+/// string only for 64-bit units, whose 10-byte encoding is exactly 16 base32
+/// characters; longer units misalign the bit stream.
+///
 /// The input is cleaned via [`iscc_clean`] (scheme prefix, dashes, whitespace)
 /// before decoding. Returns a list of base32-encoded ISCC-UNIT strings (without
 /// "ISCC:" prefix).
+///
+/// This is the lenient reader for ISCC strings. Use [`decode_seq`] to strictly
+/// decode ISCC-SEQ byte strings (IEP-0020), e.g. C2PA soft binding values.
 pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
     let clean = iscc_clean(iscc_code)?;
     let mut raw_code = decode_base32(&clean)?;
@@ -622,7 +689,7 @@ pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
 
         // Standard ISCC-UNIT with tail continuation
         if mt != MainType::Iscc {
-            let ln_bits = decode_length(mt, ln, st);
+            let ln_bits = unit_bit_length(mt, ln, st)?;
             let nbytes = (ln_bits / 8) as usize;
             if body.len() < nbytes {
                 return Err(IsccError::InvalidInput(format!(
@@ -698,6 +765,139 @@ pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
     Ok(components)
 }
 
+// ---- ISCC-SEQ (IEP-0020) ----
+
+/// MainTypes permitted in an ISCC-SEQ (IEP-0020): META, SEMANTIC, CONTENT, DATA, INSTANCE.
+///
+/// ISCC-CODE, ID and FLAKE units are rejected by [`read_unit`], [`encode_seq`]
+/// and [`decode_seq`].
+pub const SEQ_MAINTYPES: &[MainType] = &[
+    MainType::Meta,
+    MainType::Semantic,
+    MainType::Content,
+    MainType::Data,
+    MainType::Instance,
+];
+
+/// Upper bound of an encoded ISCC-HEADER in bytes (four 16-bit varnibbles).
+const HEADER_MAX: usize = 8;
+
+/// Read one strictly encoded ISCC-UNIT from an ISCC-SEQ byte string (IEP-0020).
+///
+/// Validates the ISCC-UNIT starting at `offset` and returns the offset where it
+/// ends (the start of the next unit), which allows sequential decoding of an
+/// ISCC-SEQ. Mirrors `iscc_core.codec.read_unit`. Unknown SubType and Version
+/// values are accepted.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` (checked in this order) if the header is
+/// incomplete (including `offset >= data.len()`), the header is non-canonical
+/// (e.g. a non-zero padding nibble), the MainType is not in [`SEQ_MAINTYPES`],
+/// the Length field is above 7, or the body runs past the end of `data`.
+pub fn read_unit(data: &[u8], offset: usize) -> IsccResult<usize> {
+    // An out-of-range offset yields an empty window, which fails as a malformed
+    // header (as in the reference) instead of panicking on the slice.
+    let rest = data.get(offset..).unwrap_or(&[]);
+    let window = &rest[..rest.len().min(HEADER_MAX)];
+    let (mt, st, vs, ln, _) = decode_header_raw(window).map_err(|e| {
+        IsccError::InvalidInput(format!("Malformed ISCC-HEADER at offset {offset}: {e}"))
+    })?;
+    let header = encode_header_raw(mt, st, vs, ln)?;
+    if !window.starts_with(&header) {
+        return Err(IsccError::InvalidInput(format!(
+            "Non-canonical ISCC-HEADER at offset {offset}"
+        )));
+    }
+    if !SEQ_MAINTYPES.iter().any(|&m| m as u32 == mt) {
+        return Err(IsccError::InvalidInput(format!(
+            "MainType {mt} is not permitted in an ISCC-SEQ (offset {offset})"
+        )));
+    }
+    if ln > 7 {
+        return Err(IsccError::InvalidInput(format!(
+            "Unsupported Length field {ln} at offset {offset}"
+        )));
+    }
+    let end = offset + header.len() + 4 * (ln as usize + 1);
+    if end > data.len() {
+        return Err(IsccError::InvalidInput(format!(
+            "Truncated ISCC-UNIT at offset {offset}"
+        )));
+    }
+    Ok(end)
+}
+
+/// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+///
+/// Returns the concatenation of the header and body bytes of each unit, in the
+/// given order (never sorted, deduplicated or dropped). Unit strings may omit
+/// the `ISCC:` prefix and may be lowercase or contain hyphens. Mirrors
+/// `iscc_core.codec.encode_seq`.
+///
+/// Any 32 to 256-bit unit of any SubType and Version is accepted. A C2PA
+/// `io.iscc.v0` soft binding value additionally requires Version 0 units with
+/// 256-bit bodies; callers producing such values must enforce that.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` if `units` is empty, or a unit is empty,
+/// malformed, multiformat-encoded, of a MainType outside [`SEQ_MAINTYPES`]
+/// (ISCC-CODE, ID, FLAKE), or carries trailing data (e.g. several units in one
+/// string).
+pub fn encode_seq(units: &[&str]) -> IsccResult<Vec<u8>> {
+    if units.is_empty() {
+        return Err(IsccError::InvalidInput(
+            "ISCC-SEQ requires at least one ISCC-UNIT".into(),
+        ));
+    }
+    let mut seq = Vec::new();
+    for unit in units {
+        if unit.trim_matches(is_py_strip_char).is_empty() {
+            return Err(IsccError::InvalidInput(
+                "ISCC-UNIT must not be empty".into(),
+            ));
+        }
+        // ASCII-uppercase first: iscc_clean keeps hyphens in bare strings that start with
+        // a multibase prefix character, and bare lowercase units with SubType >= 8
+        // start with "b" or "f".
+        let upper = unit.to_ascii_uppercase();
+        let raw = decode_base32(&iscc_clean(&upper)?)?;
+        if read_unit(&raw, 0)? != raw.len() {
+            return Err(IsccError::InvalidInput(format!(
+                "Trailing data in ISCC-UNIT {unit:?}"
+            )));
+        }
+        seq.extend_from_slice(&raw);
+    }
+    Ok(seq)
+}
+
+/// Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+///
+/// Strict byte-level reader: applies every [`read_unit`] rule to each unit and
+/// rejects trailing bytes. Unknown SubType and Version values are preserved.
+/// Returns `ISCC:`-prefixed unit strings in wire order; [`encode_seq`] of the
+/// result reproduces `data`. Mirrors `iscc_core.codec.decode_seq`.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` if `data` is empty or any unit is
+/// malformed (see [`read_unit`]).
+pub fn decode_seq(data: &[u8]) -> IsccResult<Vec<String>> {
+    if data.is_empty() {
+        return Err(IsccError::InvalidInput("Empty ISCC-SEQ".into()));
+    }
+    let mut units = Vec::new();
+    let mut offset = 0;
+    while offset < data.len() {
+        let end = read_unit(data, offset)?;
+        units.push(format!("ISCC:{}", encode_base32(&data[offset..end])));
+        offset = end;
+    }
+    Ok(units)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -723,6 +923,15 @@ mod tests {
             iscc_clean("Iscc:KACYPXW445FTYNJ3").unwrap(),
             "KACYPXW445FTYNJ3"
         );
+    }
+
+    #[test]
+    fn test_is_py_strip_char_matches_rust_whitespace_plus_separators() {
+        for c in char::MIN..=char::MAX {
+            let expected = c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c);
+            assert_eq!(is_py_strip_char(c), expected, "{c:?}");
+        }
+        assert!(!is_py_strip_char('\u{200b}'));
     }
 
     #[test]
@@ -1014,6 +1223,8 @@ mod tests {
         assert_eq!(encode_length(MainType::Id, 72).unwrap(), 1);
         assert_eq!(encode_length(MainType::Id, 80).unwrap(), 2);
         assert_eq!(encode_length(MainType::Id, 96).unwrap(), 4);
+        // iscc-core's LN has no 88, so its decoder rejects an 88-bit ID
+        assert!(encode_length(MainType::Id, 88).is_err());
     }
 
     #[test]
@@ -1022,6 +1233,9 @@ mod tests {
         assert!(encode_length(MainType::Meta, 48).is_err());
         // Too small
         assert!(encode_length(MainType::Meta, 0).is_err());
+        // Above 256 bits
+        assert!(encode_length(MainType::Meta, 288).is_err());
+        assert!(encode_length(MainType::Data, 512).is_err());
         // ID out of range
         assert!(encode_length(MainType::Id, 63).is_err());
         assert!(encode_length(MainType::Id, 97).is_err());
@@ -1053,6 +1267,52 @@ mod tests {
         assert_eq!(decode_length(MainType::Id, 0, SubType::None), 64);
         assert_eq!(decode_length(MainType::Id, 1, SubType::None), 72);
         assert_eq!(decode_length(MainType::Id, 4, SubType::None), 96);
+    }
+
+    #[test]
+    fn test_unit_bit_length_above_256() {
+        // Length index 7 is 256 bits, the longest ISCC-UNIT
+        assert_eq!(
+            unit_bit_length(MainType::Meta, 7, SubType::None).unwrap(),
+            256
+        );
+        assert_eq!(
+            unit_bit_length(MainType::Flake, 7, SubType::None).unwrap(),
+            256
+        );
+        // Length index 8 would be 288 bits
+        let err = unit_bit_length(MainType::Meta, 8, SubType::None).unwrap_err();
+        assert!(err.to_string().contains("256"), "unexpected error: {err}");
+        assert!(unit_bit_length(MainType::Instance, 8, SubType::None).is_err());
+        // ISCC lengths are unchanged
+        assert_eq!(
+            unit_bit_length(MainType::Iscc, 7, SubType::None).unwrap(),
+            320
+        );
+    }
+
+    #[test]
+    fn test_unit_bit_length_id() {
+        // Length indexes 0, 1, 2 and 4 are the ID lengths of iscc-core's LN
+        for (index, bits) in [(0, 64), (1, 72), (2, 80), (4, 96)] {
+            assert_eq!(
+                unit_bit_length(MainType::Id, index, SubType::None).unwrap(),
+                bits
+            );
+        }
+        // Index 3 (88 bits) and index 5 (104 bits) are not
+        for index in [3, 5] {
+            let err = unit_bit_length(MainType::Id, index, SubType::None).unwrap_err();
+            assert!(err.to_string().contains("ID"), "unexpected error: {err}");
+        }
+    }
+
+    #[test]
+    fn test_iscc_decompose_above_256() {
+        let mut raw = encode_header(MainType::Meta, SubType::None, Version::V0, 8).unwrap();
+        raw.extend_from_slice(&[0u8; 36]);
+        let err = iscc_decompose(&encode_base32(&raw)).unwrap_err();
+        assert!(err.to_string().contains("256"), "unexpected error: {err}");
     }
 
     #[test]
@@ -1624,18 +1884,15 @@ mod tests {
     #[test]
     fn test_decompose_conformance_roundtrip() {
         // Use gen_iscc_code_v0 conformance vectors to verify decompose
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_iscc_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = crate::conformance::test_data().unwrap();
+        let cases = crate::conformance::cases(&data, "gen_iscc_code_v0").unwrap();
 
         for (tc_name, tc) in cases {
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-            let inputs = tc["inputs"].as_array().unwrap();
-            let codes_json = inputs[0].as_array().unwrap();
-            let input_codes: Vec<&str> = codes_json.iter().map(|v| v.as_str().unwrap()).collect();
+            let expected_iscc = crate::conformance::expected_iscc(tc).unwrap();
+            let input_codes = crate::conformance::iscc_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
 
-            let decomposed = iscc_decompose(expected_iscc).unwrap();
+            let decomposed = iscc_decompose(&expected_iscc).unwrap();
 
             // Each decomposed code decodes to a valid MainType
             for code in &decomposed {

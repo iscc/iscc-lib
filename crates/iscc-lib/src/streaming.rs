@@ -7,7 +7,7 @@
 //! of large files without loading entire contents into memory.
 
 use crate::types::{DataCodeResult, InstanceCodeResult, SumCodeResult};
-use crate::{IsccResult, cdc, codec, gen_iscc_code_v0, minhash};
+use crate::{IsccResult, cdc, codec, gen_iscc_code_v0, minhash, utils, xxh32};
 
 /// Streaming Instance-Code generator.
 ///
@@ -37,9 +37,14 @@ impl InstanceHasher {
     ///
     /// Equivalent to calling `gen_instance_code_v0` with the concatenation
     /// of all data passed to `update`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IsccError::InvalidInput` if `bits` is not a multiple of 32
+    /// from 32 to 256.
     pub fn finalize(self, bits: u32) -> IsccResult<InstanceCodeResult> {
         let digest = self.hasher.finalize();
-        let datahash = format!("1e20{}", hex::encode(digest.as_bytes()));
+        let datahash = utils::blake3_multihash_hex(&digest);
         let component = codec::encode_component(
             codec::MainType::Instance,
             codec::SubType::None,
@@ -98,7 +103,7 @@ impl DataHasher {
         let mut prev_chunk: Option<&[u8]> = None;
         for chunk in &chunks {
             if let Some(pc) = prev_chunk {
-                self.chunk_features.push(xxhash_rust::xxh32::xxh32(pc, 0));
+                self.chunk_features.push(xxh32::xxh32(pc, 0));
             }
             prev_chunk = Some(chunk);
         }
@@ -117,16 +122,20 @@ impl DataHasher {
     ///
     /// Equivalent to calling `gen_data_code_v0` with the concatenation
     /// of all data passed to `update`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IsccError::InvalidInput` if `bits` is not a multiple of 32
+    /// from 32 to 256.
     pub fn finalize(mut self, bits: u32) -> IsccResult<DataCodeResult> {
         if !self.buf.is_empty() {
-            self.chunk_features
-                .push(xxhash_rust::xxh32::xxh32(&self.buf, 0));
+            self.chunk_features.push(xxh32::xxh32(&self.buf, 0));
         } else if self.chunk_features.is_empty() {
             // Empty input: ensure at least one feature
-            self.chunk_features.push(xxhash_rust::xxh32::xxh32(b"", 0));
+            self.chunk_features.push(xxh32::xxh32(b"", 0));
         }
 
-        let digest = minhash::alg_minhash_256(&self.chunk_features);
+        let digest = minhash::alg_minhash_256_inner(&self.chunk_features);
         let component = codec::encode_component(
             codec::MainType::Data,
             codec::SubType::None,
@@ -181,6 +190,11 @@ impl SumHasher {
     /// individual Data-Code and Instance-Code ISCC strings at the requested
     /// `bits` precision. Equivalent to calling `gen_sum_code_v0` on a file
     /// containing the concatenation of all data passed to `update`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IsccError::InvalidInput` if `bits` is not a multiple of 32
+    /// from 64 to 256.
     pub fn finalize(self, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult> {
         let data_result = self.data_hasher.finalize(bits)?;
         let instance_result = self.instance_hasher.finalize(bits)?;
@@ -291,21 +305,12 @@ mod tests {
 
     #[test]
     fn test_instance_hasher_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_instance_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = crate::conformance::test_data().unwrap();
+        let cases = crate::conformance::cases(&data, "gen_instance_code_v0").unwrap();
 
         for (name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let stream_str = inputs[0].as_str().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-
-            let hex_data = stream_str
-                .strip_prefix("stream:")
-                .unwrap_or_else(|| panic!("expected 'stream:' prefix in test case {name}"));
-            let input_bytes = hex::decode(hex_data)
-                .unwrap_or_else(|e| panic!("invalid hex in test case {name}: {e}"));
+            let (input_bytes, bits) = crate::conformance::stream_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {name}"));
 
             // One-shot reference
             let oneshot = gen_instance_code_v0(&input_bytes, bits)
@@ -436,21 +441,12 @@ mod tests {
 
     #[test]
     fn test_data_hasher_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_data_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = crate::conformance::test_data().unwrap();
+        let cases = crate::conformance::cases(&data, "gen_data_code_v0").unwrap();
 
         for (name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let stream_str = inputs[0].as_str().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-
-            let hex_data = stream_str
-                .strip_prefix("stream:")
-                .unwrap_or_else(|| panic!("expected 'stream:' prefix in test case {name}"));
-            let input_bytes = hex::decode(hex_data)
-                .unwrap_or_else(|e| panic!("invalid hex in test case {name}: {e}"));
+            let (input_bytes, bits) = crate::conformance::stream_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {name}"));
 
             // One-shot reference
             let oneshot = gen_data_code_v0(&input_bytes, bits)
@@ -661,5 +657,32 @@ mod tests {
             assert_eq!(streaming.filesize, file_based.filesize);
             assert_eq!(streaming.units, file_based.units);
         }
+    }
+
+    /// Assert that a result is an error that names the 256-bit limit.
+    fn assert_above_256_error<T: std::fmt::Debug>(result: IsccResult<T>) {
+        let err = result.expect_err("bits above 256 must be rejected");
+        assert!(err.to_string().contains("256"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn test_data_hasher_finalize_above_256() {
+        let mut hasher = DataHasher::new();
+        hasher.update(b"data");
+        assert_above_256_error(hasher.finalize(288));
+    }
+
+    #[test]
+    fn test_instance_hasher_finalize_above_256() {
+        let mut hasher = InstanceHasher::new();
+        hasher.update(b"data");
+        assert_above_256_error(hasher.finalize(288));
+    }
+
+    #[test]
+    fn test_sum_hasher_finalize_above_256() {
+        let mut hasher = SumHasher::new();
+        hasher.update(b"data");
+        assert_above_256_error(hasher.finalize(288, false, false));
     }
 }

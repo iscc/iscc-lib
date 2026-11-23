@@ -5,7 +5,7 @@ description: >-
   (tools/cid.py) as the third role of a CID iteration; not intended for ad-hoc delegation in
   interactive sessions.
 model: claude-opus-5-5
-effort: xhigh
+effort: high
 tools: Read, Grep, Glob, Bash, Edit, Write, Agent
 memory: project
 ---
@@ -38,16 +38,15 @@ already in your context** — inlined by the runner before your first turn, curr
 **Do not re-read these with the Read tool** — re-reading returns the same bytes you already have.
 Read anything else on demand, once.
 
-(An agent definition cannot inline files itself: `@path` imports and `` !`command` `` blocks are
-inert in `.claude/agents/*.md`. They work in CLAUDE.md and skills respectively — measured on Claude
-Code 2.1.220. That is why the pack is a skill.)
-
 Beyond the pack, read only the files next.md's `## Reference` section names. Do not explore broadly.
 
 ## Protocol
 
 1. **Understand the work package** — the injected next.md is your whole brief. Note the scope,
     implementation notes, and verification criteria.
+
+    **Spike:** if `## Scope` declares `**Spike:** <question>`, the experiment is the whole step: run
+    it under `## Experiments`, skip steps 3-6, and report the answer in the handoff.
 
 2. **Read reference material** — read ONLY the files listed in next.md's "Reference" section. For
     the iscc-core reference implementation, read files directly from `reference/iscc-core/` (see
@@ -59,13 +58,15 @@ Beyond the pack, read only the files next.md's `## Reference` section names. Do 
 
     - Match the patterns and style of existing code in this project
     - Consult `CLAUDE.md` for project conventions
-    - Consult `notes/` documents referenced in next.md for architectural guidance
+    - Consult the spec sections next.md references for architectural guidance. `notes/` is the
+        original design record and is not kept current: where it differs from a spec, the spec wins
     - Keep it simple. Prefer explicit over clever.
     - Write short, pure functions with docstrings
-    - Stay within the file scope defined in next.md: max 3 files excluding tests and docs, raised to
+    - Stay within the file scope defined in next.md: max 6 files excluding tests and docs, raised to
         8 when next.md cites an `[audit]` issue and states the budget, and unlimited when next.md
-        declares a `**Fan-out:**` line — in which case apply the *same* change to every surface it
-        names and make no per-surface design decisions of your own
+        declares a `**Fan-out:**` line — in which case bring the *same behaviour* to every surface it
+        names, each in its own idiom, and make no design decision that next.md and the specs leave
+        open
     - If next.md lists documentation files in Scope, update them to reflect the code changes made in
         this step. Doc updates should be minimal and accurate — match the actual implementation,
         don't embellish.
@@ -75,8 +76,11 @@ Beyond the pack, read only the files next.md's `## Reference` section names. Do 
     convention: `#[cfg(test)] mod tests` in the same file, or `tests/` directory for integration
     tests).
 
-6. **Verify** — run `mise run check` and fix until clean. This runs all quality gates (formatting,
-    linting, tests) via pre-commit hooks.
+6. **Verify** — run `mise run check` and fix until clean. It runs the pre-commit hooks on all files
+    (formatters, linters, parity checks); tests run in the pre-push stage, so run the tests your
+    step touches yourself. Re-run the full check only after a fix that touched code or config.
+    After editing only Markdown (handoff, memory, docs), check those files with
+    `uv run prek run --files <files>` — the commit hooks re-check staged files anyway.
 
 7. **Write the handoff** — overwrite `.claude/context/handoff.md` with a report for the review
     agent. Follow the format below. Before writing, audit each claim against a tool result from
@@ -95,6 +99,29 @@ Beyond the pack, read only the files next.md's `## Reference` section names. Do 
     git add <implementation files> <test files> .claude/context/handoff.md .claude/agent-memory/advance/MEMORY.md
     git commit -m "cid(advance): <what was implemented>"
     ```
+
+    In a fan-out step, commit once per surface as soon as that surface is implemented and its own
+    check is green (`cid(advance): <surface> — <what>`), and put handoff.md and agent memory in the
+    last commit. Per-surface commits let the reviewer walk the work and let one surface be repaired
+    without touching the others. After a spike, the commit carries only handoff.md and agent
+    memory.
+
+## Experiments
+
+A spike answers a question; it does not change the repository, and it leaves nothing behind.
+
+- Work in a fresh directory outside the checkout: `exp=$(mktemp -d)`. Running existing commands in
+    the checkout (builds, tests, `--help`, dry runs) is fine; editing it is not. When the experiment
+    needs changed repository files, make a throwaway copy with `git worktree add --detach "$exp/wt"`
+    and change only that.
+- Install tools only into `$exp` (`cargo install --root "$exp"`, `uv run --with`,
+    `npm --prefix "$exp"`, `gem install --install-dir "$exp"`), never globally.
+- Clean up before writing the handoff: `git worktree remove --force "$exp/wt"` if you made one, then
+    `rm -rf "$exp"`. `git worktree list` must show only the checkout and `git status --porcelain`
+    must be empty.
+- In the handoff, state the question, the answer, the decisive command with its output (trimmed),
+    and that cleanup was done. A question the experiment could not settle is reported as unsettled,
+    with what was tried.
 
 ## Output Format for handoff.md
 
@@ -118,14 +145,16 @@ technical debt introduced>
 
 - Stay in scope. Implement what next.md defines. Do not add features, refactor unrelated code, or
     "improve" things outside the work package.
-- **Delegate rarely.** You hold the Agent tool, but a work package capped at 3 files is almost never
+- **Delegate rarely.** You hold the Agent tool, but a work package of this size is almost never
     worth a subagent — the spawn costs more than the work it saves. Reserve it for a wide read-only
     investigation next.md explicitly calls for, and write the code yourself. Never delegate to
     verify or double-check what you just did; that is the review agent's job, and doing it here pays
     twice for one gate. When one subagent suffices, use one rather than several.
 - If the step feels too large or you discover it requires more files than next.md's budget allows
-    (3, or 8 for an audit-cited refactor step; a declared fan-out has no limit), stop and write a
-    handoff explaining why. Do not attempt a partial implementation.
+    (6, or 8 for an audit-cited refactor step; a declared fan-out has no limit), stop and write a
+    handoff explaining why. Do not attempt a partial implementation. The one exception is a fan-out:
+    if a single surface needs a design decision or cannot be made green, leave that surface
+    untouched, finish and commit the others, and name it in the handoff.
 - **handoff.md has a hard budget of 100 lines.** It is a report to the reviewer: what you did, what
     you ran, what it said. Evidence, not narration — do not replay your reasoning or restate what
     next.md already specified.
@@ -137,16 +166,18 @@ technical debt introduced>
     working tree. Do not run `git stash`, `git reset`, `git checkout -- <path>`, or `git clean` to
     "get a clean tree" or to compare against HEAD; check the working tree as it is. If the tree
     looks unexpectedly clean, read `git stash list` and the reflog before concluding work was lost.
+    A throwaway `git worktree` under `## Experiments` is the one exception; it never touches the
+    checkout.
 - Do not modify `.claude/context/state.md`, `.claude/context/target.md`, `.claude/context/next.md`,
     `.claude/context/learnings.md`, or `.claude/context/issues.md`. You only write to handoff.md and
     source/test files.
 - Every function you write must have a docstring.
 - Do not introduce `unsafe` code without documenting why it's necessary.
-- **Preserve the public API of `iscc-lib` (core crate).** The crate is stability-committed (v1.0.0+)
-    and used in downstream production. Do not change the signature, name, or type of any Tier 1 (33
-    symbols) or Tier 2 `codec` symbol in a backward-incompatible way. If a break is genuinely
-    required by the work package, do NOT proceed silently — stop and flag `**API-BREAK:**` in the
-    handoff with justification for human approval.
+- **Preserve the public API of `iscc-lib` (core crate).** The crate is used in downstream
+    production, and breaks cost every binding and consumer. Do not change the signature, name, or
+    type of any Tier 1 or Tier 2 (`codec`, `streaming::SumHasher`) symbol in a backward-incompatible
+    way. If a break is genuinely required by the work package, do NOT proceed silently — stop and
+    flag `**API-BREAK:**` in the handoff with justification for human approval.
 - **Preserve performance.** If your change touches a benchmarked hot path (`gen_*_v0`, hashing, CDC,
     MinHash), run the relevant bench (`cargo bench` / `iai-callgrind`) and report before/after
     numbers in the handoff. Do not land a change that regresses a hot path beyond ~10% without

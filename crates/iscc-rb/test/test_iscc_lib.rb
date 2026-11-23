@@ -150,3 +150,33 @@ class TestInstanceHasher < Minitest::Test
     assert_equal data.bytesize, result.filesize
   end
 end
+
+# The first finalize consumes a hasher, whatever rejects its argument.
+# One bad argument per fresh hasher, then a valid finalize must raise.
+class TestRejectedFinalizeConsumes < Minitest::Test
+  HASHERS = {"data" => IsccLib::DataHasher, "instance" => IsccLib::InstanceHasher}.freeze
+  BAD_BITS = {
+    "negative" => [-1, RangeError, /too small|negative/],
+    "string" => ["x", TypeError, /Integer/],
+    "core_rejected" => [13, RuntimeError, /invalid length 13/]
+  }.freeze
+
+  HASHERS.each do |hasher_label, hasher_class|
+    BAD_BITS.each do |bits_label, (bits, error, message)|
+      define_method(:"test_#{hasher_label}_hasher_#{bits_label}_bits_consumes") do
+        hasher = hasher_class.new.update("data".b)
+        raised = assert_raises(error) { hasher.finalize(bits: bits) }
+        assert_match message, raised.message
+        consumed = assert_raises(RuntimeError) { hasher.finalize(bits: 64) }
+        assert_equal "#{hasher_class.name.split("::").last} already finalized", consumed.message
+      end
+    end
+  end
+
+  # An object with `to_int` keeps converting, as with the typed parameter before.
+  def test_to_int_bits_still_accepted
+    bits = Object.new
+    def bits.to_int = 64
+    assert_equal IsccLib::DataHasher.new.finalize.iscc, IsccLib::DataHasher.new.finalize(bits: bits).iscc
+  end
+end

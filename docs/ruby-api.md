@@ -6,7 +6,7 @@ description: Ruby API reference for the ISCC library via native Rust extension.
 # Ruby API Reference
 
 Ruby gem for ISCC (ISO 24138:2024) code generation via a native Rust extension
-([Magnus](https://github.com/matsadler/magnus)). All 33 Tier 1 symbols are exposed as module-level
+([Magnus](https://github.com/matsadler/magnus)). All 35 Tier 1 symbols are exposed as module-level
 methods, constants, and classes on `IsccLib`.
 
 ## Installation
@@ -80,6 +80,8 @@ result.keys        # list all present fields
 ## Code Generation Functions
 
 All 10 `gen_*_v0` functions return typed `Result` objects and raise `RuntimeError` on invalid input.
+An integer argument outside its native range, such as a negative `bits`, raises `RangeError` (see
+[Error Handling](#error-handling)).
 
 ### gen_meta_code_v0
 
@@ -89,12 +91,12 @@ Generate a Meta-Code from name and optional metadata.
 IsccLib.gen_meta_code_v0(name, description: nil, meta: nil, bits: 64)
 ```
 
-| Parameter      | Type          | Description                                                    |
-| -------------- | ------------- | -------------------------------------------------------------- |
-| `name`         | `String`      | Title or name of the content (required, trimmed to 128 bytes)  |
-| `description:` | `String, nil` | Optional description text (trimmed to 4096 bytes)              |
-| `meta:`        | `String, nil` | Optional JSON string or `data:` URL                            |
-| `bits:`        | `Integer`     | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter      | Type          | Description                                                               |
+| -------------- | ------------- | ------------------------------------------------------------------------- |
+| `name`         | `String`      | Title or name of the content (required, trimmed to 128 bytes)             |
+| `description:` | `String, nil` | Optional description text (trimmed to 4096 bytes)                         |
+| `meta:`        | `String, nil` | Optional JSON string or `data:` URL                                       |
+| `bits:`        | `Integer`     | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `MetaCodeResult` with `iscc`, `name`, `metahash`, and optionally `description`, `meta`.
 
@@ -116,10 +118,10 @@ Generate a Text-Code from plain text content using MinHash over character n-gram
 IsccLib.gen_text_code_v0(text, bits: 64)
 ```
 
-| Parameter | Type      | Description                                                    |
-| --------- | --------- | -------------------------------------------------------------- |
-| `text`    | `String`  | Plain text content (required)                                  |
-| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type      | Description                                                               |
+| --------- | --------- | ------------------------------------------------------------------------- |
+| `text`    | `String`  | Plain text content (required)                                             |
+| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `TextCodeResult` with `iscc` and `characters`.
 
@@ -160,10 +162,10 @@ Generate an Audio-Code from a Chromaprint feature vector using multi-stage SimHa
 IsccLib.gen_audio_code_v0(cv, bits: 64)
 ```
 
-| Parameter | Type             | Description                                                    |
-| --------- | ---------------- | -------------------------------------------------------------- |
-| `cv`      | `Array<Integer>` | Signed 32-bit Chromaprint feature values                       |
-| `bits:`   | `Integer`        | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type             | Description                                                               |
+| --------- | ---------------- | ------------------------------------------------------------------------- |
+| `cv`      | `Array<Integer>` | Signed 32-bit Chromaprint feature values                                  |
+| `bits:`   | `Integer`        | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `AudioCodeResult` with `iscc`.
 
@@ -182,10 +184,10 @@ Generate a Video-Code from MPEG-7 frame signature vectors using WTA-Hash and Sim
 IsccLib.gen_video_code_v0(frame_sigs, bits: 64)
 ```
 
-| Parameter    | Type                    | Description                                                    |
-| ------------ | ----------------------- | -------------------------------------------------------------- |
-| `frame_sigs` | `Array<Array<Integer>>` | Array of MPEG-7 frame signature vectors (each 380 integers)    |
-| `bits:`      | `Integer`               | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter    | Type                    | Description                                                               |
+| ------------ | ----------------------- | ------------------------------------------------------------------------- |
+| `frame_sigs` | `Array<Array<Integer>>` | Array of MPEG-7 frame signature vectors (each 380 integers)               |
+| `bits:`      | `Integer`               | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `VideoCodeResult` with `iscc`.
 
@@ -204,10 +206,10 @@ Generate a Mixed-Code from multiple Content-Code strings using SimHash combinati
 IsccLib.gen_mixed_code_v0(codes, bits: 64)
 ```
 
-| Parameter | Type            | Description                                                    |
-| --------- | --------------- | -------------------------------------------------------------- |
-| `codes`   | `Array<String>` | Array of ISCC Content-Code strings (requires >= 2)             |
-| `bits:`   | `Integer`       | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type            | Description                                                               |
+| --------- | --------------- | ------------------------------------------------------------------------- |
+| `codes`   | `Array<String>` | Array of ISCC Content-Code strings (requires >= 2)                        |
+| `bits:`   | `Integer`       | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `MixedCodeResult` with `iscc` and `parts`.
 
@@ -226,10 +228,10 @@ Generate a Data-Code from raw byte data using content-defined chunking and MinHa
 IsccLib.gen_data_code_v0(data, bits: 64)
 ```
 
-| Parameter | Type      | Description                                                    |
-| --------- | --------- | -------------------------------------------------------------- |
-| `data`    | `String`  | Raw binary data                                                |
-| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type      | Description                                                               |
+| --------- | --------- | ------------------------------------------------------------------------- |
+| `data`    | `String`  | Raw binary data                                                           |
+| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `DataCodeResult` with `iscc`.
 
@@ -248,10 +250,10 @@ Generate an Instance-Code from raw byte data using BLAKE3 hashing.
 IsccLib.gen_instance_code_v0(data, bits: 64)
 ```
 
-| Parameter | Type      | Description                                                    |
-| --------- | --------- | -------------------------------------------------------------- |
-| `data`    | `String`  | Raw binary data                                                |
-| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type      | Description                                                               |
+| --------- | --------- | ------------------------------------------------------------------------- |
+| `data`    | `String`  | Raw binary data                                                           |
+| `bits:`   | `Integer` | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Returns `InstanceCodeResult` with `iscc`, `datahash`, and `filesize`.
 
@@ -489,13 +491,13 @@ prefix).
 IsccLib.encode_component(mtype, stype, version, bit_length, digest)
 ```
 
-| Parameter    | Type      | Description                                 |
-| ------------ | --------- | ------------------------------------------- |
-| `mtype`      | `Integer` | MainType enum value (0–255)                 |
-| `stype`      | `Integer` | SubType enum value (0–255)                  |
-| `version`    | `Integer` | Version enum value (0–255)                  |
-| `bit_length` | `Integer` | Digest bit length (multiple of 32)          |
-| `digest`     | `String`  | Raw digest bytes (length >= bit_length / 8) |
+| Parameter    | Type      | Description                                                                                    |
+| ------------ | --------- | ---------------------------------------------------------------------------------------------- |
+| `mtype`      | `Integer` | MainType enum value (0–255)                                                                    |
+| `stype`      | `Integer` | SubType enum value (0–255)                                                                     |
+| `version`    | `Integer` | Version enum value (0–255)                                                                     |
+| `bit_length` | `Integer` | Digest bit length (multiple of 32, 32 to 256, for Meta through Flake; 64, 72, 80 or 96 for ID) |
+| `digest`     | `String`  | Raw digest bytes (length >= bit_length / 8)                                                    |
 
 Raises `RuntimeError` on invalid input.
 
@@ -548,6 +550,53 @@ Raises `RuntimeError` on invalid input.
 maintype, subtype, version, length_index, digest = IsccLib.iscc_decode("ISCC:EAASKDNZNYGUUF5A")
 puts "Maintype: #{maintype}, Subtype: #{subtype}" # "Maintype: 2, Subtype: 0"
 puts "Digest: #{digest.unpack1("H*")}"
+```
+
+---
+
+### encode_seq
+
+Encode an ordered list of ISCC-UNIT strings as a binary ISCC-SEQ (IEP-0020).
+
+```ruby
+IsccLib.encode_seq(units)
+```
+
+| Parameter | Type            | Description                                        |
+| --------- | --------------- | -------------------------------------------------- |
+| `units`   | `Array<String>` | ISCC-UNIT strings (with or without `ISCC:` prefix) |
+
+Returns a binary (ASCII-8BIT) `String` with the header and body bytes of each unit, in the given
+order. Base32 input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. Units of
+MainType ISCC-CODE, ID or FLAKE are rejected. Raises `RuntimeError` on invalid input.
+
+---
+
+### decode_seq
+
+Decode a binary ISCC-SEQ (IEP-0020) into its ISCC-UNIT strings.
+
+```ruby
+IsccLib.decode_seq(data)
+```
+
+| Parameter | Type     | Description           |
+| --------- | -------- | --------------------- |
+| `data`    | `String` | Binary ISCC-SEQ bytes |
+
+Returns an `Array<String>` of `ISCC:`-prefixed unit strings in sequence order. Raises `RuntimeError`
+on empty, truncated, or malformed data.
+
+```ruby
+data = IsccLib.encode_seq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"])
+data.bytesize        # => 34
+data.unpack1("H12")  # => "2007a88248c5"
+
+units = IsccLib.decode_seq(data)
+# => ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+# The round trip is defined on bytes: encode_seq(decode_seq(data)) == data
+IsccLib.encode_seq(units) == data # => true
 ```
 
 ---
@@ -614,7 +663,7 @@ IsccLib.alg_minhash_256(features)
 | ---------- | ---------------- | ----------------------------------- |
 | `features` | `Array<Integer>` | Array of 32-bit integer hash values |
 
-Returns a 32-byte binary `String`.
+Returns a 32-byte binary `String`. Raises `RuntimeError` for an empty Array.
 
 ```ruby
 features = [100, 200, 300, 400]
@@ -672,8 +721,9 @@ hash = IsccLib.soft_hash_video_v0(frame_sigs, 256)
 Streaming hashers process large data incrementally without loading the entire content into memory.
 Each hasher follows the lifecycle: `new` → `update` (repeated) → `finalize`.
 
-Both hashers are single-use: after calling `finalize`, subsequent calls to `update` or `finalize`
-raise `RuntimeError`. The `update` method returns `self` for method chaining.
+Both hashers are single-use: the first `finalize` call consumes the hasher, even when it fails (for
+example on an invalid `bits` value). After that, subsequent calls to `update` or `finalize` raise
+`RuntimeError`. The `update` method returns `self` for method chaining.
 
 ### DataHasher
 
@@ -804,11 +854,22 @@ puts IsccLib.conformance_selftest # true
 
 ## Error Handling
 
-All methods that accept user input raise `RuntimeError` on invalid arguments:
+Methods raise `TypeError` for arguments of the wrong type, such as `nil` for a required String, a
+non-Array where an Array is expected, or a non-String element in a list of ISCC units
+(`IsccLib.encode_seq([nil])`). Integer parameters and integer list elements use Ruby's implicit
+integer conversion (`to_int`), as `Array#[]` does: a Float, a Rational or any object with `to_int`
+is accepted and truncated toward zero, so `gen_audio_code_v0([1.9])` equals `gen_audio_code_v0([1])`
+and `bits: 64.9` acts as `bits: 64`. A String or `nil` raises `TypeError`, and a `NaN` or infinite
+Float raises `FloatDomainError`. Integer arguments and integer list elements outside the native
+range (e.g., a negative `bits` or `nbytes`, a negative feature for `alg_minhash_256` or a value
+beyond 32 bits for `gen_audio_code_v0`) raise `RangeError`; `gen_iscc_id_v1` checks its own integer
+arguments and raises `RuntimeError` instead. Methods raise `RuntimeError` for arguments of the right
+type with invalid values:
 
-- Empty or nil required parameters (e.g., empty `name` in `gen_meta_code_v0`)
+- Empty required parameters (e.g., empty `name` in `gen_meta_code_v0`)
 - Invalid `bits` values (must be a multiple of 32, range 32–256)
-- Malformed ISCC strings passed to `iscc_decode` or `iscc_decompose`
+- Malformed ISCC strings passed to `iscc_decode`, `iscc_decompose` or `encode_seq`, and malformed
+    bytes passed to `decode_seq`
 - Streaming hasher operations after finalization
 
 ```ruby

@@ -11,26 +11,6 @@ code generation.
 - JVM-only (no Kotlin/Native or Kotlin Multiplatform support)
 - Native library loaded at runtime via JNA (`net.java.dev.jna:jna:5.19.1`)
 
-## File Layout
-
-```
-packages/kotlin/
-  build.gradle.kts                          # Gradle build (Kotlin JVM plugin, JNA + test deps)
-  gradle.properties                         # Version property (synced by version_sync.py)
-  settings.gradle.kts                       # Root project name
-  gradlew / gradlew.bat                     # Gradle wrapper scripts
-  gradle/wrapper/                           # Gradle wrapper JAR + properties
-  README.md                                 # Package readme with install and usage examples
-  CLAUDE.md                                 # This file
-  src/
-    main/kotlin/uniffi/iscc_uniffi/
-      iscc_uniffi.kt                        # UniFFI-generated Kotlin bindings (DO NOT EDIT)
-    test/kotlin/uniffi/iscc_uniffi/
-      ConformanceTest.kt                    # data.json conformance vectors for 9 gen_*_v0 functions
-    test/resources/
-      data.json                             # Vendored ISCC conformance test vectors
-```
-
 ## Build Commands
 
 ```bash
@@ -52,13 +32,25 @@ point to `../../target/debug/` relative to the Kotlin package root.
 
 ## Test Patterns
 
+`src/test/resources/data.json` and `data-edge.json` are vendored copies of the fixtures in
+`crates/iscc-lib/tests/`.
+
 ### Conformance tests (`ConformanceTest.kt`)
 
-- 9 test methods, 50 test vectors from `data.json`
-- One test method per gen function (no `gen_sum_code_v0` vectors in data.json)
+- Test methods: one per gen function with `data.json` vectors (`gen_sum_code_v0` has none),
+    `testGenIsccIdV1`, and ISCC-SEQ methods (the `encode_seq` and `decode_seq` vectors, the bytes
+    round trip, and one-bad-input-per-test negatives)
 - `decodeStream` helper converts `"stream:<hex>"` format to `ByteArray`
 - Asserts exact ISCC string equality against expected outputs
 - Uses JUnit 6 (`org.junit.jupiter`) and Gson (`com.google.code.gson:gson`) for JSON parsing
+
+### Edge-case vectors (`DataEdgeTest.kt`)
+
+- Runs every `data-edge.json` vector through a section -> caller table; `except["kotlin"]` is the
+    only deviation, an unknown section fails, and a rejection must throw
+    `IsccUniException.IsccException` from the raw call alone
+- Every expected output key must be present in the converted record and equal; tests: the vector run
+    plus one-bad-case negatives
 
 ## Binding Generation
 
@@ -74,13 +66,15 @@ cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- \
     target/debug/libiscc_uniffi.so
 ```
 
-Generated file: `iscc_uniffi.kt` (~3200 lines, `package uniffi.iscc_uniffi`). Do NOT manually edit —
-regenerate when the Rust API surface changes.
+Generated file: `iscc_uniffi.kt` (`package uniffi.iscc_uniffi`). Do NOT manually edit — regenerate
+when the Rust API surface changes.
 
 ## CI
 
 - Kotlin CI job runs on `ubuntu-latest` with JDK 17
-- Steps: `cargo build -p iscc-uniffi` -> `./gradlew test`
+- Steps: `cargo build -p iscc-uniffi` -> regenerate the UniFFI bindings into a temp dir and diff
+    `iscc_uniffi.kt` (and the Swift outputs) against the committed copies, modulo trailing
+    whitespace and EOF blank lines -> `./gradlew test`. A stale committed `iscc_uniffi.kt` fails CI
 - Gradle wrapper is checked in (no separate Gradle install needed)
 
 ## Common Pitfalls

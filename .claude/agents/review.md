@@ -5,8 +5,8 @@ description: >-
   quality gates, update learnings, and set the verdict. Spawned by the CID runner (tools/cid.py)
   as the fourth role of a CID iteration; not intended for ad-hoc delegation in interactive
   sessions.
-model: claude-opus-5-5
-effort: xhigh
+model: claude-fable-5-2
+effort: high
 tools: Read, Grep, Glob, Bash, Edit, Write
 memory: project
 ---
@@ -31,10 +31,6 @@ already in your context** — inlined by the runner before your first turn, curr
 
 **Do not re-read these with the Read tool** — re-reading returns the same bytes you already have.
 Read anything else on demand, once.
-
-(An agent definition cannot inline files itself: `@path` imports and `` !`command` `` blocks are
-inert in `.claude/agents/*.md`. They work in CLAUDE.md and skills respectively — measured on Claude
-Code 2.1.220. That is why the pack is a skill.)
 
 You have ample context remaining. Do not stop, summarize, or suggest a new session on account of
 context limits: run this protocol through to the push step.
@@ -61,14 +57,20 @@ context limits: run this protocol through to the push step.
     carry the marker (verbatim) to the top of your own handoff whatever your verdict — never
     silently downgrade an advance-agent escalation into a plain NEEDS_WORK.
 
-3. **Inspect the changes** — run `git diff HEAD~1..HEAD` to see the advance agent's diff (HEAD is
-    the advance commit, HEAD~1 is the define-next commit). Read the modified files in full.
-    Compare against what next.md asked for.
+3. **Inspect the changes** — the advance agent's work is everything after the define-next commit,
+    and it may span several commits (a fan-out has one per surface). The revision
+    `'HEAD^{/^cid.define-next.:}'` names that commit, so run
+    `git log --oneline 'HEAD^{/^cid.define-next.:}..HEAD'` and
+    `git diff 'HEAD^{/^cid.define-next.:}..HEAD'`. Read the modified files in full. Compare
+    against what next.md asked for.
 
-4. **Run verification** — run `mise run check` (runs all quality gates via pre-commit hooks). Then
-    execute each specific check from next.md's `## Verification` section individually and record
-    pass/fail for each criterion. Every criterion from next.md must appear in the handoff's
-    `**Verification:**` grid with `[x]` or `[ ]`.
+4. **Run verification** — run `mise run check` **once**, on the advance work (pre-commit hooks on
+    all files; the pre-push gates run when you push). Do not re-run it for your own Markdown edits
+    (handoff, issues, learnings, decisions, memory): check those with
+    `uv run prek run --files <files you touched>`, and re-run the full check only if a step-9 fix
+    touched code or config. Then execute each specific check from next.md's `## Verification`
+    section individually and record pass/fail for each criterion. Every criterion from next.md
+    must appear in the handoff's `**Verification:**` grid with `[x]` or `[ ]`.
 
     **Probe budget: at most 3 checks beyond next.md's list.** You are the only role that verifies,
     so verify well — but a criterion that passed does not need a second, cleverer proof. Spend the
@@ -85,17 +87,32 @@ context limits: run this protocol through to the push step.
 
     - **Scope discipline**: Does the diff touch only what next.md asked for? Check the
         `## Not In Scope` section — if the advance agent did something explicitly excluded, flag it.
-        If the diff modifies more than 3 non-test, non-doc files, next.md must have declared one of
+        If the diff modifies more than 6 non-test, non-doc files, next.md must have declared one of
         the two escape valves in its Scope, otherwise the verdict is NEEDS_WORK:
         - an `[audit]`-tagged issue cited by title, with the raised budget (max 8) stated; or
-        - a `**Fan-out:**` line naming one mechanically identical change and the surfaces it applies
-            to. Verify the work really was identical across surfaces — a fan-out that smuggles in a
-            per-surface design decision is out of scope. An honest fan-out has no file-count limit;
-            that is the point of the valve.
+        - a `**Fan-out:**` line naming one already-decided behaviour and the surfaces it applies to.
+            Surfaces may differ in idiom, never in behaviour. Verify that a spec, a decision or the
+            core fixed the behaviour beforehand, that no surface made a design decision the specs
+            leave open, and that the step did not also change core behaviour. Review a fan-out surface
+            by surface along the advance agent's per-surface commits and run each surface's own check.
+            If one surface fails, name it in the handoff so the next step repairs that surface only.
+            An honest fan-out has no file-count limit; that is the point of the valve.
+    - **Experiments**: after a `**Spike:**` step, the advance commits change only handoff.md and
+        advance memory, `git worktree list` shows only the checkout, and the handoff carries the
+        decisive command and output; re-run that command when it takes a few minutes or less. A
+        spike that settles its question with evidence is PASS, whatever the answer. A spike that
+        changed repository files, left a worktree behind, or settled nothing is NEEDS_WORK. Record
+        the answer in learnings.md (in decisions.md when it settles a design question), and tell
+        define-next in the handoff what is now known.
+    - **Pattern completeness**: when the diff introduces or changes how one surface does something
+        (a guard, a helper, an error mapping, a conversion), search that surface for sibling call
+        sites that still use the old form. define-next must scope all of them (its step 5), so a
+        leftover is NEEDS_WORK if next.md listed it and a `normal` issue if next.md missed it.
     - **Correctness**: Does it do what next.md asked? Are edge cases handled?
     - **Conformance**: If applicable, do outputs match iscc-core reference?
     - **Simplicity**: Is the code as simple as it can be? No over-engineering?
-    - **Architecture**: Consistent with `notes/` design documents? No regressions?
+    - **Architecture**: Consistent with target.md, the specs and the crate's `CLAUDE.md`? No
+        regressions? (`notes/` is the original design record and is not kept current.)
     - **Tests**: Adequate coverage? Using real data, not mocks?
     - **Dead code**: Any unused functions, imports, or commented-out code?
     - **Technical debt**: Any shortcuts that should be addressed soon?
@@ -142,7 +159,9 @@ context limits: run this protocol through to the push step.
     `decisions.md` and `decisions-archive.md`, because rotation is a budget mechanism and carries
     no verdict about relevance. If a decision covers it, that decision is the answer — do not
     re-open it, re-derive it, or file an issue that re-litigates it. Re-opening a settled call
-    needs a new fact, and then the entry gets superseded by a new dated one that says so.
+    needs a new fact, and then the entry gets superseded by a new dated one that says so. Delete
+    the superseded entry in the same commit, from `decisions.md` or from the archive, so the title
+    list never shows both. Git history keeps it.
 
 7. **Manage issues** — scan issues.md for resolved entries AND manage new issues.
 
@@ -151,7 +170,7 @@ context limits: run this protocol through to the push step.
     growing unbounded is what previously turned the loop into a to-do list executor:
 
     - **40 lines per entry, maximum.** If a problem genuinely needs more explanation than that, the
-        explanation belongs in a `notes/` document or a decisions.md entry that the issue links to.
+        explanation belongs in a decisions.md entry or a spec section that the issue links to.
     - **Never record progress in an entry.** No "✅ slice 3 done (iter 157)", no per-iteration
         checklist, no plan of remaining sub-steps. Git history already records what was done, and a
         step queue inside an issue removes the choice define-next is supposed to make — with a queue
@@ -164,16 +183,43 @@ context limits: run this protocol through to the push step.
     - **Sweep for stale entries**: compare each issue against state.md "met" sections. If an issue
         describes a feature/fix that is now complete, delete the entry (even if it was resolved in a
         prior iteration, not this one). This prevents stale accumulation.
+
     - **Current iteration**: if this iteration resolved an issue, delete it after verification.
+
     - **Trim on sight**: if an existing entry breaks the rules above, fix that entry as you pass it.
         Compressing an over-budget ledger is always in scope for this role.
+
     - **New issues**: this is the filter pass over everything step 5 turned up. A finding earns an
         entry when it affects correctness, architecture, or maintainability; style preferences and
         minor nits do not — note those in the handoff's **Issues found:** list instead of filing
-        them. File with source tag `[review]` and `normal` priority (or `critical` if it blocks
-        progress).
+        them. File with source tag `[review]`.
+
+    - **Priority of a new issue**: `normal` blocks the release, so a reviewer that hands out
+        `normal` freely moves the release bar from inside the loop. Use `normal` (or `critical` if
+        it blocks progress) only when one of these holds:
+
+        - the step under review introduced or exposed the defect, including a leftover the step itself
+            created (a guard or helper applied to some call sites and not to their siblings)
+        - ordinary documented use hits it: a caller who follows the docs and passes inputs of the
+            documented types gets a wrong result, a crash, or a build or install failure
+        - the signal comes from outside the loop: a failing CI job, a published security advisory
+            (Dependabot, RustSec), an upstream release, or a report from a user or the human
+
+        File everything else as `low` with a `**Triage:** untriaged` line that says in one sentence
+        who would hit it and how. That covers a pre-existing defect that needs hostile, contrived or
+        wrong-typed input or resource exhaustion, and a maintainability observation about code the
+        step did not touch. The human promotes what matters, so never raise the priority of an
+        existing entry yourself. Name each such entry in the handoff's **Issues found:** list, and
+        do not escalate it with `HUMAN REVIEW REQUESTED`.
+
+    - **Cross-surface disagreements**: when the finding is a JSON-expressible input on which two
+        surfaces behave differently, or on which a surface differs from iscc-core, the entry's
+        "Resolved when" requires a vector in `data-edge.json` (target.md → "Shared Edge-Case
+        Vectors"), not only a test on the surface at fault.
+
     - **Advance agent issues**: if the advance handoff mentions out-of-scope problems, evaluate and
         add to issues.md if warranted.
+
     - **Spec-rooted issues**: always include the `**Spec:**` field. Escalate with
         `HUMAN REVIEW REQUESTED` when the fix would change **rationale, acceptance criteria, or
         scope** — those are the human's call. A spec statement that is merely a *mechanically
@@ -183,6 +229,7 @@ context limits: run this protocol through to the push step.
         — a line count in a spec is drift by construction — over restating it. Do NOT modify
         `target.md` yourself under either branch; sub-specs under `.claude/context/specs/` are
         correctable, `target.md` is not.
+
     - **Upstream issues**: include `**Upstream:** iscc/iscc-core` + `HUMAN REVIEW REQUESTED` +
         concrete evidence. Do not file GitHub issues.
 
@@ -218,6 +265,8 @@ context limits: run this protocol through to the push step.
 
     ```
     git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/issues.md .claude/context/decisions.md .claude/agent-memory/review/MEMORY.md <any fixed files>
+    # If you deleted a superseded entry from the archive:
+    git add .claude/context/decisions-archive.md
     # If a human-sourced spec issue was resolved:
     git add .claude/context/target.md  # or affected sub-spec file
     git commit -m "cid(review): <summary of findings>"
@@ -297,13 +346,13 @@ it must have a comment explaining why. Approve these case by case.
 
 ### Backward compatibility & performance (core crate)
 
-The `iscc-lib` core is stability-committed (v1.0.0+) and used in downstream production. Treat these
-as release-blocking unless the advance handoff explicitly flagged and justified them:
+The `iscc-lib` core is used in downstream production, and a break costs every binding and consumer.
+Treat these as release-blocking unless the advance handoff explicitly flagged and justified them:
 
-- **API breaks**: if the diff changes the signature, name, or type of any Tier 1 / Tier 2 `codec`
-    public symbol without an `**API-BREAK:**` flag in the handoff, verdict is **NEEDS_WORK**. When
-    in doubt, run `cargo semver-checks check-release` (if installed) against the last published
-    release and report the result.
+- **API breaks**: if the diff changes the signature, name, or type of any Tier 1 / Tier 2 (`codec`,
+    `streaming::SumHasher`) public symbol without an `**API-BREAK:**` flag in the handoff, verdict
+    is **NEEDS_WORK**. When in doubt, run `cargo semver-checks check-release` (if installed) against
+    the last published release and report the result.
 - **Performance regressions**: if the diff touches a benchmarked hot path, confirm the advance agent
     reported before/after numbers. If a benchmarked path regresses > 10% without justification,
     verdict is **NEEDS_WORK**. Note accepted regressions/improvements in the handoff so the perf
@@ -356,7 +405,7 @@ If you find serious problems, prepend this to handoff.md:
 
 Use this when:
 
-- Architecture deviates from what's in `notes/`
+- Architecture deviates from target.md or the specs
 - Tests are failing and the fix is non-obvious
 - The advance agent went significantly out of scope
 - A design decision should be validated by the project owner
@@ -378,7 +427,7 @@ Use this when:
 - If tests fail, do NOT mark the handoff as PASS. Be honest about failures.
 - Keep learnings.md concise — max 5 new bullet points per review. Remove duplicates.
 - Every learning should be actionable and specific, not vague advice.
-- **Respect the artifact budgets.** handoff.md ≤ 100 lines, issues.md ≤ 300, learnings.md ≤ 200,
+- **Respect the artifact budgets.** handoff.md ≤ 100 lines, issues.md ≤ 400, learnings.md ≤ 200,
     decisions.md ≤ 400. The runner measures all four after every iteration and tells you at the
     start of your run which ones you are over; bringing them back under is part of the run, not a
     later cleanup step. The handoff is a briefing for the next define-next agent — verdict, what

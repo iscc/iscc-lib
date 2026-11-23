@@ -1,5 +1,5 @@
-// Conformance tests for all 9 gen_*_v0 functions against data.json vectors.
-// Validates the .NET binding produces correct ISCC codes matching the iscc-core reference.
+// Conformance tests for the gen_*_v0 functions and ISCC-SEQ codec against data.json vectors.
+// Validates the .NET binding produces output matching the iscc-core reference.
 
 using System.Text.Json;
 using Iscc.Lib;
@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Iscc.Lib.Tests;
 
-/// <summary>Validates all 9 gen functions against official ISCC conformance vectors (50 total).</summary>
+/// <summary>Validates the gen functions and encode_seq / decode_seq against official ISCC conformance vectors.</summary>
 public class ConformanceTests
 {
     /// <summary>Cached parsed data.json for all test methods.</summary>
@@ -27,6 +27,23 @@ public class ConformanceTests
         string hex = streamStr["stream:".Length..];
         if (hex.Length == 0) return [];
         return Convert.FromHexString(hex);
+    }
+
+    /// <summary>Decode a "bytes:&lt;hex&gt;" string to a byte array.</summary>
+    private static byte[] DecodeBytes(string bytesStr)
+    {
+        string hex = bytesStr["bytes:".Length..];
+        if (hex.Length == 0) return [];
+        return Convert.FromHexString(hex);
+    }
+
+    /// <summary>Convert a JSON array of strings to a string array.</summary>
+    private static string[] ToStringArray(JsonElement array)
+    {
+        string[] result = new string[array.GetArrayLength()];
+        for (int i = 0; i < result.Length; i++)
+            result[i] = array[i].GetString()!;
+        return result;
     }
 
     /// <summary>Prepare the meta parameter from a JSON element (null, string, or object).</summary>
@@ -265,5 +282,52 @@ public class ConformanceTests
 
         var result = IsccLib.GenIsccCodeV0(codes);
         Assert.Equal(outputs.GetProperty("iscc").GetString(), result.Iscc);
+    }
+
+    // ── encode_seq ───────────────────────────────────────────────────────────
+
+    /// <summary>Yield test cases for encode_seq.</summary>
+    public static IEnumerable<object[]> EncodeSeqVectors()
+    {
+        foreach (JsonProperty kv in DataJson.Value.GetProperty("encode_seq").EnumerateObject())
+            yield return [kv.Name, kv.Value];
+    }
+
+    [Theory]
+    [MemberData(nameof(EncodeSeqVectors))]
+    public void EncodeSeq(string _, JsonElement tc)
+    {
+        string[] units = ToStringArray(tc.GetProperty("inputs")[0]);
+        byte[] expected = DecodeBytes(tc.GetProperty("outputs").GetString()!);
+
+        Assert.Equal(expected, IsccLib.EncodeSeq(units));
+    }
+
+    // ── decode_seq ───────────────────────────────────────────────────────────
+
+    /// <summary>Yield test cases for decode_seq.</summary>
+    public static IEnumerable<object[]> DecodeSeqVectors()
+    {
+        foreach (JsonProperty kv in DataJson.Value.GetProperty("decode_seq").EnumerateObject())
+            yield return [kv.Name, kv.Value];
+    }
+
+    [Theory]
+    [MemberData(nameof(DecodeSeqVectors))]
+    public void DecodeSeq(string _, JsonElement tc)
+    {
+        byte[] data = DecodeBytes(tc.GetProperty("inputs")[0].GetString()!);
+        string[] expected = ToStringArray(tc.GetProperty("outputs"));
+
+        Assert.Equal(expected, IsccLib.DecodeSeq(data));
+    }
+
+    [Theory]
+    [MemberData(nameof(DecodeSeqVectors))]
+    public void SeqRoundTripBytes(string _, JsonElement tc)
+    {
+        byte[] data = DecodeBytes(tc.GetProperty("inputs")[0].GetString()!);
+
+        Assert.Equal(data, IsccLib.EncodeSeq(IsccLib.DecodeSeq(data)));
     }
 }

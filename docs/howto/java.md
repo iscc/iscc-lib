@@ -6,9 +6,9 @@ description: Guide to using iscc-lib from Java — JNI setup, code generation, s
 # Java
 
 A guide to using iscc-lib from Java. The Java package provides JNI (Java Native Interface) bindings
-to the Rust-compiled ISCC library. All methods are static calls on the `IsccLib` class — the native
-shared library is loaded via `System.loadLibrary("iscc_jni")` and must be available on
-`java.library.path` at runtime.
+to the Rust-compiled ISCC library. All methods are static calls on the `IsccLib` class. The
+published JAR bundles the native library for Linux (x86_64, aarch64), macOS (x86_64, aarch64) and
+Windows (x86_64) and loads it automatically.
 
 ---
 
@@ -20,14 +20,15 @@ Add the Maven dependency to your `pom.xml`:
 <dependency>
   <groupId>io.iscc</groupId>
   <artifactId>iscc-lib</artifactId>
-  <version>0.7.0</version>
+  <version>0.8.0</version>
 </dependency>
 ```
 
-!!! note "Build from source"
+No other setup is needed: the Maven dependency is enough.
 
-    Maven Central publishing is not yet available. Currently, the native library must be built from
-    source:
+??? tip "Build from source"
+
+    To build the native library yourself, for development on this repository:
 
     ```bash
     # Build the native JNI shared library
@@ -49,24 +50,31 @@ The `IsccLib` class loads the native library automatically in its static initial
 import io.iscc.iscc_lib.IsccLib;
 
 // The native library is loaded when the class is first referenced.
-// Ensure java.library.path includes the directory containing the native library:
-//   java -Djava.library.path=target/debug -cp ... YourApp
 ```
 
-If the native library is not found on `java.library.path`, the JVM throws `UnsatisfiedLinkError` at
-class load time. Set the path when launching your application:
+The loader first extracts the library bundled in the JAR under `META-INF/native/{os}-{arch}/` and
+loads it. If the JAR has no library for the current platform (including an operating system other
+than Linux, macOS or Windows, or an architecture other than x86_64 or aarch64), or the bundled
+library fails to load (for example on musl Linux), it falls back to
+`System.loadLibrary("iscc_jni")`, which searches `java.library.path`. Use that fallback to supply
+your own build:
 
 ```bash
 java -Djava.library.path=/path/to/native/libs -cp your-app.jar com.example.Main
 ```
 
+If neither strategy loads the library, the JVM throws `UnsatisfiedLinkError` at class load time. The
+error names what was tried and the `os.name` and `os.arch` values; the reason the bundled library
+was rejected is attached as a suppressed exception.
+
 All ISCC methods are static — there is no runtime object to create or close.
 
 ## Code generation
 
-All 10 `gen*V0` methods are static on `IsccLib`, return a `String` (the ISCC code prefixed with
-`ISCC:`), and throw `IllegalArgumentException` on invalid input. Optional parameters use `null`. The
-default `bits` value is `64`.
+All 10 `gen*V0` methods are static on `IsccLib` and throw `IllegalArgumentException` on invalid
+input. The nine methods other than `genSumCodeV0` return a `String` (the ISCC code prefixed with
+`ISCC:`); `genSumCodeV0` returns a `SumCodeResult` (see [Sum-Code](#sum-code)). Optional parameters
+use `null`. The default `bits` value is `64`.
 
 ### Meta-Code
 
@@ -186,7 +194,7 @@ String instanceCode = IsccLib.genInstanceCodeV0(data, 64);
 String code = IsccLib.genIsccCodeV0(
     new String[]{dataCode, instanceCode}, false
 );
-System.out.println(code); // "ISCC:KAA..."
+System.out.println(code); // "ISCC:KUA..."
 ```
 
 Parameters: `String[] codes`, `boolean wide` (`true` for 256-bit output, `false` for 128-bit).
@@ -201,11 +209,14 @@ java.nio.file.Files.write(
     "Hello World".repeat(1000).getBytes()
 );
 
-SumCodeResult result = IsccLib.genSumCodeV0("example.bin", 64, false);
-System.out.println(result.iscc());      // "ISCC:KAA..."
-System.out.println(result.datahash());  // Multihash of the data
-System.out.println(result.filesize());  // Size in bytes
+SumCodeResult result = IsccLib.genSumCodeV0("example.bin", 64, false, false);
+System.out.println(result.iscc);      // "ISCC:KUA..."
+System.out.println(result.datahash);  // Multihash of the data
+System.out.println(result.filesize);  // Size in bytes
 ```
+
+Parameters: `String path`, `int bits`, `boolean wide`, `boolean addUnits` (`true` to include the
+Data-Code and Instance-Code in `result.units`).
 
 ## Streaming
 
@@ -264,9 +275,10 @@ try {
 }
 ```
 
-After calling `*Finalize`, further calls to `*Update` or `*Finalize` throw
-`IllegalArgumentException`. The handle must still be freed with `*Free` after finalization. Calling
-`*Free` with a zero/null handle is a no-op — each handle must be freed exactly once.
+After calling `*Finalize`, further calls to `*Update` or `*Finalize` throw `IllegalStateException`;
+passing a zero handle to them throws `IllegalArgumentException`. The handle must still be freed with
+`*Free` after finalization. Calling `*Free` with a zero/null handle is a no-op — each handle must be
+freed exactly once.
 
 ## Text utilities
 
@@ -306,7 +318,7 @@ Additional primitives:
 - `IsccLib.algSimhash(byte[][] hashDigests)` — compute a SimHash from equal-length byte digests,
     returns `byte[]`
 - `IsccLib.algMinhash256(int[] features)` — compute a 256-bit MinHash digest from 32-bit features,
-    returns `byte[]`
+    returns `byte[]`; throws `IllegalArgumentException` on an empty array
 - `IsccLib.algCdcChunks(byte[] data, boolean utf32, int avgChunkSize)` — split data into
     content-defined chunks, returns `byte[][]`
 - `IsccLib.softHashVideoV0(int[][] frameSigs, int bits)` — compute a similarity-preserving hash from
@@ -378,6 +390,29 @@ for (String unit : units) {
 }
 ```
 
+### ISCC-SEQ
+
+`byte[] IsccLib.encodeSeq(String[] units)` packs an ordered list of ISCC-UNITs into an ISCC-SEQ byte
+string (IEP-0020): the header and body bytes of each unit, in the given order.
+`String[] IsccLib.decodeSeq(byte[] data)` reads one back into `ISCC:`-prefixed unit strings. Base32
+input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and
+ISCC-FLAKE units are rejected.
+
+```java
+import java.util.Arrays;
+
+byte[] data = IsccLib.encodeSeq(new String[]{
+    "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"
+});
+// data.length == 34, starts with 0x20 0x07 0xa8 0x82 0x48 0xc5
+
+String[] units = IsccLib.decodeSeq(data);
+// units: ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+// The round trip is defined on bytes: encodeSeq(decodeSeq(data)) reproduces data
+System.out.println(Arrays.equals(IsccLib.encodeSeq(units), data)); // true
+```
+
 ### Other codec methods
 
 - `IsccLib.encodeBase64(byte[] data)` — encode bytes to base64 string
@@ -395,6 +430,7 @@ import io.iscc.iscc_lib.IsccLib;
 
 IsccLib.META_TRIM_NAME;        // 128 — max byte length for name normalization
 IsccLib.META_TRIM_DESCRIPTION; // 4096 — max byte length for description normalization
+IsccLib.META_TRIM_META;        // 128_000 — max decoded payload size in bytes for the meta element
 IsccLib.IO_READ_SIZE;          // 4_194_304 — default read buffer size (4 MB)
 IsccLib.TEXT_NGRAM_SIZE;       // 13 — n-gram size for text similarity hashing
 ```
@@ -410,12 +446,13 @@ System.out.println("Conformance: " + ok); // true
 
 ## Error handling
 
-Methods throw `IllegalArgumentException` on invalid input (wrong bit count, empty data where content
-is required, etc.). Use try-catch for error handling:
+Methods throw `IllegalArgumentException` on invalid input (wrong bit count, a negative `int` such as
+`bits`, `nbytes` or `width`, empty data where content is required, etc.). Use try-catch for error
+handling:
 
 ```java
 try {
-    IsccLib.genTextCodeV0("Hello", 13); // bits must be a multiple of 32
+    IsccLib.genTextCodeV0("Hello", 13); // bits must be a multiple of 32 from 32 to 256
 } catch (IllegalArgumentException e) {
     System.out.println("Invalid input: " + e.getMessage());
 }

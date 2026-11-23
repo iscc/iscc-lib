@@ -12,7 +12,7 @@ description: >-
   name the failure modes.
 user-invocable: true
 argument-hint: <the task to execute with high-stakes rigor>
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Workflow, Task, AskUserQuestion
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Workflow, Agent, AskUserQuestion
 ---
 
 # High-Stakes
@@ -129,10 +129,10 @@ exists and has been run. If none can be written, that is a stated limitation, no
 
 For medium/large tasks you **must run the panel by issuing a `Workflow` tool call** built from
 **`references/workflow-template.md`** — read it and adapt the panel to your triage decision rather
-than re-deriving it. Do not substitute plain `Task` subagents or an inline self-review for the
+than re-deriving it. Do not substitute plain `Agent` subagents or an inline self-review for the
 panel: only the Workflow runtime gives the schema-forced verdicts, parallel fan-out, and
-two-clean-rounds loop this skill depends on. (`Task` is fine for the executor/repair steps, never as
-a stand-in for the gauntlet.) Its contract, briefly:
+two-clean-rounds loop this skill depends on. (`Agent` is fine for the executor/repair steps, never
+as a stand-in for the gauntlet.) Its contract, briefly:
 
 - **One skeptic per relevant failure mode**, each spawned via `agent(...)` with a `schema` that
     forces a verdict, and each handed the **Phase-1 plan and the diff of the edits** alongside the

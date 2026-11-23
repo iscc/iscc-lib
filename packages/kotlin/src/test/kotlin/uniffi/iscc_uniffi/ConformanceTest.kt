@@ -1,4 +1,4 @@
-/** Conformance tests for all 9 gen_*_v0 functions against data.json vectors. */
+/** Conformance tests for the 9 gen_*_v0 functions and encode_seq/decode_seq against data.json vectors. */
 package uniffi.iscc_uniffi
 
 import com.google.gson.JsonElement
@@ -6,8 +6,13 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.util.HexFormat
 import java.util.TreeMap
+import org.junit.jupiter.api.Assertions.assertArrayEquals
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.function.Executable
 
 class ConformanceTest {
 
@@ -25,6 +30,21 @@ class ConformanceTest {
             val hex = streamStr.removePrefix("stream:")
             if (hex.isEmpty()) return ByteArray(0)
             return HexFormat.of().parseHex(hex)
+        }
+
+        /** Decode a "bytes:<hex>" string to ByteArray; fails on any other prefix. */
+        fun decodeBytes(bytesStr: String): ByteArray {
+            require(bytesStr.startsWith("bytes:")) { "Expected bytes: prefix: $bytesStr" }
+            return HexFormat.of().parseHex(bytesStr.removePrefix("bytes:"))
+        }
+
+        /** First unit of the decode_seq vector `test_0003_two_128_bit_units`. */
+        const val SEQ_UNIT = "ISCC:GABQLNA7GRZESMRF2J7NZPNWGI3II"
+
+        /** Assert that `call` throws an IsccException whose message contains `fragment`. */
+        fun assertIsccError(fragment: String, call: Executable) {
+            val err = assertThrows(IsccUniException.IsccException::class.java, call)
+            assertTrue(err.msg.contains(fragment), "Message \"${err.msg}\" lacks \"$fragment\"")
         }
 
         /** Prepare the meta parameter from a JSON element (null, string, or object). */
@@ -266,5 +286,80 @@ class ConformanceTest {
         assertEquals(4095L, a[1])
         assertEquals(1L, a[2])
         assertEquals(1L, a[3])
+    }
+
+    // -- encode_seq / decode_seq --
+
+    @Test
+    fun testEncodeSeq() {
+        val vectors = vectors("encode_seq")
+        assertEquals(4, vectors.size, "Expected 4 encode_seq vectors")
+
+        for ((name, tc) in vectors) {
+            val unitsArray = tc.getAsJsonArray("inputs")[0].asJsonArray
+            val units = List(unitsArray.size()) { unitsArray[it].asString }
+            val expected = decodeBytes(tc["outputs"].asString)
+
+            assertArrayEquals(expected, encodeSeq(units), "Failed vector: $name")
+        }
+    }
+
+    @Test
+    fun testDecodeSeq() {
+        val vectors = vectors("decode_seq")
+        assertEquals(4, vectors.size, "Expected 4 decode_seq vectors")
+
+        for ((name, tc) in vectors) {
+            val data = decodeBytes(tc.getAsJsonArray("inputs")[0].asString)
+            val outputsArray = tc.getAsJsonArray("outputs")
+            val expected = List(outputsArray.size()) { outputsArray[it].asString }
+
+            assertEquals(expected, decodeSeq(data), "Failed vector: $name")
+        }
+    }
+
+    @Test
+    fun testSeqBytesRoundTrip() {
+        val vectors = vectors("decode_seq")
+        assertEquals(4, vectors.size, "Expected 4 decode_seq vectors")
+
+        for ((name, tc) in vectors) {
+            val data = decodeBytes(tc.getAsJsonArray("inputs")[0].asString)
+            assertArrayEquals(data, encodeSeq(decodeSeq(data)), "Failed vector: $name")
+        }
+    }
+
+    @Test
+    fun testEncodeSeqRejectsEmptyList() {
+        assertIsccError("at least one ISCC-UNIT") { encodeSeq(emptyList()) }
+    }
+
+    @Test
+    fun testDecodeSeqRejectsEmptyBytes() {
+        assertIsccError("Empty ISCC-SEQ") { decodeSeq(ByteArray(0)) }
+    }
+
+    @Test
+    fun testDecodeSeqRejectsTruncatedBytes() {
+        val tc = vectors("decode_seq").first { it.first == "test_0003_two_128_bit_units" }.second
+        val data = decodeBytes(tc.getAsJsonArray("inputs")[0].asString)
+        assertIsccError("Truncated ISCC-UNIT") { decodeSeq(data.copyOf(data.size - 1)) }
+    }
+
+    @Test
+    fun testEncodeSeqRejectsPadding() {
+        assertIsccError("base32 decode error") { encodeSeq(listOf("ISCC:GAAAAAAAAA======")) }
+    }
+
+    @Test
+    fun testEncodeSeqPaddingControl() {
+        assertArrayEquals(HexFormat.of().parseHex("300000000000"), encodeSeq(listOf("ISCC:GAAAAAAAAA")))
+    }
+
+    @Test
+    fun testEncodeSeqRejectsEmbeddedNul() {
+        // Control: the unit alone encodes, so the NUL suffix is what gets rejected.
+        assertDoesNotThrow { encodeSeq(listOf(SEQ_UNIT)) }
+        assertIsccError("base32 decode error") { encodeSeq(listOf(SEQ_UNIT + "\u0000junk")) }
     }
 }

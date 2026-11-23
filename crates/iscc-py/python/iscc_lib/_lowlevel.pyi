@@ -30,7 +30,8 @@ def encode_component(
     :param mtype: Main type identifier (0–6).
     :param stype: Sub type identifier (0–7).
     :param version: Version identifier (0).
-    :param bit_length: Bit length of the code body (multiple of 32).
+    :param bit_length: Bit length of the code body (multiple of 32, 32 to 256, for
+        Meta through Flake; 64, 72, 80 or 96 for ID).
     :param digest: Raw digest bytes (at least ``bit_length // 8`` bytes).
     :return: Base32-encoded ISCC unit string.
     :raises ValueError: If enum values are out of range or digest is too short.
@@ -48,6 +49,28 @@ def iscc_decode(iscc: str) -> tuple[int, int, int, int, bytes]:
     :return: Tuple of ``(maintype, subtype, version, length_index, digest)``.
     :raises ValueError: If the input is not a valid ISCC string, or is a unit
         sequence that cannot be composed into an ISCC-CODE.
+    """
+
+def encode_seq(units: list[str]) -> bytes:
+    """Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+
+    Base32 decoding is strict: ``=`` padding, non-zero spare bits and
+    non-ASCII case-fold aliases (``ſ``, ``ß``) are rejected (``iscc_core``
+    accepts them).
+
+    :param units: ISCC-UNIT strings (prefix optional, case-insensitive,
+        hyphens allowed).
+    :return: ISCC-SEQ byte string.
+    :raises ValueError: If ``units`` is empty or contains an empty or
+        malformed unit, or a unit of MainType ISCC, ID or FLAKE.
+    """
+
+def decode_seq(data: bytes) -> list[str]:
+    """Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+
+    :param data: ISCC-SEQ byte string.
+    :return: ``"ISCC:"``-prefixed ISCC-UNIT strings in wire order.
+    :raises ValueError: If ``data`` is empty or malformed.
     """
 
 def json_to_data_url(json: str) -> str:
@@ -259,10 +282,11 @@ def alg_simhash(hash_digests: list[bytes]) -> bytes:
 
     Produces a similarity-preserving hash by counting bit frequencies across
     all input digests. Each output bit is set when its frequency meets or
-    exceeds half the input count. Returns 32 zero bytes for empty input.
+    exceeds half the input count.
 
-    :param hash_digests: List of equal-length byte hash digests.
+    :param hash_digests: Non-empty list of equal-length byte hash digests.
     :return: Similarity-preserving hash as bytes (same length as input digests).
+    :raises ValueError: If the list is empty or digest lengths differ.
     """
 
 def alg_minhash_256(features: list[int]) -> bytes:
@@ -271,8 +295,9 @@ def alg_minhash_256(features: list[int]) -> bytes:
     Uses 64 universal hash functions with bit-interleaved compression to
     produce a 32-byte similarity-preserving digest.
 
-    :param features: List of 32-bit unsigned integer features.
+    :param features: Non-empty list of 32-bit unsigned integer features.
     :return: 32-byte MinHash digest.
+    :raises ValueError: If the list is empty.
     """
 
 def alg_cdc_chunks(data: bytes, utf32: bool, avg_chunk_size: int = 1024) -> list[bytes]:

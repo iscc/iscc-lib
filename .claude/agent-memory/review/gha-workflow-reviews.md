@@ -78,7 +78,7 @@ git diff HEAD~1..HEAD -- <file> | grep -E '^[+-]' | grep -v '^[+-][+-]' \
 | ---------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `setup-node@v5+`       | auto-caches when `package.json` has `packageManager`; then FAILS if no lockfile     | safe — no tracked `package.json` has the field, no lockfile tracked. **Recheck if either lands**                                                                                                                                   |
 | `setup-node@v6`        | auto-caching limited to npm                                                         | moot, see above                                                                                                                                                                                                                    |
-| `setup-node@v7`        | dropped the dummy `NODE_AUTH_TOKEN` export                                          | both publish jobs set it in `env:` themselves                                                                                                                                                                                      |
+| `setup-node@v7`        | dropped the dummy `NODE_AUTH_TOKEN` export                                          | npm publish jobs use OIDC trusted publishing (2026-10-17): no token, Node 24, and **no `registry-url`** (it would write an `.npmrc` referencing the unset var)                                                                     |
 | `checkout@v6+`         | auth token persisted to `$RUNNER_TEMP`, not `.git/config`                           | `git push`/`fetch` still work, so `prepare-release`'s `main` commit + tag force-push are fine; only authenticated git *inside a Docker container action* needs runner ≥ 2.329.0. `persist-credentials` still defaults `true` at v7 |
 | `setup-python@v7`      | removed `pip-install`                                                               | unused (both sites pass only `python-version`)                                                                                                                                                                                     |
 | `upload-artifact@v7`   | new `archive:` input                                                                | defaults `true` = old behaviour                                                                                                                                                                                                    |
@@ -166,3 +166,136 @@ required-input omission is not caught (the check is one-directional); `except OS
 despite the documented fail-open contract; Docker-type actions' native `with: args`/`entrypoint`
 would false-positive; PyYAML YAML 1.1 booleans mangle an input named `on`/`off`/`yes`/`no`; and
 job-level `uses:` (reusable workflows) is not scanned at all — only `job.steps[*].uses`.
+
+## ci.yml fix that only a CI run can prove (iter 260, ~25 min)
+
+next.md said "review pushes and reads the run". Order that worked:
+
+1. Local criteria + `mise run check`, then read the ACTION'S SOURCE at the pinned tag before
+    believing next.md's account of it:
+    `gh api 'repos/<o>/<r>/contents/src/<file>?ref=<tag>' --jq .content | base64 -d` (also
+    `action.yml` and `README.md`). Read the whole install flow, not only the lines next.md cites.
+2. Push the define-next + advance commits FIRST:
+    `git -c credential.helper='!gh auth git-credential' push origin HEAD:develop` (pre-push gates
+    run, ~3 min). `concurrency: cancel-in-progress` is on, so do not push again before the jobs
+    under test finish.
+3. `gh run list --branch develop --workflow CI --limit 3 --json databaseId,headSha,status`, wait on
+    the named jobs, then read each job's step log:
+    `gh run view <run> --job <job-id> --log | grep -i "install-dotnet.sh\|dotnet-install:"`. A
+    green job proves the result, the LOG proves the mechanism.
+4. Write the handoff with the measured result, commit, push the review commit.
+
+What it found: next.md's Implementation Notes cited two real source lines and still drew a false
+conclusion ("a leg sees only the runtimes it lists"). `setup-dotnet` runs
+`install-dotnet.sh --runtime dotnet --channel LTS` before every requested version, so a private
+`DOTNET_INSTALL_DIR` also holds the latest LTS runtime, and `LatestMajor` follows it. Advance had
+"checked the action source" at exactly the cited lines; Codex missed it too. For any roll-forward or
+"newest installed" claim, ask what ELSE the installer puts in the directory.
+
+The `gh` CLI prints a long "hint: … gh event listen" block to stderr on each poll: add `2>/dev/null`
+to polling loops.
+
+### Iter 262: the same recipe on a Gradle + setup-dotnet step (~15 min, PASS)
+
+- `skip-lts-prepass: true` is confirmed on CI: the log prints "Skipping LTS runtime pre-pass", no
+    `--channel LTS` call, and the SDK 8 host (first installed) still runs SDK 10 and runtime 10.
+- Kotlin plugin resolution:
+    `./gradlew -p packages/kotlin buildEnvironment --refresh-dependencies --info --console=plain` to
+    a log, then grep `kotlin-gradle-plugins-bom` and count `plugins.gradle.org` (expected 0). Read
+    the FAILED job's log first (`gh run view <run> --job <id> --log | grep -A14 'went wrong'`) to
+    check next.md's diagnosis against the real error.
+- The background Codex run executes Gradle in the same tree too. `.kotlin/` is gitignored since 262.
+- Wait on named jobs with one loop over
+    `gh run view <run> --json jobs --jq '[.jobs[] | select(.name|test("Kotlin|\\.NET")) | select(.status!="completed")] | length'`.
+
+### Iter 267: a plain `run:` step in an existing job (Go `GOARCH=386`, ~12 min, PASS)
+
+- No action source to read. Local proof first: same `=== RUN` count on both architectures
+    (`go test -v`), `file` on a `go test -c` binary, and the reverted fix failing on 386 only.
+- `gh run view <run> --job <id> --log` prints nothing while OTHER jobs of the run are still running.
+    Read a finished job's log at once with
+    `gh api --allow-escape-sequences repos/iscc/iscc-lib/actions/jobs/<job-id>/logs > /tmp/x.log`,
+    then `grep -a` (the log carries ANSI escapes).
+- The Go job finishes about 1 minute after the push; waiting for the whole run is not needed.
+
+### Iter 274: freshness steps for generated files (`c-ffi` `.cs` diff, `kotlin` UniFFI diff, ~25 min, PASS)
+
+- One script, one log (`/tmp/<x>/probe.sh`): `git archive HEAD | tar -x` + `git init` + commit,
+    extract each step's `run` with PyYAML into a file, run it with
+    `bash --noprofile --norc -eo pipefail <file>` and `RUNNER_TEMP` set. A cold debug build of
+    `iscc-ffi` + `iscc-uniffi` (+ `--features bindgen`) in the throwaway tree takes about 2 minutes.
+- Mutations that paid off: the guarded file's own previous version
+    (`git log -1 --format=%h -- <path>`, then `git show <sha>~1:<path>`), an EMPTY committed file, a
+    whitespace-only change (must stay green) and one added inner space (must fail). Advance had
+    mutated `.kt` and `.h`; take the file it left out (`.swift`).
+- **A step that collects failures in a variable is green without its last `exit "$var"` line**, and
+    an anchor test that greps for paths and flags does not see the line go. Mutate the workflow file
+    (drop the exit line, swap step order, remove one language) and run the anchor test on each; add
+    the missing assertion as a step-9 fix.
+- **A `git diff` after a build proves nothing unless the build script ran.** In a warm tree a change
+    to `NativeMethods.g.cs` alone does not rerun csbindgen's `build.rs` (rc=0, false green). On CI
+    it runs on a full rust-cache hit: the `Build FFI crate` log shows `Compiling iscc-ffi` BEFORE
+    `Compiling iscc-lib` (the build-script unit was dirty). Read that line, not the job colour.
+- The check step runs `cargo run --features bindgen`, which rebuilds `libiscc_uniffi.so` with that
+    feature, so the Gradle tests after it load that build. Same exports; noted, not filed.
+- `maturin develop` after `cargo clippy`/`cargo test` recompiles `pyo3-ffi`, `pyo3` and `iscc-py`
+    (about 15 s, then 0.3 s when repeated): the pre-push batch took 60 s in total.
+
+## release.yml rewiring step (285, ~25 min, PASS_WITH_NOTES)
+
+- **What a green static gate cannot say, and where to read it instead:** an action input's real
+    behaviour is in the action SOURCE (`gh api "repos/<o>/<r>/contents/src/<f>.ts?ref=<tag>"`):
+    `softprops/action-gh-release@v3` with `overwrite_files: false` skips by asset NAME and never
+    checks the asset state, so a `starter` (half-uploaded) asset survives a rerun. Codex found it;
+    read every recovery path of a new input before the handoff.
+- **A tool version on a runner is in the image readme**
+    (`gh api repos/actions/runner-images/contents/images/macos/macos-15-arm64-Readme.md`): a script
+    run as bare `python3` there got 3.15, so `itertools.pairwise` (3.10+) is fine.
+- **`failure()` is transitive**: compute each job's ancestor set with PyYAML to see which chains a
+    new `needs` edge couples, and to check any "every job waits for X" sentence in the specs
+    (`ci-cd.md` → Job Conditions, `swift-bindings.md` → Release Workflow Integration,
+    `docs/development.md` → release section). A rewiring step leaves those stale: realign the
+    sub-spec facts in the review.
+- **vcpkg port end to end (31 s)**: `sudo apt-get install -y zip cmake ninja-build`, shallow clone
+    `microsoft/vcpkg` into `/tmp`, `bootstrap-vcpkg.sh -disableMetrics`, then
+    `vcpkg install iscc --overlay-ports=<dir with only portfile.cmake + vcpkg.json>`. It installs
+    only while the release named in `vcpkg.json` exists, so it cannot be a CI check on `develop`.
+
+## release.yml `run` step that calls `gh` (287, ~15 min, PASS)
+
+- Three probes cover what the static gate and the wiring tests cannot. (1) The script against the
+    REAL payload (`gh release view v0.7.0 --repo iscc/iscc-lib --json assets`, a staging dir filled
+    with the asset names): fixtures only copy the shape. (2) Both `run` bodies, extracted with
+    PyYAML and run under `bash -e` (no `shell:` key = no pipefail) with a stub `gh` first on PATH
+    that logs its argv: two stale assets, a failing DELETE, an empty staging dir. (3) The action
+    source for the path the step relies on (softprops `upload`: skip by name; a 422 `already_exists`
+    is not retried when `overwrite_files: false`; `release()` creates a draft and finalizes after
+    the uploads). `prepare-release` creates the release (XCFramework) first.
+- A `while read … done < file` loop loses lines when a command in its body reads stdin. Real
+    `gh api` does not (three-line file, `gh api -X GET rate_limit` in the body, all three read).
+- The harness blocks a command that does `cd <dir>` and later `rm <relative glob>`: run step bodies
+    in a subshell `(cd "$S/work" && bash -e …)` and delete by absolute path.
+- zsh: an unmatched glob aborts an `&&` chain (`rm -f dir/*` on an empty dir), and an unquoted
+    `?ref=` in a `gh api` path is a glob. Quote both.
+- Codex ran its own mocked shell checks and found nothing; its `gh` is unauthenticated, so it cannot
+    check live GitHub state.
+
+## Package-recipe hash step: Conan `conandata.yml` (305, ~25 min, PASS, Codex clean)
+
+- Criteria that pay: download the release archives into a fresh dir
+    (`gh release download v0.7.0 -R iscc/iscc-lib -p 'iscc-ffi-v0.7.0-*' -D <dir>`), run the hash
+    script with `--check`, then in WRITE mode and confirm `git status --porcelain packages/cpp` is
+    empty (the renderer equals what the prek hooks leave). Compare with `sha256sum` and the asset
+    `digest` fields of `gh release view --json assets`.
+- **Conan end to end (~1 min, network)**: a script with `CONAN_HOME=/tmp/x` and
+    `uv run --no-project --with conan conan`: `profile detect`, then `create` on two `git archive`
+    copies of `packages/cpp`, one with a hash digit changed by `sed`. Never run `conan create` in
+    the checkout. Like the vcpkg install it works only while the release named in the recipe exists.
+- The tests read the recipe with `ast` (no `conan` import), so no committed check executes it: a
+    recipe that stops raising on a missing hash is seen by the end-to-end run only.
+- `scripts/update_vcpkg_hashes.py` needs Python 3.10 or newer (`itertools.pairwise`). The `macos-15`
+    image has `python3` 3.15 (runner-images readme), so this is no finding.
+- A step that extends what the release commit carries leaves "commits the … vcpkg portfile hashes"
+    sentences behind in `specs/ci-cd.md`, `specs/swift-bindings.md` and `docs/development.md`:
+    `git grep -n "portfile hashes"` and realign them in the review.
+- decisions.md sat at 397 lines: one new entry needed the `cid.archive_overflow` rotation.

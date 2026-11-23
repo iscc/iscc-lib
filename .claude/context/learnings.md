@@ -6,185 +6,195 @@ maintains this file — append, prune, and archive completed-phase entries to `l
 
 ## Architecture
 
-- Hub-and-spoke: `iscc-lib` (pure Rust core) → binding crates (py, napi, wasm, ffi, jni, rb,
-    uniffi), each depending only on the core. Tier 1 = 33 symbols `pub use`d at crate root (33rd =
-    `gen_iscc_id_v1`+`IsccIdResult`, iter 177; docs/count sweep to 33 done, iter 190); Tier 2 is
-    `pub(crate)`, never crosses FFI. `packages/go` is NOT a binding — a pure-Go reimplementation
-- **`gen_iscc_id_v1` is pure Python — oracle-check with no built wheel** (`--with iscc-core`,
-    `MA…`/`ME…` = realm nibble); core + py match byte-for-byte over
-    realm{0,1}×hub{0,4095}×ts{0,2^52-1} (178). NO dedicated decoder on any surface (ref has none).
-    **Minting ≠ decode round-trip**: core `codec::Version` accepts `V1`, but a surface with its OWN
-    version enum makes `iscc_decode(gen_iscc_id_v1(...))` raise `1 is not a valid VS`. Python was
-    the *only* enum surface (widened `VS.V1 = 1` + round-trip, 189); other 10 return bare int/byte.
-    Decode fan-out COMPLETE on all 11; #43 doc/count sweep done (190), IDv1 closed
-- **IDv1 validation ORDER is normative** (spec rust-core.md §Validation; ref `iscc_id.py:127-133`
-    ts→hub→realm, "first failing check wins", even for MULTI-invalid inputs). Wide-int bindings
-    (napi/wasm/jni) MUST check the three SEMANTIC thresholds (`2^52`/`4096`/`2`) in that order IN
-    THE BINDING before narrowing (a wide *narrowing* guard that skips ts is WRONG: `(2^52,65536,0)`
-    reports hub not ts — 183 jni fixed 184). Exact-width surfaces delegate safely. **Ruby (185)
-    narrows Integer→`i64` in Magnus marshalling BEFORE the body** → `RangeError` order break for
-    `> i64::MAX` only (issues.md open; fix: validate in Ruby)
-- **IDv1 minting fan-out COMPLETE (179-190)**: exact-width **unsigned** args (`u64/u16/u8`) can't
-    overflow → no binding guard (core re-checks ts→hub→realm; passthrough can't reorder). Decode is
-    bit-math on `iscc_decode`'s bare-int version, `ts=n>>12`/`hub=n&0xFFF`/`realm=SubType` on the
-    8-byte BE body. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on
-    EVERY build** → pre-push clippy fails "files were modified"; regen+commit it (like `iscc.h`) in
-    the SAME FFI-symbol step, never "the dotnet step"
+- Hub-and-spoke, API tiers → the `CLAUDE.md` files. `packages/go` is a pure-Go port, NOT a binding
+- **Binding input-marshalling traps**: WASM `serde_wasm_bindgen` `Vec<T>` accepts ANY iterable (napi
+    `Vec<String>` throws `ArrayExpected`): never document "throws on non-array" for WASM (204).
+    **The FFI's `CStr` truncates at an embedded NUL**, so both C-FFI wrappers reject it first (213):
+    .NET strings go through `ToNativeUtf8`, C++ through `detail::checked_c_str`; probe
+    `x + "\0junk"` on every string input. JNI, Ruby + UniFFI keep the NUL, the core rejects. **An
+    EMPTY container marshals to NULL** (`fixed` over `[]`, `.data()` on `{}`); the FFI reads
+    `(NULL, 0)` as empty via `slice_or_empty` (255), so both wrappers pass it through (273). Only
+    C++ sends a NULL inner row: a pinned empty .NET array has an address. **Never take `Vec<T>` from
+    Ruby**: Magnus `to_vec` holds a slice, so a shrinking `to_str` segfaulted (212); use
+    `array_to_vec`. `RBignum::to_i32` truncates negative Bignums: `i32` only via `array_to_i32_vec`
+- **A typed binding parameter converts BEFORE the method body** (297: PyO3, Magnus, napi), so no
+    check on it can follow a state change: take the raw value (`Value`, `Option<Unknown>`, a
+    `FromPyObject` wrapper) and convert in the body. PyO3 0.29 adds a parameter-name note to such an
+    error (mirror it with `add_note`). napi: `T::from_unknown(v)` = a safe `v.cast::<T>()`
+- **WASM marshalling (268/269)**: the wasm-bindgen glue converts every typed parameter. Numbers and
+    `bool` arrive as `JsValue` and are type-checked in Rust; `&[u8]` still converts and a number for
+    a `&str` traps. **An `Option<T>` before a `JsValue` override loses its `?` in the `.d.ts`**
+    unless it has its own `unchecked_optional_param_type`: diff the WHOLE built `.d.ts` against the
+    previous build. **A js-sys import without `catch` lets a JS exception unwind through Rust
+    frames** (4,000 to 8,000 throws kill the instance): read via `Reflect::get` (2× marshalling
+    cost, decisions.md); `serde_wasm_bindgen::from_value` still has it. Probe a RELEASE build from
+    Node. **Two `git archive` trees on ONE `CARGO_TARGET_DIR` package the first tree's wasm twice**
+- **Binding fan-out traps** (IDv1 177-190 → `learnings-archive.md`): **`iscc-ffi`'s csbindgen
+    `build.rs` rewrites tracked `NativeMethods.g.cs` whenever it runs** (pre-push clippy: "files
+    were modified") — regen+commit it with `iscc.h` in the SAME FFI-symbol step; a `///`-only edit
+    on an export moves BOTH (205). CI `c-ffi` diffs both after the build (274). A change to the
+    `.cs` ALONE does not rerun `build.rs`: in a probe tree `touch crates/iscc-ffi/src/lib.rs`. **C
+    docs name types `iscc_X`** (cbindgen `[export] prefix`), guarded by `tests/test_c_ffi_docs.py`;
+    `cbindgen --crate iscc-ffi` loads its `cbindgen.toml` itself: `--config` changes nothing (221)
 
 ## Reference Implementation
 
 - **`iscc-core` output is not stable across CPython versions** (5,185 code points differ 3.13 vs
     3.14 — `text_clean`/`text_collapse` strip `C` incl. unassigned `Cn`, so output tracks
     `unicodedata.unidata_version`; iscc-core#137). Always name the interpreter (`--python 3.13`)
-- A dependency shipping DATA TABLES (Unicode, locale, tz) can change output without any `data.json`
-    vector catching it (every vector predates Unicode 16) — call out table-version changes in dep
-    bumps explicitly
-- **A widened decode gate re-exposes latent truncation** (174/175): `decode_header`'s `as u8` before
-    `TryFrom` let a multi-nibble value wrap (`257`→`1`, `262`→`Id`) so a malformed header
-    canonicalized to valid; now `u8::try_from`-gated. Probe `"MDFZAAAAAAAAAAAAAA"` on header gates
-- **`decode_base32("")` returns `Ok(empty)`, not an error** (191; empty guard in `iscc_clean` 192):
-    a cleaning helper that can yield `""` (blank/dash-only/`"iscc:"`) must reject empty before
-    decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage on
-    cleaning
+- **iscc-core 1.5.0 has two builds that can disagree** (264: compiled wheel cp310 to cp314, pure
+    Python on 3.15): probe a vector under `uv run --no-project --python` 3.10 AND 3.15
+- **iscc-core's string reject set differs per entry point** (decisions of 2026-11-18): probe each
 
 ## Tooling
 
-- `mise` for tools/tasks, `uv` for the Python env, `prek` for hooks; never use `mise` in CI — call
-    tools directly. Pre-push-**only** gates: clippy `-D warnings`, cargo test, pytest, `ty check`
+- Never use `mise` in CI: call the tools directly. Tools, tasks and hook stages → root `CLAUDE.md`
 - **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (133):
     inline `# /// script` metadata, `uv run --script <path>`, `[tool.ty.src] exclude` **only if it
     imports a non-project dep** (159). A dep a *pytest* test imports in-process must be a dev-group
     dep (142, `pyyaml`). Generated Rust must be data-only + rustfmt-stable; generated C must be
     ASCII + LF + one trailing newline, else prek hygiene hooks rewrite it and break the
     regeneration-no-op gate — a **third-party** generator you can't fix (uniffi bindgen, 172) always
-    trips it, so verify no-op modulo `sed 's/[[:space:]]*$//'`, never `git status`
-- **Perf-gate tooling installs on demand, NOT in the devcontainer**: `mise run bench:iai:check` dies
-    until `apt-get install valgrind` + `cargo binstall iai-callgrind-runner@0.16.1` (pin-matched)
-- **A docs page lives in FOUR places** — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
-    `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`
-    (145/146). **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
+    trips it, so verify no-op modulo `sed 's/[[:space:]]*$//'`, never `git status`. A `///` or type
+    edit on a uniffi export moves its checksum in both outputs (272); delete the stray `.modulemap`
+- **C/C++ read `data-edge.json` from a generated header** (219): `gen_data_edge_vectors.py` renders
+    `crates/iscc-ffi/tests/data_edge_vectors.h`; a vector = JSON edit + regen. **A new section is
+    one unsplittable 12-surface fan-out** (226: every harness and the generator fail closed). Checks
+    over generated source tokenize escapes, split on lines, and tally visited rows. **A harness's
+    uncompared set holds EVERY `data.json` output key its result type lacks** (252); a `meta` input
+    is a JSON object (iscc-core reads a string `meta` as a data URL). A lone surrogate escape is no
+    vector (266). **Over 4,095 bytes a string is a buffer `iscc_edge_init()` fills** (282)
+- **Perf-gate tooling is NOT in the devcontainer** (250): `mise run bench:iai:check` needs
+    `apt-get install valgrind` + `cargo install --locked iai-callgrind-runner@0.16.1`
+- **A docs page lives in FOUR places**, all gated by `scripts/check_docs_nav.py` (145/146).
+    **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it**
+- **Devcontainer push**: `git -c credential.helper='!gh auth git-credential' push`
 
 ## ISCC Algorithm Knowledge
 
-- **Unicode 16.0.0 pin REMOVED 2026-07-30** (decisions.md 2026-07-30, human): sentinel map, frozen
-    `Final_Sigma`, boundary vectors (all 11 surfaces + pure-Go), sweep gate and `docs/unicode.md`
-    are gone; `text_clean`/`text_collapse` mirror the reference steps on whatever tables
-    dependencies ship. Freeze-era notes in learnings-archive.md and agent memories are historical —
-    do not resurrect them
 - **A data-driven fixture is self-referential — assert CONTENT, not shape** (141): ungate guards on
-    version, case counts, code points + skip-list keys (ASCII no-op swaps stay green forever).
-    **Per-algorithm internals**, normalization order, `data.json` counts, API-parameter facts,
-    **ISCC-IDv1** details, the three codec rules → `learnings-archive.md`
+    version, case counts, code points + skip-list keys (ASCII no-op swaps stay green forever). A
+    test that iterates the code's OWN table (`for mt in seqMainTypes`) cannot see it shrink — pin
+    it. Swift pins every `data.json` count, core + WASM a floor (306). **Per-algorithm internals**,
+    normalization order, `data.json` counts, API-parameter facts, **ISCC-IDv1** details, the three
+    codec rules → `learnings-archive.md`
+- **A header is a varnibble sequence, not two bytes** (303): a length index from 8 up takes two
+    nibbles, so Meta at 288 bits is `00 08 00`. A hand-built `00 08` + 36 bytes parses as a 35-byte
+    body, which a build without the 256-bit bound rejects as truncated. Take a decode vector from
+    the reference ENCODER's output. **An error row pins a rule only if a build WITHOUT the rule
+    accepts its input**: run it on the last release (`uv run --no-project --with iscc-lib==0.7.0`)
+- **A `bits` range differs per function** (303): `gen_sum_code_v0` and `SumHasher` need 64 to 256
+    (32 fails, an ISCC-CODE takes 64-bit units). Probe a range claim at both ends on EVERY function
+    a row names; a range also sits in `///` and Javadoc comments (304: `git grep "32 to 256"`)
+- **Integer widths differ per platform**: Go `int(x)` of a `uint32` wraps on 386 (263: subtract
+    unsigned, then `clampInt`); CI runs the Go suite as `GOARCH=386` too (267), 386 `vet` sees no
+    wrap. C `long` is 32 bits on Windows (265: `PyLong_AsLongLong`; no Windows CI, prove it from the
+    type). Rust `u64 as usize` truncates on 32-bit Android (272: `usize::try_from` + saturate); only
+    `cargo test -p iscc-uniffi --target i686-unknown-linux-musl` sees it, and no CI job runs it
 
 ## CI/CD
 
-- **A binding suite's runner is not `cargo test`** (iter 151): `cargo test -p iscc-wasm` reports
-    `0 passed` — only `wasm-pack test --node …` runs `#[wasm_bindgen_test]`, so clippy
-    `--all-targets` proves compilation, never coverage. **Every gitignored native artifact goes
-    stale silently** — Ruby `.so` (`rake compile`), napi `.node`, JNI `.so`; rebuild, then probe
-    `text_clean("a"+U+A7F1+"b") == "ab"` (stale → `aSb`); after a dep bump, `strings <artifact>`
-    greps out the dep version actually linked in (167). CI rebuilds first, so this is local-only
-- **The JVM type-checks nothing a native method returns** (168): an `Object[]` returned where
-    `String[]` is declared survives every element read — assert `getClass().getName()` and probe
-    under `-Xcheck:jni` (`mvn test -DargLine="-Xcheck:jni -Djava.library.path=$PWD/target/debug"` —
-    surefire's `argLine` is *overridden*, so re-supply the library path). All 33 have a caller since
-    169
-- **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
+- **A binding suite's runner is not `cargo test`** (151): `cargo test -p iscc-wasm` reports
+    `0 passed`; only `wasm-pack test --node …` runs `#[wasm_bindgen_test]`. **Gitignored native
+    artifacts go stale silently** (Ruby `.so`, napi `.node`, JNI `.so`): rebuild before probing;
+    after a dep bump `strings <artifact>` shows the dep version linked in (167). Local-only. The
+    Python `.so` is rebuilt (debug build) by pre-push pytest and `mise run test` through
+    `mise run py:develop` (274); a bare `pytest` still imports whatever is there
+- **`version_sync.py` covers only the Maven/Gradle/SPM doc snippets**: write no other version (244)
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
-    invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
-    (guard shape, artifact wiring, `needs:` graph; prek hook +
-    `tests/test_check_release_workflow.py`) plus the CI-only bidirectional `--check-action-inputs`.
-    Never hand-retype either into a heredoc
-- **A fail-open gate must publish a resolved/total counter** — without it "all checked" and "nothing
-    checked" are the same green (read `action-inputs: resolved R of T`, not the job status), and
-    "transport failure degrades to a warning" is NOT met by `except OSError` (`IncompleteRead` is an
-    `HTTPException`, captive-portal HTML raises `yaml.YAMLError`)
-- **A rustc floor travels the dependency graph — measure it, don't argue it** (171/172/173): floor
-    IS the **max `rust_version` over the non-dev resolve graph**, one `cargo metadata --locked` walk
-    (`cargo tree -i <dep> -e no-dev --target all` printing nothing proves a major is dev-only;
-    without `--target all` it hides platform-gated transitives). uniffi 0.32's
-    `cargo-platform 0.3.3` (1.91) broke `iscc-uniffi` on inherited 1.85 while `-p iscc-lib` stayed
-    fine; a per-crate `rust-version` override (173) makes cargo say `requires rustc 1.91` not a
-    resolution error. Settle by building — **1.85 is installed**:
-    `cargo +1.85.0 check -p <c> --locked`
-- **`semver` (INFORMATIONAL pre-1.0, enforcing at v1.0.0) + `coverage` (enforcing) CI jobs**:
-    `mise run semver` / `mise run coverage`
+    invariants are gated: `scripts/check_release_workflow.py` (prek hook + tests) and the CI-only
+    `--check-action-inputs`; never hand-retype either. **`prepare-release` never moves an existing
+    tag** (259): `git tag … || echo` keeps it, so a hand-pushed tag stays on the pre-checksum
+    commit. **`test-jni` runs `mvn test` on libraries bundled as JAR resources, with NO
+    `target/debug`** (278); the CI `java` job runs that layout as its second step (279).
+    **`prepare-release` needs `build-ffi`** (285: vcpkg hashes are written before the tag), and
+    `failure()` sees EVERY ancestor: a failed FFI leg skips every chain. `overwrite_files: false`
+    skips by asset NAME, so `publish-ffi` prunes non-`uploaded` assets first (287)
+- **napi installs from the committed `crates/iscc-napi/package-lock.json` with `npm ci`** (284).
+    Refresh it only from scratch (`rm -rf node_modules package-lock.json && npm install`): a lock
+    written over `node_modules` can drop other platforms' optional packages. **`napi build` with the
+    locked cli 3.10 FAILS in the checkout** (9p, issues.md): build in a `git archive` copy in `/tmp`
+- **A docs install claim is a claim about the PUBLISHED artifact: install it** (238: source gems up
+    to 0.7.0 do not build). **npm `@iscc/wasm` is ONE `--target web` build** (283): in Node a bare
+    `init()` fails on its `file:` fetch: use `initSync({ module })`; guard `tests/test_wasm_docs.py`
+    (292: tab fences are indented 4). **A fallback claim needs a foreign-platform run** (257)
+- **Ruby source gem = `scripts/build_ruby_source_gem.py` only** (239-241). `cross-gem@v1` reads the
+    rb_sys pin UNANCHORED (first `Gemfile.lock` line containing `rb_sys`), so the gemspec declares
+    `rb_sys` only next to `core/`. The staged manifest is its own workspace: of the root, only
+    `[profile.release]` reaches it (copied key lines, LTO install ≈ 55 s). Tests need `ruby` on PATH
+- **Ruby floor is 3.3 (270); the dev Ruby is the `mise.toml` `[tools]` pin (271)**: run
+    `mise exec -- …` in `crates/iscc-rb` (floor: `mise exec ruby@3.3 -- …`); the pin puts that Ruby
+    first on PATH repo-wide, ahead of system 3.1. **Never `rake clobber`: it empties the workspace
+    `target/`.** The `lib/` `.so` fits one Ruby series: delete it and `tmp/` to switch
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with `--fail-regression` and a **bare**
     `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax error);
     baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`). **CI-ONLY gap:** a
-    new branch in a covered fn — or merely **moving lines below the edit point** — is green locally,
-    red in CI unless the baseline moves in the SAME step (never widen epsilon/threshold)
+    new branch in a covered fn is green locally, red in CI unless the baseline moves in the SAME
+    step. A loop over a `fn` table RAISES the driver's score (306). A pure line shift passes (288).
+    **A new stable rustc re-scores untouched fns** (195): read the toolchain in CI's CRAP log before
+    blaming the diff. **Rust test helpers (`crates/iscc-lib/tests/*.rs`) score at 0% coverage**
+    (pessimistic; CRAP = cc² + cc): cc > 5 fails `--fail-above` in CI only (215: 210). Fix = a
+    `const` table of small `fn` callers (216). cargo-crap 0.2.2 counts `?`, `||`, `if`, top-level
+    `match` arms; NOT closure bodies, `let … else`, `.then()`. Run the CI CRAP lines on `tests/*.rs`
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
-    load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`.
-    **NOT in `mise run check`** — a benchmarked hot-path change (codec `iscc_clean`, text utils)
-    needs `mise run bench:iai:check` run explicitly (iter 191's +36% four_units regression slipped
-    past a green `check` into red develop CI). A committed baseline reflects the code AT baseline
-    time: a *correctness* change to a hot path can raise cost irreducibly (191/192 reference-correct
-    `iscc_clean` = two std `memchr` scans `split_once(':')`+`contains('-')`; a scalar single-pass is
-    *slower*, a single SIMD pass needs the out-of-scope `memchr` crate), so removing allocations
-    alone won't restore a baseline set for cheaper-but-wrong code — regen the baseline in the SAME
-    step
-- **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, two dev-only
-    iai-callgrind advisories ignored) + `audit` CI job (`cargo-deny@0.19.9`) + `mise run audit`;
-    reads Cargo.lock so green locally is authoritative. A yanked crate/fresh RustSec advisory reds
-    it on ANY push with no code change — fix with `cargo update -p <crate>` (confirm dev-only:
-    `cargo tree -i <crate> -e no-dev` empty), NOT a `deny.toml` ignore
-- **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
-    dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = tag misses). `.pyi` is tagged
-    `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A
-    `files:`-scoped hook never sees deletions** — pair any consistency hook with a pytest anchor
-    test against the real tree. Formatter caveats → `learnings-archive.md`
-- **A binding-toolchain bump can silently raise the *consumer* floor** in a *published* binding —
-    Titusz's call (Kotlin 2.3+; recipe + docs → archive, decisions.md 2026-07-25)
-- **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`; read
-    before touching `pom.xml` / `build.gradle.kts`. Gradle 9 writes `build/reports/problems` at the
-    END of every build, so a *concurrent* build (a background Codex run) makes `clean` fail "Unable
-    to delete directory" — re-run sequentially before believing it (165)
-- **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
-    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (`releases/latest`
-    proves a release exists, not that `@vN` resolves); `astral-sh/setup-uv` +
-    `rubygems/configure-rubygems-credentials` publish only exact tags. **Measure what a branch pin
-    drops:** `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by` (162: `@main` was 31 commits
-    \+ a rebuilt `dist/` ahead of `v2.1.0`). A major bump is statically verifiable past "the tag
-    exists": the `inputs`/`outputs` diff is automated (`--check-action-inputs`); intervening
-    *default* changes stay manual (recipe + biters + majors → `learnings-archive.md`,
-    `.claude/agent-memory/advance/deps-refresh.md`)
+    load-bearing (stripped → `summary: 0` false-green). **NOT in `mise run check`**: run
+    `mise run bench:iai:check` on any hot-path change (191: +36% reached red CI). **It fails only
+    above +10%**: after a big drop (289: −50%) the old row lets the cost return; file the stale row
+- **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, `ignore` list
+    with a per-entry justification) + `audit` CI job (`cargo-deny@0.19.9`, not in the devcontainer —
+    install the prebuilt release) + `mise run audit`; reads Cargo.lock so green locally is
+    authoritative. A yanked crate/fresh RustSec advisory reds it on ANY push with no code change —
+    try `cargo update -p <crate>` FIRST; ignore only when `cargo update --dry-run` keeps the crate
+    AND the feature edge pinning it is proven at the latest upstream (196, reasons in `deny.toml`)
+- **`cargo deny` is not the only advisory source** (235): it was green with rustix 1.1.4 while osv
+    listed RUSTSEC-2026-0486. One pass over the tracked lockfiles, run from an empty `/tmp` dir:
+    `go run github.com/google/osv-scanner/v2/cmd/osv-scanner@latest scan source -r <repo>` (~1 min;
+    Cargo, uv, Gemfile, Maven, .NET, Go — NOT Gradle or Actions pins; the npm lock is unmeasured).
+    Expected: exit 1 with exactly the 3 unmaintained crates that `deny.toml` ignores
+- **JVM/Gradle gotchas** (128, 165) → `learnings-archive.md`, read before touching `pom.xml`/`.kts`
 - **Prove a new gate with a REAL regression in a THROWAWAY repo, not a synthetic typo** (iters
     144/152/163): `git archive HEAD | tar -x -C /tmp/x && git init` gives a probe tree where
     `git add`/`git rm` are free; the cheapest *real* regression is the guarded file's own previous
     version (`git show HEAD~1:<path>`). A **set-equality** gate is blind twice: equal *empty* sets
     pass (hence a count floor) and a **duplicated** row passes (keep row order to count repeats —
-    163). A **test-framework major** is the same: a "≥ N passed" floor cannot see a silent collapse
-    of parameterized rows (164: xunit v2/v3 both gave 104), so demand the SAME total as the pre-bump
-    tree (`git archive HEAD~1`) or derive it from the FIXTURE (166: `data.json` vector counts +
-    static `@Test` count). **`mvn test` reuses stale test classes** ("Nothing to compile"), so only
-    `mvn clean test` proves the new framework compiles. A **bench-harness** major:
-    `cargo bench   --no-run` only links — `cargo bench -p iscc-lib --bench benchmarks -- --test`
-    runs each body once (171)
-- **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the prior
-    sha's in-flight run (`cancelled`, not `failure`); wait for green on the exact sha. Each develop
-    commit triggers TWO runs (push + the open develop→main PR)
+    163). **Run a CI step body as CI does** (274): extract `run` with PyYAML, then `bash -e <file>`;
+    only a step with `shell: bash` gets `--noprofile --norc -eo pipefail` (287: gate no pipe)
 
 ## CID Process
 
-- Never force-push to `develop` during a CID loop (agents commit incrementally); **feature flags**
-    are fully met → `learnings-archive.md`
-- **Never trust state.md/handoff claims about external state** (registry publications, CI status,
-    upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central, `gh api`)
-- **Pre-push mdformat blocks on non-conforming context files**: the hook runs mdformat
-    (`--wrap 100 --number`, isolated env) over every file in the push range — incl. `next.md` and
-    per-agent `MEMORY*.md` — so one non-conforming file rejects the whole batch even though
-    staged-only `git commit` passed. Unblock by reformatting + amending
+- Never force-push `develop`. **Verify external state at the source** (`npm view`, `gh api`, …)
+- **Pre-push mdformat runs over every file in the push range** (`next.md`, `MEMORY*.md` too): one
+    non-conforming file rejects the batch although `git commit` passed. Reformat + amend
 - **Never write an exact count, substring `grep -c`, unverified CLI flag, or unverified
-    `#[deprecated]` claim into a criterion** (139: `ruff format --check` saw 155 not 153; 148:
-    `--fail-above 30.0` is a `cargo crap` syntax error; 168: a "must not appear" grep banned the
-    *undeprecated* `Env::byte_array_from_slice`, reverted 169). Confirm attributes in
-    `~/.cargo/registry/src/*/<crate>-<ver>/`; assert the *gate* (exit code); copy gate lines from
-    `ci.yml`
+    `#[deprecated]` claim into a criterion** (139, 148, 168: a "must not appear" grep banned an
+    *undeprecated* API, reverted 169). Confirm attributes in the crate source under
+    `~/.cargo/registry/src/`; assert the *gate* (exit code); copy gate lines from `ci.yml`
+- **A false docs claim outlives the pages its issue names** (277): scope and review with a repo-wide
+    `git grep` on its key phrase. **A spec rule that replaces a list claims EVERY page**: check each
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
-    (142: a prescribed rule that could not resolve `wheels-*`; 143: two false Unicode safety claims
-    shipped verbatim into published docs). advance implements the *intent* and documents any
-    deviation; review re-derives every quantitative or "never/always" claim from its source
-- **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
-    total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
-    design**, assert which rows light up, and commit that as a test
+    (142: an unworkable rule; 143: two false claims shipped into published docs). advance implements
+    the *intent* and documents any deviation; review re-derives every "never/always" claim
+- **One bad case per call when testing failure arms** (195): a negative test that feeds a mismatch,
+    an error and a parse failure to ONE runner call stays green even if the mismatch arm breaks —
+    any other bad case still fails the call. **Assert a rejection on the raw API call alone** (215):
+    `pytest.raises(ValueError)` around a caller that also converts the result (`dict()`, `int()`)
+    stays green when the binding RETURNS garbage, because those conversions raise `ValueError` too.
+    **And compare EVERY expected output key on a full-result surface** (217: Ruby's
+    `actual.keys & expected.keys` passed a result without `iscc`); a reduced result leaves only a
+    STATIC key set uncompared, gen `outputs` keys ⊆ the function's `data.json` keys (236: validator
+    \+ C generator). `outputs: {}` is rejected. Swift `String ==` is canonical equivalence: compare
+    `unicodeScalars`. Parsed `NSNumber` casts are loose: read via `DataEdge.scalar` (232)
+- **Fixture parsers coerce silently, and each language differently** (290/293). Go: `Unmarshal` of
+    `null` leaves the target untouched (scan tokens first), a `[]uint8` target reads base64, struct
+    tags match keys in any case. serde_json reads `-0` as a float, so `as_i64` rejects it where Go
+    reads 0 (rule: decisions.md 2026-11-22). To align two runners, run ONE table through both
+- **Spec paths are gated** (224/228/247): `scripts/check_spec_paths.py` checks tree entries +
+    backticked paths (`.github/` too) against `git ls-files` (never disk) and fails on a tree whose
+    next paragraph lacks "not every file". Specs and per-crate `CLAUDE.md` files hold NO complete
+    file list: point to the code's own list (`TARGETS`, 247). `*` = one segment, `**` crosses `/`.
+    **A negative assertion must reach the branch it names** (228). **Removing a derived fact**: join
+    lines (`tr '\n' ' '`); sweep for table rows that start with a backticked path (247: one missed)
+- **Tier 1 doc parity is gated** (233): `scripts/check_tier1_docs.py` derives the symbols from
+    `lib.rs`, NAMES only; an unparsable crate-root `pub` fails (242): add a derive rule or an
+    `EXCLUDED_ITEMS` entry. `rust-api.md` signatures: `tests/test_rust_api_signatures.py`; doc
+    examples compile in a `/tmp` cargo project (243), C++ `main()` blocks with `g++` (244)

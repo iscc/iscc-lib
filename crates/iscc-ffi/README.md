@@ -76,8 +76,8 @@ LD_LIBRARY_PATH=target/release ./example
 | `iscc_gen_sum_code_v0`      | Generate an ISCC-SUM from a file path        |
 
 All code generators return a string pointer (caller frees with `iscc_free_string`), except
-`iscc_gen_sum_code_v0` which returns an `IsccSumCodeResult` struct. On error, they return `NULL` (or
-`ok == false` for struct results) -- call `iscc_last_error()` for the error message.
+`iscc_gen_sum_code_v0` which returns an `iscc_IsccSumCodeResult` struct. On error, they return
+`NULL` (or `ok == false` for struct results) -- call `iscc_last_error()` for the error message.
 
 ### Utilities
 
@@ -98,12 +98,12 @@ All code generators return a string pointer (caller frees with `iscc_free_string
 **Rule:** Rust allocates, Rust frees. Never use C `free()` on pointers returned by `iscc_*`
 functions.
 
-| Free function                 | Frees                                            |
-| ----------------------------- | ------------------------------------------------ |
-| `iscc_free_string`            | Strings returned by gen and utility functions    |
-| `iscc_free_string_array`      | String arrays returned by `iscc_decompose`, etc. |
-| `iscc_free_byte_buffer`       | `IsccByteBuffer` from algorithm primitives       |
-| `iscc_free_byte_buffer_array` | `IsccByteBufferArray` from `iscc_alg_cdc_chunks` |
+| Free function                 | Frees                                                 |
+| ----------------------------- | ----------------------------------------------------- |
+| `iscc_free_string`            | Strings returned by gen and utility functions         |
+| `iscc_free_string_array`      | String arrays returned by `iscc_decompose`, etc.      |
+| `iscc_free_byte_buffer`       | `iscc_IsccByteBuffer` from algorithm primitives       |
+| `iscc_free_byte_buffer_array` | `iscc_IsccByteBufferArray` from `iscc_alg_cdc_chunks` |
 
 All free functions accept `NULL` as a no-op.
 

@@ -4,45 +4,53 @@ Continuous integration, quality gates, developer tooling, and selective package 
 
 ## Workflow Files
 
-| Workflow    | File          | Trigger                                | Purpose                       |
-| ----------- | ------------- | -------------------------------------- | ----------------------------- |
-| **CI**      | `ci.yml`      | push to `main`/`develop`, PR to `main` | Quality gates for all targets |
-| **Release** | `release.yml` | `v*.*.*` tag or `workflow_dispatch`    | Build and publish packages    |
-| **Docs**    | `docs.yml`    | push to `main`                         | Build and deploy docs site    |
+| Workflow    | File                            | Trigger                                | Purpose                       |
+| ----------- | ------------------------------- | -------------------------------------- | ----------------------------- |
+| **CI**      | `.github/workflows/ci.yml`      | push to `main`/`develop`, PR to `main` | Quality gates for all targets |
+| **Release** | `.github/workflows/release.yml` | `workflow_dispatch`                    | Build and publish packages    |
+| **Docs**    | `.github/workflows/docs.yml`    | push to `main`                         | Build and deploy docs site    |
+
+The table names the workflows this spec requires, not every file in `.github/workflows/`.
 
 ## CI Workflow — Quality Gates
 
 Runs on every push to `main` or `develop` and every PR targeting `main`. All jobs must pass before
 merge.
 
-| Job                | What it checks                                                                                                                   |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `version-check`    | `python scripts/version_sync.py --check` for manifest version consistency                                                        |
-| `rust`             | `cargo fmt --check`; clippy (`-D warnings`) and tests for the workspace (excluding `iscc-rb`) plus the `iscc-lib` feature matrix |
-| `python-test`      | `maturin develop`, `ruff check`, `ruff format --check`, `pytest` on each matrix Python                                           |
-| `python`           | Asserts `needs.python-test.result == "success"` (aggregator, see note below)                                                     |
-| `nodejs`           | `npm install`, `napi build --platform`, `npm test` in `crates/iscc-napi`                                                         |
-| `wasm`             | `wasm-pack test --node crates/iscc-wasm --features conformance` with `+simd128`                                                  |
-| `c-ffi`            | cbindgen header freshness (`git diff --exit-code`), gcc compile + run of the C test program                                      |
-| `dotnet`           | `cargo build -p iscc-ffi`, then `dotnet build` + `dotnet test` for `packages/dotnet`                                             |
-| `java`             | `cargo build -p iscc-jni`, then `mvn test -f crates/iscc-jni/java/pom.xml`                                                       |
-| `go`               | `CGO_ENABLED=0 go test` + `go vet` in `packages/go` (pure Go, no Rust toolchain)                                                 |
-| `ruby`             | `standardrb`, `cargo clippy -p iscc-rb`, `rake compile`, `rake test`                                                             |
-| `cpp`              | CMake Debug + ASAN build of `packages/cpp` against `iscc-ffi`, runs the C++ test binary                                          |
-| `swift`            | On macOS: root `Package.swift` dump, `cargo build -p iscc-uniffi`, `swift build` + `swift test`                                  |
-| `kotlin`           | `cargo build -p iscc-uniffi`, then `./gradlew test` in `packages/kotlin`                                                         |
-| `bench`            | `cargo bench --no-run` compile-only benchmark verification                                                                       |
-| `perf`             | `iai-callgrind` benches, non-zero-instruction assert, `iai_regression.py --check` vs `.iai-baseline.json`                        |
-| `semver`           | `cargo-semver-checks` for `iscc-lib` (informational via `continue-on-error` pre-1.0)                                             |
-| `coverage`         | `cargo llvm-cov` LCOV + `cargo crap` annotations/SARIF + `--fail-regression --fail-above` gate (see below)                       |
-| `audit`            | `cargo deny check` per root `deny.toml` (advisories, bans, licenses, sources)                                                    |
-| `release-workflow` | `check_release_workflow.py --check-action-inputs`: `release.yml` `with:` keys vs published `action.yml`s                         |
+| Job                | What it checks                                                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `version-check`    | `python scripts/version_sync.py --check` for manifest version consistency                                                          |
+| `rust`             | `cargo fmt --check`; clippy (`-D warnings`) and tests for the workspace (excluding `iscc-rb`) plus the `iscc-lib` feature matrix   |
+| `python-test`      | `maturin develop`, `ruff check`, `ruff format --check`, `pytest` on each matrix leg (Linux and Windows)                            |
+| `python`           | Asserts `needs.python-test.result == "success"` (aggregator, see note below)                                                       |
+| `nodejs`           | `npm ci`, `napi build --platform`, `npm test` in `crates/iscc-napi`                                                                |
+| `wasm`             | `wasm-pack test --node crates/iscc-wasm --features conformance` with `+simd128`                                                    |
+| `c-ffi`            | `NativeMethods.g.cs` + cbindgen header freshness (`git diff --exit-code` after the build), gcc compile + run of the C test program |
+| `dotnet-test`      | `cargo build -p iscc-ffi`, then `dotnet build` + `dotnet test` for `packages/dotnet`, the net8.0 build on each matrix runtime      |
+| `dotnet`           | Asserts `needs.dotnet-test.result == "success"` (aggregator, see note below)                                                       |
+| `java`             | `cargo build -p iscc-jni`, then `mvn test -f crates/iscc-jni/java/pom.xml`                                                         |
+| `go`               | `CGO_ENABLED=0 go test` + `go vet` in `packages/go`, then both again with `GOARCH=386` (pure Go, no Rust toolchain)                |
+| `ruby`             | `standardrb`, `cargo clippy -p iscc-rb`, `rake compile`, `rake test`                                                               |
+| `ruby-source-gem`  | `scripts/build_ruby_source_gem.py` builds the source gem; Ruby 3.4 installs it into an empty gem home, runs `conformance_selftest` |
+| `cpp`              | CMake Debug + ASAN build of `packages/cpp` against `iscc-ffi`, runs the C++ test binary                                            |
+| `swift`            | On macOS: root `Package.swift` dump, `cargo build -p iscc-uniffi`, `swift build` + `swift test`                                    |
+| `kotlin`           | `cargo build -p iscc-uniffi`, UniFFI Kotlin + Swift outputs regenerated and diffed (modulo trailing whitespace), `./gradlew test`  |
+| `bench`            | `cargo bench --no-run` compile-only benchmark verification                                                                         |
+| `perf`             | `iai-callgrind` benches, non-zero-instruction assert, `iai_regression.py --check` vs `.iai-baseline.json`                          |
+| `semver`           | `cargo-semver-checks` for `iscc-lib` (informational via `continue-on-error` pre-1.0)                                               |
+| `coverage`         | `cargo llvm-cov` LCOV + `cargo crap` annotations/SARIF + `--fail-regression --fail-above` gate (see below)                         |
+| `audit`            | `cargo deny check` per root `deny.toml` (advisories, bans, licenses, sources)                                                      |
+| `release-workflow` | `check_release_workflow.py --check-action-inputs`: `release.yml` `with:` keys vs published `action.yml`s                           |
 
-`python-test` is a `['3.10', '3.14']` matrix and `python` is its `if: always()` aggregator (one
-stable required-check name), so the 21 job keys surface as 22 check names on a push. The first
-column is the literal `ci.yml` job key; `scripts/check_ci_job_table.py` (prek hook
-`check-ci-job-table` plus the `tests/test_check_ci_job_table.py` anchor) keeps this table in exact
-parity with the workflow's `jobs:` keys.
+`python-test` runs on Linux with Python 3.10 and 3.15 (floor and newest) and on Windows with 3.10,
+the one Windows run of a test suite, and `python` is its `if: always()` aggregator (one stable
+required-check name). `dotnet-test` runs the net8.0 build on the .NET 8 and .NET 10 runtimes
+(`DOTNET_ROLL_FORWARD=LatestMajor`; a smoke test asserts the runtime major through
+`ISCC_EXPECT_DOTNET_MAJOR`), and `dotnet` is its aggregator. So a push shows more check names than
+there are job keys. The first column is the literal `ci.yml` job key;
+`scripts/check_ci_job_table.py` (prek hook `check-ci-job-table` plus the
+`tests/test_check_ci_job_table.py` anchor) keeps this table in exact parity with the workflow's
+`jobs:` keys.
 
 CI does NOT use `mise` — it calls `cargo`, `uv`, and tools directly. Standard action set:
 `dtolnay/rust-toolchain` (stable channel), `Swatinem/rust-cache`, `astral-sh/setup-uv`,
@@ -167,10 +175,10 @@ Single workflow supporting both coordinated full releases and selective per-regi
 ### Design Principles
 
 - **One workflow file** — all release logic lives in `release.yml`
-- **`workflow_dispatch` is the primary release mechanism** — manual trigger from the GitHub Actions
-    UI with checkboxes to select which registries to publish to
-- **Tag trigger as convenience** — pushing a `v*.*.*` tag publishes all registries (equivalent to
-    checking all boxes)
+- **`workflow_dispatch` is the only release trigger** — manual trigger from the GitHub Actions UI
+    with checkboxes to select which registries to publish to
+- **The workflow creates the release tags** — a run with a `version` input tags the release itself
+    and publishes every registry (see Job Conditions); pushing a tag starts nothing
 - **Shared version** — all packages share the workspace version from root `Cargo.toml`; version is
     bumped once in a single commit before releasing
 - **Independent jobs** — each registry's build+publish pipeline is a self-contained job chain; one
@@ -182,10 +190,15 @@ Single workflow supporting both coordinated full releases and selective per-regi
 
 ```yaml
 on:
-  push:
-    tags: [v*.*.*]
   workflow_dispatch:
     inputs:
+      version:
+        description: >-
+          Release version (e.g. 0.3.1). Triggers full release: builds Swift
+          XCFramework, updates Package.swift, creates tag, publishes all
+          registries. Leave empty to re-trigger individual registries.
+        type: string
+        default: ''
       crates-io:
         description: Publish iscc-lib to crates.io
         type: boolean
@@ -210,25 +223,27 @@ on:
         description: Publish Iscc.Lib to NuGet
         type: boolean
         default: false
+      # excerpt: the ffi and maven-kotlin checkboxes have the same shape
 ```
 
 ### Job Conditions
 
-Each job chain activates on either a tag push or its corresponding checkbox:
+`release.yml` is **`workflow_dispatch`-only** — a tag push does not trigger it; the workflow creates
+the tags itself. Two ways to run it:
 
-- **crates.io jobs**: `if: startsWith(github.ref, 'refs/tags/v') || inputs.crates-io`
-- **PyPI jobs** (build-wheels, build-sdist, publish-pypi):
-    `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
-- **npm jobs** (build-napi, build-wasm, publish-npm-lib, publish-npm-wasm):
-    `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
-- **Maven jobs** (build-jni, assemble-jar, publish-maven):
-    `if: startsWith(github.ref, 'refs/tags/v') || inputs.maven`
-- **RubyGems jobs** (build-ruby-gems, publish-rubygems):
-    `if: startsWith(github.ref, 'refs/tags/v') || inputs.rubygems`
-- **NuGet jobs** (pack-nuget, test-nuget, publish-nuget):
-    `if: startsWith(github.ref, 'refs/tags/v') || inputs.nuget`
+- **Full release** — `version: X.Y.Z`. `build-ffi` and `test-ffi` run first, so a broken FFI archive
+    stops the release before any tag exists. `prepare-release` (macos-15) then builds the Swift
+    XCFramework, commits the `Package.swift` checksum and the vcpkg and Conan hashes of the
+    `build-ffi` archives to `main`, creates the `vX.Y.Z` and `packages/go/vX.Y.Z` tags and the
+    GitHub Release; every registry chain then runs.
+- **Registry-only re-trigger** — no `version`, one or more checkboxes (`crates-io`, `pypi`, `npm`,
+    `maven`, `maven-kotlin`, `ffi`, `rubygems`, `nuget`). `prepare-release` is skipped and only the
+    selected chains run (build → test → publish).
 
-Tag pushes activate all jobs (no inputs are set, but the tag condition passes for all).
+Every job except `prepare-release` carries
+`if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.<registry>) }}` so a skipped
+`prepare-release` does not propagate down the `needs` chain, while a failed build/test still blocks
+its publish. Each publish job skips gracefully when the version is already on its registry.
 
 ### Authentication
 
@@ -265,30 +280,17 @@ versioning adds overhead without benefit for a single-maintainer project where t
 independent logic. Users never need a compatibility matrix — the version number is the compatibility
 story.
 
-**Full release (all registries):**
+**Full release (all registries):** run the `/release X.Y.Z` skill
+(`.claude/skills/release/SKILL.md`). It bumps `workspace.package.version`, runs
+`mise run version:sync` / `version:check` and the quality gates, commits `Release X.Y.Z` on
+`develop`, merges a `develop` → `main` PR (merge commit, human-approved), then runs
+`gh workflow run release.yml --ref main -f version=X.Y.Z`. Afterwards `develop` is fast-forwarded to
+`main` to pick up the checksum commit.
 
-1. Bump version in root `Cargo.toml` (`workspace.package.version`)
-2. Run `mise run version:sync` to propagate to non-Cargo manifests
-3. Run `mise run version:check` to validate consistency
-4. Commit: `git commit -m "Release X.Y.Z"`
-5. Tag: `git tag vX.Y.Z`
-6. Push: `git push && git push --tags`
-7. Tag push triggers `release.yml` — all registry jobs activate
-
-**Selective release (single registry):**
-
-1. Bump version in root `Cargo.toml` (if not already at the target version)
-2. Run `mise run version:sync` and `mise run version:check`
-3. Commit and push (no tag). If on `develop`, merge to `main` first via PR
-4. Go to GitHub Actions → Release → Run workflow
-5. Check only the registries that need publishing (e.g., `pypi: true`)
-6. Unchecked registries skip entirely — no builds, no publish attempts
-
-**When to use selective publishing:**
-
-- Binding-layer bugfix (e.g., Python `__init__.py` wrapper fix) — publish only PyPI
-- Rust core change that affects all bindings — full release via tag
-- First release of a binding — selective publish for that registry only
+**Recovering one registry:** prefer `gh run rerun <run-id> --failed` (reuses build artifacts). If a
+fix had to land on `main` first, or the artifacts expired, dispatch
+`gh workflow run release.yml --ref main -f <registry>=true`. Never pass `-f version=` to recover —
+that re-runs `prepare-release`, which force-pushes the release tags.
 
 ## Build Matrices
 
@@ -298,10 +300,10 @@ story.
 | ---------------- | ----------------------- | ---------- |
 | ubuntu-latest    | x86_64                  | abi3-py310 |
 | ubuntu-24.04-arm | aarch64                 | abi3-py310 |
-| macos-14         | universal2-apple-darwin | abi3-py310 |
+| macos-15         | universal2-apple-darwin | abi3-py310 |
 | windows-latest   | x64                     | abi3-py310 |
 
-One wheel per platform covers Python 3.10 through 3.14+ (abi3 stable ABI).
+One wheel per platform covers Python 3.10 and every later version (abi3 stable ABI).
 
 The aarch64 wheel builds on a **native ARM runner** (`ubuntu-24.04-arm`, free for public repos) —
 not QEMU cross-compilation — so the existing maturin-action step with `manylinux: auto` picks the
@@ -317,8 +319,8 @@ Detailed plan: `.claude/plans/restore-linux-aarch64-python-wheels.md`.
 | -------------- | ------------------------- |
 | ubuntu-latest  | x86_64-unknown-linux-gnu  |
 | ubuntu-latest  | aarch64-unknown-linux-gnu |
-| macos-14       | aarch64-apple-darwin      |
-| macos-14       | x86_64-apple-darwin       |
+| macos-15       | aarch64-apple-darwin      |
+| macos-15       | x86_64-apple-darwin       |
 | windows-latest | x86_64-pc-windows-msvc    |
 
 ### WASM (wasm-pack)
@@ -344,8 +346,8 @@ Single build on ubuntu-latest, platform-independent.
 | -------------- | ------------------------- | -------------- | ----------------- |
 | ubuntu-latest  | x86_64-unknown-linux-gnu  | linux-x86_64   | libiscc_jni.so    |
 | ubuntu-latest  | aarch64-unknown-linux-gnu | linux-aarch64  | libiscc_jni.so    |
-| macos-14       | aarch64-apple-darwin      | macos-aarch64  | libiscc_jni.dylib |
-| macos-14       | x86_64-apple-darwin       | macos-x86_64   | libiscc_jni.dylib |
+| macos-15       | aarch64-apple-darwin      | macos-aarch64  | libiscc_jni.dylib |
+| macos-15       | x86_64-apple-darwin       | macos-x86_64   | libiscc_jni.dylib |
 | windows-latest | x86_64-pc-windows-msvc    | windows-x86_64 | iscc_jni.dll      |
 
 Native libraries are bundled inside the JAR under `META-INF/native/{platform}/` and extracted at
@@ -370,18 +372,9 @@ automatically at build time; others require explicit synchronization.
 
 ### Manual propagation (sync script required)
 
-| Target                                   | What is synced                       |
-| ---------------------------------------- | ------------------------------------ |
-| `pyproject.toml`                         | Root project version (dev workspace) |
-| `crates/iscc-napi/package.json`          | npm package version                  |
-| `crates/iscc-rb/lib/iscc_lib/version.rb` | Ruby gem VERSION constant            |
-| `crates/iscc-jni/java/pom.xml`           | Maven artifact version               |
-| `mise.toml`                              | Default `--version` flag             |
-| `scripts/test_install.py`                | Registry check fallback version      |
-| `README.md`                              | Maven dependency snippet             |
-| `crates/iscc-jni/README.md`              | Maven dependency snippet             |
-| `docs/howto/java.md`                     | Maven dependency snippet             |
-| `docs/java-api.md`                       | Maven + Gradle dependency snippets   |
+The sync targets are the `TARGETS` list in `scripts/version_sync.py`: manifests, version constants
+and script defaults that do not derive the version at build time, and the dependency snippets in
+READMEs and docs that pin a version. The list is not repeated here.
 
 Go modules use git tags for versioning — no manifest version field to sync.
 
@@ -389,19 +382,20 @@ Go modules use git tags for versioning — no manifest version field to sync.
 
 | Task            | Command                  | Purpose                                                  |
 | --------------- | ------------------------ | -------------------------------------------------------- |
-| `version:sync`  | `mise run version:sync`  | Read workspace version, update all 9 sync targets        |
+| `version:sync`  | `mise run version:sync`  | Read workspace version, update every sync target         |
 | `version:check` | `mise run version:check` | Validate all targets match; fail if mismatch (run in CI) |
 
 The sync script (`scripts/version_sync.py`) reads the canonical version from root `Cargo.toml` and
-updates all targets listed above. It is called before every release commit (see Release Protocol
+updates every entry in `TARGETS`. It is called before every release commit (see Release Protocol
 above). CI runs `version:check` on every push to catch drift.
 
 ## Dev Tooling
 
 ### Tool Management
 
-**mise** (`mise.toml`) manages tool versions and task definitions. **uv** manages the Python
-environment. Neither is used in CI — CI installs tools via GitHub Actions.
+**mise** (`mise.toml`) holds the task definitions and pins the development Ruby (`[tools]`, used by
+the standardrb hooks and the devcontainer setup). **uv** manages the Python environment. Neither is
+used in CI — CI installs tools via GitHub Actions.
 
 ### Task Runner (mise tasks)
 
@@ -440,20 +434,23 @@ so releases never ship stale or vulnerable pins.
 
 **Manifest surface:**
 
-| Ecosystem | Manifests                                                                                                                                           |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rust      | root `Cargo.toml` (`workspace.dependencies`) + `Cargo.lock`                                                                                         |
-| Python    | `pyproject.toml` + `uv.lock` (dev environment; runtime ships as abi3 wheel)                                                                         |
-| npm       | `crates/iscc-napi/package.json`                                                                                                                     |
-| Ruby      | `crates/iscc-rb/Gemfile` + `iscc-lib.gemspec` (+ `Gemfile.lock`)                                                                                    |
-| Java      | `crates/iscc-jni/java/pom.xml`                                                                                                                      |
-| Kotlin    | `packages/kotlin/build.gradle.kts`                                                                                                                  |
-| .NET      | `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` + test project                                                                                           |
-| Go        | `packages/go/go.mod`                                                                                                                                |
-| Tooling   | `mise.toml` tool pins, `.pre-commit-config.yaml` hook pins, GitHub Actions versions and pinned CI tools (e.g. `cargo-crap`) in `.github/workflows/` |
+| Ecosystem | Manifests                                                                                                                                                         |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rust      | root `Cargo.toml` (`workspace.dependencies`) + `Cargo.lock`                                                                                                       |
+| Python    | `pyproject.toml` + `uv.lock` (dev environment; runtime ships as abi3 wheel)                                                                                       |
+| npm       | `crates/iscc-napi/package.json` + `package-lock.json`                                                                                                             |
+| Ruby      | `crates/iscc-rb/Gemfile` + `iscc-lib.gemspec` (+ `Gemfile.lock`)                                                                                                  |
+| Java      | `crates/iscc-jni/java/pom.xml`                                                                                                                                    |
+| Kotlin    | `packages/kotlin/build.gradle.kts`                                                                                                                                |
+| .NET      | `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` + test project                                                                                                         |
+| Go        | `packages/go/go.mod`                                                                                                                                              |
+| Tooling   | `.pre-commit-config.yaml` hook pins, GitHub Actions versions and pinned CI tools (e.g. `cargo-crap`) in `.github/workflows/`                                      |
+| Runtimes  | setup-action `*-version` inputs in `.github/workflows/`, the `toolchain` line in `packages/go/go.mod`, the `.devcontainer/Dockerfile` base image and `GO_VERSION` |
 
 **Policy:** patch/minor bumps by default; each major bump is evaluated individually (changelog and
 API impact). A dependency deliberately held back gets a documented reason next to its pin.
+Supported-version floors (the Go `go` directive, abi3-py310, Java, .NET, Ruby, MSRV) are
+compatibility promises that only the human raises.
 
 **Known pinning constraints:**
 
@@ -466,81 +463,81 @@ API impact). A dependency deliberately held back gets a documented reason next t
 
 **Verified when:**
 
-- [ ] No dependency in any manifest above lags its latest stable release by a major version without
-    a documented hold-back reason
-- [ ] Lockfiles (`Cargo.lock`, `uv.lock`, `Gemfile.lock`) are regenerated on the refreshed set
-- [ ] All CI quality gates and conformance suites pass on the refreshed set
+- No dependency in any manifest above lags its latest stable release by a major version without a
+    documented hold-back reason
+- Lockfiles (`Cargo.lock`, `uv.lock`, `Gemfile.lock`, `crates/iscc-napi/package-lock.json`) are
+    regenerated on the refreshed set
+- All CI quality gates and conformance suites pass on the refreshed set
 
 ## Verification Criteria
 
 ### CI
 
-- [x] All quality gate jobs run on push to `main`/`develop` and on PRs to `main`
-- [x] Rust job checks fmt, clippy (workspace-wide), and tests
-- [x] Python job checks ruff and runs pytest
-- [x] Node.js job builds napi addon and runs tests
-- [x] WASM job runs wasm-pack tests
-- [x] C FFI job generates headers, compiles, and runs C test program
-- [x] Java job builds JNI crate and runs Maven tests
-- [x] Go job runs CGO_ENABLED=0 go test and go vet (pure Go, no Rust toolchain)
-- [ ] Ruby job compiles native extension and runs conformance tests
-- [x] Version job runs scripts/version_sync.py --check for manifest consistency
-- [x] Bench job runs cargo bench --no-run for compile-only benchmark verification
-- [x] CI does not use `mise` — calls tools directly
-- [x] Coverage job generates and uploads an LCOV report for `iscc-lib` via `cargo llvm-cov` (Phase
-    1\)
-- [x] CRAP job runs `cargo crap` in report-only mode with `--format github` annotations and uploads
+- All quality gate jobs run on push to `main`/`develop` and on PRs to `main`
+- Rust job checks fmt, clippy (workspace-wide), and tests
+- Python job checks ruff and runs pytest
+- Node.js job builds napi addon and runs tests
+- WASM job runs wasm-pack tests
+- C FFI job generates headers, compiles, and runs C test program
+- Java job builds JNI crate and runs Maven tests
+- Go job runs CGO_ENABLED=0 go test and go vet (pure Go, no Rust toolchain), then repeats both as a
+    32-bit build (`GOARCH=386`) on the same amd64 runner
+- Ruby job compiles native extension and runs conformance tests
+- Version job runs scripts/version_sync.py --check for manifest consistency
+- Bench job runs cargo bench --no-run for compile-only benchmark verification
+- CI does not use `mise` — calls tools directly
+- Coverage job generates and uploads an LCOV report for `iscc-lib` via `cargo llvm-cov` (Phase 1)
+- CRAP job runs `cargo crap` in report-only mode with `--format github` annotations and uploads
     SARIF to GitHub Code Scanning (Phase 2)
-- [x] CRAP job fails on CRAP-score regression vs the committed `.crap-baseline.json`
+- CRAP job fails on CRAP-score regression vs the committed `.crap-baseline.json`
     (`--fail-regression --baseline`), refreshed via `mise run crap:baseline` in a reviewed commit
     (Phase 3)
-- [x] `cargo-crap` is pinned to a specific version and installed via `cargo binstall`
-- [x] `.cargo-crap.toml` configures threshold, excluded binding crates, and missing-coverage policy
-- [x] `mise run coverage` and `mise run crap` reproduce the gate locally
-- [x] Semver job runs `cargo semver-checks` for `iscc-lib` against the last published release
+- `cargo-crap` is pinned to a specific version and installed via `cargo binstall`
+- `.cargo-crap.toml` configures threshold, excluded binding crates, and missing-coverage policy
+- `mise run coverage` and `mise run crap` reproduce the gate locally
+- Semver job runs `cargo semver-checks` for `iscc-lib` against the last published release
     (informational pre-1.0 via `continue-on-error`; enforcing from v1.0.0)
-- [x] Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the
+- Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the
     committed baseline; baseline refreshes are reviewed commits
-- [x] CRAP job also fails via `--fail-above` on any function (including new/renamed entries absent
-    from the baseline) whose CRAP score exceeds the `.cargo-crap.toml` `threshold` (30), closing the
+- CRAP job also fails via `--fail-above` on any function (including new/renamed entries absent from
+    the baseline) whose CRAP score exceeds the `.cargo-crap.toml` `threshold` (30), closing the
     regression-only blind spot
-- [x] Audit job runs `cargo deny check` (advisories + bans + licenses) over the workspace via a root
+- Audit job runs `cargo deny check` (advisories + bans + licenses) over the workspace via a root
     `deny.toml`, failing CI on a flagged advisory, banned/duplicate crate, or disallowed license;
     `mise run audit` reproduces it locally
 
 ### Release
 
-- [x] `workflow_dispatch` trigger with boolean inputs for each registry (crates-io, pypi, npm,
-    maven)
-- [x] Tag push `v*.*.*` triggers all publish jobs
-- [x] `workflow_dispatch` with only `pypi: true` builds and publishes only Python wheels
-- [x] `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
-- [x] `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
-- [x] `workflow_dispatch` with only `maven: true` builds and publishes only to Maven Central
-- [ ] `workflow_dispatch` with only `rubygems: true` builds and publishes only to RubyGems
-- [x] `workflow_dispatch` with only `nuget: true` builds and publishes only to NuGet
-- [x] Each registry's jobs are independent — failure in one does not block others
-- [x] crates.io uses OIDC trusted publishing (no API key secret)
-- [x] PyPI uses OIDC trusted publishing (no API key secret)
-- [x] npm uses OIDC trusted publishing (no `NPM_TOKEN` secret)
-- [x] Maven Central uses GPG signing + Sonatype Central Portal credentials
-- [ ] RubyGems uses OIDC trusted publishing (or `GEM_HOST_API_KEY` fallback)
-- [x] NuGet uses scoped API key (`NUGET_API_KEY` secret)
-- [x] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
-- [ ] Python wheel matrix includes manylinux aarch64, built on a native ARM runner
-    (`ubuntu-24.04-arm`) and install-/import-tested on ARM before publish (see Build Matrices; plan:
+- `workflow_dispatch` trigger with boolean inputs for each registry (crates-io, pypi, npm, maven)
+- `workflow_dispatch` with `version` runs every registry chain and creates the release tags; a tag
+    push does not trigger the workflow
+- `workflow_dispatch` with only `pypi: true` builds and publishes only Python wheels
+- `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
+- `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
+- `workflow_dispatch` with only `maven: true` builds and publishes only to Maven Central
+- `workflow_dispatch` with only `rubygems: true` builds and publishes only to RubyGems
+- `workflow_dispatch` with only `nuget: true` builds and publishes only to NuGet
+- Each registry's jobs are independent — failure in one does not block others
+- crates.io uses OIDC trusted publishing (no API key secret)
+- PyPI uses OIDC trusted publishing (no API key secret)
+- npm uses OIDC trusted publishing (no `NPM_TOKEN` secret)
+- Maven Central uses GPG signing + Sonatype Central Portal credentials
+- RubyGems uses OIDC trusted publishing (or `GEM_HOST_API_KEY` fallback)
+- NuGet uses scoped API key (`NUGET_API_KEY` secret)
+- Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
+- Python wheel matrix includes manylinux aarch64, built on a native ARM runner (`ubuntu-24.04-arm`)
+    and install-/import-tested on ARM before publish (see Build Matrices; plan:
     `.claude/plans/restore-linux-aarch64-python-wheels.md`)
-- [x] Java JAR bundles 5-platform native libraries under `META-INF/native/`
-- [ ] Ruby precompiled gems available for 5 platforms (Linux x86_64/aarch64, macOS x86_64/arm64,
-    Windows x64)
-- [x] Publishing an existing version skips gracefully instead of failing
-- [x] All build artifacts uploaded via `actions/upload-artifact@v4`
+- Java JAR bundles native libraries for every release platform under `META-INF/native/`
+- Ruby precompiled gems available for Linux x86_64/aarch64, macOS x86_64/arm64 and Windows x64
+- Publishing an existing version skips gracefully instead of failing
+- All build artifacts uploaded via `actions/upload-artifact@v4`
 
 ### Version Sync
 
-- [x] Version defined once in root `Cargo.toml` `[workspace.package]`
-- [x] All Cargo crates inherit version via `version.workspace = true`
-- [x] Python version derived automatically via maturin `dynamic = ["version"]`
-- [x] WASM version synced automatically via CI script in release.yml
-- [x] `mise run version:sync` updates all 9 sync targets (manifests, docs, scripts)
-- [x] `mise run version:check` validates all targets match (run in CI on every push)
+- Version defined once in root `Cargo.toml` `[workspace.package]`
+- All Cargo crates inherit version via `version.workspace = true`
+- Python version derived automatically via maturin `dynamic = ["version"]`
+- WASM version synced automatically via CI script in release.yml
+- `mise run version:sync` updates every sync target (manifests, docs, scripts)
+- `mise run version:check` validates all targets match (run in CI on every push)

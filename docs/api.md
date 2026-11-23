@@ -5,15 +5,16 @@ description: Python API reference for ISCC code generation functions and result 
 
 # API Reference
 
-Python bindings for the ISCC (ISO 24138:2024) code generation functions. All functions accept typed
-parameters and return **JSON strings** — use `json.loads()` to parse the result.
+Python bindings for the ISCC (ISO 24138:2024) code generation functions. The `gen_*` functions
+accept typed parameters and return result objects — `dict` subclasses whose keys are also readable
+as attributes.
 
 ```python
-import json
 from iscc_lib import gen_meta_code_v0
 
-result = json.loads(gen_meta_code_v0("Example Title"))
+result = gen_meta_code_v0("Example Title")
 print(result["iscc"])  # "ISCC:..."
+print(result.iscc)  # same value
 ```
 
 ## Functions

@@ -10,13 +10,12 @@ Add the dependency to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.iscc:iscc-lib-kotlin:0.7.0")
-    implementation("net.java.dev.jna:jna:5.19.1")
+    implementation("io.iscc:iscc-lib-kotlin:0.8.0")
 }
 ```
 
-The native `libiscc_uniffi` shared library must be available on `java.library.path` and
-`jna.library.path` at runtime.
+The artifact bundles the native `libiscc_uniffi` library for Linux, macOS and Windows and pulls in
+JNA as a runtime dependency, which loads the library automatically.
 
 ## Requirements
 
@@ -68,11 +67,13 @@ assert(conformanceSelftest())
 - `genIsccCodeV0` — Composite ISCC-CODE from unit codes
 - `genSumCodeV0` — Single-pass ISCC-CODE from a file path
 
-Plus codec operations (`encodeComponent`, `isccDecode`, `isccDecompose`), text utilities
-(`textClean`, `textCollapse`, `textTrim`, `textRemoveNewlines`), encoding helpers (`encodeBase64`,
-`jsonToDataUrl`), algorithm primitives, and constants.
+Plus codec operations (`encodeComponent`, `isccDecode`, `isccDecompose`, `encodeSeq`, `decodeSeq`),
+text utilities (`textClean`, `textCollapse`, `textTrim`, `textRemoveNewlines`), encoding helpers
+(`encodeBase64`, `jsonToDataUrl`), algorithm primitives, and constants.
 
 ## Building from Source
+
+Optional, for development on this repository:
 
 ```bash
 # Build the Rust UniFFI library

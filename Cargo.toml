@@ -12,7 +12,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.7.0"
+version = "0.8.0"
 edition = "2024"
 rust-version = "1.85"
 authors = ["Titusz Pan <tp@py7.de>"]
@@ -31,7 +31,6 @@ serde_json_canonicalizer = "0.3.2"
 thiserror = "2"
 unicode-normalization = "0.1"
 unicode-general-category = "1"
-xxhash-rust = { version = "0.8", features = ["xxh32"] }
 # note: pyo3 bumps must re-verify `gil_used = true` (crates/iscc-py/src/lib.rs) and the
 # `py.detach` call sites (issue #41).
 pyo3 = { version = "0.29", features = ["abi3-py310"] }
@@ -41,6 +40,7 @@ napi-build = "2"
 wasm-bindgen = "0.2"
 wasm-bindgen-test = "0.3"
 serde-wasm-bindgen = "0.6"
+js-sys = "0.3"
 # criterion is a dev-dependency of iscc-lib only, consumed by the `benchmarks` bench target;
 # a dev-dependency is never built by downstream consumers, so its rustc-1.86 floor is a
 # contributor/bench toolchain floor, not the published MSRV (rust-version stays 1.85).

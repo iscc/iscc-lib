@@ -83,10 +83,12 @@ includedir=${prefix}/include
 
 Name: iscc-ffi
 Description: ISCC (ISO 24138) shared library
-Version: 0.2.0
+Version: X.Y.Z
 Libs: -L${libdir} -liscc_ffi
 Cflags: -I${includedir}
 ```
+
+Replace `X.Y.Z` with the version of the iscc-lib release you installed.
 
 ## ISCC-SUM quick start
 
@@ -183,8 +185,9 @@ int main(int argc, char *argv[])
 
 !!! warning "Finalize is single-use"
 
-    After calling `_finalize()`, the hasher's internal state is consumed. Subsequent `_update()` or
-    `_finalize()` calls will fail. You must still call `_free()` to release the wrapper memory.
+    The first `_finalize()` call consumes the hasher's internal state, even when it fails (for example
+    on an invalid `bits` value). Subsequent `_update()` or `_finalize()` calls will fail. You must still
+    call `_free()` to release the wrapper memory.
 
 A complete example with full error handling is available at
 [`crates/iscc-ffi/examples/iscc_sum.c`](https://github.com/iscc/iscc-lib/blob/develop/crates/iscc-ffi/examples/iscc_sum.c).
@@ -249,16 +252,16 @@ always a safe no-op.
 
 ### Ownership rules
 
-| Return type                | Free with                       | Example functions                          |
-| -------------------------- | ------------------------------- | ------------------------------------------ |
-| `char*`                    | `iscc_free_string()`            | `iscc_gen_*_v0`, text utilities, codec ops |
-| `char**`                   | `iscc_free_string_array()`      | `iscc_decompose`, `iscc_sliding_window`    |
-| `iscc_IsccByteBuffer`      | `iscc_free_byte_buffer()`       | `iscc_alg_simhash`, `iscc_alg_minhash_256` |
-| `iscc_IsccByteBufferArray` | `iscc_free_byte_buffer_array()` | `iscc_alg_cdc_chunks`                      |
-| `iscc_IsccDecodeResult`    | `iscc_free_decode_result()`     | `iscc_decode`                              |
-| `iscc_IsccSumCodeResult`   | `iscc_free_sum_code_result()`   | `iscc_gen_sum_code_v0`                     |
-| `iscc_FfiDataHasher*`      | `iscc_data_hasher_free()`       | `iscc_data_hasher_new`                     |
-| `iscc_FfiInstanceHasher*`  | `iscc_instance_hasher_free()`   | `iscc_instance_hasher_new`                 |
+| Return type                | Free with                       | Example functions                                             |
+| -------------------------- | ------------------------------- | ------------------------------------------------------------- |
+| `char*`                    | `iscc_free_string()`            | `iscc_gen_*_v0`, text utilities, codec ops                    |
+| `char**`                   | `iscc_free_string_array()`      | `iscc_decompose`, `iscc_decode_seq`, `iscc_sliding_window`    |
+| `iscc_IsccByteBuffer`      | `iscc_free_byte_buffer()`       | `iscc_alg_simhash`, `iscc_alg_minhash_256`, `iscc_encode_seq` |
+| `iscc_IsccByteBufferArray` | `iscc_free_byte_buffer_array()` | `iscc_alg_cdc_chunks`                                         |
+| `iscc_IsccDecodeResult`    | `iscc_free_decode_result()`     | `iscc_decode`                                                 |
+| `iscc_IsccSumCodeResult`   | `iscc_free_sum_code_result()`   | `iscc_gen_sum_code_v0`                                        |
+| `iscc_FfiDataHasher*`      | `iscc_data_hasher_free()`       | `iscc_data_hasher_new`                                        |
+| `iscc_FfiInstanceHasher*`  | `iscc_instance_hasher_free()`   | `iscc_instance_hasher_new`                                    |
 
 !!! warning "Common pitfalls"
 
@@ -382,6 +385,52 @@ std::cout << sum.datahash << std::endl;
 std::cout << sum.filesize << std::endl;
 ```
 
+The content-specific gen functions take pre-extracted features. The values below are sample inputs,
+not real media:
+
+```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+#include <string>
+#include <vector>
+
+int main() {
+    // Image-Code from a 32x32 grayscale thumbnail (1024 pixel bytes)
+    std::vector<uint8_t> pixels(1024, 128);
+    auto image = iscc::gen_image_code_v0(pixels);
+    std::cout << image.iscc << std::endl; // "ISCC:EEAYAAAAAAAAAAAA"
+
+    // Audio-Code from a Chromaprint fingerprint vector (signed integers)
+    std::vector<int32_t> fingerprint = {123456, -789012, 345678, 901234};
+    auto audio = iscc::gen_audio_code_v0(fingerprint);
+    std::cout << audio.iscc << std::endl; // "ISCC:EIAQABPGNYAADYSA"
+
+    // Video-Code from MPEG-7 frame signatures (380 integers per frame)
+    std::vector<std::vector<int32_t>> frame_sigs = {
+        std::vector<int32_t>(380, 0),
+        std::vector<int32_t>(380, 1),
+    };
+    auto video = iscc::gen_video_code_v0(frame_sigs);
+    std::cout << video.iscc << std::endl; // "ISCC:EMAQAAAAAAAAAAAA"
+
+    // Mixed-Code from Content-Codes of different types
+    auto text = iscc::gen_text_code_v0("Hello World");
+    auto mixed = iscc::gen_mixed_code_v0({text.iscc, image.iscc});
+    std::cout << mixed.iscc << std::endl; // "ISCC:EQASDJINXFXA2SQX"
+
+    // Instance-Code from byte data, combined with a Data-Code into an ISCC-CODE
+    std::string content;
+    for (int i = 0; i < 1000; i++) content += "Hello World";
+    std::vector<uint8_t> data(content.begin(), content.end());
+    auto dc = iscc::gen_data_code_v0(data);
+    auto ic = iscc::gen_instance_code_v0(data);
+    std::cout << ic.iscc << std::endl; // "ISCC:IAA24FYDB5G4T7JW"
+
+    auto code = iscc::gen_iscc_code_v0({dc.iscc, ic.iscc});
+    std::cout << code.iscc << std::endl; // "ISCC:KUABGAWXH2VYUQWIVYLQGD2NZH6TM"
+}
+```
+
 ### Streaming
 
 `iscc::DataHasher` and `iscc::InstanceHasher` are RAII move-only classes. The constructor allocates,
@@ -418,14 +467,15 @@ int main() {
 
 !!! warning "Finalize is single-use"
 
-    After calling `finalize()`, the hasher's internal state is consumed. Subsequent `update()` or
-    `finalize()` calls will throw `iscc::IsccError`. The destructor still runs to release the wrapper
-    memory.
+    The first `finalize()` call consumes the hasher's internal state, even when it throws (for example
+    on an invalid `bits` value). Subsequent `update()` or `finalize()` calls will throw
+    `iscc::IsccError`. The destructor still runs to release the wrapper memory.
 
 ### Error handling
 
 All `iscc::` functions throw `iscc::IsccError` (inherits `std::runtime_error`) on failure — no NULL
-checks needed:
+checks needed. A `std::string` input with an embedded NUL (`\0`) is rejected with `iscc::IsccError`
+rather than truncated at the NUL:
 
 ```cpp
 #include <iscc/iscc.hpp>
@@ -456,6 +506,49 @@ for (const auto& unit : units) {
 }
 ```
 
+`iscc::encode_component` builds an ISCC-UNIT from raw header fields and a digest, the inverse of
+`iscc::iscc_decode`:
+
+```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+#include <vector>
+
+int main() {
+    // maintype 0 (Meta), subtype 0, version 0, 64 bits, 8-byte digest
+    std::vector<uint8_t> digest = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+    std::string code = iscc::encode_component(0, 0, 0, 64, digest);
+    std::cout << code << std::endl; // "AAAQCAQDAQCQMBYI" (no "ISCC:" prefix)
+
+    auto decoded = iscc::iscc_decode(code);
+    std::cout << (int)decoded.length << std::endl; // 1 (length index, not a bit count)
+    std::cout << (decoded.digest == digest) << std::endl; // 1
+}
+```
+
+### ISCC-SEQ
+
+`iscc::encode_seq(const std::vector<std::string>&) -> std::vector<uint8_t>` packs an ordered list of
+ISCC-UNITs into an ISCC-SEQ byte string (IEP-0020): the header and body bytes of each unit, in the
+given order. `iscc::decode_seq(const std::vector<uint8_t>&) -> std::vector<std::string>` reads one
+back into `ISCC:`-prefixed unit strings. Base32 input is strict (no padding, zero spare bits) and
+upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected. The C functions
+are `iscc_encode_seq` (free the `iscc_IsccByteBuffer` with `iscc_free_byte_buffer()`) and
+`iscc_decode_seq` (free the `char**` with `iscc_free_string_array()`).
+
+```cpp
+#include <iscc/iscc.hpp>
+
+auto data = iscc::encode_seq({"ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"});
+std::cout << data.size() << std::endl; // 34, starts with 0x20 0x07 0xa8 0x82 0x48 0xc5
+
+auto units = iscc::decode_seq(data);
+std::cout << units[0] << std::endl; // "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"
+
+// The round trip is defined on bytes: encode_seq(decode_seq(data)) == data
+bool same = iscc::encode_seq(units) == data; // true
+```
+
 ### ISCC-IDv1 (experimental)
 
 Mint an ISCC-IDv1 from a microsecond UTC timestamp and a HUB-ID. The timestamp occupies the high 52
@@ -477,6 +570,112 @@ uint16_t hub_id = (uint16_t)(n & 0xFFF); // 1
 uint8_t realm = d.subtype;               // 0
 // d.version == 1 for ISCC-IDv1
 ```
+
+### Text utilities
+
+The text normalization functions that the gen functions use internally are available for
+preprocessing your own text:
+
+```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+
+int main() {
+    // Normalize text for display (NFKC, control char removal, line ending normalization)
+    std::string cleaned = iscc::text_clean("  Hello\r\n\r\n\r\nWorld  ");
+    std::cout << (cleaned == "Hello\n\nWorld") << std::endl; // 1
+
+    // Remove newlines and collapse whitespace to single spaces
+    std::cout << iscc::text_remove_newlines("Hello\nWorld\nFoo") << std::endl; // "Hello World Foo"
+
+    // Trim text so its UTF-8 byte size does not exceed a limit
+    std::cout << iscc::text_trim("Hello World", 5) << std::endl; // "Hello"
+
+    // Simplify text for similarity hashing (lowercase, strip whitespace and punctuation)
+    std::cout << iscc::text_collapse("Hello, World!") << std::endl; // "helloworld"
+}
+```
+
+### Encoding utilities
+
+```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+
+int main() {
+    // Encode bytes to base64url (no padding)
+    std::cout << iscc::encode_base64({'H', 'e', 'l', 'l', 'o'}) << std::endl; // "SGVsbG8"
+
+    // Convert JSON to a data: URL with JCS canonicalization
+    std::cout << iscc::json_to_data_url("{\"key\":\"value\"}") << std::endl;
+    // "data:application/json;base64,eyJrZXkiOiJ2YWx1ZSJ9"
+}
+```
+
+### Algorithm primitives
+
+Low-level algorithm functions for advanced use cases:
+
+```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+#include <string>
+#include <vector>
+
+int main() {
+    // Overlapping substrings of `width` Unicode characters
+    auto windows = iscc::sliding_window("Hello World", 4);
+    std::cout << windows.front() << " " << windows.back() << std::endl; // "Hell orld"
+
+    // SimHash over equal-length digests
+    auto simhash = iscc::alg_simhash({{0xff, 0x00, 0xff, 0x00},
+                                      {0xff, 0xff, 0x00, 0x00},
+                                      {0xff, 0x00, 0x00, 0x00}});
+    std::cout << (int)simhash[0] << " " << (int)simhash[1] << std::endl; // "255 0"
+
+    // 256-bit MinHash digest from 32-bit features
+    auto minhash = iscc::alg_minhash_256({1, 2, 3, 4, 5});
+    std::cout << minhash.size() << std::endl; // 32
+
+    // Content-defined chunks: concatenated, they reproduce the input
+    std::string content;
+    for (int i = 0; i < 1000; i++) content += "Hello World";
+    std::vector<uint8_t> data(content.begin(), content.end());
+    auto chunks = iscc::alg_cdc_chunks(data, false, 1024);
+    std::vector<uint8_t> joined;
+    for (const auto& chunk : chunks) joined.insert(joined.end(), chunk.begin(), chunk.end());
+    std::cout << (joined == data) << std::endl; // 1
+
+    // Similarity-preserving hash from video frame signatures
+    std::vector<std::vector<int32_t>> frame_sigs = {
+        std::vector<int32_t>(380, 0),
+        std::vector<int32_t>(380, 1),
+    };
+    auto video_hash = iscc::soft_hash_video_v0(frame_sigs, 64);
+    std::cout << video_hash.size() << std::endl; // 8
+}
+```
+
+### Constants
+
+In C++ the algorithm constants are functions:
+
+```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+
+int main() {
+    std::cout << iscc::meta_trim_name() << std::endl;        // 128: max bytes for a name
+    std::cout << iscc::meta_trim_description() << std::endl; // 4096: max bytes for a description
+    std::cout << iscc::meta_trim_meta() << std::endl;        // 128000: max bytes for meta
+    std::cout << iscc::io_read_size() << std::endl;          // 4194304: default read buffer size
+    std::cout << iscc::text_ngram_size() << std::endl;       // 13: n-gram size for Text-Code
+}
+```
+
+Each C++ function above wraps the C function of the same name with an `iscc_` prefix (for example
+`iscc_text_clean`, `iscc_meta_trim_name`). See the [C FFI API Reference](../c-ffi-api.md) for the C
+signatures and the matching free functions.
 
 ### Conformance verification
 

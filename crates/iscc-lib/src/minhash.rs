@@ -3,6 +3,8 @@
 //! Implements 64-dimensional MinHash with universal hash functions and
 //! bit-interleaved compression, ported from `bio-codes/iscc-sum`.
 
+use crate::{IsccError, IsccResult};
+
 /// Maximum 64-bit unsigned value (2^64 - 1).
 const MAXI64: u64 = u64::MAX;
 
@@ -195,9 +197,22 @@ fn minhash_compress(mhash: &[u64], lsb: u32) -> Vec<u8> {
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 ///
-/// Calls `minhash` to get 64-dimensional hash vector, then compresses
+/// Validates that the feature list is non-empty, then delegates to
+/// `alg_minhash_256_inner`. Returns `Err(IsccError::InvalidInput)` for an
+/// empty list, where a minimum (and so a MinHash) is undefined.
+pub fn alg_minhash_256(features: &[u32]) -> IsccResult<Vec<u8>> {
+    if features.is_empty() {
+        return Err(IsccError::InvalidInput("features must not be empty".into()));
+    }
+    Ok(alg_minhash_256_inner(features))
+}
+
+/// Compute a 256-bit MinHash digest from 32-bit integer features (unchecked).
+///
+/// Internal variant for callers that always pass at least one feature.
+/// Calls `minhash` to get a 64-dimensional hash vector, then compresses
 /// with `lsb=4` to produce 32 bytes (64 × 4 bits = 256 bits).
-pub fn alg_minhash_256(features: &[u32]) -> Vec<u8> {
+pub(crate) fn alg_minhash_256_inner(features: &[u32]) -> Vec<u8> {
     let mhash = minhash(features);
     minhash_compress(&mhash, 4)
 }
@@ -241,23 +256,31 @@ mod tests {
 
     #[test]
     fn test_alg_minhash_256_empty() {
-        let result = alg_minhash_256(&[]);
-        assert_eq!(result.len(), 32);
-        // Empty features → all MAXH → all bits set in LSB 4 → all 0xFF
-        assert!(result.iter().all(|&b| b == 0xFF));
+        let err = alg_minhash_256(&[]).unwrap_err();
+        assert!(matches!(err, IsccError::InvalidInput(_)));
+        assert_eq!(err.to_string(), "invalid input: features must not be empty");
     }
 
     #[test]
     fn test_alg_minhash_256_single() {
-        let result = alg_minhash_256(&[1]);
+        let result = alg_minhash_256(&[1]).unwrap();
         assert_eq!(result.len(), 32);
+    }
+
+    #[test]
+    fn test_alg_minhash_256_matches_inner() {
+        let features = [100, 200, 300, 400, 500];
+        assert_eq!(
+            alg_minhash_256(&features).unwrap(),
+            alg_minhash_256_inner(&features)
+        );
     }
 
     #[test]
     fn test_alg_minhash_256_deterministic() {
         let features = vec![100, 200, 300, 400, 500];
-        let result1 = alg_minhash_256(&features);
-        let result2 = alg_minhash_256(&features);
+        let result1 = alg_minhash_256(&features).unwrap();
+        let result2 = alg_minhash_256(&features).unwrap();
         assert_eq!(result1, result2);
     }
 }

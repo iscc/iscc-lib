@@ -151,7 +151,7 @@ public class IsccLib {
      * single pass, then composes the final ISCC-CODE.
      *
      * @param path     file path to process
-     * @param bits     hash bit length (32, 64, 96, 128, 160, 192, 224, 256)
+     * @param bits     hash bit length (64, 96, 128, 160, 192, 224, 256)
      * @param wide     if {@code true}, use 256-bit combination (requires bits >= 128)
      * @param addUnits if {@code true}, include individual Data-Code and Instance-Code
      *                 ISCC strings in the result's {@code units} field
@@ -246,7 +246,8 @@ public class IsccLib {
      * @param mtype     MainType enum value (0-255)
      * @param stype     SubType enum value (0-255)
      * @param version   Version enum value (0-255)
-     * @param bitLength digest bit length (must be a multiple of 32)
+     * @param bitLength digest bit length (must be a multiple of 32, 32 to 256, for Meta
+     *                  through Flake; 64, 72, 80 or 96 for ID)
      * @param digest    raw digest bytes (length must be >= bitLength / 8)
      * @return base32-encoded ISCC unit string (without "ISCC:" prefix)
      * @throws IllegalArgumentException on invalid input
@@ -272,6 +273,32 @@ public class IsccLib {
      * @throws IllegalArgumentException on invalid input
      */
     public static native String[] isccDecompose(String isccCode);
+
+    /**
+     * Encode ISCC-UNITs into an ISCC-SEQ byte string (IEP-0020).
+     *
+     * <p>Each unit may be given with or without the "ISCC:" prefix, in any case.
+     * Base32 decoding is strict: "=" padding, non-zero spare bits and non-ASCII
+     * case-fold aliases (e.g. "ſ") are rejected. Units of MainType ISCC-CODE, ID
+     * or FLAKE are rejected.
+     *
+     * @param units one or more ISCC-UNIT strings
+     * @return concatenated raw unit bytes (header + body per unit)
+     * @throws IllegalArgumentException if {@code units} is empty or a unit is invalid
+     */
+    public static native byte[] encodeSeq(String[] units);
+
+    /**
+     * Decode an ISCC-SEQ byte string into ISCC-UNITs (IEP-0020).
+     *
+     * <p>Strict reader: rejects empty input, malformed units and trailing bytes.
+     * {@code encodeSeq(decodeSeq(data))} reproduces {@code data}.
+     *
+     * @param data ISCC-SEQ bytes
+     * @return "ISCC:"-prefixed ISCC-UNIT strings in wire order
+     * @throws IllegalArgumentException if {@code data} is empty or malformed
+     */
+    public static native String[] decodeSeq(byte[] data);
 
     // ── Sliding window ──────────────────────────────────────────────────────
 
@@ -299,8 +326,9 @@ public class IsccLib {
     /**
      * Compute a 256-bit MinHash digest from 32-bit integer features.
      *
-     * @param features array of 32-bit feature values
+     * @param features non-empty array of 32-bit feature values
      * @return 32-byte MinHash digest
+     * @throws IllegalArgumentException if {@code features} is empty
      */
     public static native byte[] algMinhash256(int[] features);
 
@@ -341,7 +369,8 @@ public class IsccLib {
      *
      * @param ptr  opaque handle from {@link #dataHasherNew()}
      * @param data byte data to feed into the hasher
-     * @throws IllegalArgumentException if the hasher has been finalized
+     * @throws IllegalArgumentException if {@code ptr} is zero
+     * @throws IllegalStateException if the hasher has been finalized
      */
     public static native void dataHasherUpdate(long ptr, byte[] data);
 
@@ -349,13 +378,14 @@ public class IsccLib {
      * Finalize a streaming DataHasher and return an ISCC string.
      *
      * <p>Consumes the inner hasher state. After this call, subsequent
-     * {@code update} or {@code finalize} calls will throw. The caller must
+     * {@code update} or {@code finalize} calls throw {@link IllegalStateException}. The caller must
      * still call {@link #dataHasherFree(long)} to release the wrapper.
      *
      * @param ptr  opaque handle from {@link #dataHasherNew()}
      * @param bits hash bit length (32, 64, 96, 128, 160, 192, 224, 256)
      * @return ISCC string
-     * @throws IllegalArgumentException if already finalized or on error
+     * @throws IllegalArgumentException if {@code ptr} is zero or on error
+     * @throws IllegalStateException if the hasher has already been finalized
      */
     public static native String dataHasherFinalize(long ptr, int bits);
 
@@ -383,7 +413,8 @@ public class IsccLib {
      *
      * @param ptr  opaque handle from {@link #instanceHasherNew()}
      * @param data byte data to feed into the hasher
-     * @throws IllegalArgumentException if the hasher has been finalized
+     * @throws IllegalArgumentException if {@code ptr} is zero
+     * @throws IllegalStateException if the hasher has been finalized
      */
     public static native void instanceHasherUpdate(long ptr, byte[] data);
 
@@ -391,13 +422,14 @@ public class IsccLib {
      * Finalize a streaming InstanceHasher and return an ISCC string.
      *
      * <p>Consumes the inner hasher state. After this call, subsequent
-     * {@code update} or {@code finalize} calls will throw. The caller must
+     * {@code update} or {@code finalize} calls throw {@link IllegalStateException}. The caller must
      * still call {@link #instanceHasherFree(long)} to release the wrapper.
      *
      * @param ptr  opaque handle from {@link #instanceHasherNew()}
      * @param bits hash bit length (32, 64, 96, 128, 160, 192, 224, 256)
      * @return ISCC string
-     * @throws IllegalArgumentException if already finalized or on error
+     * @throws IllegalArgumentException if {@code ptr} is zero or on error
+     * @throws IllegalStateException if the hasher has already been finalized
      */
     public static native String instanceHasherFinalize(long ptr, int bits);
 

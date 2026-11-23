@@ -70,10 +70,15 @@ fn test_sliding_window_width_too_small_returns_error() {
 
 #[test]
 fn test_alg_simhash_empty_input() {
-    // Empty input returns 32 zero bytes
+    // Empty input is rejected
     let empty: Vec<Vec<u8>> = vec![];
-    let result = iscc_lib::alg_simhash(&empty).unwrap();
-    assert_eq!(result, vec![0u8; 32]);
+    let result = iscc_lib::alg_simhash(&empty);
+    assert!(result.is_err(), "expected error for empty input");
+    let msg = result.unwrap_err().to_string();
+    assert!(
+        msg.contains("must not be empty"),
+        "error should mention empty list, got: {msg}"
+    );
 }
 
 #[test]
@@ -139,15 +144,15 @@ fn test_alg_simhash_mismatched_three_digests() {
 
 #[test]
 fn test_alg_minhash_256_empty_features() {
-    // Empty features produces 32 bytes (all 0xFF due to MAXH fallback)
-    let result = iscc_lib::alg_minhash_256(&[]);
-    assert_eq!(result.len(), 32);
-    assert!(result.iter().all(|&b| b == 0xFF));
+    // Empty features have no minimum, so the call is rejected
+    let err = iscc_lib::alg_minhash_256(&[]).unwrap_err();
+    assert!(matches!(err, iscc_lib::IsccError::InvalidInput(_)));
+    assert!(err.to_string().contains("features must not be empty"));
 }
 
 #[test]
 fn test_alg_minhash_256_single_feature() {
-    let result = iscc_lib::alg_minhash_256(&[42]);
+    let result = iscc_lib::alg_minhash_256(&[42]).unwrap();
     assert_eq!(result.len(), 32);
 }
 
@@ -155,15 +160,15 @@ fn test_alg_minhash_256_single_feature() {
 fn test_alg_minhash_256_deterministic() {
     // Same input always produces same output
     let features = vec![100, 200, 300, 400, 500];
-    let result1 = iscc_lib::alg_minhash_256(&features);
-    let result2 = iscc_lib::alg_minhash_256(&features);
+    let result1 = iscc_lib::alg_minhash_256(&features).unwrap();
+    let result2 = iscc_lib::alg_minhash_256(&features).unwrap();
     assert_eq!(result1, result2);
 }
 
 #[test]
 fn test_alg_minhash_256_different_features_different_digests() {
-    let result_a = iscc_lib::alg_minhash_256(&[1, 2, 3]);
-    let result_b = iscc_lib::alg_minhash_256(&[100, 200, 300]);
+    let result_a = iscc_lib::alg_minhash_256(&[1, 2, 3]).unwrap();
+    let result_b = iscc_lib::alg_minhash_256(&[100, 200, 300]).unwrap();
     assert_ne!(result_a, result_b);
 }
 
@@ -290,9 +295,8 @@ fn test_soft_hash_video_v0_consistency_with_gen_video_code() {
 fn test_flat_crate_root_imports() {
     // Verify all 5 algorithm primitives are callable via iscc_lib::<fn>
     let _ = iscc_lib::sliding_window("test", 2).unwrap();
-    let empty: &[Vec<u8>] = &[];
-    let _ = iscc_lib::alg_simhash(empty).unwrap();
-    let _ = iscc_lib::alg_minhash_256(&[]);
+    let _ = iscc_lib::alg_simhash(&[vec![0u8; 32]]).unwrap();
+    let _ = iscc_lib::alg_minhash_256(&[1]).unwrap();
     let _ = iscc_lib::alg_cdc_chunks(b"", false, 1024).unwrap();
     let frame = vec![0i32; 380];
     let _ = iscc_lib::soft_hash_video_v0(&[frame], 64);

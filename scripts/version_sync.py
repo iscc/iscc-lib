@@ -7,6 +7,7 @@ this script handles everything else.
 Synced targets:
 - `pyproject.toml` — root project version (dev workspace)
 - `crates/iscc-napi/package.json` — npm package version
+- `crates/iscc-napi/package-lock.json` — npm lockfile root version (top-level and `packages[""]`)
 - `crates/iscc-jni/java/pom.xml` — Maven artifact version
 - `crates/iscc-rb/lib/iscc_lib/version.rb` — Ruby gem version constant
 - `packages/swift/Sources/IsccLib/Constants.swift` — Swift package version constant
@@ -22,6 +23,10 @@ Synced targets:
 Usage:
     uv run scripts/version_sync.py           # Sync all targets
     uv run scripts/version_sync.py --check   # Validate without modifying (exit 1 if mismatch)
+
+Every getter returns each version occurrence its sync function rewrites (an empty list means the
+pattern was not found). Both modes fail (exit 1) on a missing target file or an unmatched pattern,
+and `--check` fails on any stale occurrence.
 """
 
 import json
@@ -37,19 +42,19 @@ VERSION_RE = re.compile(r'^version\s*=\s*"(.+?)"', re.MULTILINE)
 # Maven version pattern: <groupId>io.iscc</groupId> ... <artifactId>iscc-lib</artifactId> ... <version>X.Y.Z</version>
 MAVEN_DEP_RE = re.compile(
     r"(<groupId>io\.iscc</groupId>\s*<artifactId>iscc-lib</artifactId>\s*<version>)"
-    r"[^<]+"
+    r"([^<]+)"
     r"(</version>)",
     re.DOTALL,
 )
 
 # Gradle version pattern: 'io.iscc:iscc-lib:X.Y.Z' or 'io.iscc:iscc-lib-kotlin:X.Y.Z'
 GRADLE_DEP_RE = re.compile(
-    r"(io\.iscc:iscc-lib(?:-kotlin)?:)\d+\.\d+\.\d+",
+    r"(io\.iscc:iscc-lib(?:-kotlin)?:)(\d+\.\d+\.\d+)",
 )
 
 # Swift SPM version pattern: from: "X.Y.Z"
 SPM_DEP_RE = re.compile(
-    r'(from:\s*")\d+\.\d+\.\d+(")',
+    r'(from:\s*")(\d+\.\d+\.\d+)(")',
 )
 
 
@@ -65,14 +70,19 @@ def read_workspace_version():
 
 # --- Sync target definitions ---
 # Each target: (file_path, get_version_fn, sync_fn)
-# get_version_fn(text) -> version string found in file
+# get_version_fn(text) -> list of every version string sync_fn rewrites ([] = pattern not found)
 # sync_fn(text, version) -> updated text
+
+
+def _first(pattern, text, flags=0):
+    """Return the first capture of `pattern` in `text` as a one-item list, or [] if absent."""
+    m = re.search(pattern, text, flags)
+    return [m.group(1)] if m else []
 
 
 def _get_pyproject_version(text):
     """Extract version from root pyproject.toml."""
-    m = re.search(r'^version\s*=\s*"(.+?)"', text, re.MULTILINE)
-    return m.group(1) if m else ""
+    return _first(r'^version\s*=\s*"(.+?)"', text, re.MULTILINE)
 
 
 def _sync_pyproject(text, version):
@@ -88,8 +98,8 @@ def _sync_pyproject(text, version):
 
 def _get_package_json_version(text):
     """Extract version from package.json."""
-    data = json.loads(text)
-    return data.get("version", "")
+    version = json.loads(text).get("version", "")
+    return [version] if version else []
 
 
 def _sync_package_json(text, version):
@@ -99,25 +109,36 @@ def _sync_package_json(text, version):
     return json.dumps(data, indent=2) + "\n"
 
 
+def _get_package_lock_version(text):
+    """Extract both root versions (top-level, packages[""]) from package-lock.json, [] if either is absent."""
+    data = json.loads(text)
+    top = data.get("version", "")
+    root = data.get("packages", {}).get("", {}).get("version", "")
+    return [top, root] if top and root else []
+
+
+def _sync_package_lock(text, version):
+    """Update both root version fields (top-level and packages[""]) in package-lock.json."""
+    data = json.loads(text)
+    data["version"] = version
+    data["packages"][""]["version"] = version
+    return json.dumps(data, indent=2) + "\n"
+
+
 def _get_pom_version(text):
     """Extract project version from pom.xml."""
-    m = re.search(
-        r"<groupId>io\.iscc</groupId>\s*<artifactId>iscc-lib</artifactId>\s*<version>(.+?)</version>",
-        text,
-        re.DOTALL,
-    )
-    return m.group(1) if m else ""
+    m = MAVEN_DEP_RE.search(text)
+    return [m.group(2)] if m else []
 
 
 def _sync_pom(text, version):
     """Update project version in pom.xml."""
-    return MAVEN_DEP_RE.sub(rf"\g<1>{version}\2", text, count=1)
+    return MAVEN_DEP_RE.sub(rf"\g<1>{version}\3", text, count=1)
 
 
 def _get_mise_version(text):
-    """Extract default --version flag from mise.toml."""
-    m = re.search(r"--version\s+(\d+\.\d+\.\d+)", text)
-    return m.group(1) if m else ""
+    """Extract every default --version flag from mise.toml."""
+    return re.findall(r"--version\s+(\d+\.\d+\.\d+)", text)
 
 
 def _sync_mise(text, version):
@@ -126,9 +147,11 @@ def _sync_mise(text, version):
 
 
 def _get_test_install_version(text):
-    """Extract fallback version from test_install.py."""
-    m = re.search(r'version\s+or\s+"(\d+\.\d+\.\d+)"', text)
-    return m.group(1) if m else ""
+    """Extract every fallback and docstring version from test_install.py, [] if no fallback."""
+    fallbacks = re.findall(r'version\s+or\s+"(\d+\.\d+\.\d+)"', text)
+    if not fallbacks:
+        return []
+    return fallbacks + re.findall(r"--version\s+(\d+\.\d+\.\d+)", text)
 
 
 def _sync_test_install(text, version):
@@ -139,9 +162,8 @@ def _sync_test_install(text, version):
 
 
 def _get_ruby_version(text):
-    """Extract version from Ruby VERSION constant."""
-    m = re.search(r'VERSION\s*=\s*"(\d+\.\d+\.\d+)"', text)
-    return m.group(1) if m else ""
+    """Extract every Ruby VERSION constant."""
+    return re.findall(r'VERSION\s*=\s*"(\d+\.\d+\.\d+)"', text)
 
 
 def _sync_ruby_version(text, version):
@@ -154,9 +176,8 @@ def _sync_ruby_version(text, version):
 
 
 def _get_swift_version(text):
-    """Extract version from Swift isccLibVersion constant."""
-    m = re.search(r'isccLibVersion\s*=\s*"(\d+\.\d+\.\d+)"', text)
-    return m.group(1) if m else ""
+    """Extract every Swift isccLibVersion constant."""
+    return re.findall(r'isccLibVersion\s*=\s*"(\d+\.\d+\.\d+)"', text)
 
 
 def _sync_swift_version(text, version):
@@ -170,8 +191,7 @@ def _sync_swift_version(text, version):
 
 def _get_gradle_properties_version(text):
     """Extract version from Gradle properties file."""
-    m = re.search(r"^version=(\d+\.\d+\.\d+)", text, re.MULTILINE)
-    return m.group(1) if m else ""
+    return _first(r"^version=(\d+\.\d+\.\d+)", text, re.MULTILINE)
 
 
 def _sync_gradle_properties(text, version):
@@ -186,9 +206,8 @@ def _sync_gradle_properties(text, version):
 
 
 def _get_csproj_version(text):
-    """Extract version from .NET .csproj <Version> element."""
-    m = re.search(r"<Version>(\d+\.\d+\.\d+)</Version>", text)
-    return m.group(1) if m else ""
+    """Extract every .NET .csproj <Version> element."""
+    return re.findall(r"<Version>(\d+\.\d+\.\d+)</Version>", text)
 
 
 def _sync_csproj(text, version):
@@ -202,8 +221,7 @@ def _sync_csproj(text, version):
 
 def _get_conanfile_version(text):
     """Extract version from Conan recipe class attribute."""
-    m = re.search(r'version\s*=\s*"(\d+\.\d+\.\d+)"', text)
-    return m.group(1) if m else ""
+    return _first(r'version\s*=\s*"(\d+\.\d+\.\d+)"', text)
 
 
 def _sync_conanfile(text, version):
@@ -218,8 +236,7 @@ def _sync_conanfile(text, version):
 
 def _get_package_swift_release_tag(text):
     """Extract releaseTag version from root Package.swift."""
-    m = re.search(r'releaseTag\s*=\s*"(\d+\.\d+\.\d+)"', text)
-    return m.group(1) if m else ""
+    return _first(r'releaseTag\s*=\s*"(\d+\.\d+\.\d+)"', text)
 
 
 def _sync_package_swift_release_tag(text, version):
@@ -233,25 +250,19 @@ def _sync_package_swift_release_tag(text, version):
 
 
 def _get_doc_dep_version(text):
-    """Extract dependency version from a doc/README file (Maven, Gradle, or SPM)."""
-    m = MAVEN_DEP_RE.search(text)
-    if m:
-        return m.group(0).split("<version>")[1].split("</version>")[0]
-    m = GRADLE_DEP_RE.search(text)
-    if m:
-        return m.group(0).rsplit(":", 1)[1]
-    m = SPM_DEP_RE.search(text)
-    if m:
-        v = re.search(r"\d+\.\d+\.\d+", m.group(0))
-        return v.group(0) if v else ""
-    return ""
+    """Extract every Maven, Gradle and SPM dependency version from a doc/README file."""
+    return [
+        m.group(2)
+        for regex in (MAVEN_DEP_RE, GRADLE_DEP_RE, SPM_DEP_RE)
+        for m in regex.finditer(text)
+    ]
 
 
 def _sync_doc_deps(text, version):
     """Update dependency versions in a doc/README file (Maven, Gradle, SPM)."""
-    text = MAVEN_DEP_RE.sub(rf"\g<1>{version}\2", text)
+    text = MAVEN_DEP_RE.sub(rf"\g<1>{version}\3", text)
     text = GRADLE_DEP_RE.sub(rf"\g<1>{version}", text)
-    text = SPM_DEP_RE.sub(rf"\g<1>{version}\2", text)
+    text = SPM_DEP_RE.sub(rf"\g<1>{version}\3", text)
     return text
 
 
@@ -259,6 +270,11 @@ def _sync_doc_deps(text, version):
 TARGETS = [
     ("pyproject.toml", _get_pyproject_version, _sync_pyproject),
     ("crates/iscc-napi/package.json", _get_package_json_version, _sync_package_json),
+    (
+        "crates/iscc-napi/package-lock.json",
+        _get_package_lock_version,
+        _sync_package_lock,
+    ),
     ("crates/iscc-jni/java/pom.xml", _get_pom_version, _sync_pom),
     ("mise.toml", _get_mise_version, _sync_mise),
     ("scripts/test_install.py", _get_test_install_version, _sync_test_install),
@@ -289,42 +305,48 @@ TARGETS = [
 ]
 
 
+def _inspect(rel_path, get_fn):
+    """Read a target and return (text, found_versions, problem); problem is None when versions were found."""
+    filepath = ROOT / rel_path
+    if not filepath.is_file():
+        return None, [], "missing"
+    text = filepath.read_text(encoding="utf-8")
+    found = get_fn(text)
+    return text, found, None if found else "pattern not found"
+
+
 def check_mode(workspace_version):
-    """Validate that all targets match the workspace version. Return True if all match."""
+    """Validate that every occurrence in every target matches the workspace version. Return True if all match."""
     all_match = True
     for rel_path, get_fn, _ in TARGETS:
-        filepath = ROOT / rel_path
-        if not filepath.exists():
-            continue
-        text = filepath.read_text(encoding="utf-8")
-        found = get_fn(text)
-        if not found:
-            continue
-        if found != workspace_version:
+        _, found, problem = _inspect(rel_path, get_fn)
+        if problem:
+            print(f"MISMATCH: {rel_path} {problem}")
+            all_match = False
+        elif any(v != workspace_version for v in found):
             print(f"MISMATCH: {rel_path} has {found!r}, expected {workspace_version!r}")
             all_match = False
         else:
-            print(f"OK: {rel_path} = {found}")
+            print(f"OK: {rel_path} = {workspace_version}")
     return all_match
 
 
 def sync_mode(workspace_version):
-    """Update all targets to match the workspace version."""
+    """Update every target to the workspace version. Return False if a target is missing or unmatched."""
+    all_synced = True
     for rel_path, get_fn, sync_fn in TARGETS:
-        filepath = ROOT / rel_path
-        if not filepath.exists():
+        text, found, problem = _inspect(rel_path, get_fn)
+        if problem or text is None:
+            print(f"FAILED: {rel_path} {problem}")
+            all_synced = False
             continue
-        text = filepath.read_text(encoding="utf-8")
-        found = get_fn(text)
-        if not found:
+        if all(v == workspace_version for v in found):
+            print(f"OK: {rel_path} = {workspace_version}")
             continue
-        if found == workspace_version:
-            print(f"OK: {rel_path} = {found}")
-            continue
-        new_text = sync_fn(text, workspace_version)
-        filepath.write_text(new_text, encoding="utf-8")
-        print(f"Synced {rel_path}: {found} -> {workspace_version}")
-    print("Version sync complete.")
+        (ROOT / rel_path).write_text(sync_fn(text, workspace_version), encoding="utf-8")
+        print(f"Synced {rel_path}: {found!r} -> {workspace_version}")
+    print("Version sync complete." if all_synced else "Version sync incomplete.")
+    return all_synced
 
 
 def main():
@@ -332,11 +354,9 @@ def main():
     workspace_version = read_workspace_version()
     print(f"Workspace version: {workspace_version}")
 
-    if "--check" in sys.argv:
-        if not check_mode(workspace_version):
-            sys.exit(1)
-    else:
-        sync_mode(workspace_version)
+    mode = check_mode if "--check" in sys.argv else sync_mode
+    if not mode(workspace_version):
+        sys.exit(1)
 
 
 if __name__ == "__main__":

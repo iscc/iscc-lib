@@ -2,5 +2,5 @@
 
 # Version constant for the iscc-lib gem (synced from root Cargo.toml).
 module IsccLib
-  VERSION = "0.7.0"
+  VERSION = "0.8.0"
 end

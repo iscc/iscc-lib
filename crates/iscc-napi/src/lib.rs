@@ -4,8 +4,95 @@
 //! npm package. Each function is a thin wrapper around the corresponding
 //! `iscc_lib` API, converting napi types to Rust types and mapping errors.
 
-use napi::bindgen_prelude::Buffer;
+use napi::ValueType;
+use napi::bindgen_prelude::{Buffer, FromNapiValue, Unknown};
 use napi_derive::napi;
+use std::fmt::Display;
+
+// ── Integer narrowing ─────────────────────────────────────────────────────────
+
+/// Validate a JS number before narrowing it to an integer type.
+///
+/// napi converts a JS number into an integer Rust type with ToUint32/ToInt32
+/// wrapping (`256` becomes `u8` 0), so every numeric parameter is taken as
+/// `f64` and checked here. Rejects non-finite, non-integral and out-of-range
+/// (`< min` or `>= max_exclusive`) values so an invalid JS number throws
+/// instead of turning into a different valid integer. `-0` passes as 0. The
+/// `name` is formatted only on rejection.
+fn checked(value: f64, min: f64, max_exclusive: f64, name: impl Display) -> napi::Result<f64> {
+    if !value.is_finite() || value.fract() != 0.0 || value < min || value >= max_exclusive {
+        return Err(napi::Error::from_reason(format!("Invalid {name}: {value}")));
+    }
+    Ok(value)
+}
+
+/// Narrow a JS number to `u8`, rejecting anything outside \[0, 2^8).
+fn to_u8(value: f64, name: impl Display) -> napi::Result<u8> {
+    checked(value, 0.0, 256.0, name).map(|v| v as u8)
+}
+
+/// Narrow a JS number to `u32`, rejecting anything outside \[0, 2^32).
+fn to_u32(value: f64, name: impl Display) -> napi::Result<u32> {
+    checked(value, 0.0, 4_294_967_296.0, name).map(|v| v as u32)
+}
+
+/// Narrow a JS number to `i32`, rejecting anything outside \[-2^31, 2^31).
+fn to_i32(value: f64, name: impl Display) -> napi::Result<i32> {
+    checked(value, -2_147_483_648.0, 2_147_483_648.0, name).map(|v| v as i32)
+}
+
+/// Narrow an optional JS number to `u32`, using `default` for `undefined`/`null`.
+fn opt_u32(value: Option<f64>, default: u32, name: &str) -> napi::Result<u32> {
+    value.map_or(Ok(default), |v| to_u32(v, name))
+}
+
+/// Read an optional untyped JS value as a number, rejecting every non-number.
+///
+/// Taking `Unknown` instead of `f64` defers the type check into the method
+/// body, so a hasher's `finalize` can consume its state before rejecting a
+/// non-number argument. `undefined` and `null` arrive as `None`.
+fn opt_number(value: Option<Unknown<'_>>, name: &str) -> napi::Result<Option<f64>> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    if value.get_type()? != ValueType::Number {
+        return Err(napi::Error::from_reason(format!(
+            "Invalid {name}: expected a number"
+        )));
+    }
+    f64::from_unknown(value).map(Some)
+}
+
+/// Narrow every element of a JS number array to `u32`, naming a bad one by index.
+fn to_u32_vec(values: &[f64], name: &str) -> napi::Result<Vec<u32>> {
+    values
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| to_u32(v, format_args!("{name}[{i}]")))
+        .collect()
+}
+
+/// Narrow every element of a JS number array to `i32`, naming a bad one by index.
+fn to_i32_vec(values: &[f64], name: &str) -> napi::Result<Vec<i32>> {
+    values
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| to_i32(v, format_args!("{name}[{i}]")))
+        .collect()
+}
+
+/// Narrow a nested JS number array to `i32` rows, naming a bad element by both indices.
+fn to_i32_rows(rows: &[Vec<f64>], name: &str) -> napi::Result<Vec<Vec<i32>>> {
+    rows.iter()
+        .enumerate()
+        .map(|(i, row)| {
+            row.iter()
+                .enumerate()
+                .map(|(j, &v)| to_i32(v, format_args!("{name}[{i}][{j}]")))
+                .collect()
+        })
+        .collect()
+}
 
 // ── Algorithm constants ───────────────────────────────────────────────────────
 
@@ -34,17 +121,25 @@ pub const TEXT_NGRAM_SIZE: u32 = iscc_lib::TEXT_NGRAM_SIZE as u32;
 /// Encode raw ISCC header components and digest into a base32 ISCC unit string.
 ///
 /// Takes integer type identifiers and a raw digest, returns a base32-encoded
-/// ISCC unit string (without "ISCC:" prefix).
+/// ISCC unit string (without "ISCC:" prefix). Throws an `Error` for
+/// out-of-range values, for MainType ISCC (5), for an invalid `bit_length`, or
+/// when `digest` is shorter than `bit_length / 8` bytes.
 #[napi(js_name = "encode_component")]
 pub fn encode_component(
-    mtype: u8,
-    stype: u8,
-    version: u8,
-    bit_length: u32,
+    mtype: f64,
+    stype: f64,
+    version: f64,
+    bit_length: f64,
     digest: Buffer,
 ) -> napi::Result<String> {
-    iscc_lib::encode_component(mtype, stype, version, bit_length, digest.as_ref())
-        .map_err(|e| napi::Error::from_reason(e.to_string()))
+    iscc_lib::encode_component(
+        to_u8(mtype, "mtype")?,
+        to_u8(stype, "stype")?,
+        to_u8(version, "version")?,
+        to_u32(bit_length, "bit_length")?,
+        digest.as_ref(),
+    )
+    .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
 /// Result of decoding an ISCC unit string.
@@ -79,6 +174,29 @@ pub fn iscc_decode(iscc: String) -> napi::Result<IsccDecodeResult> {
     })
 }
 
+/// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+///
+/// Returns a `Buffer` with the concatenated header and body bytes of each unit,
+/// in order. Base32 decoding is strict: `=` padding, non-zero spare bits and
+/// non-ASCII case-fold aliases (`ſ`, `ß`) are rejected, although iscc-core
+/// accepts them. Throws on an empty array, an empty or malformed unit, or a
+/// unit of an unsupported MainType (ISCC-CODE, ID, FLAKE).
+#[napi(js_name = "encode_seq")]
+pub fn encode_seq(units: Vec<String>) -> napi::Result<Buffer> {
+    let refs: Vec<&str> = units.iter().map(String::as_str).collect();
+    iscc_lib::encode_seq(&refs)
+        .map(Buffer::from)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
+/// Decode an ISCC-SEQ byte string to canonical `ISCC:`-prefixed unit strings.
+///
+/// Decoding is strict: throws on empty input, malformed units or trailing bytes.
+#[napi(js_name = "decode_seq")]
+pub fn decode_seq(data: Buffer) -> napi::Result<Vec<String>> {
+    iscc_lib::decode_seq(data.as_ref()).map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
 /// Convert a JSON string into a `data:` URL with JCS canonicalization.
 ///
 /// Uses `application/ld+json` media type when the JSON contains an `@context`
@@ -99,9 +217,9 @@ pub fn gen_meta_code_v0(
     name: String,
     description: Option<String>,
     meta: Option<String>,
-    bits: Option<u32>,
+    bits: Option<f64>,
 ) -> napi::Result<String> {
-    let bits = bits.unwrap_or(64);
+    let bits = opt_u32(bits, 64, "bits")?;
     iscc_lib::gen_meta_code_v0(&name, description.as_deref(), meta.as_deref(), bits)
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
@@ -112,8 +230,8 @@ pub fn gen_meta_code_v0(
 /// Produces an ISCC Content-Code for text using MinHash-based
 /// similarity hashing.
 #[napi(js_name = "gen_text_code_v0")]
-pub fn gen_text_code_v0(text: String, bits: Option<u32>) -> napi::Result<String> {
-    let bits = bits.unwrap_or(64);
+pub fn gen_text_code_v0(text: String, bits: Option<f64>) -> napi::Result<String> {
+    let bits = opt_u32(bits, 64, "bits")?;
     iscc_lib::gen_text_code_v0(&text, bits)
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
@@ -124,8 +242,8 @@ pub fn gen_text_code_v0(text: String, bits: Option<u32>) -> napi::Result<String>
 /// Produces an ISCC Content-Code for images from 1024 grayscale pixels
 /// (32×32) using a DCT-based perceptual hash.
 #[napi(js_name = "gen_image_code_v0")]
-pub fn gen_image_code_v0(pixels: Buffer, bits: Option<u32>) -> napi::Result<String> {
-    let bits = bits.unwrap_or(64);
+pub fn gen_image_code_v0(pixels: Buffer, bits: Option<f64>) -> napi::Result<String> {
+    let bits = opt_u32(bits, 64, "bits")?;
     iscc_lib::gen_image_code_v0(pixels.as_ref(), bits)
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
@@ -136,8 +254,9 @@ pub fn gen_image_code_v0(pixels: Buffer, bits: Option<u32>) -> napi::Result<Stri
 /// Produces an ISCC Content-Code for audio from signed integer
 /// Chromaprint fingerprint features using multi-stage SimHash.
 #[napi(js_name = "gen_audio_code_v0")]
-pub fn gen_audio_code_v0(cv: Vec<i32>, bits: Option<u32>) -> napi::Result<String> {
-    let bits = bits.unwrap_or(64);
+pub fn gen_audio_code_v0(cv: Vec<f64>, bits: Option<f64>) -> napi::Result<String> {
+    let cv = to_i32_vec(&cv, "cv")?;
+    let bits = opt_u32(bits, 64, "bits")?;
     iscc_lib::gen_audio_code_v0(&cv, bits)
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
@@ -148,8 +267,9 @@ pub fn gen_audio_code_v0(cv: Vec<i32>, bits: Option<u32>) -> napi::Result<String
 /// Produces an ISCC Content-Code for video from MPEG-7 frame
 /// signature vectors using WTA-Hash.
 #[napi(js_name = "gen_video_code_v0")]
-pub fn gen_video_code_v0(frame_sigs: Vec<Vec<i32>>, bits: Option<u32>) -> napi::Result<String> {
-    let bits = bits.unwrap_or(64);
+pub fn gen_video_code_v0(frame_sigs: Vec<Vec<f64>>, bits: Option<f64>) -> napi::Result<String> {
+    let frame_sigs = to_i32_rows(&frame_sigs, "frame_sigs")?;
+    let bits = opt_u32(bits, 64, "bits")?;
     iscc_lib::gen_video_code_v0(&frame_sigs, bits)
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
@@ -160,8 +280,8 @@ pub fn gen_video_code_v0(frame_sigs: Vec<Vec<i32>>, bits: Option<u32>) -> napi::
 /// Produces a Mixed Content-Code by combining multiple ISCC Content-Codes
 /// of different types using SimHash.
 #[napi(js_name = "gen_mixed_code_v0")]
-pub fn gen_mixed_code_v0(codes: Vec<String>, bits: Option<u32>) -> napi::Result<String> {
-    let bits = bits.unwrap_or(64);
+pub fn gen_mixed_code_v0(codes: Vec<String>, bits: Option<f64>) -> napi::Result<String> {
+    let bits = opt_u32(bits, 64, "bits")?;
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
     iscc_lib::gen_mixed_code_v0(&refs, bits)
         .map(|r| r.iscc)
@@ -173,8 +293,8 @@ pub fn gen_mixed_code_v0(codes: Vec<String>, bits: Option<u32>) -> napi::Result<
 /// Produces an ISCC Data-Code by splitting data into content-defined
 /// chunks and applying MinHash for similarity hashing.
 #[napi(js_name = "gen_data_code_v0")]
-pub fn gen_data_code_v0(data: Buffer, bits: Option<u32>) -> napi::Result<String> {
-    let bits = bits.unwrap_or(64);
+pub fn gen_data_code_v0(data: Buffer, bits: Option<f64>) -> napi::Result<String> {
+    let bits = opt_u32(bits, 64, "bits")?;
     iscc_lib::gen_data_code_v0(data.as_ref(), bits)
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
@@ -185,8 +305,8 @@ pub fn gen_data_code_v0(data: Buffer, bits: Option<u32>) -> napi::Result<String>
 /// Produces an ISCC Instance-Code by hashing the complete byte stream
 /// with BLAKE3. Returns the ISCC string with "ISCC:" prefix.
 #[napi(js_name = "gen_instance_code_v0")]
-pub fn gen_instance_code_v0(data: Buffer, bits: Option<u32>) -> napi::Result<String> {
-    let bits = bits.unwrap_or(64);
+pub fn gen_instance_code_v0(data: Buffer, bits: Option<f64>) -> napi::Result<String> {
+    let bits = opt_u32(bits, 64, "bits")?;
     iscc_lib::gen_instance_code_v0(data.as_ref(), bits)
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
@@ -226,11 +346,11 @@ pub struct NapiSumCodeResult {
 #[napi(js_name = "gen_sum_code_v0")]
 pub fn gen_sum_code_v0(
     path: String,
-    bits: Option<u32>,
+    bits: Option<f64>,
     wide: Option<bool>,
     add_units: Option<bool>,
 ) -> napi::Result<NapiSumCodeResult> {
-    let bits = bits.unwrap_or(64);
+    let bits = opt_u32(bits, 64, "bits")?;
     let wide = wide.unwrap_or(false);
     let add_units = add_units.unwrap_or(false);
     let result = iscc_lib::gen_sum_code_v0(std::path::Path::new(&path), bits, wide, add_units)
@@ -266,8 +386,9 @@ pub fn text_remove_newlines(text: String) -> String {
 /// Multi-byte characters that would be split are dropped entirely.
 /// Leading/trailing whitespace is stripped from the result.
 #[napi(js_name = "text_trim")]
-pub fn text_trim(text: String, nbytes: u32) -> String {
-    iscc_lib::text_trim(&text, nbytes as usize)
+pub fn text_trim(text: String, nbytes: f64) -> napi::Result<String> {
+    let nbytes = to_u32(nbytes, "nbytes")?;
+    Ok(iscc_lib::text_trim(&text, nbytes as usize))
 }
 
 /// Normalize and simplify text for similarity hashing.
@@ -298,19 +419,6 @@ pub fn iscc_decompose(iscc_code: String) -> napi::Result<Vec<String>> {
     iscc_lib::iscc_decompose(&iscc_code).map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
-/// Validate a JS-number ISCC-IDv1 parameter before narrowing to an integer.
-///
-/// napi coerces JS numbers into integer Rust types before the wrapper runs, so
-/// each parameter is taken as `f64` and checked here. Rejects non-finite,
-/// non-integral, negative, and out-of-range (`>= max_exclusive`) values so an
-/// invalid JS number throws instead of being silently truncated to a wrong ID.
-fn checked(value: f64, max_exclusive: f64, name: &str) -> napi::Result<f64> {
-    if !value.is_finite() || value.fract() != 0.0 || value < 0.0 || value >= max_exclusive {
-        return Err(napi::Error::from_reason(format!("Invalid {name}: {value}")));
-    }
-    Ok(value)
-}
-
 /// Generate an ISCC-IDv1 from a timestamp and a HUB-ID (experimental).
 ///
 /// Packs a 52-bit microsecond UTC `timestamp` into the high bits and a 12-bit
@@ -326,9 +434,9 @@ fn checked(value: f64, max_exclusive: f64, name: &str) -> napi::Result<f64> {
 /// change. There is no dedicated decoder — use `iscc_decode` to decode.
 #[napi(js_name = "gen_iscc_id_v1")]
 pub fn gen_iscc_id_v1(timestamp: f64, hub_id: f64, realm: f64) -> napi::Result<String> {
-    let timestamp = checked(timestamp, 4_503_599_627_370_496.0, "timestamp")?; // 2^52
-    let hub_id = checked(hub_id, 4096.0, "hub_id")?;
-    let realm = checked(realm, 2.0, "realm")?;
+    let timestamp = checked(timestamp, 0.0, 4_503_599_627_370_496.0, "timestamp")?; // 2^52
+    let hub_id = checked(hub_id, 0.0, 4096.0, "hub_id")?;
+    let realm = checked(realm, 0.0, 2.0, "realm")?;
     iscc_lib::gen_iscc_id_v1(timestamp as u64, hub_id as u16, realm as u8)
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
@@ -347,7 +455,8 @@ pub fn conformance_selftest() -> bool {
 /// Returns overlapping substrings of `width` Unicode characters, advancing
 /// by one character at a time. Throws if width is less than 2.
 #[napi(js_name = "sliding_window")]
-pub fn sliding_window(seq: String, width: u32) -> napi::Result<Vec<String>> {
+pub fn sliding_window(seq: String, width: f64) -> napi::Result<Vec<String>> {
+    let width = to_u32(width, "width")?;
     iscc_lib::sliding_window(&seq, width as usize)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
@@ -357,8 +466,8 @@ pub fn sliding_window(seq: String, width: u32) -> napi::Result<Vec<String>> {
 /// Compute a SimHash from a sequence of equal-length hash digests.
 ///
 /// Returns a similarity-preserving hash as a Buffer. Each output bit is set
-/// when its frequency meets or exceeds half the input count. Returns 32
-/// zero bytes for empty input. Throws on mismatched digest lengths.
+/// when its frequency meets or exceeds half the input count. Throws on an
+/// empty list or mismatched digest lengths.
 #[napi(js_name = "alg_simhash")]
 pub fn alg_simhash(hash_digests: Vec<Buffer>) -> napi::Result<Buffer> {
     iscc_lib::alg_simhash(&hash_digests)
@@ -369,10 +478,13 @@ pub fn alg_simhash(hash_digests: Vec<Buffer>) -> napi::Result<Buffer> {
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 ///
 /// Uses 64 universal hash functions with bit-interleaved compression to
-/// produce a 32-byte similarity-preserving digest.
+/// produce a 32-byte similarity-preserving digest. Throws on an empty list.
 #[napi(js_name = "alg_minhash_256")]
-pub fn alg_minhash_256(features: Vec<u32>) -> Buffer {
-    iscc_lib::alg_minhash_256(&features).into()
+pub fn alg_minhash_256(features: Vec<f64>) -> napi::Result<Buffer> {
+    let features = to_u32_vec(&features, "features")?;
+    iscc_lib::alg_minhash_256(&features)
+        .map(|v| v.into())
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
 /// Split data into content-defined chunks using gear rolling hash.
@@ -384,9 +496,9 @@ pub fn alg_minhash_256(features: Vec<u32>) -> Buffer {
 pub fn alg_cdc_chunks(
     data: Buffer,
     utf32: bool,
-    avg_chunk_size: Option<u32>,
+    avg_chunk_size: Option<f64>,
 ) -> napi::Result<Vec<Buffer>> {
-    let avg = avg_chunk_size.unwrap_or(1024);
+    let avg = opt_u32(avg_chunk_size, 1024, "avg_chunk_size")?;
     Ok(iscc_lib::alg_cdc_chunks(data.as_ref(), utf32, avg)
         .map_err(|e| napi::Error::from_reason(e.to_string()))?
         .into_iter()
@@ -399,8 +511,9 @@ pub fn alg_cdc_chunks(
 /// Returns raw bytes of length `bits / 8`. Default `bits` is 64.
 /// Throws if `frame_sigs` is empty.
 #[napi(js_name = "soft_hash_video_v0")]
-pub fn soft_hash_video_v0(frame_sigs: Vec<Vec<i32>>, bits: Option<u32>) -> napi::Result<Buffer> {
-    let bits = bits.unwrap_or(64);
+pub fn soft_hash_video_v0(frame_sigs: Vec<Vec<f64>>, bits: Option<f64>) -> napi::Result<Buffer> {
+    let frame_sigs = to_i32_rows(&frame_sigs, "frame_sigs")?;
+    let bits = opt_u32(bits, 64, "bits")?;
     iscc_lib::soft_hash_video_v0(&frame_sigs, bits)
         .map(|r| r.into())
         .map_err(|e| napi::Error::from_reason(e.to_string()))
@@ -446,16 +559,21 @@ impl NapiDataHasher {
 
     /// Consume the hasher and produce a Data-Code ISCC string.
     ///
-    /// After calling `finalize`, subsequent calls to `update` or `finalize`
-    /// will throw. Default `bits` is 64.
+    /// After the first `finalize` call, even one that throws on an argument,
+    /// subsequent calls to `update` or `finalize` will throw. Default `bits`
+    /// is 64.
     #[napi(js_name = "finalize")]
-    pub fn finalize_code(&mut self, bits: Option<u32>) -> napi::Result<String> {
+    pub fn finalize_code(
+        &mut self,
+        #[napi(ts_arg_type = "number | undefined | null")] bits: Option<Unknown<'_>>,
+    ) -> napi::Result<String> {
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| napi::Error::from_reason("DataHasher already finalized"))?;
+        let bits = opt_u32(opt_number(bits, "bits")?, 64, "bits")?;
         hasher
-            .finalize(bits.unwrap_or(64))
+            .finalize(bits)
             .map(|r| r.iscc)
             .map_err(|e| napi::Error::from_reason(e.to_string()))
     }
@@ -499,16 +617,21 @@ impl NapiInstanceHasher {
 
     /// Consume the hasher and produce an Instance-Code ISCC string.
     ///
-    /// After calling `finalize`, subsequent calls to `update` or `finalize`
-    /// will throw. Default `bits` is 64.
+    /// After the first `finalize` call, even one that throws on an argument,
+    /// subsequent calls to `update` or `finalize` will throw. Default `bits`
+    /// is 64.
     #[napi(js_name = "finalize")]
-    pub fn finalize_code(&mut self, bits: Option<u32>) -> napi::Result<String> {
+    pub fn finalize_code(
+        &mut self,
+        #[napi(ts_arg_type = "number | undefined | null")] bits: Option<Unknown<'_>>,
+    ) -> napi::Result<String> {
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| napi::Error::from_reason("InstanceHasher already finalized"))?;
+        let bits = opt_u32(opt_number(bits, "bits")?, 64, "bits")?;
         hasher
-            .finalize(bits.unwrap_or(64))
+            .finalize(bits)
             .map(|r| r.iscc)
             .map_err(|e| napi::Error::from_reason(e.to_string()))
     }

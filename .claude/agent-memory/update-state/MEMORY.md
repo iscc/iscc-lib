@@ -1,8 +1,8 @@
 # Update-State Agent Memory
 
 Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-archive.md`,
-`counts.md`, `dep-refresh-survey.md`, `unicode-contract.md`, `quality-gates.md`, `lint-tooling.md`,
-`env-gotchas.md`. **Size budget: under 140 lines** — archive detail eagerly.
+`counts.md`, `dep-refresh-survey.md`, `quality-gates.md`, `lint-tooling.md`, `env-gotchas.md`.
+**Size budget: under 140 lines** — archive detail eagerly.
 
 ## Exploration Shortcuts
 
@@ -16,20 +16,22 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     `git diff --stat origin/develop..HEAD -- . ':!.claude'`. Empty = green CI covers HEAD.
     **NON-empty = it does NOT** — report the gap (fired 162; fired again 184: a NEEDS_WORK advance
     commit stays in local history unreverted and its code sits at HEAD uncovered by green).
+- **Red tip, code covered?** (220) when the tip is red, find the newest FULLY green run
+    (`gh run list --branch develop`) and diff it to the tip excluding `.claude` — empty = code
+    covered.
 - **ALWAYS `tail -6 iterations.jsonl` + `git status --porcelain`.** jsonl is the ONLY place a
     crashed/`audit` role shows; a non-OK status ≠ no work (corroborate `git log`, fingerprints →
     `MEMORY-archive.md`); out-of-loop `cid(loop):` commits leave NO jsonl entry — diff them. A
     TIMEOUT role leaves its file dirty (155: 440-line `next.md`) — unverified lead. Audit cadence
     UNRELIABLE (none at 170) — never park a finding for it.
-- **Counts + the glob/grep trap for each → `counts.md`** (12 READMEs, 12 CLAUDE.md, 23 docs pages,
-    342 iscc-lib `#[test]`, 441 pytest, 177 Go, 50 ffi externs, 105 CRAP, 21 version_sync targets, 8
-    fixture copies). Check there before counting by hand.
+- **Counts + the glob/grep trap for each → `counts.md`** (204: 426 iscc-lib `#[test]`, 264 Go; 199:
+    118 CRAP; 196: 12 READMEs, 22 docs pages, 179 Go, 51 ffi externs (205), 22 version_sync, 5
+    fixture copies).
 - **YAML probes need `uv run python`** (system `python3` has NO `yaml`); job-table parity gated
     (163).
 - **The project venv is a ready-made conformance oracle**: `iscc_core` AND `iscc_lib` both import
     under `uv run python` (check `crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` mtime — stale
-    `.so` measures the previous commit). `uv run --with iscc-core` = live IDv1 oracle. →
-    `unicode-contract.md`.
+    `.so` measures the previous commit). `uv run --with iscc-core` = live IDv1 oracle.
 - **Issue headers**: `grep -nE '^## ' issues.md`. **Trace a dep**: `cargo tree -i <crate>`. **Specs
     live at `.claude/context/specs/`, NOT `specs/`** — `git diff -- specs/` is empty for ANY commit
     and silently looks like "no spec change" (near-miss 144).
@@ -52,13 +54,12 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 - `crates/` — **8 crates** (lib, py, napi, wasm, ffi, jni, rb, uniffi); iscc-uniffi has 21 tests,
     `publish=false`. `packages/` layout → `MEMORY-archive.md`; `packages/go` is the ONLY binding not
     inheriting the core's Unicode behaviour.
-- `ci.yml` — **21 YAML job entries → 22 jobs → 23 check names**: `python-test` = 3.10/3.14 matrix,
-    `python` (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job. `release.yml`
-    = 8 registry toggles (Swift XCFramework is a `prepare-release` step, NOT a toggle).
-    `specs/ci-cd.md` job table EXHAUSTIVE since 163 (21 rows==21 keys, gated); prose counts unpinned
-    (HAND edit).
-- **Unicode = 16.0.0 + TWO freeze layers + sweep gate → read `unicode-contract.md` before ANY
-    Unicode call** (fixture-plumbing table, 2 SUPERSEDED designs, surefire CWD landmark).
+- `ci.yml` — **22 YAML job entries** (see Current State): `python-test` = 3.10/3.15 matrix, `python`
+    (L72) is an `if: always()` AGGREGATOR; `push:` under `on:` is NOT a job. `release.yml` = 8
+    registry toggles (Swift XCFramework is a `prepare-release` step, NOT a toggle). `specs/ci-cd.md`
+    job table EXHAUSTIVE since 163 (rows==keys, gated); prose counts unpinned (HAND edit).
+- **Unicode freeze REMOVED 2026-07-30** (decisions.md): no pin, no sweep gate, no boundary fixture —
+    `text_clean`/`text_collapse` use the dependencies' tables.
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`),
     gated. `streaming.rs`: `DataHasher`/`InstanceHasher` at crate root, `SumHasher` via
     `streaming::` only. iscc-wasm `blake3 wasm32_simd` = feature-unification, don't prune. `iscc-py`
@@ -71,10 +72,11 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
 
 ## Recurring Patterns
 
-- **Incremental review**: assessed-at vs HEAD `--stat` first, re-verify only affected sections,
-    carry forward the rest, CI via check-runs API on the real tip. **Always diff
-    `.claude/context/specs/`** (132,147) and read issues.md *bodies* (145) — either flips met→unmet
-    with ZERO code change (as can pure MEASUREMENT, empty diff, 156).
+- **No assessed-at hash (human reset)?** Diff from the hash in THIS file's Current State header to
+    scope the full review fast (194). **Incremental review**: assessed-at vs HEAD `--stat` first,
+    re-verify only affected sections, carry forward the rest, CI via check-runs API on the real tip.
+    **Always diff `.claude/context/specs/`** (132,147) and read issues.md *bodies* (145) — either
+    flips met→unmet with ZERO code change (as can pure MEASUREMENT, empty diff, 156).
 - **When a ruling lands, re-verify CODE against the NEW spec**; grep `decisions.md` for `supersede`
     (147: a 14-iteration "met" went unmet).
 - **Reproduce/refute inherited claims by a DIFFERENT method** (bugs confirmed 147/156; "unbuildable"
@@ -84,60 +86,56 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     mutate-then-rerun exposes it (all 12 probed, CI immune). "Not verifiable in this container" is
     UNPROVEN (cmake/Kotlin/C++/Swift all fell) → `env-gotchas.md`.
 
-## Current State (assessed-at: 13c08ca, iter 193)
+## Current State (assessed-at: 0e0f5d1, iter 308 — incremental)
 
-- **CI IS RED on develop — the ENFORCING iai Perf gate fired.** Real tip `origin/develop=e80cda5`
-    (iter 192; HEAD `13c08ca` only adds an `iterations.jsonl` line, so e80cda5 covers HEAD's code).
-    check-SUITE `GitHub Actions=failure`: **`Perf (iai-callgrind)=failure` is NOT
-    continue-on-error** (ci.yml:298, only `semver` at 355 is). The iter 191/192 `iscc_clean` routing
-    raised two composite benches past 10%: `bench_iscc_code.four_units` +36.82% (11,968→16,375 Ir),
-    `bench_mixed_code.two_codes` +18.30% (10,460→12,374). Run 30445408022.
-- **THE TRAP that bit iter 192 review:** `mise run check` does NOT run
-    `scripts/iai_regression.py   --check` (CI-only) — the reviewer PASSed on green `mise run check`
-    while the enforcing iai gate was red. When an advance touches a HOT codec/gen path, the iai
-    comparison is the gate that matters and only CI shows it. ALWAYS pull `Perf (iai-callgrind)`
-    conclusion from the check-runs API, never infer perf-green from a review PASS.
-- **`iscc_clean` regression NOW CLOSED (empty-input side):** guard at `codec.rs:558` returns
-    `Err(InvalidInput("Empty ISCC string"))` when cleaned==""; `fn iscc_clean` at `codec.rs:532`
-    routes all four codec-input sites. `iscc_decompose` empty-`Ok([])` gap is fixed. The REMAINING
-    problem is the perf cost of that routing, not correctness.
-- **#43 IDv1 FULLY CLOSED — do NOT re-flag any part.** All 11 surfaces MINT + DECODE IDv1 = 33/33
-    (mint fan-out cpp @188; decode Python `VS` enum `V1=1` @189). Iter 190 landed the repo-wide
-    Tier-1 32→33 doc/count sweep + `gen_iscc_id_v1` per-symbol entries in the four
-    `docs/{rust,java,ruby,c-ffi}-api.md` + IDv1 mint+decode example in all 11 `docs/howto/*.md`.
-    Verified: stale-`32` Tier-1 grep clean, all 4 API pages + 11 howto pages carry the symbol.
-- **Golden IDv1:** `gen_iscc_id_v1(1751831876325218,1,0) == "ISCC:MAIGHFECJMOPMIAB"` (realm 0).
-    Decode recipe: `version==1`, `ts=n>>12`, `hub=n&0xFFF`, `realm=subtype`; realm 1 → `MEIGH…`.
-- **Validation-order contract (normative, rust-core.md ~L542):** any WIDE-INT binding MUST validate
-    thresholds `2^52`/`4096`/`2` in ts→hub→realm order BEFORE narrowing; "first failing check wins".
-    Precedents napi:329, jni:500, rb:219. Go/ffi/uniffi/dotnet/cpp exempt (exact-width FFI). Ruby
-    has a benign gap (normal `[review]`): Magnus narrows Integer→i64 DURING marshalling, so
-    `> i64::MAX` raises `RangeError` before `checked()` runs — validate magnitude before the native
-    narrowing layer, not just before codec narrowing.
-- **dotnet gotcha:** csbindgen `build.rs` regenerates tracked `NativeMethods.g.cs` on EVERY build →
-    pre-push clippy rejects push if uncommitted; any FFI-symbol step regens `iscc.h` +
-    `NativeMethods.g.cs` in-step. **Issues 12: 0 crit, 5 normal, 7 low** (first `## ` at L19).
-    Composition shifted @190: #43 sweep issue deleted, NEW `docs/c-ffi-api.md` type-name gap filed
-    (`normal` `[review]`) — cbindgen emits `iscc_IsccDecodeResult` but the page docs unprefixed
-    `IsccDecodeResult`, so no c-ffi snippet compiles verbatim (page-wide, pre-existing).
-- **v0.6.0 release blockers = 5 open `normal` `[review]` issues** (c-ffi-api type names, Ruby
-    wide-input validation order, Go codec `iscc_clean` divergence [Rust half in-flight NEEDS_WORK],
-    iai ASCII-only benches, go1.27 [upstream-blocked]) + the human-gated release cut. No functional
-    IDv1 gap remains. Issue composition unchanged @191 (12: 0 crit, 5 normal, 7 low).
+- **v0.8.0 release criteria MET at 308** (0 normal/critical; 18 `low`, 16 untriaged). Origin tip
+    `32cd3f91` run 45036383921 green (24 check runs). HEAD +1 `.claude`. Next = human `/release`.
+    check-suites API: codecov/cursor sit `queued` forever, and the `github-actions` suite can read
+    `in_progress` after the CI run completed — confirm with `gh run list` + check-runs instead.
+- `grep -c '`normal`'` on issues.md hits 2 PREAMBLE legend lines (L3, L9) — not issues. iscc-lib
+    `src/` `#[test]` = 337 via `grep -rc '#\[test\]' crates/iscc-lib/src` (a zsh
+    `src/*.rs src/**/*.rs` glob DOUBLE-counts).
+- **A doc/vector row can be present yet wrong** (303): check issues.md bodies for the reviewer's
+    measured defects instead of counting rows as met.
+- **CI on a fresh tip may be mid-run** (Coverage+CRAP is the slowest job): wait with
+    `until [ "$(gh run view <id> --json status --jq .status)" = completed ]` under `timeout 300`.
+- **`cid(human)` commits rewrite target.md/issues.md** — always diff both after one (297: two `low`
+    removed, Tier 2 list extended, Swift "tags once").
+- `release.yml` "Create tags" ends `git push ... --force`; harmless with `fetch-depth: 0` (an
+    existing tag stays local-identical). Don't re-flag as a tag-move gap.
+- **Audit iterations add issues with zero code change** (290: 3→6 `normal`) — always re-read
+    issues.md bodies after a `cid(audit)` commit.
+- **`grep -c low` on headers over-counts** ("overflows", "allow") — match the backticked
+    `` `low` ``.
+- `ci.yml` = **22 job keys** (`dotnet-test` matrix .NET 8/10 + `dotnet` aggregator); Python
+    3.10/3.15. issues.md budget 400 (`ARTIFACT_BUDGETS`).
+- **Untriaged count**: `awk '/^## /{t=$0} /untriaged/{print t}' issues.md | sort -u` — drop the
+    blank first line (preamble legend mentions "untriaged").
+- FFI extern count: `grep -c '#\[unsafe(no_mangle)\]'` = 51; a `pub ... extern "C" fn` regex gives
+    50 (misses one) — use the attribute grep.
+- **A fixed issue is often REWRITTEN to its remainder, not closed** (250, 251, 298) — title changes,
+    count holds; diff issues.md bodies.
+- **An audit or `cid(human)` commit can flip DONE-adjacent → workable with zero code change** —
+    always diff issues.md after an audit iteration (249 filed 4, 260 filed 5).
+- data-edge.json sections (9 since 264; list via `uv run python` json keys). C/C++ read generated
+    `crates/iscc-ffi/tests/data_edge_vectors.h`. Vendored check:
+    `md5sum $(git ls-files -- '*data-edge.json')`.
+- **Dependabot probe**: `gh api "repos/iscc/iscc-lib/dependabot/alerts?state=open"` tracks `main`.
 
 ## Durable Facts (carried, not per-iteration)
 
-- **`target.md` carries a "Current Release Milestone — v0.6.0" section** — always diff `target.md`.
+- **`target.md` carries a "Current Release Milestone — v0.8.0" section** — always diff `target.md`.
     Unicode work FINISHED (161, 11/11). Dep refresh DONE (172, uniffi 0.32 + criterion 0.8; zero
     `# held:`/`authorized`). `iscc-uniffi/Cargo.toml` declares `rust-version = "1.91"` (real floor);
-    other 7 crates inherit workspace 1.85. PR **#44 develop→main OPEN**, version **0.5.0**.
+    other 7 crates inherit workspace 1.85. Version **0.7.0** (194); releases via PR develop→main
+    then `/release`.
 - **Review policy widened at 171:** `review` may correct a *mechanically checkable fact* (version,
     path, count) in a sub-spec under `.claude/context/specs/` with NO escalation; `target.md` +
     rationale/criteria/scope still need the human. Report stale spec FACTS.
-- **Every ecosystem has a lockfile** (170: .NET `packages.lock.json` `--locked-mode`; a bump needs
-    `--force-evaluate` same commit). Propagation invariant:
-    `git ls-files -- '*data.json' '*unicode_boundary.json'` = **8** == `VENDORED_COPIES` in
-    `tests/test_vendored_fixtures.py`.
+- **Every ecosystem has a committed lockfile** (napi's since 284, `npm ci` in ci/release) (170: .NET
+    `packages.lock.json` `--locked-mode`; a bump needs `--force-evaluate` same commit). Propagation
+    invariant: `git ls-files -- '*data.json'` = **5** (canonical + 4 vendored) == `VENDORED_COPIES`
+    in `tests/test_vendored_fixtures.py`.
 - **Loop infra (162):** `ARTIFACT_BUDGETS` (`tools/cid.py`) caps state 200; `decisions.md` rotates
     into `decisions-archive.md` (grep BOTH) — dirty `decisions*.md` = runner, not crash.
 - **Issue count: never carry forward** — re-grep `^## ` headers each iteration (a legend inflates a
@@ -153,3 +151,4 @@ Codepaths, patterns, key findings across CID iterations. Topic files: `MEMORY-ar
     span/paren straddles a break. Edge cases → `lint-tooling.md`.
 - **Toolchain presence (`$PATH` fallbacks), invisible exec bits, case-sensitive binding-API greps,
     csbindgen/UniFFI/JNA side effects, the Go probe recipe → `env-gotchas.md`.**
+- **`git ls-files 'docs/*.md'` gives 23**, not the 22 docs pages (`ORDERED_PAGES`) — keep 22.

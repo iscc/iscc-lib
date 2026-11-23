@@ -1,9 +1,9 @@
 //! C FFI bindings for iscc-lib.
 //!
 //! Exposes all 10 `gen_*_v0` functions, 4 algorithm primitives, codec
-//! functions (`encode_component`, `iscc_decode`, `json_to_data_url`),
-//! and 5 algorithm constants as `extern "C"` symbols for integration
-//! from C, Go, Java, C#, and any other language with C interop.
+//! functions (`encode_component`, `iscc_decode`, `encode_seq`, `decode_seq`,
+//! `json_to_data_url`), and 5 algorithm constants as `extern "C"` symbols for
+//! integration from C, Go, Java, C#, and any other language with C interop.
 //!
 //! ## Memory model
 //!
@@ -245,6 +245,65 @@ unsafe fn ptr_to_str<'a>(ptr: *const c_char, param_name: &str) -> Option<&'a str
     }
 }
 
+/// Borrow a pointer+length input as a slice, accepting `(NULL, 0)` as empty.
+///
+/// A length of 0 yields an empty slice whatever `ptr` is, so an empty input
+/// reaches the core and gets the core's own error (if any). A NULL `ptr` with
+/// `len > 0` sets `"<name> must not be NULL"` and returns `None`.
+///
+/// # Safety
+///
+/// If `len > 0` and `ptr` is non-null, `ptr` must be valid for reads of `len`
+/// elements of `T` for the lifetime `'a`.
+unsafe fn slice_or_empty<'a, T>(
+    ptr: *const T,
+    len: usize,
+    name: impl std::fmt::Display,
+) -> Option<&'a [T]> {
+    if len == 0 {
+        return Some(&[]);
+    }
+    if ptr.is_null() {
+        set_last_error(&format!("{name} must not be NULL"));
+        return None;
+    }
+    // SAFETY: ptr is non-null and the caller guarantees it is valid for len elements
+    Some(unsafe { std::slice::from_raw_parts(ptr, len) })
+}
+
+/// Borrow parallel row-pointer and row-length arrays as a list of slices.
+///
+/// The outer arrays and every row go through `slice_or_empty`, so `count == 0`
+/// yields an empty list and a row with length 0 yields an empty row whatever
+/// its pointer is. Stops at the first NULL with a non-zero length; the error
+/// names the parameter (`rows_name`, `lens_name`, or `rows_name[i]`).
+///
+/// # Safety
+///
+/// If `count > 0`, `rows` and `lens` must be valid for `count` elements, and
+/// each non-null `rows[i]` must be valid for `lens[i]` elements of `T`.
+unsafe fn rows_or_empty<'a, T>(
+    rows: *const *const T,
+    lens: *const usize,
+    count: usize,
+    rows_name: &str,
+    lens_name: &str,
+) -> Option<Vec<&'a [T]>> {
+    // SAFETY: caller guarantees rows and lens are valid for count elements
+    let row_ptrs = unsafe { slice_or_empty(rows, count, rows_name) }?;
+    let row_lens = unsafe { slice_or_empty(lens, count, lens_name) }?;
+    row_ptrs
+        .iter()
+        .zip(row_lens)
+        .enumerate()
+        .map(|(i, (&ptr, &len))| {
+            // SAFETY: caller guarantees each non-null row is valid for its length.
+            // `format_args!` builds the indexed name only if the row is rejected
+            unsafe { slice_or_empty(ptr, len, format_args!("{rows_name}[{i}]")) }
+        })
+        .collect()
+}
+
 /// Convert an optional `*const c_char` to `Option<&str>`.
 ///
 /// Returns `Some(None)` for null pointers, `Some(Some(s))` for valid strings,
@@ -346,7 +405,8 @@ pub unsafe extern "C" fn iscc_gen_text_code_v0(text: *const c_char, bits: u32) -
 ///
 /// # Safety
 ///
-/// `pixels` must point to a valid buffer of at least `pixels_len` bytes.
+/// `pixels` must point to a valid buffer of at least `pixels_len` bytes. It may
+/// be NULL when `pixels_len` is 0; NULL with `pixels_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_image_code_v0(
     pixels: *const u8,
@@ -354,12 +414,10 @@ pub unsafe extern "C" fn iscc_gen_image_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if pixels.is_null() {
-        set_last_error("pixels must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees pixels is valid for pixels_len bytes
-    let pixels = unsafe { std::slice::from_raw_parts(pixels, pixels_len) };
+    let Some(pixels) = (unsafe { slice_or_empty(pixels, pixels_len, "pixels") }) else {
+        return ptr::null_mut();
+    };
     result_to_c_string(iscc_lib::gen_image_code_v0(pixels, bits).map(|r| r.iscc))
 }
 
@@ -378,7 +436,8 @@ pub unsafe extern "C" fn iscc_gen_image_code_v0(
 ///
 /// # Safety
 ///
-/// `cv` must point to a valid buffer of at least `cv_len` `i32` elements.
+/// `cv` must point to a valid buffer of at least `cv_len` `i32` elements. It may
+/// be NULL when `cv_len` is 0; NULL with `cv_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_audio_code_v0(
     cv: *const i32,
@@ -386,12 +445,10 @@ pub unsafe extern "C" fn iscc_gen_audio_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if cv.is_null() {
-        set_last_error("cv must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees cv is valid for cv_len elements
-    let cv = unsafe { std::slice::from_raw_parts(cv, cv_len) };
+    let Some(cv) = (unsafe { slice_or_empty(cv, cv_len, "cv") }) else {
+        return ptr::null_mut();
+    };
     result_to_c_string(iscc_lib::gen_audio_code_v0(cv, bits).map(|r| r.iscc))
 }
 
@@ -411,9 +468,11 @@ pub unsafe extern "C" fn iscc_gen_audio_code_v0(
 ///
 /// # Safety
 ///
-/// - `frame_sigs` must point to an array of `num_frames` valid pointers
+/// - `frame_sigs` must point to an array of `num_frames` pointers
 /// - `frame_lens` must point to an array of `num_frames` lengths
 /// - Each `frame_sigs[i]` must be valid for `frame_lens[i]` `i32` elements
+/// - Any of these pointers may be NULL when its length (`num_frames` or
+///   `frame_lens[i]`) is 0; NULL with a non-zero length is an error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_video_code_v0(
     frame_sigs: *const *const i32,
@@ -422,26 +481,18 @@ pub unsafe extern "C" fn iscc_gen_video_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if frame_sigs.is_null() {
-        set_last_error("frame_sigs must not be NULL");
+    // SAFETY: caller guarantees the arrays and each row are valid for their lengths
+    let Some(frames) = (unsafe {
+        rows_or_empty(
+            frame_sigs,
+            frame_lens,
+            num_frames,
+            "frame_sigs",
+            "frame_lens",
+        )
+    }) else {
         return ptr::null_mut();
-    }
-    if frame_lens.is_null() {
-        set_last_error("frame_lens must not be NULL");
-        return ptr::null_mut();
-    }
-    // SAFETY: caller guarantees pointers are valid for num_frames elements
-    let sig_ptrs = unsafe { std::slice::from_raw_parts(frame_sigs, num_frames) };
-    let lens = unsafe { std::slice::from_raw_parts(frame_lens, num_frames) };
-
-    let frames: Vec<&[i32]> = sig_ptrs
-        .iter()
-        .zip(lens.iter())
-        .map(|(&ptr, &len)| {
-            // SAFETY: caller guarantees each ptr is valid for its length
-            unsafe { std::slice::from_raw_parts(ptr, len) }
-        })
-        .collect();
+    };
 
     result_to_c_string(iscc_lib::gen_video_code_v0(&frames, bits).map(|r| r.iscc))
 }
@@ -462,6 +513,7 @@ pub unsafe extern "C" fn iscc_gen_video_code_v0(
 /// # Safety
 ///
 /// `codes` must point to an array of `num_codes` valid null-terminated UTF-8 strings.
+/// It may be NULL when `num_codes` is 0; NULL with `num_codes > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_mixed_code_v0(
     codes: *const *const c_char,
@@ -469,12 +521,10 @@ pub unsafe extern "C" fn iscc_gen_mixed_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if codes.is_null() {
-        set_last_error("codes must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees codes is valid for num_codes elements
-    let code_ptrs = unsafe { std::slice::from_raw_parts(codes, num_codes) };
+    let Some(code_ptrs) = (unsafe { slice_or_empty(codes, num_codes, "codes") }) else {
+        return ptr::null_mut();
+    };
 
     let mut code_strs: Vec<&str> = Vec::with_capacity(num_codes);
     for (i, &ptr) in code_ptrs.iter().enumerate() {
@@ -502,7 +552,8 @@ pub unsafe extern "C" fn iscc_gen_mixed_code_v0(
 ///
 /// # Safety
 ///
-/// `data` must point to a valid buffer of at least `data_len` bytes.
+/// `data` must point to a valid buffer of at least `data_len` bytes. It may be
+/// NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_data_code_v0(
     data: *const u8,
@@ -510,12 +561,10 @@ pub unsafe extern "C" fn iscc_gen_data_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if data.is_null() {
-        set_last_error("data must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees data is valid for data_len bytes
-    let data = unsafe { std::slice::from_raw_parts(data, data_len) };
+    let Some(data) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return ptr::null_mut();
+    };
     result_to_c_string(iscc_lib::gen_data_code_v0(data, bits).map(|r| r.iscc))
 }
 
@@ -534,7 +583,8 @@ pub unsafe extern "C" fn iscc_gen_data_code_v0(
 ///
 /// # Safety
 ///
-/// `data` must point to a valid buffer of at least `data_len` bytes.
+/// `data` must point to a valid buffer of at least `data_len` bytes. It may be
+/// NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_instance_code_v0(
     data: *const u8,
@@ -542,12 +592,10 @@ pub unsafe extern "C" fn iscc_gen_instance_code_v0(
     bits: u32,
 ) -> *mut c_char {
     clear_last_error();
-    if data.is_null() {
-        set_last_error("data must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees data is valid for data_len bytes
-    let data = unsafe { std::slice::from_raw_parts(data, data_len) };
+    let Some(data) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return ptr::null_mut();
+    };
     result_to_c_string(iscc_lib::gen_instance_code_v0(data, bits).map(|r| r.iscc))
 }
 
@@ -567,6 +615,7 @@ pub unsafe extern "C" fn iscc_gen_instance_code_v0(
 /// # Safety
 ///
 /// `codes` must point to an array of `num_codes` valid null-terminated UTF-8 strings.
+/// It may be NULL when `num_codes` is 0; NULL with `num_codes > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_gen_iscc_code_v0(
     codes: *const *const c_char,
@@ -574,12 +623,10 @@ pub unsafe extern "C" fn iscc_gen_iscc_code_v0(
     wide: bool,
 ) -> *mut c_char {
     clear_last_error();
-    if codes.is_null() {
-        set_last_error("codes must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees codes is valid for num_codes elements
-    let code_ptrs = unsafe { std::slice::from_raw_parts(codes, num_codes) };
+    let Some(code_ptrs) = (unsafe { slice_or_empty(codes, num_codes, "codes") }) else {
+        return ptr::null_mut();
+    };
 
     let mut code_strs: Vec<&str> = Vec::with_capacity(num_codes);
     for (i, &ptr) in code_ptrs.iter().enumerate() {
@@ -726,16 +773,15 @@ pub unsafe extern "C" fn iscc_text_collapse(text: *const c_char) -> *mut c_char 
 ///
 /// # Safety
 ///
-/// `data` must point to a valid buffer of at least `data_len` bytes.
+/// `data` must point to a valid buffer of at least `data_len` bytes. It may be
+/// NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_encode_base64(data: *const u8, data_len: usize) -> *mut c_char {
     clear_last_error();
-    if data.is_null() {
-        set_last_error("data must not be NULL");
-        return ptr::null_mut();
-    }
     // SAFETY: caller guarantees data is valid for data_len bytes
-    let data = unsafe { std::slice::from_raw_parts(data, data_len) };
+    let Some(data) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return ptr::null_mut();
+    };
     string_to_c(iscc_lib::encode_base64(data))
 }
 
@@ -773,19 +819,22 @@ pub unsafe extern "C" fn iscc_json_to_data_url(json: *const c_char) -> *mut c_ch
 /// - `mtype`: MainType enum value (0–7)
 /// - `stype`: SubType enum value (0–7)
 /// - `version`: Version enum value
-/// - `bit_length`: bit length of the digest (multiple of 32)
+/// - `bit_length`: bit length of the digest (multiple of 32, 32 to 256, for Meta through
+///   Flake; 64, 72, 80 or 96 for ID)
 /// - `digest`: pointer to raw digest bytes
 /// - `digest_len`: number of bytes in the digest buffer
 ///
 /// # Returns
 ///
 /// Heap-allocated C string on success, `NULL` on error.
-/// Caller must free with `iscc_free_string()`.
+/// Caller must free with `iscc_free_string()`. Returns `NULL` and sets the last
+/// error for out-of-range enum values, for MainType ISCC (5), for an invalid
+/// `bit_length`, or when the digest is shorter than `bit_length / 8` bytes.
 ///
 /// # Safety
 ///
-/// If `digest_len > 0`, `digest` must point to a valid buffer of at least
-/// `digest_len` bytes.
+/// `digest` must point to a valid buffer of at least `digest_len` bytes. It may
+/// be NULL when `digest_len` is 0; NULL with `digest_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_encode_component(
     mtype: u8,
@@ -796,14 +845,9 @@ pub unsafe extern "C" fn iscc_encode_component(
     digest_len: usize,
 ) -> *mut c_char {
     clear_last_error();
-    let slice = if digest_len == 0 {
-        &[]
-    } else if digest.is_null() {
-        set_last_error("digest must not be NULL");
+    // SAFETY: caller guarantees digest is valid for digest_len bytes
+    let Some(slice) = (unsafe { slice_or_empty(digest, digest_len, "digest") }) else {
         return ptr::null_mut();
-    } else {
-        // SAFETY: caller guarantees digest is valid for digest_len bytes
-        unsafe { std::slice::from_raw_parts(digest, digest_len) }
     };
     result_to_c_string(iscc_lib::encode_component(
         mtype, stype, version, bit_length, slice,
@@ -1048,6 +1092,95 @@ pub unsafe extern "C" fn iscc_decompose(iscc_code: *const c_char) -> *mut *mut c
     }
 }
 
+/// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+///
+/// Returns the concatenated header and body bytes of each unit, in the given
+/// order. Unit strings may omit the `ISCC:` prefix and may be lowercase or
+/// contain hyphens. Base32 decoding is strict: no padding, zero spare bits,
+/// and ASCII-only case folding.
+///
+/// # Parameters
+///
+/// - `units`: array of pointers to null-terminated ISCC-UNIT strings
+/// - `num_units`: number of unit strings (must be at least 1)
+///
+/// # Returns
+///
+/// `IsccByteBuffer` with the ISCC-SEQ bytes on success. On error `.data` is
+/// `NULL` (check `iscc_last_error()`): `units` is NULL with `num_units > 0`,
+/// the list is empty, or a unit is NULL, not UTF-8, malformed, or of an
+/// excluded MainType (ISCC-CODE, ID, FLAKE). Caller must free with
+/// `iscc_free_byte_buffer()`.
+///
+/// # Safety
+///
+/// `units` must point to an array of `num_units` valid null-terminated UTF-8
+/// strings. It may be NULL when `num_units` is 0.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_encode_seq(
+    units: *const *const c_char,
+    num_units: usize,
+) -> IsccByteBuffer {
+    clear_last_error();
+    // SAFETY: caller guarantees units is valid for num_units elements
+    let Some(unit_ptrs) = (unsafe { slice_or_empty(units, num_units, "units") }) else {
+        return null_byte_buffer();
+    };
+
+    let mut unit_strs: Vec<&str> = Vec::with_capacity(num_units);
+    for (i, &ptr) in unit_ptrs.iter().enumerate() {
+        let Some(s) = (unsafe { ptr_to_str(ptr, &format!("units[{i}]")) }) else {
+            return null_byte_buffer();
+        };
+        unit_strs.push(s);
+    }
+
+    match iscc_lib::encode_seq(&unit_strs) {
+        Ok(bytes) => vec_to_byte_buffer(bytes),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            null_byte_buffer()
+        }
+    }
+}
+
+/// Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+///
+/// Strict byte-level reader: every unit must be well-formed and no trailing
+/// bytes are allowed. Returns `ISCC:`-prefixed uppercase unit strings in wire
+/// order; `iscc_encode_seq` of the result reproduces `data`.
+///
+/// # Parameters
+///
+/// - `data`: pointer to the ISCC-SEQ bytes
+/// - `data_len`: number of bytes in `data`
+///
+/// # Returns
+///
+/// NULL-terminated array of unit strings on success, `NULL` on error (empty
+/// or malformed input; check `iscc_last_error()`).
+/// Caller must free with `iscc_free_string_array()`.
+///
+/// # Safety
+///
+/// `data` must point to a valid buffer of at least `data_len` bytes. It may be
+/// NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_decode_seq(data: *const u8, data_len: usize) -> *mut *mut c_char {
+    clear_last_error();
+    // SAFETY: caller guarantees data is valid for data_len bytes
+    let Some(slice) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return ptr::null_mut();
+    };
+    match iscc_lib::decode_seq(slice) {
+        Ok(units) => vec_to_c_string_array(units),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
 // ── Sliding window ──────────────────────────────────────────────────────────
 
 /// Generate sliding window n-grams from a string.
@@ -1083,7 +1216,8 @@ pub unsafe extern "C" fn iscc_sliding_window(seq: *const c_char, width: u32) -> 
 /// Compute a SimHash digest from an array of byte digests.
 ///
 /// The output length matches the input digest length (e.g., 4-byte digests
-/// produce a 4-byte SimHash). Returns an empty 32-byte buffer for empty input.
+/// produce a 4-byte SimHash). An empty list (`num_digests == 0`) is rejected:
+/// `.data` is `NULL` and `iscc_last_error()` names the empty list.
 ///
 /// # Parameters
 ///
@@ -1098,9 +1232,11 @@ pub unsafe extern "C" fn iscc_sliding_window(seq: *const c_char, width: u32) -> 
 ///
 /// # Safety
 ///
-/// - `digests` must point to an array of `num_digests` valid byte pointers
+/// - `digests` must point to an array of `num_digests` byte pointers
 /// - `digest_lens` must point to an array of `num_digests` lengths
 /// - Each `digests[i]` must be valid for `digest_lens[i]` bytes
+/// - Any of these pointers may be NULL when its length (`num_digests` or
+///   `digest_lens[i]`) is 0; NULL with a non-zero length is an error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_alg_simhash(
     digests: *const *const u8,
@@ -1108,36 +1244,12 @@ pub unsafe extern "C" fn iscc_alg_simhash(
     num_digests: usize,
 ) -> IsccByteBuffer {
     clear_last_error();
-    if num_digests == 0 {
-        let empty: &[&[u8]] = &[];
-        return match iscc_lib::alg_simhash(empty) {
-            Ok(v) => vec_to_byte_buffer(v),
-            Err(e) => {
-                set_last_error(&e.to_string());
-                null_byte_buffer()
-            }
-        };
-    }
-    if digests.is_null() {
-        set_last_error("digests must not be NULL");
+    // SAFETY: caller guarantees the arrays and each row are valid for their lengths
+    let Some(slices) =
+        (unsafe { rows_or_empty(digests, digest_lens, num_digests, "digests", "digest_lens") })
+    else {
         return null_byte_buffer();
-    }
-    if digest_lens.is_null() {
-        set_last_error("digest_lens must not be NULL");
-        return null_byte_buffer();
-    }
-    // SAFETY: caller guarantees pointers are valid for num_digests elements
-    let ptrs = unsafe { std::slice::from_raw_parts(digests, num_digests) };
-    let lens = unsafe { std::slice::from_raw_parts(digest_lens, num_digests) };
-
-    let slices: Vec<&[u8]> = ptrs
-        .iter()
-        .zip(lens.iter())
-        .map(|(&ptr, &len)| {
-            // SAFETY: caller guarantees each ptr is valid for its length
-            unsafe { std::slice::from_raw_parts(ptr, len) }
-        })
-        .collect();
+    };
 
     match iscc_lib::alg_simhash(&slices) {
         Ok(v) => vec_to_byte_buffer(v),
@@ -1160,29 +1272,30 @@ pub unsafe extern "C" fn iscc_alg_simhash(
 ///
 /// # Returns
 ///
-/// `IsccByteBuffer` with 32 bytes. On error, `.data` is `NULL`.
-/// Caller must free with `iscc_free_byte_buffer()`.
+/// `IsccByteBuffer` with 32 bytes. On error (including an empty feature
+/// list), `.data` is `NULL`. Caller must free with `iscc_free_byte_buffer()`.
 ///
 /// # Safety
 ///
 /// `features` must point to a valid buffer of at least `features_len` `u32` elements.
+/// It may be NULL when `features_len` is 0; NULL with `features_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_alg_minhash_256(
     features: *const u32,
     features_len: usize,
 ) -> IsccByteBuffer {
     clear_last_error();
-    let slice = if features_len == 0 {
-        &[]
-    } else {
-        if features.is_null() {
-            set_last_error("features must not be NULL");
-            return null_byte_buffer();
-        }
-        // SAFETY: caller guarantees features is valid for features_len elements
-        unsafe { std::slice::from_raw_parts(features, features_len) }
+    // SAFETY: caller guarantees features is valid for features_len elements
+    let Some(slice) = (unsafe { slice_or_empty(features, features_len, "features") }) else {
+        return null_byte_buffer();
     };
-    vec_to_byte_buffer(iscc_lib::alg_minhash_256(slice))
+    match iscc_lib::alg_minhash_256(slice) {
+        Ok(v) => vec_to_byte_buffer(v),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            null_byte_buffer()
+        }
+    }
 }
 
 /// Split data into content-defined chunks using gear rolling hash.
@@ -1204,7 +1317,8 @@ pub unsafe extern "C" fn iscc_alg_minhash_256(
 ///
 /// # Safety
 ///
-/// `data` must point to a valid buffer of at least `data_len` bytes.
+/// `data` must point to a valid buffer of at least `data_len` bytes. It may be
+/// NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_alg_cdc_chunks(
     data: *const u8,
@@ -1213,15 +1327,9 @@ pub unsafe extern "C" fn iscc_alg_cdc_chunks(
     avg_chunk_size: u32,
 ) -> IsccByteBufferArray {
     clear_last_error();
-    let slice = if data_len == 0 {
-        &[]
-    } else {
-        if data.is_null() {
-            set_last_error("data must not be NULL");
-            return null_byte_buffer_array();
-        }
-        // SAFETY: caller guarantees data is valid for data_len bytes
-        unsafe { std::slice::from_raw_parts(data, data_len) }
+    // SAFETY: caller guarantees data is valid for data_len bytes
+    let Some(slice) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return null_byte_buffer_array();
     };
     let chunks = match iscc_lib::alg_cdc_chunks(slice, utf32, avg_chunk_size) {
         Ok(c) => c,
@@ -1260,9 +1368,11 @@ pub unsafe extern "C" fn iscc_alg_cdc_chunks(
 ///
 /// # Safety
 ///
-/// - `frame_sigs` must point to an array of `num_frames` valid pointers
+/// - `frame_sigs` must point to an array of `num_frames` pointers
 /// - `frame_lens` must point to an array of `num_frames` lengths
 /// - Each `frame_sigs[i]` must be valid for `frame_lens[i]` `i32` elements
+/// - Any of these pointers may be NULL when its length (`num_frames` or
+///   `frame_lens[i]`) is 0; NULL with a non-zero length is an error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_soft_hash_video_v0(
     frame_sigs: *const *const i32,
@@ -1271,26 +1381,18 @@ pub unsafe extern "C" fn iscc_soft_hash_video_v0(
     bits: u32,
 ) -> IsccByteBuffer {
     clear_last_error();
-    if frame_sigs.is_null() {
-        set_last_error("frame_sigs must not be NULL");
+    // SAFETY: caller guarantees the arrays and each row are valid for their lengths
+    let Some(frames) = (unsafe {
+        rows_or_empty(
+            frame_sigs,
+            frame_lens,
+            num_frames,
+            "frame_sigs",
+            "frame_lens",
+        )
+    }) else {
         return null_byte_buffer();
-    }
-    if frame_lens.is_null() {
-        set_last_error("frame_lens must not be NULL");
-        return null_byte_buffer();
-    }
-    // SAFETY: caller guarantees pointers are valid for num_frames elements
-    let sig_ptrs = unsafe { std::slice::from_raw_parts(frame_sigs, num_frames) };
-    let lens = unsafe { std::slice::from_raw_parts(frame_lens, num_frames) };
-
-    let frames: Vec<&[i32]> = sig_ptrs
-        .iter()
-        .zip(lens.iter())
-        .map(|(&ptr, &len)| {
-            // SAFETY: caller guarantees each ptr is valid for its length
-            unsafe { std::slice::from_raw_parts(ptr, len) }
-        })
-        .collect();
+    };
 
     match iscc_lib::soft_hash_video_v0(&frames, bits) {
         Ok(result) => vec_to_byte_buffer(result),
@@ -1339,7 +1441,8 @@ pub extern "C" fn iscc_data_hasher_new() -> *mut FfiDataHasher {
 /// # Safety
 ///
 /// - `hasher` must be a valid pointer from `iscc_data_hasher_new()`, or NULL.
-/// - `data` must point to at least `data_len` valid bytes.
+/// - `data` must point to at least `data_len` valid bytes. It may be NULL when
+///   `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_data_hasher_update(
     hasher: *mut FfiDataHasher,
@@ -1358,14 +1461,8 @@ pub unsafe extern "C" fn iscc_data_hasher_update(
         return false;
     };
     // SAFETY: caller guarantees data is valid for data_len bytes
-    let slice = if data_len == 0 {
-        &[]
-    } else {
-        if data.is_null() {
-            set_last_error("data must not be NULL");
-            return false;
-        }
-        unsafe { std::slice::from_raw_parts(data, data_len) }
+    let Some(slice) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return false;
     };
     inner.update(slice);
     true
@@ -1436,7 +1533,8 @@ pub extern "C" fn iscc_instance_hasher_new() -> *mut FfiInstanceHasher {
 /// # Safety
 ///
 /// - `hasher` must be a valid pointer from `iscc_instance_hasher_new()`, or NULL.
-/// - `data` must point to at least `data_len` valid bytes.
+/// - `data` must point to at least `data_len` valid bytes. It may be NULL when
+///   `data_len` is 0; NULL with `data_len > 0` is an error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_instance_hasher_update(
     hasher: *mut FfiInstanceHasher,
@@ -1455,14 +1553,8 @@ pub unsafe extern "C" fn iscc_instance_hasher_update(
         return false;
     };
     // SAFETY: caller guarantees data is valid for data_len bytes
-    let slice = if data_len == 0 {
-        &[]
-    } else {
-        if data.is_null() {
-            set_last_error("data must not be NULL");
-            return false;
-        }
-        unsafe { std::slice::from_raw_parts(data, data_len) }
+    let Some(slice) = (unsafe { slice_or_empty(data, data_len, "data") }) else {
+        return false;
     };
     inner.update(slice);
     true
@@ -1529,16 +1621,16 @@ pub unsafe extern "C" fn iscc_free_string(ptr: *mut c_char) {
     }
 }
 
-/// Free a NULL-terminated string array returned by `iscc_decompose` or
-/// `iscc_sliding_window`.
+/// Free a NULL-terminated string array returned by `iscc_decompose`,
+/// `iscc_decode_seq`, or `iscc_sliding_window`.
 ///
 /// Walks the array, freeing each string via `CString::from_raw`, then frees
 /// the array itself. `NULL` is a no-op.
 ///
 /// # Safety
 ///
-/// `arr` must be a pointer returned by `iscc_decompose` or `iscc_sliding_window`,
-/// or `NULL`. Each array must only be freed once.
+/// `arr` must be a pointer returned by `iscc_decompose`, `iscc_decode_seq`, or
+/// `iscc_sliding_window`, or `NULL`. Each array must only be freed once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
     if arr.is_null() {
@@ -1558,13 +1650,13 @@ pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
 }
 
 /// Free a byte buffer returned by `iscc_alg_simhash`, `iscc_alg_minhash_256`,
-/// or `iscc_soft_hash_video_v0`.
+/// `iscc_soft_hash_video_v0`, or `iscc_encode_seq`.
 ///
 /// No-op if `buf.data` is `NULL`.
 ///
 /// # Safety
 ///
-/// `buf` must be a value returned by one of the algorithm primitive functions.
+/// `buf` must be a value returned by one of the functions listed above.
 /// Each buffer must only be freed once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_free_byte_buffer(buf: IsccByteBuffer) {
@@ -1618,955 +1710,4 @@ pub extern "C" fn iscc_last_error() -> *const c_char {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::ffi::CString;
-
-    /// Helper to call a gen function and convert the result back to a Rust String.
-    unsafe fn c_ptr_to_string(ptr: *mut c_char) -> Option<String> {
-        if ptr.is_null() {
-            return None;
-        }
-        // SAFETY: ptr was produced by CString::into_raw() in this crate
-        let s = unsafe { CStr::from_ptr(ptr) }.to_str().unwrap().to_owned();
-        unsafe { iscc_free_string(ptr) };
-        Some(s)
-    }
-
-    /// Walk a NULL-terminated C string array and collect into a Vec<String>.
-    unsafe fn c_ptr_to_string_vec(arr: *mut *mut c_char) -> Option<Vec<String>> {
-        if arr.is_null() {
-            return None;
-        }
-        let mut result = Vec::new();
-        let mut i = 0;
-        while !unsafe { *arr.add(i) }.is_null() {
-            let s = unsafe { CStr::from_ptr(*arr.add(i)) }
-                .to_str()
-                .unwrap()
-                .to_owned();
-            result.push(s);
-            i += 1;
-        }
-        unsafe { iscc_free_string_array(arr) };
-        Some(result)
-    }
-
-    #[test]
-    fn test_gen_meta_code_v0_basic() {
-        let name = CString::new("Die Unendliche Geschichte").unwrap();
-        let result = unsafe { iscc_gen_meta_code_v0(name.as_ptr(), ptr::null(), ptr::null(), 64) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "ISCC:AAAZXZ6OU74YAZIM");
-    }
-
-    #[test]
-    fn test_gen_meta_code_v0_with_description() {
-        let name = CString::new("Die Unendliche Geschichte").unwrap();
-        let desc = CString::new("Von Michael Ende").unwrap();
-        let result =
-            unsafe { iscc_gen_meta_code_v0(name.as_ptr(), desc.as_ptr(), ptr::null(), 64) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "ISCC:AAAZXZ6OU4E45RB5");
-    }
-
-    #[test]
-    fn test_gen_meta_code_v0_null_name() {
-        let result = unsafe { iscc_gen_meta_code_v0(ptr::null(), ptr::null(), ptr::null(), 64) };
-        assert!(result.is_null());
-        let err = iscc_last_error();
-        assert!(!err.is_null());
-        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
-        assert!(msg.contains("name"));
-    }
-
-    #[test]
-    fn test_gen_text_code_v0_basic() {
-        let text = CString::new("Hello World").unwrap();
-        let result = unsafe { iscc_gen_text_code_v0(text.as_ptr(), 64) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "ISCC:EAASKDNZNYGUUF5A");
-    }
-
-    #[test]
-    fn test_gen_text_code_v0_null() {
-        let result = unsafe { iscc_gen_text_code_v0(ptr::null(), 64) };
-        assert!(result.is_null());
-    }
-
-    #[test]
-    fn test_gen_image_code_v0_basic() {
-        let pixels = vec![0u8; 1024];
-        let result = unsafe { iscc_gen_image_code_v0(pixels.as_ptr(), pixels.len(), 64) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "ISCC:EEAQAAAAAAAAAAAA");
-    }
-
-    #[test]
-    fn test_gen_image_code_v0_null() {
-        let result = unsafe { iscc_gen_image_code_v0(ptr::null(), 0, 64) };
-        assert!(result.is_null());
-    }
-
-    #[test]
-    fn test_gen_audio_code_v0_basic() {
-        let cv: Vec<i32> = vec![-1, 0, 1];
-        let result = unsafe { iscc_gen_audio_code_v0(cv.as_ptr(), cv.len(), 256) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(
-            s,
-            "ISCC:EIDQAAAAAH777777AAAAAAAAAAAACAAAAAAP777774AAAAAAAAAAAAI"
-        );
-    }
-
-    #[test]
-    fn test_gen_audio_code_v0_null() {
-        let result = unsafe { iscc_gen_audio_code_v0(ptr::null(), 0, 64) };
-        assert!(result.is_null());
-    }
-
-    #[test]
-    fn test_gen_video_code_v0_null_sigs() {
-        let result = unsafe { iscc_gen_video_code_v0(ptr::null(), ptr::null(), 0, 64) };
-        assert!(result.is_null());
-    }
-
-    #[test]
-    fn test_gen_mixed_code_v0_null() {
-        let result = unsafe { iscc_gen_mixed_code_v0(ptr::null(), 0, 64) };
-        assert!(result.is_null());
-    }
-
-    #[test]
-    fn test_gen_data_code_v0_basic() {
-        let data = b"Hello World";
-        let result = unsafe { iscc_gen_data_code_v0(data.as_ptr(), data.len(), 64) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert!(!s.is_empty());
-        assert!(s.starts_with("ISCC:"));
-    }
-
-    #[test]
-    fn test_gen_data_code_v0_null() {
-        let result = unsafe { iscc_gen_data_code_v0(ptr::null(), 0, 64) };
-        assert!(result.is_null());
-    }
-
-    #[test]
-    fn test_gen_instance_code_v0_basic() {
-        let data = b"";
-        let result = unsafe { iscc_gen_instance_code_v0(data.as_ptr(), data.len(), 64) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "ISCC:IAA26E2JXH27TING");
-    }
-
-    #[test]
-    fn test_gen_instance_code_v0_null() {
-        let result = unsafe { iscc_gen_instance_code_v0(ptr::null(), 0, 64) };
-        assert!(result.is_null());
-    }
-
-    #[test]
-    fn test_gen_iscc_code_v0_null() {
-        let result = unsafe { iscc_gen_iscc_code_v0(ptr::null(), 0, false) };
-        assert!(result.is_null());
-    }
-
-    #[test]
-    fn test_free_string_null() {
-        // Should be a no-op, not crash
-        unsafe { iscc_free_string(ptr::null_mut()) };
-    }
-
-    #[test]
-    fn test_last_error_no_error() {
-        clear_last_error();
-        let err = iscc_last_error();
-        assert!(err.is_null());
-    }
-
-    #[test]
-    fn test_last_error_after_error() {
-        set_last_error("test error message");
-        let err = iscc_last_error();
-        assert!(!err.is_null());
-        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
-        assert_eq!(msg, "test error message");
-    }
-
-    #[test]
-    fn test_error_cleared_on_success() {
-        // Trigger an error first
-        let result = unsafe { iscc_gen_text_code_v0(ptr::null(), 64) };
-        assert!(result.is_null());
-        assert!(!iscc_last_error().is_null());
-
-        // Successful call should clear the error
-        let text = CString::new("Hello World").unwrap();
-        let result = unsafe { iscc_gen_text_code_v0(text.as_ptr(), 64) };
-        assert!(!result.is_null());
-        assert!(iscc_last_error().is_null());
-        unsafe { iscc_free_string(result) };
-    }
-
-    // ── text_clean tests ────────────────────────────────────────────────────
-
-    #[test]
-    fn test_text_clean_nfkc() {
-        // NFKC normalizes fi ligature (U+FB01) to "fi"
-        let text = CString::new("Hel\u{FB01}").unwrap();
-        let result = unsafe { iscc_text_clean(text.as_ptr()) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "Helfi");
-    }
-
-    #[test]
-    fn test_text_clean_null() {
-        let result = unsafe { iscc_text_clean(ptr::null()) };
-        assert!(result.is_null());
-    }
-
-    // ── text_remove_newlines tests ──────────────────────────────────────────
-
-    #[test]
-    fn test_text_remove_newlines_basic() {
-        let text = CString::new("line1\nline2\nline3").unwrap();
-        let result = unsafe { iscc_text_remove_newlines(text.as_ptr()) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "line1 line2 line3");
-    }
-
-    #[test]
-    fn test_text_remove_newlines_null() {
-        let result = unsafe { iscc_text_remove_newlines(ptr::null()) };
-        assert!(result.is_null());
-    }
-
-    // ── text_trim tests ─────────────────────────────────────────────────────
-
-    #[test]
-    fn test_text_trim_truncation() {
-        let text = CString::new("Hello World").unwrap();
-        let result = unsafe { iscc_text_trim(text.as_ptr(), 5) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "Hello");
-    }
-
-    #[test]
-    fn test_text_trim_null() {
-        let result = unsafe { iscc_text_trim(ptr::null(), 10) };
-        assert!(result.is_null());
-    }
-
-    // ── text_collapse tests ─────────────────────────────────────────────────
-
-    #[test]
-    fn test_text_collapse_basic() {
-        let text = CString::new("Hello World!").unwrap();
-        let result = unsafe { iscc_text_collapse(text.as_ptr()) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "helloworld");
-    }
-
-    #[test]
-    fn test_text_collapse_null() {
-        let result = unsafe { iscc_text_collapse(ptr::null()) };
-        assert!(result.is_null());
-    }
-
-    // ── encode_base64 tests ─────────────────────────────────────────────────
-
-    #[test]
-    fn test_encode_base64_known() {
-        let data = b"\x00\x01\x02";
-        let result = unsafe { iscc_encode_base64(data.as_ptr(), data.len()) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "AAEC");
-    }
-
-    #[test]
-    fn test_encode_base64_null() {
-        let result = unsafe { iscc_encode_base64(ptr::null(), 0) };
-        assert!(result.is_null());
-    }
-
-    // ── conformance_selftest test ───────────────────────────────────────────
-
-    #[test]
-    fn test_conformance_selftest() {
-        assert!(iscc_conformance_selftest());
-    }
-
-    // ── iscc_decompose tests ────────────────────────────────────────────────
-
-    #[test]
-    fn test_decompose_known() {
-        // Decompose a known ISCC-CODE (single Meta-Code unit)
-        let code = CString::new("ISCC:AAAYPXW445FTYNJ3").unwrap();
-        let arr = unsafe { iscc_decompose(code.as_ptr()) };
-        let units = unsafe { c_ptr_to_string_vec(arr) }.unwrap();
-        assert_eq!(units.len(), 1);
-    }
-
-    #[test]
-    fn test_decompose_invalid() {
-        let code = CString::new("INVALID").unwrap();
-        let arr = unsafe { iscc_decompose(code.as_ptr()) };
-        assert!(arr.is_null());
-    }
-
-    #[test]
-    fn test_decompose_null() {
-        let arr = unsafe { iscc_decompose(ptr::null()) };
-        assert!(arr.is_null());
-    }
-
-    // ── iscc_sliding_window tests ───────────────────────────────────────────
-
-    #[test]
-    fn test_sliding_window_basic() {
-        let seq = CString::new("Hello").unwrap();
-        let arr = unsafe { iscc_sliding_window(seq.as_ptr(), 2) };
-        let ngrams = unsafe { c_ptr_to_string_vec(arr) }.unwrap();
-        assert_eq!(ngrams, vec!["He", "el", "ll", "lo"]);
-    }
-
-    #[test]
-    fn test_sliding_window_width_too_small() {
-        let seq = CString::new("Hello").unwrap();
-        let arr = unsafe { iscc_sliding_window(seq.as_ptr(), 1) };
-        assert!(arr.is_null());
-        let err = iscc_last_error();
-        assert!(!err.is_null());
-        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
-        assert!(msg.contains("width"));
-    }
-
-    #[test]
-    fn test_sliding_window_null() {
-        let arr = unsafe { iscc_sliding_window(ptr::null(), 3) };
-        assert!(arr.is_null());
-    }
-
-    // ── free_string_array null safety ───────────────────────────────────────
-
-    #[test]
-    fn test_free_string_array_null() {
-        // Should be a no-op, not crash
-        unsafe { iscc_free_string_array(ptr::null_mut()) };
-    }
-
-    // ── alg_simhash tests ──────────────────────────────────────────────────
-
-    #[test]
-    fn test_alg_simhash_basic() {
-        // Feed two 4-byte digests, output should be 4 bytes
-        let d1: [u8; 4] = [0xFF, 0x00, 0xFF, 0x00];
-        let d2: [u8; 4] = [0xFF, 0xFF, 0x00, 0x00];
-        let digests = [d1.as_ptr(), d2.as_ptr()];
-        let lens = [d1.len(), d2.len()];
-        let buf = unsafe { iscc_alg_simhash(digests.as_ptr(), lens.as_ptr(), 2) };
-        assert!(!buf.data.is_null());
-        assert_eq!(buf.len, 4);
-        unsafe { iscc_free_byte_buffer(buf) };
-    }
-
-    #[test]
-    fn test_alg_simhash_null() {
-        // NULL digests with count > 0 returns null buffer
-        let lens = [4usize];
-        let buf = unsafe { iscc_alg_simhash(ptr::null(), lens.as_ptr(), 1) };
-        assert!(buf.data.is_null());
-        assert_eq!(buf.len, 0);
-    }
-
-    #[test]
-    fn test_alg_simhash_empty() {
-        // Zero digests yields 32-byte default output
-        let buf = unsafe { iscc_alg_simhash(ptr::null(), ptr::null(), 0) };
-        assert!(!buf.data.is_null());
-        assert_eq!(buf.len, 32);
-        unsafe { iscc_free_byte_buffer(buf) };
-    }
-
-    // ── alg_minhash_256 tests ──────────────────────────────────────────────
-
-    #[test]
-    fn test_alg_minhash_256_basic() {
-        let features: Vec<u32> = vec![1, 2, 3, 4, 5];
-        let buf = unsafe { iscc_alg_minhash_256(features.as_ptr(), features.len()) };
-        assert!(!buf.data.is_null());
-        assert_eq!(buf.len, 32);
-        unsafe { iscc_free_byte_buffer(buf) };
-    }
-
-    #[test]
-    fn test_alg_minhash_256_null() {
-        // NULL features with len > 0 returns null buffer
-        let buf = unsafe { iscc_alg_minhash_256(ptr::null(), 5) };
-        assert!(buf.data.is_null());
-        assert_eq!(buf.len, 0);
-    }
-
-    // ── alg_cdc_chunks tests ───────────────────────────────────────────────
-
-    #[test]
-    fn test_alg_cdc_chunks_basic() {
-        let data = b"Hello World";
-        let arr = unsafe { iscc_alg_cdc_chunks(data.as_ptr(), data.len(), false, 1024) };
-        assert!(!arr.buffers.is_null());
-        assert!(arr.count >= 1);
-
-        // Concatenate all chunks and verify they equal the original data
-        let mut concatenated = Vec::new();
-        for i in 0..arr.count {
-            let buf = unsafe { &*arr.buffers.add(i) };
-            let chunk = unsafe { std::slice::from_raw_parts(buf.data, buf.len) };
-            concatenated.extend_from_slice(chunk);
-        }
-        assert_eq!(concatenated, data);
-
-        unsafe { iscc_free_byte_buffer_array(arr) };
-    }
-
-    #[test]
-    fn test_alg_cdc_chunks_null() {
-        // NULL data with len > 0 returns null array
-        let arr = unsafe { iscc_alg_cdc_chunks(ptr::null(), 10, false, 1024) };
-        assert!(arr.buffers.is_null());
-        assert_eq!(arr.count, 0);
-    }
-
-    #[test]
-    fn test_alg_cdc_chunks_empty() {
-        // Empty data returns at least one chunk
-        let arr = unsafe { iscc_alg_cdc_chunks(ptr::null(), 0, false, 1024) };
-        assert!(!arr.buffers.is_null());
-        assert_eq!(arr.count, 1);
-        let buf = unsafe { &*arr.buffers };
-        assert_eq!(buf.len, 0);
-        unsafe { iscc_free_byte_buffer_array(arr) };
-    }
-
-    // ── soft_hash_video_v0 tests ───────────────────────────────────────────
-
-    #[test]
-    fn test_soft_hash_video_v0_basic() {
-        // WTA hash requires frames with at least 380 elements
-        let f1: Vec<i32> = (0..380).collect();
-        let f2: Vec<i32> = (1..381).collect();
-        let ptrs = [f1.as_ptr(), f2.as_ptr()];
-        let lens = [f1.len(), f2.len()];
-        let buf = unsafe { iscc_soft_hash_video_v0(ptrs.as_ptr(), lens.as_ptr(), 2, 64) };
-        assert!(!buf.data.is_null());
-        assert_eq!(buf.len, 8); // 64 bits / 8 = 8 bytes
-        unsafe { iscc_free_byte_buffer(buf) };
-    }
-
-    #[test]
-    fn test_soft_hash_video_v0_null() {
-        // NULL frame_sigs returns null buffer
-        let buf = unsafe { iscc_soft_hash_video_v0(ptr::null(), ptr::null(), 0, 64) };
-        assert!(buf.data.is_null());
-        assert_eq!(buf.len, 0);
-    }
-
-    // ── free byte buffer null safety ───────────────────────────────────────
-
-    #[test]
-    fn test_free_byte_buffer_null() {
-        // Should be a no-op, not crash
-        unsafe { iscc_free_byte_buffer(null_byte_buffer()) };
-    }
-
-    #[test]
-    fn test_free_byte_buffer_array_null() {
-        // Should be a no-op, not crash
-        unsafe { iscc_free_byte_buffer_array(null_byte_buffer_array()) };
-    }
-
-    // ── DataHasher streaming tests ───────────────────────────────────────
-
-    #[test]
-    fn test_data_hasher_basic() {
-        let hasher = iscc_data_hasher_new();
-        assert!(!hasher.is_null());
-        let data = b"Hello World";
-        let ok = unsafe { iscc_data_hasher_update(hasher, data.as_ptr(), data.len()) };
-        assert!(ok);
-        let result = unsafe { iscc_data_hasher_finalize(hasher, 64) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert!(s.starts_with("ISCC:"));
-        unsafe { iscc_data_hasher_free(hasher) };
-    }
-
-    #[test]
-    fn test_data_hasher_matches_gen() {
-        // Streaming result must match one-shot gen_data_code_v0
-        let data = b"Hello World";
-        let oneshot = unsafe { iscc_gen_data_code_v0(data.as_ptr(), data.len(), 64) };
-        let oneshot_str = unsafe { c_ptr_to_string(oneshot) }.unwrap();
-
-        let hasher = iscc_data_hasher_new();
-        let ok = unsafe { iscc_data_hasher_update(hasher, data.as_ptr(), data.len()) };
-        assert!(ok);
-        let result = unsafe { iscc_data_hasher_finalize(hasher, 64) };
-        let streaming_str = unsafe { c_ptr_to_string(result) }.unwrap();
-        unsafe { iscc_data_hasher_free(hasher) };
-
-        assert_eq!(streaming_str, oneshot_str);
-    }
-
-    #[test]
-    fn test_data_hasher_multi_update() {
-        let data = b"Hello World";
-        // Single update reference
-        let hasher1 = iscc_data_hasher_new();
-        unsafe { iscc_data_hasher_update(hasher1, data.as_ptr(), data.len()) };
-        let result1 = unsafe { iscc_data_hasher_finalize(hasher1, 64) };
-        let s1 = unsafe { c_ptr_to_string(result1) }.unwrap();
-        unsafe { iscc_data_hasher_free(hasher1) };
-
-        // Split across two updates
-        let hasher2 = iscc_data_hasher_new();
-        unsafe { iscc_data_hasher_update(hasher2, data[..5].as_ptr(), 5) };
-        unsafe { iscc_data_hasher_update(hasher2, data[5..].as_ptr(), data.len() - 5) };
-        let result2 = unsafe { iscc_data_hasher_finalize(hasher2, 64) };
-        let s2 = unsafe { c_ptr_to_string(result2) }.unwrap();
-        unsafe { iscc_data_hasher_free(hasher2) };
-
-        assert_eq!(s1, s2);
-    }
-
-    #[test]
-    fn test_data_hasher_empty() {
-        let hasher = iscc_data_hasher_new();
-        let result = unsafe { iscc_data_hasher_finalize(hasher, 64) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert!(s.starts_with("ISCC:"));
-        unsafe { iscc_data_hasher_free(hasher) };
-    }
-
-    #[test]
-    fn test_data_hasher_finalize_twice() {
-        let hasher = iscc_data_hasher_new();
-        let result1 = unsafe { iscc_data_hasher_finalize(hasher, 64) };
-        assert!(!result1.is_null());
-        unsafe { iscc_free_string(result1) };
-
-        // Second finalize should return NULL with error
-        let result2 = unsafe { iscc_data_hasher_finalize(hasher, 64) };
-        assert!(result2.is_null());
-        let err = iscc_last_error();
-        assert!(!err.is_null());
-        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
-        assert!(msg.contains("already finalized"));
-
-        unsafe { iscc_data_hasher_free(hasher) };
-    }
-
-    #[test]
-    fn test_data_hasher_free_null() {
-        // Should be a no-op, not crash
-        unsafe { iscc_data_hasher_free(ptr::null_mut()) };
-    }
-
-    // ── InstanceHasher streaming tests ───────────────────────────────────
-
-    #[test]
-    fn test_instance_hasher_basic() {
-        let hasher = iscc_instance_hasher_new();
-        assert!(!hasher.is_null());
-        let data = b"Hello World";
-        let ok = unsafe { iscc_instance_hasher_update(hasher, data.as_ptr(), data.len()) };
-        assert!(ok);
-        let result = unsafe { iscc_instance_hasher_finalize(hasher, 64) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert!(s.starts_with("ISCC:"));
-        unsafe { iscc_instance_hasher_free(hasher) };
-    }
-
-    #[test]
-    fn test_instance_hasher_matches_gen() {
-        // Streaming result must match one-shot gen_instance_code_v0
-        let data = b"Hello World";
-        let oneshot = unsafe { iscc_gen_instance_code_v0(data.as_ptr(), data.len(), 64) };
-        let oneshot_str = unsafe { c_ptr_to_string(oneshot) }.unwrap();
-
-        let hasher = iscc_instance_hasher_new();
-        let ok = unsafe { iscc_instance_hasher_update(hasher, data.as_ptr(), data.len()) };
-        assert!(ok);
-        let result = unsafe { iscc_instance_hasher_finalize(hasher, 64) };
-        let streaming_str = unsafe { c_ptr_to_string(result) }.unwrap();
-        unsafe { iscc_instance_hasher_free(hasher) };
-
-        assert_eq!(streaming_str, oneshot_str);
-    }
-
-    #[test]
-    fn test_instance_hasher_multi_update() {
-        let data = b"Hello World";
-        // Single update reference
-        let hasher1 = iscc_instance_hasher_new();
-        unsafe { iscc_instance_hasher_update(hasher1, data.as_ptr(), data.len()) };
-        let result1 = unsafe { iscc_instance_hasher_finalize(hasher1, 64) };
-        let s1 = unsafe { c_ptr_to_string(result1) }.unwrap();
-        unsafe { iscc_instance_hasher_free(hasher1) };
-
-        // Split across two updates
-        let hasher2 = iscc_instance_hasher_new();
-        unsafe { iscc_instance_hasher_update(hasher2, data[..5].as_ptr(), 5) };
-        unsafe { iscc_instance_hasher_update(hasher2, data[5..].as_ptr(), data.len() - 5) };
-        let result2 = unsafe { iscc_instance_hasher_finalize(hasher2, 64) };
-        let s2 = unsafe { c_ptr_to_string(result2) }.unwrap();
-        unsafe { iscc_instance_hasher_free(hasher2) };
-
-        assert_eq!(s1, s2);
-    }
-
-    #[test]
-    fn test_instance_hasher_empty() {
-        // Finalize immediately with no data — matches gen_instance_code_v0(empty)
-        let hasher = iscc_instance_hasher_new();
-        let result = unsafe { iscc_instance_hasher_finalize(hasher, 64) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert_eq!(s, "ISCC:IAA26E2JXH27TING");
-        unsafe { iscc_instance_hasher_free(hasher) };
-    }
-
-    #[test]
-    fn test_instance_hasher_finalize_twice() {
-        let hasher = iscc_instance_hasher_new();
-        let result1 = unsafe { iscc_instance_hasher_finalize(hasher, 64) };
-        assert!(!result1.is_null());
-        unsafe { iscc_free_string(result1) };
-
-        // Second finalize should return NULL with error
-        let result2 = unsafe { iscc_instance_hasher_finalize(hasher, 64) };
-        assert!(result2.is_null());
-        let err = iscc_last_error();
-        assert!(!err.is_null());
-        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
-        assert!(msg.contains("already finalized"));
-
-        unsafe { iscc_instance_hasher_free(hasher) };
-    }
-
-    #[test]
-    fn test_instance_hasher_free_null() {
-        // Should be a no-op, not crash
-        unsafe { iscc_instance_hasher_free(ptr::null_mut()) };
-    }
-
-    // ── Algorithm constants tests ────────────────────────────────────────
-
-    #[test]
-    fn test_meta_trim_name() {
-        assert_eq!(iscc_meta_trim_name(), 128);
-    }
-
-    #[test]
-    fn test_meta_trim_description() {
-        assert_eq!(iscc_meta_trim_description(), 4096);
-    }
-
-    #[test]
-    fn test_meta_trim_meta() {
-        assert_eq!(iscc_meta_trim_meta(), 128_000);
-    }
-
-    #[test]
-    fn test_io_read_size() {
-        assert_eq!(iscc_io_read_size(), 4_194_304);
-    }
-
-    #[test]
-    fn test_text_ngram_size() {
-        assert_eq!(iscc_text_ngram_size(), 13);
-    }
-
-    // ── json_to_data_url tests ───────────────────────────────────────────
-
-    #[test]
-    fn test_json_to_data_url_basic() {
-        let json = CString::new(r#"{"key":"value"}"#).unwrap();
-        let result = unsafe { iscc_json_to_data_url(json.as_ptr()) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert!(s.starts_with("data:application/json;base64,"));
-    }
-
-    #[test]
-    fn test_json_to_data_url_null() {
-        let result = unsafe { iscc_json_to_data_url(ptr::null()) };
-        assert!(result.is_null());
-    }
-
-    // ── encode_component tests ───────────────────────────────────────────
-
-    #[test]
-    fn test_encode_component_basic() {
-        // Meta-Code (mtype=0, stype=0, version=0, 64-bit, 8 zero bytes)
-        let digest = [0u8; 8];
-        let result = unsafe { iscc_encode_component(0, 0, 0, 64, digest.as_ptr(), digest.len()) };
-        let s = unsafe { c_ptr_to_string(result) }.unwrap();
-        assert!(!s.is_empty());
-    }
-
-    #[test]
-    fn test_encode_component_null_digest_with_len() {
-        let result = unsafe { iscc_encode_component(0, 0, 0, 64, ptr::null(), 8) };
-        assert!(result.is_null());
-    }
-
-    #[test]
-    fn test_encode_component_zero_len_digest() {
-        // Zero-length digest with len=0 still passes the null check
-        // but encode_component may reject bit_length=0 — verify it handles gracefully
-        let result = unsafe { iscc_encode_component(0, 0, 0, 64, ptr::null(), 0) };
-        // Empty digest with bit_length=64 is invalid — expect NULL
-        assert!(result.is_null());
-    }
-
-    // ── iscc_decode tests ────────────────────────────────────────────────
-
-    #[test]
-    fn test_decode_known_meta_code() {
-        // Decode known Meta-Code "AAAZXZ6OU74YAZIM"
-        let iscc = CString::new("AAAZXZ6OU74YAZIM").unwrap();
-        let result = unsafe { iscc_decode(iscc.as_ptr()) };
-        assert!(result.ok);
-        assert_eq!(result.maintype, 0); // Meta
-        assert_eq!(result.subtype, 0);
-        assert_eq!(result.version, 0);
-        assert_eq!(result.length, 1); // 64-bit = length index 1 ((1+1)*32 = 64)
-        assert!(!result.digest.data.is_null());
-        assert_eq!(result.digest.len, 8); // 64 bits = 8 bytes
-        unsafe { iscc_free_decode_result(result) };
-    }
-
-    #[test]
-    fn test_decode_null() {
-        let result = unsafe { iscc_decode(ptr::null()) };
-        assert!(!result.ok);
-        assert!(result.digest.data.is_null());
-    }
-
-    #[test]
-    fn test_decode_invalid() {
-        let iscc = CString::new("INVALID").unwrap();
-        let result = unsafe { iscc_decode(iscc.as_ptr()) };
-        assert!(!result.ok);
-        assert!(result.digest.data.is_null());
-    }
-
-    #[test]
-    fn test_decode_with_prefix() {
-        // Should handle "ISCC:" prefix
-        let iscc = CString::new("ISCC:AAAZXZ6OU74YAZIM").unwrap();
-        let result = unsafe { iscc_decode(iscc.as_ptr()) };
-        assert!(result.ok);
-        assert_eq!(result.maintype, 0);
-        assert_eq!(result.digest.len, 8);
-        unsafe { iscc_free_decode_result(result) };
-    }
-
-    #[test]
-    fn test_free_decode_result_null_digest() {
-        // Should be a no-op for null digest
-        let result = IsccDecodeResult {
-            ok: false,
-            maintype: 0,
-            subtype: 0,
-            version: 0,
-            length: 0,
-            digest: null_byte_buffer(),
-        };
-        unsafe { iscc_free_decode_result(result) };
-    }
-
-    // ── Roundtrip: encode_component → iscc_decode ────────────────────────
-
-    #[test]
-    fn test_encode_decode_roundtrip() {
-        let digest = [0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89u8];
-        let encoded = unsafe { iscc_encode_component(0, 0, 0, 64, digest.as_ptr(), digest.len()) };
-        assert!(!encoded.is_null());
-
-        // Decode the encoded result
-        let decoded = unsafe { iscc_decode(encoded) };
-        assert!(decoded.ok);
-        assert_eq!(decoded.maintype, 0);
-        assert_eq!(decoded.subtype, 0);
-        assert_eq!(decoded.version, 0);
-        assert_eq!(decoded.length, 1); // 64-bit = length index 1 ((1+1)*32 = 64)
-        assert_eq!(decoded.digest.len, 8);
-
-        // Verify digest matches
-        let decoded_digest =
-            unsafe { std::slice::from_raw_parts(decoded.digest.data, decoded.digest.len) };
-        assert_eq!(decoded_digest, &digest);
-
-        unsafe { iscc_free_string(encoded) };
-        unsafe { iscc_free_decode_result(decoded) };
-    }
-
-    // ── gen_sum_code_v0 tests ─────────────────────────────────────────────
-
-    /// Write data to a unique temp file and return the path.
-    fn write_ffi_temp_file(name: &str, data: &[u8]) -> std::path::PathBuf {
-        use std::io::Write;
-        let path = std::env::temp_dir().join(format!("iscc_ffi_test_{name}"));
-        let mut f = std::fs::File::create(&path).unwrap();
-        f.write_all(data).unwrap();
-        path
-    }
-
-    #[test]
-    fn test_gen_sum_code_v0_basic() {
-        let data = b"Hello World";
-        let path = write_ffi_temp_file("sum_basic", data);
-        let path_c = CString::new(path.to_str().unwrap()).unwrap();
-
-        let result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false, false) };
-        assert!(result.ok);
-        assert!(!result.iscc.is_null());
-        assert!(!result.datahash.is_null());
-        assert_eq!(result.filesize, 11);
-        assert!(result.units.is_null());
-
-        let iscc_str = unsafe { CStr::from_ptr(result.iscc) }.to_str().unwrap();
-        assert!(iscc_str.starts_with("ISCC:"));
-
-        unsafe { iscc_free_sum_code_result(result) };
-        let _ = std::fs::remove_file(&path);
-    }
-
-    #[test]
-    fn test_gen_sum_code_v0_null_path() {
-        let result = unsafe { iscc_gen_sum_code_v0(ptr::null(), 64, false, false) };
-        assert!(!result.ok);
-        assert!(result.iscc.is_null());
-        assert!(result.datahash.is_null());
-        assert_eq!(result.filesize, 0);
-        assert!(result.units.is_null());
-    }
-
-    #[test]
-    fn test_gen_sum_code_v0_free_null_strings() {
-        // Freeing a result with null strings and null units should be a no-op
-        let result = null_sum_code_result();
-        assert!(result.units.is_null());
-        unsafe { iscc_free_sum_code_result(result) };
-    }
-
-    #[test]
-    fn test_gen_sum_code_v0_matches_lib() {
-        let data = b"Hello World";
-        let path = write_ffi_temp_file("sum_matches", data);
-        let path_c = CString::new(path.to_str().unwrap()).unwrap();
-
-        // FFI result
-        let ffi_result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false, false) };
-        assert!(ffi_result.ok);
-
-        let ffi_iscc = unsafe { CStr::from_ptr(ffi_result.iscc) }
-            .to_str()
-            .unwrap()
-            .to_owned();
-        let ffi_datahash = unsafe { CStr::from_ptr(ffi_result.datahash) }
-            .to_str()
-            .unwrap()
-            .to_owned();
-        let ffi_filesize = ffi_result.filesize;
-
-        unsafe { iscc_free_sum_code_result(ffi_result) };
-
-        // Direct lib result
-        let lib_result = iscc_lib::gen_sum_code_v0(&path, 64, false, false).unwrap();
-
-        assert_eq!(ffi_iscc, lib_result.iscc);
-        assert_eq!(ffi_datahash, lib_result.datahash);
-        assert_eq!(ffi_filesize, lib_result.filesize);
-
-        let _ = std::fs::remove_file(&path);
-    }
-
-    #[test]
-    fn test_gen_sum_code_v0_units_enabled() {
-        let data = b"Hello World";
-        let path = write_ffi_temp_file("sum_units_on", data);
-        let path_c = CString::new(path.to_str().unwrap()).unwrap();
-
-        let result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false, true) };
-        assert!(result.ok);
-        assert!(!result.units.is_null());
-
-        // Walk the NULL-terminated array — expect exactly 2 ISCC strings
-        let mut count = 0;
-        while !unsafe { *result.units.add(count) }.is_null() {
-            let s = unsafe { CStr::from_ptr(*result.units.add(count)) }
-                .to_str()
-                .unwrap();
-            assert!(
-                s.starts_with("ISCC:"),
-                "unit {count} should start with ISCC:"
-            );
-            count += 1;
-        }
-        assert_eq!(count, 2, "expected 2 unit strings");
-
-        unsafe { iscc_free_sum_code_result(result) };
-        let _ = std::fs::remove_file(&path);
-    }
-
-    #[test]
-    fn test_gen_sum_code_v0_units_disabled() {
-        let data = b"Hello World";
-        let path = write_ffi_temp_file("sum_units_off", data);
-        let path_c = CString::new(path.to_str().unwrap()).unwrap();
-
-        let result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false, false) };
-        assert!(result.ok);
-        assert!(
-            result.units.is_null(),
-            "units should be NULL when add_units=false"
-        );
-
-        unsafe { iscc_free_sum_code_result(result) };
-        let _ = std::fs::remove_file(&path);
-    }
-
-    #[test]
-    fn test_gen_sum_code_v0_units_content() {
-        let data = b"Hello World";
-        let path = write_ffi_temp_file("sum_units_content", data);
-        let path_c = CString::new(path.to_str().unwrap()).unwrap();
-
-        let result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false, true) };
-        assert!(result.ok);
-        assert!(!result.units.is_null());
-
-        // Decode both unit strings to verify maintype: Data-Code (3) and Instance-Code (4)
-        let unit0 = unsafe { CStr::from_ptr(*result.units.add(0)) };
-        let unit1 = unsafe { CStr::from_ptr(*result.units.add(1)) };
-
-        let dr0 = unsafe { iscc_decode(unit0.as_ptr()) };
-        assert!(dr0.ok);
-        let dr1 = unsafe { iscc_decode(unit1.as_ptr()) };
-        assert!(dr1.ok);
-
-        // Collect maintypes — should have one Data (3) and one Instance (4)
-        let mut maintypes = vec![dr0.maintype, dr1.maintype];
-        maintypes.sort();
-        assert_eq!(
-            maintypes,
-            vec![3, 4],
-            "expected Data-Code (3) and Instance-Code (4)"
-        );
-
-        unsafe { iscc_free_decode_result(dr0) };
-        unsafe { iscc_free_decode_result(dr1) };
-        unsafe { iscc_free_sum_code_result(result) };
-        let _ = std::fs::remove_file(&path);
-    }
-}
+mod tests;

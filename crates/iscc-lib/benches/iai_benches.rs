@@ -149,7 +149,7 @@ fn bench_cdc_chunks(data: Vec<u8>) -> usize {
 #[library_benchmark]
 #[bench::features_1024(deterministic_features(1024))]
 fn bench_minhash_256(features: Vec<u32>) -> Vec<u8> {
-    black_box(alg_minhash_256(black_box(&features)))
+    black_box(alg_minhash_256(black_box(&features)).unwrap())
 }
 
 library_benchmark_group!(

@@ -1,8 +1,12 @@
 //! High-performance Rust implementation of ISO 24138:2024 (ISCC).
 //!
-//! This crate provides the core ISCC algorithm implementations. All 10 `gen_*_v0`
-//! functions are the public Tier 1 API surface, designed to be compatible with
-//! the `iscc-core` Python reference implementation.
+//! This crate provides the core ISCC algorithm implementations, designed to be
+//! compatible with the `iscc-core` Python reference implementation. The Tier 1
+//! API is the set of symbols defined or re-exported at the crate root: the
+//! `gen_*` functions, utilities, codec functions, constants, `DataHasher`,
+//! `InstanceHasher` and `conformance_selftest`, with their result structs and
+//! `IsccError`. The `codec` module and `streaming::SumHasher` are Tier 2:
+//! public Rust API that is not bound in every language.
 
 pub(crate) mod cdc;
 pub mod codec;
@@ -14,10 +18,12 @@ pub mod streaming;
 pub mod types;
 pub(crate) mod utils;
 pub(crate) mod wtahash;
+pub(crate) mod xxh32;
 
 pub use cdc::alg_cdc_chunks;
 pub use codec::encode_base64;
 pub use codec::iscc_decompose;
+pub use codec::{decode_seq, encode_seq};
 pub use conformance::conformance_selftest;
 pub use minhash::alg_minhash_256;
 pub use simhash::{alg_simhash, sliding_window};
@@ -152,29 +158,45 @@ fn decode_data_url(data_url: &str) -> IsccResult<Vec<u8>> {
         .map_err(|e| IsccError::InvalidInput(format!("invalid base64 in Data-URL: {e}")))
 }
 
-/// Parse a meta string as JSON and re-serialize to RFC 8785 (JCS) canonical bytes.
+/// JSON metadata parsed once and re-serialized to RFC 8785 (JCS) canonical bytes.
 #[cfg(feature = "meta-code")]
-fn parse_meta_json(meta_str: &str) -> IsccResult<Vec<u8>> {
-    let parsed: serde_json::Value = serde_json::from_str(meta_str)
-        .map_err(|e| IsccError::InvalidInput(format!("invalid JSON in meta: {e}")))?;
-    let mut buf = Vec::new();
-    serde_json_canonicalizer::to_writer(&parsed, &mut buf)
-        .map_err(|e| IsccError::InvalidInput(format!("JSON canonicalization failed: {e}")))?;
-    Ok(buf)
+struct CanonicalJson {
+    /// JCS canonical serialization of the parsed JSON.
+    bytes: Vec<u8>,
+    /// Whether the top-level JSON object has an `@context` key (JSON-LD).
+    is_json_ld: bool,
 }
 
-/// Build a Data-URL from canonical JSON bytes.
+/// Parse a JSON string and canonicalize it per RFC 8785 (JCS).
+///
+/// `parse_error_prefix` is prepended to the parser's error message, so each
+/// caller keeps its own error text. Canonicalization errors read
+/// `JSON canonicalization failed: …` for every caller.
+#[cfg(feature = "meta-code")]
+fn canonicalize_json(json: &str, parse_error_prefix: &str) -> IsccResult<CanonicalJson> {
+    let parsed: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| IsccError::InvalidInput(format!("{parse_error_prefix}: {e}")))?;
+    let mut bytes = Vec::new();
+    serde_json_canonicalizer::to_writer(&parsed, &mut bytes)
+        .map_err(|e| IsccError::InvalidInput(format!("JSON canonicalization failed: {e}")))?;
+    Ok(CanonicalJson {
+        bytes,
+        is_json_ld: parsed.get("@context").is_some(),
+    })
+}
+
+/// Build a Data-URL from canonical JSON.
 ///
 /// Uses `application/ld+json` media type if the JSON has an `@context` key,
 /// otherwise `application/json`. Encodes payload as standard base64 with padding.
 #[cfg(feature = "meta-code")]
-fn build_meta_data_url(json_bytes: &[u8], json_value: &serde_json::Value) -> String {
-    let media_type = if json_value.get("@context").is_some() {
+fn build_meta_data_url(json: &CanonicalJson) -> String {
+    let media_type = if json.is_json_ld {
         "application/ld+json"
     } else {
         "application/json"
     };
-    let b64 = data_encoding::BASE64.encode(json_bytes);
+    let b64 = data_encoding::BASE64.encode(&json.bytes);
     format!("data:{media_type};base64,{b64}")
 }
 
@@ -186,7 +208,9 @@ fn build_meta_data_url(json_bytes: &[u8], json_value: &serde_json::Value) -> Str
 /// # Errors
 ///
 /// Returns `IsccError::InvalidInput` if enum values are out of range, if `mtype` is
-/// `MainType::Iscc` (5), or if `digest.len() < bit_length / 8`.
+/// `MainType::Iscc` (5), if `digest.len() < bit_length / 8`, or if `bit_length` is
+/// not valid for `mtype` (for Meta through Flake: a multiple of 32 from 32 to 256;
+/// for ID: 64, 72, 80 or 96).
 pub fn encode_component(
     mtype: u8,
     stype: u8,
@@ -225,7 +249,7 @@ fn iscc_normalize(iscc: &str) -> IsccResult<String> {
     // any decoding, exactly as `iscc_core.codec.iscc_normalize` does. Without
     // this, a structurally decodable header with an invalid (MainType, SubType)
     // combination (e.g. `MQ` = ID subtype 4) would be accepted.
-    let prefix: String = clean.to_uppercase().chars().take(2).collect();
+    let prefix: String = clean.to_ascii_uppercase().chars().take(2).collect();
     if !codec::PREFIXES.contains(&prefix.as_str()) {
         return Err(IsccError::InvalidInput(format!(
             "ISCC starts with invalid prefix {prefix}"
@@ -271,13 +295,14 @@ fn iscc_normalize(iscc: &str) -> IsccResult<String> {
 /// # Errors
 ///
 /// Returns `IsccError::InvalidInput` on invalid base32 input, a malformed
-/// header, a body shorter than its encoded bit-length, or a unit sequence that
-/// cannot be composed into an ISCC-CODE.
+/// header, a unit length above 256 bits, an ISCC-ID length other than 64, 72,
+/// 80 or 96 bits, a body shorter than its encoded
+/// bit-length, or a unit sequence that cannot be composed into an ISCC-CODE.
 pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
     let normalized = iscc_normalize(iscc)?;
     let raw = codec::decode_base32(&normalized)?;
     let (mt, st, vs, length_index, tail) = codec::decode_header(&raw)?;
-    let bit_length = codec::decode_length(mt, length_index, st);
+    let bit_length = codec::unit_bit_length(mt, length_index, st)?;
     let nbytes = (bit_length / 8) as usize;
     // No length check here: normalization guarantees an exact body. `iscc_decompose`
     // rejects a short unit body and truncates each unit to its encoded length, and a
@@ -319,12 +344,10 @@ pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
 /// ```
 #[cfg(feature = "meta-code")]
 pub fn json_to_data_url(json: &str) -> IsccResult<String> {
-    let parsed: serde_json::Value = serde_json::from_str(json)
-        .map_err(|e| IsccError::InvalidInput(format!("invalid JSON: {e}")))?;
-    let mut canonical_bytes = Vec::new();
-    serde_json_canonicalizer::to_writer(&parsed, &mut canonical_bytes)
-        .map_err(|e| IsccError::InvalidInput(format!("JSON canonicalization failed: {e}")))?;
-    Ok(build_meta_data_url(&canonical_bytes, &parsed))
+    Ok(build_meta_data_url(&canonicalize_json(
+        json,
+        "invalid JSON",
+    )?))
 }
 
 /// Generate a Meta-Code from name and optional metadata.
@@ -368,15 +391,21 @@ pub fn gen_meta_code_v0(
         }
     }
 
-    // Resolve meta payload bytes (if meta is provided)
-    let meta_payload: Option<Vec<u8>> = match meta {
-        Some(meta_str) if meta_str.starts_with("data:") => Some(decode_data_url(meta_str)?),
-        Some(meta_str) => Some(parse_meta_json(meta_str)?),
+    // Resolve meta payload bytes and the result's Data-URL (if meta is provided)
+    let meta_payload: Option<(Vec<u8>, String)> = match meta {
+        Some(meta_str) if meta_str.starts_with("data:") => {
+            Some((decode_data_url(meta_str)?, meta_str.to_string()))
+        }
+        Some(meta_str) => {
+            let json = canonicalize_json(meta_str, "invalid JSON in meta")?;
+            let data_url = build_meta_data_url(&json);
+            Some((json.bytes, data_url))
+        }
         None => None,
     };
 
     // Post-decode check: reject payloads exceeding META_TRIM_META
-    if let Some(ref payload) = meta_payload {
+    if let Some((ref payload, _)) = meta_payload {
         if payload.len() > META_TRIM_META {
             return Err(IsccError::InvalidInput(format!(
                 "decoded meta payload exceeds size limit ({} > {META_TRIM_META} bytes)",
@@ -386,9 +415,9 @@ pub fn gen_meta_code_v0(
     }
 
     // Branch: meta bytes path vs. description text path
-    if let Some(ref payload) = meta_payload {
-        let meta_code_digest = soft_hash_meta_v0_with_bytes(&name, payload);
-        let metahash = utils::multi_hash_blake3(payload);
+    if let Some((payload, meta_value)) = meta_payload {
+        let meta_code_digest = soft_hash_meta_v0_with_bytes(&name, &payload);
+        let metahash = utils::multi_hash_blake3(&payload);
 
         let meta_code = codec::encode_component(
             codec::MainType::Meta,
@@ -397,17 +426,6 @@ pub fn gen_meta_code_v0(
             bits,
             &meta_code_digest,
         )?;
-
-        // Build the meta Data-URL for the result
-        let meta_value = match meta {
-            Some(meta_str) if meta_str.starts_with("data:") => meta_str.to_string(),
-            Some(meta_str) => {
-                let parsed: serde_json::Value = serde_json::from_str(meta_str)
-                    .map_err(|e| IsccError::InvalidInput(format!("invalid JSON: {e}")))?;
-                build_meta_data_url(payload, &parsed)
-            }
-            None => unreachable!(),
-        };
 
         Ok(MetaCodeResult {
             iscc: format!("ISCC:{meta_code}"),
@@ -469,9 +487,9 @@ fn soft_hash_text_v0(text: &str) -> Vec<u8> {
     let ngrams = simhash::sliding_window_strs(text, TEXT_NGRAM_SIZE);
     let features: Vec<u32> = ngrams
         .iter()
-        .map(|ng| xxhash_rust::xxh32::xxh32(ng.as_bytes(), 0))
+        .map(|ng| xxh32::xxh32(ng.as_bytes(), 0))
         .collect();
-    minhash::alg_minhash_256(&features)
+    minhash::alg_minhash_256_inner(&features)
 }
 
 /// Generate a Text-Code from plain text content.
@@ -718,10 +736,34 @@ pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<AudioCodeResult> {
     })
 }
 
+/// Check that every frame signature has the length of the first one.
+///
+/// Walks `frame_sigs` in input order and reports the first signature whose
+/// length differs from `frame_sigs[0]`. An empty slice passes.
+fn check_frame_sig_lengths<S: AsRef<[i32]>>(frame_sigs: &[S]) -> IsccResult<()> {
+    let Some(first) = frame_sigs.first().map(|s| s.as_ref().len()) else {
+        return Ok(());
+    };
+    match frame_sigs
+        .iter()
+        .map(|s| s.as_ref().len())
+        .enumerate()
+        .find(|&(_, n)| n != first)
+    {
+        Some((i, n)) => Err(IsccError::InvalidInput(format!(
+            "frame_sigs[{i}] has length {n}, expected {first}"
+        ))),
+        None => Ok(()),
+    }
+}
+
 /// Compute a similarity-preserving hash from video frame signatures.
 ///
 /// Deduplicates frame signatures, computes column-wise sums across all
 /// unique frames, then applies WTA-Hash to produce a digest of `bits/8` bytes.
+///
+/// Returns `IsccError::InvalidInput` for an empty `frame_sigs` or for frame
+/// signatures of unequal length (iscc-core truncates to the shortest instead).
 pub fn soft_hash_video_v0<S: AsRef<[i32]> + Ord>(
     frame_sigs: &[S],
     bits: u32,
@@ -731,6 +773,7 @@ pub fn soft_hash_video_v0<S: AsRef<[i32]> + Ord>(
             "frame_sigs must not be empty".into(),
         ));
     }
+    check_frame_sig_lengths(frame_sigs)?;
 
     // Deduplicate using BTreeSet (S: Ord)
     let unique: std::collections::BTreeSet<&S> = frame_sigs.iter().collect();
@@ -750,7 +793,8 @@ pub fn soft_hash_video_v0<S: AsRef<[i32]> + Ord>(
 /// Generate a Video-Code from frame signature data.
 ///
 /// Produces an ISCC Content-Code for video from a sequence of MPEG-7 frame
-/// signatures. Each frame signature is a 380-element integer vector.
+/// signatures. Each frame signature is a 380-element integer vector; frame
+/// signatures of unequal length return `IsccError::InvalidInput`.
 pub fn gen_video_code_v0<S: AsRef<[i32]> + Ord>(
     frame_sigs: &[S],
     bits: u32,
@@ -773,7 +817,8 @@ pub fn gen_video_code_v0<S: AsRef<[i32]> + Ord>(
 /// Takes raw decoded ISCC bytes (header + body) for each Content-Code and
 /// produces a SimHash digest. Each input is trimmed to `bits/8` bytes by
 /// keeping the first header byte (encodes type info) plus `nbytes-1` body bytes.
-/// Requires at least 2 codes, all of MainType::Content.
+/// Requires at least 2 codes, all of MainType::Content, and `bits` to be a
+/// valid Content-Code length.
 fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>> {
     if cc_digests.len() < 2 {
         return Err(IsccError::InvalidInput(
@@ -781,6 +826,8 @@ fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>> 
         ));
     }
 
+    // Reject an invalid length here: `nbytes - 1` below needs at least one byte
+    codec::encode_length(codec::MainType::Content, bits)?;
     let nbytes = (bits / 8) as usize;
     let mut prepared: Vec<Vec<u8>> = Vec::with_capacity(cc_digests.len());
 
@@ -791,7 +838,7 @@ fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>> 
                 "all codes must be Content-Codes".into(),
             ));
         }
-        let unit_bits = codec::decode_length(mtype, blen, stype);
+        let unit_bits = codec::unit_bit_length(mtype, blen, stype)?;
         if unit_bits < bits {
             return Err(IsccError::InvalidInput(format!(
                 "Content-Code too short for {bits}-bit length (has {unit_bits} bits)"
@@ -848,17 +895,14 @@ pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<MixedCodeResul
 /// similarity-preserving fingerprint.
 pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<DataCodeResult> {
     let chunks = cdc::alg_cdc_chunks_unchecked(data, false, cdc::DATA_AVG_CHUNK_SIZE);
-    let mut features: Vec<u32> = chunks
-        .iter()
-        .map(|chunk| xxhash_rust::xxh32::xxh32(chunk, 0))
-        .collect();
+    let mut features: Vec<u32> = chunks.iter().map(|chunk| xxh32::xxh32(chunk, 0)).collect();
 
     // Defensive: ensure at least one feature (alg_cdc_chunks guarantees >= 1 chunk)
     if features.is_empty() {
-        features.push(xxhash_rust::xxh32::xxh32(b"", 0));
+        features.push(xxh32::xxh32(b"", 0));
     }
 
-    let digest = minhash::alg_minhash_256(&features);
+    let digest = minhash::alg_minhash_256_inner(&features);
     let component = codec::encode_component(
         codec::MainType::Data,
         codec::SubType::None,
@@ -878,7 +922,7 @@ pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<DataCodeResult> {
 /// with BLAKE3. Captures the exact binary identity of the data.
 pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<InstanceCodeResult> {
     let digest = blake3::hash(data);
-    let datahash = utils::multi_hash_blake3(data);
+    let datahash = utils::blake3_multihash_hex(&digest);
     let filesize = data.len() as u64;
     let component = codec::encode_component(
         codec::MainType::Instance,
@@ -892,6 +936,27 @@ pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<InstanceCodeRe
         datahash,
         filesize,
     })
+}
+
+/// Return whether every decoded unit header carries at least 128 bits.
+///
+/// Stops at the first unit below 128 bits, as iscc-core's `all(...)` does, and
+/// rejects a unit length above 256 bits on the way.
+fn units_reach_128_bits(
+    decoded: &[(
+        codec::MainType,
+        codec::SubType,
+        codec::Version,
+        u32,
+        Vec<u8>,
+    )],
+) -> IsccResult<bool> {
+    for &(mt, st, _, len, _) in decoded {
+        if codec::unit_bit_length(mt, len, st)? < 128 {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// Generate a composite ISCC-CODE from individual ISCC unit codes.
@@ -958,9 +1023,7 @@ pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<IsccCodeResult
     let is_wide = wide
         && decoded.len() == 2
         && main_types == [codec::MainType::Data, codec::MainType::Instance]
-        && decoded
-            .iter()
-            .all(|&(mt, st, _, len, _)| codec::decode_length(mt, len, st) >= 128);
+        && units_reach_128_bits(&decoded)?;
 
     // Step 9: Determine SubType
     let st = if is_wide {
@@ -1212,6 +1275,43 @@ mod tests {
         );
     }
 
+    /// `json_to_data_url` and the `meta` field of `gen_meta_code_v0` agree for JSON input.
+    #[cfg(feature = "meta-code")]
+    #[test]
+    fn test_json_to_data_url_matches_gen_meta_code_v0_meta() {
+        let inputs = [
+            r#"{"some":"object"}"#,
+            r#"{"b": 1.0, "a": [1e20, "x"]}"#,
+            r#"{"@context": "https://schema.org", "name": "Hello"}"#,
+        ];
+        for json in inputs {
+            let meta = gen_meta_code_v0("Hello", None, Some(json), 64)
+                .unwrap()
+                .meta;
+            assert_eq!(meta, Some(json_to_data_url(json).unwrap()), "{json}");
+        }
+        let ld_meta = json_to_data_url(inputs[2]).unwrap();
+        assert!(ld_meta.starts_with("data:application/ld+json;base64,"));
+    }
+
+    /// Each JSON entry point keeps its own parse-error prefix.
+    #[cfg(feature = "meta-code")]
+    #[test]
+    fn test_json_parse_error_texts() {
+        let meta_err = gen_meta_code_v0("Hello", None, Some("{bad"), 64)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            meta_err.starts_with("invalid input: invalid JSON in meta: "),
+            "{meta_err}"
+        );
+        let url_err = json_to_data_url("{bad").unwrap_err().to_string();
+        assert!(
+            url_err.starts_with("invalid input: invalid JSON: "),
+            "{url_err}"
+        );
+    }
+
     /// Verify that JSON metadata with float values is canonicalized per RFC 8785 (JCS).
     ///
     /// JCS serializes `1.0` as `1` (integer form), while `serde_json` preserves `1.0`.
@@ -1227,7 +1327,7 @@ mod tests {
         // Expected values from iscc-core (Python) using jcs.canonicalize()
         assert_eq!(
             result.iscc, "ISCC:AAAX4GX3RZH2I6QZ",
-            "ISCC mismatch: parse_meta_json must use RFC 8785 (JCS) canonicalization"
+            "ISCC mismatch: canonicalize_json must use RFC 8785 (JCS) canonicalization"
         );
         assert_eq!(
             result.meta,
@@ -1288,40 +1388,25 @@ mod tests {
     #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_meta_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_meta_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let input_name = inputs[0].as_str().unwrap();
-            let input_desc = inputs[1].as_str().unwrap();
-            let meta_val = &inputs[2];
-            let bits = inputs[3].as_u64().unwrap() as u32;
-
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+            let inputs = conformance::meta_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
             let expected_metahash = tc["outputs"]["metahash"].as_str().unwrap();
 
-            // Dispatch meta parameter based on JSON value type
-            let meta_arg: Option<String> = match meta_val {
-                serde_json::Value::Null => None,
-                serde_json::Value::String(s) => Some(s.clone()),
-                serde_json::Value::Object(_) => Some(serde_json::to_string(meta_val).unwrap()),
-                other => panic!("unexpected meta type in {tc_name}: {other:?}"),
-            };
-
-            let desc = if input_desc.is_empty() {
-                None
-            } else {
-                Some(input_desc)
-            };
-
             // Verify ISCC output from struct
-            let result = gen_meta_code_v0(input_name, desc, meta_arg.as_deref(), bits)
-                .unwrap_or_else(|e| panic!("gen_meta_code_v0 failed for {tc_name}: {e}"));
+            let result = gen_meta_code_v0(
+                inputs.name,
+                inputs.description,
+                inputs.meta.as_deref(),
+                inputs.bits,
+            )
+            .unwrap_or_else(|e| panic!("gen_meta_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
                 result.iscc, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
@@ -1353,7 +1438,7 @@ mod tests {
             }
 
             // Verify meta from struct
-            if meta_arg.is_some() {
+            if inputs.meta.is_some() {
                 assert!(
                     result.meta.is_some(),
                     "meta should be present in test case {tc_name}"
@@ -1390,19 +1475,15 @@ mod tests {
     #[cfg(feature = "text-processing")]
     #[test]
     fn test_gen_text_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_text_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_text_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let input_text = inputs[0].as_str().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+            let (input_text, bits) = conformance::text_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
             let expected_chars = tc["outputs"]["characters"].as_u64().unwrap() as usize;
 
             // Verify ISCC output from struct
@@ -1445,49 +1526,11 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_image_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_image_code_v0"];
-        let cases = section.as_object().unwrap();
-
-        let mut tested = 0;
-
-        for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let pixels_json = inputs[0].as_array().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            let pixels: Vec<u8> = pixels_json
-                .iter()
-                .map(|v| v.as_u64().unwrap() as u8)
-                .collect();
-
-            let result = gen_image_code_v0(&pixels, bits)
-                .unwrap_or_else(|e| panic!("gen_image_code_v0 failed for {tc_name}: {e}"));
-            assert_eq!(
-                result.iscc, expected_iscc,
-                "ISCC mismatch in test case {tc_name}"
-            );
-
-            tested += 1;
-        }
-
-        assert_eq!(tested, 3, "expected 3 conformance tests to run");
-    }
-
-    #[test]
     fn test_soft_hash_image_v0_256_quadrant_layout() {
         // Blocks follow the top-left, top-right, bottom-left and bottom-right 8×8 DCT squares
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let pixels: Vec<u8> = data["gen_image_code_v0"]["test_0003_img_256"]["inputs"][0]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| v.as_u64().unwrap() as u8)
-            .collect();
+        let data = conformance::test_data().unwrap();
+        let tc = &conformance::cases(&data, "gen_image_code_v0").unwrap()["test_0003_img_256"];
+        let (pixels, _) = conformance::image_inputs(tc).unwrap();
         let digest = soft_hash_image_v0(&pixels, 256).unwrap();
 
         let rows: Vec<Vec<f64>> = pixels
@@ -1537,36 +1580,6 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_audio_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_audio_code_v0"];
-        let cases = section.as_object().unwrap();
-
-        let mut tested = 0;
-
-        for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let cv_json = inputs[0].as_array().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            let cv: Vec<i32> = cv_json.iter().map(|v| v.as_i64().unwrap() as i32).collect();
-
-            let result = gen_audio_code_v0(&cv, bits)
-                .unwrap_or_else(|e| panic!("gen_audio_code_v0 failed for {tc_name}: {e}"));
-            assert_eq!(
-                result.iscc, expected_iscc,
-                "ISCC mismatch in test case {tc_name}"
-            );
-
-            tested += 1;
-        }
-
-        assert_eq!(tested, 5, "expected 5 conformance tests to run");
-    }
-
-    #[test]
     fn test_array_split_even() {
         let data = vec![1, 2, 3, 4];
         let parts = array_split(&data, 4);
@@ -1601,6 +1614,55 @@ mod tests {
     }
 
     #[test]
+    fn test_soft_hash_video_v0_rejects_longer_later_sig() {
+        let frames: Vec<Vec<i32>> = vec![vec![0; 380], vec![0; 381]];
+        let err = soft_hash_video_v0(&frames, 64).unwrap_err();
+        assert!(
+            matches!(&err, IsccError::InvalidInput(msg) if msg == "frame_sigs[1] has length 381, expected 380"),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_soft_hash_video_v0_rejects_shorter_later_sig() {
+        let frames: Vec<Vec<i32>> = vec![vec![0; 380], vec![0; 379]];
+        let err = soft_hash_video_v0(&frames, 64).unwrap_err();
+        assert!(
+            matches!(&err, IsccError::InvalidInput(msg) if msg == "frame_sigs[1] has length 379, expected 380"),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_soft_hash_video_v0_rejects_ragged_reversed_order() {
+        let frames: Vec<Vec<i32>> = vec![vec![0; 381], vec![0; 380]];
+        let err = soft_hash_video_v0(&frames, 64).unwrap_err();
+        assert!(
+            matches!(&err, IsccError::InvalidInput(msg) if msg == "frame_sigs[1] has length 380, expected 381"),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_soft_hash_video_v0_reports_first_mismatch() {
+        let frames: Vec<Vec<i32>> = vec![vec![0; 380], vec![0; 380], vec![1; 382], vec![0; 1]];
+        let err = soft_hash_video_v0(&frames, 64).unwrap_err();
+        assert!(
+            matches!(&err, IsccError::InvalidInput(msg) if msg == "frame_sigs[2] has length 382, expected 380"),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_gen_video_code_v0_rejects_ragged_frames() {
+        let frames: Vec<Vec<i32>> = vec![vec![0; 380], vec![0; 381]];
+        assert!(matches!(
+            gen_video_code_v0(&frames, 64),
+            Err(IsccError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
     fn test_gen_video_code_v0_empty_frames() {
         let frames: Vec<Vec<i32>> = vec![];
         assert!(matches!(
@@ -1610,67 +1672,22 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_video_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_video_code_v0"];
-        let cases = section.as_object().unwrap();
-
-        let mut tested = 0;
-
-        for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let frames_json = inputs[0].as_array().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            let frame_sigs: Vec<Vec<i32>> = frames_json
-                .iter()
-                .map(|frame| {
-                    frame
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|v| v.as_i64().unwrap() as i32)
-                        .collect()
-                })
-                .collect();
-
-            let result = gen_video_code_v0(&frame_sigs, bits)
-                .unwrap_or_else(|e| panic!("gen_video_code_v0 failed for {tc_name}: {e}"));
-            assert_eq!(
-                result.iscc, expected_iscc,
-                "ISCC mismatch in test case {tc_name}"
-            );
-
-            tested += 1;
-        }
-
-        assert_eq!(tested, 3, "expected 3 conformance tests to run");
-    }
-
-    #[test]
     fn test_gen_mixed_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_mixed_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_mixed_code_v0").unwrap();
 
         let mut tested = 0;
 
         for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let codes_json = inputs[0].as_array().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+            let (codes, bits) = conformance::mixed_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {tc_name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
             let expected_parts: Vec<&str> = tc["outputs"]["parts"]
                 .as_array()
                 .unwrap()
                 .iter()
                 .map(|v| v.as_str().unwrap())
                 .collect();
-
-            let codes: Vec<&str> = codes_json.iter().map(|v| v.as_str().unwrap()).collect();
 
             let result = gen_mixed_code_v0(&codes, bits)
                 .unwrap_or_else(|e| panic!("gen_mixed_code_v0 failed for {tc_name}: {e}"));
@@ -1698,6 +1715,20 @@ mod tests {
             gen_mixed_code_v0(&["EUA6GIKXN42IQV3S"], 64),
             Err(IsccError::InvalidInput(_))
         ));
+    }
+
+    #[test]
+    fn test_gen_mixed_code_v0_bits_below_one_byte() {
+        let codes = ["EUA6GIKXN42IQV3S", "EIAUKMOUIOYZCKA5"];
+        for bits in 0..8 {
+            assert!(
+                matches!(
+                    gen_mixed_code_v0(&codes, bits),
+                    Err(IsccError::InvalidInput(_))
+                ),
+                "bits {bits}"
+            );
+        }
     }
 
     /// Build raw Content-Code bytes (header + body) for a given bit length.
@@ -1746,41 +1777,6 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_data_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_data_code_v0"];
-        let cases = section.as_object().unwrap();
-
-        let mut tested = 0;
-
-        for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let stream_str = inputs[0].as_str().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            // Parse "stream:" prefix — remainder is hex-encoded bytes
-            let hex_data = stream_str
-                .strip_prefix("stream:")
-                .unwrap_or_else(|| panic!("expected 'stream:' prefix in test case {tc_name}"));
-            let input_bytes = hex::decode(hex_data)
-                .unwrap_or_else(|e| panic!("invalid hex in test case {tc_name}: {e}"));
-
-            let result = gen_data_code_v0(&input_bytes, bits)
-                .unwrap_or_else(|e| panic!("gen_data_code_v0 failed for {tc_name}: {e}"));
-            assert_eq!(
-                result.iscc, expected_iscc,
-                "ISCC mismatch in test case {tc_name}"
-            );
-
-            tested += 1;
-        }
-
-        assert_eq!(tested, 4, "expected 4 conformance tests to run");
-    }
-
-    #[test]
     fn test_gen_instance_code_v0_empty() {
         let result = gen_instance_code_v0(b"", 64).unwrap();
         assert_eq!(result.iscc, "ISCC:IAA26E2JXH27TING");
@@ -1791,25 +1787,30 @@ mod tests {
         );
     }
 
+    /// The one-shot datahash equals the multihash helper and the streaming result.
+    #[test]
+    fn test_gen_instance_code_v0_datahash_matches_multihash_and_streaming() {
+        let inputs: [&[u8]; 4] = [b"", b"a", b"hello world", &[0xffu8; 70_000]];
+        for data in inputs {
+            let one_shot = gen_instance_code_v0(data, 64).unwrap();
+            assert_eq!(one_shot.datahash, utils::multi_hash_blake3(data));
+            let mut hasher = InstanceHasher::new();
+            hasher.update(data);
+            let streamed = hasher.finalize(64).unwrap();
+            assert_eq!(one_shot.datahash, streamed.datahash);
+            assert_eq!(one_shot.iscc, streamed.iscc);
+        }
+    }
+
     #[test]
     fn test_gen_instance_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_instance_code_v0"];
-        let cases = section.as_object().unwrap();
+        let data = conformance::test_data().unwrap();
+        let cases = conformance::cases(&data, "gen_instance_code_v0").unwrap();
 
         for (name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let stream_str = inputs[0].as_str().unwrap();
-            let bits = inputs[1].as_u64().unwrap() as u32;
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            // Parse "stream:" prefix — remainder is hex-encoded bytes
-            let hex_data = stream_str
-                .strip_prefix("stream:")
-                .unwrap_or_else(|| panic!("expected 'stream:' prefix in test case {name}"));
-            let input_bytes = hex::decode(hex_data)
-                .unwrap_or_else(|e| panic!("invalid hex in test case {name}: {e}"));
+            let (input_bytes, bits) = conformance::stream_inputs(tc)
+                .unwrap_or_else(|| panic!("unparsable inputs in {name}"));
+            let expected_iscc = conformance::expected_iscc(tc).unwrap();
 
             let result = gen_instance_code_v0(&input_bytes, bits)
                 .unwrap_or_else(|e| panic!("gen_instance_code_v0 failed for {name}: {e}"));
@@ -1843,35 +1844,6 @@ mod tests {
                 "filesize should match input length in test case {name}"
             );
         }
-    }
-
-    #[test]
-    fn test_gen_iscc_code_v0_conformance() {
-        let json_str = include_str!("../tests/data.json");
-        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        let section = &data["gen_iscc_code_v0"];
-        let cases = section.as_object().unwrap();
-
-        let mut tested = 0;
-
-        for (tc_name, tc) in cases {
-            let inputs = tc["inputs"].as_array().unwrap();
-            let codes_json = inputs[0].as_array().unwrap();
-            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-
-            let codes: Vec<&str> = codes_json.iter().map(|v| v.as_str().unwrap()).collect();
-
-            let result = gen_iscc_code_v0(&codes, false)
-                .unwrap_or_else(|e| panic!("gen_iscc_code_v0 failed for {tc_name}: {e}"));
-            assert_eq!(
-                result.iscc, expected_iscc,
-                "ISCC mismatch in test case {tc_name}"
-            );
-
-            tested += 1;
-        }
-
-        assert_eq!(tested, 5, "expected 5 conformance tests to run");
     }
 
     #[test]
@@ -2627,5 +2599,95 @@ mod tests {
         assert_eq!(sum_result.iscc, iscc_result.iscc);
 
         std::fs::remove_file(&path).ok();
+    }
+
+    /// Build a base32 ISCC-UNIT whose header claims 288 bits (length index 8).
+    fn unit_288_bits(mtype: codec::MainType) -> String {
+        let mut raw =
+            codec::encode_header(mtype, codec::SubType::None, codec::Version::V0, 8).unwrap();
+        raw.extend_from_slice(&[0u8; 36]);
+        codec::encode_base32(&raw)
+    }
+
+    /// Assert that a result is an error that names the 256-bit limit.
+    fn assert_above_256_error<T: std::fmt::Debug>(result: IsccResult<T>) {
+        let err = result.expect_err("a unit above 256 bits must be rejected");
+        assert!(err.to_string().contains("256"), "unexpected error: {err}");
+    }
+
+    #[cfg(feature = "meta-code")]
+    #[test]
+    fn test_gen_meta_code_v0_above_256() {
+        assert_above_256_error(gen_meta_code_v0("Title", None, None, 288));
+        assert!(gen_meta_code_v0("Title", None, None, 256).is_ok());
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_gen_text_code_v0_above_256() {
+        assert_above_256_error(gen_text_code_v0("Hello World", 288));
+        assert!(gen_text_code_v0("Hello World", 256).is_ok());
+    }
+
+    #[test]
+    fn test_gen_audio_code_v0_above_256() {
+        assert_above_256_error(gen_audio_code_v0(&[1, 2, 3], 288));
+        assert!(gen_audio_code_v0(&[1, 2, 3], 256).is_ok());
+    }
+
+    #[test]
+    fn test_gen_mixed_code_v0_bits_above_256() {
+        let a = gen_audio_code_v0(&[1, 2, 3], 256).unwrap().iscc;
+        let b = gen_audio_code_v0(&[4, 5, 6], 256).unwrap().iscc;
+        assert_above_256_error(gen_mixed_code_v0(&[&a, &b], 288));
+        assert!(gen_mixed_code_v0(&[&a, &b], 256).is_ok());
+    }
+
+    #[test]
+    fn test_gen_mixed_code_v0_unit_above_256() {
+        let long = unit_288_bits(codec::MainType::Content);
+        let ok = gen_audio_code_v0(&[1, 2, 3], 64).unwrap().iscc;
+        assert_above_256_error(gen_mixed_code_v0(&[&long, &ok], 64));
+    }
+
+    #[test]
+    fn test_gen_data_code_v0_above_256() {
+        assert_above_256_error(gen_data_code_v0(b"data", 288));
+        assert!(gen_data_code_v0(b"data", 256).is_ok());
+    }
+
+    #[test]
+    fn test_gen_instance_code_v0_above_256() {
+        assert_above_256_error(gen_instance_code_v0(b"data", 288));
+        assert!(gen_instance_code_v0(b"data", 256).is_ok());
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_above_256() {
+        let path = write_temp_file("sum_above_256", b"some file content");
+        assert_above_256_error(gen_sum_code_v0(&path, 288, false, false));
+        assert!(gen_sum_code_v0(&path, 256, false, false).is_ok());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_encode_component_above_256() {
+        assert_above_256_error(encode_component(0, 0, 0, 512, &[0u8; 64]));
+        assert_above_256_error(encode_component(0, 0, 0, 288, &[0u8; 36]));
+        assert!(encode_component(0, 0, 0, 256, &[0u8; 32]).is_ok());
+    }
+
+    #[test]
+    fn test_iscc_decode_above_256() {
+        assert_above_256_error(iscc_decode(&unit_288_bits(codec::MainType::Meta)));
+    }
+
+    #[test]
+    fn test_gen_iscc_code_v0_wide_above_256() {
+        let data = unit_288_bits(codec::MainType::Data);
+        let instance = gen_instance_code_v0(b"data", 128).unwrap().iscc;
+        assert_above_256_error(gen_iscc_code_v0(&[&data, &instance], true));
+        // Without `wide` the unit length is never decoded, as in iscc-core.
+        assert!(gen_iscc_code_v0(&[&data, &instance], false).is_ok());
     }
 }

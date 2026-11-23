@@ -6,6 +6,7 @@
  */
 
 #include "iscc.h"
+#include "data_edge_vectors.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -70,6 +71,291 @@ static int tests_failed = 0;
         } else { \
             printf("PASS: %s\n", (test_name)); \
             tests_passed++; \
+        } \
+    } while (0)
+
+/* Return 1 if the last error is set and contains `needle`. */
+static int last_error_has(const char *needle) {
+    const char *err = iscc_last_error();
+    return err != NULL && strstr(err, needle) != NULL;
+}
+
+/* Return 1 if the last error is unset or lacks "must not be NULL". */
+static int last_error_not_null_rejection(void) {
+    return !last_error_has("must not be NULL");
+}
+
+/* Return 1 if two FFI string results are equal (both NULL counts); frees both. */
+static int same_str_result(char *a, char *b) {
+    int same = (a == NULL && b == NULL) || (a != NULL && b != NULL && strcmp(a, b) == 0);
+    iscc_free_string(a);
+    iscc_free_string(b);
+    return same;
+}
+
+/* Return 1 if two FFI byte buffers are equal (both NULL counts); frees both. */
+static int same_buf_result(struct iscc_IsccByteBuffer a, struct iscc_IsccByteBuffer b) {
+    int same = (a.data == NULL && b.data == NULL) ||
+               (a.data != NULL && b.data != NULL && a.len == b.len &&
+                memcmp(a.data, b.data, a.len) == 0);
+    iscc_free_byte_buffer(a);
+    iscc_free_byte_buffer(b);
+    return same;
+}
+
+/* Check that a (NULL, 0) call matches the same call with a non-NULL pointer and that it
+ * never fails with "must not be NULL". `null_call` runs first, so the error is its own.
+ * The comparison frees both results, so it runs once and ASSERT_EQ gets its value. */
+#define CHECK_NULL_EMPTY_STR(null_call, ptr_call, test_name) \
+    do { \
+        char *null_res = (null_call); \
+        int null_ok = last_error_not_null_rejection(); \
+        char *ptr_res = (ptr_call); \
+        int same = same_str_result(null_res, ptr_res); \
+        ASSERT_EQ(null_ok, 1, test_name " — no NULL rejection"); \
+        ASSERT_EQ(same, 1, test_name " — matches non-NULL"); \
+    } while (0)
+
+#define CHECK_NULL_EMPTY_BUF(null_call, ptr_call, test_name) \
+    do { \
+        struct iscc_IsccByteBuffer null_res = (null_call); \
+        int null_ok = last_error_not_null_rejection(); \
+        struct iscc_IsccByteBuffer ptr_res = (ptr_call); \
+        int same = same_buf_result(null_res, ptr_res); \
+        ASSERT_EQ(null_ok, 1, test_name " — no NULL rejection"); \
+        ASSERT_EQ(same, 1, test_name " — matches non-NULL"); \
+    } while (0)
+
+/* Return 1 if an edge-vector string reaches C intact: non-NULL and no embedded NUL,
+ * so a row whose input C cannot express fails instead of hashing the prefix. */
+static int edge_str_fits_c(struct iscc_edge_str s) {
+    return s.ptr != NULL && strlen(s.ptr) == s.len;
+}
+
+/* Return 1 if every item of an edge-vector list reaches C intact. */
+static int edge_list_fits_c(struct iscc_edge_list list) {
+    size_t i;
+    for (i = 0; i < list.count; i++) {
+        if (list.items[i] == NULL || strlen(list.items[i]) != list.lens[i]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Return 1 if a returned buffer equals an expected edge-vector byte string. */
+static int edge_bytes_eq(const uint8_t *data, size_t len, struct iscc_edge_str expected) {
+    return len == expected.len && (len == 0 || memcmp(data, expected.ptr, len) == 0);
+}
+
+/* Return 1 if returned chunks equal an expected edge-vector byte-string list. */
+static int edge_chunks_eq(struct iscc_IsccByteBufferArray arr, struct iscc_edge_list expected) {
+    size_t i;
+    if (arr.count != expected.count) {
+        return 0;
+    }
+    for (i = 0; i < arr.count; i++) {
+        struct iscc_edge_str item;
+        item.ptr = expected.items[i];
+        item.len = expected.lens[i];
+        if (!edge_bytes_eq(arr.buffers[i].data, arr.buffers[i].len, item)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Return 1 if a returned gen string meets the row expectation (rejection = NULL). */
+static int edge_gen_result_ok(int expect, const char *actual, struct iscc_edge_str iscc) {
+    if (expect == ISCC_EDGE_ERROR) {
+        return actual == NULL;
+    }
+    return expect == ISCC_EDGE_OK && actual != NULL && strlen(actual) == iscc.len &&
+           memcmp(actual, iscc.ptr, iscc.len) == 0;
+}
+
+/* Check one iscc_decode edge row against its c expectation (rejection = ok false). */
+static int check_edge_iscc_decode(const struct iscc_edge_iscc_decode_vector *v) {
+    struct iscc_IsccDecodeResult r;
+    int passed;
+    if (!edge_str_fits_c(v->input)) {
+        return 0;
+    }
+    r = iscc_decode(v->input.ptr);
+    if (v->c == ISCC_EDGE_ERROR) {
+        passed = !r.ok;
+    } else {
+        passed = v->c == ISCC_EDGE_OK && r.ok && r.maintype == v->maintype &&
+                 r.subtype == v->subtype && r.version == v->version &&
+                 r.length == v->length && r.digest.data != NULL &&
+                 edge_bytes_eq(r.digest.data, r.digest.len, v->digest);
+    }
+    iscc_free_decode_result(r);
+    return passed;
+}
+
+/* Check one encode_seq edge row against its c expectation (rejection = NULL data). */
+static int check_edge_encode_seq(const struct iscc_edge_encode_seq_vector *v) {
+    struct iscc_IsccByteBuffer buf;
+    int passed;
+    if (!edge_list_fits_c(v->units)) {
+        return 0;
+    }
+    buf = iscc_encode_seq(v->units.items, v->units.count);
+    if (v->c == ISCC_EDGE_ERROR) {
+        passed = buf.data == NULL;
+    } else {
+        passed = v->c == ISCC_EDGE_OK && buf.data != NULL &&
+                 edge_bytes_eq(buf.data, buf.len, v->seq);
+    }
+    iscc_free_byte_buffer(buf);
+    return passed;
+}
+
+/* Check one alg_simhash edge row against its c expectation (rejection = NULL data).
+ * Digests are binary with explicit lengths, so no C-string fit check applies. */
+static int check_edge_alg_simhash(const struct iscc_edge_alg_simhash_vector *v) {
+    struct iscc_IsccByteBuffer buf;
+    int passed;
+    buf = iscc_alg_simhash((const uint8_t *const *)v->digests.items, v->digests.lens,
+                           v->digests.count);
+    if (v->c == ISCC_EDGE_ERROR) {
+        passed = buf.data == NULL;
+    } else {
+        passed = v->c == ISCC_EDGE_OK && buf.data != NULL &&
+                 edge_bytes_eq(buf.data, buf.len, v->simhash);
+    }
+    iscc_free_byte_buffer(buf);
+    return passed;
+}
+
+/* Check one gen_text_code_v0 edge row against its c expectation. */
+static int check_edge_gen_text_code_v0(const struct iscc_edge_gen_text_code_v0_vector *v) {
+    char *actual;
+    int passed;
+    if (!edge_str_fits_c(v->text)) {
+        return 0;
+    }
+    actual = iscc_gen_text_code_v0(v->text.ptr, v->bits);
+    passed = edge_gen_result_ok(v->c, actual, v->iscc);
+    iscc_free_string(actual);
+    return passed;
+}
+
+/* Check one gen_mixed_code_v0 edge row against its c expectation. */
+static int check_edge_gen_mixed_code_v0(const struct iscc_edge_gen_mixed_code_v0_vector *v) {
+    char *actual;
+    int passed;
+    if (!edge_list_fits_c(v->codes)) {
+        return 0;
+    }
+    actual = iscc_gen_mixed_code_v0(v->codes.items, v->codes.count, v->bits);
+    passed = edge_gen_result_ok(v->c, actual, v->iscc);
+    iscc_free_string(actual);
+    return passed;
+}
+
+/* Check one gen_iscc_code_v0 edge row against its c expectation. */
+static int check_edge_gen_iscc_code_v0(const struct iscc_edge_gen_iscc_code_v0_vector *v) {
+    char *actual;
+    int passed;
+    if (!edge_list_fits_c(v->codes)) {
+        return 0;
+    }
+    actual = iscc_gen_iscc_code_v0(v->codes.items, v->codes.count, v->wide != 0);
+    passed = edge_gen_result_ok(v->c, actual, v->iscc);
+    iscc_free_string(actual);
+    return passed;
+}
+
+/* Check one gen_meta_code_v0 edge row against its c expectation.
+ * An empty description is passed as NULL (no description). */
+static int check_edge_gen_meta_code_v0(const struct iscc_edge_gen_meta_code_v0_vector *v) {
+    char *actual;
+    int passed;
+    if (!edge_str_fits_c(v->input_name) || !edge_str_fits_c(v->description) ||
+        !edge_str_fits_c(v->meta)) {
+        return 0;
+    }
+    actual = iscc_gen_meta_code_v0(v->input_name.ptr,
+                                   v->description.len ? v->description.ptr : NULL,
+                                   v->meta.ptr, v->bits);
+    passed = edge_gen_result_ok(v->c, actual, v->iscc);
+    iscc_free_string(actual);
+    return passed;
+}
+
+/* Check one gen_video_code_v0 edge row against its c expectation. */
+static int check_edge_gen_video_code_v0(const struct iscc_edge_gen_video_code_v0_vector *v) {
+    char *actual;
+    int passed;
+    actual = iscc_gen_video_code_v0(v->frame_sigs.frames, v->frame_sigs.lens,
+                                    v->frame_sigs.count, v->bits);
+    passed = edge_gen_result_ok(v->c, actual, v->iscc);
+    iscc_free_string(actual);
+    return passed;
+}
+
+/* Check one alg_cdc_chunks edge row against its c expectation (rejection = NULL
+ * buffers). The data is binary with an explicit length, so no C-string fit check applies. */
+static int check_edge_alg_cdc_chunks(const struct iscc_edge_alg_cdc_chunks_vector *v) {
+    struct iscc_IsccByteBufferArray arr;
+    int passed;
+    arr = iscc_alg_cdc_chunks((const uint8_t *)v->data.ptr, v->data.len, v->utf32 != 0,
+                              v->avg_chunk_size);
+    if (v->c == ISCC_EDGE_ERROR) {
+        passed = arr.buffers == NULL;
+    } else {
+        passed = v->c == ISCC_EDGE_OK && arr.buffers != NULL && edge_chunks_eq(arr, v->chunks);
+    }
+    iscc_free_byte_buffer_array(arr);
+    return passed;
+}
+
+/* Check one encode_component edge row against its c expectation (rejection = NULL).
+ * The digest is binary with an explicit length, so no C-string fit check applies. */
+static int check_edge_encode_component(const struct iscc_edge_encode_component_vector *v) {
+    char *actual;
+    int passed;
+    actual = iscc_encode_component(v->mtype, v->stype, v->version, v->bit_length,
+                                   (const uint8_t *)v->digest.ptr, v->digest.len);
+    passed = edge_gen_result_ok(v->c, actual, v->unit);
+    iscc_free_string(actual);
+    return passed;
+}
+
+/* Check one alg_minhash_256 edge row against its c expectation (rejection = NULL data). */
+static int check_edge_alg_minhash_256(const struct iscc_edge_alg_minhash_256_vector *v) {
+    struct iscc_IsccByteBuffer buf;
+    int passed;
+    buf = iscc_alg_minhash_256(v->features.values, v->features.count);
+    if (v->c == ISCC_EDGE_ERROR) {
+        passed = buf.data == NULL;
+    } else {
+        passed = v->c == ISCC_EDGE_OK && buf.data != NULL &&
+                 edge_bytes_eq(buf.data, buf.len, v->minhash);
+    }
+    iscc_free_byte_buffer(buf);
+    return passed;
+}
+
+/* Run every row of one data-edge section: skip rows marked c skip, check the rest,
+ * print PASS/FAIL per row, and add each row (run or skipped) to `seen`. */
+#define RUN_EDGE_SECTION(section, rows, count, check, seen) \
+    do { \
+        size_t edge_i_; \
+        for (edge_i_ = 0; edge_i_ < (size_t)(count); edge_i_++) { \
+            char edge_name_[160]; \
+            int edge_passed_; \
+            (seen)++; \
+            snprintf(edge_name_, sizeof(edge_name_), "data_edge/%s/%s", (section), \
+                     (rows)[edge_i_].name); \
+            if ((rows)[edge_i_].c == ISCC_EDGE_SKIP) { \
+                printf("SKIP: %s\n", edge_name_); \
+                continue; \
+            } \
+            edge_passed_ = check(&(rows)[edge_i_]); \
+            ASSERT_EQ(edge_passed_, 1, edge_name_); \
         } \
     } while (0)
 
@@ -464,6 +750,207 @@ int main(void) {
     {
         const char *err = iscc_last_error();
         ASSERT_NOT_NULL(err, "iscc_last_error() non-NULL after gen_iscc_id_v1 error");
+    }
+
+    /* 31. encode_seq / decode_seq — round trip (data.json test_0001_four_units) */
+    {
+        const char *seq_units[] = {
+            "ISCC:AADVPDD4R6733NMPFH3D57VTQ4KVH6VHL74XIWGUT37V5ZG56NV3NSI",
+            "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI",
+            "ISCC:GADQLNA7GRZESMRF2J7NZPNWGI3II2ST5YUN5SS6GVQ2ZQGJXPPYDNI",
+            "ISCC:IAD2KIVPJIWJZP3KQCESJL6SVT5APEZUPOJWM6HVTAXCF7OT3VFA4NY",
+        };
+        struct iscc_IsccByteBuffer seq = iscc_encode_seq(seq_units, 4);
+        ASSERT_NOT_NULL(seq.data, "encode_seq(four units) data not NULL");
+        ASSERT_EQ(seq.len, 4 * 34, "encode_seq(four units) len == 136");
+
+        char **decoded = iscc_decode_seq(seq.data, seq.len);
+        ASSERT_NOT_NULL(decoded, "decode_seq(four units) not NULL");
+        if (decoded != NULL) {
+            size_t count = 0;
+            while (decoded[count] != NULL) {
+                count++;
+            }
+            ASSERT_EQ(count, 4, "decode_seq(four units) count == 4");
+            for (size_t i = 0; i < count && i < 4; i++) {
+                ASSERT_STR_EQ(decoded[i], seq_units[i], "decode_seq(four units) round trip");
+            }
+        }
+        iscc_free_string_array(decoded);
+        iscc_free_byte_buffer(seq);
+    }
+
+    /* 32. encode_seq — empty list (num_units = 0, non-NULL array) returns NULL data */
+    {
+        const char *seq_units[] = {
+            "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI",
+        };
+        struct iscc_IsccByteBuffer seq = iscc_encode_seq(seq_units, 0);
+        ASSERT_NULL(seq.data, "encode_seq(num_units=0) data is NULL");
+        const char *err = iscc_last_error();
+        ASSERT_NOT_NULL(err, "iscc_last_error() non-NULL after encode_seq error");
+    }
+
+    /* 33. Shared edge-case vectors (data-edge.json) via the generated header */
+    {
+        size_t edge_seen = 0;
+        iscc_edge_init(); /* fill rows over 4095 bytes */
+        RUN_EDGE_SECTION("iscc_decode", iscc_edge_iscc_decode, ISCC_EDGE_ISCC_DECODE_COUNT,
+                         check_edge_iscc_decode, edge_seen);
+        RUN_EDGE_SECTION("encode_seq", iscc_edge_encode_seq, ISCC_EDGE_ENCODE_SEQ_COUNT,
+                         check_edge_encode_seq, edge_seen);
+        RUN_EDGE_SECTION("gen_text_code_v0", iscc_edge_gen_text_code_v0,
+                         ISCC_EDGE_GEN_TEXT_CODE_V0_COUNT, check_edge_gen_text_code_v0,
+                         edge_seen);
+        RUN_EDGE_SECTION("gen_mixed_code_v0", iscc_edge_gen_mixed_code_v0,
+                         ISCC_EDGE_GEN_MIXED_CODE_V0_COUNT, check_edge_gen_mixed_code_v0,
+                         edge_seen);
+        RUN_EDGE_SECTION("gen_iscc_code_v0", iscc_edge_gen_iscc_code_v0,
+                         ISCC_EDGE_GEN_ISCC_CODE_V0_COUNT, check_edge_gen_iscc_code_v0,
+                         edge_seen);
+        RUN_EDGE_SECTION("alg_simhash", iscc_edge_alg_simhash, ISCC_EDGE_ALG_SIMHASH_COUNT,
+                         check_edge_alg_simhash, edge_seen);
+        RUN_EDGE_SECTION("gen_meta_code_v0", iscc_edge_gen_meta_code_v0,
+                         ISCC_EDGE_GEN_META_CODE_V0_COUNT, check_edge_gen_meta_code_v0,
+                         edge_seen);
+        RUN_EDGE_SECTION("gen_video_code_v0", iscc_edge_gen_video_code_v0,
+                         ISCC_EDGE_GEN_VIDEO_CODE_V0_COUNT, check_edge_gen_video_code_v0,
+                         edge_seen);
+        RUN_EDGE_SECTION("alg_cdc_chunks", iscc_edge_alg_cdc_chunks,
+                         ISCC_EDGE_ALG_CDC_CHUNKS_COUNT, check_edge_alg_cdc_chunks, edge_seen);
+        RUN_EDGE_SECTION("encode_component", iscc_edge_encode_component,
+                         ISCC_EDGE_ENCODE_COMPONENT_COUNT, check_edge_encode_component,
+                         edge_seen);
+        RUN_EDGE_SECTION("alg_minhash_256", iscc_edge_alg_minhash_256,
+                         ISCC_EDGE_ALG_MINHASH_256_COUNT, check_edge_alg_minhash_256,
+                         edge_seen);
+        ASSERT_EQ(edge_seen, ISCC_EDGE_TOTAL_COUNT,
+                  "data_edge total rows == ISCC_EDGE_TOTAL_COUNT");
+    }
+
+    /* 34. data-edge check functions fail a bad row (one bad case each) */
+    {
+        const struct iscc_edge_iscc_decode_vector accepted = {
+            "negative", ISCC_EDGE_ERROR, ISCC_EDGE_ERROR, {"ISCC:GAAAAAAAAA", 15},
+            0, 0, 0, 0, {0, 0}};
+        const struct iscc_edge_gen_text_code_v0_vector mismatch = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {"Hello World", 11},
+            64, {"ISCC:EAAWSPUDF7GJWQVD", 21}};
+        const struct iscc_edge_gen_text_code_v0_vector truncated = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {"Hello\000World", 11},
+            64, {"ISCC:EAAWSPUDF7GJWQVD", 21}};
+        ASSERT_EQ(check_edge_iscc_decode(&accepted), 0,
+                  "data_edge negative: expected rejection that succeeds fails");
+        ASSERT_EQ(check_edge_gen_text_code_v0(&mismatch), 0,
+                  "data_edge negative: output mismatch fails");
+        ASSERT_EQ(check_edge_gen_text_code_v0(&truncated), 0,
+                  "data_edge negative: string with embedded NUL fails");
+    }
+    {
+        /* The AND of the tie digests, so a strict-majority threshold would match. */
+        static const char *const digests[] = {"\360\017", "<<"};
+        static const size_t lens[] = {2, 2};
+        const struct iscc_edge_alg_simhash_vector tie_as_and = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {digests, lens, 2}, {"0\014", 2}};
+        ASSERT_EQ(check_edge_alg_simhash(&tie_as_and), 0,
+                  "data_edge negative: alg_simhash output mismatch fails");
+    }
+    {
+        /* The Meta-Code of a different object, against the raw-JCS row's expected code. */
+        const struct iscc_edge_gen_meta_code_v0_vector meta_mismatch = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK, {"Hello", 5}, {"", 0},
+            {"{\"t\":\"a&b\"}", 11}, 64, {"ISCC:AAAWKLHFXO3IKDKI", 21}};
+        /* A ragged frame list whose row expects the iscc-core truncation result. */
+        const struct iscc_edge_gen_video_code_v0_vector ragged_ok = {
+            "negative", ISCC_EDGE_OK, ISCC_EDGE_OK,
+            iscc_edge_gen_video_code_v0[1].frame_sigs, 64, {"ISCC:EMAVFD4RIMPXYQWS", 21}};
+        ASSERT_EQ(check_edge_gen_meta_code_v0(&meta_mismatch), 0,
+                  "data_edge negative: gen_meta_code_v0 output mismatch fails");
+        ASSERT_EQ(check_edge_gen_video_code_v0(&ragged_ok), 0,
+                  "data_edge negative: gen_video_code_v0 expected output that errors fails");
+    }
+
+    /* 35. (NULL, 0) is an empty input on every pointer+length parameter */
+    {
+        static const uint8_t byte0 = 0;
+        static const int32_t int0 = 0;
+        static const uint32_t u0 = 0;
+        static const char *const no_codes[] = {NULL};
+        static const int32_t *const empty_row[] = {&int0};
+        static const int32_t *const null_row[] = {NULL};
+        static const uint8_t *const empty_digest[] = {&byte0};
+        static const uint8_t *const null_digest[] = {NULL};
+        static const size_t zero_len[] = {0};
+        CHECK_NULL_EMPTY_STR(iscc_gen_image_code_v0(NULL, 0, 64),
+                             iscc_gen_image_code_v0(&byte0, 0, 64), "gen_image_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_audio_code_v0(NULL, 0, 64),
+                             iscc_gen_audio_code_v0(&int0, 0, 64), "gen_audio_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_data_code_v0(NULL, 0, 64),
+                             iscc_gen_data_code_v0(&byte0, 0, 64), "gen_data_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_instance_code_v0(NULL, 0, 64),
+                             iscc_gen_instance_code_v0(&byte0, 0, 64),
+                             "gen_instance_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_encode_base64(NULL, 0), iscc_encode_base64(&byte0, 0),
+                             "encode_base64(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_mixed_code_v0(NULL, 0, 64),
+                             iscc_gen_mixed_code_v0(no_codes, 0, 64),
+                             "gen_mixed_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_iscc_code_v0(NULL, 0, false),
+                             iscc_gen_iscc_code_v0(no_codes, 0, false),
+                             "gen_iscc_code_v0(NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_video_code_v0(NULL, NULL, 0, 64),
+                             iscc_gen_video_code_v0(empty_row, zero_len, 0, 64),
+                             "gen_video_code_v0(NULL, NULL, 0)");
+        CHECK_NULL_EMPTY_STR(iscc_gen_video_code_v0(null_row, zero_len, 1, 64),
+                             iscc_gen_video_code_v0(empty_row, zero_len, 1, 64),
+                             "gen_video_code_v0 NULL row of length 0");
+        CHECK_NULL_EMPTY_BUF(iscc_encode_seq(NULL, 0), iscc_encode_seq(no_codes, 0),
+                             "encode_seq(NULL, 0)");
+        CHECK_NULL_EMPTY_BUF(iscc_alg_minhash_256(NULL, 0), iscc_alg_minhash_256(&u0, 0),
+                             "alg_minhash_256(NULL, 0)");
+        CHECK_NULL_EMPTY_BUF(iscc_soft_hash_video_v0(null_row, zero_len, 1, 64),
+                             iscc_soft_hash_video_v0(empty_row, zero_len, 1, 64),
+                             "soft_hash_video_v0 NULL row of length 0");
+        CHECK_NULL_EMPTY_BUF(iscc_alg_simhash(null_digest, zero_len, 1),
+                             iscc_alg_simhash(empty_digest, zero_len, 1),
+                             "alg_simhash NULL row of length 0");
+    }
+
+    /* 36. NULL with a non-zero length is rejected with the parameter name (one per call) */
+    {
+        static const int32_t frame[380] = {0};
+        static const uint8_t digest[4] = {1, 2, 3, 4};
+        static const int32_t *const sigs_null_row[] = {frame, NULL};
+        static const size_t frame_lens[] = {380, 380};
+        static const uint8_t *const digests_null_row[] = {digest, NULL};
+        static const size_t digest_lens[] = {4, 4};
+        char *s;
+        struct iscc_IsccByteBuffer b;
+
+        s = iscc_gen_data_code_v0(NULL, 4, 64);
+        ASSERT_NULL(s, "gen_data_code_v0(NULL, 4) returns NULL");
+        ASSERT_EQ(last_error_has("data must not be NULL"), 1,
+                  "gen_data_code_v0(NULL, 4) names data");
+        s = iscc_gen_image_code_v0(NULL, 1024, 64);
+        ASSERT_NULL(s, "gen_image_code_v0(NULL, 1024) returns NULL");
+        ASSERT_EQ(last_error_has("pixels must not be NULL"), 1,
+                  "gen_image_code_v0(NULL, 1024) names pixels");
+        s = iscc_gen_mixed_code_v0(NULL, 2, 64);
+        ASSERT_NULL(s, "gen_mixed_code_v0(NULL, 2) returns NULL");
+        ASSERT_EQ(last_error_has("codes must not be NULL"), 1,
+                  "gen_mixed_code_v0(NULL, 2) names codes");
+        s = iscc_gen_video_code_v0(sigs_null_row, frame_lens, 2, 64);
+        ASSERT_NULL(s, "gen_video_code_v0 NULL row with length returns NULL");
+        ASSERT_EQ(last_error_has("frame_sigs[1] must not be NULL"), 1,
+                  "gen_video_code_v0 NULL row names frame_sigs[1]");
+        b = iscc_soft_hash_video_v0(sigs_null_row, frame_lens, 2, 64);
+        ASSERT_NULL(b.data, "soft_hash_video_v0 NULL row with length returns NULL");
+        ASSERT_EQ(last_error_has("frame_sigs[1] must not be NULL"), 1,
+                  "soft_hash_video_v0 NULL row names frame_sigs[1]");
+        b = iscc_alg_simhash(digests_null_row, digest_lens, 2);
+        ASSERT_NULL(b.data, "alg_simhash NULL row with length returns NULL");
+        ASSERT_EQ(last_error_has("digests[1] must not be NULL"), 1,
+                  "alg_simhash NULL row names digests[1]");
     }
 
     /* Summary */

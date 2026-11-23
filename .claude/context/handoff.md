@@ -1,63 +1,33 @@
-> **HUMAN REVIEW RESOLVED (2026-07-29, Titusz → option A):** the `bench_iscc_code.four_units` iai
-> baseline was raised 11,968 → 13,400 in `.iai-baseline.json`, accepting the +11.71% intrinsic cost
-> of the 191/192 reference-correct cleaning fix; rationale recorded in decisions.md. The `critical`
-> issue is deleted. The loop is unblocked — resume normal iterations (next work: Go `iscc_clean`
-> port replicating the iter-192 empty guard, then Ruby `gen_iscc_id_v1` validation-order, then the
-> ASCII-only iai-bench gap).
+## 2026-11-22 — meta-improve, iteration 308
 
-## 2026-07-29 — Review of: Restore `iscc_clean` to zero allocation on clean input (Perf gate)
+**IDLE**: Loop is healthy and idle; nothing auto-applied, 1 carried-over needs-human proposal.
 
-**Verdict:** NEEDS_WORK
+**Evidence:**
 
-**Summary:** The advance agent correctly made `codec::iscc_clean` return `Cow<'_, str>`, borrowing
-allocation-free on the no-scheme/no-dash path and allocating only to strip dashes. Behavior is
-byte-identical (faithful port of reference `codec.py:644`; empty guard from iter 192 preserved). The
-fix greened `bench_mixed_code.two_codes` (+18.30%→+6.95%) and cut `four_units` +36.82%→+11.71%, but
-four_units **stays over the 10% gate**, so the step's Done When is not met and CI stays red. The
-commit is correct and strictly better and should NOT be reverted — but it cannot green the gate
-within the authorized scope.
+- Verdicts 259–308: 2/50 NEEDS_WORK (268 WASM `.d.ts`/JS-exception defect, 278 JNI release layout).
+    Both caught real defects, and both lessons are already in learnings.md. No `FAIL` or `TIMEOUT`
+    role run since 212.
+- Median `turns_total` 284–307: 85.5, in line with the 81–97 of earlier windows. The peaks (297 163,
+    298 168, 296 134) were multi-surface fan-outs, not wasted turns.
+- Median turns per role, 259–307: update-state 8, define-next 15, advance 27, review 30. No role
+    stands out.
+- learnings.md is at 200/200 lines. Review keeps it at the limit; no overrun recorded.
 
-**Verification:**
+**Auto-applied:** nothing. Applying during IDLE would make the runner's rollback window consist of
+no-op iterations (39 turns at 308), so the verdict would be noise. No meta-log rows exist, so the
+runner has no rollback to report.
 
-- [x] `cargo test -p iscc-lib` — 309 + 10 (codec_clean) + 28 + 22 + 4 + 1 doctest pass, 0 failed
-- [x] `iscc_clean` errors on `"   "`/`"-"`/`"iscc:"`/`"----"`, bad scheme, extra colon; valid
-    hyphenated/padded/lowercase-scheme/multibase forms clean identically (codec_clean 10/10)
-- [x] `cargo clippy -p iscc-lib --all-targets -- -D warnings` clean; `cargo fmt --check` clean
-- [x] `.crap-baseline.json` regenerated (cyclo 7→9, 100% cov); `.cargo-crap.toml` untouched
-- [ ] `mise run bench:iai:check` — mixed_code +6.95% PASS; **four_units +11.71% FAIL** vs the
-    unmodified committed baseline (`.iai-baseline.json` untouched, `git diff --quiet` confirmed).
-    **Primary criterion NOT met.**
+**Open proposals:** 1 (carried from 248/258): leave `turns_total == 0` summaries out of the median
+in `_window_metrics`. Latent, not urgent.
 
-**Probes (verified independently):**
+**Carried from the review handoff (human decisions, unchanged):**
 
-- Reference `iscc_clean` (`codec.py:644`) does exactly split-on-`:`/strip-each/multibase-check/strip
-    dash — the port is faithful; no cheaper conformant algorithm in std.
-- Pre-191 `gen_iscc_code_v0` did only `strip_prefix("ISCC:")` (NOT reference-correct — no trim, no
-    dash-strip, no lowercase scheme). So the committed baseline was set for cheaper-but-wrong code;
-    191/192 traded that cost for correctness — why removing allocations alone can't restore it.
-- The residual is two std `memchr` scans (`split_once(':')` + `contains('-')`); a scalar single-pass
-    measured *worse* (advance probe: 13,499 Ir). Irreducible without the out-of-scope `memchr`
-    crate.
+1. Cut v0.8.0 with `/release 0.8.0`. Merging `develop` into `main` also closes the 6 Dependabot
+    alerts.
+2. Triage the 17 untriaged `low` issues (promote to `normal` or move to `postponed.md`). The
+    smallest real defect is `gen_mixed_code_v0` with `bits` below 8 (panics in Go and Rust debug
+    builds).
+3. Refresh the iai baseline for `bench_instance_code` (a `cid(human)` commit by convention).
 
-**Issues found:**
-
-- Primary: four_units Perf gate red — filed as `critical` [review] with the (A)/(B)/(C) decision.
-- No gate weakening in the unpushed range; no API break (`iscc_clean` is `pub(crate)`; `Cow` derefs
-    to `str`, all call sites source-compatible). Scope clean (2 source files + 2 generated
-    baselines).
-
-**Codex review:** Concurs — flags the same P1 (four_units 13,369 vs 11,968 = +11.71%, CI red) and
-suggests "combine the delimiter checks or obtain an approved rebaseline." Combining scans is what
-the advance already measured as *slower* (std SIMD memchr beats a scalar merge); the approved
-rebaseline is option (A). Advisory only — does not change the verdict.
-
-**Next:** BLOCKED on the human decision above. Once four_units is green (option A/B), unblock in
-priority order: Go `iscc_clean` port (issues.md `normal` — must replicate the iter-192 empty guard),
-then Ruby `gen_iscc_id_v1` validation-order and the ASCII-only iai-bench gap.
-
-**Notes:**
-
-- NOT pushed — verdict NEEDS_WORK, Perf gate red. Remote develop is already red at the iter-192 tip
-    (b2f56b6); iter 192's review missed the 191 regression because `mise run check` skips iai.
-- The iter-193 `Cow` commit (`5ffa5cb`) stays regardless of which option lands — it is correct and
-    strictly reduces the regression.
+Until one of these happens, a restarted loop writes `Step: NONE` and exits after one cycle. .NET 8
+floor stays (decision of 2026-11-21).

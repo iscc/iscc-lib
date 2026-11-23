@@ -19,7 +19,9 @@
     "source=iscc-lib-cargo-registry-${devcontainerId},target=/home/dev/.cargo/registry,type=volume",
     "source=iscc-lib-cargo-git-${devcontainerId},target=/home/dev/.cargo/git,type=volume",
     "source=iscc-lib-uv-cache-${devcontainerId},target=/home/dev/.cache/uv,type=volume",
-    "source=iscc-lib-venv-${devcontainerId},target=/home/dev/.venvs/iscc-lib,type=volume"
+    "source=iscc-lib-venv-${devcontainerId},target=/home/dev/.venvs/iscc-lib,type=volume",
+    "source=iscc-lib-target-${devcontainerId},target=/workspace/iscc-lib/target,type=volume",
+    "source=iscc-lib-rb-bundle-${devcontainerId},target=/workspace/iscc-lib/crates/iscc-rb/vendor/bundle,type=volume"
   ],
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
@@ -29,7 +31,7 @@
     "GIT_CONFIG_KEY_0": "commit.gpgsign",
     "GIT_CONFIG_VALUE_0": "false"
   },
-  "postCreateCommand": "sudo chown -R dev:dev /home/dev/.venvs /home/dev/.cargo/registry /home/dev/.cargo/git && bash .devcontainer/setup-gitconfig.sh && { bash .devcontainer/setup-codex.sh || echo 'codex: setup failed (non-fatal) — run bash .devcontainer/setup-codex.sh manually'; } && mise trust && uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push && [ -d reference/iscc-core ] || git clone --depth 1 https://github.com/iscc/iscc-core.git reference/iscc-core",
+  "postCreateCommand": "sudo chown -R dev:dev /home/dev/.venvs /home/dev/.cargo/registry /home/dev/.cargo/git && sudo chown dev:dev /workspace/iscc-lib/target /workspace/iscc-lib/crates/iscc-rb/vendor/bundle && bash .devcontainer/setup-gitconfig.sh && { bash .devcontainer/setup-codex.sh || echo 'codex: setup failed (non-fatal) — run bash .devcontainer/setup-codex.sh manually'; } && mise trust && uv sync && { (cd crates/iscc-rb && mise install ruby && mise exec -- bundle config set --local path vendor/bundle && mise exec -- bundle install --quiet) || echo 'bundle install failed (non-fatal) — run mise exec -- bundle install in crates/iscc-rb manually'; } && uv run prek install --hook-type pre-commit --hook-type pre-push && [ -d reference/iscc-core ] || git clone --depth 1 https://github.com/iscc/iscc-core.git reference/iscc-core",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/iscc-lib,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace/iscc-lib"
 }

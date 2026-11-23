@@ -1,7 +1,11 @@
 // Tests for the pure Go CDC (Content-Defined Chunking) module.
 package iscc
 
-import "testing"
+import (
+	"math"
+	"strconv"
+	"testing"
+)
 
 // ---- Gear table tests ----
 
@@ -38,6 +42,77 @@ func TestCdcParamsDefault(t *testing.T) {
 	}
 	if maskL != 511 {
 		t.Errorf("mask_l: got %d, want 511 ((1 << 9) - 1)", maskL)
+	}
+}
+
+// largeAvgParams holds the reference (min, max, center, maskS, maskL) for large
+// avgChunkSize values; maskS for 4294967295 is the reference's 2^33-1 saturated.
+var largeAvgParams = []struct {
+	avg          uint32
+	mi, ma, cs   uint64
+	maskS, maskL uint32
+}{
+	{536870912, 134217728, 4294967296, 335544320, 1073741823, 268435455},
+	{2147483647, 536870911, 17179869176, 1342177280, 4294967295, 1073741823},
+	{2147483648, 536870912, 17179869184, 1342177280, 4294967295, 1073741823},
+	{4294967295, 1073741823, 34359738360, 2684354560, 4294967295, 2147483647},
+}
+
+func TestCdcParamsLargeAvgMatchesReference(t *testing.T) {
+	for _, tc := range largeAvgParams {
+		mi, ma, cs, maskS, maskL := algCdcParams(tc.avg)
+		if uint64(mi) != tc.mi {
+			t.Errorf("avg %d min_size: got %d, want %d", tc.avg, mi, tc.mi)
+		}
+		if uint64(ma) != min(tc.ma, uint64(math.MaxInt)) {
+			t.Errorf("avg %d max_size: got %d, want %d", tc.avg, ma, tc.ma)
+		}
+		if uint64(cs) != min(tc.cs, uint64(math.MaxInt)) {
+			t.Errorf("avg %d center_size: got %d, want %d", tc.avg, cs, tc.cs)
+		}
+		if maskS != tc.maskS {
+			t.Errorf("avg %d mask_s: got %d, want %d", tc.avg, maskS, tc.maskS)
+		}
+		if maskL != tc.maskL {
+			t.Errorf("avg %d mask_l: got %d, want %d", tc.avg, maskL, tc.maskL)
+		}
+	}
+}
+
+func TestCdcParamsLargeAvgExactOn64Bit(t *testing.T) {
+	if strconv.IntSize != 64 {
+		t.Skip("exact max/center sizes need a 64-bit int")
+	}
+	for _, tc := range largeAvgParams {
+		_, ma, cs, _, _ := algCdcParams(tc.avg)
+		if uint64(ma) != tc.ma || uint64(cs) != tc.cs {
+			t.Errorf("avg %d: got (max %d, center %d), want (%d, %d)", tc.avg, ma, cs, tc.ma, tc.cs)
+		}
+	}
+}
+
+func TestCdcChunksLargeAvgSingleChunk(t *testing.T) {
+	data := make([]byte, 64)
+	for i := range data {
+		data[i] = byte(i)
+	}
+	for _, tc := range largeAvgParams {
+		chunks, err := AlgCdcChunks(data, false, tc.avg)
+		if err != nil {
+			t.Fatalf("avg %d: unexpected error: %v", tc.avg, err)
+		}
+		if len(chunks) != 1 || !byteSliceEqual(chunks[0], data) {
+			t.Errorf("avg %d: got %d chunks, want one chunk equal to the input", tc.avg, len(chunks))
+		}
+	}
+}
+
+func TestClampIntSaturates(t *testing.T) {
+	if got := clampInt(42); got != 42 {
+		t.Errorf("clampInt(42): got %d", got)
+	}
+	if got := clampInt(math.MaxUint64); got != math.MaxInt {
+		t.Errorf("clampInt(MaxUint64): got %d, want %d", got, math.MaxInt)
 	}
 }
 

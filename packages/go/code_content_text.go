@@ -16,8 +16,8 @@ func GenTextCodeV0(text string, bits uint32) (*TextCodeResult, error) {
 	collapsed := TextCollapse(text)
 	characters := len([]rune(collapsed))
 	hashDigest := softHashTextV0(collapsed)
-	component, err := EncodeComponent(
-		uint8(MTContent), uint8(STText), uint8(VSV0), bits, hashDigest,
+	component, err := encodeComponentInternal(
+		MTContent, STText, VSV0, bits, hashDigest,
 	)
 	if err != nil {
 		return nil, err
@@ -37,5 +37,5 @@ func softHashTextV0(text string) []byte {
 	for i, ng := range ngrams {
 		features[i] = xxh32([]byte(ng), 0)
 	}
-	return AlgMinhash256(features)
+	return algMinhash256(features)
 }

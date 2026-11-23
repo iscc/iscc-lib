@@ -3,61 +3,62 @@ package iscc
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
 )
 
 func TestPureGoGenMixedCodeV0(t *testing.T) {
-	data, err := os.ReadFile("../../crates/iscc-lib/tests/data.json")
-	if err != nil {
-		t.Fatalf("read data.json: %v", err)
-	}
-
-	allVectors, err := parseConformanceData(data)
-	if err != nil {
-		t.Fatalf("parse data.json: %v", err)
-	}
-
-	vectors, ok := allVectors["gen_mixed_code_v0"]
-	if !ok {
-		t.Fatal("gen_mixed_code_v0 section not found in data.json")
-	}
-
-	for name, vec := range vectors {
+	for name, vec := range conformanceSection(t, "gen_mixed_code_v0") {
 		t.Run(name, func(t *testing.T) {
-			// Parse inputs: [codes_array, bits]
-			var codes []string
-			if err := json.Unmarshal(vec.Inputs[0], &codes); err != nil {
-				t.Fatalf("parse codes input: %v", err)
+			codes, bits, err := mixedInputs(vec)
+			if err != nil {
+				t.Fatalf("parse inputs: %v", err)
+			}
+			wantISCC, err := expectedISCC(vec)
+			if err != nil {
+				t.Fatalf("parse iscc output: %v", err)
+			}
+			var want struct {
+				Parts []string `json:"parts"`
+			}
+			if err := json.Unmarshal(vec.Outputs, &want); err != nil {
+				t.Fatalf("parse outputs: %v", err)
 			}
 
-			var bits float64
-			if err := json.Unmarshal(vec.Inputs[1], &bits); err != nil {
-				t.Fatalf("parse bits input: %v", err)
-			}
-
-			result, err := GenMixedCodeV0(codes, uint32(bits))
+			result, err := GenMixedCodeV0(codes, bits)
 			if err != nil {
 				t.Fatalf("GenMixedCodeV0: %v", err)
 			}
 
-			// Verify ISCC code
-			wantISCC, _ := vec.Outputs["iscc"].(string)
 			if result.Iscc != wantISCC {
 				t.Errorf("iscc: got %q, want %q", result.Iscc, wantISCC)
 			}
-
-			// Verify parts
-			wantParts, _ := vec.Outputs["parts"].([]interface{})
-			if len(result.Parts) != len(wantParts) {
-				t.Fatalf("parts length: got %d, want %d", len(result.Parts), len(wantParts))
+			if len(result.Parts) != len(want.Parts) {
+				t.Fatalf("parts length: got %d, want %d", len(result.Parts), len(want.Parts))
 			}
-			for i, wp := range wantParts {
-				wantStr, _ := wp.(string)
-				if result.Parts[i] != wantStr {
-					t.Errorf("parts[%d]: got %q, want %q", i, result.Parts[i], wantStr)
+			for i, wantPart := range want.Parts {
+				if result.Parts[i] != wantPart {
+					t.Errorf("parts[%d]: got %q, want %q", i, result.Parts[i], wantPart)
 				}
 			}
 		})
+	}
+}
+
+func TestGenMixedCodeV0Above256Unit(t *testing.T) {
+	valid, err := GenTextCodeV0("Hello World", 64)
+	if err != nil {
+		t.Fatalf("GenTextCodeV0: %v", err)
+	}
+	codes := []string{overlongUnit(t, MTContent, STText), valid.Iscc}
+	_, err = GenMixedCodeV0(codes, 64)
+	assertDecodeBoundErr(t, err)
+}
+
+func TestGenMixedCodeV0BitsBelowOneByte(t *testing.T) {
+	codes := []string{"EUA6GIKXN42IQV3S", "EIAUKMOUIOYZCKA5"}
+	for bits := uint32(0); bits < 8; bits++ {
+		if _, err := GenMixedCodeV0(codes, bits); err == nil {
+			t.Errorf("bits %d: expected an error", bits)
+		}
 	}
 }

@@ -193,7 +193,7 @@ result, err := iscc.GenIsccCodeV0(
 if err != nil {
 	log.Fatal(err)
 }
-fmt.Println(result.Iscc) // "ISCC:KAA..."
+fmt.Println(result.Iscc) // "ISCC:KUA..."
 ```
 
 ### Sum-Code
@@ -207,7 +207,7 @@ result, err := iscc.GenSumCodeV0("example.bin", 64, false, false)
 if err != nil {
 	log.Fatal(err)
 }
-fmt.Println(result.Iscc)      // "ISCC:KAA..."
+fmt.Println(result.Iscc)      // "ISCC:KUA..."
 fmt.Println(result.Datahash)  // Multihash of the data
 fmt.Println(result.Filesize)  // Size in bytes
 ```
@@ -232,7 +232,9 @@ buf := make([]byte, 65536)
 for {
 	n, err := f.Read(buf)
 	if n > 0 {
-		hasher.Push(buf[:n])
+		if err := hasher.Push(buf[:n]); err != nil {
+			log.Fatal(err)
+		}
 	}
 	if err == io.EOF {
 		break
@@ -264,7 +266,9 @@ buf := make([]byte, 65536)
 for {
 	n, err := f.Read(buf)
 	if n > 0 {
-		hasher.Push(buf[:n])
+		if err := hasher.Push(buf[:n]); err != nil {
+			log.Fatal(err)
+		}
 	}
 	if err == io.EOF {
 		break
@@ -281,7 +285,9 @@ if err != nil {
 fmt.Println(result.Iscc) // Identical to iscc.GenInstanceCodeV0(entireFile, 64)
 ```
 
-Both hashers are single-use: after calling `Finalize`, do not call `Push` or `Finalize` again.
+Both hashers are single-use: the first `Finalize` call consumes the hasher, even when it fails (for
+example on an invalid `bits` value). After that, `Push` and `Finalize` return an "already finalized"
+error.
 
 ## Text utilities
 
@@ -331,7 +337,8 @@ fmt.Println(windows) // ["Hell", "ello", "llo ", "lo W", "o Wo", " Wor", "Worl",
 
 Additional primitives:
 
-- `AlgMinhash256(features []uint32) []byte` — compute a 256-bit MinHash digest from features
+- `AlgMinhash256(features []uint32) ([]byte, error)` — compute a 256-bit MinHash digest from
+    features; returns an error on an empty list
 - `AlgCdcChunks(data []byte, utf32 bool, avgChunkSize uint32) ([][]byte, error)` — split data into
     content-defined chunks
 - `AlgSimhash(digests [][]byte) ([]byte, error)` — compute a SimHash from equal-length byte digests
@@ -390,6 +397,33 @@ for _, unit := range units {
 }
 ```
 
+### ISCC-SEQ
+
+`EncodeSeq(units []string) ([]byte, error)` packs an ordered list of ISCC-UNITs into an ISCC-SEQ
+byte string (IEP-0020): the header and body bytes of each unit, in the given order.
+`DecodeSeq(data []byte) ([]string, error)` reads one back into `ISCC:`-prefixed unit strings. Base32
+input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and
+ISCC-FLAKE units are rejected.
+
+```go
+data, err := iscc.EncodeSeq([]string{"ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"})
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(len(data))       // 34
+fmt.Printf("%x\n", data[:6]) // 2007a88248c5
+
+units, err := iscc.DecodeSeq(data)
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(units) // [ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI]
+
+// The round trip is defined on bytes: EncodeSeq(DecodeSeq(data)) == data
+again, _ := iscc.EncodeSeq(units)
+fmt.Println(bytes.Equal(again, data)) // true
+```
+
 ### Experimental ISCC-IDv1
 
 `GenIsccIDV1(timestamp uint64, hubID uint16, realm uint8) (*IsccIdResult, error)` mints an 80-bit
@@ -432,6 +466,7 @@ import iscc "github.com/iscc/iscc-lib/packages/go"
 
 iscc.MetaTrimName        // 128 — max byte length for name normalization
 iscc.MetaTrimDescription // 4096 — max byte length for description normalization
+iscc.MetaTrimMeta        // 128_000 — max decoded payload size in bytes for the meta element
 iscc.IoReadSize          // 4_194_304 — default read buffer size (4 MB)
 iscc.TextNgramSize       // 13 — n-gram size for text similarity hashing
 ```
@@ -455,7 +490,7 @@ handling. Errors indicate invalid input (wrong bit count, empty data where conte
 etc.):
 
 ```go
-_, err := iscc.GenTextCodeV0("Hello", 13) // bits must be a multiple of 32
+_, err := iscc.GenTextCodeV0("Hello", 13) // bits must be a multiple of 32 from 32 to 256
 if err != nil {
 	fmt.Printf("Invalid input: %v\n", err)
 }

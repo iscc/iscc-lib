@@ -6,8 +6,9 @@ description: Guide to using iscc-lib from Ruby — code generation, streaming, c
 # Ruby
 
 A guide to using iscc-lib from Ruby. The Ruby gem provides a native Rust extension via
-[Magnus](https://github.com/matsadler/magnus), with precompiled gems for common platforms. All
-functions are module-level calls on `IsccLib` — install the gem and `require "iscc_lib"`.
+[Magnus](https://github.com/matsadler/magnus), with precompiled gems for common platforms on Ruby
+3.3 to 3.4 (the gem requires Ruby `>= 3.3`). All functions are module-level calls on `IsccLib` —
+install the gem and `require "iscc_lib"`.
 
 ---
 
@@ -27,8 +28,12 @@ Then run `bundle install`.
 
 !!! note "Build from source"
 
-    If no precompiled gem is available for your platform, the gem builds from source automatically. This
-    requires a Rust toolchain (`rustup`), `libclang-dev`, and Ruby development headers:
+    The gem requires Ruby `>= 3.3`. Precompiled platform gems are built for Ruby 3.3 to 3.4. On a newer
+    Ruby, or on a platform with no precompiled gem, `gem install iscc-lib` installs the source gem and
+    compiles the extension. That build needs a Rust toolchain (`rustup`), `libclang-dev`, Ruby
+    development headers, and network access: it installs the `rb_sys` gem and downloads the Rust crates
+    from crates.io. CI installs the source gem on Ruby 3.4. To build from a checkout of the repository
+    instead:
 
     ```bash
     # Clone the repository
@@ -177,7 +182,7 @@ data_result = IsccLib.gen_data_code_v0(data)
 instance_result = IsccLib.gen_instance_code_v0(data)
 
 result = IsccLib.gen_iscc_code_v0([data_result.iscc, instance_result.iscc])
-puts result.iscc # "ISCC:KAA..."
+puts result.iscc # "ISCC:KUA..."
 ```
 
 Parameters: `codes` (Array of Strings), `wide:` (Boolean, default `false` for 128-bit output, `true`
@@ -191,7 +196,7 @@ Generate a composite ISCC-CODE from a file in a single pass:
 File.binwrite("example.bin", "Hello World" * 1000)
 
 result = IsccLib.gen_sum_code_v0("example.bin")
-puts result.iscc     # "ISCC:KAA..."
+puts result.iscc     # "ISCC:KUA..."
 puts result.datahash # Multihash of the data
 puts result.filesize # Size in bytes
 
@@ -320,7 +325,8 @@ puts result.datahash # Multihash of the complete data
 puts result.filesize # Total bytes processed
 ```
 
-Both hashers are single-use: after calling `finalize`, further calls to `update` or `finalize` raise
+Both hashers are single-use: the first `finalize` call consumes the hasher, even when it fails (for
+example on an invalid `bits` value). After that, further calls to `update` or `finalize` raise
 `RuntimeError`.
 
 ## Codec and diagnostics
@@ -357,6 +363,26 @@ iscc_result = IsccLib.gen_iscc_code_v0([data_result.iscc, instance_result.iscc])
 # Decompose into individual units
 units = IsccLib.iscc_decompose(iscc_result.iscc)
 units.each { |unit| puts unit } # Each unit code (without "ISCC:" prefix)
+```
+
+### ISCC-SEQ
+
+`IsccLib.encode_seq(units)` packs an Array of ISCC-UNIT strings into an ISCC-SEQ byte string
+(IEP-0020) and returns a binary `String` with the header and body bytes of each unit, in the given
+order. `IsccLib.decode_seq(data)` reads one back into an Array of `ISCC:`-prefixed unit strings.
+Base32 input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE,
+ISCC-ID and ISCC-FLAKE units are rejected.
+
+```ruby
+data = IsccLib.encode_seq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"])
+data.bytesize       # => 34
+data.unpack1("H12") # => "2007a88248c5"
+
+units = IsccLib.decode_seq(data)
+# => ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+# The round trip is defined on bytes: encode_seq(decode_seq(data)) == data
+IsccLib.encode_seq(units) == data # => true
 ```
 
 ### Other codec functions
@@ -416,7 +442,7 @@ puts windows.inspect
 Additional primitives:
 
 - `IsccLib.alg_minhash_256(features)` — compute a 256-bit MinHash digest from an Array of 32-bit
-    integers, returns a binary String (32 bytes)
+    integers, returns a binary String (32 bytes); raises `RuntimeError` on an empty Array
 - `IsccLib.alg_cdc_chunks(data, utf32, avg_chunk_size)` — split binary data into content-defined
     chunks, returns an Array of binary Strings
 - `IsccLib.alg_simhash(digests)` — compute a SimHash from an Array of equal-length binary Strings,
@@ -445,7 +471,7 @@ content is required, etc.):
 
 ```ruby
 begin
-  IsccLib.gen_text_code_v0("Hello", bits: 13) # bits must be a multiple of 32
+  IsccLib.gen_text_code_v0("Hello", bits: 13) # bits must be a multiple of 32 from 32 to 256
 rescue RuntimeError => e
   puts "Invalid input: #{e.message}"
 end

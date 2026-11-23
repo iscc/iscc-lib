@@ -23,10 +23,10 @@ This project uses two development modes that share the same codebase and context
     and measured) and writes everything else as proposals for the human. A sixth role, **audit**,
     runs after every 10th completed iteration (or via `mise run cid:audit`): a whole-codebase
     maintainability audit that reads metric trends, sweeps for debt (duplication, drift, dead code,
-    gate latency) with a parallel finder/verify workflow, and files at most 5 evidence-backed issues
-    — the runner reverts any audit commit that touches anything beyond issues.md and its own memory.
-    CID agents get their context through `@` references in their agent definitions — they do not
-    rely on this section.
+    gate latency, stale guidance) with a parallel finder/verify workflow, and files at most 5
+    evidence-backed issues — the runner reverts any audit commit that touches anything beyond
+    issues.md and its own memory. CID agents get their context through their context packs (see
+    below) — they do not rely on this section.
 
 ### Branching model
 
@@ -55,6 +55,7 @@ selectively based on the task at hand (e.g., read `state.md` to understand proje
 | `.claude/context/handoff.md`       | Inter-agent communication and verdicts      | Read only          |
 | `.claude/context/learnings.md`     | Accumulated knowledge from prior iterations | Read and append    |
 | `.claude/context/issues.md`        | Tracked issues and feature requests         | Read and append    |
+| `.claude/context/postponed.md`     | Issues set aside for a later release        | Read and write     |
 | `.claude/context/decisions.md`     | Binding design rationale (runner-rotated)   | Read and append    |
 | `.claude/context/iterations.jsonl` | CID iteration log                           | Read only          |
 | `.claude/context/metrics.jsonl`    | Codebase-health snapshots (audit cadence)   | Read only          |
@@ -73,6 +74,10 @@ rotates `decisions.md` overflow into `decisions-archive.md`, records every overr
 that `tools/cid.py` invokes as a prompt prefix; its `` !`cat …` `` blocks are expanded before the
 agent's first turn. Do **not** put `@file` or `` !`command` `` blocks in `.claude/agents/*.md` —
 they are inert there (the body is the system prompt, verbatim). Edit the pack instead.
+
+**Role model and effort:** set them only in each agent's frontmatter (`model:`, `effort:`).
+`tools/cid.py` passes both as `--model`/`--effort`, because the CLI ignores frontmatter `effort:`
+for `--agent` sessions and lets `--model` override frontmatter `model:`.
 
 **Updating the target:** If the human asks to change project goals, acceptance criteria, or
 specifications, update `target.md` (or its sub-specs) directly. The next CID iteration picks up
@@ -122,10 +127,15 @@ foundation — adapt and extend rather than rewriting from Python. Available via
 
 ## Architecture
 
-Detailed design is in `notes/00-overview.md` and sub-documents (01-09). Consult these when making
+`.claude/context/target.md` and the specs under `.claude/context/specs/` say what the project must
+be, and each crate and package has a `CLAUDE.md` for its local conventions. Read those when making
 design decisions — don't guess.
 
-| Document                               | When to consult                        |
+`notes/` (00-09) is the original design record from the project's start. It explains why the
+architecture looks the way it does, but it is not kept current: where it differs from the target,
+the specs or the code, they win. Do not update `notes/` in sweeps.
+
+| Document                               | Background on                          |
 | -------------------------------------- | -------------------------------------- |
 | `notes/00-overview.md`                 | Starting point, key decisions, tooling |
 | `notes/01-workspace-structure.md`      | Creating crates, workspace config      |
@@ -141,8 +151,9 @@ design decisions — don't guess.
 
 - **Sync core, streaming interface**: Rust core is synchronous. Each binding adapts async
     idiomatically. Pattern: `new() -> update(&[u8]) -> finalize() -> Result<T>`
-- **Tiered API surface**: Only `iscc_lib::api` (Tier 1) is bound to foreign languages. Internal
-    modules use `pub(crate)` and are never exposed across FFI.
+- **Tiered API surface**: Tier 1 (the symbols `lib.rs` defines or re-exports at the crate root) is
+    what every binding exposes. Of Tier 2, only `streaming::SumHasher` is wrapped, by Python and
+    WASM. Internal modules use `pub(crate)` and are never exposed across FFI.
 - **Hub-and-spoke crate model**: All binding crates depend on the pure-Rust `iscc-lib` core crate.
 
 ## Design Constraints
@@ -195,7 +206,7 @@ release-workflow static checks (`scripts/check_release_workflow.py`, scoped to
 invariants are never exercised by CI runs).
 
 **Pre-push stage** (thorough quality gates): `cargo clippy`, `cargo test`, `ty check`, Ruff security
-scan (`S` rules), Ruff complexity check (`C901`), `pytest` with coverage enforcement.
+scan (`S` rules), Ruff complexity check (`C901`), `pytest`.
 
 **Pre-format before committing:** Run `mise run format` before `git add` and `git commit`. This runs
 the same pre-commit auto-fix hooks (formatting, whitespace, line endings) that would fire during
@@ -204,8 +215,10 @@ would require re-staging.
 
 ## Conformance
 
-Official test vectors from `iscc-core/data.json` are the correctness baseline. All 10 `gen_*_v0`
-functions must produce output matching `iscc-core` for every vector.
+Official test vectors from `iscc-core/data.json` are the correctness baseline. Every `gen_*_v0`
+function with a `data.json` section must produce output matching `iscc-core` for every vector
+(`gen_sum_code_v0` has no section; it must equal `gen_iscc_code_v0` over its Data-Code and
+Instance-Code).
 
 ## Command Execution
 

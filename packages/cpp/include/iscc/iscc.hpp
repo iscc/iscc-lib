@@ -37,18 +37,14 @@ public:
 
 namespace detail {
 
-/// Return a non-null pointer for empty byte vectors.
-/// Some C FFI functions require non-null data pointers even for zero length.
-inline const uint8_t* safe_data(const std::vector<uint8_t>& v) {
-    static const uint8_t sentinel = 0;
-    return v.empty() ? &sentinel : v.data();
-}
-
-/// Return a non-null pointer for empty int32 vectors.
-/// Some C FFI functions require non-null data pointers even for zero length.
-inline const int32_t* safe_data(const std::vector<int32_t>& v) {
-    static const int32_t sentinel = 0;
-    return v.empty() ? &sentinel : v.data();
+/// Return the C string of `s` for a C FFI call, or throw IsccError if `s` contains an
+/// embedded NUL character. The C FFI reads strings up to the first NUL, so an
+/// unchecked string would be silently truncated.
+inline const char* checked_c_str(const std::string& s) {
+    if (s.find('\0') != std::string::npos) {
+        throw IsccError("string input contains an embedded NUL character");
+    }
+    return s.c_str();
 }
 
 /// Check the thread-local error from the C FFI and throw if set.
@@ -254,28 +250,28 @@ inline uint32_t text_ngram_size() { return iscc_text_ngram_size(); }
 
 /// Clean and normalize text for display.
 inline std::string text_clean(const std::string& text) {
-    detail::UniqueString s(iscc_text_clean(text.c_str()));
+    detail::UniqueString s(iscc_text_clean(detail::checked_c_str(text)));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
 
 /// Remove newlines and collapse whitespace to single spaces.
 inline std::string text_remove_newlines(const std::string& text) {
-    detail::UniqueString s(iscc_text_remove_newlines(text.c_str()));
+    detail::UniqueString s(iscc_text_remove_newlines(detail::checked_c_str(text)));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
 
 /// Trim text so its UTF-8 encoded size does not exceed nbytes.
 inline std::string text_trim(const std::string& text, size_t nbytes) {
-    detail::UniqueString s(iscc_text_trim(text.c_str(), nbytes));
+    detail::UniqueString s(iscc_text_trim(detail::checked_c_str(text), nbytes));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
 
 /// Normalize and simplify text for similarity hashing.
 inline std::string text_collapse(const std::string& text) {
-    detail::UniqueString s(iscc_text_collapse(text.c_str()));
+    detail::UniqueString s(iscc_text_collapse(detail::checked_c_str(text)));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
@@ -286,7 +282,7 @@ inline std::string text_collapse(const std::string& text) {
 
 /// Encode bytes as base64url (RFC 4648 section 5, no padding).
 inline std::string encode_base64(const std::vector<uint8_t>& data) {
-    detail::UniqueString s(iscc_encode_base64(detail::safe_data(data), data.size()));
+    detail::UniqueString s(iscc_encode_base64(data.data(), data.size()));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
@@ -300,12 +296,14 @@ inline std::string encode_base64(const uint8_t* data, size_t len) {
 
 /// Convert a JSON string into a data: URL with JCS canonicalization.
 inline std::string json_to_data_url(const std::string& json) {
-    detail::UniqueString s(iscc_json_to_data_url(json.c_str()));
+    detail::UniqueString s(iscc_json_to_data_url(detail::checked_c_str(json)));
     detail::check_ptr(s.ptr);
     return s.to_string();
 }
 
 /// Encode raw ISCC header components and digest into a base32 ISCC unit string.
+/// Throws IsccError for out-of-range enum values, for MainType ISCC (5), for an
+/// invalid `bit_length`, or when `digest` is shorter than `bit_length / 8` bytes.
 inline std::string encode_component(uint8_t mtype, uint8_t stype, uint8_t version,
                                     uint32_t bit_length,
                                     const std::vector<uint8_t>& digest) {
@@ -321,7 +319,7 @@ inline std::string encode_component(uint8_t mtype, uint8_t stype, uint8_t versio
 
 /// Decode an ISCC unit string into header components and raw digest.
 inline DecodeResult iscc_decode(const std::string& code) {
-    iscc_IsccDecodeResult dr = ::iscc_decode(code.c_str());
+    iscc_IsccDecodeResult dr = ::iscc_decode(detail::checked_c_str(code));
     if (!dr.ok) {
         iscc_free_decode_result(dr);
         detail::check_error();
@@ -346,14 +344,43 @@ inline DecodeResult iscc_decode(const std::string& code) {
 
 /// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
 inline std::vector<std::string> iscc_decompose(const std::string& iscc_code) {
-    detail::UniqueStringArray arr(::iscc_decompose(iscc_code.c_str()));
+    detail::UniqueStringArray arr(::iscc_decompose(detail::checked_c_str(iscc_code)));
+    detail::check_ptr(arr.ptr);
+    return arr.to_vec();
+}
+
+/// Encode ISCC-UNIT strings as a binary ISCC-SEQ (IEP-0020).
+///
+/// Units may carry the `ISCC:` prefix, be lowercase, or contain hyphens.
+/// Throws IsccError if `units` is empty, a unit contains an embedded NUL
+/// character, or a unit is malformed or of an excluded MainType.
+inline std::vector<uint8_t> encode_seq(const std::vector<std::string>& units) {
+    std::vector<const char*> ptrs;
+    ptrs.reserve(units.size());
+    for (size_t i = 0; i < units.size(); ++i) {
+        if (units[i].find('\0') != std::string::npos) {
+            throw IsccError("ISCC-UNIT at index " + std::to_string(i) +
+                            " contains an embedded NUL character");
+        }
+        ptrs.push_back(units[i].c_str());
+    }
+    detail::UniqueByteBuffer buf(iscc_encode_seq(ptrs.data(), ptrs.size()));
+    detail::check_ptr(buf.buf.data);
+    return buf.to_vec();
+}
+
+/// Decode a binary ISCC-SEQ to canonical `ISCC:`-prefixed ISCC-UNIT strings.
+///
+/// Throws IsccError if `data` is empty, malformed, or has trailing bytes.
+inline std::vector<std::string> decode_seq(const std::vector<uint8_t>& data) {
+    detail::UniqueStringArray arr(::iscc_decode_seq(data.data(), data.size()));
     detail::check_ptr(arr.ptr);
     return arr.to_vec();
 }
 
 /// Generate sliding window n-grams from a string.
 inline std::vector<std::string> sliding_window(const std::string& seq, uint32_t width) {
-    detail::UniqueStringArray arr(::iscc_sliding_window(seq.c_str(), width));
+    detail::UniqueStringArray arr(::iscc_sliding_window(detail::checked_c_str(seq), width));
     detail::check_ptr(arr.ptr);
     return arr.to_vec();
 }
@@ -363,16 +390,19 @@ inline std::vector<std::string> sliding_window(const std::string& seq, uint32_t 
 // ---------------------------------------------------------------------------
 
 /// Compute a SimHash digest from an array of byte digests.
+///
+/// Throws IsccError if `digests` is empty.
 inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>& digests) {
     std::vector<const uint8_t*> ptrs;
     std::vector<size_t> lens;
     ptrs.reserve(digests.size());
     lens.reserve(digests.size());
     for (const auto& d : digests) {
-        ptrs.push_back(detail::safe_data(d));
+        ptrs.push_back(d.data());
         lens.push_back(d.size());
     }
-    detail::UniqueByteBuffer buf(iscc_alg_simhash(ptrs.data(), lens.data(), digests.size()));
+    detail::UniqueByteBuffer buf(iscc_alg_simhash(
+        ptrs.data(), lens.data(), digests.size()));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("alg_simhash failed");
@@ -381,8 +411,11 @@ inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>&
 }
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
+///
+/// Throws IsccError if `features` is empty.
 inline std::vector<uint8_t> alg_minhash_256(const std::vector<uint32_t>& features) {
-    detail::UniqueByteBuffer buf(iscc_alg_minhash_256(features.data(), features.size()));
+    detail::UniqueByteBuffer buf(
+        iscc_alg_minhash_256(features.data(), features.size()));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("alg_minhash_256 failed");
@@ -395,7 +428,7 @@ inline std::vector<std::vector<uint8_t>> alg_cdc_chunks(const std::vector<uint8_
                                                          bool utf32,
                                                          uint32_t avg_chunk_size) {
     detail::UniqueByteBufferArray arr(
-        iscc_alg_cdc_chunks(detail::safe_data(data), data.size(), utf32, avg_chunk_size));
+        iscc_alg_cdc_chunks(data.data(), data.size(), utf32, avg_chunk_size));
     if (!arr.arr.buffers) {
         detail::check_error();
         throw IsccError("alg_cdc_chunks failed");
@@ -423,11 +456,11 @@ inline std::vector<uint8_t> soft_hash_video_v0(
     ptrs.reserve(frame_sigs.size());
     lens.reserve(frame_sigs.size());
     for (const auto& f : frame_sigs) {
-        ptrs.push_back(detail::safe_data(f));
+        ptrs.push_back(f.data());
         lens.push_back(f.size());
     }
-    detail::UniqueByteBuffer buf(
-        iscc_soft_hash_video_v0(ptrs.data(), lens.data(), frame_sigs.size(), bits));
+    detail::UniqueByteBuffer buf(iscc_soft_hash_video_v0(
+        ptrs.data(), lens.data(), frame_sigs.size(), bits));
     if (!buf.buf.data) {
         detail::check_error();
         throw IsccError("soft_hash_video_v0 failed");
@@ -445,16 +478,17 @@ inline MetaCodeResult gen_meta_code_v0(
     const std::optional<std::string>& description = std::nullopt,
     const std::optional<std::string>& meta = std::nullopt,
     uint32_t bits = 64) {
-    const char* desc_ptr = description ? description->c_str() : nullptr;
-    const char* meta_ptr = meta ? meta->c_str() : nullptr;
-    detail::UniqueString s(iscc_gen_meta_code_v0(name.c_str(), desc_ptr, meta_ptr, bits));
+    const char* desc_ptr = description ? detail::checked_c_str(*description) : nullptr;
+    const char* meta_ptr = meta ? detail::checked_c_str(*meta) : nullptr;
+    detail::UniqueString s(
+        iscc_gen_meta_code_v0(detail::checked_c_str(name), desc_ptr, meta_ptr, bits));
     detail::check_ptr(s.ptr);
     return MetaCodeResult{s.to_string()};
 }
 
 /// Generate a Text-Code from plain text content.
 inline TextCodeResult gen_text_code_v0(const std::string& text, uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_text_code_v0(text.c_str(), bits));
+    detail::UniqueString s(iscc_gen_text_code_v0(detail::checked_c_str(text), bits));
     detail::check_ptr(s.ptr);
     return TextCodeResult{s.to_string()};
 }
@@ -462,7 +496,7 @@ inline TextCodeResult gen_text_code_v0(const std::string& text, uint32_t bits = 
 /// Generate an Image-Code from pixel data.
 inline ImageCodeResult gen_image_code_v0(const std::vector<uint8_t>& pixels,
                                           uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_image_code_v0(detail::safe_data(pixels),
+    detail::UniqueString s(iscc_gen_image_code_v0(pixels.data(),
                                                    pixels.size(), bits));
     detail::check_ptr(s.ptr);
     return ImageCodeResult{s.to_string()};
@@ -479,7 +513,7 @@ inline ImageCodeResult gen_image_code_v0(const uint8_t* pixels, size_t len,
 /// Generate an Audio-Code from a Chromaprint feature vector.
 inline AudioCodeResult gen_audio_code_v0(const std::vector<int32_t>& cv,
                                           uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_audio_code_v0(detail::safe_data(cv), cv.size(), bits));
+    detail::UniqueString s(iscc_gen_audio_code_v0(cv.data(), cv.size(), bits));
     detail::check_ptr(s.ptr);
     return AudioCodeResult{s.to_string()};
 }
@@ -492,11 +526,11 @@ inline VideoCodeResult gen_video_code_v0(
     ptrs.reserve(frame_sigs.size());
     lens.reserve(frame_sigs.size());
     for (const auto& f : frame_sigs) {
-        ptrs.push_back(detail::safe_data(f));
+        ptrs.push_back(f.data());
         lens.push_back(f.size());
     }
-    detail::UniqueString s(
-        iscc_gen_video_code_v0(ptrs.data(), lens.data(), frame_sigs.size(), bits));
+    detail::UniqueString s(iscc_gen_video_code_v0(
+        ptrs.data(), lens.data(), frame_sigs.size(), bits));
     detail::check_ptr(s.ptr);
     return VideoCodeResult{s.to_string()};
 }
@@ -507,7 +541,7 @@ inline MixedCodeResult gen_mixed_code_v0(const std::vector<std::string>& codes,
     std::vector<const char*> ptrs;
     ptrs.reserve(codes.size());
     for (const auto& c : codes) {
-        ptrs.push_back(c.c_str());
+        ptrs.push_back(detail::checked_c_str(c));
     }
     detail::UniqueString s(iscc_gen_mixed_code_v0(ptrs.data(), codes.size(), bits));
     detail::check_ptr(s.ptr);
@@ -517,7 +551,7 @@ inline MixedCodeResult gen_mixed_code_v0(const std::vector<std::string>& codes,
 /// Generate a Data-Code from raw byte data.
 inline DataCodeResult gen_data_code_v0(const std::vector<uint8_t>& data,
                                         uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_data_code_v0(detail::safe_data(data), data.size(), bits));
+    detail::UniqueString s(iscc_gen_data_code_v0(data.data(), data.size(), bits));
     detail::check_ptr(s.ptr);
     return DataCodeResult{s.to_string()};
 }
@@ -533,7 +567,7 @@ inline DataCodeResult gen_data_code_v0(const uint8_t* data, size_t len,
 /// Generate an Instance-Code from raw byte data.
 inline InstanceCodeResult gen_instance_code_v0(const std::vector<uint8_t>& data,
                                                 uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_instance_code_v0(detail::safe_data(data),
+    detail::UniqueString s(iscc_gen_instance_code_v0(data.data(),
                                                       data.size(), bits));
     detail::check_ptr(s.ptr);
     return InstanceCodeResult{s.to_string()};
@@ -553,7 +587,7 @@ inline IsccCodeResult gen_iscc_code_v0(const std::vector<std::string>& codes,
     std::vector<const char*> ptrs;
     ptrs.reserve(codes.size());
     for (const auto& c : codes) {
-        ptrs.push_back(c.c_str());
+        ptrs.push_back(detail::checked_c_str(c));
     }
     detail::UniqueString s(iscc_gen_iscc_code_v0(ptrs.data(), codes.size(), wide));
     detail::check_ptr(s.ptr);
@@ -570,7 +604,8 @@ inline IsccIdResult gen_iscc_id_v1(uint64_t timestamp, uint16_t hub_id, uint8_t 
 /// Generate a composite ISCC-CODE from a file path (Data-Code + Instance-Code).
 inline SumCodeResult gen_sum_code_v0(const std::string& path, uint32_t bits = 64,
                                       bool wide = false, bool add_units = false) {
-    iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(path.c_str(), bits, wide, add_units);
+    iscc_IsccSumCodeResult sr =
+        iscc_gen_sum_code_v0(detail::checked_c_str(path), bits, wide, add_units);
     if (!sr.ok) {
         iscc_free_sum_code_result(sr);
         detail::check_error();

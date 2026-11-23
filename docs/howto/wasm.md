@@ -19,7 +19,9 @@ npm install @iscc/wasm
 
 ## Setup
 
-The WASM package supports three build targets. Choose the setup that matches your environment.
+The published package is a single `--target web` build: an ES module that loads its
+`iscc_wasm_bg.wasm` file once at startup. Initialize it before calling any other function. How you
+initialize depends on your environment.
 
 ### Bundler (webpack, Vite)
 
@@ -39,17 +41,16 @@ const iscc = gen_text_code_v0("Hello World");
 console.log(iscc);
 ```
 
-Most bundlers handle WASM initialization automatically. If not, call `init()` once at application
-startup.
+Call `init()` once at application startup.
 
 ### Browser (native ESM)
 
-For direct use in browsers without a bundler, build the package with `--target web` and serve the
-files:
+For direct use in browsers without a bundler, serve the files of the installed package
+(`node_modules/@iscc/wasm/`) and import its entry module:
 
 ```html
 <script type="module">
- import init, { gen_text_code_v0 } from "./pkg/iscc_wasm.js";
+ import init, { gen_text_code_v0 } from "./node_modules/@iscc/wasm/iscc_wasm.js";
 
   await init();
   const iscc = gen_text_code_v0("Hello World");
@@ -59,13 +60,26 @@ files:
 
 ### Node.js
 
-For Node.js environments where native addons are not available, build with `--target nodejs`:
+Called without an argument, `init()` fetches the `.wasm` file by URL, and Node's `fetch` cannot read
+`file:` URLs. Read the file from disk and pass its bytes to `initSync()` instead:
 
 ```javascript
 import {
-    gen_text_code_v0,
-    gen_data_code_v0
+    readFileSync
+} from "node:fs";
+import {
+    createRequire
+} from "node:module";
+import {
+    initSync,
+    gen_text_code_v0
 } from "@iscc/wasm";
+
+// Node's fetch cannot read file: URLs, so load the WASM bytes from disk
+const require = createRequire(import.meta.url);
+initSync({
+    module: readFileSync(require.resolve("@iscc/wasm/iscc_wasm_bg.wasm"))
+});
 
 const iscc = gen_text_code_v0("Hello World");
 console.log(iscc);
@@ -79,8 +93,9 @@ console.log(iscc);
 
 ## Code generation
 
-All 10 `gen_*_v0` functions return the ISCC code as a string. Optional parameters use `undefined`
-for defaults.
+Nine of the 10 `gen_*_v0` functions return the ISCC code as a string. `gen_sum_code_v0` returns a
+`WasmSumCodeResult` object with `iscc`, `datahash` and `filesize` fields, plus `units` when
+`add_units` is `true` (see [Sum-Code](#sum-code)). Optional parameters use `undefined` for defaults.
 
 ### Meta-Code
 
@@ -206,7 +221,7 @@ const data = encoder.encode("Hello World".repeat(1000));
 const dataCode = gen_data_code_v0(data);
 const instanceCode = gen_instance_code_v0(data);
 const iscc = gen_iscc_code_v0([dataCode, instanceCode]);
-console.log(iscc); // "ISCC:KAA..."
+console.log(iscc); // "ISCC:KUA..."
 ```
 
 ### Sum-Code
@@ -223,7 +238,7 @@ import {
 const encoder = new TextEncoder();
 const data = encoder.encode("Hello World".repeat(1000));
 const result = gen_sum_code_v0(data);
-console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.iscc); // "ISCC:KUA..."
 console.log(result.datahash); // Multihash of the data
 console.log(result.filesize); // Size in bytes
 ```
@@ -329,13 +344,14 @@ while (true) {
 
 // finalize(bits?, wide?, add_units?) — pass add_units=true to include units
 const result = hasher.finalize(undefined, undefined, true);
-console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.iscc); // "ISCC:KUA..."
 console.log(result.datahash); // Multihash of the data
 console.log(result.filesize); // Size in bytes
 console.log(result.units); // [dataCode, instanceCode]
 ```
 
-All three hashers accept `Uint8Array` input. After calling `finalize()`, the hasher is consumed and
+All three hashers accept `Uint8Array` input. Each is single-use: the first `finalize()` call
+consumes the hasher, even when it fails (for example on an invalid `bits` value). After that,
 further calls throw an error.
 
 ## Text utilities
@@ -446,12 +462,62 @@ for (const unit of units) {
 }
 ```
 
+### ISCC-SEQ
+
+`encode_seq(units)` packs an ordered list of ISCC-UNITs into an ISCC-SEQ byte string (IEP-0020) and
+returns a `Uint8Array` with the header and body bytes of each unit, in the given order. `units` may
+be an array or any other iterable of strings. `decode_seq(data: Uint8Array): string[]` reads one
+back into `ISCC:`-prefixed unit strings. Base32 input is strict (no padding, zero spare bits) and
+upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected.
+
+```javascript
+import {
+    decode_seq,
+    encode_seq
+} from "@iscc/wasm";
+
+const data = encode_seq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]);
+console.log(data.length); // 34
+console.log(Array.from(data.subarray(0, 6), (b) => b.toString(16).padStart(2, "0")).join(""));
+// "2007a88248c5"
+
+const units = decode_seq(data);
+console.log(units); // ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+// The round trip is defined on bytes: encode_seq(decode_seq(data)) equals data
+const again = encode_seq(units);
+console.log(again.length === data.length && again.every((b, i) => b === data[i])); // true
+```
+
 ### Other codec functions
 
 - `encode_base64(data)` — encode a Uint8Array to base64 string
 - `json_to_data_url(json)` — convert a JSON string to a `data:application/json;base64,...` URL
 - `soft_hash_video_v0(frameSigs, bits?)` — compute a video similarity hash from MPEG-7 frame
     signatures, returns Uint8Array
+
+## Algorithm primitives
+
+Low-level algorithm functions are available for advanced use cases:
+
+```javascript
+import {
+    sliding_window
+} from "@iscc/wasm";
+
+// Sliding window: overlapping substrings of width Unicode characters
+const windows = sliding_window("Hello World", 4);
+// ["Hell", "ello", "llo ", "lo W", "o Wo", " Wor", "Worl", "orld"]
+```
+
+Additional primitives:
+
+- `alg_simhash(hashDigests)` — compute a SimHash digest from an array of equal-length Uint8Arrays,
+    returns Uint8Array
+- `alg_minhash_256(features)` — compute a 256-bit MinHash digest from 32-bit integer features,
+    returns Uint8Array; throws on an empty array
+- `alg_cdc_chunks(data, utf32, avgChunkSize?)` — split data into content-defined chunks (default
+    average chunk size 1024), returns an array of `Uint8Array` chunks
 
 ## Constants
 
@@ -461,12 +527,14 @@ Constants are exposed as getter functions (uppercase names matching other bindin
 import {
     META_TRIM_NAME,
     META_TRIM_DESCRIPTION,
+    META_TRIM_META,
     IO_READ_SIZE,
     TEXT_NGRAM_SIZE,
 } from "@iscc/wasm";
 
 META_TRIM_NAME(); // 128 — max byte length for name normalization
 META_TRIM_DESCRIPTION(); // 4096 — max byte length for description normalization
+META_TRIM_META(); // 128_000 — max decoded payload size in bytes for the meta element
 IO_READ_SIZE(); // 4_194_304 — default read buffer size (4 MB)
 TEXT_NGRAM_SIZE(); // 13 — n-gram size for text similarity hashing
 ```
@@ -485,7 +553,35 @@ console.log(conformance_selftest()); // true
 
 ## Error handling
 
-Functions throw on invalid input:
+Functions throw on invalid input. Every number argument must be an integer within the range of its
+parameter (for example, `bits` and `nbytes` must lie in 0 to 2^32 − 1 and each `gen_audio_code_v0`
+feature in the signed 32-bit range). A negative, fractional, non-finite or too large number throws
+an error that names the parameter, for example `Invalid bits: -1`.
+
+Number and boolean arguments are type-checked, not converted. A value that is not a number where a
+number is expected throws `Invalid <name>: expected a number`: `null` for a required number, a
+numeric string such as `"2"`, or a boolean. This applies to every element of a number array too
+(`Invalid cv[1]: expected a number`). For an optional number such as `bits`, `null` and `undefined`
+both select the default. Boolean flags (`wide`, `add_units`, `utf32`) must be `true` or `false`. Any
+other value, such as the string `"false"` or `0`, throws `Invalid <name>: expected a boolean`, and
+`null` or `undefined` select the default of an optional flag.
+
+Number-array parameters (`cv`, `features`) accept arrays, typed arrays such as `Int32Array`, and
+array-like objects with a `length`. An iterable without a `length`, such as a `Set` or a generator,
+throws `Invalid <name>.length: expected a number`. Convert it first with `Array.from`. An exception
+thrown while the array is read, for example by a getter, comes back as an error that names the
+parameter.
+
+Byte and string parameters are not type-checked: the generated JavaScript glue converts them before
+the library runs. Where bytes are expected, pass a `Uint8Array` (a Node.js `Buffer` is one). A
+string or a plain array is converted without an error and gives a different, valid code:
+`gen_data_code_v0("abc")` returns the code of three zero bytes, not of the text, and
+`gen_data_code_v0([1, "2", null, 300])` the code of the bytes 1, 2, 0 and 44. Where a string is
+expected, a number or another non-string value throws `RuntimeError: memory access out of bounds`
+instead of an error that names the parameter. The TypeScript declarations reject both mistakes;
+plain JavaScript callers should check the types before the call.
+
+Wrap calls in `try`/`catch` to handle invalid input:
 
 ```javascript
 import {
@@ -493,7 +589,7 @@ import {
 } from "@iscc/wasm";
 
 try {
-    gen_text_code_v0("Hello", 13); // bits must be a multiple of 32
+    gen_text_code_v0("Hello", 13); // bits must be a multiple of 32 from 32 to 256
 } catch (error) {
     console.error(`Invalid input: ${error.message}`);
 }

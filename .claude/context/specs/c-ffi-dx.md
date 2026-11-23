@@ -38,12 +38,12 @@ seen ISCC before.
 
 **Verified when:**
 
-- [x] `docs/howto/c-cpp.md` exists and is linked in site navigation
-- [x] Contains CMake integration snippet
-- [x] Contains streaming DataHasher + InstanceHasher example
-- [x] Contains ISCC-SUM one-shot example
-- [x] Contains C++ RAII wrapper example
-- [x] Contains error handling and memory management sections
+- `docs/howto/c-cpp.md` exists and is linked in site navigation
+- Contains CMake integration snippet
+- Contains streaming DataHasher + InstanceHasher example
+- Contains ISCC-SUM one-shot example
+- Contains C++ RAII wrapper example
+- Contains error handling and memory management sections
 
 ## 2. Standalone Example Program
 
@@ -63,11 +63,11 @@ comments explaining each step.
 
 **Verified when:**
 
-- [ ] `crates/iscc-ffi/examples/iscc_sum.c` exists and compiles
-- [ ] `crates/iscc-ffi/examples/CMakeLists.txt` exists and works with
+- `crates/iscc-ffi/examples/iscc_sum.c` exists and compiles
+- `crates/iscc-ffi/examples/CMakeLists.txt` exists and works with
     `cmake -B build && cmake   --build build`
-- [ ] Example produces correct ISCC-SUM output for a test file
-- [ ] Example demonstrates streaming (chunk loop), not just one-shot
+- Example produces correct ISCC-SUM output for a test file
+- Example demonstrates streaming (chunk loop), not just one-shot
 
 ## 3. Committed C Header with CI Freshness Check
 
@@ -87,9 +87,9 @@ without requiring cbindgen.
 
 **Verified when:**
 
-- [ ] `crates/iscc-ffi/include/iscc.h` exists in the repo and is not gitignored
-- [ ] CI C FFI job includes a freshness check that fails if the header is stale
-- [ ] The C test program compiles against the committed header
+- `crates/iscc-ffi/include/iscc.h` exists in the repo and is not gitignored
+- CI C FFI job includes a freshness check that fails if the header is stale
+- The C test program compiles against the committed header
 
 ## 4. Pre-Built FFI Release Artifacts
 
@@ -104,8 +104,8 @@ Add to `release.yml`:
 - A `build-ffi` job with the same platform matrix as the JNI/napi builds:
     - `x86_64-unknown-linux-gnu` (ubuntu-latest)
     - `aarch64-unknown-linux-gnu` (ubuntu-latest + cross-compiler)
-    - `aarch64-apple-darwin` (macos-14)
-    - `x86_64-apple-darwin` (macos-14)
+    - `aarch64-apple-darwin` (macos-15)
+    - `x86_64-apple-darwin` (macos-15)
     - `x86_64-pc-windows-msvc` (windows-latest)
 - Each matrix entry: `cargo build -p iscc-ffi --release --target <target>`
 - Package output: tarball (`.tar.gz` on Unix, `.zip` on Windows) containing:
@@ -115,7 +115,8 @@ Add to `release.yml`:
     - `LICENSE`
 - A `publish-ffi` job (needs `build-ffi`) that creates/updates the GitHub Release and uploads the
     tarballs as release assets
-- Trigger: same as other release jobs (`startsWith(github.ref, 'refs/tags/v') || inputs.ffi`)
+- Condition: `build-ffi` runs for a full release or the `ffi`/`nuget` checkbox
+    (`inputs.version != '' || inputs.ffi || inputs.nuget`, NuGet packs the FFI tarballs)
 - Add `ffi` boolean input to `workflow_dispatch`
 
 **Naming convention:** `iscc-ffi-v{version}-{target}.tar.gz` (e.g.,
@@ -123,14 +124,17 @@ Add to `release.yml`:
 
 **Verified when:**
 
-- [x] `release.yml` includes `build-ffi` and `publish-ffi` jobs
-- [x] `workflow_dispatch` has `ffi` boolean input
-- [x] Tag push triggers FFI builds for all 5 platform targets
-- [x] Each platform produces a tarball with shared lib + static lib + header + LICENSE
-- [x] Tarballs are uploaded as GitHub Release assets
+- `release.yml` includes `build-ffi` and `publish-ffi` jobs
+- `workflow_dispatch` has `ffi` boolean input
+- A full release (`workflow_dispatch` with a `version` input) runs the FFI builds for every release
+    platform
+- Each platform produces a tarball with shared lib + static lib + header + LICENSE
+- Tarballs are uploaded as GitHub Release assets
 
 ## 5. Feature Flags for Minimal Builds
 
-Tracked separately as GitHub Issue #16. Allows `default-features = false` to build only Data-Code +
-Instance-Code, stripping ~82K lines of serde/unicode dependencies. Relevant for embedded consumers
-but not blocking for the DX improvements above.
+Shipped in the `iscc-lib` crate (`crates/iscc-lib/Cargo.toml` `[features]`).
+`default = ["meta-code"]`. `text-processing` brings in the Unicode crates (`unicode-normalization`,
+`unicode-general-category`); `meta-code` enables `text-processing` and adds
+`serde_json_canonicalizer`. `serde_json` is not optional. With `default-features = false` the crate
+builds without the Unicode crates and without `serde_json_canonicalizer`, for embedded consumers.

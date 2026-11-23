@@ -29,6 +29,12 @@ import {
     alg_minhash_256,
     alg_cdc_chunks,
     soft_hash_video_v0,
+    gen_meta_code_v0,
+    gen_text_code_v0,
+    gen_image_code_v0,
+    gen_audio_code_v0,
+    gen_video_code_v0,
+    gen_mixed_code_v0,
     gen_data_code_v0,
     gen_instance_code_v0,
     gen_iscc_code_v0,
@@ -191,11 +197,8 @@ describe('sliding_window', () => {
 // ── Algorithm primitives ─────────────────────────────────────────────────────
 
 describe('alg_simhash', () => {
-    it('returns 32 zero bytes for empty input', () => {
-        const result = alg_simhash([]);
-        strictEqual(Buffer.isBuffer(result), true);
-        strictEqual(result.length, 32);
-        ok(result.every((b) => b === 0));
+    it('throws on empty input', () => {
+        throws(() => alg_simhash([]), /must not be empty/);
     });
 
     it('returns the same bytes for a single digest', () => {
@@ -692,5 +695,155 @@ describe('gen_sum_code_v0', () => {
         const result = gen_sum_code_v0(filePath, 64, false, true);
         ok(result.units[0].startsWith('ISCC:'), 'units[0] (Data-Code) should start with ISCC:');
         ok(result.units[1].startsWith('ISCC:'), 'units[1] (Instance-Code) should start with ISCC:');
+    });
+});
+
+// ── Integer range checks ─────────────────────────────────────────────────────
+// napi would wrap an out-of-range JS number (ToUint32/ToInt32) into a different
+// valid integer; every numeric parameter is range-checked before narrowing.
+
+const OVER_U32 = 2 ** 32 + 64; // wraps to 64 under ToUint32
+
+describe('integer range: bits', () => {
+    const calls = {
+        gen_meta_code_v0: (bits) => gen_meta_code_v0('name', undefined, undefined, bits),
+        gen_text_code_v0: (bits) => gen_text_code_v0('text', bits),
+        gen_image_code_v0: (bits) => gen_image_code_v0(Buffer.alloc(1024), bits),
+        gen_audio_code_v0: (bits) => gen_audio_code_v0([1, 2, 3], bits),
+        gen_video_code_v0: (bits) => gen_video_code_v0([[0, 1, 2]], bits),
+        gen_mixed_code_v0: (bits) => gen_mixed_code_v0([], bits),
+        gen_data_code_v0: (bits) => gen_data_code_v0(Buffer.from('data'), bits),
+        gen_instance_code_v0: (bits) => gen_instance_code_v0(Buffer.from('data'), bits),
+        gen_sum_code_v0: (bits) => gen_sum_code_v0('/unused', bits),
+        soft_hash_video_v0: (bits) => soft_hash_video_v0([[0, 1, 2]], bits),
+        'DataHasher.finalize': (bits) => new DataHasher().finalize(bits),
+        'InstanceHasher.finalize': (bits) => new InstanceHasher().finalize(bits),
+    };
+    for (const [name, call] of Object.entries(calls)) {
+        it(`${name} rejects bits 2**32+64`, () => {
+            throws(() => call(OVER_U32), /Invalid bits: 4294967360/);
+        });
+        it(`${name} rejects bits -1`, () => {
+            throws(() => call(-1), /Invalid bits: -1/);
+        });
+        it(`${name} rejects bits 64.5`, () => {
+            throws(() => call(64.5), /Invalid bits: 64.5/);
+        });
+    }
+
+    it('rejects non-finite bits', () => {
+        throws(() => gen_text_code_v0('text', NaN), /Invalid bits: NaN/);
+        throws(() => gen_text_code_v0('text', Infinity), /Invalid bits: inf/);
+    });
+
+    it('undefined and null keep the default of 64', () => {
+        const expected = gen_text_code_v0('text', 64);
+        strictEqual(gen_text_code_v0('text'), expected);
+        strictEqual(gen_text_code_v0('text', undefined), expected);
+        strictEqual(gen_text_code_v0('text', null), expected);
+    });
+
+    // The first finalize consumes a hasher whatever rejects its argument:
+    // one bad argument per fresh hasher, then a valid finalize must throw.
+    const hashers = { DataHasher, InstanceHasher };
+    const badBits = {
+        'binding-rejected bits -1': [-1, /Invalid bits: -1/],
+        'binding-rejected bits "x"': ['x', /Invalid bits: expected a number/],
+        'core-rejected bits 13': [13, /invalid length 13/],
+    };
+    for (const [name, Hasher] of Object.entries(hashers)) {
+        for (const [label, [bits, expected]] of Object.entries(badBits)) {
+            it(`${name}.finalize with ${label} consumes the hasher`, () => {
+                const hasher = new Hasher();
+                hasher.update(Buffer.from('data'));
+                throws(() => hasher.finalize(bits), expected);
+                throws(() => hasher.finalize(64), new RegExp(`${name} already finalized`));
+            });
+        }
+    }
+});
+
+describe('integer range: scalar parameters', () => {
+    it('text_trim rejects nbytes -1', () => {
+        throws(() => text_trim('hello', -1), /Invalid nbytes: -1/);
+    });
+
+    it('text_trim rejects nbytes 2**32+3', () => {
+        throws(() => text_trim('hello', 2 ** 32 + 3), /Invalid nbytes: 4294967299/);
+    });
+
+    it('text_trim accepts -0 and the u32 maximum', () => {
+        strictEqual(text_trim('hello', -0), '');
+        strictEqual(text_trim('hello', 2 ** 32 - 1), 'hello');
+    });
+
+    it('sliding_window rejects width 2**32+2', () => {
+        throws(() => sliding_window('abcd', 2 ** 32 + 2), /Invalid width: 4294967298/);
+    });
+
+    it('sliding_window rejects width -1', () => {
+        throws(() => sliding_window('abcd', -1), /Invalid width: -1/);
+    });
+
+    it('alg_cdc_chunks rejects avg_chunk_size 2**32+1024', () => {
+        throws(
+            () => alg_cdc_chunks(Buffer.from('data'), false, 2 ** 32 + 1024),
+            /Invalid avg_chunk_size: 4294968320/,
+        );
+    });
+
+    it('encode_component rejects mtype 256', () => {
+        throws(() => encode_component(256, 0, 0, 64, Buffer.alloc(8)), /Invalid mtype: 256/);
+    });
+
+    it('encode_component rejects stype -1', () => {
+        throws(() => encode_component(0, -1, 0, 64, Buffer.alloc(8)), /Invalid stype: -1/);
+    });
+
+    it('encode_component rejects version 0.5', () => {
+        throws(() => encode_component(0, 0, 0.5, 64, Buffer.alloc(8)), /Invalid version: 0.5/);
+    });
+
+    it('encode_component rejects bit_length 2**32+64', () => {
+        throws(
+            () => encode_component(0, 0, 0, OVER_U32, Buffer.alloc(8)),
+            /Invalid bit_length: 4294967360/,
+        );
+    });
+});
+
+describe('integer range: array elements', () => {
+    it('gen_audio_code_v0 rejects an element of 2**40', () => {
+        throws(() => gen_audio_code_v0([1, 2 ** 40]), /Invalid cv\[1\]: 1099511627776/);
+    });
+
+    it('gen_audio_code_v0 rejects an element of -(2**31)-1', () => {
+        throws(() => gen_audio_code_v0([-(2 ** 31) - 1]), /Invalid cv\[0\]: -2147483649/);
+    });
+
+    it('gen_audio_code_v0 accepts the i32 bounds', () => {
+        ok(gen_audio_code_v0([-(2 ** 31), 2 ** 31 - 1]).startsWith('ISCC:'));
+    });
+
+    it('alg_minhash_256 rejects an element of -1', () => {
+        throws(() => alg_minhash_256([-1]), /Invalid features\[0\]: -1/);
+    });
+
+    it('alg_minhash_256 rejects an element of 2**32', () => {
+        throws(() => alg_minhash_256([0, 2 ** 32]), /Invalid features\[1\]: 4294967296/);
+    });
+
+    it('gen_video_code_v0 rejects a frame element of 2**31', () => {
+        throws(
+            () => gen_video_code_v0([[0, 1], [2, 2 ** 31]]),
+            /Invalid frame_sigs\[1\]\[1\]: 2147483648/,
+        );
+    });
+
+    it('soft_hash_video_v0 rejects a frame element of 2**31', () => {
+        throws(
+            () => soft_hash_video_v0([[2 ** 31, 0]]),
+            /Invalid frame_sigs\[0\]\[0\]: 2147483648/,
+        );
     });
 });

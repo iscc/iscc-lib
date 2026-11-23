@@ -85,20 +85,23 @@ func TextClean(text string) string {
 
 // TextRemoveNewlines converts multi-line text into a single normalized line.
 //
-// Splits on whitespace boundaries and joins with a single space,
+// Splits on Python str.split() whitespace (see isPyStripChar) and joins with a single space,
 // removing newlines and collapsing consecutive whitespace.
 func TextRemoveNewlines(text string) string {
-	return strings.Join(strings.Fields(text), " ")
+	return strings.Join(strings.FieldsFunc(text, isPyStripChar), " ")
 }
 
 // TextTrim trims text so its UTF-8 encoded size does not exceed nbytes.
 //
 // Finds the largest valid UTF-8 prefix within nbytes, then strips
-// leading/trailing whitespace. Multi-byte characters that would be
-// split are dropped entirely.
+// leading/trailing Python str.strip() whitespace. Multi-byte characters that would be
+// split are dropped entirely. A non-positive nbytes returns the empty string.
 func TextTrim(text string, nbytes int) string {
+	if nbytes <= 0 {
+		return ""
+	}
 	if len(text) <= nbytes {
-		return strings.TrimSpace(text)
+		return strings.TrimFunc(text, isPyStripChar)
 	}
 	// Take first nbytes bytes, find last valid rune boundary
 	truncated := text[:nbytes]
@@ -106,7 +109,7 @@ func TextTrim(text string, nbytes int) string {
 	for len(truncated) > 0 && !utf8.ValidString(truncated) {
 		truncated = truncated[:len(truncated)-1]
 	}
-	return strings.TrimSpace(truncated)
+	return strings.TrimFunc(truncated, isPyStripChar)
 }
 
 // TextCollapse normalizes and simplifies text for similarity hashing.

@@ -710,15 +710,16 @@ dependencies = [
 
 [[package]]
 name = "iscc-ffi"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "csbindgen",
  "iscc-lib",
+ "serde_json",
 ]
 
 [[package]]
 name = "iscc-jni"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "iscc-lib",
  "jni",
@@ -726,7 +727,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-lib"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "blake3",
  "criterion",
@@ -740,12 +741,11 @@ dependencies = [
  "thiserror",
  "unicode-general-category",
  "unicode-normalization",
- "xxhash-rust",
 ]
 
 [[package]]
 name = "iscc-napi"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "iscc-lib",
  "napi",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-py"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "iscc-lib",
  "pyo3",
@@ -763,7 +763,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-rb"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "iscc-lib",
  "magnus",
@@ -771,7 +771,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-uniffi"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "iscc-lib",
  "thiserror",
@@ -780,11 +780,12 @@ dependencies = [
 
 [[package]]
 name = "iscc-wasm"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "blake3",
  "hex",
  "iscc-lib",
+ "js-sys",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
@@ -1327,9 +1328,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.1.4"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
+checksum = "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
 dependencies = [
  "bitflags",
  "errno",
@@ -1998,12 +1999,6 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 dependencies = [
  "memchr",
 ]
-
-[[package]]
-name = "xxhash-rust"
-version = "0.8.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aee1b19627c7c60102ab80d3a9cbe18de90bfe03bfa6c3715447681f0e8c8af6"
 
 [[package]]
 name = "zerocopy"

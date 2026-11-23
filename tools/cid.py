@@ -85,6 +85,11 @@ AUDIT_OK = frozenset(p.as_posix() for p in (ISSUES_FILE, METRICS_FILE))
 # so a meta change can never defer its own evaluation indefinitely.
 META_WINDOW_CAP = 10
 HUMAN_REVIEW_MARKER = "**HUMAN REVIEW REQUESTED**"
+
+# Verdict of an iteration that stopped because a role failed. It keeps the
+# iteration_summary series free of gaps, and the meta-rollback metrics count it as
+# rework so a change that makes roles crash registers as a regression.
+FAILED_VERDICT = "FAILED"
 IDLE_MARKER = "**IDLE**"
 VERDICT_MARKER = "**Verdict:**"
 
@@ -95,23 +100,31 @@ ROLE_ENTRY_KEYS = frozenset(
 )
 
 # Per-role wall-clock timeout in seconds — the loop's runaway guard. Enforced in
-# run_agent by killing the claude subprocess if it overruns (cross-platform). A
-# turn-count flag is intentionally NOT used: the installed claude CLI has no
-# --max-turns, so it would be silently ignored. Values are generous (these catch
-# stuck runs, not normal long iterations like advance + a 30-min codex review).
+# run_agent by killing the claude subprocess if it overruns (cross-platform). A turn
+# cap (`--max-turns`) is not used: turn counts scale with the work package, and the
+# spend ceiling below already stops a role that thrashes. Values are generous (these
+# catch stuck runs, not normal long iterations like advance + a 30-min codex review).
 # A role that already committed its deliverable when the guard fires does not fail
 # the iteration — see _role_commit_landed.
-# advance's single requests on hard tasks can run for many minutes, so it gets
-# extra headroom over the other roles.
+# advance and review get the most headroom: a fan-out step implements and then
+# verifies one behaviour on many surfaces in a single session, and define-next
+# sizes such a step for about 90 minutes of advance work.
+# Under -p the CLI waits at most 10 minutes after the last turn for background tasks,
+# then kills them. The audit launches its finder/verify Workflow in the background and
+# ends its turn until the completion notification wakes it; a whole-repo sweep runs
+# longer than 10 minutes, so every audit's workflow was killed before it reported
+# (iterations 220 and 230: aborted exactly 600 s after the turn ended, nothing filed).
+# These roles wait without a ceiling; ROLE_TIMEOUT_S stays the runaway guard.
+UNBOUNDED_BG_WAIT_ROLES = {AUDIT_ROLE}
+
 ROLE_TIMEOUT_S = {
     "update-state": 1200,
     "define-next": 1200,
-    "advance": 3600,
+    "advance": 7200,
     # review runs the widest gate set (full feature matrix, coverage regen from
-    # scratch, iai benches, docs build) plus an independent codex pass, so it needs
-    # the same headroom as advance: p90 is ~1800s and iteration 148 legitimately
-    # exceeded 3000s.
-    "review": 3600,
+    # scratch, iai benches, docs build) plus an independent codex pass, once per
+    # surface in a fan-out, so it needs the same headroom as advance.
+    "review": 7200,
     META_ROLE: 1800,
     # Whole-codebase sweep with a parallel finder/verifier workflow — long but
     # rare (every AUDIT_EVERY iterations).
@@ -122,27 +135,39 @@ ROLE_TIMEOUT_S = {
 # --print, and every role runs under -p). Companion to ROLE_TIMEOUT_S: the timeout
 # catches a role that hangs, this catches one that thrashes productively-looking
 # but unboundedly. Values are ~2x the worst run observed to date, so they never
-# fire on a normal iteration.
+# fire on a normal iteration; advance and review are sized for a fan-out step
+# across all bindings.
 ROLE_BUDGET_USD = {
     "update-state": 10.0,
     "define-next": 10.0,
-    "advance": 20.0,
-    "review": 20.0,
+    "advance": 40.0,
+    "review": 40.0,
     META_ROLE: 15.0,
-    AUDIT_ROLE: 15.0,
+    # The audit's finder/verify Workflow is billed to the audit session; iteration
+    # 240's run hit a 15.0 ceiling mid-verification and filed nothing.
+    AUDIT_ROLE: 30.0,
 }
 
-# Primary model pinned for every headless role invocation. Passed as --model so the
-# session base does not drift onto the CLI's rolling default. Per-agent frontmatter
-# still overrides this — frontmatter model takes precedence over the session --model.
-# Opus 5.5 has a 1M-token context window by default, so no "[1m]" suffix is needed.
-PRIMARY_MODEL = "claude-opus-5-5"
+# Frontmatter fields of a role's agent file that the runner passes as CLI flags
+# (`--model`, `--effort`). Under `claude -p --agent <role>` the CLI ignores
+# frontmatter `effort:` (the session takes the user's personal settings or the model
+# default instead), and an explicit `--model` overrides frontmatter `model:`. Passing
+# both from the agent file keeps it the single source of truth and the loop
+# independent of whoever runs it. Verified on Claude Code 2.1.326.
+AGENT_FLAG_KEYS = ("model", "effort")
 
-# Prompt size (in tokens) above which a role run is reported as at risk of silent
-# context truncation. The review role has already touched 92% of a 200k window;
-# truncation there degrades the quality gate invisibly, which is worse than a cost
-# overrun because nothing fails loudly.
-CONTEXT_ALARM_TOKENS = 150_000
+# Inline limit for shell output, passed as the `bashOutputMaxChars` setting. Context
+# packs inject files with !`cat …`; output above the CLI default (~30k characters) is
+# replaced by a 2 KB preview plus a file path, so a file that outgrows it (target.md
+# is the closest) would reach the agent truncated while its prompt forbids re-reading.
+BASH_OUTPUT_MAX_CHARS = 128_000
+
+# Prompt size (in tokens) above which a role run is reported as at risk of
+# auto-compaction. The roles run with a 1M-token window and peak around 100-215k;
+# a role that nears compaction gets its injected context pack summarized, which
+# degrades the quality gate invisibly — worse than a cost overrun because nothing
+# fails loudly.
+CONTEXT_ALARM_TOKENS = 500_000
 
 
 # --- CLI discovery ---
@@ -160,16 +185,22 @@ def find_claude():
     return shutil.which("claude")
 
 
-def sanitize_env():
-    """Create environment with API keys removed.
+def sanitize_env(role=None):
+    """Create the role-session environment: no API keys, no claude.ai connectors.
 
-    Ensures subscription login is used instead of API billing.
+    Removing the keys ensures subscription login is used instead of API billing.
+    The claude.ai connectors (Gmail, Slack, Drive, ISCC Expert, ...) would otherwise
+    load into every unattended session; project MCP servers such as deepwiki stay.
+    Roles in UNBOUNDED_BG_WAIT_ROLES may outlive the CLI's print-mode background wait.
     """
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)
     env.pop("ANTHROPIC_AUTH_TOKEN", None)
+    env["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
     # Prevent nested session detection when invoking claude from within claude
     env.pop("CLAUDECODE", None)
+    if role in UNBOUNDED_BG_WAIT_ROLES:
+        env["CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"] = "0"
     return env
 
 
@@ -199,13 +230,26 @@ def _prompt_tokens(usage):
 def _process_output(stdout, role):
     """Process streaming JSON output from claude CLI.
 
-    Returns (cost, turns, is_error, peak_context) tuple, where peak_context is the
-    largest prompt the role sent during the run.
+    Returns a dict with cost, turns, is_error, peak_context (the largest prompt the
+    role sent), subtype (the result subtype, e.g. `error_max_budget_usd`), denials
+    (tool calls the permission layer refused — in a `-p` run, bypass mode denies the
+    few calls that would otherwise prompt, and the role carries on without them),
+    refusals (assistant messages that ended with stop_reason `refusal`, counted once
+    per message id — a safety block the role otherwise reports as a clean run) and
+    model_costs (USD per model, which separates fallback-model spend).
     """
-    cost = 0.0
-    turns = 0
-    is_error = False
+    out = {
+        "cost": 0.0,
+        "turns": 0,
+        "is_error": False,
+        "peak_context": 0,
+        "subtype": "",
+        "denials": 0,
+        "refusals": 0,
+        "model_costs": {},
+    }
     peak_context = 0
+    refused_ids = set()
 
     for line in iter(stdout.readline, ""):
         line = line.rstrip("\n")
@@ -214,6 +258,9 @@ def _process_output(stdout, role):
         try:
             data = json.loads(line)
         except json.JSONDecodeError:
+            # stderr is merged into stdout: CLI warnings (such as background tasks
+            # being stopped) arrive as plain text and must stay visible.
+            print(f"  [{role}] {line[:500]}")
             continue
 
         msg_type = data.get("type")
@@ -223,6 +270,8 @@ def _process_output(stdout, role):
             usage = message.get("usage")
             if isinstance(usage, dict):
                 peak_context = max(peak_context, int(_prompt_tokens(usage)))
+            if message.get("stop_reason") == "refusal":
+                refused_ids.add(message.get("id") or len(refused_ids))
             for item in message.get("content", []):
                 if item.get("type") == "text":
                     text = item.get("text", "").strip()
@@ -234,11 +283,31 @@ def _process_output(stdout, role):
             # default, so a null cost/turns would crash round()/format downstream.
             raw_cost = data.get("total_cost_usd")
             raw_turns = data.get("num_turns")
-            cost = raw_cost if isinstance(raw_cost, (int, float)) else 0.0
-            turns = raw_turns if isinstance(raw_turns, int) else 0
-            is_error = bool(data.get("is_error", False))
+            denials = data.get("permission_denials")
+            out["cost"] = raw_cost if isinstance(raw_cost, (int, float)) else 0.0
+            # A background-task notification after the final turn starts another
+            # segment with its own result: total_cost_usd is a running session total,
+            # num_turns counts only that segment, so turns are summed.
+            out["turns"] += raw_turns if isinstance(raw_turns, int) else 0
+            out["is_error"] = bool(data.get("is_error", False))
+            out["subtype"] = str(data.get("subtype") or "")
+            out["denials"] = len(denials) if isinstance(denials, list) else 0
+            out["model_costs"] = _model_costs(data.get("modelUsage"))
 
-    return cost, turns, is_error, peak_context
+    out["peak_context"] = peak_context
+    out["refusals"] = len(refused_ids)
+    return out
+
+
+def _model_costs(model_usage):
+    """Return {model: costUSD} from a result's modelUsage, skipping malformed entries."""
+    if not isinstance(model_usage, dict):
+        return {}
+    return {
+        model: round(usage["costUSD"], 6)
+        for model, usage in model_usage.items()
+        if isinstance(usage, dict) and isinstance(usage.get("costUSD"), (int, float))
+    }
 
 
 def log_entry(cwd, entry):
@@ -326,12 +395,14 @@ def parse_verdict(cwd):
     return None
 
 
-def append_iteration_summary(cwd, iteration, over_budget=None):
+def append_iteration_summary(cwd, iteration, over_budget=None, verdict=None):
     """Append a clean per-iteration summary row aggregating this iteration's roles.
 
     Provides a stable metric series (verdict + totals + artifact sizes) for
     meta-improve to evaluate. Recording the overruns makes artifact growth a
     first-class trend rather than something only visible by diffing the files.
+    Pass `verdict` when the handoff cannot supply it: after a failed role the
+    handoff still carries the previous iteration's verdict.
     """
     rows = [
         e
@@ -342,7 +413,7 @@ def append_iteration_summary(cwd, iteration, over_budget=None):
         "ts": datetime.now(timezone.utc).isoformat(),
         "type": "iteration_summary",
         "iteration": iteration,
-        "verdict": parse_verdict(cwd) or "UNKNOWN",
+        "verdict": verdict or parse_verdict(cwd) or "UNKNOWN",
         "turns_total": sum(_num(e, "turns") for e in rows),
         "cost_total": round(sum(_num(e, "cost_usd") for e in rows), 6),
         "duration_total": round(sum(_num(e, "duration_s") for e in rows), 1),
@@ -751,12 +822,18 @@ def _verdict_series(cwd):
 
 
 def _window_metrics(series, lo, hi):
-    """Compute (needs_work_rate, median_turns) over iterations in (lo, hi]."""
+    """Compute (needs_work_rate, median_turns) over iterations in (lo, hi].
+
+    A failed iteration counts as rework in the rate and is left out of the median.
+    """
     rows = [t for t in series if lo < t[0] <= hi]
     if not rows:
         return None
-    nw = sum(1 for _, v, _ in rows if v == "NEEDS_WORK") / len(rows)
-    turns = sorted(t[2] for t in rows)
+    nw = sum(1 for _, v, _ in rows if v in ("NEEDS_WORK", FAILED_VERDICT)) / len(rows)
+    # A failed iteration stopped early, so its turn count says nothing about effort.
+    turns = sorted(t[2] for t in rows if t[1] != FAILED_VERDICT)
+    if not turns:
+        return nw, 0
     mid = len(turns) // 2
     median = turns[mid] if len(turns) % 2 else (turns[mid - 1] + turns[mid]) / 2
     return nw, median
@@ -858,7 +935,7 @@ ARTIFACT_BUDGETS = {
     NEXT_FILE: 120,
     STATE_FILE: 200,
     HANDOFF_FILE: 100,
-    ISSUES_FILE: 300,
+    ISSUES_FILE: 400,
     LEARNINGS_FILE: 200,
     DECISIONS_FILE: 400,
 }
@@ -1055,13 +1132,46 @@ def budget_notice(cwd, role):
     )
 
 
-def build_agent_cmd(claude_cmd, role, prompt, skip_permissions, fallback_model=None):
+def agent_flags(cwd, role):
+    """Return the role agent's frontmatter values for AGENT_FLAG_KEYS.
+
+    Reads top-level `key: value` lines between the opening `---` pair; fields that are
+    absent are omitted, and a missing agent file yields an empty dict.
+    """
+    path = cwd / AGENTS_DIR / f"{role}.md"
+    if not path.exists():
+        return {}
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+    flags = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        key, sep, value = line.partition(":")
+        if sep and key in AGENT_FLAG_KEYS and value.strip():
+            flags[key] = value.strip()
+    return flags
+
+
+def session_settings():
+    """Return the settings every role session gets via `--settings`.
+
+    Raises the shell-output limit so context packs stay inline. No role gets the
+    server-side advisor (human decision, 2026-11-21): each call re-read the whole
+    transcript uncached, and in a Workflow every subagent consulted it.
+    """
+    return {"bashOutputMaxChars": BASH_OUTPUT_MAX_CHARS}
+
+
+def build_agent_cmd(
+    claude_cmd, role, prompt, skip_permissions, fallback_model=None, flags=None
+):
     """Assemble the claude CLI argument list for a headless agent run.
 
-    Adds prompt-cache friendliness (--exclude-dynamic-system-prompt-sections), a
-    per-role spend ceiling and an optional fallback model. The wall-clock runaway
-    guard is enforced in run_agent, not as a CLI flag — the installed claude CLI has
-    no --max-turns, only --max-budget-usd (which requires the -p used here).
+    Passes the role's frontmatter model/effort (see AGENT_FLAG_KEYS), the session
+    settings, a per-role spend ceiling and an optional fallback model. The wall-clock
+    runaway guard is enforced in run_agent.
     """
     cmd = [
         claude_cmd,
@@ -1072,12 +1182,12 @@ def build_agent_cmd(claude_cmd, role, prompt, skip_permissions, fallback_model=N
         "--output-format",
         "stream-json",
         "--verbose",
-        # Stable system-prompt prefix across the 4+ invocations per iteration
         "--exclude-dynamic-system-prompt-sections",
-        # Pin the session base model; per-agent frontmatter still overrides it
-        "--model",
-        PRIMARY_MODEL,
+        "--settings",
+        json.dumps(session_settings()),
     ]
+    for key, value in (flags or {}).items():
+        cmd += [f"--{key}", value]
     budget_usd = ROLE_BUDGET_USD.get(role)
     if budget_usd:
         cmd += ["--max-budget-usd", str(budget_usd)]
@@ -1107,6 +1217,47 @@ def _error_result(cwd, role, iteration, message):
     }
     log_entry(cwd, entry)
     return {**entry, "ok": False}
+
+
+def _role_entry(role, iteration, status, out, elapsed, flags):
+    """Print a finished role's summary and return its iteration-log row.
+
+    The row records the model/effort the role ran with, plus the result subtype, the
+    permission-denial count, the refusal count and the per-model cost split when they
+    deviate from a clean single-model run, so a budget stop, a refused tool call, a
+    safety refusal or a fallback model is visible in iterations.jsonl.
+    """
+    print(
+        f"  {role} {status} ({out['turns']} turns, ${out['cost']:.4f}, {elapsed:.0f}s)"
+    )
+    if out["peak_context"] >= CONTEXT_ALARM_TOKENS:
+        print(
+            f"  WARN: {role} peaked at {out['peak_context']:,} context tokens "
+            f"(alarm at {CONTEXT_ALARM_TOKENS:,}) — at risk of auto-compaction"
+        )
+    entry = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "iteration": iteration,
+        "role": role,
+        "status": status,
+        "turns": out["turns"],
+        "cost_usd": round(out["cost"], 6),
+        "duration_s": round(elapsed, 1),
+        "peak_context": out["peak_context"],
+        **flags,
+    }
+    if out["subtype"] not in ("", "success"):
+        entry["subtype"] = out["subtype"]
+        print(f"  NOTE: {role} ended with result subtype {out['subtype']}")
+    if out["denials"]:
+        entry["denials"] = out["denials"]
+        print(f"  WARN: {role} had {out['denials']} tool call(s) denied")
+    if out["refusals"]:
+        entry["refusals"] = out["refusals"]
+        print(f"  WARN: {role} had {out['refusals']} model refusal(s)")
+    if len(out["model_costs"]) > 1:
+        entry["model_costs"] = out["model_costs"]
+    return entry
 
 
 def run_agent(
@@ -1139,9 +1290,15 @@ def run_agent(
         )
 
     prompt = build_prompt(cwd, role, iteration)
+    role_flags = agent_flags(cwd, role)
 
     cmd = build_agent_cmd(
-        claude_cmd, role, prompt, skip_permissions, fallback_model=fallback_model
+        claude_cmd,
+        role,
+        prompt,
+        skip_permissions,
+        fallback_model=fallback_model,
+        flags=role_flags,
     )
 
     start = time.time()
@@ -1153,11 +1310,14 @@ def run_agent(
         )
         process = subprocess.Popen(  # noqa: S603
             cmd,
+            # No stdin: -p otherwise waits for piped input when the runner is not on
+            # a TTY, and would compete with wait_with_skip for the operator's keys.
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             cwd=cwd,
-            env=sanitize_env(),
+            env=sanitize_env(role),
             bufsize=1,
             creationflags=flags,
         )
@@ -1185,7 +1345,7 @@ def run_agent(
         timer = threading.Timer(timeout_s, _kill_on_timeout)
         timer.start()
     try:
-        cost, turns, is_error, peak_context = _process_output(stdout, role)
+        out = _process_output(stdout, role)
         process.wait()
     finally:
         if timer:
@@ -1194,27 +1354,11 @@ def run_agent(
 
     if timed_out["v"]:
         status = "TIMEOUT"
-    elif process.returncode != 0 or is_error:
+    elif process.returncode != 0 or out["is_error"]:
         status = "FAIL"
     else:
         status = "OK"
-    print(f"  {role} {status} ({turns} turns, ${cost:.4f}, {elapsed:.0f}s)")
-    if peak_context >= CONTEXT_ALARM_TOKENS:
-        print(
-            f"  WARN: {role} peaked at {peak_context:,} context tokens "
-            f"(alarm at {CONTEXT_ALARM_TOKENS:,}) — at risk of silent truncation"
-        )
-
-    entry = {
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "iteration": iteration,
-        "role": role,
-        "status": status,
-        "turns": turns,
-        "cost_usd": round(cost, 6),
-        "duration_s": round(elapsed, 1),
-        "peak_context": peak_context,
-    }
+    entry = _role_entry(role, iteration, status, out, elapsed, role_flags)
     recovered = status != "OK" and _role_commit_landed(cwd, role, base_sha)
     if recovered:
         entry["recovered"] = True
@@ -1304,8 +1448,8 @@ def run_iteration(
 
     Returns 'done' if the project reached target, 'idle' if no actionable work remains,
     'ok' if iteration succeeded, 'pause' if human review was requested, or 'fail' if a
-    role failed. Always records an iteration summary and commits the log on a
-    completed iteration.
+    role failed. Records an iteration summary (verdict FAILED when a role failed) and
+    commits the log.
     """
     result = "ok"
     for role in ROLES:
@@ -1335,7 +1479,9 @@ def run_iteration(
             result = "done"
             break
 
-    if result not in ("fail", "done"):
+    if result == "fail":
+        append_iteration_summary(cwd, iteration, verdict=FAILED_VERDICT)
+    elif result != "done":
         result = _classify_outcome(cwd)
         append_iteration_summary(cwd, iteration, enforce_artifact_budgets(cwd))
 

@@ -5,59 +5,63 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 ## Crate Role
 
 - This is the **core crate** that all binding crates (`iscc-py`, `iscc-napi`, `iscc-wasm`,
-    `iscc-ffi`, `iscc-jni`, `iscc-rb`) depend on
+    `iscc-ffi`, `iscc-jni`, `iscc-rb`, `iscc-uniffi`) depend on
 - Must remain **pure Rust** -- zero binding dependencies (no PyO3, napi, wasm-bindgen)
 - Publishable to crates.io as `iscc-lib`
 - All ISCC algorithm logic lives here; binding crates only translate the API
 
-## Module Layout
-
-| Module           | Visibility   | Purpose                                                                                      |
-| ---------------- | ------------ | -------------------------------------------------------------------------------------------- |
-| `lib.rs`         | public       | Crate root: re-exports, `IsccError`/`IsccResult`, all 10 `gen_*_v0` functions                |
-| `types.rs`       | `pub`        | Result structs (`MetaCodeResult`, `TextCodeResult`, etc.)                                    |
-| `codec.rs`       | `pub`        | Tier 2: `MainType`/`SubType`/`Version` enums, header encode/decode, base32, `iscc_decompose` |
-| `streaming.rs`   | `pub`        | `DataHasher` and `InstanceHasher` streaming types                                            |
-| `conformance.rs` | `pub(crate)` | `conformance_selftest()` -- runtime conformance checker (re-exported at crate root)          |
-| `utils.rs`       | `pub(crate)` | `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`, `multi_hash_blake3`      |
-| `cdc.rs`         | `pub(crate)` | Content-defined chunking (`alg_cdc_chunks`)                                                  |
-| `minhash.rs`     | `pub(crate)` | MinHash algorithm (`alg_minhash_256`)                                                        |
-| `simhash.rs`     | `pub(crate)` | SimHash and sliding window (`alg_simhash`, `sliding_window`)                                 |
-| `dct.rs`         | `pub(crate)` | Discrete Cosine Transform for image hashing                                                  |
-| `wtahash.rs`     | `pub(crate)` | Winner-Take-All hash for video fingerprinting                                                |
-
 ## API Tier Rules
 
-**Tier 1 -- public API, bound in all languages (33 symbols at crate root):**
+**Tier 1 -- public API, bound in all languages (crate-root symbols):**
 
-- 10 gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
-    `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
-    `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
-- 1 ISCC-IDv1 mint function (experimental): `gen_iscc_id_v1`
-- 4 text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
-- 4 algorithm primitives: `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`
-- 1 soft hash: `soft_hash_video_v0`
-- 2 encoding utilities: `encode_base64`, `json_to_data_url`
-- 3 codec operations: `iscc_decompose`, `encode_component`, `iscc_decode`
-- 5 algorithm constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`,
-    `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
-- 2 streaming types: `DataHasher`, `InstanceHasher`
-- 1 diagnostic: `conformance_selftest`
+<!-- tier1:begin -->
+
+- Gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`,
+    `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`,
+    `gen_iscc_code_v0`, `gen_sum_code_v0`
+- ISCC-IDv1 mint function (experimental): `gen_iscc_id_v1`
+- Text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
+- Algorithm primitives: `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`
+- Soft hash: `soft_hash_video_v0`
+- Encoding utilities: `encode_base64`, `json_to_data_url`
+- Codec operations: `iscc_decompose`, `encode_component`, `iscc_decode`, `encode_seq`, `decode_seq`
+- Algorithm constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
+    `TEXT_NGRAM_SIZE`
+- Streaming types: `DataHasher`, `InstanceHasher`
+- Diagnostic: `conformance_selftest`
+
+<!-- tier1:end -->
 
 Note: some Tier 1 symbols are feature-gated. `text_clean`, `text_collapse`, and `gen_text_code_v0`
 require the `text-processing` feature. `gen_meta_code_v0`, `json_to_data_url`, `META_TRIM_NAME`,
 `META_TRIM_DESCRIPTION`, and `META_TRIM_META` require the `meta-code` feature (which implies
 `text-processing`). The `default` feature set includes `meta-code`.
 
-**Tier 2 -- `pub mod codec`, Rust-only, not exposed through bindings:**
+**Tier 1 support types -- crate root, not counted as Tier 1 symbols:**
 
-- `MainType`, `SubType`, `Version` enums
-- `encode_header`, `decode_header`, `encode_base32`, `decode_base32`
-- `encode_length`, `decode_length`, `encode_units`, `decode_units`
+- `IsccError`, `IsccResult<T>`: the error every fallible Tier 1 call returns (excluded from the
+    symbol count in `EXCLUDED_ITEMS` of `scripts/check_tier1_docs.py`)
+- The result structs of `types`, re-exported by `pub use types::*`; `types::X` and the crate-root
+    `X` are the same item. Likewise `streaming::DataHasher`/`streaming::InstanceHasher` and the
+    `codec` paths of `encode_base64`, `iscc_decompose`, `encode_seq` and `decode_seq` are the Tier 1
+    re-exports, not separate items. `codec::encode_component` IS a separate item: the enum-typed
+    Tier 2 variant of the crate-root function
+
+**Tier 2 -- public Rust API outside the every-language contract (covered by SemVer):**
+
+- `pub mod codec`, not exposed through bindings:
+    - `MainType`, `SubType`, `Version` enums
+    - `encode_header`, `decode_header`, `encode_base32`, `decode_base32`
+    - `encode_length`, `decode_length`, `encode_units`, `decode_units`
+    - `read_unit`, `SEQ_MAINTYPES`
+- `streaming::SumHasher` (not re-exported at the crate root): Python and WASM wrap it as an extra;
+    the other bindings do not
 
 **Internal -- `pub(crate)` or private, free to change:**
 
 - `dct::alg_dct`, `wtahash::alg_wtahash`
+- `xxh32::xxh32` -- the feature hash of Data-Code and Text-Code, implemented in this crate (no
+    xxHash dependency; decisions.md, 2026-11-22)
 - Helper functions in `lib.rs` (`interleave_digests`, `meta_name_simhash`, `soft_hash_meta_v0`,
     `soft_hash_meta_v0_with_bytes`, `soft_hash_text_v0`, `soft_hash_image_v0`, `soft_hash_audio_v0`,
     `soft_hash_codes_v0`, etc.)
@@ -66,6 +70,8 @@ require the `text-processing` feature. `gen_meta_code_v0`, `json_to_data_url`, `
 **Rules:**
 
 - Adding to Tier 1 requires deliberate review
+- Tier 1 is what `lib.rs` defines or re-exports at the crate root; algorithm and utility modules
+    stay `pub(crate)`
 - Bindings translate the API; they must not define semantics
 - Do not expose Rust enums directly in bindings (they break when variants are added)
 - All result structs use `#[non_exhaustive]` so fields can be added in minor versions
@@ -101,11 +107,18 @@ new() -> update(&[u8]) -> ... -> update(&[u8]) -> finalize(bits) -> IsccResult<*
 - Correctness baseline: vendored `tests/data.json` from `iscc-core`
 - Vendored copies of `data.json` in per-language test trees are gated for byte-identity by
     `tests/test_vendored_fixtures.py` (repo root) — every new tracked copy must be registered there
-- 9 of 10 `gen_*_v0` functions must match `iscc-core` output for every test vector
-    (`gen_sum_code_v0` has no conformance vectors — it composes Data-Code + Instance-Code
+- Every `gen_*_v0` function except `gen_sum_code_v0` must match `iscc-core` output for every test
+    vector (`gen_sum_code_v0` has no conformance vectors — it composes Data-Code + Instance-Code
     internally)
-- `conformance_selftest()` runs all vectors at runtime (non-panicking, returns bool)
-- Each `gen_*_v0` also has `#[test]` functions that run the same vectors and panic on mismatch
+- `conformance_selftest()` runs all vectors at runtime (non-panicking, returns bool). The `SECTIONS`
+    table in `conformance.rs` is the only list of `data.json` sections, and a test fails when its
+    rows differ from the `data.json` keys: a new section needs a table row
+- The meta, text, mixed and instance `#[test]` loops in `lib.rs` re-run their vectors to check the
+    extra output fields. They read the inputs through the `pub(crate)` parsers in `conformance.rs`,
+    the only file under `src` that parses `data.json`: a test adds its extra-field checks, never its
+    own input decoding
+- The parsers share the Go runner's wrong-type rule (decisions.md, 2026-11-22): a wrong JSON type, a
+    fraction or an out-of-range number makes a case unparsable (`None`), never coerced or skipped
 - Streaming types (`DataHasher`/`InstanceHasher`) are tested against one-shot functions at multiple
     chunk sizes including byte-at-a-time
 - No network access in tests -- all vectors are `include_str!` from `tests/data.json`
@@ -124,7 +137,6 @@ cargo bench -p iscc-lib                     # Criterion benchmarks
 ## Dependencies
 
 - `blake3` -- BLAKE3 hashing (Instance-Code, metahash)
-- `xxhash-rust` -- xxh32 feature hashing (Data-Code, Text-Code)
 - `data-encoding` -- base32/base64 encoding
 - `hex` -- hex encode/decode for conformance vector parsing
 - `unicode-normalization` -- NFKC/NFD normalization (optional, `text-processing` feature)

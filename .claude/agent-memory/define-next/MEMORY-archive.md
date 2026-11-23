@@ -217,3 +217,37 @@ learnings.md.
     output-equivalence claim, no multi-code-point/sequence statements).
 - **A multi-part spec criterion slices along its own checkboxes** — `specs/rust-core.md`'s Unicode
     contract → separate steps (core change / sweep proof / binding propagation), not one.
+
+## Archived 2026-11-19 (iter 213) — v0.6.0 phase bullets
+
+- v0.5.0 released; 12 bindings meet core criteria; v0.6.0 features + Unicode chain DONE (161); 169
+    closed JNI debt, 170 `packages/dotnet` lockfile. **2026-07-28 human unblocked v0.6.0** (active):
+    171 (`criterion` 0.8) + 172 (`uniffi` 0.32) closed the dep issue →
+    [dep-refresh ledger](dep-refresh-ledger.md). Trigger-only: go1.27 + Go freeze table (~Aug 2026).
+    HELD `low`: v1.0.0 + Semver-enforcing, MSRV job, npm OIDC.
+- **A dep major can leave a *declaration* false without breaking anything** (172→173: uniffi 0.32
+    pushed `iscc-uniffi`'s real floor to 1.91). Declaring the true floor on an **unpublished** crate
+    is CID-doable; the **root/published** `rust-version` stays Titusz's call. **Trust fresh state.md
+    over an IDLE handoff when a non-`cid()` commit post-dates the last review** (174: out-of-loop
+    `2c4e487` reopened scope to 33 symbols + ISCC-IDv1 on all 11 surfaces, #43).
+- **2026-07-28 (177 AND AGAIN 178): state.md conflates a Semver check-run "failure" with the
+    workflow conclusion** — it declares "CI RED on develop", but
+    `gh run list --branch develop --json   conclusion` shows the develop tip (=HEAD code)
+    `conclusion:success` on BOTH the push run and the open develop→main PR run. The `Semver` job is
+    `continue-on-error: true` (ci.yml L355), so its red check-run does NOT fail the workflow. This
+    phantom recurs every iteration the semver check-run is red — verify workflow *conclusion* at the
+    source each time, never trust a state.md "red" derived from check-run status. 177 and 178 both
+    skipped a phantom "fix CI" step and went to #43 fan-out.
+- **ISCC-IDv1 (#43) FULLY CLOSED (iter 190 doc sweep landed, PASS_WITH_NOTES)**: core + all 11 mint
+    surfaces (178–188) + decode-widening (189, only Python needed `VS.V1`) + Tier-1 32→33 doc/count
+    sweep + `gen_iscc_id_v1` API/howto entries (190). #43 issue deleted. All doc artifacts read 33
+    (stale-32 grep clean); `notes/00-overview.md:153` now reads 33 (was 22 — that memory is now
+    stale). Per-surface recipes archived → [idv1 fan-out facts](iscc-idv1-fanout.md).
+- **193: the `iscc_clean` routing (191/192) reds the ENFORCING iai Perf gate** — routing composite
+    `gen_iscc_code_v0`/`gen_mixed_code_v0` through it added a per-component `Vec` (split-collect) +
+    `String` (`replace`) alloc; pre-191 inline cleaning was zero-alloc (`strip_prefix`→`&str`).
+    Bench inputs are dash/scheme-free so the alloc is pure waste. Fix = `iscc_clean` returns
+    `Cow<'_,str>`, `split_once` not collect, `replace` only if `contains('-')`; pass the UNMODIFIED
+    committed baseline (never bump `.iai-baseline.json` to mask a removable cost). `mise run check`
+    skips iai (CI-only) so the reviewer missed it — a text/codec-hot-path step must flag
+    `bench:iai:check`.

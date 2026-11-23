@@ -5,7 +5,7 @@ description: Java API reference for the ISCC library via JNI.
 
 # Java API Reference
 
-Java library for ISCC (ISO 24138:2024) code generation via JNI. All 33 Tier 1 symbols are exposed as
+Java library for ISCC (ISO 24138:2024) code generation via JNI. All 35 Tier 1 symbols are exposed as
 static methods on the `IsccLib` class. The native library is loaded automatically from the JAR's
 `META-INF/native/` directory, with fallback to `System.loadLibrary` for development environments.
 
@@ -17,14 +17,14 @@ static methods on the `IsccLib` class. The native library is loaded automaticall
     <dependency>
       <groupId>io.iscc</groupId>
       <artifactId>iscc-lib</artifactId>
-      <version>0.7.0</version>
+      <version>0.8.0</version>
     </dependency>
     ```
 
 === "Gradle"
 
     ```groovy
-    implementation 'io.iscc:iscc-lib:0.7.0'
+    implementation 'io.iscc:iscc-lib:0.8.0'
     ```
 
 ## Quick Example
@@ -42,12 +42,13 @@ System.out.println(iscc); // e.g. "ISCC:AAA..."
 
 Algorithm constants exposed as `public static final int` fields on `IsccLib`.
 
-| Constant                | Value       | Description                                             |
-| ----------------------- | ----------- | ------------------------------------------------------- |
-| `META_TRIM_NAME`        | `128`       | Maximum UTF-8 byte length for the name parameter        |
-| `META_TRIM_DESCRIPTION` | `4096`      | Maximum UTF-8 byte length for the description parameter |
-| `IO_READ_SIZE`          | `4_194_304` | Default read buffer size for streaming I/O (4 MB)       |
-| `TEXT_NGRAM_SIZE`       | `13`        | N-gram window size for text similarity hashing          |
+| Constant                | Value       | Description                                                |
+| ----------------------- | ----------- | ---------------------------------------------------------- |
+| `META_TRIM_NAME`        | `128`       | Maximum UTF-8 byte length for the name parameter           |
+| `META_TRIM_DESCRIPTION` | `4096`      | Maximum UTF-8 byte length for the description parameter    |
+| `META_TRIM_META`        | `128_000`   | Maximum decoded payload size in bytes for the meta element |
+| `IO_READ_SIZE`          | `4_194_304` | Default read buffer size for streaming I/O (4 MB)          |
+| `TEXT_NGRAM_SIZE`       | `13`        | N-gram window size for text similarity hashing             |
 
 ---
 
@@ -79,6 +80,30 @@ public class IsccDecodeResult {
 
 ---
 
+### SumCodeResult
+
+Result of `IsccLib.genSumCodeV0()`. All fields are `public final`.
+
+```java
+package io.iscc.iscc_lib;
+
+public class SumCodeResult {
+    public final String iscc;
+    public final String datahash;
+    public final long filesize;
+    public final String[] units;
+}
+```
+
+| Field      | Type       | Description                                                            |
+| ---------- | ---------- | ---------------------------------------------------------------------- |
+| `iscc`     | `String`   | Composite ISCC-CODE string                                             |
+| `datahash` | `String`   | Hex-encoded BLAKE3 multihash of the file                               |
+| `filesize` | `long`     | Byte length of the file                                                |
+| `units`    | `String[]` | `[Data-Code, Instance-Code]` ISCC strings, or `null` unless `addUnits` |
+
+---
+
 ## Conformance
 
 ### conformanceSelftest
@@ -95,7 +120,8 @@ Returns `true` if all tests pass, `false` otherwise.
 
 ## Code Generation
 
-All 10 `gen*V0` methods return an ISCC string (prefixed with `ISCC:`) on success. All throw
+`genSumCodeV0` returns a [`SumCodeResult`](#sumcoderesult); the nine other `gen*V0` methods and
+`genIsccIdV1` return an ISCC string (prefixed with `ISCC:`) on success. All throw
 `IllegalArgumentException` on invalid input.
 
 ### genMetaCodeV0
@@ -111,12 +137,12 @@ public static native String genMetaCodeV0(
 );
 ```
 
-| Parameter     | Type     | Description                                                    |
-| ------------- | -------- | -------------------------------------------------------------- |
-| `name`        | `String` | Title or name of the content (required, trimmed to 128 bytes)  |
-| `description` | `String` | Optional description text (nullable, trimmed to 4096 bytes)    |
-| `meta`        | `String` | Optional JSON string or `data:` URL (nullable)                 |
-| `bits`        | `int`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter     | Type     | Description                                                               |
+| ------------- | -------- | ------------------------------------------------------------------------- |
+| `name`        | `String` | Title or name of the content (required, trimmed to 128 bytes)             |
+| `description` | `String` | Optional description text (nullable, trimmed to 4096 bytes)               |
+| `meta`        | `String` | Optional JSON string or `data:` URL (nullable)                            |
+| `bits`        | `int`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 String iscc = IsccLib.genMetaCodeV0(
@@ -134,10 +160,10 @@ Generate a Text-Code from plain text content.
 public static native String genTextCodeV0(String text, int bits);
 ```
 
-| Parameter | Type     | Description                                                    |
-| --------- | -------- | -------------------------------------------------------------- |
-| `text`    | `String` | Plain text content (required)                                  |
-| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type     | Description                                                               |
+| --------- | -------- | ------------------------------------------------------------------------- |
+| `text`    | `String` | Plain text content (required)                                             |
+| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 String iscc = IsccLib.genTextCodeV0("Hello World", 64);
@@ -173,10 +199,10 @@ Generate an Audio-Code from a Chromaprint feature vector.
 public static native String genAudioCodeV0(int[] cv, int bits);
 ```
 
-| Parameter | Type    | Description                                                    |
-| --------- | ------- | -------------------------------------------------------------- |
-| `cv`      | `int[]` | Signed 32-bit Chromaprint feature values                       |
-| `bits`    | `int`   | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type    | Description                                                               |
+| --------- | ------- | ------------------------------------------------------------------------- |
+| `cv`      | `int[]` | Signed 32-bit Chromaprint feature values                                  |
+| `bits`    | `int`   | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 int[] fingerprint = {123456, -789012, 345678};
@@ -193,10 +219,10 @@ Generate a Video-Code from frame signature data.
 public static native String genVideoCodeV0(int[][] frameSigs, int bits);
 ```
 
-| Parameter   | Type      | Description                                                    |
-| ----------- | --------- | -------------------------------------------------------------- |
-| `frameSigs` | `int[][]` | Array of MPEG-7 frame signature vectors (each `int[]`)         |
-| `bits`      | `int`     | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter   | Type      | Description                                                               |
+| ----------- | --------- | ------------------------------------------------------------------------- |
+| `frameSigs` | `int[][]` | Array of MPEG-7 frame signature vectors (each `int[]`)                    |
+| `bits`      | `int`     | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 Each frame signature is a 380-element `int[]` array.
 
@@ -215,10 +241,10 @@ Generate a Mixed-Code from multiple Content-Code strings.
 public static native String genMixedCodeV0(String[] codes, int bits);
 ```
 
-| Parameter | Type       | Description                                                    |
-| --------- | ---------- | -------------------------------------------------------------- |
-| `codes`   | `String[]` | Array of ISCC Content-Code strings (requires >= 2)             |
-| `bits`    | `int`      | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type       | Description                                                               |
+| --------- | ---------- | ------------------------------------------------------------------------- |
+| `codes`   | `String[]` | Array of ISCC Content-Code strings (requires >= 2)                        |
+| `bits`    | `int`      | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 String[] codes = {"ISCC:EAA...", "ISCC:EEA..."};
@@ -235,10 +261,10 @@ Generate a Data-Code from raw byte data.
 public static native String genDataCodeV0(byte[] data, int bits);
 ```
 
-| Parameter | Type     | Description                                                    |
-| --------- | -------- | -------------------------------------------------------------- |
-| `data`    | `byte[]` | Raw byte content                                               |
-| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type     | Description                                                               |
+| --------- | -------- | ------------------------------------------------------------------------- |
+| `data`    | `byte[]` | Raw byte content                                                          |
+| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 byte[] data = "Hello World".getBytes();
@@ -255,10 +281,10 @@ Generate an Instance-Code from raw byte data.
 public static native String genInstanceCodeV0(byte[] data, int bits);
 ```
 
-| Parameter | Type     | Description                                                    |
-| --------- | -------- | -------------------------------------------------------------- |
-| `data`    | `byte[]` | Raw byte content                                               |
-| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32) |
+| Parameter | Type     | Description                                                               |
+| --------- | -------- | ------------------------------------------------------------------------- |
+| `data`    | `byte[]` | Raw byte content                                                          |
+| `bits`    | `int`    | Bit length of the generated code (default: 64, multiple of 32, 32 to 256) |
 
 ```java
 byte[] data = "Hello World".getBytes();
@@ -286,6 +312,32 @@ String instanceCode = IsccLib.genInstanceCodeV0(data, 64);
 String isccCode = IsccLib.genIsccCodeV0(
     new String[]{dataCode, instanceCode}, false
 );
+```
+
+---
+
+### genSumCodeV0
+
+Generate a composite ISCC-CODE from a file in a single pass, computing Data-Code and Instance-Code
+together.
+
+```java
+public static native SumCodeResult genSumCodeV0(String path, int bits, boolean wide, boolean addUnits);
+```
+
+| Parameter  | Type      | Description                                                                |
+| ---------- | --------- | -------------------------------------------------------------------------- |
+| `path`     | `String`  | Path of the file to process                                                |
+| `bits`     | `int`     | Bit length of the generated codes (default: 64, multiple of 32, 64 to 256) |
+| `wide`     | `boolean` | `true` for 256-bit output (requires `bits >= 128`)                         |
+| `addUnits` | `boolean` | `true` to include the Data-Code and Instance-Code in `units`               |
+
+Throws `IllegalArgumentException` on invalid input or a file I/O error.
+
+```java
+SumCodeResult result = IsccLib.genSumCodeV0("example.bin", 64, false, true);
+System.out.println(result.iscc);     // "ISCC:KUA..."
+System.out.println(result.filesize); // size in bytes
 ```
 
 ---
@@ -424,13 +476,13 @@ public static native String encodeComponent(
 );
 ```
 
-| Parameter   | Type     | Description                                |
-| ----------- | -------- | ------------------------------------------ |
-| `mtype`     | `int`    | MainType enum value (0–255)                |
-| `stype`     | `int`    | SubType enum value (0–255)                 |
-| `version`   | `int`    | Version enum value (0–255)                 |
-| `bitLength` | `int`    | Digest bit length (multiple of 32)         |
-| `digest`    | `byte[]` | Raw digest bytes (length >= bitLength / 8) |
+| Parameter   | Type     | Description                                                                                    |
+| ----------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `mtype`     | `int`    | MainType enum value (0–255)                                                                    |
+| `stype`     | `int`    | SubType enum value (0–255)                                                                     |
+| `version`   | `int`    | Version enum value (0–255)                                                                     |
+| `bitLength` | `int`    | Digest bit length (multiple of 32, 32 to 256, for Meta through Flake; 64, 72, 80 or 96 for ID) |
+| `digest`    | `byte[]` | Raw digest bytes (length >= bitLength / 8)                                                     |
 
 Throws `IllegalArgumentException` on invalid input.
 
@@ -466,6 +518,47 @@ public static native String[] isccDecompose(String isccCode);
 
 Returns an array of base32-encoded ISCC-UNIT strings (without `ISCC:` prefix). Throws
 `IllegalArgumentException` on invalid input.
+
+---
+
+### encodeSeq
+
+Encode ISCC-UNITs into an ISCC-SEQ byte string (IEP-0020).
+
+```java
+public static native byte[] encodeSeq(String[] units);
+```
+
+Returns the concatenated raw unit bytes (header + body per unit) in the given order. Each unit may
+be given with or without the `ISCC:` prefix, in any case. Base32 decoding is strict: `=` padding,
+non-zero spare bits and non-ASCII case-fold aliases are rejected. Units of MainType ISCC-CODE, ID or
+FLAKE are rejected. Throws `IllegalArgumentException` if `units` is empty or a unit is invalid.
+
+---
+
+### decodeSeq
+
+Decode an ISCC-SEQ byte string into ISCC-UNITs (IEP-0020).
+
+```java
+public static native String[] decodeSeq(byte[] data);
+```
+
+Returns `ISCC:`-prefixed ISCC-UNIT strings in wire order. Strict reader: throws
+`IllegalArgumentException` on empty input, malformed units and trailing bytes.
+
+```java
+byte[] data = IsccLib.encodeSeq(new String[] {
+    "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"
+});
+// data.length == 34, starts with 0x20 0x07 0xa8 0x82 0x48 0xc5
+
+String[] units = IsccLib.decodeSeq(data);
+// units: ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+// The round trip is defined on bytes: encodeSeq(decodeSeq(data)) reproduces data
+assert java.util.Arrays.equals(IsccLib.encodeSeq(units), data);
+```
 
 ---
 
@@ -519,7 +612,7 @@ bit-interleaved compression.
 public static native byte[] algMinhash256(int[] features);
 ```
 
-Returns a 32-byte MinHash digest.
+Returns a 32-byte MinHash digest. Throws `IllegalArgumentException` for an empty array.
 
 ---
 
@@ -566,8 +659,9 @@ corresponding `*Free` method to release native memory.
 
 !!! warning
 
-    `*Finalize()` consumes the hasher state. After finalizing, subsequent `*Update()` or `*Finalize()`
-    calls will throw `IllegalArgumentException`. You must still call `*Free()` to release the wrapper.
+    The first `*Finalize()` call consumes the hasher state, even when it fails (for example on an
+    invalid `bits` value). After that, subsequent `*Update()` or `*Finalize()` calls throw
+    `IllegalStateException`. You must still call `*Free()` to release the wrapper.
 
 ### DataHasher
 
@@ -602,7 +696,8 @@ Returns an opaque `long` handle to the hasher.
 public static native void dataHasherUpdate(long ptr, byte[] data);
 ```
 
-Throws `IllegalArgumentException` if the hasher has been finalized.
+Throws `IllegalStateException` if the hasher has been finalized and `IllegalArgumentException` for a
+zero handle.
 
 #### dataHasherFinalize
 
@@ -610,7 +705,8 @@ Throws `IllegalArgumentException` if the hasher has been finalized.
 public static native String dataHasherFinalize(long ptr, int bits);
 ```
 
-Throws `IllegalArgumentException` if already finalized or on error.
+Throws `IllegalStateException` if already finalized and `IllegalArgumentException` for a zero handle
+or on error. The first call consumes the hasher even when it throws `IllegalArgumentException`.
 
 #### dataHasherFree
 
@@ -655,7 +751,8 @@ Returns an opaque `long` handle to the hasher.
 public static native void instanceHasherUpdate(long ptr, byte[] data);
 ```
 
-Throws `IllegalArgumentException` if the hasher has been finalized.
+Throws `IllegalStateException` if the hasher has been finalized and `IllegalArgumentException` for a
+zero handle.
 
 #### instanceHasherFinalize
 
@@ -663,7 +760,8 @@ Throws `IllegalArgumentException` if the hasher has been finalized.
 public static native String instanceHasherFinalize(long ptr, int bits);
 ```
 
-Throws `IllegalArgumentException` if already finalized or on error.
+Throws `IllegalStateException` if already finalized and `IllegalArgumentException` for a zero handle
+or on error. The first call consumes the hasher even when it throws `IllegalArgumentException`.
 
 #### instanceHasherFree
 
@@ -682,7 +780,7 @@ All methods that accept user input throw `IllegalArgumentException` on invalid a
 - Empty or null required parameters (e.g., empty `name` in `genMetaCodeV0`)
 - Invalid `bits` values (must be a multiple of 32, range 32–256)
 - Malformed ISCC strings passed to `isccDecode` or `isccDecompose`
-- Streaming hasher operations after finalization
+- A zero handle passed to a streaming hasher's `*Update` or `*Finalize`
 
 ```java
 try {
@@ -692,6 +790,10 @@ try {
     System.err.println("Error: " + e.getMessage());
 }
 ```
+
+Streaming hasher operations after finalization throw `IllegalStateException`. A failed JVM
+allocation inside a native call (e.g., a result larger than the Java heap) surfaces as
+`OutOfMemoryError`.
 
 ## Memory Management
 

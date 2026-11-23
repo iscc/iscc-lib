@@ -26,21 +26,18 @@ management, `std::string` / `std::vector<uint8_t>` types, and CMake integration.
 packages/cpp/
 ├── include/
 │   └── iscc/
-│       ├── iscc.hpp                # Main C++ header (RAII, std types, exceptions)
-│       └── iscc.h                  # Symlink/copy of crates/iscc-ffi/include/iscc.h
-├── CMakeLists.txt                  # CMake config for find_package(iscc)
-├── iscc-config.cmake.in            # CMake config template
+│       └── iscc.hpp                # Main C++ header (RAII, std types, exceptions)
+├── CMakeLists.txt                  # INTERFACE target iscc::iscc (adds crates/iscc-ffi/include)
 ├── vcpkg.json                      # vcpkg port manifest
 ├── portfile.cmake                  # vcpkg portfile
 ├── conanfile.py                    # Conan recipe
 ├── tests/
-│   ├── test_conformance.cpp        # C++ conformance tests against data.json
-│   ├── CMakeLists.txt              # Test build
-│   └── data.json                   # Vendored conformance vectors
-├── pkg-config/
-│   └── iscc.pc.in                  # pkg-config template
+│   ├── test_iscc.cpp               # C++ conformance + data-edge tests
+│   └── CMakeLists.txt              # Test build (links iscc_ffi)
 └── README.md                       # Per-package README
 ```
+
+The tree lists the load-bearing entries, not every file.
 
 ## API Surface
 
@@ -111,7 +108,7 @@ std::string text_clean(const std::string& text);
 std::string text_collapse(const std::string& text);
 bool conformance_selftest();
 
-// ... all 33 Tier 1 symbols
+// ... all Tier 1 symbols
 
 } // namespace iscc
 ```
@@ -193,9 +190,11 @@ target_link_libraries(myapp PRIVATE iscc::iscc)
 
 ### pkg-config
 
-```bash
-pkg-config --cflags --libs iscc
-```
+No `.pc` file is tracked or bundled in the release tarballs. The Conan recipe sets `pkg_config_name`
+to `iscc` (`packages/cpp/conanfile.py`), so Conan's `PkgConfigDeps` generator writes `iscc.pc` for
+Conan consumers (`pkg-config --cflags --libs iscc`); its `CMakeDeps` generator likewise provides
+`find_package(iscc)` and `iscc::iscc`. Any other build adds `packages/cpp/include` and
+`crates/iscc-ffi/include` to the include path and links the `iscc_ffi` library.
 
 ### vcpkg
 
@@ -212,8 +211,12 @@ pkg-config --cflags --libs iscc
 
 ## Distribution
 
-- **vcpkg port**: Submit to vcpkg registry for `vcpkg install iscc`
-- **Conan recipe**: Submit to ConanCenter for `conan install iscc`
+- **vcpkg port**: Submit to vcpkg registry for `vcpkg install iscc`. The portfile's per-target
+    SHA512s are written by the release workflow's `prepare-release` job from the `build-ffi`
+    archives, before it tags (`scripts/update_vcpkg_hashes.py`)
+- **Conan recipe**: Submit to ConanCenter for `conan install iscc`. The recipe verifies each
+    downloaded archive against the SHA256 that `packages/cpp/conandata.yml` pins for its target,
+    written by the same `prepare-release` pass as the vcpkg SHA512s
 - **FFI tarballs**: `iscc.hpp` bundled alongside `iscc.h` in existing GitHub Release FFI tarballs
 - **No separate registry upload** — distributed via package managers and release artifacts
 
@@ -227,19 +230,19 @@ cpp:
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo build -p iscc-ffi
     - run: |
-        cd packages/cpp/tests
-        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DSANITIZE_ADDRESS=ON
+        cd packages/cpp
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=../../target/debug -DSANITIZE_ADDRESS=ON
         cmake --build build
-        ./build/test_conformance
+        LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc
 ```
 
 ## Verification Criteria
 
-- [ ] `#include <iscc/iscc.hpp>` compiles with C++17 on GCC, Clang, MSVC
-- [ ] All 10 `gen_*_v0` functions accessible with idiomatic C++ types
-- [ ] RAII ensures no memory leaks (valgrind/ASAN clean)
-- [ ] Conformance tests pass (C++ test program)
-- [ ] CMake `find_package(iscc)` works
-- [ ] vcpkg port manifest available
-- [ ] Header bundled in FFI release tarballs alongside `iscc.h`
-- [ ] `iscc::conformance_selftest()` returns `true`
+- `#include <iscc/iscc.hpp>` compiles with C++17 on GCC, Clang, MSVC
+- All `gen_*_v0` functions accessible with idiomatic C++ types
+- RAII ensures no memory leaks (valgrind/ASAN clean)
+- Conformance tests pass (C++ test program)
+- CMake `find_package(iscc)` works
+- vcpkg port manifest available
+- Header bundled in FFI release tarballs alongside `iscc.h`
+- `iscc::conformance_selftest()` returns `true`

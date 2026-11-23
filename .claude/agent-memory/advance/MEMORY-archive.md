@@ -158,3 +158,117 @@ macros-backend default-handling on every major bump, not just compiler warnings.
     use plain `//` comments; only non-annotated helper fns can keep `///` docstrings
 - For borrow-returning primitives (`alg_cdc_chunks` → `Vec<&[u8]>` borrowing the arg), the bench fn
     returns `.len()` (the Vec can't escape the fn); chunking work is fully measured before `len()`
+
+## Archived from MEMORY.md (iter 215)
+
+### Benchmarks
+
+- `crates/iscc-lib/benches/` (`harness = false`): `benchmarks.rs` criterion 0.8
+    (`std::hint::black_box`) + `iai_benches.rs` iai-callgrind 0.16.1 (needs valgrind + runner, NOT
+    preinstalled) → ci-gates.md
+
+### Streaming
+
+- `DataHasher`: persistent `buf` reused across `update()`; CDC → BLAKE3 chunk hash → MinHash; ~1.1
+    GiB/s. `InstanceHasher`: BLAKE3 → ISCC multihash (64-byte digest truncated)
+
+- `SumHasher` (#37): inner `DataHasher` + `InstanceHasher`; `finalize(bits, wide, add_units)`
+    composes via `gen_iscc_code_v0`. Path `iscc_lib::streaming::SumHasher` (NOT crate-root). All 7
+    bindings implement `gen_sum_code_v0` → MEMORY-archive.md
+
+- Unicode freeze rule REMOVED 2026-07-30 (decisions.md, human): `text_clean`/`text_collapse` mirror
+    the reference on dependency tables. Never reintroduce a freeze without a human decision
+
+## Ruby Bindings (Magnus) — summary (moved from MEMORY.md, iter 221)
+
+- Magnus 0.8 (iter 167; Ruby 3.0-3.4, MSRV 1.65); `function!` no `&Ruby` param — use `Ruby::get()`.
+    0.8 dropped `old-api`: use `ruby.exception_runtime_error()` + `ruby.str_from_slice()`, never
+    `magnus::exception::*` / `RString::from_slice`. `ExtensionTask.new("iscc-rb")` = Cargo pkg name;
+    streaming `RefCell<Option<inner>>` one-shot finalize; `_` prefix for methods NOT class names
+- Ruby: never Magnus `Vec<T>` params (segfault, 212) — `RArray` + `array_to_vec`/`frames_to_vec`.
+    Gem lock bumps: `bundle update <gem> --conservative --patch` (plain moved rubocop)
+
+## Archived from MEMORY.md (iter 228)
+
+### Documentation Files
+
+- Tabbed syntax: `=== "Language"` 4-space indent, blank line before code block. Landing-page tab
+    order (11): Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin; zensical.toml
+    nav order differs (nav starts Rust, Python)
+- Howto guides `docs/howto/{lang}.md`; API refs
+    `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`; per-package READMEs + CLAUDE.md under
+    `packages/{dotnet,cpp,swift,kotlin}/`; `docs/unicode.md` was removed with the freeze rule
+    (2026-07-30)
+- `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md`; run after the
+    `zensical build` step in docs CI
+- Adding a docs page = update `zensical.toml` nav + `ORDERED_PAGES` + `docs/llms.txt` together —
+    enforced by `scripts/check_docs_nav.py` (prek `check-docs-nav` + pytest anchor; disk set is the
+    reference, `includes/` allowlisted; nav parse is comment-aware `strip_toml_comments` — naive
+    `#.*$` breaks on `"C# / .NET"`; prek `files:` misses `git rm`)
+- Spec path gate (224): `scripts/check_spec_paths.py` (prek `check-spec-paths` + pytest anchor)
+    resolves spec tree entries + backticked paths vs `git ls-files`; build/release output →
+    `GENERATED`, non-paths → `NOT_PATHS` dicts. Fix a phantom by editing the spec, never by adding a
+    file. ruff S607 on `["git", …]`: use `shutil.which("git")` instead of a noqa. Glob (228): own
+    `glob_regex` (`**` crosses `/`, `*` one segment, `fullmatch`); `NOT_PATHS` exempts backticked
+    spans only (checked in `check_spec`), `GENERATED` both forms
+
+### Feature Flags
+
+- `crates/iscc-lib/Cargo.toml`: `default = ["meta-code"]`; `text-processing` gates `text_clean`,
+    `text_collapse`, `gen_text_code_v0`, `sliding_window_strs`; `meta-code` (implies text-processing
+    \+ JCS) gates META_TRIM consts, meta helpers, `gen_meta_code_v0`, `json_to_data_url`,
+    `run_meta_tests`
+- `conformance` module always available; `conformance_selftest()` skips disabled types via `#[cfg]`;
+    `serde_json` non-optional. When gating `pub(crate)` fns, gate their tests too (dead-code lint
+    fires in library builds; `tests/test_text_utils.rs` needs per-function gating)
+
+## Archived from MEMORY.md (iter 259)
+
+- Dependency refresh (iters 124-172; ALL authorized majors done through uniffi 0.32): manifests +
+    GHA action majors probed current 2026-07-28; ruff 0.16; prek ruff hooks carry `pyi` in
+    `types_or`; NEVER blanket `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys pinned `0.9.123`.
+    Detail + prek staged-probe gotcha → deps-refresh.md
+- Video API `<S: AsRef<[i32]> + Ord>` generics — FFI passes `&[&[i32]]` (zero-copy), others
+    `&[Vec<i32>]`
+- Tier 1 `encode_component` wrapper in `lib.rs` takes `u8` enum fields + validates with
+    `TryFrom<u8>`; delegates to `codec::encode_component`
+
+## Archived from MEMORY.md (iter 276)
+
+- Published-artifact probe (257): Kotlin = `/tmp` Gradle project reusing `packages/kotlin/gradlew` +
+    `gradle/`, `implementation("io.iscc:iscc-lib-kotlin:X")` only, `./gradlew -q run` (~3 min,
+    background). JARs bundle native libs (JNI `META-INF/native/`, Kotlin JNA prefixes); JNA is a
+    runtime-scope POM dep; Swift SPM fetches the release XCFramework. Docs say so
+
+## Archived 2026-11-22 (iter 285)
+
+- Docs facts probed (277): Sum-Code / `gen_iscc_code_v0([data,inst])` 64-bit prefix = `KUA`; Ruby
+    integer params + list elements go through `to_int` (Float truncates toward zero, NaN →
+    `FloatDomainError`). Release auth per job: read `permissions`/`secrets.*` via a PyYAML dump of
+    release.yml jobs; `publish-ffi` is the only publish job without an exists-check
+- Release-history claims (275): verify with `git grep '<pattern>' <tag> -- <path>` per tag — next.md
+    said Go IDv1 old symbols "removed in 0.6.0"; they were never tagged
+- Vector access per surface (280): C test = hard-coded expected values + generated
+    `data_edge_vectors.h` (no data.json); C++ = library `conformance_selftest` + header; .NET/Swift/
+    Kotlin = vendored copies; Go gen tests read `../../crates/iscc-lib/tests/data.json`, selftest
+    embeds `testdata/`. Sum-Code types: napi `NapiSumCodeResult`, Java `SumCodeResult`
+
+## Docs sweep rules (archived iter 289)
+
+- Docs-claim tests (286): a banned-phrase literal in a test matches next.md's repo-wide `git grep`
+    criterion — split it (`"a " + "b"`) with a comment. Prove with the HEAD doc
+- Per-crate `CLAUDE.md` files carry no file trees/tables (246): a rule goes in prose against a file
+    name. Line-range edits via an anchored `/tmp` Python script; mdformat reflows inserted lines
+- Spec drift sweeps (259): mdformat also reformats \`\`\`js blocks; release-trigger truth =
+    release.yml `on:` + each job's `if:` — grep `refs/tags`/`github.ref` too, next.md greps miss
+    YAML conditions
+- Guidance docs carry no counts/`path:NN` (245): write "every binding", "all Tier 1 symbols". Line
+    greps miss wrapped counts — also grep each file joined via `tr '\n' ' '`
+- GOTCHAs: ci.yml `cancel-in-progress: true` per ref — a second develop push cancels the previous
+    sha's in-flight CI run; system `python3` lacks PyYAML (use `uv run python`); piping cargo-crap
+    or cargo-deny to a pager makes `$?` the pager's exit — redirect to a file instead
+- napi (284): `crates/iscc-napi/package-lock.json` committed, CI + release use `npm ci`; lock
+    @napi-rs/cli 3.10.12 `napi build` FAILS on the 9p `/workspace` mount (fs-transaction
+    AggregateError, deterministic) — prove builds in a `/tmp` worktree with
+    `CARGO_TARGET_DIR=/workspace/iscc-lib/target`; clean the `.napi-rs-filesystem-transaction.swp`
+    and `.*.tmp` leftovers

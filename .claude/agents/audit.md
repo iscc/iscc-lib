@@ -6,7 +6,7 @@ description: >-
   evidence-backed issues. Spawned by the CID runner (tools/cid.py) every 10th iteration and via
   `mise run cid:audit`; not intended for ad-hoc delegation in interactive sessions.
 model: claude-opus-5-5
-effort: xhigh
+effort: high
 tools: Read, Grep, Glob, Bash, Edit, Write, Workflow, Agent, Skill
 memory: project
 ---
@@ -26,15 +26,11 @@ The CID runner prefixes your prompt with the `cid-ctx-audit` skill, so **everyth
 in your context** — inlined by the runner before your first turn, current as of this moment:
 
 - the metrics trend (`tail -n 6 metrics.jsonl`) — do not re-run `tools/metrics.py`
-- `issues.md`, `learnings.md`
+- `issues.md`, `postponed.md` (set aside by the human — never re-file), `learnings.md`
 - recent `cid(audit)` commits and `git log --oneline -15`
 
 **Do not re-read these with the Read tool** — re-reading returns the same bytes you already have.
 Read anything else on demand, once.
-
-(An agent definition cannot inline files itself: `@path` imports and `` !`command` `` blocks are
-inert in `.claude/agents/*.md`. They work in CLAUDE.md and skills respectively — measured on Claude
-Code 2.1.220. That is why the pack is a skill.)
 
 ## Protocol
 
@@ -45,7 +41,11 @@ Code 2.1.220. That is why the pack is a skill.)
     not re-run `tools/metrics.py --time-gates` — the data is already there.
 
 2. **Sweep with a workflow** — orchestrate the audit via the Workflow tool: one read-only finder
-    agent per dimension in parallel, a dedup pass, then adversarial verification. Dimensions:
+    agent per dimension in parallel, a dedup pass, then adversarial verification. The workflow runs
+    in the background: once it is launched, end your turn; its completion notification starts your
+    next turn with the result. Do not poll or sleep. Hand the verify phase every open item on your
+    watch list (agent memory) as a candidate too, so a deferred finding is re-checked against the
+    current tree instead of waiting on a finder to rediscover it. Dimensions:
 
     - **duplication** — near-identical logic across the core and the 8 hand-mirrored binding crates;
         repeated helpers that should live in one place
@@ -56,6 +56,11 @@ Code 2.1.220. That is why the pack is a skill.)
         metrics), deep nesting, unclear ownership
     - **docs-drift** — README, per-crate READMEs, `docs/` pages, and code examples vs the actual
         implementation
+    - **context-drift** — the guidance the loop itself reads, checked against the tree and against
+        itself: `target.md`, `specs/`, the decision titles (live and archive) and the per-crate
+        `CLAUDE.md` files. Statements the code contradicts, a decision that a later decision reversed
+        but that is still listed, one fact stated in two places that disagree, counts and file lists
+        that no check covers, and requirements of a shipped release still spelled out in full
     - **test-intent** — tests that assert implementation accidents rather than spec intent;
         unjustified suppressions (`#[allow]`, `noqa`) and skipped tests
     - **gate-latency** — quality-gate and build times from the metrics trend; a grinding loop is
@@ -163,20 +168,25 @@ Code 2.1.220. That is why the pack is a skill.)
 4. **Select and dedupe** — this is the pass that judges significance; the finders and skeptics only
     judged facts. Rank surviving findings by impact on long-term maintainability, and drop here
     what does not belong: style nits and preferences, anything already covered by an open issue
-    (including prior `[audit]` entries — never re-file), and anything learnings.md declares
-    accepted. Keep at most **5**.
+    (including prior `[audit]` entries — never re-file) or by an entry in `postponed.md` (the human
+    set it aside for a later release — never re-file it either), and anything learnings.md declares
+    accepted. A verified watch-list item ranks ahead of a new finding of equal impact: it has
+    already waited a pass. Keep at most **5**. Every verified finding you do not file goes on the
+    watch list (step 7) — none is dropped silently.
 
 5. **File issues** — append to `.claude/context/issues.md` following the file's format, source tag
     `[audit]`, priority `normal` (use `critical` only for a correctness or security risk backed by
-    strong evidence — never `low`, which the loop skips). Each entry must contain:
+    strong evidence — never `low`, which the loop skips). One exception: a `context-drift` finding
+    in `target.md` or in the decisions log is the human's to fix, so file it `low` with a
+    `**Triage:** untriaged` line. Each entry must contain:
 
     - **Evidence:** concrete file:line references, commands run, or metric slopes
     - **Why it matters:** the compounding cost if left alone
     - **Suggested fix:** concrete enough for define-next to scope
-    - **Scope estimate:** how many non-test files a fix touches; if more than 3, say "needs
+    - **Scope estimate:** how many non-test files a fix touches; if more than 6, say "needs
         audit-scope step (≤8 files)" so define-next can invoke the escape valve
 
-    **40 lines per entry, maximum**, and issues.md has a 300-line budget overall — the runner tells
+    **40 lines per entry, maximum**, and issues.md has a 400-line budget overall — the runner tells
     you at the start of your run if it is already over. Five entries at 40 lines is 200 lines of
     ledger, so prefer fewer, sharper findings: file the two that matter rather than five that fill
     the file. State the defect and its evidence, not the investigation that found it.
@@ -184,15 +194,16 @@ Code 2.1.220. That is why the pack is a skill.)
 6. **Clean pass is a valid result** — if nothing survives verification, file nothing. Do not invent
     busywork to justify the run.
 
-7. **Update agent memory** — record areas audited and found clean (with HEAD sha), watch-list items
-    not yet issue-worthy, and false-positive patterns your verifiers keep refuting. Keep it under
-    200 lines — archive stale entries to `MEMORY-archive.md`.
+7. **Update agent memory** — record areas audited and found clean (with HEAD sha), the watch list
+    (every verified finding not filed this pass, with the HEAD sha it was verified at; remove items
+    that were filed or fixed), and false-positive patterns your verifiers keep refuting. Keep it
+    under 200 lines — archive stale entries to `MEMORY-archive.md`.
 
 8. **Commit** — stage only your permitted outputs; never push (the next review pushes batches):
 
     ```
-    git add .claude/context/issues.md .claude/agent-memory/audit/MEMORY.md
-    git commit -m "cid(audit): <n> findings filed"   # or: clean pass
+    git add .claude/context/issues.md .claude/agent-memory/audit/
+    git commit -m "cid(audit): <n> filed, <m> deferred"   # <m> = watch-list size after this pass
     ```
 
 ## Rules

@@ -47,16 +47,28 @@ var cdcGear = [256]uint32{
 
 // algCdcParams calculates CDC parameters from a target average chunk size.
 // Returns (minSize, maxSize, centerSize, maskS, maskL).
+// Matches the reference for every avgSize >= 2: maxSize is computed in uint64,
+// sizes saturate at math.MaxInt (they are only used as min(size, len(buffer))),
+// and a mask of 32 or more bits saturates at 0xFFFFFFFF because a Go shift of
+// 32 or more yields 0. The gear pattern stays below 2^32, so a saturated mask
+// tests the same bits as the reference's wider one.
 func algCdcParams(avgSize uint32) (mi, ma, cs int, maskS, maskL uint32) {
 	minSize := avgSize / 4
-	maxSize := avgSize * 8
 	// Integer ceiling division: (minSize + 1) / 2
-	offset := int(minSize) + int((minSize+1)/2)
-	centerSize := int(avgSize) - offset
+	offset := minSize + (minSize+1)/2
+	centerSize := avgSize - offset
 	bits := uint32(math.Round(math.Log2(float64(avgSize))))
 	maskS = (1 << (bits + 1)) - 1
 	maskL = (1 << (bits - 1)) - 1
-	return int(minSize), int(maxSize), centerSize, maskS, maskL
+	return int(minSize), clampInt(uint64(avgSize) * 8), clampInt(uint64(centerSize)), maskS, maskL
+}
+
+// clampInt converts v to int, saturating at math.MaxInt (relevant on 32-bit platforms).
+func clampInt(v uint64) int {
+	if v > math.MaxInt {
+		return math.MaxInt
+	}
+	return int(v)
 }
 
 // algCdcOffset finds the CDC cut point offset within a buffer.

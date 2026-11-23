@@ -988,3 +988,210 @@ runs on `opus`. Deliberate — do not "unify" them.
     CPython 3.14, must print byte-frozen `TOTAL 17793024 comparisons, 0 divergences`; **re-run for
     every Unicode-table or toolchain bump**. Bare `uv run scripts/unicode_sweep.py` REFUSES (only
     rebuild-first `--rebuilt` paths pass)
+
+## ISCC-IDv1 fan-out — completed-phase notes (archived iter 195, IDv1 closed at 190)
+
+- **`gen_iscc_id_v1` is pure Python — oracle-check with no built wheel** (`--with iscc-core`,
+    `MA…`/`ME…` = realm nibble); core + py match byte-for-byte over
+    realm{0,1}×hub{0,4095}×ts{0,2^52-1} (178). NO dedicated decoder on any surface (ref has none).
+    **Minting ≠ decode round-trip**: core `codec::Version` accepts `V1`, but a surface with its OWN
+    version enum makes `iscc_decode(gen_iscc_id_v1(...))` raise `1 is not a valid VS`. Python was
+    the *only* enum surface (widened `VS.V1 = 1` + round-trip, 189); other 10 return bare int/byte.
+    Decode fan-out COMPLETE on all 11; #43 doc/count sweep done (190), IDv1 closed
+- **IDv1 validation ORDER is normative** (spec rust-core.md §Validation; ref `iscc_id.py:127-133`
+    ts→hub→realm, "first failing check wins", even for MULTI-invalid inputs). Wide-int bindings
+    (napi/wasm/jni) MUST check the three SEMANTIC thresholds (`2^52`/`4096`/`2`) in that order IN
+    THE BINDING before narrowing (a wide *narrowing* guard that skips ts is WRONG: `(2^52,65536,0)`
+    reports hub not ts — 183 jni fixed 184). Exact-width surfaces delegate safely. **Ruby (185)
+    narrows Integer→`i64` in Magnus marshalling BEFORE the body** → `RangeError` order break for
+    `> i64::MAX` only (issues.md open; fix: validate in Ruby)
+- **IDv1 minting fan-out COMPLETE (179-190)**: exact-width **unsigned** args (`u64/u16/u8`) can't
+    overflow → no binding guard (core re-checks ts→hub→realm; passthrough can't reorder). Decode is
+    bit-math on `iscc_decode`'s bare-int version, `ts=n>>12`/`hub=n&0xFFF`/`realm=SubType` on the
+    8-byte BE body. **`iscc-ffi`'s csbindgen `build.rs` rewrites tracked `NativeMethods.g.cs` on
+    EVERY build** → pre-push clippy fails "files were modified"; regen+commit it (like `iscc.h`) in
+    the SAME FFI-symbol step, never "the dotnet step"
+
+## Consumer-floor pointer (archived iter 198 — settled in decisions.md 2026-07-25)
+
+- **A binding-toolchain bump can silently raise the *consumer* floor** in a *published* binding —
+    Titusz's call (Kotlin 2.3+; recipe + docs → archive, decisions.md 2026-07-25)
+
+## Floating action tags (archived iter 202 — action pins settled in decisions.md)
+
+- **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
+    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (`releases/latest`
+    proves a release exists, not that `@vN` resolves); `astral-sh/setup-uv` +
+    `rubygems/configure-rubygems-credentials` publish only exact tags. **Measure what a branch pin
+    drops:** `gh api repos/<o>/<r>/compare/<tag>...main --jq .ahead_by` (162: `@main` was 31 commits
+    \+ a rebuilt `dist/` ahead of `v2.1.0`). A major bump is statically verifiable past "the tag
+    exists": the `inputs`/`outputs` diff is automated (`--check-action-inputs`); intervening
+    *default* changes stay manual (recipe + biters + majors → `learnings-archive.md`,
+    `.claude/agent-memory/advance/deps-refresh.md`)
+
+## Release-only toolchain drift (archived iter 204)
+
+- **Release-only toolchains drift unseen** (0.7.0): Maven 3.10 broke
+    `central-publishing-maven-plugin` < 0.12.0; `setup-node@v7` dropped its dummy `NODE_AUTH_TOKEN`.
+    First symptom is a failed publish
+
+## Archived from learnings.md (iter 207 — release-workflow gate fully met)
+
+- **A fail-open gate must publish a resolved/total counter** — without it "all checked" and "nothing
+    checked" are the same green (read `action-inputs: resolved R of T`, not the job status), and
+    "transport failure degrades to a warning" is NOT met by `except OSError` (`IncompleteRead` is an
+    `HTTPException`, captive-portal HTML raises `yaml.YAMLError`)
+
+- **iai baseline vs a correctness fix (191/192, moved from learnings.md at 215)**: a committed
+    baseline reflects the code AT baseline time. The reference-correct `iscc_clean` is two std
+    `memchr` scans (`split_once(':')` + `contains('-')`); a scalar single pass is *slower*, and a
+    single SIMD pass needs the out-of-scope `memchr` crate, so removing allocations alone will not
+    restore a baseline set for cheaper-but-wrong code — regen the baseline in the SAME step
+
+- **GitHub retires pinned runner labels** (196, moved from learnings.md at 217): `macos-14`,
+    2026-11-02 → job `cancelled`, no step log. Check the `actions/runner-images` README for the
+    successor's arch (`macos-15` = arm64)
+
+- **rustc floor detail** (171-173, moved from learnings.md at 217): uniffi 0.32's
+    `cargo-platform 0.3.3` (1.91) broke `iscc-uniffi` on inherited 1.85 while `-p iscc-lib` stayed
+    fine; a per-crate `rust-version` override (173) makes cargo say `requires rustc 1.91`, not a
+    resolution error
+
+## Archived from learnings.md (review 221)
+
+- `semver` (informational pre-1.0) + `coverage` (enforcing) CI jobs: `mise run semver`/`coverage`
+
+## Archived from learnings.md (review 223)
+
+- **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the prior
+    sha's in-flight run (`cancelled`, not `failure`); wait for green on the exact sha. Each develop
+    commit triggers TWO runs (push + the open develop→main PR)
+
+## Archived from learnings.md (review 230)
+
+- **A widened decode gate re-exposes latent truncation** (174/175): `decode_header`'s `as u8` before
+    `TryFrom` let a multi-nibble value wrap (`257`→`1`, `262`→`Id`) so a malformed header
+    canonicalized to valid; now `u8::try_from`-gated. Probe `"MDFZAAAAAAAAAAAAAA"` on header gates
+
+## Archived from learnings.md (review 233)
+
+- **`encode_seq` upper-cases before cleaning, so `b` + base32(`cc01` + unit) can read as a DIFFERENT
+    valid bare unit** (`bzqaq4yamaaqaaaaaaaaaaaaaaaaaaaa` → 20 bytes) — iscc-core 1.5.0 returns the
+    same bytes; reference behaviour, not a defect (decisions.md 2026-11-18)
+- **iscc-core 1.5.0 `data.json`** (2026-10-17): `encode_seq`/`decode_seq` sections have non-object
+    outputs and `bytes:<hex>` values — a harness walking every section breaks (Go now keeps `gen_*`)
+
+## Archived from learnings.md (review 235)
+
+- **ISCC-SEQ core (195)**: bound on all 11 surfaces (210) and documented everywhere (211);
+    `read_unit`/`SEQ_MAINTYPES` Tier 2 on private raw-`u32` header helpers — never the typed
+    `decode_header` path (Go `uint8` truncates SubType 4679 → 71, 202). **The spec round trip is
+    BYTES — `encode_seq(decode_seq(x)) == x` over the `decode_seq` vectors** (205: next.md
+    prescribed string decode-of-encode; py/napi/WASM/FFI assert bytes)
+- **`decode_base32("")` returns `Ok(empty)`, not an error** (191; empty guard in `iscc_clean` 192):
+    a cleaning helper that can yield `""` (blank/dash-only/`"iscc:"`) must reject empty before
+    decode, else `iscc_decompose` returns `Ok([])` where the ref IndexErrors. Probe empty/garbage
+
+## Archived from learnings.md (review 238)
+
+- **A rustc floor travels the dependency graph — measure it** (171-173): it is the max
+    `rust_version` over the non-dev resolve graph (`cargo tree -i <dep> -e no-dev --target all`
+    printing nothing proves a major dev-only; omit `--target all` and platform-gated transitives
+    hide). Settle by building — **1.85 is installed**: `cargo +1.85.0 check -p <c> --locked`
+
+## Archived from learnings.md (review 239)
+
+- **Go has two versions in `go.mod`** (235): `go` is the consumer floor (human-only), `toolchain` is
+    what CI tests on. setup-go v7 reads `go-version-file` BEFORE it sets `GOTOOLCHAIN=local`, so the
+    `toolchain` line wins; a workflow that exports `GOTOOLCHAIN=local` falls back to the `go` line
+- Conan generates `iscc.pc` / `find_package(iscc)` at install time, so `check_spec_paths.py` lists
+    them in `GENERATED` (228; moved from learnings.md in 245)
+
+## Archived from learnings.md (review 257)
+
+- A *concurrent* Gradle 9 build (a background Codex run in the same tree) makes `clean` fail "Unable
+    to delete" (165): re-run sequentially
+
+## Archived from learnings.md (review 260)
+
+- `cargo deny` ignore for `basic-toml` (196): uniffi_bindgen 0.32.2 hard-enables askama `config` →
+    `basic-toml`; crates.io `/dependencies` shows the `features` of each edge
+
+## Archived from learnings.md (review 264)
+
+- A dependency shipping DATA TABLES (Unicode, locale, tz) can change output without any `data.json`
+    vector catching it (every vector predates Unicode 16) — name table-version changes in dep bumps
+
+## Archived from learnings.md (review 265)
+
+- A **bench-harness** major (171): `cargo bench --no-run` only links —
+    `cargo bench -p iscc-lib --bench benchmarks -- --test` runs each body once
+
+## Archived from learnings.md (review 268)
+
+- **String-input divergences from iscc-core** hit any differential on *string* inputs (`encode_seq`,
+    `iscc_decode`): (1) strict base32 by decision (2026-11-18), padding + spare bits rejected, Rust
+    \+ Go pinned (199); a padding negative must be validly padded (`ISCC:GAAAAAAAAA======`:
+    `EEAY…====` fails in the ref too); (2) Python `strip()`/`split()` also take U+001C–U+001F: Rust
+    codec fixed (198), Go codec (200: Go `unicode.IsSpace` + U+001C–U+001F IS the `strip()` set, 29
+    code points, probed both ways), text utils (203); (3) ASCII-only upper-casing (201) rejects
+    `ı`/`ſ`/`ß`/`ﬁ`: ref `iscc_decode` rejects too, but ref `encode_seq` Unicode-`upper()`s first
+    and ACCEPTS them — only those whose `upper()` is ASCII (`ẞ` U+1E9E fails in both, 222) — **the
+    reference's reject set differs per entry point; probe each before calling a fix
+    "reference-matching"**. A bare `b…` string reads as plain base32 in BOTH: not a defect
+
+## Rotated in iteration 270
+
+- **iscc-core 1.5.0 has two builds that can disagree** (264): the compiled wheel (cp310 to cp314)
+    raises `OverflowError` for `alg_cdc_chunks` with `avg_chunk_size >= 2^29`, pure Python (3.15)
+    does not. With `utf32` and a small average both yield `b""` forever
+- `@iscc/wasm` metadata = wasm-pack 0.13.1 output of its `Cargo.toml` (214)
+- **cross-gem Ruby series (270)**: rb-sys-dock resolves `--ruby-versions` through the LOCKED
+    rake-compiler-dock gem's `cross_rubies` (1.10.0: 3.4 → 3.4.5, 3.3 → 3.3.9), and the image's
+    `RUBY_CC_VERSION` must hold the same patch versions (rb-sys 0.9.123 image: 3.4.5 down to 2.7.8,
+    x64-mingw-ucrt 3.4.5 to 3.1.7). Sources: `gem/exe/rb-sys-dock` and `docker/Dockerfile.*` at the
+    rb-sys tag, `Dockerfile.mri.erb` and `lib/rake_compiler_dock.rb` at the rake-compiler-dock tag
+
+## Archived from learnings.md (review 274)
+
+- **A test-framework major needs the SAME test total, not a floor** (from the "Prove a new gate"
+    bullet): a "≥ N passed" floor cannot see a silent collapse of parameterized rows (164: xunit
+    v2/v3 both gave 104), so demand the same total as the pre-bump tree (`git archive HEAD~1`) or
+    derive it from the FIXTURE (166: `data.json` vector counts + static `@Test` count). **`mvn test`
+    reuses stale test classes** ("Nothing to compile"), so only `mvn clean test` proves the new
+    framework compiles
+
+## Archived from learnings.md (review 284)
+
+- **jni 0.22 (230)**: `*_with_catch*` calls (`new_string`, `find_class`) CLEAR the JVM exception
+    (OOM → `NoMemory`), `post_check_ex` ones (`new_object`) leave it pending. HotSpot 17
+    `-Xcheck:jni` is SILENT on `ThrowNew` over a pending exception: assert the class. Trigger:
+    shadow result class with a throwing ctor first on a child `-cp`
+- **`setup-dotnet` installs the latest LTS runtime before each requested version** (260), a private
+    `DOTNET_INSTALL_DIR` included; `skip-lts-prepass: true` stops it (262: SDK 10 still drives)
+
+## Archived from learnings.md (review 290)
+
+- **A differential gate's power lives in its CASE SET, not its case COUNT** (157): a pin on the case
+    total catches a *shrunken* sweep, not a *swapped* one — prove it against a **superseded real
+    design**, assert which rows light up, and commit that as a test. A one-way sweep proves only ⊇:
+    "exactly" needs the reverse too, candidates derived live (198: `Z*`/`Cc`/`Cf` − strip set)
+
+## Archived from learnings.md (review 297)
+
+- **Go `AllocsPerRun(…, func(){ _ = f() })` reads 0 even when `f` allocates** (the copy is optimized
+    away): assign to a package-level sink (202). Check that each "mismatch" fixture reaches the
+    comparison: `ISCC:GAAAAAAAAAAA` (7 bytes) failed earlier, with "Trailing data". Positive mirror:
+    one input form per trim site (200: outer-only forms missed the post-colon trims)
+
+## Archived from learnings.md (review 303)
+
+- **The JVM type-checks nothing a native method returns** (168): an `Object[]` returned where
+    `String[]` is declared survives every element read — assert `getClass().getName()` and probe
+    under `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test`. **`-DargLine=…`
+    is a no-op** (208): the pom's `<argLine>` beats the user property. CI runs no `-Xcheck:jni`.
+- **A prek `types:` tag is not a file-extension guess — probe it** with a **staged, deliberately
+    dirty** file (`uv run prek run <hook> --files <p>`; `Skipped` = tag misses). `.pyi` is tagged
+    `pyi`, not `python` (that hole skipped the published `_lowlevel.pyi`, closed 139). **A
+    `files:`-scoped hook never sees deletions** — pair any consistency hook with a pytest anchor
+    test against the real tree. Formatter caveats → `learnings-archive.md`

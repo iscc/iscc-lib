@@ -36,8 +36,9 @@ All function names use `snake_case` to match the Python and Rust APIs.
 
 ## Code generation
 
-All 10 `gen_*_v0` functions return the ISCC code as a string (prefixed with `ISCC:`). Optional
-parameters use `null` or `undefined` for defaults.
+The nine `gen_*_v0` functions other than `gen_sum_code_v0` return the ISCC code as a string
+(prefixed with `ISCC:`); `gen_sum_code_v0` returns a `NapiSumCodeResult` object (see
+[Sum-Code](#sum-code)). Optional parameters use `null` or `undefined` for defaults.
 
 ### Meta-Code
 
@@ -168,7 +169,7 @@ const data = Buffer.from("Hello World".repeat(1000));
 const dataCode = gen_data_code_v0(data);
 const instanceCode = gen_instance_code_v0(data);
 const iscc = gen_iscc_code_v0([dataCode, instanceCode]);
-console.log(iscc); // "ISCC:KAA..."
+console.log(iscc); // "ISCC:KUA..."
 ```
 
 ### Sum-Code
@@ -185,7 +186,7 @@ import {
 
 writeFileSync("example.bin", Buffer.from("Hello World".repeat(1000)));
 const result = gen_sum_code_v0("example.bin");
-console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.iscc); // "ISCC:KUA..."
 console.log(result.datahash); // Multihash of the data
 console.log(result.filesize); // Size in bytes
 ```
@@ -237,8 +238,9 @@ const iscc = hasher.finalize();
 console.log(iscc); // Identical to gen_instance_code_v0(entireFile)
 ```
 
-Both hashers accept `Buffer` input in `update()`. After calling `finalize()`, the hasher is consumed
-and further calls throw an error.
+Both hashers accept `Buffer` input in `update()`. The first `finalize()` call consumes the hasher,
+even when it fails (for example on an invalid `bits` value). After that, further calls throw an
+error.
 
 The optional `bits` parameter can be passed to `finalize()`:
 
@@ -352,12 +354,60 @@ for (const unit of units) {
 }
 ```
 
+### ISCC-SEQ
+
+`encode_seq(units: Array<string>): Buffer` packs an ordered list of ISCC-UNITs into an ISCC-SEQ byte
+string (IEP-0020): the header and body bytes of each unit, in the given order.
+`decode_seq(data: Buffer): Array<string>` reads one back into `ISCC:`-prefixed unit strings. Base32
+input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and
+ISCC-FLAKE units are rejected.
+
+```javascript
+const {
+    decode_seq,
+    encode_seq
+} = require("@iscc/lib");
+
+const data = encode_seq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]);
+console.log(data.length); // 34
+console.log(data.subarray(0, 6).toString("hex")); // "2007a88248c5"
+
+const units = decode_seq(data);
+console.log(units); // ["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]
+
+// The round trip is defined on bytes: encode_seq(decode_seq(data)) equals data
+console.log(encode_seq(units).equals(data)); // true
+```
+
 ### Other codec functions
 
 - `encode_base64(data)` — encode a Buffer to base64 string
 - `json_to_data_url(json)` — convert a JSON string to a `data:application/json;base64,...` URL
 - `soft_hash_video_v0(frameSigs, bits?)` — compute a video similarity hash from MPEG-7 frame
     signatures, returns Buffer
+
+## Algorithm primitives
+
+Low-level algorithm functions are available for advanced use cases:
+
+```javascript
+const {
+    sliding_window
+} = require("@iscc/lib");
+
+// Sliding window: overlapping substrings of width Unicode characters
+const windows = sliding_window("Hello World", 4);
+// ["Hell", "ello", "llo ", "lo W", "o Wo", " Wor", "Worl", "orld"]
+```
+
+Additional primitives:
+
+- `alg_simhash(hashDigests)` — compute a SimHash digest from an array of equal-length Buffers,
+    returns Buffer
+- `alg_minhash_256(features)` — compute a 256-bit MinHash digest from 32-bit integer features,
+    returns Buffer; throws on an empty array
+- `alg_cdc_chunks(data, utf32, avgChunkSize?)` — split data into content-defined chunks (default
+    average chunk size 1024), returns an array of Buffers
 
 ## Constants
 
@@ -367,12 +417,14 @@ Exported constants used by the ISCC algorithms:
 const {
     META_TRIM_NAME,
     META_TRIM_DESCRIPTION,
+    META_TRIM_META,
     IO_READ_SIZE,
     TEXT_NGRAM_SIZE,
 } = require("@iscc/lib");
 
 META_TRIM_NAME; // 128 — max byte length for name normalization
 META_TRIM_DESCRIPTION; // 4096 — max byte length for description normalization
+META_TRIM_META; // 128_000 — max decoded payload size in bytes for the meta element
 IO_READ_SIZE; // 4_194_304 — default read buffer size (4 MB)
 TEXT_NGRAM_SIZE; // 13 — n-gram size for text similarity hashing
 ```
@@ -391,7 +443,10 @@ console.log(conformance_selftest()); // true
 
 ## Error handling
 
-Functions throw on invalid input:
+Functions throw on invalid input. Every number argument must be an integer within the range of its
+parameter (for example, `bits` and `nbytes` must lie in 0 to 2^32 − 1 and each `gen_audio_code_v0`
+feature in the signed 32-bit range). A negative, fractional, non-finite or too large number throws
+an error that names the parameter, for example `Invalid bits: -1`:
 
 ```javascript
 import {
@@ -399,7 +454,7 @@ import {
 } from "@iscc/lib";
 
 try {
-    gen_text_code_v0("Hello", 13); // bits must be a multiple of 32
+    gen_text_code_v0("Hello", 13); // bits must be a multiple of 32 from 32 to 256
 } catch (error) {
     console.error(`Invalid input: ${error.message}`);
 }

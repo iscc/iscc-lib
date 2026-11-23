@@ -136,7 +136,8 @@ namespace Iscc.Lib
         ///
         ///  # Safety
         ///
-        ///  `pixels` must point to a valid buffer of at least `pixels_len` bytes.
+        ///  `pixels` must point to a valid buffer of at least `pixels_len` bytes. It may
+        ///  be NULL when `pixels_len` is 0; NULL with `pixels_len &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_gen_image_code_v0", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern byte* iscc_gen_image_code_v0(byte* pixels, nuint pixels_len, uint bits);
@@ -157,7 +158,8 @@ namespace Iscc.Lib
         ///
         ///  # Safety
         ///
-        ///  `cv` must point to a valid buffer of at least `cv_len` `i32` elements.
+        ///  `cv` must point to a valid buffer of at least `cv_len` `i32` elements. It may
+        ///  be NULL when `cv_len` is 0; NULL with `cv_len &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_gen_audio_code_v0", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern byte* iscc_gen_audio_code_v0(int* cv, nuint cv_len, uint bits);
@@ -179,9 +181,11 @@ namespace Iscc.Lib
         ///
         ///  # Safety
         ///
-        ///  - `frame_sigs` must point to an array of `num_frames` valid pointers
+        ///  - `frame_sigs` must point to an array of `num_frames` pointers
         ///  - `frame_lens` must point to an array of `num_frames` lengths
         ///  - Each `frame_sigs[i]` must be valid for `frame_lens[i]` `i32` elements
+        ///  - Any of these pointers may be NULL when its length (`num_frames` or
+        ///    `frame_lens[i]`) is 0; NULL with a non-zero length is an error
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_gen_video_code_v0", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern byte* iscc_gen_video_code_v0(int** frame_sigs, nuint* frame_lens, nuint num_frames, uint bits);
@@ -203,6 +207,7 @@ namespace Iscc.Lib
         ///  # Safety
         ///
         ///  `codes` must point to an array of `num_codes` valid null-terminated UTF-8 strings.
+        ///  It may be NULL when `num_codes` is 0; NULL with `num_codes &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_gen_mixed_code_v0", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern byte* iscc_gen_mixed_code_v0(byte** codes, nuint num_codes, uint bits);
@@ -223,7 +228,8 @@ namespace Iscc.Lib
         ///
         ///  # Safety
         ///
-        ///  `data` must point to a valid buffer of at least `data_len` bytes.
+        ///  `data` must point to a valid buffer of at least `data_len` bytes. It may be
+        ///  NULL when `data_len` is 0; NULL with `data_len &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_gen_data_code_v0", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern byte* iscc_gen_data_code_v0(byte* data, nuint data_len, uint bits);
@@ -244,7 +250,8 @@ namespace Iscc.Lib
         ///
         ///  # Safety
         ///
-        ///  `data` must point to a valid buffer of at least `data_len` bytes.
+        ///  `data` must point to a valid buffer of at least `data_len` bytes. It may be
+        ///  NULL when `data_len` is 0; NULL with `data_len &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_gen_instance_code_v0", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern byte* iscc_gen_instance_code_v0(byte* data, nuint data_len, uint bits);
@@ -266,6 +273,7 @@ namespace Iscc.Lib
         ///  # Safety
         ///
         ///  `codes` must point to an array of `num_codes` valid null-terminated UTF-8 strings.
+        ///  It may be NULL when `num_codes` is 0; NULL with `num_codes &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_gen_iscc_code_v0", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern byte* iscc_gen_iscc_code_v0(byte** codes, nuint num_codes, [MarshalAs(UnmanagedType.U1)] bool wide);
@@ -380,7 +388,8 @@ namespace Iscc.Lib
         ///
         ///  # Safety
         ///
-        ///  `data` must point to a valid buffer of at least `data_len` bytes.
+        ///  `data` must point to a valid buffer of at least `data_len` bytes. It may be
+        ///  NULL when `data_len` is 0; NULL with `data_len &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_encode_base64", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern byte* iscc_encode_base64(byte* data, nuint data_len);
@@ -414,19 +423,22 @@ namespace Iscc.Lib
         ///  - `mtype`: MainType enum value (0–7)
         ///  - `stype`: SubType enum value (0–7)
         ///  - `version`: Version enum value
-        ///  - `bit_length`: bit length of the digest (multiple of 32)
+        ///  - `bit_length`: bit length of the digest (multiple of 32, 32 to 256, for Meta through
+        ///    Flake; 64, 72, 80 or 96 for ID)
         ///  - `digest`: pointer to raw digest bytes
         ///  - `digest_len`: number of bytes in the digest buffer
         ///
         ///  # Returns
         ///
         ///  Heap-allocated C string on success, `NULL` on error.
-        ///  Caller must free with `iscc_free_string()`.
+        ///  Caller must free with `iscc_free_string()`. Returns `NULL` and sets the last
+        ///  error for out-of-range enum values, for MainType ISCC (5), for an invalid
+        ///  `bit_length`, or when the digest is shorter than `bit_length / 8` bytes.
         ///
         ///  # Safety
         ///
-        ///  If `digest_len &gt; 0`, `digest` must point to a valid buffer of at least
-        ///  `digest_len` bytes.
+        ///  `digest` must point to a valid buffer of at least `digest_len` bytes. It may
+        ///  be NULL when `digest_len` is 0; NULL with `digest_len &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_encode_component", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern byte* iscc_encode_component(byte mtype, byte stype, byte version, uint bit_length, byte* digest, nuint digest_len);
@@ -529,6 +541,61 @@ namespace Iscc.Lib
         internal static extern byte** iscc_decompose(byte* iscc_code);
 
         /// <summary>
+        ///  Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+        ///
+        ///  Returns the concatenated header and body bytes of each unit, in the given
+        ///  order. Unit strings may omit the `ISCC:` prefix and may be lowercase or
+        ///  contain hyphens. Base32 decoding is strict: no padding, zero spare bits,
+        ///  and ASCII-only case folding.
+        ///
+        ///  # Parameters
+        ///
+        ///  - `units`: array of pointers to null-terminated ISCC-UNIT strings
+        ///  - `num_units`: number of unit strings (must be at least 1)
+        ///
+        ///  # Returns
+        ///
+        ///  `IsccByteBuffer` with the ISCC-SEQ bytes on success. On error `.data` is
+        ///  `NULL` (check `iscc_last_error()`): `units` is NULL with `num_units &gt; 0`,
+        ///  the list is empty, or a unit is NULL, not UTF-8, malformed, or of an
+        ///  excluded MainType (ISCC-CODE, ID, FLAKE). Caller must free with
+        ///  `iscc_free_byte_buffer()`.
+        ///
+        ///  # Safety
+        ///
+        ///  `units` must point to an array of `num_units` valid null-terminated UTF-8
+        ///  strings. It may be NULL when `num_units` is 0.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "iscc_encode_seq", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern IsccByteBuffer iscc_encode_seq(byte** units, nuint num_units);
+
+        /// <summary>
+        ///  Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+        ///
+        ///  Strict byte-level reader: every unit must be well-formed and no trailing
+        ///  bytes are allowed. Returns `ISCC:`-prefixed uppercase unit strings in wire
+        ///  order; `iscc_encode_seq` of the result reproduces `data`.
+        ///
+        ///  # Parameters
+        ///
+        ///  - `data`: pointer to the ISCC-SEQ bytes
+        ///  - `data_len`: number of bytes in `data`
+        ///
+        ///  # Returns
+        ///
+        ///  NULL-terminated array of unit strings on success, `NULL` on error (empty
+        ///  or malformed input; check `iscc_last_error()`).
+        ///  Caller must free with `iscc_free_string_array()`.
+        ///
+        ///  # Safety
+        ///
+        ///  `data` must point to a valid buffer of at least `data_len` bytes. It may be
+        ///  NULL when `data_len` is 0; NULL with `data_len &gt; 0` is an error.
+        /// </summary>
+        [DllImport(__DllName, EntryPoint = "iscc_decode_seq", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern byte** iscc_decode_seq(byte* data, nuint data_len);
+
+        /// <summary>
         ///  Generate sliding window n-grams from a string.
         ///
         ///  Returns a NULL-terminated array of overlapping substrings of `width`
@@ -550,7 +617,8 @@ namespace Iscc.Lib
         ///  Compute a SimHash digest from an array of byte digests.
         ///
         ///  The output length matches the input digest length (e.g., 4-byte digests
-        ///  produce a 4-byte SimHash). Returns an empty 32-byte buffer for empty input.
+        ///  produce a 4-byte SimHash). An empty list (`num_digests == 0`) is rejected:
+        ///  `.data` is `NULL` and `iscc_last_error()` names the empty list.
         ///
         ///  # Parameters
         ///
@@ -565,9 +633,11 @@ namespace Iscc.Lib
         ///
         ///  # Safety
         ///
-        ///  - `digests` must point to an array of `num_digests` valid byte pointers
+        ///  - `digests` must point to an array of `num_digests` byte pointers
         ///  - `digest_lens` must point to an array of `num_digests` lengths
         ///  - Each `digests[i]` must be valid for `digest_lens[i]` bytes
+        ///  - Any of these pointers may be NULL when its length (`num_digests` or
+        ///    `digest_lens[i]`) is 0; NULL with a non-zero length is an error
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_alg_simhash", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern IsccByteBuffer iscc_alg_simhash(byte** digests, nuint* digest_lens, nuint num_digests);
@@ -585,12 +655,13 @@ namespace Iscc.Lib
         ///
         ///  # Returns
         ///
-        ///  `IsccByteBuffer` with 32 bytes. On error, `.data` is `NULL`.
-        ///  Caller must free with `iscc_free_byte_buffer()`.
+        ///  `IsccByteBuffer` with 32 bytes. On error (including an empty feature
+        ///  list), `.data` is `NULL`. Caller must free with `iscc_free_byte_buffer()`.
         ///
         ///  # Safety
         ///
         ///  `features` must point to a valid buffer of at least `features_len` `u32` elements.
+        ///  It may be NULL when `features_len` is 0; NULL with `features_len &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_alg_minhash_256", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern IsccByteBuffer iscc_alg_minhash_256(uint* features, nuint features_len);
@@ -615,7 +686,8 @@ namespace Iscc.Lib
         ///
         ///  # Safety
         ///
-        ///  `data` must point to a valid buffer of at least `data_len` bytes.
+        ///  `data` must point to a valid buffer of at least `data_len` bytes. It may be
+        ///  NULL when `data_len` is 0; NULL with `data_len &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_alg_cdc_chunks", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern IsccByteBufferArray iscc_alg_cdc_chunks(byte* data, nuint data_len, [MarshalAs(UnmanagedType.U1)] bool utf32, uint avg_chunk_size);
@@ -639,9 +711,11 @@ namespace Iscc.Lib
         ///
         ///  # Safety
         ///
-        ///  - `frame_sigs` must point to an array of `num_frames` valid pointers
+        ///  - `frame_sigs` must point to an array of `num_frames` pointers
         ///  - `frame_lens` must point to an array of `num_frames` lengths
         ///  - Each `frame_sigs[i]` must be valid for `frame_lens[i]` `i32` elements
+        ///  - Any of these pointers may be NULL when its length (`num_frames` or
+        ///    `frame_lens[i]`) is 0; NULL with a non-zero length is an error
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_soft_hash_video_v0", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern IsccByteBuffer iscc_soft_hash_video_v0(int** frame_sigs, nuint* frame_lens, nuint num_frames, uint bits);
@@ -664,7 +738,8 @@ namespace Iscc.Lib
         ///  # Safety
         ///
         ///  - `hasher` must be a valid pointer from `iscc_data_hasher_new()`, or NULL.
-        ///  - `data` must point to at least `data_len` valid bytes.
+        ///  - `data` must point to at least `data_len` valid bytes. It may be NULL when
+        ///    `data_len` is 0; NULL with `data_len &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_data_hasher_update", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.U1)]
@@ -715,7 +790,8 @@ namespace Iscc.Lib
         ///  # Safety
         ///
         ///  - `hasher` must be a valid pointer from `iscc_instance_hasher_new()`, or NULL.
-        ///  - `data` must point to at least `data_len` valid bytes.
+        ///  - `data` must point to at least `data_len` valid bytes. It may be NULL when
+        ///    `data_len` is 0; NULL with `data_len &gt; 0` is an error.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_instance_hasher_update", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.U1)]
@@ -760,29 +836,29 @@ namespace Iscc.Lib
         internal static extern void iscc_free_string(byte* ptr);
 
         /// <summary>
-        ///  Free a NULL-terminated string array returned by `iscc_decompose` or
-        ///  `iscc_sliding_window`.
+        ///  Free a NULL-terminated string array returned by `iscc_decompose`,
+        ///  `iscc_decode_seq`, or `iscc_sliding_window`.
         ///
         ///  Walks the array, freeing each string via `CString::from_raw`, then frees
         ///  the array itself. `NULL` is a no-op.
         ///
         ///  # Safety
         ///
-        ///  `arr` must be a pointer returned by `iscc_decompose` or `iscc_sliding_window`,
-        ///  or `NULL`. Each array must only be freed once.
+        ///  `arr` must be a pointer returned by `iscc_decompose`, `iscc_decode_seq`, or
+        ///  `iscc_sliding_window`, or `NULL`. Each array must only be freed once.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_free_string_array", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern void iscc_free_string_array(byte** arr);
 
         /// <summary>
         ///  Free a byte buffer returned by `iscc_alg_simhash`, `iscc_alg_minhash_256`,
-        ///  or `iscc_soft_hash_video_v0`.
+        ///  `iscc_soft_hash_video_v0`, or `iscc_encode_seq`.
         ///
         ///  No-op if `buf.data` is `NULL`.
         ///
         ///  # Safety
         ///
-        ///  `buf` must be a value returned by one of the algorithm primitive functions.
+        ///  `buf` must be a value returned by one of the functions listed above.
         ///  Each buffer must only be freed once.
         /// </summary>
         [DllImport(__DllName, EntryPoint = "iscc_free_byte_buffer", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]

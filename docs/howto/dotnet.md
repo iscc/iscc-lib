@@ -178,7 +178,7 @@ var instanceResult = IsccLib.GenInstanceCodeV0(data);
 var result = IsccLib.GenIsccCodeV0(
     [dataResult.Iscc, instanceResult.Iscc]
 );
-Console.WriteLine(result.Iscc); // "ISCC:KAA..."
+Console.WriteLine(result.Iscc); // "ISCC:KUA..."
 ```
 
 Parameters: `string[] codes`, `bool wide = false` (`true` for 256-bit output, `false` for 128-bit).
@@ -193,7 +193,7 @@ File.WriteAllBytes("example.bin",
         string.Concat(Enumerable.Repeat("Hello World", 1000))));
 
 SumCodeResult result = IsccLib.GenSumCodeV0("example.bin");
-Console.WriteLine(result.Iscc);     // "ISCC:KAA..."
+Console.WriteLine(result.Iscc);     // "ISCC:KUA..."
 Console.WriteLine(result.Datahash); // Multihash of the data
 Console.WriteLine(result.Filesize); // Size in bytes
 
@@ -276,7 +276,8 @@ InstanceCodeResult result = hasher.Finalize();
 Console.WriteLine(result.Iscc); // Identical to IsccLib.GenInstanceCodeV0(entireFile)
 ```
 
-Both hashers are single-use: after calling `Finalize()`, further calls to `Update()` or `Finalize()`
+Both hashers are single-use: the first `Finalize()` call consumes the hasher, even when it fails
+(for example on an invalid `bits` value). After that, further calls to `Update()` or `Finalize()`
 throw `InvalidOperationException`. The `using` statement ensures the native resources are freed even
 if an exception occurs.
 
@@ -342,6 +343,26 @@ foreach (string unit in units)
     Console.WriteLine(unit); // Each unit code (without "ISCC:" prefix)
 ```
 
+### ISCC-SEQ
+
+`byte[] IsccLib.EncodeSeq(string[] units)` packs an ordered list of ISCC-UNITs into an ISCC-SEQ byte
+string (IEP-0020): the header and body bytes of each unit, in the given order.
+`string[] IsccLib.DecodeSeq(ReadOnlySpan<byte> data)` reads one back into `ISCC:`-prefixed unit
+strings. Base32 input is strict (no padding, zero spare bits) and upper-casing is ASCII-only.
+ISCC-CODE, ISCC-ID and ISCC-FLAKE units are rejected.
+
+```csharp
+byte[] data = IsccLib.EncodeSeq(["ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"]);
+Console.WriteLine(data.Length);                          // 34
+Console.WriteLine(Convert.ToHexString(data.AsSpan(0, 6))); // "2007A88248C5"
+
+string[] units = IsccLib.DecodeSeq(data);
+Console.WriteLine(units[0]); // "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"
+
+// The round trip is defined on bytes: EncodeSeq(DecodeSeq(data)) reproduces data
+Console.WriteLine(IsccLib.EncodeSeq(units).AsSpan().SequenceEqual(data)); // true
+```
+
 ## Text utilities
 
 Text normalization functions used internally by the code generation pipeline are available for
@@ -392,7 +413,7 @@ Additional primitives:
 - `IsccLib.AlgSimhash(byte[][] digests)` — compute a SimHash digest from equal-length byte arrays,
     returns `byte[]`
 - `IsccLib.AlgMinhash256(ReadOnlySpan<uint> features)` — compute a 256-bit MinHash digest from
-    32-bit features, returns `byte[]`
+    32-bit features, returns `byte[]`; throws `IsccException` on an empty span
 - `IsccLib.AlgCdcChunks(ReadOnlySpan<byte> data, bool utf32, uint avgChunkSize)` — split data into
     content-defined chunks, returns `byte[][]`
 - `IsccLib.SoftHashVideoV0(int[][] frameSigs, uint bits)` — compute a similarity-preserving hash
@@ -424,13 +445,14 @@ Console.WriteLine($"Conformance: {ok}"); // true
 ## Error handling
 
 Methods throw `IsccException` on invalid input (wrong bit count, empty data where content is
-required, etc.). Streaming hashers throw `InvalidOperationException` when used after finalization.
-Use try-catch for error handling:
+required, etc.). String inputs with an embedded NUL (`\0`) are rejected with `IsccException` rather
+than truncated at the NUL. Streaming hashers throw `InvalidOperationException` when used after
+finalization. Use try-catch for error handling:
 
 ```csharp
 try
 {
-    IsccLib.GenTextCodeV0("Hello", bits: 13); // bits must be a multiple of 32
+    IsccLib.GenTextCodeV0("Hello", bits: 13); // bits must be a multiple of 32 from 32 to 256
 }
 catch (IsccException ex)
 {

@@ -2087,9 +2087,11 @@ public func algCdcChunks(data: Data, utf32: Bool, avgChunkSize: UInt32)throws  -
 }
 /**
  * Compute a 256-bit MinHash from a set of u32 features.
+ *
+ * Throws on an empty feature list.
  */
-public func algMinhash256(features: [UInt32]) -> Data  {
-    return try!  FfiConverterData.lift(try! rustCall() {
+public func algMinhash256(features: [UInt32])throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
         uniffiCallStatus in
     uniffi_iscc_uniffi_fn_func_alg_minhash_256(
         FfiConverterSequenceUInt32.lower(features),uniffiCallStatus
@@ -2118,6 +2120,19 @@ public func conformanceSelftest() -> Bool  {
 })
 }
 /**
+ * Decode an ISCC-SEQ byte string to `ISCC:`-prefixed unit strings (IEP-0020).
+ *
+ * Validation and error messages come from the core (`iscc_lib::decode_seq`).
+ */
+public func decodeSeq(data: Data)throws  -> [String]  {
+    return try  FfiConverterSequenceString.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_decode_seq(
+        FfiConverterData.lower(data),uniffiCallStatus
+    )
+})
+}
+/**
  * Encode binary data as URL-safe base64 (no padding).
  */
 public func encodeBase64(data: Data) -> String  {
@@ -2130,6 +2145,10 @@ public func encodeBase64(data: Data) -> String  {
 }
 /**
  * Encode header and digest into an ISCC component string.
+ *
+ * Returns `IsccUniError` for out-of-range enum values, for MainType ISCC (5),
+ * for an invalid `bit_length`, or when `digest` is shorter than
+ * `bit_length / 8` bytes.
  */
 public func encodeComponent(mtype: UInt8, stype: UInt8, version: UInt8, bitLength: UInt32, digest: Data)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
@@ -2140,6 +2159,20 @@ public func encodeComponent(mtype: UInt8, stype: UInt8, version: UInt8, bitLengt
         FfiConverterUInt8.lower(version),
         FfiConverterUInt32.lower(bitLength),
         FfiConverterData.lower(digest),uniffiCallStatus
+    )
+})
+}
+/**
+ * Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+ *
+ * Units are concatenated in the given order. Validation and error messages
+ * come from the core (`iscc_lib::encode_seq`).
+ */
+public func encodeSeq(units: [String])throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeIsccUniError_lift) {
+        uniffiCallStatus in
+    uniffi_iscc_uniffi_fn_func_encode_seq(
+        FfiConverterSequenceString.lower(units),uniffiCallStatus
     )
 })
 }
@@ -2424,7 +2457,11 @@ public func textRemoveNewlines(text: String) -> String  {
 })
 }
 /**
- * Trim text to a maximum number of UTF-8 bytes on a word boundary.
+ * Trim text so its UTF-8 encoded size does not exceed `nbytes`.
+ *
+ * Keeps the longest valid UTF-8 prefix within `nbytes` bytes, dropping any
+ * character that would be split, then strips leading and trailing whitespace.
+ * Text of at most `nbytes` bytes is returned whole, apart from that strip.
  */
 public func textTrim(text: String, nbytes: UInt64) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
@@ -2454,7 +2491,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_iscc_uniffi_checksum_func_alg_cdc_chunks() != 23469) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_alg_minhash_256() != 31368) {
+    if (uniffi_iscc_uniffi_checksum_func_alg_minhash_256() != 23807) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_iscc_uniffi_checksum_func_alg_simhash() != 16431) {
@@ -2463,10 +2500,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_iscc_uniffi_checksum_func_conformance_selftest() != 24279) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_iscc_uniffi_checksum_func_decode_seq() != 13261) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_iscc_uniffi_checksum_func_encode_base64() != 43598) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_encode_component() != 11010) {
+    if (uniffi_iscc_uniffi_checksum_func_encode_component() != 629) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_iscc_uniffi_checksum_func_encode_seq() != 49172) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_iscc_uniffi_checksum_func_gen_audio_code_v0() != 22048) {
@@ -2541,7 +2584,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_iscc_uniffi_checksum_func_text_remove_newlines() != 55449) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_iscc_uniffi_checksum_func_text_trim() != 46357) {
+    if (uniffi_iscc_uniffi_checksum_func_text_trim() != 61011) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_iscc_uniffi_checksum_method_datahasher_finalize() != 26196) {

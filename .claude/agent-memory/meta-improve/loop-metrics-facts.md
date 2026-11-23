@@ -5,37 +5,42 @@ metadata:
   type: project
 ---
 
-Hard-won, non-obvious facts for reading the CID record and choosing meta changes. Verify each
-against current files before acting — they were true as of iteration 112.
+Facts about reading the CID record and choosing meta changes that are not obvious from the code.
+Check each against the current files before acting. Last verified at iteration 308.
 
-- **`cid.py stats` "Fails" column is misleading.** It counts every non-`OK` status row, including
-    the zero-turn `status:"PASS"`/verdict status-marker rows that some review runs emit alongside
-    their real `OK` metrics row. Real failures are `status:"FAIL"` rows in `iterations.jsonl` — at
-    iter 112 there were only ~2 review FAILs *ever* (e.g. iter 106), not 51. Grep
-    `'"status":"FAIL"'` for the true count; don't act on the stats fail column.
+- **The "Fails" column in `cid.py stats` is misleading.** It counts every row whose status is not
+    `OK`, including zero-turn status-marker rows. For real failures, grep role rows for
+    `"status":"FAIL"` or `"TIMEOUT"`. Since iteration 150 there are only four: define-next 155
+    (TIMEOUT), review 180 (FAIL), review 195 and 212 (TIMEOUT, both recovered). None in 213–308.
 
-- **needs_work_rate has been 0 over a long window.** All 21 `iteration_summary` rows (iters 88→111)
-    were PASS / PASS_WITH_NOTES / IDLE — no NEEDS_WORK. So that metric is already floored and cannot
-    be a target; the only live efficiency metric is **median_turns**. A future *drop* in
-    needs_work_rate is only real if quality held (the reviewer is path-blocked from your edits —
-    keep it that way).
+- **needs_work_rate is low but not zero.** Over iterations 209–248 it was 2/40 (215 CRAP gate, 239
+    rb_sys cross-gem). Both verdicts caught real defects, and each lesson went into learnings.md.
+    The rate is too sparse to tell a prompt change apart from noise, so median_turns is the more
+    usable target. A drop in the rate is only real if quality held, and the reviewer stays
+    path-blocked from meta edits.
 
-- **High median_turns is usually genuine work, not prompt waste.** Iters 107/108/109 (190/192/208
-    turns) were the multi-slice iai-callgrind perf-gate; turns fell back to ~122 afterward. Before
-    blaming a prompt for turn cost, check whether those iterations did inherently large work.
+- **Review runs on `claude-fable-5-2` at `high`** (set by Titusz, `32d6686`); the other roles run
+    `claude-opus-5-5` at `high`. The `model` and `effort` fields of the role rows show this.
 
-- **`effort:` and `model:` frontmatter are consumed by the Claude Code `--agent` framework, not by
-    `cid.py`.** `cid.py build_agent_cmd` only adds `-p/--agent/--output-format/--fallback-model`. So
-    those frontmatter values *are* live tuning levers (whitelisted for the 3 non-gate roles), but
-    tuning effort *down* risks the runner's documented asymmetry blind spot — a turns/cost drop that
-    hides a silent quality drop. Need real evidence a role is over-powered before touching them.
+- **High median_turns usually means genuine work, not prompt waste.** Large perf-gate or fan-out
+    steps run 120–200 turns. The median fell from about 113 (211–220) to about 81 (238–247) without
+    any meta change. Before blaming a prompt for turn cost, check what the iteration actually did.
 
-- **`iteration_summary` rows can be missing for failed/interrupted iterations** (absent for 95, 103,
-    106 at iter 112; 106 had a review FAIL). Meta-improve's before/after `window` comparison may
-    therefore span non-adjacent iterations. See [[loop-metrics-facts]] proposal in proposals.md to
-    have cid.py emit a row even on abort.
+- **`model:`/`effort:` frontmatter are live levers, passed by `cid.py`.** `AGENT_FLAG_KEYS` sends
+    them as `--model`/`--effort`, because the CLI ignores frontmatter `effort:` under `--agent`.
+    They are whitelisted for the three non-gate roles. Lowering effort risks the blind spot in the
+    rollback rule: a drop in turns or cost can hide a silent drop in quality.
 
-- **mdformat has two non-identical configs**: pre-commit auto-fix versus a pre-push check using
-    `--wrap 100 --number` plus the mkdocs plugin. A context-file commit can pass commit but fail the
-    batch push, forcing review to reformat+amend. Low frequency (visible once in last 200 commits:
-    `758fc31`, iter 93).
+- **Zero-turn summaries pollute median_turns.** A recovered TIMEOUT logs `turns: 0`. When the
+    iteration also started at review (195, 212), its summary is `turns_total: 0` with a real
+    verdict. `_window_metrics` excludes only FAILED verdicts, so the 0 enters the median. This is
+    proposed for Titusz (proposals.md, iteration 248). Until it is fixed, check windows for 0 rows
+    by hand.
+
+- **Do not apply a change while the loop is IDLE.** The post-change window would consist of no-op
+    iterations (36 turns at 248), which makes the rollback verdict noise. Meta changes are best
+    applied when product work is queued.
+
+- **The 200-line budget for `learnings.md` is enforced as `> 200`.** Review keeps the file at the
+    limit by compressing entries (200/200 at iteration 248, no overrun ever recorded). Being at the
+    limit is not evidence that hygiene is needed.

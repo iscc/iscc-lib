@@ -9,7 +9,7 @@ core, with a pure Ruby wrapper layer for idiomatic API.
 **Two-layer design** (matching the Python binding pattern):
 
 1. **Rust bridge** (`crates/iscc-rb/src/lib.rs`): Magnus-annotated functions that call `iscc-lib`
-    core and return Ruby `Hash` objects. Single file, ~400–500 lines.
+    core and return Ruby `Hash` objects. Single file.
 2. **Pure Ruby wrapper** (`crates/iscc-rb/lib/iscc_lib.rb`): Typed result classes with attribute
     access, keyword arguments, streaming convenience methods. Provides idiomatic Ruby DX.
 
@@ -27,14 +27,12 @@ core, with a pure Ruby wrapper layer for idiomatic API.
 crates/iscc-rb/
 ├── Cargo.toml              # cdylib, depends on iscc-lib + magnus
 ├── src/
-│   └── lib.rs              # Magnus bridge (~400-500 lines)
-├── ext/
-│   └── iscc_lib/
-│       └── extconf.rb      # rb_sys extension config
+│   └── lib.rs              # Magnus bridge
+├── extconf.rb              # rb_sys extension config
 ├── lib/
+│   ├── iscc_lib.rb         # Pure Ruby wrapper with result classes
 │   └── iscc_lib/
-│       ├── version.rb      # VERSION constant (synced from Cargo.toml)
-│       └── iscc_lib.rb     # Pure Ruby wrapper with result classes
+│       └── version.rb      # VERSION constant (synced from Cargo.toml)
 ├── iscc-lib.gemspec        # Gem specification
 ├── Gemfile                 # Development dependencies
 ├── Rakefile                # rb_sys build tasks
@@ -43,6 +41,8 @@ crates/iscc-rb/
     ├── test_helper.rb
     └── test_conformance.rb # Minitest against data.json
 ```
+
+The tree lists the load-bearing entries, not every file.
 
 ## Rust Bridge Layer
 
@@ -153,15 +153,15 @@ result.filesize     # => 123456
 Use `rb_sys` + `rake-compiler` + `rake-compiler-dock` for cross-compilation. Users get
 `gem install iscc-lib` with no Rust toolchain required.
 
-**Build platforms:**
+**Build platforms** (all cross-compiled on `ubuntu-latest`):
 
-| OS             | Target                    | Gem platform   |
-| -------------- | ------------------------- | -------------- |
-| ubuntu-latest  | x86_64-unknown-linux-gnu  | x86_64-linux   |
-| ubuntu-latest  | aarch64-unknown-linux-gnu | aarch64-linux  |
-| macos-14       | aarch64-apple-darwin      | arm64-darwin   |
-| macos-14       | x86_64-apple-darwin       | x86_64-darwin  |
-| windows-latest | x86_64-pc-windows-msvc    | x64-mingw-ucrt |
+| Target                    | Gem platform   |
+| ------------------------- | -------------- |
+| x86_64-unknown-linux-gnu  | x86_64-linux   |
+| aarch64-unknown-linux-gnu | aarch64-linux  |
+| aarch64-apple-darwin      | arm64-darwin   |
+| x86_64-apple-darwin       | x86_64-darwin  |
+| x86_64-pc-windows-msvc    | x64-mingw-ucrt |
 
 Plus a source gem (`.gem`) for platforms without precompiled binaries — requires Rust toolchain to
 install.
@@ -178,12 +178,12 @@ Gem::Specification.new do |spec|
   spec.summary       = "ISCC - International Standard Content Code (ISO 24138)"
   spec.homepage      = "https://github.com/iscc/iscc-lib"
   spec.license       = "Apache-2.0"
-  spec.required_ruby_version = ">= 3.1.0"
+  spec.required_ruby_version = ">= 3.3.0"
 
   spec.metadata["source_code_uri"] = "https://github.com/iscc/iscc-lib"
   spec.metadata["documentation_uri"] = "https://lib.iscc.codes"
 
-  spec.extensions = ["ext/iscc_lib/extconf.rb"]
+  spec.extensions = ["extconf.rb"]
 end
 ```
 
@@ -227,7 +227,7 @@ ruby:
 ### Release Jobs (release.yml)
 
 Add `rubygems` boolean input to `workflow_dispatch` and a build matrix producing precompiled gems
-for all 5 platforms. Publish via `gem push` with OIDC or API key authentication.
+for every release platform. Publish via `gem push` with OIDC or API key authentication.
 
 ## Code Quality & Linting
 
@@ -257,11 +257,11 @@ plugins:
 
 ### What we explicitly skip (and why)
 
-| Tool               | Decision | Rationale                                                                    |
-| ------------------ | -------- | ---------------------------------------------------------------------------- |
-| Sorbet / Steep+RBS | Skip     | Type safety lives in the Rust core; Ruby layer is ~100 lines of thin wrapper |
-| Reek / RubyCritic  | Skip     | Code smell analysis targets large Ruby codebases, not small FFI wrappers     |
-| SimpleCov          | Skip     | Test coverage for a thin wrapper adds noise; Rust core has coverage          |
+| Tool               | Decision | Rationale                                                                |
+| ------------------ | -------- | ------------------------------------------------------------------------ |
+| Sorbet / Steep+RBS | Skip     | Type safety lives in the Rust core; Ruby layer is a thin wrapper         |
+| Reek / RubyCritic  | Skip     | Code smell analysis targets large Ruby codebases, not small FFI wrappers |
+| SimpleCov          | Skip     | Test coverage for a thin wrapper adds noise; Rust core has coverage      |
 
 ### Pre-commit / pre-push hooks
 
@@ -290,8 +290,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 ```
 
-System Ruby from Debian Bookworm (Ruby 3.1) is sufficient for development. The CI matrix tests
-against Ruby 3.1–3.3+. `bundler` ships with Ruby 3.1+.
+System Ruby from Debian Bookworm (Ruby 3.1) is below the gem's `>= 3.3` floor, so development runs
+on the Ruby pinned in the root `mise.toml` `[tools]` table
+(`mise exec -- bundle exec rake compile test`); the devcontainer setup installs the bundle under it.
+CI tests the floor (Ruby 3.3) in the `ruby` job and installs the source gem on Ruby 3.4.
 
 ## Version Sync
 
@@ -313,22 +315,22 @@ Ruby `VERSION` constant, which is synced by the version script.
 
 ## Verification Criteria
 
-- [ ] `gem install iscc-lib` succeeds (precompiled gem, no Rust toolchain needed)
-- [ ] All 10 `gen_*_v0` functions return `Hash` with the same keys/values as iscc-core
-- [ ] `result["iscc"]` and `result.iscc` both work (Hash + attribute access)
-- [ ] Streaming functions accept IO objects (anything with `.read`)
-- [ ] `gen_sum_code_v0` accepts path strings and `Pathname` objects
-- [ ] Conformance tests pass against vendored `data.json` vectors
-- [ ] All 33 Tier 1 symbols are accessible from Ruby
-- [ ] `DataHasher` and `InstanceHasher` streaming types work correctly
-- [ ] Precompiled gems available for Linux (x86_64, aarch64), macOS (x86_64, arm64), Windows (x64)
-- [ ] Source gem compiles on platforms without precompiled binaries (requires Rust)
-- [ ] `bundle exec rake test` passes in CI
-- [ ] RubyGems OIDC trusted publishing configured (or API key fallback)
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
-- [ ] Per-crate README renders correctly on rubygems.org
-- [ ] Documentation site includes Ruby how-to guide and API reference
-- [ ] `bundle exec standardrb` passes with zero offenses
-- [ ] Standard Ruby + rubocop-minitest configured in Gemfile and `.standard.yml`
-- [ ] Ruby linting wired into pre-commit (auto-fix) and pre-push (check) hooks
-- [ ] Ruby linting step runs in CI before tests
+- `gem install iscc-lib` succeeds (precompiled gem, no Rust toolchain needed)
+- All `gen_*_v0` functions return `Hash`; those iscc-core shares carry the same keys/values
+- `result["iscc"]` and `result.iscc` both work (Hash + attribute access)
+- Streaming functions accept IO objects (anything with `.read`)
+- `gen_sum_code_v0` accepts path strings and `Pathname` objects
+- Conformance tests pass against vendored `data.json` vectors
+- All Tier 1 symbols are accessible from Ruby
+- `DataHasher` and `InstanceHasher` streaming types work correctly
+- Precompiled gems available for Linux (x86_64, aarch64), macOS (x86_64, arm64), Windows (x64)
+- Source gem compiles on platforms without precompiled binaries (requires Rust)
+- `bundle exec rake test` passes in CI
+- RubyGems OIDC trusted publishing configured (or API key fallback)
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- Per-crate README renders correctly on rubygems.org
+- Documentation site includes Ruby how-to guide and API reference
+- `bundle exec standardrb` passes with zero offenses
+- Standard Ruby + rubocop-minitest configured in Gemfile and `.standard.yml`
+- Ruby linting wired into pre-commit (auto-fix) and pre-push (check) hooks
+- Ruby linting step runs in CI before tests

@@ -5,7 +5,7 @@ from __future__ import annotations
 import enum
 import json as _json
 import os
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from importlib.metadata import version
 from types import SimpleNamespace
 from typing import BinaryIO
@@ -25,8 +25,10 @@ from iscc_lib._lowlevel import (
     alg_minhash_256 as alg_minhash_256,
     alg_simhash as alg_simhash,
     conformance_selftest as conformance_selftest,
+    decode_seq as _decode_seq,
     encode_base64 as encode_base64,
     encode_component as encode_component,
+    encode_seq as _encode_seq,
     gen_audio_code_v0 as _gen_audio_code_v0,
     gen_data_code_v0 as _gen_data_code_v0,
     gen_image_code_v0 as _gen_image_code_v0,
@@ -104,6 +106,48 @@ def iscc_decode(iscc: str) -> tuple[MT, ST, VS, int, bytes]:
     """Decode an ISCC unit string into header components and raw digest."""
     mt, st, vs, length, digest = _iscc_decode(iscc)
     return MT(mt), ST(st), VS(vs), length, digest
+
+
+def encode_seq(units: Iterable[str]) -> bytes:
+    """Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+
+    The result is the concatenation of the header and body bytes of each ISCC-UNIT in the given
+    order. A C2PA `c2pa.soft-binding` block value for `io.iscc.v0` is an ISCC-SEQ whose units all
+    have Version 0 and 256-bit bodies (IEP-0020). This function accepts any 32 to 256-bit unit of
+    any SubType and Version and does not enforce that constraint, so callers producing
+    `io.iscc.v0` values must.
+
+    Unit strings may omit the `ISCC:` prefix and may be lowercase or contain hyphens. Base32
+    decoding is strict: `=` padding, non-zero spare bits and non-ASCII case-fold aliases (`ſ`,
+    `ß`) are rejected (`iscc_core` accepts them).
+
+    :param units: ISCC-UNIT strings of MainType META, SEMANTIC, CONTENT, DATA or INSTANCE with
+        32 to 256 bits
+    :return: ISCC-SEQ byte string
+    :raises ValueError: If `units` is empty or contains an empty, malformed, ISCC-CODE, ISCC-ID
+        or FLAKE unit
+    :raises TypeError: If `units` is not a sequence of strings
+    """
+    if isinstance(units, (str, bytes)):
+        raise TypeError("units must be a sequence of ISCC-UNIT strings")
+    return _encode_seq(list(units))
+
+
+def decode_seq(data: bytes | bytearray | memoryview) -> list[str]:
+    """Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+
+    Strict: rejects non-canonical headers, MainTypes other than META, SEMANTIC, CONTENT, DATA and
+    INSTANCE, Length fields above 7, truncated units and trailing bytes. Unknown SubType or
+    Version values are preserved. Encoding the result reproduces `data`.
+
+    :param data: ISCC-SEQ byte string, e.g. the content of a C2PA soft binding block value
+    :return: ISCC-UNIT strings (`ISCC:` prefixed) in wire order
+    :raises ValueError: If `data` is empty or malformed
+    :raises TypeError: If `data` is not a bytes-like object
+    """
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        raise TypeError("ISCC-SEQ must be bytes")
+    return _decode_seq(bytes(data))
 
 
 _CHUNK_SIZE = 65536  # 64 KiB read chunks
@@ -420,8 +464,10 @@ __all__ = [
     "alg_simhash",
     "conformance_selftest",
     "core_opts",
+    "decode_seq",
     "encode_base64",
     "encode_component",
+    "encode_seq",
     "gen_audio_code_v0",
     "gen_data_code_v0",
     "gen_image_code_v0",

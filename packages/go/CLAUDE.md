@@ -11,33 +11,6 @@ distributes via standard `go get`.
 - Package name: `iscc` (import path: `github.com/iscc/iscc-lib/packages/go`)
 - No cgo, no shared libraries, no binary artifacts — pure compiled Go
 
-## File Layout
-
-| File                    | Purpose                                                                                            |
-| ----------------------- | -------------------------------------------------------------------------------------------------- |
-| `go.mod`                | Module definition, Go version, dependencies                                                        |
-| `codec.go`              | Type enums, varnibble encoding, header codec, base32/64, component encoding, ISCC decompose/decode |
-| `code_meta.go`          | `GenMetaCodeV0` — Meta-Code from name/description/meta                                             |
-| `code_content_text.go`  | `GenTextCodeV0` — Content-Code for text via MinHash                                                |
-| `code_content_image.go` | `GenImageCodeV0` — Content-Code for images via DCT                                                 |
-| `code_content_audio.go` | `GenAudioCodeV0` — Content-Code for audio via multi-stage SimHash                                  |
-| `code_content_video.go` | `GenVideoCodeV0` — Content-Code for video via WTA-Hash                                             |
-| `code_content_mixed.go` | `GenMixedCodeV0` — Mixed Content-Code from multiple Content-Codes                                  |
-| `code_data.go`          | `GenDataCodeV0` — Data-Code via CDC + MinHash; `DataHasher` streaming                              |
-| `code_instance.go`      | `GenInstanceCodeV0` — Instance-Code via BLAKE3; `InstanceHasher` streaming                         |
-| `code_iscc.go`          | `GenIsccCodeV0` — composite ISCC-CODE assembly                                                     |
-| `code_sum.go`           | `GenSumCodeV0` — single-pass file ISCC-SUM (Data + Instance + compose)                             |
-| `conformance.go`        | `ConformanceSelftest` — validates all 9 gen functions against vendored vectors                     |
-| `utils.go`              | `TextClean`, `TextCollapse`, `TextTrim`, `TextRemoveNewlines`                                      |
-| `simhash.go`            | `AlgSimhash`, `SlidingWindow`                                                                      |
-| `minhash.go`            | `AlgMinhash256` — 64-dimensional MinHash with bit-interleaved compression                          |
-| `dct.go`                | `algDct` — fast DCT (Nayuki algorithm) for image hashing                                           |
-| `wtahash.go`            | `AlgWtahash` — WTA-Hash with 256 permutation pairs                                                 |
-| `xxh32.go`              | `xxh32` — xxHash32 implementation for text/data code features                                      |
-| `cdc.go`                | `AlgCdcChunks` — Content-Defined Chunking (FastCDC gear hash)                                      |
-| `testdata/data.json`    | Vendored conformance vectors (embedded via `//go:embed`)                                           |
-| `*_test.go`             | Tests (conformance + unit tests for every module)                                                  |
-
 ## Dependencies
 
 | Dependency                | Purpose                                              |
@@ -76,8 +49,8 @@ All `Gen*` functions return typed result structs and `error`, following idiomati
 
 ### Codec Functions (exported)
 
-`EncodeComponent`, `EncodeBase64`, `JsonToDataUrl`, `IsccDecode`, `IsccDecompose`, `GenIsccIDV1`
-(the last is experimental ISCC-IDv1 minting — see `iscc_id.go`)
+`EncodeComponent`, `EncodeBase64`, `JsonToDataUrl`, `IsccDecode`, `IsccDecompose`, `EncodeSeq`,
+`DecodeSeq`, `GenIsccIDV1` (the last is experimental ISCC-IDv1 minting — see `iscc_id.go`)
 
 ### Algorithm Primitives (exported)
 
@@ -86,6 +59,10 @@ All `Gen*` functions return typed result structs and `error`, following idiomati
 ### Text Utilities (exported)
 
 `TextClean`, `TextCollapse`, `TextTrim`, `TextRemoveNewlines`
+
+### Constants (exported)
+
+`MetaTrimName`, `MetaTrimDescription`, `MetaTrimMeta`, `IoReadSize`, `TextNgramSize` (in `codec.go`)
 
 ## Build Commands
 
@@ -99,8 +76,12 @@ go test -v ./...
 # Run a specific test
 go test -v -run TestPureGoConformanceSelftest ./...
 
+# Run all tests as a 32-bit build (CI does this too; runs on amd64 Linux, no -race)
+GOARCH=386 CGO_ENABLED=0 go test -count=1 ./...
+
 # Vet
 go vet ./...
+GOARCH=386 go vet ./...
 
 # Build check (verify compilation)
 go build ./...
@@ -113,26 +94,28 @@ CI confirms the package has no cgo dependencies.
 
 ### Conformance tests
 
-- **`conformance_test.go`** — calls `ConformanceSelftest()` which validates all 46 conformance
-    vectors from the embedded `testdata/data.json` in a single call
-- **`code_*_test.go`** — per-function conformance tests that read
-    `../../crates/iscc-lib/tests/data.json` and verify every output field (iscc, name, description,
-    meta, metahash, datahash, filesize, etc.)
-- Conformance tests that read from `../../crates/iscc-lib/tests/data.json` use `t.Skipf` or
-    `t.Fatalf` if the file is missing (the embedded copy in `testdata/data.json` always works)
+- **`conformance_test.go`** — calls `ConformanceSelftest()` which validates every conformance vector
+    (`gen_*`, `encode_seq` and `decode_seq` sections) from the embedded `testdata/data.json` in a
+    single call
+- **`data_edge_test.go`** — runs every vector of the vendored `testdata/data-edge.json`
+    (`specs/edge-vectors.md`; only this test reads the file, it is never embedded), honours
+    `except.go`, and fails on an unknown section. A vector added to a handled section needs no
+    harness edit
+- **`code_*_test.go`** — per-function conformance tests over the embedded `testdata/data.json`
+    (`conformanceSection` in `conformance_test.go`, parsed once per test binary). They read inputs
+    through the runner's parsers (`metaInputs`, `streamInputs`, …) and `expectedISCC`, then verify
+    the extra output fields (name, description, meta, metahash, datahash, filesize, parts, etc.)
+- `conformance.go` parses `data.json` once (`parseConformanceData`, one `vectorEntry` type with raw
+    outputs) and follows the Rust runner's malformed-vector policy: a stream input without the
+    `stream:` prefix and a gen case without a string `iscc` output are unparsable, not a mismatch
+- Both runners share one wrong-type rule (decisions.md, 2026-11-22): a `null`, a wrong JSON type, a
+    fraction or an out-of-range number in a vector is `errUnparsable`, never coerced or defaulted
 
 ### Unit tests
 
-- **`codec_test.go`** — varnibble roundtrip, header encode/decode, length encoding, base32/64, unit
-    encoding, `EncodeComponent`, `IsccDecode`, `IsccDecompose`
-- **`simhash_test.go`** — `AlgSimhash` edge cases, `SlidingWindow` with Unicode
-- **`minhash_test.go`** — `minhashFn`, `minhashCompress`, `AlgMinhash256`
-- **`dct_test.go`** — fast DCT known values, error cases
-- **`wtahash_test.go`** — WTA-Hash, permutation table validation
-- **`xxh32_test.go`** — canonical xxHash32 test vectors
-- **`cdc_test.go`** — CDC params, offset, chunk reassembly, UTF-32 alignment
-- **`utils_test.go`** — text cleaning, collapsing, trimming, newline removal
-- **`code_sum_test.go`** — `GenSumCodeV0` equivalence, result fields, wide mode, units
+- Each algorithm or code-type file has a sibling `<name>_test.go` holding its unit tests (edge
+    cases, error paths, known values); a `code_*_test.go` file keeps its generator's unit tests next
+    to the conformance test
 
 ### Test conventions
 
@@ -144,10 +127,11 @@ CI confirms the package has no cgo dependencies.
 
 ## Publishing
 
-Go modules are published automatically via the Go module proxy. When a version tag is pushed to
-`main`, the Go module proxy (`proxy.golang.org`) picks up the module at
-`github.com/iscc/iscc-lib/packages/go`. No explicit publish step is needed — the proxy indexes
-modules from public Git repositories on demand.
+Go modules are published via the Go module proxy, which needs a `packages/go/vX.Y.Z` tag (the
+sub-module prefix, not the plain `vX.Y.Z`). `.github/workflows/release.yml` creates and pushes both
+tags when it is dispatched (`workflow_dispatch`) with a `version` input; pushing a tag triggers
+nothing. The proxy (`proxy.golang.org`) then indexes `github.com/iscc/iscc-lib/packages/go` from the
+public repository on demand — there is no explicit publish step.
 
 Install: `go get github.com/iscc/iscc-lib/packages/go`
 
@@ -157,8 +141,9 @@ Documentation: [pkg.go.dev](https://pkg.go.dev/github.com/iscc/iscc-lib/packages
 
 ### Pure Go (no cgo, no FFI)
 
-Unlike most other language packages in this monorepo (which wrap `iscc-ffi` via C interop), the Go
-package reimplements all ISCC algorithms in native Go. This eliminates:
+Only the C++ and .NET packages wrap the `iscc-ffi` C interface; the other bindings link the Rust
+core natively (PyO3, napi-rs, wasm-bindgen, JNI, Magnus, UniFFI). The Go package instead
+reimplements all ISCC algorithms in native Go. This eliminates:
 
 - Cross-compilation complexity (no C toolchain needed)
 - Runtime shared library loading
@@ -181,15 +166,21 @@ feeding both hashers from the same read loop.
 
 ## Common Pitfalls
 
-- **Conformance vector path**: per-function conformance tests reference
-    `../../crates/iscc-lib/tests/data.json` via relative path. Tests will skip or fail if run from a
-    directory other than `packages/go/`. The embedded `testdata/data.json` copy used by
-    `ConformanceSelftest` is always available.
+- **Conformance vector path**: every `data.json` test reads the embedded `testdata/data.json` (a
+    vendored copy of `crates/iscc-lib/tests/data.json`, kept equal by
+    `tests/test_vendored_fixtures.py`). No test reads the monorepo path; only `data_edge_test.go`
+    reads a file (`testdata/data-edge.json`) relative to `packages/go/`.
 - **Unicode character counting**: `SlidingWindow` and `TextCollapse` operate on `[]rune`, not bytes.
     Use `len([]rune(s))` for character counts, not `len(s)`.
-- **JSON canonicalization**: `parseMetaJSON` relies on Go's `json.Marshal` producing sorted keys and
-    compact format (matching JCS/RFC 8785 for string/boolean/null values). This works for all
-    conformance vectors but is not a full JCS implementation.
+- **JSON canonicalization**: `parseMetaJSON` writes RFC 8785 canonical JSON itself, recursively:
+    compact output, object keys sorted by UTF-16 code units at every depth (not by UTF-8 bytes,
+    which `encoding/json` uses), and a negative zero written as `0`. Strings go through a
+    `json.Encoder` with `SetEscapeHTML(false)` (keeps `&`, `<`, `>` raw), and
+    `unescapeLineSeparators` rewrites the `\u2028`/`\u2029` escapes that `encoding/json` always
+    emits to raw UTF-8 (walking escapes pairwise, so an escaped backslash before literal `u2028`
+    text survives). `checkSurrogateEscapes` rejects a lone surrogate escape, which `encoding/json`
+    would silently decode to U+FFFD. Never use `json.Marshal` here. Other numbers keep Go's float64
+    formatting; there is no hand-written ECMAScript number formatter.
 - **CDC tail handling**: `DataHasher.Push()` retains the last CDC chunk as `tail` for the next
     `Push` call (mirrors the Python `prev_chunk` pattern). Forgetting to call `Finalize()` loses the
     tail data.

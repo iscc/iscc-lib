@@ -10,26 +10,12 @@ C ABI FFI layer over `iscc-lib`, enabling integration from C, Go (cgo), Java (JN
 - Does NOT implement any ISCC logic; all computation delegates to `iscc-lib`
 - Published: `publish = false` (distributed as compiled artifacts, not to crates.io)
 
-## Module Layout
+## Code Organization
 
-```
-crates/iscc-ffi/
-  Cargo.toml         # cdylib + staticlib, depends on iscc-lib; csbindgen build-dep
-  cbindgen.toml      # C header generation config
-  build.rs           # Generates C# P/Invoke bindings via csbindgen
-  include/
-    iscc.h           # Generated C header (checked in, regenerate after API changes)
-  src/
-    lib.rs           # All extern "C" functions, #[repr(C)] types, memory management
-  tests/
-    test_iscc.c      # C test program that links against the shared library
-  examples/
-    iscc_sum.c       # Streaming example: reads a file, produces ISCC-CODE
-    CMakeLists.txt   # CMake build for the example
-```
-
-Single-file crate. All FFI symbols, helper functions, `#[repr(C)]` types, and memory management live
-in `src/lib.rs`. Do not split into submodules unless the file exceeds ~2500 lines.
+All FFI symbols, helper functions, `#[repr(C)]` types, and memory management live in `src/lib.rs`;
+the Rust unit tests live in `src/tests.rs`. Keep every export in `lib.rs`: `build.rs` passes only
+`src/lib.rs` to csbindgen, so an export moved to another file silently drops out of
+`NativeMethods.g.cs`. Do not split into submodules unless the file exceeds ~2500 lines.
 
 ## cbindgen Configuration
 
@@ -60,10 +46,11 @@ in `src/lib.rs`. Do not split into submodules unless the file exceeds ~2500 line
     `iscc_gen_audio_code_v0`, `iscc_gen_video_code_v0`, `iscc_gen_mixed_code_v0`,
     `iscc_gen_data_code_v0`, `iscc_gen_instance_code_v0`, `iscc_gen_iscc_code_v0`,
     `iscc_gen_sum_code_v0`
+- ISCC-IDv1 (experimental): `iscc_gen_iscc_id_v1`
 - Text utilities: `iscc_text_clean`, `iscc_text_collapse`, `iscc_text_remove_newlines`,
     `iscc_text_trim`
-- Codec: `iscc_encode_component`, `iscc_decode`, `iscc_decompose`, `iscc_encode_base64`,
-    `iscc_json_to_data_url`, `iscc_sliding_window`
+- Codec: `iscc_encode_component`, `iscc_decode`, `iscc_decompose`, `iscc_encode_seq`,
+    `iscc_decode_seq`, `iscc_encode_base64`, `iscc_json_to_data_url`, `iscc_sliding_window`
 - Algorithm primitives: `iscc_alg_simhash`, `iscc_alg_minhash_256`, `iscc_alg_cdc_chunks`,
     `iscc_soft_hash_video_v0`
 - Algorithm constants: `iscc_meta_trim_name`, `iscc_meta_trim_description`, `iscc_meta_trim_meta`,
@@ -136,7 +123,7 @@ LD_LIBRARY_PATH=target/debug /tmp/test_iscc
 
 ## Test Patterns
 
-### Rust tests (`#[cfg(test)]` in `lib.rs`)
+### Rust tests (`src/tests.rs`)
 
 - Test every exported function with valid inputs and verify expected ISCC strings
 - Test NULL pointer handling for every function that takes pointers
@@ -149,16 +136,28 @@ LD_LIBRARY_PATH=target/debug /tmp/test_iscc
 
 - Links against the shared library and `#include "iscc.h"`
 - Uses assertion macros: `ASSERT_STR_EQ`, `ASSERT_STR_STARTS_WITH`, `ASSERT_NULL`,
-    `ASSERT_NOT_NULL`, `ASSERT_EQ`
+    `ASSERT_NOT_NULL`, `ASSERT_EQ`. A macro evaluates its `actual` argument again when it prints a
+    failure: pass a stored value, never a call that frees its inputs
 - Mirrors the Rust unit test cases with identical expected values
 - Reports pass/fail counts and exits non-zero on any failure
 - Every returned string/buffer is freed to validate the free functions
+- Runs every `crates/iscc-lib/tests/data-edge.json` vector from the generated
+    `tests/data_edge_vectors.h` (one check function per section, `RUN_EDGE_SECTION` loop, total row
+    tally against `ISCC_EDGE_TOTAL_COUNT`). Each row carries its resolved `c`/`cpp` expectation, so
+    a harness never names a vector. A string over 4,095 bytes is a static buffer that
+    `iscc_edge_init()` fills, so `main` calls it once before the first edge section. Regenerate
+    after editing the fixture: `uv run --script scripts/gen_data_edge_vectors.py`;
+    `tests/test_gen_data_edge_vectors.py` fails when the header is stale
 
 ## Safety Rules for `unsafe` Code
 
 - All `unsafe` is confined to the FFI boundary; the `iscc-lib` core remains safe
 - Every `unsafe` block must have a `// SAFETY:` comment explaining the invariant
 - NULL-check all incoming pointers before dereferencing
+- Borrow every pointer+length input through `slice_or_empty` (parallel row arrays through
+    `rows_or_empty`) in `src/lib.rs`: length 0 is an empty input whatever the pointer is, NULL with
+    a non-zero length is an error. A test in `src/tests.rs` fails on any other
+    `slice::from_raw_parts` call
 - Validate UTF-8 for all `*const c_char` inputs via `CStr::from_ptr` + `.to_str()`
 - Use `#[unsafe(no_mangle)]` (Rust 2024 edition syntax) on all exported functions
 - Use `#[repr(C)]` only on types returned across the FFI boundary (`IsccByteBuffer`,

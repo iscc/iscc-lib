@@ -11,7 +11,7 @@ Usage:
     uv run scripts/test_install.py --crates     # Test crates.io only
     uv run scripts/test_install.py --go         # Test Go module only
     uv run scripts/test_install.py --maven      # Test Maven Central only
-    uv run scripts/test_install.py --version 0.7.0  # Test specific version
+    uv run scripts/test_install.py --version 0.8.0  # Test specific version
 """
 
 from __future__ import annotations
@@ -253,7 +253,7 @@ const wasmPkgPath = require.resolve('@iscc/wasm');
 const wasmPath = wasmPkgPath.replace(/[^\\/\\\\]*$/, 'iscc_wasm_bg.wasm');
 const wasmBytes = await readFile(wasmPath);
 const {{ default: init, gen_meta_code_v0 }} = await import('@iscc/wasm');
-await init(wasmBytes);
+await init({{ module_or_path: wasmBytes }});
 const result = gen_meta_code_v0('Hello World');
 const expected = '{EXPECTED_ISCC}';
 if (result !== expected) {{
@@ -476,7 +476,7 @@ def main() -> int:
 
     # Check registry availability first
     if args.check_only or test_all:
-        v = version or "0.7.0"
+        v = version or "0.8.0"
         print("--- Registry availability ---")
         available = check_registry_availability(v)
         for reg, avail in available.items():

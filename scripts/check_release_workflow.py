@@ -2,7 +2,7 @@
 
 The release workflow is `workflow_dispatch`-only: no CI run and no CID push ever executes
 it, so a structural mistake surfaces only on release day, with publish authority. This
-gate verifies three pure-local invariants on every edit of the file (via a prek hook
+gate verifies four pure-local invariants on every edit of the file (via a prek hook
 scoped to `release.yml`) and in CI (via `tests/test_check_release_workflow.py`):
 
 1. **Registry-guard shape** — `prepare-release` is the one deliberately unguarded job;
@@ -17,11 +17,21 @@ scoped to `release.yml`) and in CI (via `tests/test_check_release_workflow.py`):
    the job's `strategy.matrix.include` entries. An upload nobody downloads is not an
    error.
 3. **Job graph** — every `needs:` entry must be a declared job id.
+4. **Gem smoke-test series** — the `test-gem` matrix `ruby` list must equal the
+   `ruby-versions` list that the cross-gem step of `build-gem` builds, and the matrix
+   must not drop a listed series through `exclude`. One `run` step must consist of
+   exactly three lines: a check that the running Ruby is the leg's matrix series, the
+   install of the downloaded gem and the self-test command. No step may carry `if` or
+   `continue-on-error`, and the job may not carry
+   `continue-on-error`. `publish-rubygems` must need `test-gem` and carry the same `if`,
+   so no dispatch publishes gems without testing them. A precompiled gem holds one
+   binary per Ruby series, so a series that is built and not loaded would be published
+   untested.
 
-A fourth, opt-in check needs the network and therefore runs only in CI (never in prek
+A fifth, opt-in check needs the network and therefore runs only in CI (never in prek
 or the pytest suite, which stay network-free):
 
-4. **Action-input compatibility** (`--check-action-inputs`) — every `with:` key on a
+5. **Action-input compatibility** (`--check-action-inputs`) — every `with:` key on a
    repository action must be a declared `inputs` key of that ref's published
    `action.yml` (docker actions additionally accept the GitHub-native `args` and
    `entrypoint` overrides), every declared input with `required: true` and no
@@ -242,20 +252,132 @@ def check_artifact_wiring(wf: dict) -> list[str]:
     ]
 
 
+def job_needs(job: dict) -> list[str]:
+    """Return the `needs:` entries of a job as a list."""
+    needs = job.get("needs") or []
+    return [needs] if isinstance(needs, str) else list(needs)
+
+
 def check_needs(wf: dict) -> list[str]:
     """Check 3: every `needs:` entry names a declared job id."""
-    errors: list[str] = []
     jobs = wf.get("jobs") or {}
-    for job_id, job in jobs.items():
-        needs = job.get("needs") or []
-        if isinstance(needs, str):
-            needs = [needs]
-        errors.extend(
-            f"needs: job '{job_id}' needs undeclared job '{dep}'"
-            for dep in needs
-            if dep not in jobs
+    return [
+        f"needs: job '{job_id}' needs undeclared job '{dep}'"
+        for job_id, job in jobs.items()
+        for dep in job_needs(job)
+        if dep not in jobs
+    ]
+
+
+GEM_BUILD_JOB = "build-gem"
+GEM_TEST_JOB = "test-gem"
+GEM_PUBLISH_JOB = "publish-rubygems"
+CROSS_GEM_ACTION = "oxidize-rb/actions/cross-gem@"
+# Step keys that let a matrix leg succeed without the step running or counting.
+GEM_TEST_STEP_BYPASSES = ("if", "continue-on-error")
+# The script that checks the running Ruby against the leg's series (which Ruby setup
+# steps ran before cannot be read from the YAML), installs the gem this run built and
+# runs the conformance vectors through its native extension. `ruby -e` exits 0 whatever
+# its last expression returns, so each `raise` is what fails the step. Any further line
+# could skip the test on a series or install another gem, so the script is compared as a
+# whole.
+GEM_RUBY_CHECK_COMMAND = (
+    "ruby -e \"raise 'Ruby ' + RUBY_VERSION + ' is not ${{ matrix.ruby }}' "
+    "unless RUBY_VERSION.start_with?('${{ matrix.ruby }}.')\""
+)
+GEM_INSTALL_COMMAND = "gem install gems/*.gem"
+GEM_SELFTEST_COMMAND = (
+    "ruby -e \"require 'iscc_lib'; "
+    "raise 'Conformance failed' unless IsccLib.conformance_selftest\""
+)
+GEM_TEST_SCRIPT = [GEM_RUBY_CHECK_COMMAND, GEM_INSTALL_COMMAND, GEM_SELFTEST_COMMAND]
+
+
+def step_with(job: dict, action: str) -> dict:
+    """Return the `with:` mapping of the first step of a job that uses `action`."""
+    for step in job.get("steps") or []:
+        if str(step.get("uses", "")).startswith(action):
+            return step.get("with") or {}
+    return {}
+
+
+def cross_gem_series(job: dict) -> list[str]:
+    """Return the Ruby series that the cross-gem step of a job builds."""
+    versions = str(step_with(job, CROSS_GEM_ACTION).get("ruby-versions", ""))
+    return [series.strip() for series in versions.split(",") if series.strip()]
+
+
+def run_lines(step: dict) -> list[str]:
+    """Return the stripped, non-blank lines of the `run` script of a step."""
+    lines = str(step.get("run", "")).splitlines()
+    return [line.strip() for line in lines if line.strip()]
+
+
+def gem_test_bypasses(job: dict) -> list[str]:
+    """Return what lets a leg of the gem test job succeed without loading the gem."""
+    steps = job.get("steps") or []
+    found = [
+        f"step {position} must not carry `{key}`"
+        for position, step in enumerate(steps, start=1)
+        for key in GEM_TEST_STEP_BYPASSES
+        if key in step
+    ]
+    if "continue-on-error" in job:
+        found.append("the job must not carry `continue-on-error`")
+    if not any(run_lines(step) == GEM_TEST_SCRIPT for step in steps):
+        found.append(
+            "a `run` step must consist of exactly the lines "
+            + ", ".join(f"`{line}`" for line in GEM_TEST_SCRIPT)
         )
-    return errors
+    return found
+
+
+def gem_publish_gaps(jobs: dict) -> list[str]:
+    """Return what lets the gem publish job run without a gem test that passed."""
+    test_job = jobs.get(GEM_TEST_JOB) or {}
+    publish_job = jobs.get(GEM_PUBLISH_JOB) or {}
+    found = []
+    if GEM_TEST_JOB not in job_needs(publish_job):
+        found.append(
+            f"gem-series: job '{GEM_PUBLISH_JOB}' must need job '{GEM_TEST_JOB}': "
+            "the publish has to wait for the gem test"
+        )
+    if test_job.get("if") != publish_job.get("if"):
+        found.append(
+            f"gem-series: jobs '{GEM_TEST_JOB}' and '{GEM_PUBLISH_JOB}' must carry the "
+            "same `if`: a dispatch that publishes the gems has to test them"
+        )
+    return found
+
+
+def check_gem_series(wf: dict) -> list[str]:
+    """Check 4: every Ruby series `build-gem` builds is loaded before it is published."""
+    jobs = wf.get("jobs") or {}
+    built = cross_gem_series(jobs.get(GEM_BUILD_JOB) or {})
+    if not built:
+        return [
+            f"gem-series: job '{GEM_BUILD_JOB}' has no cross-gem `ruby-versions` list"
+        ]
+    test_job = jobs.get(GEM_TEST_JOB) or {}
+    matrix = (test_job.get("strategy") or {}).get("matrix") or {}
+    tested = [str(series) for series in matrix.get("ruby") or []]
+    errors: list[str] = []
+    if sorted(tested) != sorted(built):
+        errors.append(
+            f"gem-series: job '{GEM_TEST_JOB}' matrix `ruby` {tested} differs from "
+            f"the cross-gem `ruby-versions` {built} of job '{GEM_BUILD_JOB}'"
+        )
+    if "exclude" in matrix:
+        errors.append(
+            f"gem-series: job '{GEM_TEST_JOB}' matrix must not use `exclude`: "
+            "every listed Ruby series has to run"
+        )
+    errors.extend(
+        f"gem-series: job '{GEM_TEST_JOB}': {problem}: every Ruby series has to load "
+        "the gem, and a failure has to fail the job"
+        for problem in gem_test_bypasses(test_job)
+    )
+    return errors + gem_publish_gaps(jobs)
 
 
 RAW_HOST = "https://raw.githubusercontent.com"
@@ -382,7 +504,7 @@ def missing_required_inputs(meta: dict, with_keys: set) -> list[str]:
 
 
 def check_with_keys(job_id: str, job: dict, get_meta) -> list[str]:
-    """Check 4a: `with:` keys and required inputs of each repo action step agree.
+    """Check 5a: `with:` keys and required inputs of each repo action step agree.
 
     Every string `with:` key must be a declared input (or a docker-native
     override), and every declared `required: true` input without a `default:`
@@ -411,7 +533,7 @@ def check_with_keys(job_id: str, job: dict, get_meta) -> list[str]:
 
 
 def check_step_outputs(job_id: str, job: dict, get_meta) -> list[str]:
-    """Check 4b: every `steps.<id>.outputs.<x>` read from an action step resolves.
+    """Check 5b: every `steps.<id>.outputs.<x>` read from an action step resolves.
 
     References to local `run:` steps (no `uses:`) and to ids that are not steps
     of the same job are ignored — there is no published metadata to check.
@@ -438,7 +560,7 @@ def check_step_outputs(job_id: str, job: dict, get_meta) -> list[str]:
 
 
 def check_action_compat(wf: dict, fetch, cache: dict | None = None) -> list[str]:
-    """Check 4: `with:` keys and step-output reads match published action metadata.
+    """Check 5: `with:` keys and step-output reads match published action metadata.
 
     `fetch` maps an action ref to its parsed `action.yml` mapping, returns
     `None` for a skipped (network-unavailable) fetch, or raises
@@ -465,13 +587,14 @@ def run_checks(wf: dict) -> list[str]:
         + check_input_wiring(wf)
         + check_artifact_wiring(wf)
         + check_needs(wf)
+        + check_gem_series(wf)
     )
 
 
 def main() -> None:
     """Entry point: print one error per line and exit 1 if any check fails."""
     parser = argparse.ArgumentParser(
-        description="Static checks for the release workflow (guards, artifacts, needs)."
+        description="Static checks for the release workflow (guards, artifacts, needs, gem series)."
     )
     parser.add_argument(
         "workflow",

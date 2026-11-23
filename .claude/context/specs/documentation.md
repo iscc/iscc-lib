@@ -48,9 +48,10 @@ config format.
 
 - **Landing page** (`index.md`): overview, quick start, supported code types
 - **Tutorials**: getting started guide (installation, first ISCC code generation)
-- **How-to guides**: per-language usage guides (Python, Rust, Java, Node.js, WASM, C/C++)
+- **How-to guides**: one usage guide per language binding; the `zensical.toml` nav is the list
 - **Explanation**: architecture (hub-and-spoke model, internal modules, streaming pattern)
-- **Reference**: Python API (mkdocstrings autodoc), Rust API, Java API, C FFI reference
+- **Reference**: the Tier 1 API reference pages, as listed in the `zensical.toml` nav (the Python
+    page uses mkdocstrings autodoc)
 - **Benchmarks**: performance comparisons
 - **Development**: contributor-facing content (dev container setup, CID autonomous workflow, quality
     gates and pre-commit hooks, project structure, mise task runner)
@@ -58,8 +59,9 @@ config format.
 ## Per-Language Code Examples
 
 All code examples use tabbed format (`pymdownx.tabbed`) showing equivalent code in multiple
-languages. Standard tab order: Python, Rust, Node.js, Java, Go, WASM. Only languages relevant to the
-example are included. The landing page quick start and all how-to guides use this pattern.
+languages. The landing page Quick Start has one tab per entry of the README's Installation section;
+`docs/index.md` sets the tab order. Only languages relevant to the example are included. The landing
+page quick start and all how-to guides use this pattern.
 
 ## Custom Domain
 
@@ -75,19 +77,19 @@ docs table must list the same set of languages, registry links, and install comm
 
 ## Verification Criteria
 
-- [ ] `uv run zensical build` succeeds
-- [ ] Built site has ISCC-branded header, footer, and links (matching iscc-usearch colors)
-- [ ] Logo and favicon are visible
-- [ ] Dark mode toggle works and brand colors adapt
-- [ ] Copy-page split-button is visible on all pages
-- [ ] `site/llms-full.txt` exists and contains content from all pages
-- [ ] `docs/llms.txt` exists with site metadata
-- [ ] Open Graph meta tags are present in built HTML
-- [ ] All code examples use tabbed multi-language format
-- [ ] Navigation has Diátaxis categories (tutorials, howto, explanation, reference)
-- [ ] Each top-level nav section has an icon (matching iscc-usearch style)
-- [ ] Abbreviations expand on hover
-- [ ] `docs/CNAME` contains `lib.iscc.codes`
-- [ ] Docs workflow generates `llms-full.txt` during build
-- [ ] "Available Bindings" table lists all languages from README (Rust, Python, Node.js, Java, Go,
-    Ruby, C#/.NET, C/C++, WASM) with correct registry links and install commands
+- `uv run zensical build` succeeds
+- Built site has ISCC-branded header, footer, and links (matching iscc-usearch colors)
+- Logo and favicon are visible
+- Dark mode toggle works and brand colors adapt
+- Copy-page split-button is visible on all pages
+- `site/llms-full.txt` exists and contains content from all pages
+- `docs/llms.txt` exists with site metadata
+- Open Graph meta tags are present in built HTML
+- All code examples use tabbed multi-language format
+- Navigation has Diátaxis categories (tutorials, howto, explanation, reference)
+- Each top-level nav section has an icon (matching iscc-usearch style)
+- Abbreviations expand on hover
+- `docs/CNAME` contains `lib.iscc.codes`
+- Docs workflow generates `llms-full.txt` during build
+- "Available Bindings" table lists every language in the README's Installation section, with correct
+    registry links and install commands

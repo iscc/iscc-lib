@@ -70,6 +70,20 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 
 ## Ruby Binding Review
 
+- **Ruby floor / toolchain step (270, ~25 min)**: the floor is 3.3 and system Ruby 3.1 cannot run
+    `bundle` in `crates/iscc-rb` any more, so every older command in this file needs the prefix
+    `LANG=C.UTF-8 mise exec ruby@3.4.13 --`. Test the FLOOR too: `mise install ruby@3.3` is a
+    prebuilt download (30 s), then `bundle install`, `standardrb`, `rake compile test` under it.
+    **NEVER run `rake clobber`**: rb_sys puts the workspace cargo `target/` in CLOBBER, and it
+    emptied the whole build cache (rmdir of the volume mount then fails and aborts rake). The
+    `lib/iscc_lib/iscc_rb.so` fits ONE Ruby series and rake thinks it is current: to switch,
+    `rm lib/iscc_lib/iscc_rb.so` and `rm -rf tmp/x86_64-linux/iscc-rb/<version>`, and leave the tree
+    on the 3.4 build. A cross-gem `ruby-versions` claim: read `RUBY_CC_VERSION` in
+    rake-compiler-dock's `Dockerfile.mri.erb` at the tag the rb-sys image is `FROM`, and
+    `cross_rubies` of the LOCKED rake-compiler-dock gem (rb-sys-dock resolves through the gem).
+    Advance's test edit failed pre-push `ty` (`re.search(…).group` on an Optional): run
+    `uv run ty check` on ANY edited `.py`, tests included. Codex and I both found the devcontainer
+    bootstrap gap (post-create `bundle install` under system Ruby)
 - Magnus **0.8.2** since iter 167 (the old "0.8 needs Ruby 3.2+" note was wrong — 0.8's README says
     Ruby 3.0-3.4 fully supported, MSRV 1.65; gemspec floor `>= 3.1.0`, CI 3.1, cross-gem 3.1/3.2/3.3
     all fit). 0.8 drops `old-api`: `ruby.exception_runtime_error()` and `ruby.str_from_slice()`
@@ -83,6 +97,28 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 - Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate
 - Streaming classes: `#[magnus::wrap(class = "...")]` + `RefCell<Option<inner>>` for one-shot
     finalize
+- **Ruby seq step (209, ~6 min)**: `rake compile` →
+    `env -u LANG -u LC_ALL -u LC_CTYPE rake test   TESTOPTS=-v` (count
+    `TestConformance#test_*code_seq_*` = 8 + `TestSeq#*`) + `standardrb` + clippy. bundler lives in
+    `~/.local/share/gem/ruby/3.1.0/bin`. **Magnus `Vec<T>` args segfault** when an element's
+    `to_str` shrinks the array (`RArray::to_vec` holds the slice; `into_iter()` dups). The probe
+    script: 2000-elt array, `evil.to_str` → `arr.clear; GC.start` → `[BUG] Segmentation fault` (exit
+    134). Control = same object without the mutation. Filed crate-wide; not a seq regression
+- **Ruby array-arg fix (212, ~8 min)**: rake compile → test → standardrb → clippy. Prove a "crashed
+    before" claim by compiling `git show <define-next sha>:crates/iscc-rb/src/lib.rs` over the file,
+    `ruby -Ilib -Itest test/x.rb -n /name/` → exit 134, then `git checkout HEAD --` + recompile.
+    `.iscc` of `gen_mixed_code_v0` is INVARIANT under truncation to 2 units — mutation tests must
+    compare the full result Hash. Magnus `RBignum::to_i32` truncates negative Bignums (fixed 229:
+    `array_to_i32_vec`)
+- **Ruby integer-conversion fix (229, ~10 min)**: one logged script (check, `rake compile:dev`,
+    `rake test`, clippy `-p iscc-rb`, fmt, standardrb), then ONE boundary-sweep `.rb` over every
+    integer param (±2^31, ±2^62, ±2^63, ±2^64) printing the exception class per cell. Read the
+    Magnus source for "probed, correct" claims (`r_bignum.rs`, `value.rs` Fixnum). Magnus integer
+    params take a Float via implicit `to_int` (filed `low` 229). `bits` is a keyword arg in the Ruby
+    wrapper: a positional probe returns `ArgumentError` for every value and proves nothing
+- **ACCEPTED in 212, do not re-file:** an `RArray` param converts `bits` BEFORE `array_to_vec` takes
+    its copy, so a `bits.to_int` that empties the array makes audio/mixed hash the emptied array
+    (Codex). Memory-safe, the video functions always did this, the input is absurd
 
 ## Environment
 
@@ -114,9 +150,9 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 
 ## Per-binding review commands (moved from MEMORY.md index, iter 149)
 
-- **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` +
-    `pushd crates/iscc-rb && bundle exec rake test; popd` + `bundle exec standardrb` (the last needs
-    `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`).
+- **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` + `rake compile test` +
+    `standardrb` in `crates/iscc-rb`, each under `LANG=C.UTF-8 mise exec ruby@3.4.13 -- bundle exec`
+    (270: system Ruby 3.1 is below the floor).
 - **Kotlin-only**: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
     workspace + `mise run check`. Gradle flakes on this bind mount — read
     `build/test-results/test/*.xml` and re-run after `./gradlew clean` before calling it a failure.
@@ -173,12 +209,13 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     `re.findall(r'native\s+[\w\[\]<>., ]+?\s+(\w+)\s*\(', IsccLib.java)` and check each name for
     `IsccLib.<name>(` across `java/src/test/**/*.java`. Expect 33 declared, 0 uncovered.
 - **Run the suite under `-Xcheck:jni` on any marshalling change** —
-    `mvn test -f crates/iscc-jni/java/pom.xml -DargLine="-Xcheck:jni -Djava.library.path=$PWD/target/debug"`;
-    surefire's `argLine` is **overridden, not merged**, so the library path must be repeated or
-    every test errors with `UnsatisfiedLinkError`. Grep the log for `WARNING: JNI` /
-    `FATAL ERROR in   native`; zero at 168 and 169. (The older standalone `Probe.java` route via
-    `javac -cp crates/iscc-jni/java/target/classes` still works and is only needed for natives the
-    suite cannot reach.)
+    `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn -f crates/iscc-jni/java/pom.xml test -Dsurefire.useFile=false`;
+    expect `Picked up JAVA_TOOL_OPTIONS` TWICE in the log (Maven + forked JVM), then grep
+    `WARNING in native method` / `FATAL ERROR` (0 at 208, 103 tests). **`-DargLine=…` is a NO-OP**
+    (208, Codex, confirmed by `mvn -X` "Forking command line"): the pom's explicit `<argLine>` wins
+    over the user property, so the 168/169 "zero warnings" surefire runs were vacuous. A standalone
+    `java -Djava.library.path=$PWD/target/debug -cp crates/iscc-jni/java/target/classes P.java`
+    probe does honour `-Xcheck:jni`
 - **HotSpot type-checks nothing a native returns** — assert `getClass().getName()` is
     `[Ljava.lang.String;` / `[[B` / `[B`, and stress the five `with_local_frame` sites past the ~512
     local-ref limit (2 MiB through `algCdcChunks` → 1025 chunks, 5000-char `slidingWindow`, 1000
@@ -358,3 +395,612 @@ one as unproven.
     don't. Filed as a normal `[review]` issue; **wasm will inherit this**, so expect the validation
     fix there. A minting slice that only covers next.md's high-end cases is still PASS_WITH_NOTES,
     not NEEDS_WORK (experimental fn, out of the slice's stated scope).
+
+## Moved from the index (197)
+
+Full text of entries compacted out of `MEMORY.md`.
+
+- **Every "not locally verifiable" toolchain claim has been FALSE so far** — `cmake` (160), `swift`
+    via swift.org's Debian 12 tarball (161; `/tmp/swifttc` gone between sessions, re-download ~5min
+    — a pure uniffi *regen* like 186 accepts Swift by transitivity: byte-identical regen + Rust
+    golden
+    - Codex's Kotlin run), Gradle publish (165), MSRV (172). CMake sets no `-Wall` → back "no warning"
+        with `g++ -Wall -Wextra -c`
+
+## ISCC-SEQ surface ports (Go 202 … C++ 207; 4 surfaces to go)
+
+- **Corpus differential vs Rust (~5 min, the probe that matters)**: `/tmp/seqprobe/gen.py` style
+    corpus (whitespace/`\x1c`–`\x1f`/NBSP at each trim site, `ı ſ ß ﬁ K`, `b`/`f`/`z`/`u` prefixes,
+    `ISCC:`/`ISCC::`/`ISCC: `, padding, spare bits, ISCC-CODE/ID/FLAKE, `MDFZ…`, 3k random strings,
+    30k random byte strings with structured first bytes) → surface writes JSON → compare with
+    `iscc_lib.encode_seq`/`decode_seq` (`.so` must postdate the last `codec.rs` commit). 202: 0
+    diffs
+- **Port-name diff**: `grep -oE 'fn test_[a-z0-9_]+' crates/iscc-lib/tests/test_seq.rs` vs the
+    surface's test names. 202 missed `seq_maintypes` + `read_unit_offsets_128` — and since no vector
+    carries a SEMANTIC unit, dropping SEMANTIC from the MainType list stayed green until review
+    added the pin. Run that mutation on every surface
+- Go: mutate in a `/tmp` copy of `packages/go`, `-run 'Seq|ReadUnit|IEP0020|TypedCodec|ASCIIUpper'`
+- **C FFI seq (205, ~12 min)**: thin-wrapper surfaces need NO corpus differential (no own logic) —
+    `cargo test -p iscc-ffi`, header diff, ci.yml gcc line + C test, `cargo build` then
+    `git status --porcelain` on `iscc.h` + `NativeMethods.g.cs`, `dotnet build`, valgrind on
+    `/tmp/test_iscc` (installed). **Check the round-trip DIRECTION on every surface**: the spec
+    wants bytes `encode_seq(decode_seq(x)) == x` over `decode_seq` vectors; next.md wrote
+    decode-of-encode (Codex caught it). A review `///` fix on an FFI export → re-run cbindgen +
+    `cargo build`, stage both generated files
+- **.NET seq (206, ~10 min)**: `cargo build -p iscc-ffi` → `dotnet restore --locked-mode` →
+    `dotnet build --no-restore` (0 warnings) → `dotnet test … --logger "console;verbosity=detailed"`
+    and count rows per class (`ConformanceTests.Gen` 50, `SmokeTests` 44, seq 22 = 116). A `/tmp`
+    console project with a `ProjectReference` to `Iscc.Lib.csproj` is a cheap probe harness (run its
+    dll with `LD_LIBRARY_PATH=target/debug`). **Embedded-NUL probe on every string-input surface
+    over the C FFI**: .NET + C++ truncated `"Hello\0World"` to `"Hello"` wrapper-wide (206/207);
+    FIXED 213 — both reject before marshalling (`ToNativeUtf8`, `detail::checked_c_str`). The 8 .NET
+    negatives are non-vacuous by construction: only the new check emits "embedded NUL"
+- **.NET wrapper-only (220, ~5 min)**: the seq recipe above, but a "no warnings" criterion needs
+    `dotnet build --no-incremental` — an incremental build that compiles nothing prints
+    `0 Warning(s)` vacuously. Diff any "matches the old precedence" claim against the REMOVED loop
+    (220: old `EncodeSeq` checked null then NUL per element; the helper scans nulls first)
+- **C++ seq (207, ~8 min)**: `cargo build -p iscc-ffi` →
+    `uv run --with cmake cmake -B build-seq …   -DSANITIZE_ADDRESS=ON` → build → run `test_iscc` (65
+    at 207). The CMake target sets NO `-Wall`, so "no warnings" needs
+    `g++ -std=c++17 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror   -fsyntax-only -Ipackages/cpp/include -Icrates/iscc-ffi/include packages/cpp/tests/test_iscc.cpp`.
+    One-off probe: `g++ … -fsanitize=address x.cpp -Ltarget/debug -liscc_ffi`, run with
+    `LD_LIBRARY_PATH=target/debug` (faster than cmake). Codex was clean in ~2 min
+
+### UniFFI seq step (iter 210, ~10 min) — Swift + Kotlin from one crate
+
+- Kotlin: `cargo build -p iscc-uniffi` →
+    `packages/kotlin/gradlew -p packages/kotlin clean test   --offline`; read
+    `build/test-results/test/TEST-uniffi.iscc_uniffi.ConformanceTest.xml` (`tests=`, timestamp,
+    `testcase name=`). Only one suite exists since the Unicode pin removal.
+- Swift on Linux:
+    `PATH=/tmp/swifttc/swift-6.1.2-RELEASE-debian12/usr/bin:$PATH swift test   --package-path packages/swift --scratch-path /tmp/<fresh> -Xlinker -L$PWD/target/debug -Xlinker   -rpath -Xlinker $PWD/target/debug`.
+    With `--package-path` the cwd stays at the repo root, so the CLAUDE.md recipe's relative
+    `../../target/debug` must become absolute.
+- Regen no-op: run both bindgen commands from `packages/{swift,kotlin}/CLAUDE.md` with
+    `--out-dir   /tmp/...`, then diff after `sed 's/[[:space:]]*$//'` plus stripping EOF blank
+    lines. Expected residue: the `.swift` file lacks a final newline, and the generated `.modulemap`
+    differs from the hand-maintained one (`use "Darwin"`). Ignore both.
+- Embedded NUL: JNI, Ruby, UniFFI and Python keep it and the core rejects it (napi/WASM not probed).
+    Only .NET/C++ over the C FFI truncate (open issue).
+
+## Per-surface step commands (moved from the MEMORY.md index, 216)
+
+Use surface by surface when reviewing a fan-out (one advance commit per surface).
+
+- **ISCC-SEQ surface port (202, ~20 min)**: surface tests + corpus differential vs `iscc_lib` +
+    `test_seq.rs` name diff + drop-SEMANTIC mutation (no vector carries one) → `binding-reviews.md`
+- **JS-surface (napi + WASM) binding step (204, ~15 min)**: napi `build:debug` + `test`,
+    `wasm-pack test --node … --features conformance`, workspace clippy. Doc claims about argument
+    rejection are hypotheses: WASM list params accept ANY iterable, napi `Buffer` leaks a ref on bad
+    input (filed)
+- **C-FFI / thin-wrapper seq step (205, ~12 min)**: no corpus differential needed; header diff + C
+    test + valgrind + generated-file `git status`. **Check the round-trip DIRECTION** — spec wants
+    bytes over `decode_seq` vectors; next.md wrote decode-of-encode → `binding-reviews.md`
+- **.NET wrapper step (206, ~10 min)**: FFI build → locked restore → build (0 warnings) → detailed
+    `dotnet test`, count rows per class. **Any NEW string input must route through `ToNativeUtf8`**
+    (C++: `detail::checked_c_str`) — grep all non-generated `Iscc.Lib/*.cs` for `GetBytes` (213)
+- **JNI binding step (208, ~8 min)**: `cargo build -p iscc-jni` → `mvn clean test` (count `tests=`
+    in surefire XML) → `JAVA_TOOL_OPTIONS=-Xcheck:jni` run. **`-DargLine` never enables
+    `-Xcheck:jni`** (pom pins `<argLine>`) — earlier JNI "-Xcheck clean" claims were vacuous
+- **JNI error-path step (230, ~12 min incl. Codex)**: the 208 recipe from ONE logged script, then
+    probe any `exception_check` guard by hand: compile a shadow `io.iscc.iscc_lib.IsccDecodeResult`
+    with a throwing `(IIII[B)V` ctor into `/tmp`, run
+    `java -Xcheck:jni -Djava.library.path=target/debug -cp <shadow>:<java/target/classes> Probe`
+    (the shadow dir FIRST; `Probe` calls `isccDecode`). Control = mutant in
+    `git archive HEAD | tar -x -C /tmp/x` built with `CARGO_TARGET_DIR=/tmp/x-target` (24 s).
+    **HotSpot 17 `-Xcheck:jni` prints NOTHING for `ThrowNew` over a pending exception** — compare
+    the exception class. The child-JVM `OomProbe` test also runs in `release.yml` `test-jni` (lib
+    from classpath resources): simulate by copying `target/classes` + `test-classes` + the `.so`
+    under `META-INF/native/linux-x86_64/` to `/tmp`
+- **Ruby binding step (209, ~6 min)**: compile + no-locale `rake test` + standardrb. Magnus `Vec<T>`
+    params segfault fixed 212 (`array_to_vec`); **a padding negative must be validly padded**
+    (`GAAAAAAAAA======`) — `EEAY…====` is rejected by the ref too → `binding-reviews.md`
+- **C++ header-wrapper step (207, ~8 min)**: ASAN cmake build + `test_iscc`; CMake sets no `-Wall`,
+    so add a strict `g++ -Werror -fsyntax-only` pass; every `c_str()` must sit in `checked_c_str` or
+    the guarded `encode_seq` (213). **A `dotnet test` "apphost not found" while Codex runs is the
+    shared-`obj/` race** — re-run once Codex is idle → `binding-reviews.md`
+- **C++ wrapper pointer-form step (227, ~4 min incl. Codex)**: one logged script —
+    `cargo build -p iscc-ffi`, `uvx cmake -B build-review …` (own gitignored `build-*/` dir, Codex
+    builds in-tree too), run, then the mutation `git show HEAD~1:<header> > <header>` + rebuild +
+    run + `git checkout -- <header>` (227: exactly the 4 defect wrappers failed). The
+    `data_edge/…empty_list` rows stay green under that mutation (they assert rejection, not the
+    message). A wrapper whose behaviour is identical with either form can only be pinned by a SOURCE
+    check — added `tests/test_cpp_safe_data.py` (new `.py` ⇒ run `uv run ty check` + ruff
+    `S`/`C901`); that file and the sentinel were removed in 273
+- **C++/.NET wrapper workaround removal (273, ~10 min incl. Codex)**: next.md's criteria from one
+    logged script (cmake build dir under `/tmp`), plus two 1-minute probes that show which suite
+    really sends `(NULL, 0)`: a g++ one-liner (`std::vector<uint8_t>{}.data() == nullptr` is true on
+    libstdc++) and `dotnet fsi --quiet --exec p.fsx`
+    (`GCHandle.Alloc(Array.Empty<byte>(), GCHandleType.Pinned).AddrOfPinnedObject()` is non-null, so
+    the .NET empty-inner-row test never reaches the NULL path). A deleted source-check test is no
+    gate weakening when the human decision removed the rule it pinned. When a decision supersedes
+    HALF of an older decisions.md entry, retitle and reword the old entry in the review commit so
+    the title list does not show the dead half
+- **UniFFI Swift+Kotlin step (210, ~10 min)**: `gradlew -p packages/kotlin clean test --offline`
+    (JUnit XML) + `swift test --package-path packages/swift` with `/tmp/swifttc` on PATH, a fresh
+    `--scratch-path` and ABSOLUTE `-L`/rpath + bindgen regen into a temp dir → `binding-reviews.md`
+- **Binding boundary-fixture slices (150–161) — CLOSED, all 12 suites gated.** Commands, mutations,
+    standing traps (`cargo test -p iscc-wasm` = 0 tests; Gradle UP-TO-DATE stale green; verify a
+    generated artifact by decoding it back) → `binding-reviews.md`
+- **Every "not locally verifiable" toolchain claim has been FALSE so far** (cmake, swift, Gradle
+    publish, MSRV) → `binding-reviews.md` "Moved from the index"
+- **Ruby-only / Kotlin-only / published-`.pyi`** command sets → `binding-reviews.md` "Per-binding
+    review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
+- **npm-manifest step (214, ~6 min)**: `wasm-pack build --target web --dev crates/iscc-wasm` +
+    `node` assert on the FRESH `pkg/package.json` (on-disk `pkg/` goes stale) +
+    `cargo deny check licenses`; release.yml's remote `init.sh` pinned wasm-pack 0.13.1 on
+    2026-11-19
+
+## Moved from the index (223)
+
+- **`data-edge.json` / any `crates/iscc-lib/tests/*.rs` helper (215/216)**: CI CRAP lines (~4 min,
+    bg; test files score 0% coverage → cc > 5 = red CI) + feature matrix (zsh: no quoted multi-flag
+    `for` loop). **Binding harness fan-out (217, ~12 min)**: next.md's per-surface commands, each
+    grepped for the data-edge tests BY NAME (surefire XML,
+    `dotnet --logger console;verbosity=normal`, `rake test TESTOPTS=-v`); check raw-call-only
+    rejection AND that full-result surfaces fail on a missing expected key (Ruby used a key
+    intersection). **Swift/Kotlin (218, ~10 min)**: Swift recipe from `packages/swift/CLAUDE.md` +
+    `grep 'DataEdgeTests.*passed'`; Kotlin `cleanTest test` + `<testsuite>` attrs of the XML. Swift
+    `String ==` is canonical equivalence — a harness-strictness note, filed `low`
+- **.NET wrapper-only (220, ~5 min)**: `cargo build -p iscc-ffi`, `dotnet test` with
+    `--logger 'console;verbosity=normal'` (grep the class), `dotnet build --no-incremental` for a
+    0-warnings criterion → `binding-reviews.md`
+- **C FFI docs (221, ~5 min)**: extract every fenced `c` block, compile prototype blocks at file
+    scope after `#include "iscc.h"` (catches signature conflicts, not just names), paste example
+    blocks into `main()`. `cbindgen --crate iscc-ffi` auto-loads the crate's `cbindgen.toml` —
+    re-derive any "without X the output differs" claim by running it to `/tmp`
+- **Generated C/C++ table (219, ~1 min/probe)**: render a mutated fixture with the generator module
+    into `/tmp/x/`, copy the harness there (a quote-include resolves next to the source) and compile
+    with gcc/g++ against `target/debug` — a real-regression probe without touching the tree
+- **New `data-edge.json` SECTION, 12-surface fan-out (226, ~12 min wall, all green first try)**: one
+    sequential bash script with a `step <name> <cmd…>` helper writing one log per step plus
+    `exit <rc> <name>` to a summary file, run with `run_in_background`. Order: Rust test,
+    `maturin develop --release`, pytest (3 files, `--no-cov`), `cargo build -p iscc-ffi`, C (gcc as
+    in `ci.yml`), generator no-op, Go, napi `build:debug` + test,
+    `wasm-pack test --node … --features conformance`, `cargo build -p iscc-jni` + `mvn clean test`,
+    `dotnet test`, Ruby `rake compile:dev` + `rake test TESTOPTS=-v`, Swift, CRAP lines, clippy.
+    **`cmake` is not on `$PATH`: use `uvx cmake`** with `-B /tmp/...` (the script's bare `cmake`
+    exited 127). **Hold Kotlin until Codex is done**: an untracked
+    `packages/kotlin/.kotlin/sessions/*.salive` in `git status` is Codex's live Gradle daemon (it
+    disappears by itself). Advance skips mutation runs on slow surfaces:
+    `sed -i 's/<expected>/<wrong>/'` on the canonical file + the .NET and Kotlin copies, run Java
+    (`mvn test -Dtest=DataEdgeTest`), .NET (`--filter DataEdgeTests`), Kotlin
+    (`--tests '*DataEdgeTest*'`), WASM (`--test data_edge`), then `git checkout --` the three files
+    (~1 min, each named the vector). Codex with `--base <define-next sha>` took ~3 min, no findings
+
+### Verbatim code-move step (iter 231, ~5 min) — iscc-ffi `mod tests` → `src/tests.rs`
+
+- Three diffs against `git show HEAD~1:<file>` prove a move without reading 1100 lines: the kept
+    prefix (`sed -n '1,Np'` old vs new), the moved body de-indented (`sed 's/^    //'`) vs the new
+    file minus its docstring, and the sorted `#[test]` function-name sets. Expect only rustfmt joins
+    of lines that now fit in 100 columns
+- **cbindgen skips the write when the output is unchanged** — the header's mtime says nothing about
+    whether it ran (advance cited mtimes as evidence). Run it with `--output /tmp/x/iscc.h` and
+    `cmp` against the tracked header
+- **`cargo build -p iscc-ffi` reruns `build.rs` (csbindgen) only when cargo sees the package dirty**
+    — "Finished in 0.2s" regenerated nothing. `cargo clean -p iscc-ffi` first (~2 s rebuild), then
+    check the `NativeMethods.g.cs` mtime and `git status`
+- Count `#[cfg`/`#[allow`/`#[ignore` in old vs new files to see that no attribute appeared in the
+    move. Codex (`--commit HEAD`, ~4 min) had no findings
+
+### Test-harness-only step (iter 232, ~8 min) — Swift + Python data-edge compares
+
+- Both mutations run from throwaway copies, the tree stays untouched. **Python**: copy the test to
+    `/tmp/m/tests/`, `ln -s /workspace/iscc-lib/crates /tmp/m/crates` (the fixture path is
+    `Path(__file__).parent.parent / "crates"`), patch with `str.replace` + a `count == 1` assert,
+    run `uv run pytest /tmp/m/tests/<f> -p no:cacheprovider --rootdir /tmp/m`
+- **Swift**: `git archive HEAD packages/swift | tar -x -C /tmp/x`, splice the old harness
+    (`git show HEAD~1:<f>` up to `final class DataEdgeTests`) onto the new test class, then
+    `swift test --scratch-path /tmp/swiftbuild-x` with an ABSOLUTE
+    `-Xlinker -L/workspace/iscc-lib/target/debug` (the relative `../../target` no longer resolves).
+    ~1 min. The toolchain survives in `/tmp/swifttc` across iterations — check before downloading
+- **Darwin cannot be probed locally**: after the push, watch the `swift` job of the CI run
+    (`gh run watch`/`gh run view --json jobs`) before trusting an issue's "on macOS" criterion
+- Codex (`--commit HEAD`, ~3 min) ran both suites itself and had no findings
+
+### WASM return-shape step (iter 234, ~10 min) — `alg_cdc_chunks` → `Uint8Array[]`
+
+- next.md's five checks from ONE logged script (`mise run check`, the `wasm-pack test` CI line, both
+    clippy forms, the greps, `uv run zensical build`): ~3 min after a warm build
+- **`#[wasm_bindgen_test]` calls the Rust fn directly**, so an `is_instance_of` assert on a
+    statically typed `js_sys::Uint8Array` is a tautology. The JS-side proof is
+    `wasm-pack build --target nodejs crates/iscc-wasm --out-dir /tmp/x/pkg` + a `.cjs` script that
+    `require()`s it (`instanceof`, `Array.isArray`, own buffers, empty input, error path) + grep the
+    `.d.ts`. An out-dir under `/tmp` leaves the tree clean
+- Grep the crate's `CLAUDE.md` for guidance that would re-create the defect (234: "use
+    `serde_wasm_bindgen` for all Rust-to-JS conversions" survived the advance edit; fixed in step 9)
+- A runtime-shape change on a published binding export gets a decisions.md entry and a release-notes
+    line in the handoff Notes; the repo has no CHANGELOG
+- Codex (`--commit HEAD`, ~3 min) built and probed from JS itself; no findings
+
+### WASM parameter-type step (iter 268, ~40 min, NEEDS_WORK) — scalars as `JsValue`
+
+- All six next.md criteria passed and the verdict was still NEEDS_WORK: both defects came from the
+    Codex run and reproduced in minutes. Read Codex BEFORE drafting issues or decisions
+- **Build the previous commit too**: `git archive HEAD~1 | tar -x -C /tmp/prev`, then
+    `CARGO_TARGET_DIR=/tmp/prev-target wasm-pack build /tmp/prev/crates/iscc-wasm --target nodejs --out-dir /tmp/prev-pkg`
+    (~2 min cold). It serves three checks: the `.d.ts` diff, a before/after timing, a regression
+    proof
+- **Diff every export declaration**, not the two lines next.md names:
+    `diff <(grep -E '^export function|^    [a-z_]+\(' prev.d.ts) <(… new.d.ts)`. 268: an
+    `Option<String>` before a `JsValue` with `unchecked_optional_param_type` lost its `?`, so
+    `gen_meta_code_v0("title")` stopped type-checking
+- **A js-sys import without `catch` is a crash path**: loop a throwing getter
+    (`{ get length() { throw … } }`) 200,000 times, then call a valid export. 268: dead after 4,095
+- **Probe a release build**: advance used `--dev`, whose glue adds type asserts a release build
+    lacks. Byte and string parameters still convert (`gen_data_code_v0("abc")` = three zero bytes):
+    a docs sentence "arguments are type-checked" must name the classes it covers
+- Element-wise array reads cost about 2x on `gen_audio_code_v0` (0.6 → 1.1 ms for 3,000 elements):
+    record the accepted cost in decisions.md once the step passes
+
+### Harness-compare fan-out step (iter 237, ~6 min) — .NET, Java, napi, WASM data-edge `compare`
+
+- All four suites + both clippy forms from ONE logged script run in under a minute on a warm tree
+    (`dotnet test` 8 s, `mvn -q clean test` 18 s, napi build + test 8 s, `wasm-pack test` 16 s)
+- **`mvn -q` ends its output without a newline**, so a `=== rc=…` marker echoed after it lands on
+    the same line and `grep "^==="` misses it. Read the surefire `.txt` reports for the counts
+- **.NET mutant in ~20 s without touching the tree**: `git archive HEAD packages/dotnet | tar -x`
+    into `/tmp`, patch the copy, run `dotnet test` on the copy's test project with
+    `-e LD_LIBRARY_PATH=` set to the absolute `target/debug`. Restoring the old intersect `Compare`
+    failed exactly the two new negatives
+- Check the static sets against `data.json`'s per-function keys and each surface's signature (napi
+    `index.d.ts` uses snake_case names; `git grep` for camelCase finds nothing)
+- Codex (`--base <define-next sha>`, ~2 min) ran all four suites itself; no findings
+
+### Ruby gem packaging step (iter 239, ~20 min) — NEEDS_WORK, the blocker came from Codex
+
+- **Any change to the gemspec's dependencies or to `Gemfile.lock`: run the cross-gem lookup
+    itself**, on `HEAD` and `HEAD~1`, in `crates/iscc-rb`:
+    `grep rb_sys Gemfile.lock | head -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'` must print the
+    Gemfile pin. next.md quoted an anchored grep that the action does not use; the crate's own
+    `CLAUDE.md` had the right one and I did not cross-read it. Action source:
+    `gh api 'repos/oxidize-rb/actions/contents/cross-gem/action.yml?ref=v1' --jq .content | base64 -d`
+    (quote the URL, zsh globs the `?`)
+- **Ruby 3.4 locally in 24 s**: from a `/tmp` dir, `MISE_RUBY_COMPILE=false mise x ruby@3.4 -- …`
+    (precompiled, leaves `mise.toml` alone). Clean install of the source gem takes ~45 s per Ruby
+- Lock honoured: the `[[package]]` name+version pairs of `<gem home>/gems/iscc-lib-*/Cargo.lock`
+    after the build are a subset of the workspace lock
+- Criteria run from one logged script (`/tmp/r239/verify.sh` shape: build, unpack + grep, clean
+    install, `rake compile test`, pytest, zensical) in ~1 min
+- **Repair review (iter 240, PASS_WITH_NOTES)**: Ruby 3.4 without `mise x`: put
+    `/home/dev/.local/share/mise/installs/ruby/3.4.13/bin` first on PATH for the build script, the
+    install and the selftest. Lock mutation from a `git archive` copy, run with
+    `/home/dev/.venvs/iscc-lib/bin/python -m pytest … --no-cov`. CI mode of Bundler:
+    `BUNDLE_FROZEN=true bundle install` must leave `Gemfile.lock` alone
+- **A generated standalone `Cargo.toml` is its own workspace** (240, Codex): `[profile.release]`,
+    `[patch]` and lints of the root do not reach it. `file <so>` shows "not stripped". I reviewed
+    the 239 manifest for what it must NOT contain and never for what it lost
+- Codex over a multi-commit unpushed batch: `codex exec review --base <upstream sha>` (~12 min)
+- **Profile-copy review (iter 241, PASS, ~12 min)**: two scripts, both rerunnable in shape.
+    `verify.sh`: pytest, build, `tar -xOf <gem> data.tar.gz | tar -xz -C <dir>` + `grep -qxF` per
+    key, clean install (52 s with LTO), `file` on both `.so` copies, and
+    `find $GEM_HOME -name gem_make.out` to read the cargo line (`--profile release`). `mutate.sh`:
+    `git archive HEAD` copy, one `str.replace` per mutant with a `count == 1` assert, run with
+    `uv run --project /workspace/iscc-lib pytest … --no-cov`. Six mutants of a text-slice helper (no
+    stop at next header, retyped result, dropped key, each fail-closed arm off): all killed. Codex
+    (~4 min): no findings
+
+### Two new data-edge sections, 12 surfaces (iter 252, ~35 min) — PASS_WITH_NOTES, Codex found both gaps
+
+- The 226 script still works as one background run (`step <name> <cmd…>` + summary file, ~3 min on a
+    warm tree): add `--no-default-features`, `--features text-processing` and `--all-features` runs
+    of the Rust harness, and both clippy forms. Kotlin goes in a second script after Codex exits,
+    together with the in-tree mutation (sed the canonical file + the Kotlin copy, run pytest /
+    `rake test` / `./gradlew test --rerun-tasks`, `git checkout --` both files)
+- **I skipped my own 237 rule and Codex caught it**: diff every new `UNCOMPARED` row against the
+    function's `data.json` output keys MINUS the result type's fields. 252 listed
+    `name, meta, metahash` for four bare-string meta surfaces and missed `description`, because no
+    vector carried it yet. One line of Python over `data.json` prints the allowed keys
+- **A generator test that loops over the real fixture must accept every input form the generator
+    renders** (252: `assert isinstance(meta, dict)` would fail a valid data-URL vector). Ask of each
+    new fixture-driven test: does a second valid vector need a test edit?
+- **Does an iscc-only surface see the defect a meta vector pins?** Pass the defective canonical
+    bytes as `data:application/json;base64,…` meta to `iscc_lib.gen_meta_code_v0`: the payload is
+    used as is, so the result is the ISCC a re-escaping surface would return. 252: each of the five
+    characters alone changed the `iscc`
+- Both findings were step-introduced but fail closed on a future vector, so: PASS_WITH_NOTES, one
+    `normal` issue, no step-9 fix (changing what a harness compares is behaviour, not a nit)
+- Codex (`--base <define-next sha>`, ~6 min) reproduced both by adding vectors itself
+
+### Data-edge harness repair with a throwaway-vector proof (iter 253, ~12 min) — PASS, Codex clean
+
+- Two logged scripts. `verify.sh`: next.md's committed-fixture checks (~1 min warm: pytest,
+    generator no-op, `npx napi build --platform` + `npm test`,
+    `wasm-pack test --node … --test data_edge`, `mvn clean test`,
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=…`, clippy). `probe.sh`: my OWN
+    vectors through all 12 surfaces in ~2 min, with `trap revert EXIT` running `git checkout --` on
+    the 5 fixture copies + the header, then a generator rerun and `git status`. Start it only after
+    Codex has exited (Codex adds its own temporary vectors to the same tree)
+- Vectors come from a `/tmp` script under
+    `uv run --no-project --with iscc-core==1.5.0 --python 3.13`, outputs cut to the `data.json`
+    keys. **Give each a non-empty `note`**: without it `test_vector_schema` fails 1 row per vector
+    (253: 3 failures that were mine, not the step's)
+- Row-level evidence only where a harness prints rows: C and C++ totals rise by one per vector (104
+    → 107, 112 → 115); `grep -c <name>` on their logs. The other suites are one aggregate test
+- With a `meta` input, iscc-core ignores `description` for the hash: a description + data-URL vector
+    has the `iscc` and `metahash` of the one without. Add a third combination anyway, it is the one
+    the step's own proof left out
+- `dotnet test packages/dotnet` (no project at that level) = MSB1003; next.md wrote it as a
+    criterion
+
+### C FFI marshalling-helper step (iter 255, ~35 min) — PASS_WITH_NOTES, Codex found both defects
+
+- One logged script covers it: `cargo test -p iscc-ffi`, workspace clippy, `cargo build -p iscc-ffi`
+    \+ cbindgen + `git status` on `iscc.h` / `NativeMethods.g.cs`, the C test (`-Wall -Wextra`, add
+    `-fsanitize=address`), `dotnet test … -e LD_LIBRARY_PATH=$(pwd)/target/debug`, C++ via
+    `uv run --with cmake cmake -S packages/cpp -B /tmp/cppbuildNNN … -DSANITIZE_ADDRESS=ON`
+- **`iscc-ffi` is outside iai and CRAP**: a helper called per row must not `format!` its error name
+    on the success path (2x on `iscc_alg_simhash`, 1,000 rows). Read every per-row closure for an
+    allocation; time it with a throwaway C program against `target/release` (release build ≈ 15 s),
+    copying the `.so` aside for the before/after pair. Fix shape: `name: impl Display` +
+    `format_args!`
+- **The C test macros evaluate `actual` twice on failure**: a new macro that passes a freeing call
+    to `ASSERT_EQ` double-frees on the failure path only. Probe: `sed` one expected value wrong in a
+    `/tmp` copy (needs `-Icrates/iscc-ffi/tests` for `data_edge_vectors.h`), build with ASAN, expect
+    FAIL lines and `grep -c AddressSanitizer` = 0
+- **A behaviour change on the FFI makes wrapper comments false**:
+    `git grep -n -i 'must not be   NULL\|sentinel\|reject'` over `packages/cpp`, `packages/dotnet`,
+    `tests/`, `docs/` after any change to what the FFI accepts. Comment-only truth fixes are step-9
+    work; removing the redundant workaround is a `low` untriaged issue
+- learnings.md and decisions.md both sat at their budget: an in-place bullet rewrite can still add a
+    line after mdformat, so `wc -l` after formatting
+
+## JS integer-range / marshalling step (256, ~15 min)
+
+- One logged script, in this order: napi `npm run build:debug && npm test`,
+    `wasm-pack test --node crates/iscc-wasm`,
+    `wasm-pack build crates/iscc-wasm --target nodejs --out-dir /tmp/wasm-int`,
+    `cargo build -p iscc-jni` + `mvn -q … clean test`, `uv run pytest -q`, `bundle exec rake test`,
+    clippy
+- `mvn -q` hides the `Tests run:` lines: read the counts from
+    `crates/iscc-jni/java/target/surefire-reports/TEST-*.xml` (`tests="…"`)
+- A JNI "rejects negative" test proves nothing by class alone (the wrapped value also raised
+    `IllegalArgumentException` from the core): check that it asserts the MESSAGE
+- Probe the WASM glue from Node with a CJS script outside the repo (`require('/tmp/wasm-int/…')`):
+    out-of-range, typed arrays vs plain arrays, the `.d.ts`, and wrong-typed values. The glue
+    converts `null`/strings/booleans with JS number conversion (filed `low` in 256); `undefined`
+    becomes `NaN`. napi throws on all of them, and on a typed array for a `Vec<T>` parameter
+- `serde_wasm_bindgen` rejects out-of-range and fractional numbers for `Vec<Vec<i32>>` itself
+
+### New data-edge section, reference-stable vectors (iter 264, ~25 min) — PASS + escalation
+
+- The 226 script ran green in ~3 min on a warm tree. Fixes to the recipe:
+    `dotnet test packages/dotnet` (next.md's form) fails with MSB1003, the CI line is
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/` with `LD_LIBRARY_PATH=$PWD/target/debug`. The Bash
+    tool runs zsh, which does not word-split `$F`: put file lists in a bash script with an array
+    (`"${F[@]}"`)
+- Mutation on the surfaces advance skipped (Java, .NET, Kotlin, WASM, Swift, C++): one bash script
+    seds the canonical file + the .NET, Kotlin and Swift copies, regenerates the header, runs the
+    six suites, then `git checkout --` the five files. ~1 min, every surface named the vector
+- **Probe a reference claim on both iscc-core builds**: the compiled wheel (3.10 to 3.14) and the
+    pure build (3.15) differ for CDC averages from 2^29 up. A script in `/tmp` that prints
+    `iscc_core.cdc.__file__`, run with `uv run -q --no-project --python <v> --with iscc-core==1.5.0`
+- **Read each vector's `note` as a claim** (the file goes upstream): the `avg = 2` note said it pins
+    "min/max chunk sizes", but `max_size` (16) is never reached. Derive the parameters by hand
+    (`min = avg/4`, `max = avg*8`, `bits = round(log2(avg))`, `mask_s = 2^(bits+1)-1`,
+    `mask_l = 2^(bits-1)-1`). A note fix is step-9 work: sed all 5 copies, `cmp`, rerun pytest
+- A `normal` issue that ends up blocked on a human decision with an upstream defect behind it:
+    verdict stays PASS, the handoff opens with HUMAN REVIEW REQUESTED, the entry gets
+    `**Upstream:**`
+
+### PyO3 marshalling step (iter 265, ~8 min) — PASS, Codex clean
+
+- Order: `uv run maturin develop -m crates/iscc-py/Cargo.toml` (5 s warm), the named test file,
+    `uv run pytest`, `cargo clippy -p iscc-py --all-targets -- -D warnings`, `mise run check`
+- ONE probe script covers the unstated edges of an integer-conversion change: both entry points ×
+    just past `i32`, `2**63 - 1`, beyond `i64` (CPython's own message), a bad value in the LAST
+    position of a later frame, tuple-of-tuples (the non-list path), `float`/`None` (stay
+    `TypeError`), empty and ragged (stay `ValueError`). Print class AND message per row
+- **CI has no Windows job** (21 ubuntu, 1 macOS; `release.yml` `test-wheels` is Linux-only): a
+    Windows claim is proven from the declared C type (`c_longlong`), never from a green run. Filed
+    `low` untriaged in 265: do not re-file, do not escalate
+- `PyLong_AsLongLong` is in the stable ABI, so `abi3-py310` holds; a clean build proves it
+- decisions.md over budget from `cid(human)` commits in the unpushed range: rotate first, then check
+    the rotated titles are not ones the current step leans on
+
+## WASM exception-safety repair step (269, ~25 min, PASS_WITH_NOTES)
+
+- **Two `git archive` trees must NOT share a `CARGO_TARGET_DIR`.** Cargo treated the second tree as
+    fresh (13 s "build") and wasm-pack packaged the FIRST tree's wasm again, so my `.d.ts` diff
+    compared base with base and exited 0. What exposed it: the error text was the old one (`boom`,
+    not `Invalid cv: boom`) and the timing showed no change. Always `cmp` the two `.wasm` files
+    (they must differ) before trusting a build-vs-build diff
+- Build both trees with `--features conformance` or neither: the feature adds `.d.ts` lines (114 vs
+    the handoff's 112), which is harmless only when both sides match
+- Probe scripts live in `/tmp/r<iter>-probe/`, one hostile case per `node` process: after the first
+    case kills the instance every later case in the same process reports the same `RuntimeError`
+- A probe's own `catch` handler must not read `e.message` unguarded when the thrown value is hostile
+    (a throwing `message` getter crashed my script, which looked like an escaped exception)
+- `serde_wasm_bindgen::from_value` paths die after 5,000 to 8,200 throwing-element calls, on the
+    0.7.0-line build too (filed `low`, untriaged). `number_vec` paths are safe
+- decisions.md sat at 398 before my 13-line entry: rotate with `cid.archive_overflow` right away
+
+## Dev-tool pin / devcontainer setup step (271, ~15 min, PASS, Codex clean)
+
+- The advance work was two commits (implementation, then handoff): Codex ran with
+    `--base <define-next sha>`, not `--commit HEAD`, and finished in about 5 minutes
+- `.devcontainer/devcontainer.json` is `skip-worktree` locally (disk = array form calling the
+    untracked `post-create.sh`): judge the COMMITTED copy with `git show HEAD:…`, and check
+    `git ls-files -v .devcontainer` still shows `S`. A pytest on the disk copy cannot gate it here
+- Fresh-setup simulation is cheap (80 s): `git archive HEAD` into `/tmp`, an EMPTY `MISE_DATA_DIR`,
+    `mise trust`, run the group extracted from the committed `postCreateCommand` with `sh -c`, then
+    the hook command; untrust and delete afterwards.
+- Side-effect probe for any `[tools]` addition: run `mise run version:check` with `MISE_DATA_DIR`
+    set to an empty directory; it shows what every task now installs first (271: Ruby, 92 MB)
+- Mutation of a "names no version" test: feed its helpers the previous real files via
+    `git show <define-next sha>:<path>`
+- `which ruby` is the mise shim, so the pin changes the Ruby of EVERY command in the repo
+
+## UniFFI wrapper edit + regenerated bindings (272, ~15 min)
+
+- Criteria + three probes cover it: (1) regenerate BOTH bindings into `/tmp` out-dirs (commands in
+    `packages/{swift,kotlin}/CLAUDE.md`, swap `--out-dir`) and `diff` against the tracked files
+    modulo trailing whitespace and the end-of-file newline; expected: zero lines for Kotlin, only
+    "No newline at end of file" for Swift. This also proves a changed checksum constant is genuine
+- (2) negative control for a 32-bit-only fix: `git archive HEAD | tar -x -C /tmp/x`, revert the one
+    expression with a Python `replace`, then
+    `CARGO_TARGET_DIR=/tmp/t cargo test --manifest-path /tmp/x/Cargo.toml -p iscc-uniffi --target i686-unknown-linux-musl <filter>`
+    (about 1 min; the wrap test must FAIL, a `u64::MAX` test passes under the old cast too)
+- (3) sibling casts: `git grep -n "text_trim(" -- 'crates/*/src/lib.rs'`. napi and wasm narrow an
+    `f64` with `as usize`, which saturates in Rust, so they are not the same defect
+- Kotlin: `packages/kotlin/gradlew -p packages/kotlin test --rerun-tasks` (2 min), count from the
+    JUnit XML. Swift: toolchain at `/tmp/swifttc/swift-6.1.2-RELEASE-debian12/usr/bin/swift` (may
+    vanish), `swift test --package-path packages/swift --scratch-path /tmp/swiftbuild` with the
+    three `-Xlinker` flags for `target/debug`. Both suites load the library, so a wrong checksum
+    constant fails them at init
+- The background Codex run also starts gradle in the same tree: its "Kotlin tests blocked by
+    build-directory conflicts" is the race with my run, not a finding
+
+## Java loader / Java test step (278, ~15 min, NEEDS_WORK, the blocker came from Codex)
+
+- **The Java suite runs in TWO layouts.** CI `java`: `cargo build -p iscc-jni`, library on
+    `java.library.path` (`target/debug`), no bundled resource. `release.yml` → `test-jni`: libraries
+    copied to `src/main/resources/META-INF/native/<os>-<arch>/`, NO `target/debug`. A test that
+    spawns a child JVM with the parent's `java.library.path`, or that needs the fallback library,
+    passes in the first and fails in the second; `publish-maven` needs `test-jni`
+- Reproduce the release layout (~40 s per tree), for the parent commit AND HEAD:
+    `git archive <rev> crates/iscc-jni/java crates/iscc-lib/tests/data.json crates/iscc-lib/tests/data-edge.json | tar -x -C $T`,
+    copy `target/debug/libiscc_jni.so` to
+    `$T/crates/iscc-jni/java/src/main/resources/META-INF/native/linux-x86_64/`, then
+    `mvn -q test -f $T/crates/iscc-jni/java/pom.xml`. The CI layout in a tree:
+    `ln -s "$(realpath target)" $T/target`
+- A hand probe for loader errors: a single-file
+    `java -cp crates/iscc-jni/java/target/classes X.java` that prints `getCause()` and
+    `getSuppressed()`; `-Dos.arch=riscv64` / `-Dos.name=FreeBSD` reach `NativeLoader`,
+    `-Djava.library.path=/nonexistent` forces the both-fail path
+- Each bundled load leaks an empty `/tmp/iscc-jni-*` dir (filed `low`): `rmdir /tmp/iscc-jni-[0-9]*`
+    after probing. No docker, podman or musl loader in the devcontainer: a musl claim cannot be
+    measured
+- **279 (repair + CI release-layout step, ~35 min, PASS)**: one logged script in a
+    `git archive HEAD` tree does all of it in about a minute: copy `target/debug/libiscc_jni.so` in,
+    `mvn -q test` (CI layout), then the CI step body extracted with PyYAML (`RUNNER_TEMP` set) for
+    the release layout, then loader mutations with `mvn test -Dtest='IsccLibTest#loader*'` (8 s
+    each). Read `target/surefire-reports/TEST-io.iscc.iscc_lib.IsccLibTest.xml` for per-test
+    skipped/ran. Then push the advance commits first and read the `java` job log: the log API
+    returns nothing until the WHOLE run completes (`gh run view <id> --job <job> --log`)
+- `mv target/debug/libiscc_jni.so` is safe for the cargo cache: `cargo build -p iscc-jni` restores
+    the file in 0.2 s as a hard link from `deps/`
+- **Grep the docs for a sentence class while a docs issue is open** (279: `git grep -niE 'all 10'`
+    found three more "return a string" pages) and add the hits to the existing entry
+
+## New vector in an existing data-edge section (281, ~12 min, PASS_WITH_NOTES)
+
+- A vector added to a handled section needs no harness edit, so the review is: next.md's criteria
+    from one logged script, both iscc-core builds on the vector, one md5 over the 5 copies, and a
+    generator re-run with `git diff --exit-code` on the header
+- The Rust-backed harnesses the advance agent skips are cheap after `cargo build -p iscc-ffi`: .NET
+    (~15 s), `cargo build -p iscc-jni` + `mvn -B test` (~20 s), `cargo build -p iscc-uniffi` +
+    `gradlew -p packages/kotlin cleanTest test --offline` (~25 s). Run them in the same script
+- **Ask what the vector does to the GENERATED C header, for a compiler CI does not run.** The 128 KB
+    meta string became one C string literal: gcc and clang accept it, MSVC caps a literal at 65,535
+    bytes (C2026/C1091). next.md checked only "no `-pedantic`/`-Werror` in CI". Codex found the same
+    thing. Also watch the 256 KB added-file limit: the JSON copies stood at 144 KB afterwards
+- `cmake` is not on PATH: `uv run --with cmake cmake -S packages/cpp -B /tmp/<dir> …`
+
+## Generated C header literal fix (282, ~25 min, PASS_WITH_NOTES)
+
+- Criteria from one logged script. Prove the new gate on the REAL previous artifact:
+    `git show '<define-next>':crates/iscc-ffi/tests/data_edge_vectors.h > /tmp/old.h`, then the same
+    gcc line and the new test's scanner on it (both must fail)
+- Probe the generator paths the tracked fixture never reaches: render a `/tmp` fixture with an
+    oversized list item, digest item and row name, compile it (`gcc -std=c99 -pedantic -Werror`,
+    `g++ -std=c++17 -Werror`), then run a 3-line `main` under ASAN. `-fsyntax-only` reports no
+    `-Wunused-function`, so a clean syntax check says nothing about unused statics
+- **A vendor limit cited from one doc page is a hypothesis.** Microsoft has two pages on a quoted
+    string piece: C2026 says 16,380 bytes, "Maximum String Length" (C reference) says 2,048. `curl`
+    on learn.microsoft.com needs `?view=msvc-170`, otherwise 404
+- **A helper whose last caller the step removed lives on through its own unit test**
+    (`escape_c_string`): `git grep` every helper the diff stopped calling
+- An edit with backslash escapes in a test file: one Python script with `chr(92)` and
+    `assert text.count(old) == 1` per replacement
+
+### New data-edge section, decided behaviour (iter 296, ~25 min) — PASS + escalation, Codex clean
+
+- `/tmp/r296-verify.sh` shape: one `step <name> <cmd>` per surface, a log per step and
+    `exit[rc] <name>` lines in a summary file; 32 steps ran in 4 min on a warm tree (napi in a
+    `git archive` copy is the slowest, 60 s). Kotlin ran after Codex exited (17 s)
+- The pair of rows is its own regression proof: the error row and the code row share every header
+    field and differ only in digest length, so no mutation run was needed (probe budget)
+- A vector whose section name is a function iscc-core has needs only a preparer in
+    `tests/test_data_edge.py`; the cross-check then runs it. Probe both builds (3.10, 3.15) once
+- When the closed issue was the last loop-decidable `normal`: PASS + HUMAN REVIEW REQUESTED with a
+    recommendation per open decision, and say what the recommended option costs (296: rejecting an
+    empty `alg_minhash_256` list changes a Tier 1 return type to `Result`)
+
+## Argument-order fan-out across bindings (297, ~25 min, PASS_WITH_NOTES, Codex clean)
+
+- Step: hasher `finalize` takes its state before converting arguments on WASM, napi, JNI, Python,
+    Ruby. One logged script ran every surface suite in sequence (check, clippy, wasm-pack, mvn,
+    maturin + pytest + ty, rake, napi in a `git archive` copy); total about 4 minutes
+- **`mvn -q` prints its last line without a newline**, so a following `=== exit` marker is not at
+    line start: grep the marker without `^`
+- Read the framework source for every "same as the typed parameter" claim: PyO3 0.29
+    `argument_extraction_error` (`src/impl_/extract_argument.rs`) is an ignored `add_note` call, and
+    advance had mirrored it exactly
+- **An `unsafe` block in a binding crate: look for the safe twin first.** napi 3.11
+    `FromNapiValue::from_unknown(v)` has the same body as `unsafe Unknown::cast`; the swap is a
+    step-9 fix (rebuild napi in the `/tmp` copy with the patched file, rerun `npm test`)
+- Useful probes: every JS non-number form through the new parameter type (BigInt, object, boolean,
+    numeric string, `null`/`undefined` defaults); `inspect.signature` on the PyO3 method; a
+    conversion hook that re-enters the object (`__index__`, `to_int`) to rule out a borrow panic
+- A call the language rejects before the method body (unknown keyword, arity) is outside such a
+    rule; say so in the decision entry instead of leaving it open
+- "Compliant by type / by code order" surfaces: confirm by reading, then grep their suites for a
+    test of the rule; none found = one `low` issue, not NEEDS_WORK
+- A code span that wraps across lines gets its spaces tripled by mdformat: reword so it fits
+
+## Go-only signature change (299, ~10 min)
+
+- A checked exported function over an unchecked unexported one (`AlgSimhash`, `AlgMinhash256`):
+    `git grep` the name repo-wide (docs, README, spec row), run both GOARCH suites, and compare one
+    non-empty input and the error text against the Python binding
+- A Go probe outside the tree: a `/tmp` module with a `replace` line to `packages/go`, run with
+    `GOFLAGS=-mod=mod "$(mise exec -- which go)" run .` from that directory (`mise exec -C` and
+    `mise which go` both fail there)
+
+### New data-edge section, 12-surface fan-out (iter 300, ~25 min) — PASS, Codex clean
+
+- Two logged bash scripts with a `step <name> <cmd…>` helper. `verify.sh` (37 steps, ~3 min warm):
+    the 226 list plus the three feature-matrix runs of the Rust harness, napi from a
+    `git archive HEAD` tree with `CARGO_TARGET_DIR=/tmp/napi-target`, CRAP lines, clippy.
+    `mutate.sh` after Codex exits: Kotlin (`gradlew -p packages/kotlin test --rerun-tasks`, read the
+    XML), then ONE mutation of all 5 JSON copies + header regen, ten suites, `git checkout --`
+- **Mutate two rows at once and grep each log for BOTH vector names**: a wrong digest on the output
+    row, and the error row flipped to the behaviour the decision removed (`"error": …` →
+    `"outputs": "bytes:ff…"`). Every harness collects failures, so one run proves the compare arm
+    and the rejection arm per surface (advance mutates Rust and Node only)
+- A `swift test --filter` log that ends in "0 tests passed" is the swift-testing summary: the XCTest
+    count is the `Executed N tests` line above it
+- Never `grep -A` the generated C header: its `iscc_edge_init()` lines are 4 kB each
+- Codex needs `--base <define-next sha>` for a 13-commit fan-out (~4 min)
+
+### Rows in existing data-edge sections + docs range sweep (iter 303, ~30 min) — PASS_WITH_NOTES, Codex clean
+
+- `/tmp/r303-verify.sh` pattern: 31 steps, ~3 min warm, all green, and it proved nothing about the
+    two real defects. Both came from three small probe scripts run from an empty `/tmp` dir
+- **Run every new error row on a build WITHOUT the rule**:
+    `uv run -q --no-project --python 3.13 --with iscc-lib==<last release> python probe.py`. The
+    decode row (header `00 08` + 36 bytes, from next.md) was rejected there too, as "truncated ISCC
+    body": a length index from 8 up takes two nibbles, so the real header is `00 08 00`. The right
+    input is the reference encoder's own output; the release must DECODE it, HEAD must reject it
+- **Probe a docs range per function, at both ends**: one table over all `gen_*_v0` functions and
+    both hashers with `bits` in (0, 4, 8, 32, 64, 256, 288), catching `BaseException`, on the HEAD
+    build, the release wheel and iscc-core. Found: sum code rejects 32 (rows said "32 to 256"), and
+    mixed code panics below 8 (debug core, Go port). A debug Python build raises `PanicException`
+- A Go probe needs no checkout edit: `git archive HEAD packages/go crates/iscc-lib/tests` into
+    `/tmp`, add a `_test.go` with `recover()`, run `go test -C … -run <name> -v .`
+- A rewritten `[human]` issue keeps its tag and priority; a defect the step introduced goes into the
+    same entry as "the remaining problem", not a second entry
+- Codex (`--commit HEAD`, ~4 min) ran the suites and found neither defect: a green run plus a clean
+    second opinion is not evidence that a vector pins its rule
+
+### Fixture-string swap + two doc rows (iter 304, ~15 min) — PASS, Codex clean
+
+- One logged script: `mise run check`, the three pytest files, `cargo test --test test_data_edge`,
+    Go suite, generator no-op, `zensical build` (~1 min warm). Plus the release-wheel probe from an
+    empty `/tmp` dir and iscc-core on CPython 3.10 and 3.15
+- **A docs range fix leaves the same claim in source comments**: `git grep -n -i "32 to 256"` over
+    the whole tree (not only `docs/`) found the `SumHasher::finalize` rustdoc with the sum code's
+    wrong range. A one-word `///` fix is a step-9 edit (same line count, so no CRAP re-keying)
+- List every `bits` row under a heading with awk over `docs/*-api.md` to see which pages state a
+    range at all (c-ffi and ruby sum rows state none)

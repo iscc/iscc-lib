@@ -7,26 +7,28 @@ It exists to keep agent prompts small, stable, and unambiguous.
 
 - **Small**: keep each file concise; move deep details into `specs/` (or the codebase) and link.
 - **Self-describing**: every file should make it clear *who updates it* and *how*.
-- **Mechanically checkable**: prefer checklists, counts, and commands over prose.
+- **Mechanically checkable**: prefer commands and checks over prose. A count or a file list is
+    written only where a script verifies it.
 - **Stable anchors**: avoid renaming headings that other files link to.
 
 ## Files (ownership + update policy)
 
-| File                   | Primary owner                                                      | Update style                             | Budget    | Purpose                                                                |
-| ---------------------- | ------------------------------------------------------------------ | ---------------------------------------- | --------- | ---------------------------------------------------------------------- |
-| `target.md`            | human + review (when `issues.md` says `Source: [human]` + `Spec:`) | curated                                  | —         | Long-lived desired end-state + verification criteria                   |
-| `state.md`             | `update-state`                                                     | overwrite                                | 200 lines | Factual snapshot of what exists at `HEAD` (records `assessed-at` hash) |
-| `next.md`              | `define-next`                                                      | overwrite                                | 120 lines | Exactly one small, verifiable work package                             |
-| `handoff.md`           | `advance` then `review`                                            | overwrite                                | 100 lines | Inter-role communication; latest review verdict is authoritative       |
-| `learnings.md`         | `review`                                                           | append + prune to `learnings-archive.md` | 200 lines | High-signal pitfalls, patterns, and verified conventions               |
-| `issues.md`            | humans + agents                                                    | append; review deletes resolved          | 300 lines | Defect tracker (40 lines per entry, no progress logs)                  |
-| `decisions.md`         | `review` + humans                                                  | append; runner rotates oldest out        | 400 lines | Binding design rationale a reader cannot reconstruct from the code     |
-| `decisions-archive.md` | `tools/cid.py`                                                     | append (rotation target)                 | —         | Decisions aged out of budget; titles stay in context, bodies do not    |
-| `iterations.jsonl`     | `tools/cid.py` (sole writer + committer)                           | append-only                              | —         | Execution log (per-role + `iteration_summary` rows) for accounting     |
-| `metrics.jsonl`        | `tools/metrics.py` via the runner                                  | append-only                              | —         | Codebase-health snapshots on the audit cadence                         |
-| `proposals.md`         | `meta-improve`                                                     | overwrite                                | —         | Open self-improvement proposals awaiting human review                  |
-| `meta-log.jsonl`       | `meta-improve`                                                     | append-only                              | —         | Audit trail of auto-applied loop changes + their rollback outcomes     |
-| `specs/`               | human + review (when authorized via `issues.md`)                   | curated                                  | —         | Deeper specs referenced by `target.md`                                 |
+| File                   | Primary owner                                                      | Update style                             | Budget    | Purpose                                                                   |
+| ---------------------- | ------------------------------------------------------------------ | ---------------------------------------- | --------- | ------------------------------------------------------------------------- |
+| `target.md`            | human + review (when `issues.md` says `Source: [human]` + `Spec:`) | curated                                  | —         | Long-lived desired end-state + verification criteria                      |
+| `state.md`             | `update-state`                                                     | overwrite                                | 200 lines | Factual snapshot of what exists at `HEAD` (records `assessed-at` hash)    |
+| `next.md`              | `define-next`                                                      | overwrite                                | 120 lines | Exactly one small, verifiable work package                                |
+| `handoff.md`           | `advance` then `review`                                            | overwrite                                | 100 lines | Inter-role communication; latest review verdict is authoritative          |
+| `learnings.md`         | `review`                                                           | append + prune to `learnings-archive.md` | 200 lines | High-signal pitfalls, patterns, and verified conventions                  |
+| `issues.md`            | humans + agents                                                    | append; review deletes resolved          | 400 lines | Defect tracker (40 lines per entry, no progress logs)                     |
+| `postponed.md`         | human                                                              | move entries in/out of `issues.md`       | —         | Issues set aside for a later release; read only by `audit` (no re-filing) |
+| `decisions.md`         | `review` + humans                                                  | append; runner rotates oldest out        | 400 lines | Binding design rationale a reader cannot reconstruct from the code        |
+| `decisions-archive.md` | `tools/cid.py`                                                     | append (rotation target)                 | —         | Decisions aged out of budget; titles stay in context, bodies do not       |
+| `iterations.jsonl`     | `tools/cid.py` (sole writer + committer)                           | append-only                              | —         | Execution log (per-role + `iteration_summary` rows) for accounting        |
+| `metrics.jsonl`        | `tools/metrics.py` via the runner                                  | append-only                              | —         | Codebase-health snapshots on the audit cadence                            |
+| `proposals.md`         | `meta-improve`                                                     | overwrite                                | —         | Open self-improvement proposals awaiting human review                     |
+| `meta-log.jsonl`       | `meta-improve`                                                     | append-only                              | —         | Audit trail of auto-applied loop changes + their rollback outcomes        |
+| `specs/`               | human + review (when authorized via `issues.md`)                   | curated                                  | —         | Deeper specs referenced by `target.md`                                    |
 
 ## Context packs (how these files reach the agents)
 
@@ -87,5 +89,16 @@ Each iteration's output is the next one's input, so unchecked growth compounds. 
 - **Issues are defects, not a queue**: “what is wrong + where + how to verify”, then deleted. No
     progress logs — git history already has them, and a step queue inside an issue removes the gap
     analysis `define-next` exists to perform.
+- **Specs carry no status**: no checkboxes in `target.md` or `specs/`. `state.md` is the only record
+    of what is met.
+- **Derived facts are checked or not written**: a count, file list or symbol list that repeats what
+    the code already says needs a parity check (like the docs page-list and CI job-table hooks) or
+    it does not belong in guidance. Write "all Tier 1 functions", not a number.
+- **Retire, don't accumulate**: a decision that a later decision reverses is deleted, not kept
+    beside it. Requirements of a shipped milestone shrink to a pointer to the test that enforces
+    them (release skill, step 7.3). Agent memory holds what changes future work, not a record of
+    past work. Git history keeps everything that is removed.
+- **`notes/` is the original design record**: it is not kept current and loses to `target.md`,
+    `specs/` and the code wherever they differ.
 - **Log rotation** (optional): when `iterations.jsonl` becomes large, split by month into an
     `archive/` directory and keep only the recent window here.

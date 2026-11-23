@@ -1,5 +1,8 @@
 """Tests for utility functions and conformance_selftest exposed via Python bindings."""
 
+import unicodedata
+
+import iscc_core
 import pytest
 
 from iscc_lib import (
@@ -110,6 +113,74 @@ def test_text_trim_unicode_boundary():
 def test_text_trim_strips_result():
     """Verify trailing whitespace is stripped after trimming."""
     assert text_trim("hello ", 6) == "hello"
+
+
+# ── Python strip-set parity (text_trim / text_remove_newlines) ──────────────
+
+PY_STRIP_CHARS = [c for c in map(chr, range(0x110000)) if c.strip() == ""]
+
+
+def test_strip_set_contains_info_separators():
+    """The live-derived strip set includes U+001C..U+001F, which Rust's `trim` keeps."""
+    assert {"\x1c", "\x1d", "\x1e", "\x1f"} <= set(PY_STRIP_CHARS)
+
+
+def test_issue_example_info_separators():
+    """U+001E/U+001F are stripped at the edges and split on in the interior."""
+    text = "\x1eab\x1fcd\x1e"
+    assert text_trim(text, 64) == "ab\x1fcd"
+    assert text_remove_newlines(text) == "ab cd"
+
+
+def _strip_char_cases(ch):
+    """Return (outer, interior) inputs that place `ch` around and inside text."""
+    return [ch + "ab" + ch, "ab" + ch + "cd", ch + "a" + ch + ch + "b" + ch]
+
+
+def test_differential_text_remove_newlines_strip_set():
+    """Every `str.split()` char splits identically in iscc_lib and iscc_core."""
+    mismatches = []
+    for ch in PY_STRIP_CHARS:
+        for text in _strip_char_cases(ch):
+            expected = iscc_core.code_meta.text_remove_newlines(text)
+            if text_remove_newlines(text) != expected:
+                mismatches.append(hex(ord(ch)))
+    assert mismatches == []
+
+
+def test_differential_text_trim_strip_set():
+    """Every `str.strip()` char trims identically on the short and truncation paths."""
+    mismatches = []
+    for ch in PY_STRIP_CHARS:
+        for text in _strip_char_cases(ch):
+            size = len(text.encode("utf-8"))
+            cut = len(("ab" + ch).encode("utf-8"))
+            for nbytes in (size, size + 8, cut):
+                expected = iscc_core.code_meta.text_trim(text, nbytes)
+                if text_trim(text, nbytes) != expected:
+                    mismatches.append((hex(ord(ch)), nbytes))
+    assert mismatches == []
+
+
+def test_differential_space_like_chars_kept_by_both():
+    """Space-like chars outside the strip set (e.g. U+200B) are kept by both libraries."""
+    strip = set(PY_STRIP_CHARS)
+    candidates = [
+        c
+        for c in map(chr, range(0x110000))
+        if unicodedata.category(c) in ("Zs", "Zl", "Zp", "Cc", "Cf") and c not in strip
+    ]
+    assert "\u200b" in candidates
+    mismatches = []
+    for ch in candidates:
+        text = ch + "a" + ch + "b" + ch
+        if text_trim(text, 64) != iscc_core.code_meta.text_trim(text, 64):
+            mismatches.append(("trim", hex(ord(ch))))
+        expected = iscc_core.code_meta.text_remove_newlines(text)
+        if text_remove_newlines(text) != expected:
+            mismatches.append(("split", hex(ord(ch))))
+    assert mismatches == []
+    assert text_trim("\u200bab\u200b", 64) == "\u200bab\u200b"
 
 
 # ── text_collapse ───────────────────────────────────────────────────────────

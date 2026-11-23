@@ -18,20 +18,11 @@ PyO3/maturin Python bindings for the `iscc-lib` Rust core, published to PyPI as 
 - Minimum Python version: `>=3.10` (declared in `pyproject.toml`)
 - Do NOT add features that require newer CPython APIs or per-version builds
 
-## Module Layout
+## Layers
 
-```
-crates/iscc-py/
-  Cargo.toml              # cdylib crate, lib name = "_lowlevel"
-  pyproject.toml           # maturin build backend, module-name = "iscc_lib._lowlevel"
-  src/
-    lib.rs                 # All PyO3 bindings: 27 #[pyfunction]s + 3 #[pyclass]es + #[pymodule]
-  python/iscc_lib/
-    __init__.py            # Public API: wrapper functions, IsccResult classes, re-exports
-    _lowlevel.pyi          # Type stubs for the native Rust extension module
-    _lowlevel.abi3.so      # Build artifact (gitignored in CI, present after maturin develop)
-    py.typed               # PEP 561 marker for type checker discovery
-```
+The Cargo lib name is `_lowlevel`, and `pyproject.toml` sets maturin's
+`module-name = "iscc_lib._lowlevel"`. The compiled `_lowlevel.abi3.so` is gitignored build output
+from `maturin develop`.
 
 ### Rust layer (`src/lib.rs`)
 
@@ -72,14 +63,14 @@ crates/iscc-py/
 | `MixedCodeResult` struct                                  | `PyDict` with `iscc`, `parts`                                           | `MixedCodeResult(IsccResult)`                                   |
 | `ImageCodeResult` / `AudioCodeResult` / `VideoCodeResult` | `PyDict` with `iscc`                                                    | Corresponding `IsccResult` subclass                             |
 | `SumCodeResult` struct                                    | `PyDict` with `iscc`, `datahash`, `filesize`, optional `units`          | `SumCodeResult(IsccResult)`                                     |
-| `iscc_lib::Error`                                         | `PyValueError`                                                          | `ValueError`                                                    |
+| `iscc_lib::IsccError`                                     | `PyValueError`                                                          | `ValueError`                                                    |
 | `Vec<u8>` (from `soft_hash_video_v0` / `*_flat` variants) | `PyBytes`                                                               | `bytes`                                                         |
 | `DataHasher` / `InstanceHasher` / `SumHasher`             | `#[pyclass]` with `Option<inner>`                                       | Python wrapper class accepting `bytes \| bytearray \| BinaryIO` |
 
 ### IsccResult hierarchy
 
 - `IsccResult(dict)` base class with `__getattr__` for attribute-style access
-- 10 typed subclasses with class-level annotations for IDE completion
+- One typed subclass per `gen_*_v0` result, with class-level annotations for IDE completion
 - `isinstance(result, dict)` is `True` -- full dict protocol compatibility
 - `json.dumps(result)` works without custom serializer
 
@@ -92,7 +83,7 @@ crates/iscc-py/
 - Optional keys (`description`, `meta`) must be absent (not `None`) when not provided
 - Bindings must NOT define semantics -- they translate the core API only
 - Conformance vectors from `crates/iscc-lib/tests/data.json` are the correctness baseline
-- All 9 conformance `gen_*_v0` functions must match iscc-core output for every vector
+- Every `gen_*_v0` function with conformance vectors must match iscc-core output for every vector
 - `gen_sum_code_v0` is iscc-lib-only (not in iscc-core) and has no conformance vectors
 
 ## Build Commands
@@ -117,8 +108,7 @@ mise run format
 ## Test Patterns
 
 - Tests live in `/workspace/iscc-lib/tests/` (project root), not inside the crate
-- `test_conformance.py` -- parametrized tests for all 9 conformance `gen_*_v0` against `data.json`
-    vectors
+- `test_conformance.py` -- parametrized tests for every `gen_*_v0` function with `data.json` vectors
 - `test_smoke.py` -- basic functionality, IsccResult hierarchy, attribute access, BinaryIO streaming
 - `test_text_utils.py` -- text utility functions
 - `test_algo.py` -- algorithm primitives
@@ -141,7 +131,8 @@ mise run format
 - One wheel per platform via `abi3-py310`
 - Build matrix: Linux (x86_64), macOS (universal2), Windows (x64)
 - sdist also published
-- Tag-triggered: `git tag v*.*.*` triggers `.github/workflows/release.yml`
+- Released by dispatching `.github/workflows/release.yml` (`workflow_dispatch` only); with a
+    `version` input the workflow creates the `vX.Y.Z` tag itself
 - Release profile: `lto = true`, `codegen-units = 1`, `strip = true`, `panic = "abort"`
 
 ## Common Pitfalls

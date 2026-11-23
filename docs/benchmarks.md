@@ -12,8 +12,10 @@ Performance comparison between **iscc-lib** (Rust) and the
 
 ## Methodology
 
-All benchmarks measure the 10 `gen_*_v0` code generation functions defined by ISO 24138. Two
-benchmark suites run with identical inputs to enable direct comparison:
+All benchmarks measure the 9 `gen_*_v0` code generation functions that ISO 24138 specifies.
+`gen_sum_code_v0`, an iscc-lib convenience that computes Data-Code and Instance-Code in one pass,
+has no iscc-core counterpart and is not compared here. Two benchmark suites run with identical
+inputs to enable direct comparison:
 
 - **Python comparison** — [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) runs both
     `iscc-core` (pure Python) and `iscc-lib` (Rust via PyO3 bindings) in the same process, measuring
@@ -96,14 +98,16 @@ measurements.
 
 ## How to reproduce
 
-Build the Rust bindings in release mode and run the comparative benchmark suite:
+Build the Rust bindings in release mode and run the comparative benchmark suite. The repository's
+pytest configuration disables benchmarks by default, so the benchmark command passes
+`--benchmark-enable`:
 
 ```bash
 # Build release bindings into the project virtualenv
 maturin develop --manifest-path crates/iscc-py/Cargo.toml --release
 
 # Run Python comparison benchmarks (iscc-core vs iscc-lib)
-pytest benchmarks/python/ --benchmark-only --benchmark-columns=mean,stddev,rounds
+pytest benchmarks/python/ --benchmark-enable --benchmark-only --benchmark-columns=mean,stddev,rounds
 
 # Run native Rust benchmarks (Criterion)
 cargo bench -p iscc-lib

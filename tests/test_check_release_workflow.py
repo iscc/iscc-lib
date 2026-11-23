@@ -7,6 +7,11 @@ workflow is never touched) and assert that the specific check fires: guard wrapp
 stripped, ``prepare-release`` wrapped, a registry flag typo'd, an upload renamed away from
 its downloads, and a broken ``needs:`` entry.
 
+The gem-series check is tested on a small synthetic workflow whose Ruby series are fixture
+values, so that a change of the released series leaves these tests alone. The tests of the
+test script and of the publish job mutate the tracked workflow, which also shows that the
+check runs as part of the gate.
+
 The action-input compatibility check (``--check-action-inputs``) is exercised through an
 injected in-memory fake fetcher — this suite never touches the network; the real fetch
 runs only in the dedicated ``release-workflow`` CI job.
@@ -132,6 +137,195 @@ def test_broken_needs_entry_fires(tmp_path):
     )
     errors = _run_all(mutated)
     assert "needs: job 'test-wasm' needs undeclared job 'build-wasm-typo'" in errors
+
+
+GEM_LOAD_RULE = (
+    "every Ruby series has to load the gem, and a failure has to fail the job"
+)
+GEM_SCRIPT_ERROR = (
+    "gem-series: job 'test-gem': a `run` step must consist of exactly the lines "
+    + ", ".join(f"`{line}`" for line in crw.GEM_TEST_SCRIPT)
+    + f": {GEM_LOAD_RULE}"
+)
+
+
+def _gem_test_step(wf):
+    """Return the position (from 1) and the step of the gem test job that runs the self-test."""
+    steps = wf["jobs"]["test-gem"]["steps"]
+    return next(
+        (position, step)
+        for position, step in enumerate(steps, start=1)
+        if crw.GEM_SELFTEST_COMMAND in str(step.get("run", ""))
+    )
+
+
+def _gem_wf(built="3.3, 3.4", **matrix):
+    """Build a minimal workflow of a cross-gem build job, a gem test and a gem publish job.
+
+    The Ruby series are fixture values, independent of the ones the tracked workflow
+    releases. Keyword arguments override or extend the test job's matrix.
+    """
+    cross_gem = {
+        "uses": "oxidize-rb/actions/cross-gem@v1",
+        "with": {"ruby-versions": built},
+    }
+    setup_ruby = {
+        "uses": "ruby/setup-ruby@v1",
+        "with": {"ruby-version": "${{ matrix.ruby }}"},
+    }
+    load_gem = {"run": "\n".join(crw.GEM_TEST_SCRIPT) + "\n"}
+    return {
+        "jobs": {
+            "build-gem": {"steps": [cross_gem]},
+            "test-gem": {
+                "strategy": {"matrix": {"ruby": ["3.3", "3.4"], **matrix}},
+                "steps": [setup_ruby, load_gem],
+            },
+            "publish-rubygems": {"needs": ["build-gem", "test-gem"]},
+        }
+    }
+
+
+def test_gem_series_clean():
+    # A test matrix equal to the cross-gem list, with the full test script, passes.
+    assert crw.check_gem_series(_gem_wf()) == []
+
+
+def test_gem_series_built_but_not_tested_fires():
+    # A Ruby series added to the cross-gem build and not to the test matrix trips check 4.
+    expected = (
+        "gem-series: job 'test-gem' matrix `ruby` ['3.3', '3.4'] differs from the "
+        "cross-gem `ruby-versions` ['3.3', '3.4', '4.0'] of job 'build-gem'"
+    )
+    assert crw.check_gem_series(_gem_wf(built="3.3, 3.4, 4.0")) == [expected]
+
+
+def test_gem_series_missing_build_list_fires():
+    # Without a cross-gem `ruby-versions` list there is nothing to compare: check 4.
+    assert crw.check_gem_series(_gem_wf(built="")) == [
+        "gem-series: job 'build-gem' has no cross-gem `ruby-versions` list"
+    ]
+
+
+def test_gem_series_exclude_fires():
+    # `exclude` drops a listed series from the jobs that run, whatever the `ruby` axis says.
+    expected = (
+        "gem-series: job 'test-gem' matrix must not use `exclude`: "
+        "every listed Ruby series has to run"
+    )
+    assert crw.check_gem_series(_gem_wf(exclude=[{"ruby": "3.4"}])) == [expected]
+
+
+def test_gem_series_conditional_load_step_fires():
+    # A condition on the tracked workflow's step that installs and loads the gem would let
+    # a series pass the job unloaded.
+    wf = crw.load_workflow(WORKFLOW)
+    position, step = _gem_test_step(wf)
+    step["if"] = "matrix.ruby == 'one-series'"
+    expected = (
+        f"gem-series: job 'test-gem': step {position} must not carry `if`: "
+        + GEM_LOAD_RULE
+    )
+    assert crw.run_checks(wf) == [expected]
+
+
+def test_gem_series_step_that_cannot_fail_fires():
+    # A step with `continue-on-error` runs on every series and never fails the job.
+    wf = _gem_wf()
+    wf["jobs"]["test-gem"]["steps"][-1]["continue-on-error"] = True
+    expected = (
+        "gem-series: job 'test-gem': step 2 must not carry `continue-on-error`: "
+        + GEM_LOAD_RULE
+    )
+    assert crw.check_gem_series(wf) == [expected]
+
+
+def test_gem_series_job_that_cannot_fail_fires():
+    # A job with `continue-on-error` reports success whatever its legs do.
+    wf = _gem_wf()
+    wf["jobs"]["test-gem"]["continue-on-error"] = True
+    expected = (
+        "gem-series: job 'test-gem': the job must not carry `continue-on-error`: "
+        + GEM_LOAD_RULE
+    )
+    assert crw.check_gem_series(wf) == [expected]
+
+
+def test_gem_series_install_without_selftest_fires():
+    # The tracked workflow's test step reduced to an install no longer loads the extension.
+    wf = crw.load_workflow(WORKFLOW)
+    _gem_test_step(wf)[1]["run"] = "gem install gems/*.gem"
+    assert crw.run_checks(wf) == [GEM_SCRIPT_ERROR]
+
+
+def test_gem_series_ruby_check_removed_fires(tmp_path):
+    # Without the check of the running Ruby, a later Ruby setup step pinned to one series
+    # makes every leg load that series' binary.
+    mutated = _mutate(tmp_path, crw.GEM_RUBY_CHECK_COMMAND, "ruby -v")
+    assert _run_all(mutated) == [GEM_SCRIPT_ERROR]
+
+
+def test_gem_series_published_gem_installed_fires(tmp_path):
+    # Installing the gem from rubygems.org tests a published version, not the built one.
+    mutated = _mutate(tmp_path, crw.GEM_INSTALL_COMMAND, "gem install iscc-lib")
+    assert _run_all(mutated) == [GEM_SCRIPT_ERROR]
+
+
+def test_gem_series_shell_condition_fires():
+    # A shell `if` around the self-test line skips it on every other series.
+    wf = crw.load_workflow(WORKFLOW)
+    step = _gem_test_step(wf)[1]
+    command = crw.GEM_SELFTEST_COMMAND
+    wrapped = f'if [ "${{{{ matrix.ruby }}}}" = "3.3" ]; then\n  {command}\nfi'
+    step["run"] = step["run"].replace(command, wrapped)
+    assert command in crw.run_lines(step)
+    assert crw.run_checks(wf) == [GEM_SCRIPT_ERROR]
+
+
+def test_gem_series_commented_out_selftest_fires(tmp_path):
+    # A self-test line turned into a shell comment is still in the script and never runs.
+    command = crw.GEM_SELFTEST_COMMAND
+    assert _run_all(_mutate(tmp_path, command, f"# {command}")) == [GEM_SCRIPT_ERROR]
+
+
+def test_gem_series_unchecked_selftest_fires(tmp_path):
+    # Without the `raise`, a false result leaves the exit status of `ruby -e` at 0.
+    checked = "raise 'Conformance failed' unless IsccLib.conformance_selftest"
+    mutated = _mutate(tmp_path, checked, "IsccLib.conformance_selftest")
+    assert _run_all(mutated) == [GEM_SCRIPT_ERROR]
+
+
+def test_gem_series_publish_that_does_not_wait_fires():
+    # A publish job that does not need the test job can start before a series is loaded.
+    wf = crw.load_workflow(WORKFLOW)
+    wf["jobs"]["publish-rubygems"]["needs"].remove("test-gem")
+    expected = (
+        "gem-series: job 'publish-rubygems' must need job 'test-gem': "
+        "the publish has to wait for the gem test"
+    )
+    assert crw.run_checks(wf) == [expected]
+
+
+def test_gem_series_test_skipped_on_a_gem_dispatch_fires():
+    # Without the registry flag the test job is skipped on a `rubygems` dispatch, and the
+    # `!failure()` guard of the publish job lets a skipped need pass.
+    wf = crw.load_workflow(WORKFLOW)
+    wf["jobs"]["test-gem"]["if"] = (
+        "${{ !cancelled() && !failure() && (inputs.version != '') }}"
+    )
+    expected = (
+        "gem-series: jobs 'test-gem' and 'publish-rubygems' must carry the same `if`: "
+        "a dispatch that publishes the gems has to test them"
+    )
+    assert crw.run_checks(wf) == [expected]
+
+
+def test_gem_series_check_runs_on_the_tracked_workflow():
+    # The check is wired into run_checks: dropping the last tested series from the parsed
+    # tracked workflow, whichever series it lists, is reported.
+    wf = crw.load_workflow(WORKFLOW)
+    wf["jobs"]["test-gem"]["strategy"]["matrix"]["ruby"].pop()
+    assert any(error.startswith("gem-series: ") for error in crw.run_checks(wf))
 
 
 def test_matrix_include_expansion():

@@ -1,13 +1,16 @@
 // Pure Go implementation of the ISCC codec: type enums, varnibble header
-// encoding/decoding, base32/base64, component encoding, ISCC decompose/decode.
+// encoding/decoding, base32/base64, component encoding, ISCC decompose/decode and
+// the ISCC-SEQ codec (EncodeSeq/DecodeSeq).
 // This module has zero external dependencies — it uses only the Go standard library.
 package iscc
 
 import (
+	"bytes"
 	"encoding/base32"
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // ---- Algorithm Configuration Constants ----
@@ -183,31 +186,21 @@ func decodeVarnibbleFromBytes(data []byte, bitPos int) (uint32, int, error) {
 // Concatenates varnibble-encoded MainType, SubType, Version, and length,
 // then pads to byte boundary with zero bits on the right.
 func encodeHeader(mtype MainType, stype SubType, version Version, length uint32) ([]byte, error) {
+	return encodeHeaderRaw(uint32(mtype), uint32(stype), uint32(version), length)
+}
+
+// encodeHeaderRaw encodes raw header field values without type gates.
+// Each field must fit a varnibble (0–4679). Used by the typed encodeHeader and
+// by the ISCC-SEQ codec, which must re-encode unknown SubType/Version values.
+func encodeHeaderRaw(mtype, stype, version, length uint32) ([]byte, error) {
 	var bits []bool
-
-	mtBits, err := encodeVarnibble(uint32(mtype))
-	if err != nil {
-		return nil, err
+	for _, field := range [4]uint32{mtype, stype, version, length} {
+		fieldBits, err := encodeVarnibble(field)
+		if err != nil {
+			return nil, err
+		}
+		bits = append(bits, fieldBits...)
 	}
-	bits = append(bits, mtBits...)
-
-	stBits, err := encodeVarnibble(uint32(stype))
-	if err != nil {
-		return nil, err
-	}
-	bits = append(bits, stBits...)
-
-	vsBits, err := encodeVarnibble(uint32(version))
-	if err != nil {
-		return nil, err
-	}
-	bits = append(bits, vsBits...)
-
-	lnBits, err := encodeVarnibble(length)
-	if err != nil {
-		return nil, err
-	}
-	bits = append(bits, lnBits...)
 
 	// Pad to byte boundary with zero bits
 	remainder := len(bits) % 8
@@ -219,43 +212,42 @@ func encodeHeader(mtype MainType, stype SubType, version Version, length uint32)
 	return bitsToBytes(bits), nil
 }
 
-// decodeHeader decodes ISCC header from bytes.
-// Returns (MainType, SubType, Version, length, tail) where tail contains
-// remaining data after the header.
-func decodeHeader(data []byte) (MainType, SubType, Version, uint32, []byte, error) {
+// decodeHeaderRaw decodes the four raw header fields without type gates.
+// Returns (MainType, SubType, Version, length, tailStart) where tailStart is
+// the byte offset where the body begins. A zero 4-bit padding nibble is
+// skipped; a non-zero one is left in place (callers needing canonical headers
+// must re-encode and compare).
+func decodeHeaderRaw(data []byte) (uint32, uint32, uint32, uint32, int, error) {
+	names := [4]string{"maintype", "subtype", "version", "length"}
+	var fields [4]uint32
 	bitPos := 0
-
-	mtypeVal, consumed, err := decodeVarnibbleFromBytes(data, bitPos)
-	if err != nil {
-		return 0, 0, 0, 0, nil, fmt.Errorf("iscc: decode header maintype: %w", err)
+	for i, name := range names {
+		value, consumed, err := decodeVarnibbleFromBytes(data, bitPos)
+		if err != nil {
+			return 0, 0, 0, 0, 0, fmt.Errorf("iscc: decode header %s: %w", name, err)
+		}
+		fields[i] = value
+		bitPos += consumed
 	}
-	bitPos += consumed
-
-	stypeVal, consumed, err := decodeVarnibbleFromBytes(data, bitPos)
-	if err != nil {
-		return 0, 0, 0, 0, nil, fmt.Errorf("iscc: decode header subtype: %w", err)
-	}
-	bitPos += consumed
-
-	versionVal, consumed, err := decodeVarnibbleFromBytes(data, bitPos)
-	if err != nil {
-		return 0, 0, 0, 0, nil, fmt.Errorf("iscc: decode header version: %w", err)
-	}
-	bitPos += consumed
-
-	length, consumed, err := decodeVarnibbleFromBytes(data, bitPos)
-	if err != nil {
-		return 0, 0, 0, 0, nil, fmt.Errorf("iscc: decode header length: %w", err)
-	}
-	bitPos += consumed
 
 	// Strip 4-bit zero padding if header bits are not byte-aligned
 	if bitPos%8 != 0 && bitPos+4 <= len(data)*8 && extractBits(data, bitPos, 4) == 0 {
 		bitPos += 4
 	}
 
-	// Advance to next byte boundary for tail extraction
-	tailByteStart := (bitPos + 7) / 8
+	return fields[0], fields[1], fields[2], fields[3], (bitPos + 7) / 8, nil
+}
+
+// decodeHeader decodes ISCC header from bytes.
+// Returns (MainType, SubType, Version, length, tail) where tail contains
+// remaining data after the header.
+func decodeHeader(data []byte) (MainType, SubType, Version, uint32, []byte, error) {
+	mtypeVal, stypeVal, versionVal, length, tailByteStart, err := decodeHeaderRaw(data)
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+
+	// Copy the bytes after the header boundary as the tail
 	var tail []byte
 	if tailByteStart < len(data) {
 		tail = make([]byte, len(data)-tailByteStart)
@@ -278,29 +270,37 @@ func decodeHeader(data []byte) (MainType, SubType, Version, uint32, []byte, erro
 
 // ---- Length Encoding (unexported) ----
 
+// idBitLength reports whether bits is an ISCC-ID length of iscc-core's LN enum
+// (64, 72, 80 or 96; there is no 88).
+func idBitLength(bits uint32) bool {
+	return bits == 64 || bits == 72 || bits == 80 || bits == 96
+}
+
 // encodeLength encodes bit length to header length field value.
 //
 // Semantics depend on MainType:
-//   - META/SEMANTIC/CONTENT/DATA/INSTANCE/FLAKE: (bitLength / 32) - 1
+//   - META/SEMANTIC/CONTENT/DATA/INSTANCE/FLAKE: (bitLength / 32) - 1, for a
+//     multiple of 32 from 32 to 256 (an ISCC-UNIT is at most 256 bits)
 //   - ISCC: pass-through (0–7, unit composition flags)
-//   - ID: (bitLength - 64) / 8
+//   - ID: (bitLength - 64) / 8, for 64, 72, 80 or 96 (an 88-bit ID would not
+//     decode on iscc-core)
 func encodeLength(mtype MainType, length uint32) (uint32, error) {
 	switch mtype {
 	case MTMeta, MTSemantic, MTContent, MTData, MTInstance, MTFlake:
-		if length >= 32 && length%32 == 0 {
+		if length >= 32 && length <= 256 && length%32 == 0 {
 			return length/32 - 1, nil
 		}
-		return 0, fmt.Errorf("iscc: invalid length %d for MainType %d (must be multiple of 32, >= 32)", length, mtype)
+		return 0, fmt.Errorf("iscc: invalid length %d for MainType %d (must be a multiple of 32 from 32 to 256)", length, mtype)
 	case MTIscc:
 		if length <= 7 {
 			return length, nil
 		}
 		return 0, fmt.Errorf("iscc: invalid length %d for ISCC (must be 0-7)", length)
 	case MTId:
-		if length >= 64 && length <= 96 && (length-64)%8 == 0 {
+		if idBitLength(length) {
 			return (length - 64) / 8, nil
 		}
-		return 0, fmt.Errorf("iscc: invalid length %d for ID (must be 64-96, step 8)", length)
+		return 0, fmt.Errorf("iscc: invalid length %d for ID (must be 64, 72, 80 or 96)", length)
 	default:
 		return 0, fmt.Errorf("iscc: unknown MainType: %d", mtype)
 	}
@@ -313,6 +313,10 @@ func encodeLength(mtype MainType, length uint32) (uint32, error) {
 //   - ISCC + Wide: 256
 //   - ISCC + other: popcount(length) * 64 + 128
 //   - ID: length * 8 + 64
+//
+// The length field is not range-checked: a META..FLAKE index above 7 decodes
+// to more than 256 bits, which is not a valid ISCC-UNIT. Decoders call
+// unitBitLength, which applies that rule.
 func decodeLength(mtype MainType, length uint32, stype SubType) uint32 {
 	switch mtype {
 	case MTMeta, MTSemantic, MTContent, MTData, MTInstance, MTFlake:
@@ -327,6 +331,25 @@ func decodeLength(mtype MainType, length uint32, stype SubType) uint32 {
 	default:
 		return 0
 	}
+}
+
+// unitBitLength decodes a header length field to the bit length of a valid ISCC header.
+//
+// Same result as decodeLength, but a length that iscc-core's LN lookup rejects
+// is an error: a META..FLAKE length index above 7 (more than 256 bits) and an
+// ID length other than 64, 72, 80 or 96 bits. ISCC lengths decode unchanged.
+func unitBitLength(mtype MainType, length uint32, stype SubType) (uint32, error) {
+	bits := decodeLength(mtype, length, stype)
+	switch {
+	case mtype == MTIscc:
+	case mtype == MTId:
+		if !idBitLength(bits) {
+			return 0, fmt.Errorf("iscc: invalid length %d bits for ID (must be 64, 72, 80 or 96)", bits)
+		}
+	case bits > 256:
+		return 0, fmt.Errorf("iscc: invalid length %d bits for MainType %d (an ISCC-UNIT is at most 256 bits)", bits, mtype)
+	}
+	return bits, nil
 }
 
 // popcount returns the number of 1-bits in v.
@@ -393,12 +416,21 @@ func encodeBase32(data []byte) string {
 	return b32Encoding.EncodeToString(data)
 }
 
-// decodeBase32 decodes a base32 string to bytes (case-insensitive, no padding).
+// decodeBase32 decodes a base32 string to bytes (ASCII case-insensitive, no padding).
+//
+// Decoding is strict, matching the Rust core: the input must be the canonical
+// encoding of its bytes. Padding, non-zero unused trailing bits and the
+// carriage returns or newlines that encoding/base32 silently skips are all
+// rejected, by re-encoding the decoded bytes and comparing against the
+// ASCII upper-cased input.
 func decodeBase32(code string) ([]byte, error) {
-	upper := strings.ToUpper(code)
+	upper := asciiUpper(code)
 	decoded, err := b32Encoding.DecodeString(upper)
 	if err != nil {
 		return nil, fmt.Errorf("iscc: base32 decode error: %w", err)
+	}
+	if encodeBase32(decoded) != upper {
+		return nil, fmt.Errorf("iscc: base32 decode error: non-canonical encoding")
 	}
 	return decoded, nil
 }
@@ -441,7 +473,7 @@ var validPrefixes = map[string]struct{}{
 // with an invalid (MainType, SubType) combination (e.g. MQ = ID subtype 4)
 // would be accepted.
 func checkPrefix(clean string) error {
-	prefix := []rune(strings.ToUpper(clean))
+	prefix := []rune(asciiUpper(clean))
 	if len(prefix) > 2 {
 		prefix = prefix[:2]
 	}
@@ -474,7 +506,10 @@ func JsonToDataUrl(jsonStr string) (string, error) {
 
 // EncodeComponent encodes an ISCC-UNIT with header and body as a base32 string.
 // Produces the base32-encoded string (without "ISCC:" prefix).
-// ISCC MainType (MTIscc) is rejected — use gen_iscc_code_v0 instead.
+// Returns an error if a type value is out of range, if mtype is MTIscc (use
+// gen_iscc_code_v0 instead), if bitLength is invalid for mtype (a multiple of 32
+// from 32 to 256 for Meta through Flake, as an ISCC-UNIT is at most 256 bits; 64,
+// 72, 80 or 96 for MTId), or if digest is shorter than bitLength/8 bytes.
 func EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest []byte) (string, error) {
 	mt := MainType(mtype)
 	st := SubType(stype)
@@ -490,21 +525,31 @@ func EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest
 	if vs > VSV0 && (mt != MTId || vs != VSV1) {
 		return "", fmt.Errorf("iscc: invalid Version: %d", version)
 	}
-	if mt == MTIscc {
+	if len(digest) < int(bitLength/8) {
+		return "", fmt.Errorf("iscc: digest length %d < bit_length/8 (%d)", len(digest), bitLength/8)
+	}
+	return encodeComponentInternal(mt, st, vs, bitLength, digest)
+}
+
+// encodeComponentInternal encodes an ISCC-UNIT from typed enums for the Gen*
+// functions and IsccDecompose. It rejects MTIscc but performs no range or
+// digest-length checks: the body is digest truncated to bitLength/8 bytes, or the
+// whole digest when it is shorter (as iscc-core's encode_component slices).
+func encodeComponentInternal(mtype MainType, stype SubType, version Version, bitLength uint32, digest []byte) (string, error) {
+	if mtype == MTIscc {
 		return "", fmt.Errorf("iscc: ISCC MainType is not a unit; use gen_iscc_code_v0 instead")
 	}
 
-	encodedLength, err := encodeLength(mt, bitLength)
+	encodedLength, err := encodeLength(mtype, bitLength)
 	if err != nil {
 		return "", err
 	}
-	nbytes := int(bitLength / 8)
-	header, err := encodeHeader(mt, st, vs, encodedLength)
+	header, err := encodeHeader(mtype, stype, version, encodedLength)
 	if err != nil {
 		return "", err
 	}
 
-	bodyLen := nbytes
+	bodyLen := int(bitLength / 8)
 	if bodyLen > len(digest) {
 		bodyLen = len(digest)
 	}
@@ -516,18 +561,102 @@ func EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest
 	return encodeBase32(component), nil
 }
 
-// encodeComponentInternal is the internal version that accepts typed enums directly.
-func encodeComponentInternal(mtype MainType, stype SubType, version Version, bitLength uint32, digest []byte) (string, error) {
-	return EncodeComponent(uint8(mtype), uint8(stype), uint8(version), bitLength, digest)
+// ---- ISCC Clean (unexported) ----
+
+// isPyStripChar reports whether Python's str.strip() (no arguments) removes r.
+//
+// Python's whitespace set is the Unicode White_Space set (unicode.IsSpace)
+// plus the four information separators U+001C..U+001F.
+func isPyStripChar(r rune) bool {
+	return unicode.IsSpace(r) || (r >= 0x1C && r <= 0x1F)
+}
+
+// isIsccScheme reports whether scheme equals "iscc" under ASCII-only case
+// folding. Unicode-aware folding would accept "iſcc" or "İSCC", which the
+// reference rejects.
+func isIsccScheme(scheme string) bool {
+	const want = "iscc"
+	if len(scheme) != len(want) {
+		return false
+	}
+	for i := 0; i < len(want); i++ {
+		if scheme[i]|0x20 != want[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// asciiUpper upper-cases the ASCII letters a-z and copies every other byte
+// unchanged. Unicode-aware upper-casing would map "ı" or "ſ" to ASCII letters,
+// aliasing codes that the reference's ASCII-only base32 decoder rejects.
+// Returns s itself, without allocating, when it holds no lowercase ASCII letter.
+func asciiUpper(s string) string {
+	first := 0
+	for first < len(s) && (s[first] < 'a' || s[first] > 'z') {
+		first++
+	}
+	if first == len(s) {
+		return s
+	}
+	b := []byte(s)
+	for i := first; i < len(b); i++ {
+		if c := b[i]; c >= 'a' && c <= 'z' {
+			b[i] = c - ('a' - 'A')
+		}
+	}
+	return string(b)
+}
+
+// isccClean cleans up an ISCC string to its bare base32 form.
+//
+// Mirrors iscc_core.codec.iscc_clean (and the Rust core's iscc_clean): trims
+// surrounding whitespace (the str.strip() set, see isPyStripChar), removes an
+// optional scheme prefix matched ASCII case-insensitively against "iscc", and
+// strips the dash group separators of the display form. A single-part input
+// whose first character is a multibase prefix (f, b, v, z, u) keeps its dashes.
+//
+// Returns an error when a two-part input uses a scheme other than "iscc", when
+// the input contains more than one colon, or when the cleaned result is empty
+// (decodeBase32("") succeeds, so an empty code would otherwise be accepted).
+func isccClean(iscc string) (string, error) {
+	trimmed := strings.TrimFunc(iscc, isPyStripChar)
+	var code string
+	scheme, rest, found := strings.Cut(trimmed, ":")
+	if !found {
+		code = trimmed
+		if code != "" && !strings.ContainsRune("fbvzu", rune(code[0])) {
+			code = strings.ReplaceAll(code, "-", "")
+		}
+	} else {
+		scheme = strings.TrimFunc(scheme, isPyStripChar)
+		code = strings.TrimFunc(rest, isPyStripChar)
+		if strings.Contains(code, ":") {
+			return "", fmt.Errorf("iscc: malformed ISCC string: more than one colon")
+		}
+		if !isIsccScheme(scheme) {
+			return "", fmt.Errorf("iscc: invalid scheme: expected \"iscc\"")
+		}
+		code = strings.ReplaceAll(code, "-", "")
+	}
+	if code == "" {
+		return "", fmt.Errorf("iscc: empty ISCC string")
+	}
+	return code, nil
 }
 
 // ---- ISCC Decompose (public) ----
 
 // IsccDecompose decomposes a composite ISCC-CODE or ISCC sequence into individual ISCC-UNITs.
-// The optional "ISCC:" prefix is stripped before decoding. Returns a list of
-// base32-encoded ISCC-UNIT strings (without "ISCC:" prefix).
+// The input is cleaned first like iscc_core.codec.iscc_clean (surrounding
+// whitespace, an optional case-insensitive "ISCC:" scheme and dashes are
+// removed). Returns a list of base32-encoded ISCC-UNIT strings (without
+// "ISCC:" prefix).
 func IsccDecompose(isccCode string) ([]string, error) {
-	clean := strings.TrimPrefix(isccCode, "ISCC:")
+	clean, err := isccClean(isccCode)
+	if err != nil {
+		return nil, err
+	}
 	rawCode, err := decodeBase32(clean)
 	if err != nil {
 		return nil, err
@@ -542,7 +671,10 @@ func IsccDecompose(isccCode string) ([]string, error) {
 
 		// Standard ISCC-UNIT with tail continuation
 		if mt != MTIscc {
-			lnBits := decodeLength(mt, ln, st)
+			lnBits, err := unitBitLength(mt, ln, st)
+			if err != nil {
+				return nil, err
+			}
 			nbytes := int(lnBits / 8)
 			if len(body) < nbytes {
 				return nil, fmt.Errorf("iscc: truncated ISCC body: expected %d bytes, got %d", nbytes, len(body))
@@ -637,8 +769,10 @@ type DecodeResult struct {
 // handles those in normalize_multiformat before this step.
 func isccNormalize(iscc string) (string, error) {
 	// Wide-mode detection reads the original header, before decomposition.
-	clean := strings.TrimPrefix(iscc, "ISCC:")
-	clean = strings.ReplaceAll(clean, "-", "")
+	clean, err := isccClean(iscc)
+	if err != nil {
+		return "", err
+	}
 	if err := checkPrefix(clean); err != nil {
 		return "", err
 	}
@@ -675,7 +809,9 @@ func isccNormalize(iscc string) (string, error) {
 // iscc_core.codec.iscc_decode), then base32-decodes it and parses the header.
 // A concatenated sequence of ISCC-UNITs is therefore composed into a single
 // ISCC-CODE before decoding, so a sequence and its composite form decode
-// identically. The optional "ISCC:" prefix and dashes are stripped.
+// identically. The input is cleaned first like iscc_core.codec.iscc_clean:
+// surrounding whitespace, an optional case-insensitive "ISCC:" scheme and
+// dashes are removed.
 func IsccDecode(iscc string) (*DecodeResult, error) {
 	normalized, err := isccNormalize(iscc)
 	if err != nil {
@@ -689,7 +825,10 @@ func IsccDecode(iscc string) (*DecodeResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	bitLength := decodeLength(mt, lengthIndex, st)
+	bitLength, err := unitBitLength(mt, lengthIndex, st)
+	if err != nil {
+		return nil, err
+	}
 	nbytes := int(bitLength / 8)
 	// No length check here: normalization guarantees an exact body. IsccDecompose
 	// rejects a short unit body and truncates each unit to its encoded length, and
@@ -704,4 +843,137 @@ func IsccDecode(iscc string) (*DecodeResult, error) {
 		Length:   uint8(lengthIndex),
 		Digest:   digest,
 	}, nil
+}
+
+// ---- ISCC-SEQ (IEP-0020) ----
+
+// seqMainTypes lists the MainTypes permitted in an ISCC-SEQ (IEP-0020):
+// META, SEMANTIC, CONTENT, DATA and INSTANCE. ISCC-CODE, ID and FLAKE units
+// are rejected by readUnit, EncodeSeq and DecodeSeq.
+var seqMainTypes = [...]MainType{MTMeta, MTSemantic, MTContent, MTData, MTInstance}
+
+// headerMax is the upper bound of an encoded ISCC-HEADER in bytes (four 16-bit varnibbles).
+const headerMax = 8
+
+// isSeqMainType reports whether the raw MainType value mt is permitted in an ISCC-SEQ.
+func isSeqMainType(mt uint32) bool {
+	for _, m := range seqMainTypes {
+		if uint32(m) == mt {
+			return true
+		}
+	}
+	return false
+}
+
+// readUnit validates one strictly encoded ISCC-UNIT starting at offset in an
+// ISCC-SEQ byte string and returns the offset where it ends (the start of the
+// next unit). Mirrors iscc_core.codec.read_unit. Unknown SubType and Version
+// values are accepted.
+//
+// Returns an error (checked in this order) if the header is incomplete
+// (including an offset outside data), the header is non-canonical (e.g. a
+// non-zero padding nibble), the MainType is not permitted in an ISCC-SEQ, the
+// Length field is above 7, or the body runs past the end of data.
+func readUnit(data []byte, offset int) (int, error) {
+	// An out-of-range offset yields an empty window, which fails as a malformed
+	// header (as in the reference) instead of panicking on the slice.
+	var window []byte
+	if offset >= 0 && offset < len(data) {
+		window = data[offset:min(offset+headerMax, len(data))]
+	}
+	mt, st, vs, ln, _, err := decodeHeaderRaw(window)
+	if err != nil {
+		return 0, fmt.Errorf("iscc: Malformed ISCC-HEADER at offset %d: %w", offset, err)
+	}
+	header, err := encodeHeaderRaw(mt, st, vs, ln)
+	if err != nil {
+		return 0, err
+	}
+	if !bytes.HasPrefix(window, header) {
+		return 0, fmt.Errorf("iscc: Non-canonical ISCC-HEADER at offset %d", offset)
+	}
+	if !isSeqMainType(mt) {
+		return 0, fmt.Errorf("iscc: MainType %d is not permitted in an ISCC-SEQ (offset %d)", mt, offset)
+	}
+	if ln > 7 {
+		return 0, fmt.Errorf("iscc: Unsupported Length field %d at offset %d", ln, offset)
+	}
+	end := offset + len(header) + 4*(int(ln)+1)
+	if end > len(data) {
+		return 0, fmt.Errorf("iscc: Truncated ISCC-UNIT at offset %d", offset)
+	}
+	return end, nil
+}
+
+// EncodeSeq encodes ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+//
+// Returns the concatenation of the header and body bytes of each unit, in the
+// given order (never sorted, deduplicated or dropped). Unit strings may omit
+// the "ISCC:" prefix and may be lowercase or contain hyphens. Mirrors
+// iscc_core.codec.encode_seq, except that base32 input is strict: padding,
+// non-zero spare bits and non-ASCII case-fold aliases (e.g. "ſ") are rejected.
+//
+// Any 32 to 256-bit unit of any SubType and Version is accepted. A C2PA
+// io.iscc.v0 soft binding value additionally requires Version 0 units with
+// 256-bit bodies; callers producing such values must enforce that.
+//
+// Returns an error if units is empty, or a unit is empty, malformed,
+// multiformat-encoded, of a MainType outside META, SEMANTIC, CONTENT, DATA and
+// INSTANCE (ISCC-CODE, ID, FLAKE), or carries trailing data (e.g. several units
+// in one string).
+func EncodeSeq(units []string) ([]byte, error) {
+	if len(units) == 0 {
+		return nil, fmt.Errorf("iscc: ISCC-SEQ requires at least one ISCC-UNIT")
+	}
+	var seq []byte
+	for _, unit := range units {
+		if strings.TrimFunc(unit, isPyStripChar) == "" {
+			return nil, fmt.Errorf("iscc: ISCC-UNIT must not be empty")
+		}
+		// ASCII-uppercase first: isccClean keeps hyphens in bare strings that start
+		// with a multibase prefix character, and bare lowercase units with
+		// SubType >= 8 start with "b" or "f".
+		clean, err := isccClean(asciiUpper(unit))
+		if err != nil {
+			return nil, err
+		}
+		raw, err := decodeBase32(clean)
+		if err != nil {
+			return nil, err
+		}
+		end, err := readUnit(raw, 0)
+		if err != nil {
+			return nil, err
+		}
+		if end != len(raw) {
+			return nil, fmt.Errorf("iscc: Trailing data in ISCC-UNIT %q", unit)
+		}
+		seq = append(seq, raw...)
+	}
+	return seq, nil
+}
+
+// DecodeSeq decodes an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+//
+// Strict byte-level reader: applies every readUnit rule to each unit and
+// rejects trailing bytes. Unknown SubType and Version values are preserved.
+// Returns "ISCC:"-prefixed unit strings in wire order; EncodeSeq of the result
+// reproduces data. Mirrors iscc_core.codec.decode_seq.
+//
+// Returns an error if data is empty or any unit is malformed.
+func DecodeSeq(data []byte) ([]string, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("iscc: Empty ISCC-SEQ")
+	}
+	var units []string
+	offset := 0
+	for offset < len(data) {
+		end, err := readUnit(data, offset)
+		if err != nil {
+			return nil, err
+		}
+		units = append(units, "ISCC:"+encodeBase32(data[offset:end]))
+		offset = end
+	}
+	return units, nil
 }

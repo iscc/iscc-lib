@@ -44,20 +44,13 @@ packages/kotlin/
 ├── build.gradle.kts                    # Kotlin/JVM project config
 ├── settings.gradle.kts
 ├── gradle.properties                   # Version property (synced by version_sync.py)
-├── gradlew / gradlew.bat              # Gradle wrapper scripts
+├── gradlew                            # Gradle wrapper script (POSIX)
+├── gradlew.bat                        # Gradle wrapper script (Windows)
 ├── gradle/wrapper/                    # Gradle wrapper JAR + properties
 ├── src/
 │   ├── main/kotlin/uniffi/iscc_uniffi/
 │   │   └── iscc_uniffi.kt            # UniFFI-generated Kotlin bindings (DO NOT EDIT)
 │   ├── main/resources/               # Bundled native libraries (release JAR only)
-│   │   ├── linux-x86-64/             # JNA resource path for Linux x86_64
-│   │   ├── linux-aarch64/            # JNA resource path for Linux ARM64
-│   │   ├── darwin-aarch64/           # JNA resource path for macOS ARM64
-│   │   ├── darwin-x86-64/            # JNA resource path for macOS x86_64
-│   │   ├── win32-x86-64/            # JNA resource path for Windows x86_64
-│   │   ├── android-aarch64/          # JNA resource path for Android ARM64
-│   │   ├── android-arm/              # JNA resource path for Android ARM32
-│   │   └── android-x86-64/           # JNA resource path for Android x86_64
 │   └── test/
 │       ├── kotlin/uniffi/iscc_uniffi/
 │       │   └── ConformanceTest.kt    # data.json conformance vectors
@@ -66,6 +59,9 @@ packages/kotlin/
 ├── README.md
 └── CLAUDE.md
 ```
+
+The tree lists the load-bearing entries, not every file. The JNA native library directories under
+`main/resources/` are listed in "Native Library Targets" below.
 
 ## Native Library Targets
 
@@ -135,9 +131,9 @@ check(conformanceSelftest())
 Published alongside the existing `io.iscc:iscc-lib` (JNI). Uses the same Sonatype credentials and
 GPG signing infrastructure.
 
-The release JAR bundles native libraries for all 8-9 platforms as JNA classpath resources. Android
-consumers add the dependency to their `build.gradle.kts` and JNA handles native library extraction
-and loading automatically.
+The release JAR bundles native libraries for every desktop and Android target as JNA classpath
+resources. Android consumers add the dependency to their `build.gradle.kts` and JNA handles native
+library extraction and loading automatically.
 
 ### Supported consumer Kotlin version
 
@@ -232,9 +228,9 @@ RUN rustup target add aarch64-linux-android armv7-linux-androideabi \
 
 ## Release Workflow
 
-The release workflow cross-compiles `iscc-uniffi` for all target platforms (5 desktop + 3-4 Android
-ABIs), bundles the native libraries into the JAR's resource paths, and publishes to Maven Central
-via Sonatype Central Portal.
+The release workflow cross-compiles `iscc-uniffi` for every desktop target and Android ABI, bundles
+the native libraries into the JAR's resource paths, and publishes to Maven Central via Sonatype
+Central Portal.
 
 Android targets require the Android NDK in the build environment. Use `cargo-ndk` for ergonomic
 cross-compilation:
@@ -262,20 +258,20 @@ Uses the existing Sonatype/Maven Central credentials from the Java/JNI publishin
 
 ## Verification Criteria
 
-- [ ] Kotlin tests pass conformance vectors on JVM target
-- [ ] Published to Maven Central as `io.iscc:iscc-lib-kotlin`
-- [ ] All 10 `gen_*_v0` functions return correct data classes
-- [ ] All 33 Tier 1 symbols accessible from Kotlin
-- [ ] Native libraries bundled for 5 desktop platforms (linux-x86-64, linux-aarch64, darwin-aarch64,
+- Kotlin tests pass conformance vectors on JVM target
+- Published to Maven Central as `io.iscc:iscc-lib-kotlin`
+- All `gen_*_v0` functions return correct data classes
+- All Tier 1 symbols accessible from Kotlin
+- Native libraries bundled for the desktop platforms (linux-x86-64, linux-aarch64, darwin-aarch64,
     darwin-x86-64, win32-x86-64)
-- [ ] Native libraries bundled for Android ABIs (arm64-v8a, armeabi-v7a, x86_64)
-- [ ] Android app can add Maven dependency and call ISCC functions without manual native lib setup
-- [ ] `DataHasher` / `InstanceHasher` work with `use { }` blocks (AutoCloseable)
-- [ ] Nullable types used for optional parameters
-- [ ] API uses Kotlin conventions: `camelCase`, data classes, null safety
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
-- [ ] `conformanceSelftest()` returns `true`
-- [ ] UniFFI scaffolding crate shared with Swift (no duplication)
-- [ ] The supported consumer Kotlin floor (2.3+) is stated in `packages/kotlin/README.md`,
+- Native libraries bundled for Android ABIs (arm64-v8a, armeabi-v7a, x86_64)
+- Android app can add Maven dependency and call ISCC functions without manual native lib setup
+- `DataHasher` / `InstanceHasher` work with `use { }` blocks (AutoCloseable)
+- Nullable types used for optional parameters
+- API uses Kotlin conventions: `camelCase`, data classes, null safety
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- `conformanceSelftest()` returns `true`
+- UniFFI scaffolding crate shared with Swift (no duplication)
+- The supported consumer Kotlin floor (2.3+) is stated in `packages/kotlin/README.md`,
     `docs/howto/kotlin.md`, and the root README Kotlin section, and matches the metadata version the
     declared `kotlin("jvm")` compiler produces

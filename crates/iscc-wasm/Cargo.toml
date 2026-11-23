@@ -3,7 +3,10 @@ name = "iscc-wasm"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-publish = false               # Published via npm, not crates.io
+license.workspace = true
+description = "Browser-compatible WebAssembly bindings for ISO 24138:2024 International Standard Content Code (ISCC)"
+# Published via npm, not crates.io
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -14,6 +17,7 @@ iscc-lib = { path = "../iscc-lib" }
 # onto iscc-lib's blake3 for the wasm-only build). Do not remove as "unused".
 blake3 = { workspace = true, features = ["wasm32_simd"] }
 wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 serde = { workspace = true }
 

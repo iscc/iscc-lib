@@ -28,8 +28,11 @@ Or add to your `Gemfile`:
 gem "iscc-lib"
 ```
 
-Precompiled gems are available for common platforms. If no precompiled gem matches your platform,
-the gem builds from source (requires a Rust toolchain and `libclang-dev`).
+The gem requires Ruby `>= 3.3`. Precompiled platform gems are built for Ruby 3.3 to 3.4 on common
+platforms. On a newer Ruby, or on a platform with no precompiled gem, `gem install iscc-lib`
+installs the source gem and compiles the extension. That build needs a Rust toolchain (`rustup`),
+`libclang-dev`, Ruby development headers, and network access: it installs the `rb_sys` gem and
+downloads the Rust crates from crates.io. CI installs the source gem on Ruby 3.4.
 
 ## Quick Start
 
@@ -76,7 +79,7 @@ puts result.iscc
 - **Algorithm primitives:** `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, `sliding_window`
 - **Soft hashing:** `soft_hash_video_v0`
 - **Encoding:** `encode_base64`, `encode_component`
-- **Codec:** `iscc_decode`, `iscc_decompose`, `json_to_data_url`
+- **Codec:** `iscc_decode`, `iscc_decompose`, `encode_seq`, `decode_seq`, `json_to_data_url`
 - **Streaming:** `DataHasher`, `InstanceHasher` for incremental processing
 - **Diagnostics:** `conformance_selftest`
 

@@ -3,8 +3,6 @@ package iscc
 
 import (
 	"encoding/base64"
-	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 )
@@ -289,6 +287,10 @@ func TestCodecEncodeLengthInvalid(t *testing.T) {
 	if _, err := encodeLength(MTId, 97); err == nil {
 		t.Error("expected error for ID length 97")
 	}
+	// iscc-core's LN has no 88, so its decoder rejects an 88-bit ID
+	if _, err := encodeLength(MTId, 88); err == nil {
+		t.Error("expected error for ID length 88")
+	}
 }
 
 func TestCodecDecodeLengthStandard(t *testing.T) {
@@ -394,6 +396,130 @@ func TestCodecBase32CaseInsensitive(t *testing.T) {
 	}
 	if !byteSliceEqual(decoded, data) {
 		t.Errorf("case-insensitive decode failed: got %x, want %x", decoded, data)
+	}
+}
+
+// Strict base32 (decisions.md 2026-11-18): padding, non-zero spare bits and
+// interior line breaks are rejected with a base32 error, matching Rust.
+func TestCodecBase32StrictRejects(t *testing.T) {
+	cases := map[string]string{
+		"spare bits":       "GAAAAAAAAB",
+		"padding":          "GAAAAAAAAA======",
+		"interior newline": "GAAA\nAAAAAA",
+		"interior CR":      "GAAA\rAAAAAA",
+	}
+	for name, input := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := decodeBase32(input)
+			if err == nil {
+				t.Fatalf("decodeBase32(%q): expected error", input)
+			}
+			if !strings.Contains(err.Error(), "base32 decode error") {
+				t.Errorf("decodeBase32(%q): got %q, want base32 decode error", input, err)
+			}
+		})
+	}
+}
+
+// Expected fields are read off Rust iscc_lib::iscc_decode.
+func TestCodecIsccDecodeStrictBase32Accepts(t *testing.T) {
+	cases := []struct {
+		iscc                      string
+		maintype, subtype, length uint8
+		digest                    []byte
+	}{
+		{"ISCC:GAAAAAAAAA", 3, 0, 0, []byte{0, 0, 0, 0}},
+		{"ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGI", 5, 5, 0, []byte{
+			173, 172, 61, 235, 54, 120, 118, 21, 58, 231, 216, 5, 246, 120, 154, 100,
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.iscc, func(t *testing.T) {
+			r, err := IsccDecode(tc.iscc)
+			if err != nil {
+				t.Fatalf("IsccDecode(%q): %v", tc.iscc, err)
+			}
+			if r.Maintype != tc.maintype || r.Subtype != tc.subtype || r.Version != 0 || r.Length != tc.length {
+				t.Errorf("header: got (%d,%d,%d,%d), want (%d,%d,0,%d)",
+					r.Maintype, r.Subtype, r.Version, r.Length, tc.maintype, tc.subtype, tc.length)
+			}
+			if !byteSliceEqual(r.Digest, tc.digest) {
+				t.Errorf("digest: got %v, want %v", r.Digest, tc.digest)
+			}
+		})
+	}
+}
+
+// The non-canonical aliases of the accepted codes above must not decode.
+func TestCodecIsccDecodeStrictBase32Rejects(t *testing.T) {
+	for _, input := range []string{
+		"ISCC:GAAAAAAAAB",
+		"ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGJ",
+		"ISCC:GAAAAAAAAA======",
+	} {
+		t.Run(input, func(t *testing.T) {
+			_, err := IsccDecode(input)
+			if err == nil {
+				t.Fatalf("IsccDecode(%q): expected error", input)
+			}
+			if !strings.Contains(err.Error(), "base32 decode error") {
+				t.Errorf("IsccDecode(%q): got %q, want base32 decode error", input, err)
+			}
+		})
+	}
+}
+
+// caseFoldAliases pairs non-ASCII case-fold aliases with their canonical
+// ASCII twins. Unicode upper-casing maps ı→I, ſ→S, ß→SS and ﬁ→FI; the
+// reference's ASCII-only base32 decoder rejects all four characters. Each
+// alias char sits after the two-character prefix so the prefix check passes.
+var caseFoldAliases = []struct{ alias, twin string }{
+	{"ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGı", "ISCC:KUAK3LB55M3HQ5QVHLT5QBPWPCNGI"},
+	{"ISCC:GAAWDLQNG6ßDPF2", "ISCC:GAAWDLQNG6SSDPF2"},
+	{"ISCC:GAAT5ﬁNQWRC4HQV", "ISCC:GAAT5FINQWRC4HQV"},
+	{"ISCC:GAAWDLQNG6ſSDPF2", "ISCC:GAAWDLQNG6SSDPF2"},
+}
+
+// Non-ASCII case-fold aliases must fail in the base32 decoder, matching Rust.
+func TestCodecIsccDecodeRejectsNonASCIICaseFold(t *testing.T) {
+	for _, tc := range caseFoldAliases {
+		t.Run(tc.alias, func(t *testing.T) {
+			_, err := IsccDecode(tc.alias)
+			if err == nil {
+				t.Fatalf("IsccDecode(%q): expected error", tc.alias)
+			}
+			if !strings.Contains(err.Error(), "base32 decode error") {
+				t.Errorf("IsccDecode(%q): got %q, want base32 decode error", tc.alias, err)
+			}
+		})
+	}
+}
+
+// The canonical ASCII twin of each case-fold alias decodes.
+func TestCodecIsccDecodeAcceptsCaseFoldTwins(t *testing.T) {
+	for _, tc := range caseFoldAliases {
+		t.Run(tc.twin, func(t *testing.T) {
+			if _, err := IsccDecode(tc.twin); err != nil {
+				t.Fatalf("IsccDecode(%q): %v", tc.twin, err)
+			}
+		})
+	}
+}
+
+// asciiUpper maps only a-z and leaves every other byte, including the UTF-8
+// bytes of non-ASCII letters, unchanged.
+func TestCodecAsciiUpper(t *testing.T) {
+	cases := map[string]string{
+		"":           "",
+		"gaaaaaaaaa": "GAAAAAAAAA",
+		"GaA-z:@[`{": "GAA-Z:@[`{",
+		"ıſßﬁ":       "ıſßﬁ",
+		"aıb":        "AıB",
+	}
+	for input, want := range cases {
+		if got := asciiUpper(input); got != want {
+			t.Errorf("asciiUpper(%q) = %q, want %q", input, got, want)
+		}
 	}
 }
 
@@ -624,6 +750,45 @@ func TestCodecEncodeComponentRejectsIscc(t *testing.T) {
 	_, err := EncodeComponent(uint8(MTIscc), uint8(STSum), uint8(VSV0), 128, make([]byte, 16))
 	if err == nil {
 		t.Error("expected error for MTIscc")
+	}
+}
+
+func TestCodecEncodeComponentRejectsShortDigest(t *testing.T) {
+	_, err := EncodeComponent(uint8(MTMeta), uint8(STNone), uint8(VSV0), 64, []byte{1, 2, 3, 4})
+	if err == nil {
+		t.Fatal("expected error for 4-byte digest with bit_length 64")
+	}
+	if !strings.Contains(err.Error(), "iscc: digest length 4 < bit_length/8 (8)") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestCodecEncodeComponentRejectsEmptyDigest(t *testing.T) {
+	_, err := EncodeComponent(uint8(MTData), uint8(STNone), uint8(VSV0), 32, []byte{})
+	if err == nil {
+		t.Fatal("expected error for empty digest with bit_length 32")
+	}
+	if !strings.Contains(err.Error(), "digest length") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestCodecEncodeComponentExactLengthDigest(t *testing.T) {
+	digest := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	code, err := EncodeComponent(uint8(MTMeta), uint8(STNone), uint8(VSV0), 64, digest)
+	if err != nil {
+		t.Fatalf("exact-length digest rejected: %v", err)
+	}
+	raw, err := decodeBase32(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, _, _, tail, err := decodeHeader(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !byteSliceEqual(tail, digest) {
+		t.Errorf("tail: got %x, want %x", tail, digest)
 	}
 }
 
@@ -978,38 +1143,18 @@ func TestCodecDecomposeTruncatedBody(t *testing.T) {
 // ---- IsccDecompose conformance tests using data.json ----
 
 func TestCodecDecomposeConformanceVectors(t *testing.T) {
-	dataJSON, err := os.ReadFile("../../crates/iscc-lib/tests/data.json")
-	if err != nil {
-		t.Skipf("data.json not found: %v", err)
-	}
-
-	var data map[string]json.RawMessage
-	if err := json.Unmarshal(dataJSON, &data); err != nil {
-		t.Fatal(err)
-	}
-
-	// Parse gen_iscc_code_v0 section
-	var isccSection map[string]struct {
-		Inputs  []json.RawMessage `json:"inputs"`
-		Outputs struct {
-			ISCC string `json:"iscc"`
-		} `json:"outputs"`
-	}
-	if err := json.Unmarshal(data["gen_iscc_code_v0"], &isccSection); err != nil {
-		t.Fatal(err)
-	}
-
-	for name, tc := range isccSection {
+	for name, tc := range conformanceSection(t, "gen_iscc_code_v0") {
 		t.Run(name, func(t *testing.T) {
-			isccCode := strings.TrimPrefix(tc.Outputs.ISCC, "ISCC:")
-
-			// Count input codes
-			var inputCodes []string
-			if err := json.Unmarshal(tc.Inputs[0], &inputCodes); err != nil {
-				t.Fatal(err)
+			inputCodes, err := isccInputs(tc)
+			if err != nil {
+				t.Fatalf("parse inputs: %v", err)
+			}
+			iscc, err := expectedISCC(tc)
+			if err != nil {
+				t.Fatalf("parse iscc output: %v", err)
 			}
 
-			decomposed, err := IsccDecompose(isccCode)
+			decomposed, err := IsccDecompose(strings.TrimPrefix(iscc, "ISCC:"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1047,33 +1192,25 @@ func TestCodecDecomposeConformanceVectors(t *testing.T) {
 
 // ---- IsccDecode conformance: decode all gen_meta_code_v0 and gen_data_code_v0 vectors ----
 
-func TestCodecIsccDecodeConformanceVectors(t *testing.T) {
-	dataJSON, err := os.ReadFile("../../crates/iscc-lib/tests/data.json")
+// decodeExpectedISCC decodes the expected "iscc" output of a gen_* case.
+func decodeExpectedISCC(t *testing.T, tc vectorEntry) *DecodeResult {
+	t.Helper()
+	iscc, err := expectedISCC(tc)
 	if err != nil {
-		t.Skipf("data.json not found: %v", err)
+		t.Fatalf("parse iscc output: %v", err)
 	}
-
-	var data map[string]json.RawMessage
-	if err := json.Unmarshal(dataJSON, &data); err != nil {
+	result, err := IsccDecode(iscc)
+	if err != nil {
 		t.Fatal(err)
 	}
+	return result
+}
 
-	// Test Meta-Code vectors
+func TestCodecIsccDecodeConformanceVectors(t *testing.T) {
 	t.Run("gen_meta_code_v0", func(t *testing.T) {
-		var section map[string]struct {
-			Outputs struct {
-				ISCC string `json:"iscc"`
-			} `json:"outputs"`
-		}
-		if err := json.Unmarshal(data["gen_meta_code_v0"], &section); err != nil {
-			t.Fatal(err)
-		}
-		for name, tc := range section {
+		for name, tc := range conformanceSection(t, "gen_meta_code_v0") {
 			t.Run(name, func(t *testing.T) {
-				result, err := IsccDecode(tc.Outputs.ISCC)
-				if err != nil {
-					t.Fatal(err)
-				}
+				result := decodeExpectedISCC(t, tc)
 				if result.Maintype != uint8(MTMeta) {
 					t.Errorf("maintype: got %d, want %d", result.Maintype, MTMeta)
 				}
@@ -1084,22 +1221,10 @@ func TestCodecIsccDecodeConformanceVectors(t *testing.T) {
 		}
 	})
 
-	// Test Data-Code vectors
 	t.Run("gen_data_code_v0", func(t *testing.T) {
-		var section map[string]struct {
-			Outputs struct {
-				ISCC string `json:"iscc"`
-			} `json:"outputs"`
-		}
-		if err := json.Unmarshal(data["gen_data_code_v0"], &section); err != nil {
-			t.Fatal(err)
-		}
-		for name, tc := range section {
+		for name, tc := range conformanceSection(t, "gen_data_code_v0") {
 			t.Run(name, func(t *testing.T) {
-				result, err := IsccDecode(tc.Outputs.ISCC)
-				if err != nil {
-					t.Fatal(err)
-				}
+				result := decodeExpectedISCC(t, tc)
 				if result.Maintype != uint8(MTData) {
 					t.Errorf("maintype: got %d, want %d", result.Maintype, MTData)
 				}
@@ -1144,4 +1269,89 @@ func mainTypeSliceEqual(a, b []MainType) bool {
 		}
 	}
 	return true
+}
+
+// ---- ISCC-UNIT 256-bit limit ----
+
+// overlongUnit returns a base32 ISCC-UNIT with length index 8 (288 bits),
+// one step past the 256-bit limit, with a 36-byte body.
+func overlongUnit(t *testing.T, mt MainType, st SubType) string {
+	t.Helper()
+	header, err := encodeHeader(mt, st, VSV0, 8)
+	if err != nil {
+		t.Fatalf("encodeHeader: %v", err)
+	}
+	return encodeBase32(append(header, make([]byte, 36)...))
+}
+
+// assertEncodeBoundErr fails unless err is the 32-to-256 unit length error.
+func assertEncodeBoundErr(t *testing.T, err error) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), "must be a multiple of 32 from 32 to 256") {
+		t.Fatalf("got %v, want the 32 to 256 length error", err)
+	}
+}
+
+// assertDecodeBoundErr fails unless err is the 256-bit unit decode error.
+func assertDecodeBoundErr(t *testing.T, err error) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), "an ISCC-UNIT is at most 256 bits") {
+		t.Fatalf("got %v, want the at most 256 bits error", err)
+	}
+}
+
+func TestCodecEncodeLengthAbove256(t *testing.T) {
+	for _, mt := range []MainType{MTMeta, MTSemantic, MTContent, MTData, MTInstance, MTFlake} {
+		_, err := encodeLength(mt, 288)
+		assertEncodeBoundErr(t, err)
+		got, err := encodeLength(mt, 256)
+		if err != nil || got != 7 {
+			t.Fatalf("encodeLength(%d, 256): got %d, %v; want 7", mt, got, err)
+		}
+	}
+}
+
+func TestUnitBitLengthAbove256(t *testing.T) {
+	_, err := unitBitLength(MTMeta, 8, STNone)
+	assertDecodeBoundErr(t, err)
+	if bits, err := unitBitLength(MTMeta, 7, STNone); err != nil || bits != 256 {
+		t.Fatalf("unitBitLength(Meta, 7): got %d, %v; want 256", bits, err)
+	}
+	// ISCC lengths decode unchanged, including composites above 256 bits.
+	if bits, err := unitBitLength(MTIscc, 7, STNone); err != nil || bits != 320 {
+		t.Fatalf("unitBitLength(ISCC, 7): got %d, %v; want 320", bits, err)
+	}
+}
+
+func TestUnitBitLengthID(t *testing.T) {
+	// Length indexes 0, 1, 2 and 4 are the ID lengths of iscc-core's LN.
+	for _, tc := range []struct{ index, bits uint32 }{{0, 64}, {1, 72}, {2, 80}, {4, 96}} {
+		if bits, err := unitBitLength(MTId, tc.index, STNone); err != nil || bits != tc.bits {
+			t.Fatalf("unitBitLength(ID, %d): got %d, %v; want %d", tc.index, bits, err, tc.bits)
+		}
+	}
+	// Index 3 (88 bits) and index 5 (104 bits) are not.
+	for _, index := range []uint32{3, 5} {
+		if _, err := unitBitLength(MTId, index, STNone); err == nil || !strings.Contains(err.Error(), "ID") {
+			t.Fatalf("unitBitLength(ID, %d): got %v; want an ID length error", index, err)
+		}
+	}
+}
+
+func TestEncodeComponentAbove256(t *testing.T) {
+	_, err := EncodeComponent(0, 0, 0, 288, make([]byte, 36))
+	assertEncodeBoundErr(t, err)
+	if _, err := EncodeComponent(0, 0, 0, 256, make([]byte, 32)); err != nil {
+		t.Fatalf("EncodeComponent 256 bits: %v", err)
+	}
+}
+
+func TestIsccDecodeAbove256(t *testing.T) {
+	_, err := IsccDecode(overlongUnit(t, MTMeta, STNone))
+	assertDecodeBoundErr(t, err)
+}
+
+func TestIsccDecomposeAbove256(t *testing.T) {
+	_, err := IsccDecompose(overlongUnit(t, MTMeta, STNone))
+	assertDecodeBoundErr(t, err)
 }

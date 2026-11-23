@@ -24,8 +24,8 @@ them before you scope, judge, or file anything: a title that touches your area m
 is already settled and must not be re-litigated. Read the full entry only when you need its
 reasoning; if the title is not in `decisions.md`, it is in the archive.
 
-The diffstat below is orientation only — your protocol still runs the full `git diff HEAD~1..HEAD`
-and reads the modified files.
+The diffstat below covers everything since the define-next commit and is orientation only — your
+protocol still runs the full diff and reads the modified files.
 
 <next-md>
 !`cat .claude/context/next.md 2>/dev/null || echo "(missing)"`
@@ -48,7 +48,7 @@ and reads the modified files.
 </decision-titles>
 
 <advance-diffstat>
-!`git diff HEAD~1..HEAD --stat 2>/dev/null || echo "(no advance commit)"`
+!`git diff 'HEAD^{/^cid.define-next.:}..HEAD' --stat 2>/dev/null || echo "(no advance commit)"`
 </advance-diffstat>
 
 ## Task

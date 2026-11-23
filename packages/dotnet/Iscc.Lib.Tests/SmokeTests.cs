@@ -17,6 +17,23 @@ public class SmokeTests
         Assert.True(result, "Conformance selftest should pass against vendored test vectors");
     }
 
+    // ── Runtime ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fails a CI leg that runs on another runtime than it names: the net8.0 build only
+    /// reaches a newer runtime through DOTNET_ROLL_FORWARD, which fails silently if lost.
+    /// </summary>
+    [Fact]
+    public void Runtime_MatchesExpectedMajorVersion()
+    {
+        string? expected = Environment.GetEnvironmentVariable("ISCC_EXPECT_DOTNET_MAJOR");
+        if (string.IsNullOrEmpty(expected))
+        {
+            return; // local runs set no expectation
+        }
+        Assert.Equal(int.Parse(expected), Environment.Version.Major);
+    }
+
     // ── Constants ───────────────────────────────────────────────────────────
 
     [Fact]
@@ -333,12 +350,10 @@ public class SmokeTests
     }
 
     [Fact]
-    public void AlgSimhash_EmptyInput_Returns32Bytes()
+    public void AlgSimhash_EmptyInput_ThrowsIsccException()
     {
         byte[][] digests = [];
-        byte[] result = IsccLib.AlgSimhash(digests);
-        Assert.Equal(32, result.Length);
-        Assert.All(result, b => Assert.Equal(0, b));
+        Assert.Throws<IsccException>(() => IsccLib.AlgSimhash(digests));
     }
 
     [Fact]

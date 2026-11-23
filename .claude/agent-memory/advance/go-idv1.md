@@ -107,3 +107,20 @@ metadata:
 - `TextCollapse` (utils.go) uses per-call `cases.Lower(language.Und)` for Final_Sigma conformance
     (iter 147). NEVER hoist the Caser to a package-level var — Casers are stateful/not
     goroutine-safe, and hoisting measured no faster (~140ns construction).
+
+## Core/cross-surface IDv1 summary (moved from MEMORY.md, iter 195)
+
+- ISCC-IDv1 #43 COMPLETE (iter 190): Part 1 codec `Version` V1 (174) + Part 2 minting on all 11
+    surfaces (178-188) + Tier-1 32→33 doc/count sweep + per-surface API/howto entries (190). Tier-1
+    count is now 33 in ALL shipped-artifact docs (canonical breakdown `specs/rust-core.md:693`); no
+    dedicated IDv1 decoder anywhere — decode via generic `iscc_decode` + bit-math `ts=n>>12`,
+    `hub=n&0xFFF`, `realm=subtype` on 8-byte BE body. Signatures + go detail → go-idv1.md
+
+## Moved from MEMORY.md (iter 277)
+
+- Go 386 CI step (267): `go` job runs `GOARCH=386 CGO_ENABLED=0 go test` + vet (`run: |`; yamlfix
+    wraps long `&&` lines). Real failures: grep `--- FAIL` (runner self-test prints `FAILED:` lines)
+- Go hashers (261): `Push(...) error` + `finalized` flag set at `Finalize` ENTRY (any first call
+    consumes, like Rust `finalize(self)` / Python `take()`); every in-package `Push` error checked
+- CDC params (263): `alg_cdc_params` max in u64 → saturate usize; masks via `low_bits_mask`
+    (`checked_shl`, ≥32 bits → `u32::MAX`). Go: `clampInt` for max/center (386 int32)

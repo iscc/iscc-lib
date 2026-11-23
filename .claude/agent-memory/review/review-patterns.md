@@ -121,6 +121,9 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
 - Git log shows iteration numbering resets when a new CID run starts (iteration 12 → iteration 1) —
     this is normal, each `mise run cid:run` starts a new run
 - Go via mise requires `mise exec --` prefix — `go` is not on PATH in all environments
+- **Never `grep -r` over `packages/`, `docs/` or a crate dir** (230): gitignored build output
+    (`packages/kotlin/build/reports/*.html`) has single minified lines of ~100 kB that land in the
+    context. Use `git grep -n <pat> -- <paths>` — tracked files only
 - The advance commit is at HEAD (not HEAD~1) when the review hasn't committed yet — use
     `git diff HEAD~1..HEAD` for the advance diff (define-next → advance)
 - When HEAD is a previous review commit, the advance is at HEAD~1 and the advance diff is
@@ -130,6 +133,10 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     default features). Don't add `--all-targets` to a `--no-default-features` criterion and don't
     report it as a regression — the workspace `--all-targets` run (default features) is the real
     gate
+- **zsh never word-splits an unquoted `$var`** (198):
+    `for f in "" "--features x"; do cargo test $f; done` passes `--features x` as ONE argument →
+    cargo errors, a red exit that is NOT a test failure. Use `${=f}` or spell each feature-matrix
+    command out
 - **`clippy-driver … (signal: 7, SIGBUS: access to undefined memory)` at pre-push is INFRASTRUCTURE,
     not a gate verdict** (iter 152): three parallel `clippy-driver` processes died mid-`git push`
     with SIGBUS while `cargo test` / `ty` / ruff / pytest all passed; ~14 GB RAM was free. The
@@ -464,3 +471,894 @@ plus a hot-path core edit. Run, in this order:
     Codex found the duplicate hole; `spec_job_rows()` now preserves order and reports duplicates.
 - The spec prose hardcodes "21 job keys → 22 check names"; the gate deliberately pins no count, so
     that number must be hand-corrected in whatever step adds a job.
+
+## Moved from the index (197)
+
+Full text of entries compacted out of `MEMORY.md`.
+
+- **A docs-only sweep can FABRICATE a per-surface return type** (190): grep each binding's
+    `src/lib.rs` for the ACTUAL return type of any newly-documented symbol, not the CLAUDE.md/howto
+    prose (wasm `gen_iscc_id_v1` returns bare `Result<String,JsError>`, not an invented struct;
+    Codex catches these). A `#[deprecated]`/attribute claim in next.md is a hypothesis too — read it
+    in `~/.cargo/registry/src/index.crates.io-*/<crate>-<ver>/src/` (168: jni 0.22.4 never
+    deprecated `Env::byte_array_from_slice`; that grep criterion cost a zero-copy path)
+- **On ANY codec input-cleaning change, probe empty/garbage inputs** (191): a helper that yields
+    `""` (blank/`"-"`/`"iscc:"`) makes `iscc_decompose` silently return `Ok([])`
+    (`decode_base32("")` is `Ok(empty)`, not an error) — a Tier-1 silent-acceptance regression
+    valid-input differential tests miss. Compare against `HEAD~1` + reference; 192 added the empty
+    guard (learnings)
+- **A `--no-default-features` CI step catches COMPILE breaks the default gates miss** (174): a
+    `#[test]` calling a feature-gated fn fails to *compile* under
+    `cargo test -p iscc-lib --no-default-features`; gate the test `#[cfg(feature = "meta-code")]`.
+    Run the full CI feature matrix on any core change — `mise run check` and a default `cargo test`
+    are both blind to it
+- **Probe a WRAPPED multi-nibble header on any codec header-gate change** (174): `decode_header`
+    casts varnibbles `as u8` before `TryFrom`, so `MDFZAAAAAAAAAAAAAA` wraps to `Id`/V1 and
+    `iscc_decompose` silently rewrites it to `MAIAAAAAAAAAAAAA` (`iscc_core` rejects it) → learnings
+- **No-op / human-handoff iteration (111)**: verify scope is empty, still scan `@{upstream}..HEAD`;
+    HUMAN-REVIEW spec amendments + `low` left → **HUMAN REVIEW REQUESTED**, never `**IDLE**`
+    (all-`low` only). Verdict still PASS. Same call when the only `normal` left is trigger-gated on
+    an upstream release (173, go1.27): escalate rather than burn a `Step: NONE` cycle
+- **`Step: NONE` with all-`low` issues (248/308, ~5 min)** → PASS + `**IDLE**`. Checks: advance diff
+    is `handoff.md` only; `grep '^## ' issues.md | grep -vc '`low`'` is 0 (count untriaged entries
+    with the anchored `grep -c '^\*\*Triage:\*\* untriaged'`; 308: next.md was off by one, a handoff
+    note only); Codex finishes in about 2 min; `gh run list --branch develop` green on
+    `origin/develop`; one probe of a next.md claim about external state (248: the Dependabot alerts
+    API vs the `develop` lockfiles). A side note for the human in next.md is lost when next.md is
+    rewritten: file it as a `low` entry if it is a real defect
+- **Unicode freeze rule REMOVED 2026-07-30** (decisions.md): `utils/unicode16*`,
+    `unicode_boundary.json`, the sweep gate and the `U+FFFF` sentinel are gone. A diff that
+    reintroduces any freeze mechanism without a new human decision is a NEEDS_WORK
+
+## Moved from the index (204)
+
+- **next.md can under-scope the spec's "Verified when" criterion** (197): it asked only for the seq
+    base32 divergence, while `rust-core.md` demands "both sides reject the same inputs". Read the
+    feature's spec checklist too; a missing cheap differential test → add it in review (step 6)
+- **A metamorphic "display forms" suite: demand one form per trim/clean CALL SITE** (200: Codex saw
+    the outer-only separator forms miss the 2 post-colon trims; mutation in a `/tmp` copy of
+    `packages/go` — conformance tests need `../../crates`, so `-run <family>` only)
+- **Scope cap: `.crap-baseline.json` is a GENERATED artifact, not a counted file** (3 src + baseline
+    passed at 195 `5d2840e` and 203); a refresh with only `line:` shifts is correct, not a deviation
+- **A Go `Fields`→`FieldsFunc` swap costs ~2× (ASCII fast path) and allocs only past 32 fields** —
+    an `AllocsPerRun` probe needs >32 fields to see it; accepted in decisions.md (203)
+- **DIFFERENTIAL gate (157/158) / vendored DERIVED-property table (156), ~25 min each**: a
+    case-count pin catches a shrunken set, never a swapped one; drive `main()` in-process →
+    `archive/unicode-reviews.md`
+- **Repo-state gate that reads the git index (152, ~8 min)**: Python-only PLUS mutations in a
+    THROWAWAY repo (`git archive HEAD | tar -x -C /tmp/x && git init`; `git clone` fails here on
+    `safe.directory`) — never mutate the real index → `review-patterns.md`
+- **Lint-config-only (`[tool.ruff]*` / prek hook types, 134–139)**: `mise run check`, ruff check +
+    `format --check` (**assert exit 0, never a file count**), both pre-push ruff gates, ty, pytest
+- **CI-restore (advisory ignore + runner-label swap, 196, ~10 min)**: prove an ignore's "no upgrade"
+    claim at crates.io (`gate-reviews.md` Audit), runner arch from the `actions/runner-images`
+    README, then grep `specs/` + per-crate `CLAUDE.md` for the old label
+- **A GENERATED-artifact bump** (172): regenerate into `/tmp`, never read the diff →
+    `dep-refresh-reviews.md`
+- **An MSRV claim is locally decidable**: `cargo +1.85.0 check -p <crate> --locked` →
+    `dep-refresh-reviews.md` "Moved from the index"
+- **Other bump types** (lockfile, wrapper/binary blob, test-framework major) →
+    `dep-refresh-reviews.md`
+- **Prek-hook-scope review (138–139)**: NEVER accept `git ls-files` arithmetic as a hook's surface —
+    `.pyi` is tagged `pyi`, not `python`; a *widened* tag needs a **staged, dirty** file probe
+- **Action *pin* change (162, ~6 min)**: four static gates + actionlint, then probe the pin at
+    source — `git/matching-refs/tags` (does `@vN` exist?) + `compare/<tag>...main` `.ahead_by` (162:
+    `@main` was 31 commits ahead) → `gha-workflow-reviews.md`
+- **release.yml / any GHA action bump**: NEVER exercised by CID pushes → static-verify only via the
+    committed gates `scripts/check_release_workflow.py` + `… --check-action-inputs` (never a
+    heredoc); zero `warning: skipped` is part of the pass; `always()` = NEEDS_WORK →
+    `gha-workflow-reviews.md`
+
+## Multi-surface docs fan-out sweep (iter 211 — ISCC-SEQ docs on 11 surfaces, ~15 min)
+
+- **next.md's stale-count greps exclude `.claude/context/`** — `learnings.md` still said "Tier 1 =
+    33 / sweep pending" after a green sweep. Grep learnings + specs for the old count yourself; fix
+    learnings (yours), file sub-spec drift, never touch `target.md`
+- **Confirm the grep is non-vacuous**: `git grep <pat> <define-next-sha> -- <paths> | wc -l` (8 hits
+    before → 0 after)
+- **Compiling the C/C++ snippets takes seconds** (FFI `.so` already in `target/debug`):
+    `g++ -std=c++17 -Wall -Wextra -Werror -I packages/cpp/include -I crates/iscc-ffi/include x.cpp -L target/debug -liscc_ffi -Wl,-rpath,$PWD/target/debug`.
+    Ruby: `ruby -I crates/iscc-rb/lib -e 'require "iscc_lib"; …'` (check `.so` mtime > last
+    `crates/iscc-rb/src` commit)
+- **Rendered-HTML evidence must be case-insensitive** across casings (`EncodeSeq`/`encodeSeq`/
+    `encode_seq`): `grep -ciE 'encode_?seq' site/howto/*/index.html`
+- Codex on uncompiled doc examples finds missing imports (Java `Arrays`), fixture-vs-golden
+    mislabels, and exception-contract overstatements (Ruby `TypeError` from Magnus conversion)
+
+## Codec probes (moved from the MEMORY.md index, 216)
+
+- **On ANY canonical-form/decode change, probe non-ASCII case-fold aliases** (199: `ı`/`ſ`/`ß`/`ﬁ`
+    upper-case to ASCII, so Rust+Go alias codes the ASCII-only ref `b32decode` rejects; a re-encode
+    compare after `ToUpper` cannot see it). Probe via the Python binding — build it first
+- **"The fix matches the reference" — probe EVERY entry point it touches** (201: ref `iscc_decode`
+    rejects `ı`/`ſ`, ref `encode_seq` `.upper()`s first and ACCEPTS — the issue + next.md missed it,
+    Codex caught it). A new divergence → a `diverges` vector in `data-edge.json`, file a `**Spec:**`
+    issue, escalate (spec exception lists are acceptance criteria)
+- **Python-reference differentials: Python `strip()`/`split()` ⊋ Rust `trim`/`split_whitespace`** by
+    U+001C–U+001F: codec (198/200) + text utils (203) fixed in Rust AND Go. A one-way sweep proves
+    only ⊇ — demand the reverse (live `Z*`/`Cc`/`Cf` − strip set, 0.6s); `binascii.Error` ⊂
+    `ValueError`
+
+## Moved from the index (223)
+
+- **Spec-hygiene / phantom-path step (223, ~10 min)**: next.md's backticked-path loop misses
+    structure TREES — check each tree in the modified specs against `git ls-files <root>` (Go tree
+    was 11/19 fictional) and globs with `compgen -G`. A criterion edit that only names the real
+    mechanism another spec documents = approve + decisions.md; cut any clause that turns a
+    description into a prohibition
+- **issues.md at its 300-line budget**: free room by cutting history sentences, line numbers and
+    counts from `[review]` entries; never reword `[human]` entries, never trim an `**Upstream:**`
+    entry's repro, and never claim behaviour for a site found only by grep
+- **Uncommitted HUMAN edits can appear mid-review** (212: Titusz's interactive `claude` on pts/0, no
+    `--agent`, wrote decisions.md + issues.md). Not a 2nd loop: Edit targeted hunks only (never
+    Write from the inlined copy), then commit his hunks verbatim + say so — leaving them unstaged
+    puts them through prek's stash for the whole pre-push run while his session is live
+- **Multi-surface docs fan-out (211, ~15 min)**: next.md greps skip `.claude/context/` (grep
+    learnings for the old count); compile C/C++ snippets with g++ against `target/debug` in seconds
+    → `review-patterns.md`
+
+## Doc-parity gate (233 — `scripts/check_tier1_docs.py`)
+
+- **A name-matching gate proves nothing about the sentence around the name.** 233's new WASM how-to
+    line copied "array of `Uint8Array`" from the binding's own doc comment; the build returns
+    `number[][]`. A source doc comment is a claim, not evidence: run every return type a docs step
+    adds. Codex found this one; my source cross-check had accepted the comment
+- **The local WASM `pkg/` is a web build but runs in Node**: `await import(pkg + "iscc_wasm.js")`,
+    then `m.initSync({ module: readFileSync(pkg + "iscc_wasm_bg.wasm") })` from a `/tmp/*.mjs`. So
+    "WASM docs come from source only, the pkg is a web build" (advance, 233) is not a limit
+- **Threshold discovery is blind exactly where drift is worst**: print the per-file symbol count for
+    every tracked `*.md` and read the 12–29 band (233: `docs/howto/rust.md` 26, `docs/rust-api.md`
+    17 sit under 30). **Parser probes**: `pub use a::b as c;`, nested groups, `pub struct`,
+    `pub static`, `pub unsafe fn` all passed silently until 242 made the parse fail closed
+- **Fail-closed parser step (242 PASS, ~6 min)**: three probes were enough — (1) old script
+    (`git show <define-next>:scripts/…` to `/tmp`) vs new `derive_symbols` on the real input must be
+    equal; (2) one sweep script printing derive / excluded / UNRECOGNISED for ~35 forms the tests do
+    not list; (3) mutants from a `git archive` + `git init` + `git add -A` copy, run with
+    `/home/dev/.venvs/iscc-lib/bin/python -m pytest … --no-cov -p no:cacheprovider` (2 s each).
+    Codex returned in ~3 min with nothing. An equivalent mutant (the `[<(]` after a fn name) is not
+    a test gap: no valid Rust reaches it
+- **Python fixture writes need `encoding="utf-8"`**: re-run a new test file once under
+    `LC_ALL=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0` (233: `write_text` of `lib.rs` raised there)
+- **Rewriting a part-done `[human]` issue**: keep its untouched "Resolved when" bullets verbatim and
+    replace the done bullet by the measured remainder; never mark the bullet done on a threshold
+- **Rust docs completion step (243 PASS, ~20 min)**: three probes carried it. (1) A `/tmp` cargo
+    project (`[workspace]` table, path dep on `crates/iscc-lib`, `CARGO_TARGET_DIR=/tmp/…`) with
+    every ```` ```rust ```` example block wrapped in a `#[test] fn … -> Result<(), Box<dyn Error>>`:
+    15 s build, nothing lands in the tree while Codex runs. Expected failures are only the
+    placeholder files (`document.pdf`, `large_file.bin`). Run it over the sibling pages too
+    (`README.md`, `crates/iscc-lib/README.md`, `docs/index.md`, the tutorial). (2) Python probe of
+    every `gen_*` for `isinstance(r, dict) and r["iscc"] == r.iscc`. (3) Signatures are now pinned
+    by `tests/test_rust_api_signatures.py`; its mutant is the page's previous version
+    (`git show HEAD~1:docs/rust-api.md` → 10 stale). A generic fn (`gen_video_code_v0<S…>(`) breaks
+    any `name(` match: match on the name alone
+- **A `zensical build` "page does not exist" warning during a background Codex run was a race**
+    (243: both wipe `site/`); it exits 0 either way, so re-run it once Codex is done and read the
+    output. **A count word hides from a digit grep**: "The three `META_TRIM_*` constants" (243)
+- **C++ how-to completion step (244 PASS, ~8 min, Codex clean)**: (1) a 10-line extractor writes
+    every ```` ```cpp ```` block to `/tmp`, tagged `main`/`frag`; each `main` block builds alone
+    with
+    `g++ -std=c++17 -Wall -Wextra -I packages/cpp/include -I crates/iscc-ffi/include f.cpp   -L target/debug -liscc_ffi`
+    after `cargo build -p iscc-ffi` and runs with `LD_LIBRARY_PATH=target/debug`; pipe the output
+    through `cat -A` and compare with the comments. (2) Registration mutant = the page's previous
+    version in a `git archive` copy (must list exactly next.md's missing symbols). (3) A prose claim
+    like "wraps the C function of the same name with an `iscc_` prefix": count `iscc_<name>(` in
+    `iscc.h` per function (false for `iscc::iscc_decode` / `iscc_decompose`). (4) **Grep the touched
+    page for hand-typed versions** (`git grep -nE '[0-9]+\.[0-9]+\.[0-9]+'`): `version_sync.py`
+    covers only Maven/Gradle/SPM snippets (244 found `Version: 0.2.0` in the pkg-config example,
+    filed `low`). In zsh a subshell's `${PIPESTATUS[0]}` is empty: use bash
+
+## Install-claim probe (238)
+
+A docs step that says how a package installs ("falls back to a source build", "needs X and Y") is a
+claim about the published artifact, and no gate in this repo installs one. Probe it before passing:
+
+- Ruby: `curl -s https://rubygems.org/api/v1/versions/iscc-lib.json` lists every platform gem with
+    its `ruby_version` range. `gem fetch iscc-lib --version <v> --platform ruby` into an empty
+    `/tmp` dir, then `GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install <file> --local --no-document`. It
+    fails within seconds when the source gem is broken (238: missing `rb_sys` dependency, then
+    `failed to find a workspace root`). Re-run with `gem install rb_sys` in the same `GEM_HOME` to
+    see the second failure
+- The same shape applies to any sdist-like fallback (Python sdist, npm source install): check what
+    the package ships (`tar -t`) against what its manifest references outside the package
+- Verdict pattern: the step did what next.md asked and the false sentence predates it →
+    PASS_WITH_NOTES, a `normal` issue for the defect, and the old issue is replaced rather than
+    kept. Codex did not catch it
+
+### Published-package docs sweep (257, ~20 min, PASS_WITH_NOTES)
+
+A docs-only step that rewrites install and loader claims for several registries. Green gates prove
+nothing here; the probes that did:
+
+- Java: download the Maven Central JAR into an empty `/tmp` dir, `unzip -l` for `META-INF/native/`,
+    then `javac`/`java -cp` a three-line `Probe.java` kept in a separate dir, with no library path.
+    Kotlin: read `<scope>` of the JNA dependency in the published POM. Swift:
+    `git show v<tag>:Package.swift` (SPM resolves the TAG, not HEAD) and `sha256sum` of the release
+    zip against `releaseChecksum`
+- **A fallback sentence ("on other platforms, do X") is a claim about a platform you are not on.**
+    Simulate it:
+    `java -Dos.arch=riscv64 -Dos.name=FreeBSD -Djava.library.path=<dir with the extracted .so>`.
+    257: `NativeLoader` throws before the fallback, so the new sentence was false. Codex found the
+    same from the source. Fixed in step 9 (three sentences), and the loader limit filed `low`
+- next.md's "optional override" for `java.library.path` was false as well: the bundled library wins
+- Sweep the page a step half-fixes: the graph in `docs/architecture.md` was completed while three
+    sections below it stayed partial. Filed `low`, not NEEDS_WORK, because next.md scoped only the
+    graph, one sentence and one row
+- A work-producing iteration that leaves only `low` issues is PASS without `**IDLE**`: the next
+    `Step: NONE` iteration signals it
+
+### npm `@iscc/wasm` Node-setup docs step (283, ~25 min, PASS)
+
+- Strongest probe is the registry package, not only the packed HEAD build: in an empty `/tmp` dir
+    `npm init -y && npm install @iscc/wasm@<published version>`, then run each page's Node block
+    verbatim as `.mjs`. Extract the blocks with the docs test's own helpers (`sys.path.insert` of
+    `tests/`, then `javascript_blocks(markdown_section(...))`), so the mdformat-reflowed text runs
+- HEAD build:
+    `RUSTFLAGS="-C target-feature=+simd128" wasm-pack build --target web --release   --out-dir /tmp/x/pkg crates/iscc-wasm --features conformance`
+    (17 s on a warm target), set `name` in a COPY, `npm pack`, install the tarball. Run the
+    `test-wasm` step body next to a `pkg/` copy
+- Compare the README's export list against the published package with `import * as m` and a
+    `typeof m[name]` filter: names missing there are unreleased additions, not errors
+- Sibling sweep that found the leftovers: `git grep -nE 'init\(wasmBytes\)|await init\(\)'` (a
+    positional init in `scripts/test_install.py`, fixed in step 9 with a guard test) and
+    `git grep -n 'return ISCC strings directly'` (the napi README kept the false sentence: filed)
+- `uv run scripts/test_install.py --npm --version <v>` runs both npm packages from the registry
+
+## Moved from the index (239)
+
+Detail of index entries that were cut to one or two lines when the index was compacted.
+
+- **Core behaviour change with flipped binding tests (225, ~25 min)**: Rust feature matrix, Go,
+    pytest, napi build+test, `wasm-pack test`, `mvn clean test`, `dotnet test`, cbindgen no-op, CRAP
+    gate; run the suites from ONE logged script. grep docs for signatures the step makes relevant
+    (`docs/howto/rust.md` had two missing `IsccResult`)
+- **`mise run check` mdformat reformats context files** (intermittent): not an advance regression,
+    but pre-push mdformat WILL reject the batch — check `git status --porcelain` right after and
+    STAGE it. Never stage `iterations.jsonl`; keep inline code spans on ONE line. Never format with
+    bare `uv run mdformat` (221: other wrap + list numbering than the hook) — use
+    `uv run prek run mdformat --files <f>`
+- **Push message "GitHub found N vulnerabilities on the default branch" is about `main`** (234: 6
+    alerts, all already fixed in `develop`'s lockfiles) — compare `gh api …/dependabot/alerts`
+    patched versions with `develop` before filing; they close at the `develop` → `main` merge
+- **"files were modified by this hook" often means SOMETHING ELSE WAS WRITING** (97/164): a second
+    CID loop (confirm `ps aux` → HUMAN REVIEW REQUESTED, do not push or kill), or my own Edits
+    landing while a backgrounded prek run held its snapshot. Never edit while prek runs
+- **Spec paths are gated by `scripts/check_spec_paths.py` (224)** — a "mechanism does not exist"
+    realignment is a hypothesis: grep package recipes (Conan `pkg_config_name`/`cmake_file_name`
+    generate `.pc`/config at install time; 224 advance + next.md both missed it)
+- **Mutate each helper the step adds, not only the previous file version** (228): the old script
+    failed all 3 new tests, yet dropping `re.escape` stayed green — the "literal metachar" assert
+    had no `*`, so it never built the regex. ~1 min: `sed` one call out into `/tmp/x/scripts/`
+- **Docs-only**: `mise run check` + clippy + `mise run version:check` (21 `OK:`) +
+    `uv run zensical build` ("No issues found") + rendered-HTML grep for admonition/tab edits. Green
+    gates say NOTHING about truth (143). A new PAGE adds `scripts/check_docs_nav.py`
+    (disk/nav/`ORDERED_PAGES`/`docs/llms.txt`, 23 pages); `zensical build` wipes `site/` →
+    `gen_llms_full.py` after it
+- **Python-only**: `mise run check` + `pytest`; a new `.py` file adds the pre-push `ty`/ruff gates.
+    Python docstrings exist 3× (wrapper, PyO3 `///` → `_lowlevel.X.__doc__`, `.pyi`): rebuild with
+    `maturin develop` before any `__doc__` test (222, ~3 min)
+- **New gate script, gate HARDENING, or spec↔config PARITY gate (142–146/163, ~10 min)**: never
+    accept "exits 0 at HEAD" — write your OWN mutations (cheapest real regression:
+    `git show HEAD~1:<path>`), probe both set-equality blind spots (equal-empty vacuous pass,
+    duplicated row), give a `files:`-scoped hook a staged probe
+- **Pre-flight `uv run prek run --hook-stage pre-push --all-files` before pushing never-CI'd code**
+    (exit 0 ⇒ `git push` will not be rejected; needs `iscc_lib` built). Run it last and
+    sequentially, with `run_in_background` — `--all-files` also runs `standardrb`, ~15 min total on
+    the bind mount (200)
+- **Codex: `--commit HEAD` reviews ONLY the last commit** — advance often ends with a handoff-only
+    commit (195, 217). `git log @{upstream}..HEAD` first; for a multi-commit range use ONE run with
+    `codex exec review --base <sha-before-the-range>` (217: worked with a bare sha, ~5 min, covered
+    six per-surface commits) instead of per-commit runs
+- **Codex: the background run executes real build/test commands in the SAME tree** (164 dotnet, 165
+    \+ 172 Gradle) — a build tool failing once while Codex runs may be losing a race on
+    `bin/`/`obj/`/`build/`. Re-run sequentially; hold any Gradle `clean` until it exits
+- **Codex finds what a green run does not prove**: matching/parsing rules, exception contracts,
+    user-facing factual claims, build-config lines (154), declared-but-ungated facts such as MSRV
+    (172), and a third-party action's real behaviour (239)
+
+## Derived-fact removal step (245 — counts out of specs + per-crate `CLAUDE.md`, ~10 min, PASS)
+
+Docs-only guidance sweep, 24 files. The three grep criteria in next.md are a floor. What found the
+rest:
+
+- **Wrap-insensitive sweep**: per file `tr '\n' ' ' | sed -E 's/ +/ /g' | grep -oE` for a digit or
+    spelled-out number before a countable noun (functions, bindings, platforms, tests, vectors,
+    targets, methods, classes). Run it over the UNTOUCHED files too (`documentation.md`, jni, ffi).
+- **Each reworded sentence is a new claim**: read the code it names. Found: "one typed result class
+    per `gen_*_v0` function" is true but leaves out `IsccIdResult` (11 classes); a method name that
+    replaced a line number (`Rake::ExtensionTask#define`) was checked in the vendored gem under
+    `crates/iscc-rb/vendor/bundle`.
+- **"N more than M" is still a derived number** ("one more check name than job keys"): accept only
+    when the items it derives from sit in the same sentence.
+- The gates that must stay green are `check_tier1_docs.py`, `check_spec_paths.py`,
+    `check_ci_job_table.py`: all in `mise run check`, so no extra run is needed.
+- Codex finishes a docs-only review in about 3 minutes and adds nothing here.
+
+## File-list removal step (246 — trees + `File`/`Module` tables out of 12 `CLAUDE.md`, ~8 min, PASS)
+
+Docs-only, no gate covers what matters. Three probes did the work, all from the diff:
+
+- **Rule-retention sweep**: for each removed entry whose comment is a rule or origin note ("checked
+    in", "DO NOT EDIT", "gitignored", "must be at", "required by"), `git grep` the file for the
+    fact. A different wording counts ("never edit this file").
+- **Each added sentence against its source**: `git check-ignore -v <path>` for every "gitignored"
+    claim (the match may be a broad rule such as `*.so`, not the literal name the handoff quotes),
+    the manifest for a lib or module name, the build file for an include path.
+- **Leftover scan**: an `awk` pass for directory-looking lines inside any fence, plus `git grep` for
+    the removed heading names across the repo (nothing may link to a deleted section).
+- A sentence that next.md suggested word for word can still be wrong: "Tier 1 is what `lib.rs`
+    re-exports" (the gen functions are defined there). Fixed in step 9.
+
+## Spec-list gate step (247 — "not every file" note gated in `check_spec_paths.py`, ~15 min, PASS_WITH_NOTES)
+
+- Checks that paid off: the five next.md criteria in one script; the new gate against the previous
+    specs in a `git archive` repo (restore each changed spec with `git show HEAD~1:<f>`, `git add`,
+    run the script: exactly the 8 unnoted trees failed); each reworded note against its source
+    (`TARGET_RID` in `release.yml`, the JNA tables).
+- **Before closing a list-drift issue, sweep for lists the issue text does not name.** The entry
+    said "only the trees are left" (my own narrowing in 246) and was wrong: a grep over the specs
+    for table rows and bullets that START with a backticked file path showed a 10-row version-sync
+    table in `ci-cd.md` against 21 `TARGETS` in `scripts/version_sync.py`, with "all targets listed
+    above" below it. Compare any such table with the code's own list.
+- A drifted file list in a sub-spec is reviewer-fixable (file list = mechanically checkable fact):
+    replace it with a pointer to the code's list, re-run the spec gate, record it in decisions.md
+    and say so in the handoff. Do not write a new universal claim into the pointer sentence ("every
+    hand-written version is a target" is false: the pkg-config example in `docs/howto/c-cpp.md`).
+- Codex said "no actionable regressions" and did not see the table: it reviews the diff, not what
+    the diff left out.
+
+## Spec / CLAUDE.md drift realignment step (259 — release-trigger claims, ~20 min, PASS_WITH_NOTES)
+
+- Checks that paid off: one `git grep -n -E` over `release.yml` for `if:`, `needs:`, `git tag`,
+    `npm publish`, `wasm-pack build` (every condition and command on one screen), then each
+    rewritten sentence read against it. The JS recipe run in Node on the built napi addon.
+- **A purpose clause is an invented mechanism.** advance copied the commands correctly and then
+    explained them: "force-push the tags, so a stale remote tag is overwritten". False:
+    `fetch-depth: 0` makes `actions/checkout` fetch every tag (`getRefSpecForAllHistory` in its
+    `src/ref-helper.ts`, read with `gh api repos/actions/checkout/contents/…?ref=v7`), so `git tag`
+    fails and the push is a no-op. Read every "so that / because" in a rewritten spec as a separate
+    claim. Codex found the same one.
+- **Sweep the false claim repo-wide before closing the issue**, with no pathspec limit taken from
+    next.md: `docs/development.md` → "Publish" still told maintainers to push a tag. next.md's grep
+    covered specs and `CLAUDE.md` files only. Filed `normal`.
+- A reviewer may correct a sub-spec sentence when the code states the fact (`git tag … || echo`). A
+    heading or intro that names a design pattern is rationale: file it, do not rewrite it.
+- `decisions.md` over budget: `cid.archive_overflow` moved two entries (422 → 396) in one call.
+
+### Second pass (275 — eight files of an audit issue, ~15 min, PASS)
+
+- One read-only pass per file while `mise run check` runs in the background: the code lines each
+    rewritten sentence names (`.detach(` sites + the enclosing `fn`, `validate_version` callers,
+    `js_name` and `serde_wasm_bindgen` greps), the spec's example output run live in Python.
+- **A release-history claim is checked per tag**:
+    `for t in $(git tag -l); do git grep -l '<pat>' $t -- <path>; done`. next.md said the old Go
+    IDv1 symbols were "removed in 0.6.0"; no tag ever held them, and advance corrected it.
+- **A sentence that generalizes from the one copied example is its own claim**: "every export keeps
+    its Rust name" was false for the five constant getters (`js_name`). Grep the attribute over the
+    whole file. Fixed in step 9 as a sub-spec fact.
+- A leftover of the same kind outside the cited statements (the test-file list in
+    `crates/iscc-py/CLAUDE.md`) is filed `low` with `**Triage:** untriaged`, not fixed: the step did
+    not touch it and Titusz's rule is "document unrelated issues, do not fix them".
+
+## Core + Go behaviour fix (250)
+
+A step that makes the Rust core and the Go port reject an input (250: ragged video frame
+signatures). PASS in about 10 minutes.
+
+- Run every next.md criterion from ONE logged script with a `=== END <name> rc=<n>` line per step:
+    `cargo test -p iscc-lib`, both clippy forms, `cargo fmt --check`, `--no-default-features`,
+    `--no-default-features --features text-processing`, Go test + vet + gofmt, `cargo llvm-cov` +
+    `cargo crap` with the CI flags, `mise run bench:iai:check`. Warm, the whole script took about
+    one minute. Run `go test -v -run <Name>` once more to see the new Go tests `PASS` by name
+- **Probe the reference for every "iscc-core does X" sentence the docs gain**, from an empty `/tmp`
+    dir:
+    `uv run --no-project --python 3.13 --with /workspace/iscc-lib/reference/iscc-core python -I   -c '…'`.
+    In 250 next.md said a short signature raises `IndexError`; the reference returned a code for
+    all three ragged pairs. Only the shipped sentence matters for the verdict, but the measured
+    result belongs in the decision entry and in the handoff for the follow-up vector
+- A deviation from iscc-core is a decisions.md entry. When the issue has a further "Resolved when"
+    clause (a shared vector), rewrite the entry to that remainder; do not delete it
+- Codex needed under 5 minutes for a diff of this size
+- **Integer-width maths fix (263, ~15 min, PASS)**: after the logged script, ONE three-way
+    differential on boundary values (every 2^k ± 1 and every 2^(k+0.5) ± 2, where a rounded `log2`
+    flips): the reference via `uv run --no-project --with reference/iscc-core`, the Rust functions
+    cut verbatim with `sed -n 'A,Bp'` into a `/tmp` file, the Go package from a `git archive` copy
+    with a `zz_probe_test.go` that writes the tuples to a file. `diff` the three outputs
+- **Bare `rustc` compiles edition 2015** (263): `usize::try_from` fails with E0599 and the probe
+    binary is never written, so a following `diff` prints the whole reference file. Pass
+    `--edition 2021 -C overflow-checks=on` and check the line count before diffing
+- **Before suggesting a `data-edge.json` vector for a numeric boundary, read each binding's host
+    type** (263): Java `algCdcChunks` takes a signed `int`, so 2^31 cannot be a shared vector. Also
+    ask what the vector can observe: a JSON-sized input never reached the CDC masks
+- `GOARCH=386 CGO_ENABLED=0 go test` runs on the amd64 host; CI has no 32-bit job (issue filed 263)
+- iai readings 3 to 8% BELOW the July baseline on benchmarks the diff cannot reach are toolchain
+    drift (263, rustc 1.100): say so in the handoff, do not attribute them to the step
+
+## Go-only serializer fix (251)
+
+A step that changes how the Go port serializes something the core also serializes (251: canonical
+`meta` JSON, RFC 8785 string escaping). PASS in about 8 minutes.
+
+- Criteria: `mise run check`, then one logged script with `go test -count=1 ./...`, `go vet`,
+    `gofmt -l`, the next.md greps and `go test -v -run <Names>` to see the new tests by name
+- The one probe worth its budget is a **differential against `iscc_lib`**: a Python script writes
+    `{name: {in, url, code}}` to a JSON file with the core's results (`ERR` on an exception), and a
+    throwaway `zz_probe_test.go` in a `git archive HEAD packages/go` copy under `/tmp` reads it and
+    prints every difference. Run it with `go test -v`: without `-v` a passing test hides its
+    `fmt.Printf` output and the probe looks clean
+- It doubles as the check for "expected values come from the Rust core": include the committed test
+    inputs as cases
+- Input classes for a JSON canonicalizer: each escape rule, an escaped backslash before a real
+    escape, raw U+2028 in the input, the 32 control characters, the characters in a key, astral
+    characters, then the rules the step does NOT claim — key order (an emoji key next to a U+E000
+    key: UTF-8 order differs from UTF-16 order), `-0.0`, `1e21`, a 17-digit integer, a lone
+    surrogate escape, duplicate keys. 251 found the key order, `-0` and the lone surrogate still
+    differing in Go: pre-existing, filed `low`
+- Build every backslash-u sequence in the script as `chr(92) + "u2028"`. The Edit tool decoded the
+    escapes in an `issues.md` edit and the edit failed to match; write such text with a Python
+    script that builds the backslash the same way
+- 302 (Go port of a bound the core already has; PASS in about 20 minutes): the differential ran the
+    other way round and is the better shape for a bound. One Python script writes a JSON table of
+    CASES (op + arguments, no expected values), a `zz_probe_test.go` in the `/tmp` copy and a Python
+    runner over `iscc_lib` each write one `OK <result>` / `ERR <message>` line per case, and a third
+    script compares status and `OK` payloads. Paths go in through environment variables. Run
+    `mise run py:develop` first, and run the Go side as `GOARCH=386` too and `cmp` the outputs
+- Name everything in the probe file `zz…`: the package already has a `probeCase` type, and a
+    redeclaration shows up only as `[build failed]` (`go vet -C <copy> .` prints the reason)
+- Build hand-made unit headers in Python with a varnibble helper, so one table feeds both sides.
+    Vary the length index (7, 8, 9, 15, 71, 72), the body length, the position in a sequence, and
+    for `gen_iscc_code_v0` the unit count and `wide`
+- A differential finds the cases the step's tests do not cover (302: `GenSumCodeV0`, the second unit
+    of the wide check). Each was a ten-line Go test: add it in review instead of filing it
+- mdformat pads a code span that wraps over a line end with extra spaces: keep each backticked
+    command on one line in `issues.md` and the handoff, and read the diff after formatting
+- When the step fixes part of an issue, rewrite the entry to the remainder and keep its priority.
+    `issues.md` sat at 298 of 300 lines: a new entry needed cuts in other `low` `[review]` entries
+- 295 (public-function validation tightened, internal clamping helper kept; PASS in about 12
+    minutes): the differential is a TABLE. A throwaway Go test and a Python script each write
+    `args<TAB>OK|ERR<TAB>code-or-message` for every combination (types 0 to 8, versions 0 to 2, 13
+    `bits` values, 9 digest lengths = 28,431 rows) and a third script classifies the pairs as
+    status, code or message differences. Only status and code count: Go and Rust name different
+    faults when an input has two (Go checks the Version first), and that is not a defect. A gen
+    output that next.md forbids pinning in a test (behaviour not chosen) is re-run in the same
+    probe, then fed to `iscc_decode` on the binding and on iscc-core: 295 found that neither reads
+    it, which turned advance's note into a filed `low` entry with an `**Upstream:**` field. A `low`
+    untriaged entry is not escalated even when it names upstream (decision 2026-11-19)
+- 266 (structural rewrite: key order, `-0`, lone surrogates; PASS in about 15 minutes): the same
+    differential with 4,000 seeded random documents added (random 64-bit doubles, integers up to
+    2^70, a key pool mixing astral and high-BMP characters) gave 0 differences. Check the probe's
+    power by copying `git show HEAD~1:packages/go/code_meta.go` into the `/tmp` tree and re-running:
+    it must print differences. Go's `encoding/json` float output equals the ECMAScript form
+- New vectors in an existing `data-edge.json` section: `node --test __tests__/data_edge.test.mjs` in
+    `crates/iscc-napi` and `mvn -o -B -q test -f crates/iscc-jni/java/pom.xml` run them in seconds
+    on the existing artifacts when the core did not change
+- A lone surrogate escape cannot be a vector (serde_json fails on the fixture file): accept a Go
+    unit test and delete the issue; the `edge-vectors.md` rule on JSON-expressible inputs covers it
+
+## Pytest config / test-fixture speed step (254)
+
+A step that changes `[tool.pytest.ini_options]` or where test fixtures get their bytes (254:
+`addopts = "--benchmark-disable"`, Tier 1 doc tests read the repo once). PASS in about 6 minutes.
+
+- Criteria from one logged script: full `uv run pytest --durations=10` with wall time, the changed
+    test module alone, each documented pytest command as written in the docs, `zensical build`
+- An ini-wide `addopts` reaches every pytest invocation under the repo root. Grep `.github`,
+    `.pre-commit-config.yaml`, `mise.toml` and the docs for `pytest`, and check that each one
+    installs the plugin the option belongs to (an unknown option is a usage error, exit 4)
+- Run the documented command once without the new flag too: 254's exit 4 proved the doc edit was
+    required, not decoration
+- A fixture helper that copies less is safe when the code under test would raise `FileNotFoundError`
+    on the files left out. Confirm that by reading the early-return path; no mutation test is needed
+- Pre-flight `uv run ty check` and ruff `S`/`C901` on the changed test file before the push
+
+## Moved from the index (251)
+
+The long form of the index entries as they stood before the compaction in iteration 251.
+
+**Common Issues**
+
+- Verification greps false-positive: `grep -qv 'pat'` is always true on multi-line files (use
+    `! grep -q`). Substring `grep -c` and exact counts in next.md are a recurring mis-spec class
+    (139) — test the criterion against `HEAD~1` before believing advance broke it
+- **next.md's Implementation Notes are a HYPOTHESIS — algorithms, prose and quoted commands alike**
+    (142, 143, 149; 239 a misquoted third-party grep). Re-derive every number, command and expected
+    value from source → `review-patterns.md` "Claim-Probing"
+- `iscc_decompose` returns units WITHOUT "ISCC:" prefix. Docs site: `https://lib.iscc.codes/`
+- **A docs-only sweep can FABRICATE a per-surface return type** (190); a `#[deprecated]` claim is a
+    hypothesis (168) → `review-patterns.md` "Moved from the index"
+- **Codec changes**: probe empty/garbage inputs (191), `MDFZAAAAAAAAAAAAAA` on a header-gate change
+    (174), case-fold aliases + every reference entry point (201) → `review-patterns.md`
+- **next.md under-scoping a spec's "Verified when"**, `.crap-baseline.json` scope cap, differential
+    / repo-state / lint-config / prek-scope reviews → `review-patterns.md` "Moved … (204)"
+- **6-file cap counts files whose CODE changes** (225, decisions.md): comment-only binding edits +
+    regenerated outputs don't count, IF next.md lists them as such — confirm from the diff
+- **Core behaviour change with flipped binding tests (225, ~25 min)**: all suites from ONE logged
+    script + grep docs for touched signatures → `review-patterns.md` "Moved from the index (239)"
+- **Run the full CI feature matrix on any core change** — only `--no-default-features` catches a
+    feature-gated `#[test]` compile break (174) → `review-patterns.md`
+- Go `// indirect`, CI `find` cross-arch, prek stash conflict, mode-only commits under
+    `core.fileMode=false` → `review-patterns.md` "Gotchas"
+- **`\uXXXX` decodes to literal UTF-8 through Edit/Write and bash**; who may edit `issues.md` / a
+    spec is protocol-fixed (135/144/172) → `review-patterns.md` "Artifact-editing traps"
+- **`mise run check` mdformat may reformat context files**: check `git status --porcelain` right
+    after and STAGE it; never stage `iterations.jsonl`; format only with
+    `uv run prek run mdformat --files <f>` → `review-patterns.md` "Moved from the index (239)"
+- **No-op / human-handoff iteration** (111/173): verdict PASS; `low`-only + human spec work or an
+    upstream-gated `normal` → HUMAN REVIEW REQUESTED, never `**IDLE**`. Verify an advance "only low
+    issues remain" claim independently; all-`low` `Step: NONE` → PASS + `**IDLE**` (248, ~5 min) →
+    `review-patterns.md`
+- **Push message "GitHub found N vulnerabilities" is about `main`** (234), not `develop` →
+    `review-patterns.md` "Moved from the index (239)"
+- **Unicode freeze rule REMOVED 2026-07-30** — reintroducing any freeze mechanism = NEEDS_WORK
+- **`git push` failing "index.lock: File exists" while prek stashes is a WSL2 race, NOT a hook
+    rejection** (207): confirm no 2nd loop in `ps aux`, then retry once
+- **"files were modified by this hook" often means SOMETHING ELSE WAS WRITING** (97/164): a second
+    CID loop, or my own Edits during a backgrounded prek run. Never edit while prek runs
+- **Spec paths are gated (224)**; a "mechanism does not exist" realignment is a hypothesis. **Mutate
+    each helper the step adds** (228) → `review-patterns.md` "Moved from the index (239)"
+- **Spec-hygiene (223), docs fan-out (211), issues.md at budget, uncommitted human edits (212)** →
+    `review-patterns.md` "Moved from the index (223)"
+- **learnings.md sits AT its 200-line budget**: every new bullet needs an equal cut or a move to
+    `learnings-archive.md` in the same commit (239); check `wc -l` after mdformat
+
+**Review Shortcuts (detail in the topic files named above)**
+
+- **Rust-only**: `cargo test -p iscc-lib` + clippy workspace (~2 s warm) + `mise run check`. Version
+    sync adds `version_sync.py --check`, a shell script `bash -n <script>`
+- **Core + Go behaviour-fix step (250, ~10 min)**: one logged script (tests, feature matrix, clippy,
+    Go, llvm-cov + CRAP, iai) → `review-patterns.md` "Core + Go behaviour fix (250)"
+- **Go-only canonicalizer / serializer fix (251, ~8 min)**: Go criteria + ONE differential against
+    `iscc_lib` from a `git archive` copy, inputs per JCS rule → `review-patterns.md` "Go-only
+    serializer fix (251)"
+- **Test-fixture / vector-file only (141/149, ~5 min)**: Rust-only + full feature matrix (assert
+    per-target `N passed`) + the four fixture mutations → `review-patterns.md`
+- **Docs-only**: `mise run check` + clippy + `mise run version:check` + `uv run zensical build`;
+    green gates say NOTHING about truth (143) → `review-patterns.md` "Moved from the index (239)"
+- **Python-only**: `mise run check` + `pytest`; a new `.py` adds pre-push `ty`/ruff; rebuild with
+    `maturin develop` before any `__doc__` test (222) → same section
+- **New gate script / gate hardening / parity gate (142–146/163, ~10 min)**: write your OWN
+    mutations, probe equal-empty and duplicated-row blind spots → `review-patterns.md`
+- **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
+    `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go` (empty)
+- **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
+    deps changed → `gate-reviews.md` Audit)
+- **Bumps** (generated artifact, MSRV `cargo +1.85.0 check -p <c> --locked`, lockfile, wrapper,
+    framework major) → `dep-refresh-reviews.md`
+- **Security-pass / advisory-bump step (235, ~15 min)**: cargo-deny + govulncheck + ONE osv-scanner
+    pass; `diff -rq` the Go module cache → `dep-refresh-reviews.md`
+- **Binding-harness / data-edge / .NET wrapper / C FFI docs / generated C table (215-221)**, new
+    data-edge SECTION = 12-surface script (226) → `binding-reviews.md` "Moved from the index (223)"
+- **C++ wrapper-only step (227, ~4 min)**: ASAN build in an own `build-*/` dir + previous-header
+    mutation + strict `g++ -Werror -fsyntax-only` → `binding-reviews.md`
+- **A `[human]` issue with a `**Spec:**` field**: on closing it, the reviewer corrects the spec rows
+    it names (227) — stage the spec file
+- **Waiting on a background run** (bare `sleep` is blocked):
+    `timeout 580 bash -c 'until grep -q "^exit" <log>; do sleep 15; done'`
+- **Core text/codec change + generated data (≈12–20 min)**: Rust-only + feature matrix + CRAP +
+    `bench:iai:check` + generator no-op + pre-push gates on new `.py` (203) → `gate-reviews.md`
+- **JNI error-path step (230, ~12 min)**: shadow-class probe of the pending-exception guard;
+    `-Xcheck:jni` is silent on `ThrowNew` over a pending exception → `binding-reviews.md`
+- **Verbatim code-move step (231, ~5 min)**: prefix `diff`, de-indented body `diff`, test-name set
+    `diff`; cbindgen to a temp file + `cmp` → `binding-reviews.md`
+- **Test-harness-only step (232, ~8 min)**: mutate from throwaway copies; macOS proof = the `swift`
+    CI job after the push → `binding-reviews.md`
+- **Doc-parity gate / doc-listing step (233, ~25 min)**: restore previous docs in a `git archive`
+    repo, feed the parser unlisted forms (fail-open?), RUN every return type the docs add;
+    **parser-only step (242, ~6 min)**: old-vs-new derive, form sweep, mutants; **Rust docs
+    completion step (243, ~20 min)**: compile every example in a `/tmp` cargo project →
+    `review-patterns.md` "Doc-parity gate (233)"
+- **Derived-fact removal step (245, ~10 min)**: wrap-insensitive sweep incl. untouched files; each
+    reworded sentence is a new claim to check → `review-patterns.md` "Derived-fact removal step
+    (245)". **File-list removal (246, ~8 min)**: rule-retention `git grep` per removed entry,
+    `git check-ignore -v` per "gitignored" claim → same file, "File-list removal step (246)".
+    **Spec-list gate step (247, ~15 min)**: before closing a list-drift issue, grep the specs for
+    table rows starting with a backticked path and compare with the code's own list → "Spec-list
+    gate step (247)"
+- **WASM return-shape step (234, ~10 min)**: `#[wasm_bindgen_test]` never crosses the JS glue —
+    probe the built `--target nodejs` pkg from Node + read the `.d.ts` → `binding-reviews.md`
+- **data-edge rule / validator / C-generator step (236, ~8 min)**: two pytest files, regen +
+    `git status` on the header, `gen.render` on a mutated fixture copy → `binding-reviews.md`
+- **Harness-compare fan-out step (237, ~6 min)**: four suites from one logged script, .NET mutant
+    from a `git archive` copy → `binding-reviews.md`
+- **Docs install/packaging-claim step (238, ~12 min)**: install the PUBLISHED artifact in a clean
+    prefix → `review-patterns.md` "Install-claim probe (238)"
+- **C++ how-to / doc-example step (244, ~8 min)**: extract + `g++` each `main()` block, previous
+    page as gate mutant, grep the page for hand-typed versions → `review-patterns.md` "Doc-parity
+    gate (233)"
+- **Ruby gem packaging step (239 NEEDS_WORK, 240/241 PASS, ~12–25 min)**: run the action's real
+    unanchored lookup; criteria from one logged script with the mise Ruby 3.4 `bin/` on PATH. Codex
+    caught BOTH early misses (lookup, dropped `[profile.release]`): for any generated manifest, diff
+    what the root `Cargo.toml` has that the copy lacks; mutate a text-slice helper from a
+    `git archive` copy (241) → `binding-reviews.md`
+- **A test that shells out adds a tool to the `python-test` CI job** (240: `ruby`): check the runner
+    image readme (`gh api repos/actions/runner-images/contents/images/ubuntu/Ubuntu2404-Readme.md`)
+- **Search with `git grep`, never `grep -r`** over dirs with build output (230) →
+    `review-patterns.md` "Gotchas"
+- **Action pin / release.yml / any GHA bump**: static-verify only via the committed gates
+    (`check_release_workflow.py` + `--check-action-inputs`); `always()` = NEEDS_WORK →
+    `gha-workflow-reviews.md`
+- **Pre-flight `uv run prek run --hook-stage pre-push --all-files` before pushing never-CI'd code**
+    (~15 min, background, last) → `review-patterns.md` "Moved from the index (239)"
+- **Per-binding commands + traps** ("not locally verifiable" claims: all FALSE so far) →
+    `binding-reviews.md`; CI/Audit/Perf/Semver/CRAP gates → `gate-reviews.md`
+- **decisions.md over budget → rotate with `cid.archive_overflow`**, never hand-compress (command in
+    `gate-reviews.md`); stage `decisions-archive.md` too (195)
+
+## Go API-shape step (261)
+
+A Go-only step that changes a method signature or adds misuse guards (261: `Push` gained an `error`
+return, hashers got a `finalized` flag, `TextTrim` clamps `nbytes <= 0`). About 5 minutes, PASS.
+
+- Run the Go-only commands from the index, then the `-run '<Name>' -v` criteria with
+    `grep -E '^(--- |PASS|FAIL|ok|panic)'` so a panic is visible.
+- **Sibling call sites**: `git grep -n -E '\.Push\(' | grep -v _test.go` finds every caller in the
+    package AND in docs. A docs example that calls the method as a statement still compiles; that is
+    a style note, not an issue.
+- **Go source compatibility**: adding a return value keeps statement calls compiling but breaks a
+    stored method value and a caller's own interface. The advance handoff must name it; record the
+    accepted break in decisions.md (0.x) and tell define-next to put it in the release notes.
+- **Exported `int` parameters** (the only ones that can go negative):
+    `git grep -n -E '^func .*[A-Z][A-Za-z0-9]*\(.*\bint\b' -- 'packages/go/*.go'` minus tests. At
+    261 these are `TextTrim` and `SlidingWindow`, both guarded.
+- "Matches every sibling surface" is a claim: read one sibling (`crates/iscc-py/src/lib.rs`,
+    `inner.take()` before the core call) instead of trusting it.
+- The repository has no `CHANGELOG`; a Go API break is recorded in decisions.md and the handoff.
+
+## Docs accuracy batch (277, ~25 min)
+
+A step that corrects false sentences on named pages. All gates were green and Codex found nothing;
+the findings came from sweeping for siblings.
+
+- **Sweep the whole tree for each corrected claim**, source comments included:
+    `git grep -nE   'KA[AC]\b'` found two `///` comments (`types.rs`, wasm `lib.rs`) next.md had not
+    listed, and `git grep -nE '10 .gen_' -- docs` found `ecosystem.md` and `architecture.md`. Read
+    each hit: a library-wide "10 functions" count is correct, "10 from ISO" or "10 in `data.json`"
+    is not (9)
+- **Release-doc claims**: dump every job's `needs`, `if`, `permissions`, secrets and check-step
+    names from `release.yml` with PyYAML in one script and compare the table row by row
+- **Facts measured here**: `gen_sum_code_v0` and `gen_iscc_code_v0([data, instance])` return
+    `ISCC:KUA…` (`wide` with 64-bit units changes nothing); iscc-core 1.5.0 has no
+    `gen_sum_code_v0`; Ruby `Float::INFINITY` raises `FloatDomainError` like `NaN`
+- **A human decision recorded only inside an issue dies with the issue**: write the decisions.md
+    entry when closing it (the Ruby `to_int` idiom)
+- A comment-only leftover in two files is a step-9 fix; prose leftovers on other pages are one
+    `normal` issue (leftover of the step's own pattern)
+- **Surface-coverage batch (280, ~20 min, PASS)**: every new table row checked in five greps (paths
+    via `git ls-files`, `release.yml` staging steps for archive contents, hasher class/method names
+    per binding, `ci.yml` run lines, each test's vector loader) plus `curl -w '%{http_code}'` on
+    each added registry link. **Read the PRE-EXISTING rows of a section whose issue you close**: the
+    C FFI row named `ctx_new()` (no such function) and the Java row a `DataHasher` class (static
+    `dataHasher*` methods only); two cells are a step-9 fix. **Keep a replaced table cell within the
+    widest row**, or mdformat re-pads every row of the table
+
+## Binding README claim + docs-claim test (286, ~10 min, PASS)
+
+A step that corrects one sentence on a registry README, fills its symbol list and adds a pytest that
+ties the sentence to the binding source.
+
+- **Count the binding's exports yourself** (`git grep -n -A2 '#\[napi' <lib.rs>`) against the README
+    list; the Tier 1 gate checks names on the page, not that the binding exports them
+- **Mutate the test in-process**, no tree edits: import the test module from `tests/`, point its
+    path constants (`LIB_RS`, `README`) at `/tmp` copies with a renamed field, an added field, a
+    dropped field name and the banned phrase wrapped over a line break, and call each test function
+- **`npm pack <pkg>` in an empty `/tmp` dir and grep `package/index.d.ts`** shows the published type
+    names in one minute. Symbols added since the last release are missing there by design (0.7.0 has
+    no `encode_seq`/`decode_seq`): the README ships with the next version
+- napi-rs camel-cases PARAMETER names in the `.d.ts` (`addUnits`) while `js_name` keeps function
+    names snake_case; parameters are positional, so a README that says `add_units` is a nit
+
+## API-tier classification docs step (288, ~25 min, PASS)
+
+- A classification step rewrites sentences in several files; read each rewritten sentence against
+    the step's OWN new classification. Root `CLAUDE.md` kept "only Tier 1 is bound" one paragraph
+    away from "Python and WASM wrap the Tier 2 `SumHasher`"
+- "Module X is Tier 2" is false for items the crate root re-exports from X: list `pub use X::…` in
+    `lib.rs` and check that the text covers them (`codec` holds four Tier 1 functions, and
+    `codec::encode_component` is NOT the crate-root function of the same name)
+- A `//!` or `///` edit in a covered Rust file shifts line numbers in `.crap-baseline.json`. That is
+    harmless: the CI gate line reported "0 regressed, 33 moved", exit 0 (coverage + gate ≈ 4 min).
+    Run it once when a handoff says "comment-only, gates unaffected" and the file is `lib.rs`
+- One `/tmp` cargo project with a path dep proves the doc example AND the prose claims around it
+    (same-item paths by assigning `types::X` to `X`, "identical to `gen_sum_code_v0`" by comparing)
+- Codex had no findings here; the two wording gaps came from the re-export listing
+
+## Core dedup (289 — one-shot gen functions reuse shared helpers, ~12 min, PASS)
+
+- "No error text or result changed" is a claim the new tests pin only in part. Prove it with ONE
+    program built twice: `git archive HEAD~1 | tar -x -C /tmp/x/old`, two `/tmp` cargo projects with
+    the same `main.rs` and a path dep each (old tree, checkout), an empty `[workspace]` table, a
+    copy of the root `Cargo.lock`, `cargo run -q --offline`, own `CARGO_TARGET_DIR` each. Print
+    `{:?}` of every result and `diff` the outputs (about 1 min for both builds)
+- Pick inputs that reach every error arm, then tally the distinct `Err(` texts to confirm it: both
+    size limits need a payload sized against the constant (`META_TRIM_META` = 128,000)
+- A step that makes a benchmarked function much cheaper leaves `.iai-baseline.json` stale: the check
+    is one-sided (+10%). File the stale rows; a baseline refresh was always `cid(human)`
+- A `grep -c` criterion that prints non-zero: run it on `HEAD~1` and list the matches before
+    judging. Here the pattern matched the field of the one implementation that had to stay
+- One verification script with a `step` function that logs name, `rc` and seconds per criterion to a
+    progress file ran all nine commands in the background while the diff was read
+
+## Go test-refactor onto shared parsers + runner policy alignment (290, ~15 min, PASS)
+
+- "No check lost" in a test refactor:
+    `git archive '<define-next>' packages/go crates/iscc-lib/tests` into `/tmp`, run
+    `go test -count=1 -v ./... | grep -- '--- PASS' | sed 's/ (.*//' | sort` in both trees and
+    `diff` the lists (about 20 s). `go test` prints nothing from `fmt.Println` without `-v`
+- A step that aligns two "mirror" runners on NAMED malformed cases leaves the unnamed ones. Run one
+    table of wrong-type values (per input position: float, negative, `null`, non-string list entry,
+    short list) through both runners and rewrite the issue to the rows that differ. Six rows
+    differed here, in both directions, and the Rust runner panicked on a short list
+- Rust side without touching the checkout:
+    `git archive HEAD packages/go crates Cargo.toml Cargo.lock` into `/tmp`, append a `#[test]` with
+    `std::panic::catch_unwind` to the module's `tests` block, then
+    `CARGO_TARGET_DIR=<repo>/target cargo test -p iscc-lib --lib <path> -- --nocapture` (4 s: the
+    dependencies are reused)
+- Codex had no findings; both gaps came from the differential
+
+## Rust test-refactor onto shared parsers (291 — in-crate tests read `data.json` via `conformance.rs`, ~15 min, PASS)
+
+- One logged script: the three CI feature sets, clippy crate + workspace, the `--nocapture` run of
+    the failure arms. Then `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` and CI's CRAP
+    line. A split into small parsers reads "0 regressed, N new, M moved" and exits 0; the new fns
+    are outside the baseline, so only `--fail-above` sees them until someone refreshes it
+- **Reduced-feature clippy: use CI's lines** (`--no-default-features` lib-only, `--all-features`),
+    or add `--tests`. `--all-targets` with `--no-default-features` fails in the benches (they import
+    `gen_meta_code_v0`/`gen_text_code_v0` unconditionally): pre-existing, not the step's fault
+- A "prints nothing" grep on a bare variable name (`inputs\[[0-9]`) matched one local array in an
+    unrelated test. Run the grep at the define-next commit before blaming advance
+- Codex returned in about four minutes with no finding on a test-only refactor
+- The issue's "Resolved when" had two halves: rewrite the entry to the half that is left, and check
+    that the other surface pins the closed row too (`git grep` its test file) before dropping it
+
+## Docs snippet gate step (292 — WASM init on three pages + agent guidance, ~15 min, PASS)
+
+- Criteria + ONE script that loads the test module with `importlib` and runs the step's rule helpers
+    over `git show <define-next>:<page>` and the current page: old copies must report problems,
+    current ones none. That is the real-regression proof for a docs rule
+- **Ask what the rule cannot see**: a fence regex tied to one language tag (```` ```javascript ````)
+    misses a `js` / `typescript` / `html` snippet. Tie the count of matches inside checked blocks to
+    the count in the whole page (added in step 9); prove it on a `git archive` copy with one fence
+    retagged. Mutate a page with SEVERAL snippets: with one snippet a different assert fires
+- A build command quoted in guidance "exactly as release.yml runs it": compare with the `run` line
+    and its `env` block. `git grep` the banned strings repo-wide; `notes/`, agent memory, archives
+    and issue text that reports an old measurement are legitimate leftovers
+- Left as nits: an `init(` inside a comment satisfies the rule, and call order is not checked
+- Codex returned in about five minutes with no finding
+
+## Fixture-parser strictness step, Rust + Go (293 — one wrong-type rule for both runners, ~25 min, PASS)
+
+- One logged script: the three `cargo test -p iscc-lib` feature sets, clippy (crate and workspace),
+    Go amd64 + `GOARCH=386` tests, both `go vet`, `gofmt -l`, the two greps, then llvm-cov + the CI
+    CRAP line. `tail -6` per command hides the lib test count: confirm the new tests by name with
+    `cargo test -p iscc-lib --lib -- <substring>` and `go test -v -run '<names>'`
+- **The probe that found something**: a
+    `git archive HEAD crates/iscc-lib packages/go Cargo.toml Cargo.lock` copy in `/tmp` (rewrite
+    `members` to the core crate, own `CARGO_TARGET_DIR`), ONE `rows.json` of `[section, raw inputs]`
+    read by a temp Rust test appended to `conformance.rs` and a temp Go test, each writing
+    `section|inputs|parsed` lines; `diff` the two files. 89 rows, 3 differed, all `-0` in a signed
+    or pixel slot (serde_json reads `-0` as a float)
+- **A regenerated `.crap-baseline.json` also records every function earlier steps left "new"**
+    (+240/−112 for two real regressions): compare old and new per `(file, function)` in Python
+    (`git show <define-next>:.crap-baseline.json`), and accept only rises the handoff names
+- Mutate each added Go helper in the copy (`containsNull` → never true, `parseSection` without the
+    object checks): each must turn named rows red. Codex found nothing here (it re-ran the suites)
+
+## Version-sync script hardening (294 — getters list every site, ~10 min, PASS)
+
+`scripts/version_sync.py` + `tests/test_version_sync.py` only. Beyond next.md's criteria, three
+probes settled it:
+
+- **Round trip in a `git archive` copy** (`git init` + commit there): bump `Cargo.toml` to `9.8.7`,
+    run the sync (expect 22 `Synced` lines, exit 0), `--check` (22 `OK:`), then `git checkout`
+    `Cargo.toml` and sync back: `git status --porcelain` must be empty. This is the proof that a
+    regex or backreference change corrupts no target; `git diff --numstat` shows the sites per file
+- **CLI failure modes in the same copy**: one stale second snippet, one deleted target, one reworded
+    pattern, then `--check` and the sync: both exit 1, each problem has its own line
+- **Literal count against the getter**: for each `TARGETS` entry, `text.count(<workspace version>)`
+    equals `len(getter(text))`. No output means every literal version in a target file is a sync
+    site
+
+Known limit, not filed: in a file with several snippets, one that stops matching goes unseen while a
+sibling still matches (no expected count per file; `test_doc_getter_reports_every_snippet` pins
+`docs/index.md` at 4). Turning the literal count into a test was considered and left out: a "since
+X.Y.Z" sentence would turn the release commit red.
+
+Python edits need the pre-push gates: `uv run ty check` and `uv run ruff check --select S,C901`.
+
+## Core API break through 7 bindings (298, ~40 min, PASS_WITH_NOTES)
+
+`alg_minhash_256` became `IsccResult<Vec<u8>>`: 3 core files, one call in each of 7 binding
+`lib.rs`, one commit per surface, regenerated `iscc.h` + `NativeMethods.g.cs` + UniFFI Kotlin/Swift
+\+ CRAP baseline.
+
+- **Scope**: over the 6-file cap with no valve declared. Passed under decisions.md 2026-11-22 "A
+    core signature change lands with the binding edits the compiler forces". Check its four
+    conditions: a decision approves the break, each binding maps the result as a sibling wrapper
+    does, no binding changes beyond that call, one commit per surface. Anything more = NEEDS_WORK
+- **Codex**: the work spans 9 commits, so run ONE `codex exec review --base <define-next sha>`. It
+    came back clean in under 10 minutes, before my suite run started (no build race)
+- **One logged script, sequential, ~15 min in total** (`step <name> <cmd>` writes `START`/`DONE rc=`
+    lines to a log and each command's output to its own file): core in 4 feature sets,
+    `-p iscc-ffi -p iscc-uniffi`, clippy, `git diff --exit-code` on `iscc.h` + `NativeMethods.g.cs`
+    after the build, `cbindgen` to `/tmp` + `diff`, the UniFFI freshness step body (PyYAML extract,
+    `bash -e`, `RUNNER_TEMP=/tmp/x`), gcc C test, cmake C++ test
+    (`-S packages/cpp -B /tmp/x -DFFI_LIB_DIR=$PWD/target/debug -DSANITIZE_ADDRESS=ON`),
+    `dotnet test … -e LD_LIBRARY_PATH=$PWD/target/debug`, JNI + `mvn -q`, Kotlin
+    `./gradlew test --rerun-tasks` (3 min), `maturin develop` + pytest, Ruby `rake compile test`,
+    `wasm-pack test`, napi in a `git archive` copy (2 min, with a `node -e` probe of the new error
+    appended), `mise run coverage`, the CI CRAP line, `mise run bench:iai:check`. Start it AFTER
+    `mise run check` has finished
+- **Read each log for real counts** (a cached `rc=0` in 5 s is normal): surefire `Tests run:` lines
+    under `crates/iscc-jni/java/target/surefire-reports/*.txt` (`mvn -q` prints nothing)
+- **Swift cannot be built here** (macOS CI job only). A function that becomes `throws` breaks every
+    call site without `try`: `git grep <name> packages/swift packages/kotlin docs` and read the hits
+- **The `semver` CI job is `continue-on-error`**: an approved break turns it red and CI stays green
+- **Docs name an error on surfaces with no test** (napi, WASM, Ruby, .NET, Swift, Kotlin; the
+    data-edge section pins them later): probe two by hand, read the wrapper for the rest
+- **Rewrite the issue to the smaller problem** when a multi-step `[human]` issue is partly done (Go
+    port + data-edge section left); do not delete it and do not log progress in it
+
+## Core validation bound, no signature change (301, ~25 min)
+
+`encode_length` capped at 256 bits and a `pub(crate)` checked decode helper replaced four internal
+`decode_length` calls. PASS, Codex clean in 10 minutes.
+
+- **One logged script** (`step <name> <cmd>`, exit code per step): `mise run check`, core tests in 4
+    feature sets, the name-filtered test run, clippy workspace, `mise run coverage` + the CI CRAP
+    line, `mise run bench:iai:check`, the signature pytest. 2 minutes with a warm target
+- **CRAP baseline honesty without a regen**: the CI CRAP line printing `0 new, 0 moved, N unchanged`
+    means the committed baseline equals a fresh run. A refreshed baseline also picks up functions
+    that earlier steps added (new functions never fail the gate), so its diff is larger than the
+    step's own four rows
+- **The decisive probe is a differential through the Python binding** (`mise run py:develop`, then
+    one script that runs each case on `iscc_lib` and `iscc_core`): build headers with
+    `ic.encode_header(mt, 0, 0, idx)` + zero body + unpadded base32. Include the short-circuit case
+    (a short first unit hides a bad second one) and the non-wide case. iscc-core's
+    `gen_data_code_v0` wants a stream, not bytes
+- **A decode test through `iscc_decompose` cannot tell a decode check from the encode bound**: it
+    re-encodes each unit, so the encode bound rejects the same input with a similar message
+- **Adjacent old deviation found by widening the same probe by one loop** (ID length indexes): file
+    it `low` untriaged, with the data-edge "Resolved when"
+- No binding suite ran (only pytest at pre-push): a repo-wide `git grep` showed no binding test or
+    doc example above 256 bits, and the data-edge rows pin the bindings in a later step
+
+## Conformance-runner table / test-loop dedup step (306, ~25 min)
+
+One `SECTIONS` table replaced eleven runners in `conformance.rs`, five duplicate loops left
+`lib.rs`, and the WASM conformance harness moved to strict shared readers. PASS, Codex clean.
+
+- **A deleted duplicate test takes its side asserts with it.** The five loops held the core's only
+    case-count pins for their sections, and an empty section passes `conformance_selftest`. List
+    every assert a deleted test made and ask which one survives elsewhere (here: Swift pins every
+    count on a gated byte-identical copy; the reviewer added a non-empty floor test)
+- **Decisive bad-vector probe for a strict reader**: mutate a value whose truncation is the ORIGINAL
+    value (pixel 0 to 256, `bits` 64 to 2^32+64). The old cast passes it silently, so a failure with
+    the reader's message proves the reader. Run it in a `git archive` copy with its own
+    `CARGO_TARGET_DIR`, `wasm-pack test --node crates/iscc-wasm --test conformance` only (the unit
+    suite's selftest reads the same file). About 90 seconds
+- **CRAP baseline diff by score**: load `git show HEAD~1:.crap-baseline.json` and the file, key
+    `entries` by (file, function), compare (cyclomatic, coverage, crap). Only the step's file may
+    show up. Functions inside `#[cfg(test)] mod tests` are not scored, so a test-module edit is safe
+- `cargo clippy -p iscc-lib --no-default-features --all-targets` fails on the benches (they import
+    the meta and text functions): use `--tests` for the reduced feature sets
+- A `for f in "" "--a --b"` loop does not word-split in zsh: run feature-set loops from a bash
+    script
+
+## Spec + API-comment sweep (307, ~20 min)
+
+Three specs restated to shipped facts, one error sentence added to seven `encode_component` doc
+blocks, four regenerated outputs. PASS_WITH_NOTES, Codex clean, no code line changed.
+
+- **A list restated as a rule is a new claim about every page it covers.** advance wrote "other
+    pages follow the same order" for tabs; one loop over `git grep -l '=== "' docs` printing each
+    page's tab order showed the tutorial disagreeing. Run that kind of loop for every rule that
+    replaces a list. The reviewer may correct such a sentence in a sub-spec (a checkable fact the
+    step itself wrote); false sentences beside it that the step did not write go to issues.md `low`
+- An error sentence copied to N surfaces needs no per-surface probe when a `data-edge.json` row pins
+    the rule on all 12: read the section's rows instead
+- A parameter-range row sits next to each error sentence (`git grep '32 to 256'`): the step may
+    leave it stale, as here for the ISCC-ID range. File it `low` when it predates the step
+- Freshness in one script: `touch crates/iscc-ffi/src/lib.rs`, build, `git diff --exit-code` on the
+    `.g.cs`, the CI cbindgen line, then the UniFFI step body from PyYAML with
+    `RUNNER_TEMP=/tmp/x bash -e`. About 10 seconds on a warm target
+- `cargo tree -p iscc-lib --no-default-features -e normal --prefix none` proves a feature-flag
+    sentence in a spec (`unicode-ident` there is a proc-macro dependency, not a Unicode table)

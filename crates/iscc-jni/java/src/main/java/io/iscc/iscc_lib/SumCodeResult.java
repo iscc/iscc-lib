@@ -10,7 +10,7 @@ package io.iscc.iscc_lib;
  */
 public class SumCodeResult {
 
-    /** Composite ISCC-CODE string (e.g., "ISCC:KAC..."). */
+    /** Composite ISCC-CODE string (e.g., "ISCC:KUA..."). */
     public final String iscc;
 
     /** Hex-encoded BLAKE3 multihash of the file (e.g., "1e20..."). */

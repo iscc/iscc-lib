@@ -8,10 +8,16 @@ use std::cmp;
 
 /// Compute a SimHash from a sequence of equal-length hash digests.
 ///
-/// Validates that all digests have equal length, then delegates to
-/// `alg_simhash_inner`. Returns `Err(IsccError::InvalidInput)` if
-/// digest lengths are mismatched.
+/// Validates that the list is non-empty and that all digests have equal
+/// length, then delegates to `alg_simhash_inner`. Returns
+/// `Err(IsccError::InvalidInput)` for an empty list or mismatched digest
+/// lengths.
 pub fn alg_simhash(hash_digests: &[impl AsRef<[u8]>]) -> IsccResult<Vec<u8>> {
+    if hash_digests.is_empty() {
+        return Err(IsccError::InvalidInput(
+            "hash_digests must not be empty".into(),
+        ));
+    }
     if hash_digests.len() >= 2 {
         let expected_len = hash_digests[0].as_ref().len();
         for (i, digest) in hash_digests.iter().enumerate().skip(1) {
@@ -180,8 +186,14 @@ mod tests {
     #[test]
     fn test_alg_simhash_empty() {
         let empty: Vec<Vec<u8>> = vec![];
-        let result = alg_simhash(&empty).unwrap();
-        assert_eq!(result, vec![0u8; 32]);
+        let err = alg_simhash(&empty).unwrap_err();
+        assert!(matches!(err, IsccError::InvalidInput(ref m) if m.contains("must not be empty")));
+    }
+
+    #[test]
+    fn test_alg_simhash_inner_empty_returns_zeros() {
+        let empty: Vec<Vec<u8>> = vec![];
+        assert_eq!(alg_simhash_inner(&empty), vec![0u8; 32]);
     }
 
     #[test]

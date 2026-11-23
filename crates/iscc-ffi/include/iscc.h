@@ -233,7 +233,8 @@ char *iscc_gen_meta_code_v0(const char *name,
  *
  * # Safety
  *
- * `pixels` must point to a valid buffer of at least `pixels_len` bytes.
+ * `pixels` must point to a valid buffer of at least `pixels_len` bytes. It may
+ * be NULL when `pixels_len` is 0; NULL with `pixels_len > 0` is an error.
  */
  char *iscc_gen_image_code_v0(const uint8_t *pixels, uintptr_t pixels_len, uint32_t bits);
 
@@ -253,7 +254,8 @@ char *iscc_gen_meta_code_v0(const char *name,
  *
  * # Safety
  *
- * `cv` must point to a valid buffer of at least `cv_len` `i32` elements.
+ * `cv` must point to a valid buffer of at least `cv_len` `i32` elements. It may
+ * be NULL when `cv_len` is 0; NULL with `cv_len > 0` is an error.
  */
  char *iscc_gen_audio_code_v0(const int32_t *cv, uintptr_t cv_len, uint32_t bits);
 
@@ -274,9 +276,11 @@ char *iscc_gen_meta_code_v0(const char *name,
  *
  * # Safety
  *
- * - `frame_sigs` must point to an array of `num_frames` valid pointers
+ * - `frame_sigs` must point to an array of `num_frames` pointers
  * - `frame_lens` must point to an array of `num_frames` lengths
  * - Each `frame_sigs[i]` must be valid for `frame_lens[i]` `i32` elements
+ * - Any of these pointers may be NULL when its length (`num_frames` or
+ *   `frame_lens[i]`) is 0; NULL with a non-zero length is an error
  */
 
 char *iscc_gen_video_code_v0(const int32_t *const *frame_sigs,
@@ -301,6 +305,7 @@ char *iscc_gen_video_code_v0(const int32_t *const *frame_sigs,
  * # Safety
  *
  * `codes` must point to an array of `num_codes` valid null-terminated UTF-8 strings.
+ * It may be NULL when `num_codes` is 0; NULL with `num_codes > 0` is an error.
  */
  char *iscc_gen_mixed_code_v0(const char *const *codes, uintptr_t num_codes, uint32_t bits);
 
@@ -320,7 +325,8 @@ char *iscc_gen_video_code_v0(const int32_t *const *frame_sigs,
  *
  * # Safety
  *
- * `data` must point to a valid buffer of at least `data_len` bytes.
+ * `data` must point to a valid buffer of at least `data_len` bytes. It may be
+ * NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
  */
  char *iscc_gen_data_code_v0(const uint8_t *data, uintptr_t data_len, uint32_t bits);
 
@@ -340,7 +346,8 @@ char *iscc_gen_video_code_v0(const int32_t *const *frame_sigs,
  *
  * # Safety
  *
- * `data` must point to a valid buffer of at least `data_len` bytes.
+ * `data` must point to a valid buffer of at least `data_len` bytes. It may be
+ * NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
  */
  char *iscc_gen_instance_code_v0(const uint8_t *data, uintptr_t data_len, uint32_t bits);
 
@@ -361,6 +368,7 @@ char *iscc_gen_video_code_v0(const int32_t *const *frame_sigs,
  * # Safety
  *
  * `codes` must point to an array of `num_codes` valid null-terminated UTF-8 strings.
+ * It may be NULL when `num_codes` is 0; NULL with `num_codes > 0` is an error.
  */
  char *iscc_gen_iscc_code_v0(const char *const *codes, uintptr_t num_codes, bool wide);
 
@@ -469,7 +477,8 @@ char *iscc_gen_video_code_v0(const int32_t *const *frame_sigs,
  *
  * # Safety
  *
- * `data` must point to a valid buffer of at least `data_len` bytes.
+ * `data` must point to a valid buffer of at least `data_len` bytes. It may be
+ * NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
  */
  char *iscc_encode_base64(const uint8_t *data, uintptr_t data_len);
 
@@ -501,19 +510,22 @@ char *iscc_gen_video_code_v0(const int32_t *const *frame_sigs,
  * - `mtype`: MainType enum value (0–7)
  * - `stype`: SubType enum value (0–7)
  * - `version`: Version enum value
- * - `bit_length`: bit length of the digest (multiple of 32)
+ * - `bit_length`: bit length of the digest (multiple of 32, 32 to 256, for Meta through
+ *   Flake; 64, 72, 80 or 96 for ID)
  * - `digest`: pointer to raw digest bytes
  * - `digest_len`: number of bytes in the digest buffer
  *
  * # Returns
  *
  * Heap-allocated C string on success, `NULL` on error.
- * Caller must free with `iscc_free_string()`.
+ * Caller must free with `iscc_free_string()`. Returns `NULL` and sets the last
+ * error for out-of-range enum values, for MainType ISCC (5), for an invalid
+ * `bit_length`, or when the digest is shorter than `bit_length / 8` bytes.
  *
  * # Safety
  *
- * If `digest_len > 0`, `digest` must point to a valid buffer of at least
- * `digest_len` bytes.
+ * `digest` must point to a valid buffer of at least `digest_len` bytes. It may
+ * be NULL when `digest_len` is 0; NULL with `digest_len > 0` is an error.
  */
 
 char *iscc_encode_component(uint8_t mtype,
@@ -618,6 +630,59 @@ struct iscc_IsccSumCodeResult iscc_gen_sum_code_v0(const char *path,
  char **iscc_decompose(const char *iscc_code);
 
 /**
+ * Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+ *
+ * Returns the concatenated header and body bytes of each unit, in the given
+ * order. Unit strings may omit the `ISCC:` prefix and may be lowercase or
+ * contain hyphens. Base32 decoding is strict: no padding, zero spare bits,
+ * and ASCII-only case folding.
+ *
+ * # Parameters
+ *
+ * - `units`: array of pointers to null-terminated ISCC-UNIT strings
+ * - `num_units`: number of unit strings (must be at least 1)
+ *
+ * # Returns
+ *
+ * `IsccByteBuffer` with the ISCC-SEQ bytes on success. On error `.data` is
+ * `NULL` (check `iscc_last_error()`): `units` is NULL with `num_units > 0`,
+ * the list is empty, or a unit is NULL, not UTF-8, malformed, or of an
+ * excluded MainType (ISCC-CODE, ID, FLAKE). Caller must free with
+ * `iscc_free_byte_buffer()`.
+ *
+ * # Safety
+ *
+ * `units` must point to an array of `num_units` valid null-terminated UTF-8
+ * strings. It may be NULL when `num_units` is 0.
+ */
+ struct iscc_IsccByteBuffer iscc_encode_seq(const char *const *units, uintptr_t num_units);
+
+/**
+ * Decode an ISCC-SEQ byte string to canonical ISCC-UNIT strings (IEP-0020).
+ *
+ * Strict byte-level reader: every unit must be well-formed and no trailing
+ * bytes are allowed. Returns `ISCC:`-prefixed uppercase unit strings in wire
+ * order; `iscc_encode_seq` of the result reproduces `data`.
+ *
+ * # Parameters
+ *
+ * - `data`: pointer to the ISCC-SEQ bytes
+ * - `data_len`: number of bytes in `data`
+ *
+ * # Returns
+ *
+ * NULL-terminated array of unit strings on success, `NULL` on error (empty
+ * or malformed input; check `iscc_last_error()`).
+ * Caller must free with `iscc_free_string_array()`.
+ *
+ * # Safety
+ *
+ * `data` must point to a valid buffer of at least `data_len` bytes. It may be
+ * NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
+ */
+ char **iscc_decode_seq(const uint8_t *data, uintptr_t data_len);
+
+/**
  * Generate sliding window n-grams from a string.
  *
  * Returns a NULL-terminated array of overlapping substrings of `width`
@@ -638,7 +703,8 @@ struct iscc_IsccSumCodeResult iscc_gen_sum_code_v0(const char *path,
  * Compute a SimHash digest from an array of byte digests.
  *
  * The output length matches the input digest length (e.g., 4-byte digests
- * produce a 4-byte SimHash). Returns an empty 32-byte buffer for empty input.
+ * produce a 4-byte SimHash). An empty list (`num_digests == 0`) is rejected:
+ * `.data` is `NULL` and `iscc_last_error()` names the empty list.
  *
  * # Parameters
  *
@@ -653,9 +719,11 @@ struct iscc_IsccSumCodeResult iscc_gen_sum_code_v0(const char *path,
  *
  * # Safety
  *
- * - `digests` must point to an array of `num_digests` valid byte pointers
+ * - `digests` must point to an array of `num_digests` byte pointers
  * - `digest_lens` must point to an array of `num_digests` lengths
  * - Each `digests[i]` must be valid for `digest_lens[i]` bytes
+ * - Any of these pointers may be NULL when its length (`num_digests` or
+ *   `digest_lens[i]`) is 0; NULL with a non-zero length is an error
  */
 
 struct iscc_IsccByteBuffer iscc_alg_simhash(const uint8_t *const *digests,
@@ -675,12 +743,13 @@ struct iscc_IsccByteBuffer iscc_alg_simhash(const uint8_t *const *digests,
  *
  * # Returns
  *
- * `IsccByteBuffer` with 32 bytes. On error, `.data` is `NULL`.
- * Caller must free with `iscc_free_byte_buffer()`.
+ * `IsccByteBuffer` with 32 bytes. On error (including an empty feature
+ * list), `.data` is `NULL`. Caller must free with `iscc_free_byte_buffer()`.
  *
  * # Safety
  *
  * `features` must point to a valid buffer of at least `features_len` `u32` elements.
+ * It may be NULL when `features_len` is 0; NULL with `features_len > 0` is an error.
  */
  struct iscc_IsccByteBuffer iscc_alg_minhash_256(const uint32_t *features, uintptr_t features_len);
 
@@ -704,7 +773,8 @@ struct iscc_IsccByteBuffer iscc_alg_simhash(const uint8_t *const *digests,
  *
  * # Safety
  *
- * `data` must point to a valid buffer of at least `data_len` bytes.
+ * `data` must point to a valid buffer of at least `data_len` bytes. It may be
+ * NULL when `data_len` is 0; NULL with `data_len > 0` is an error.
  */
 
 struct iscc_IsccByteBufferArray iscc_alg_cdc_chunks(const uint8_t *data,
@@ -731,9 +801,11 @@ struct iscc_IsccByteBufferArray iscc_alg_cdc_chunks(const uint8_t *data,
  *
  * # Safety
  *
- * - `frame_sigs` must point to an array of `num_frames` valid pointers
+ * - `frame_sigs` must point to an array of `num_frames` pointers
  * - `frame_lens` must point to an array of `num_frames` lengths
  * - Each `frame_sigs[i]` must be valid for `frame_lens[i]` `i32` elements
+ * - Any of these pointers may be NULL when its length (`num_frames` or
+ *   `frame_lens[i]`) is 0; NULL with a non-zero length is an error
  */
 
 struct iscc_IsccByteBuffer iscc_soft_hash_video_v0(const int32_t *const *frame_sigs,
@@ -758,7 +830,8 @@ struct iscc_IsccByteBuffer iscc_soft_hash_video_v0(const int32_t *const *frame_s
  * # Safety
  *
  * - `hasher` must be a valid pointer from `iscc_data_hasher_new()`, or NULL.
- * - `data` must point to at least `data_len` valid bytes.
+ * - `data` must point to at least `data_len` valid bytes. It may be NULL when
+ *   `data_len` is 0; NULL with `data_len > 0` is an error.
  */
 
 bool iscc_data_hasher_update(struct iscc_FfiDataHasher *hasher,
@@ -807,7 +880,8 @@ bool iscc_data_hasher_update(struct iscc_FfiDataHasher *hasher,
  * # Safety
  *
  * - `hasher` must be a valid pointer from `iscc_instance_hasher_new()`, or NULL.
- * - `data` must point to at least `data_len` valid bytes.
+ * - `data` must point to at least `data_len` valid bytes. It may be NULL when
+ *   `data_len` is 0; NULL with `data_len > 0` is an error.
  */
 
 bool iscc_instance_hasher_update(struct iscc_FfiInstanceHasher *hasher,
@@ -850,28 +924,28 @@ bool iscc_instance_hasher_update(struct iscc_FfiInstanceHasher *hasher,
  void iscc_free_string(char *ptr);
 
 /**
- * Free a NULL-terminated string array returned by `iscc_decompose` or
- * `iscc_sliding_window`.
+ * Free a NULL-terminated string array returned by `iscc_decompose`,
+ * `iscc_decode_seq`, or `iscc_sliding_window`.
  *
  * Walks the array, freeing each string via `CString::from_raw`, then frees
  * the array itself. `NULL` is a no-op.
  *
  * # Safety
  *
- * `arr` must be a pointer returned by `iscc_decompose` or `iscc_sliding_window`,
- * or `NULL`. Each array must only be freed once.
+ * `arr` must be a pointer returned by `iscc_decompose`, `iscc_decode_seq`, or
+ * `iscc_sliding_window`, or `NULL`. Each array must only be freed once.
  */
  void iscc_free_string_array(char **arr);
 
 /**
  * Free a byte buffer returned by `iscc_alg_simhash`, `iscc_alg_minhash_256`,
- * or `iscc_soft_hash_video_v0`.
+ * `iscc_soft_hash_video_v0`, or `iscc_encode_seq`.
  *
  * No-op if `buf.data` is `NULL`.
  *
  * # Safety
  *
- * `buf` must be a value returned by one of the algorithm primitive functions.
+ * `buf` must be a value returned by one of the functions listed above.
  * Each buffer must only be freed once.
  */
  void iscc_free_byte_buffer(struct iscc_IsccByteBuffer buf);

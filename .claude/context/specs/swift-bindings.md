@@ -6,8 +6,9 @@ consumers need only add the SPM dependency, no Rust toolchain or manual library 
 Shares the UniFFI scaffolding crate (`crates/iscc-uniffi/`) with Kotlin bindings.
 
 **Reference model:** [Ferrostar](https://github.com/stadiamaps/ferrostar) — production-proven
-monorepo pattern with UniFFI, variable toggle in `Package.swift`, force-update tag for checksum.
-Also informed by Matrix/Element, Mozilla application-services, BDK, Sparkle, and Firebase XCF.
+monorepo pattern with UniFFI and a variable toggle in `Package.swift`. iscc-lib commits the checksum
+first and tags that commit once, so no tag is ever moved. Also informed by Matrix/Element, Mozilla
+application-services, BDK, Sparkle, and Firebase XCF.
 
 ## Core DX Goal
 
@@ -61,6 +62,8 @@ packages/swift/
 scripts/
 └── build_xcframework.sh                # Portable build script (macOS + CI)
 ```
+
+The tree lists the load-bearing entries, not every file.
 
 ## Root Package.swift — Variable Toggle Pattern
 
@@ -142,7 +145,8 @@ assert(conformanceSelftest())
 - `camelCase` method names (auto-converted by UniFFI)
 - `throws` for fallible functions (mapped from `Result<T, IsccUniError>`)
 - `Data` for binary data (converted from `Vec<u8>`)
-- Named parameters with defaults: `genMetaCodeV0(name:description:meta:bits:)`
+- Named parameters without defaults: the UniFFI exports declare no `default(...)`, so Swift and
+    Kotlin callers pass every argument, e.g. `genMetaCodeV0(name:description:meta:bits:)`
 - Constants are getter functions (UniFFI limitation): `metaTrimName()`, `ioReadSize()`, etc.
 
 ## XCFramework Build
@@ -157,7 +161,7 @@ Prebuilt static libraries for Apple platforms, assembled via `xcodebuild -create
 | iOS (device)    | `aarch64-apple-ios`                            | arm64              |
 | iOS (simulator) | `aarch64-apple-ios-sim` + `x86_64-apple-ios`   | arm64 + x86_64 fat |
 
-5 Rust targets total, merged into 3 platform slices via `lipo`.
+The Rust targets are merged into one slice per platform row via `lipo`.
 
 ### Build Script (`scripts/build_xcframework.sh`)
 
@@ -225,91 +229,50 @@ swift package compute-checksum target/ios/IsccLib.xcframework.zip
     verification; ensures hash matches what SPM expects
 - **`lipo`** for fat binaries — standard Apple tool for merging architectures
 
-## Release Process — Force-Update Tag Pattern
+## Release Process — Checksum Commit, Then Tag
 
 The checksum-before-tag problem: SPM reads `Package.swift` from the tag commit, so the checksum must
 be in the tag. But the checksum requires the built artifact, which requires the code to be final.
-Every production UniFFI-to-Swift project solves this. The cleanest solution for monorepos is
-Ferrostar's **force-update tag** approach.
+iscc-lib solves it by ordering: the release workflow builds the XCFramework, commits the updated
+`Package.swift` checksum, and only then creates the tag, once. It never moves an existing tag.
 
 ### Release Flow
 
-1. **Human creates a GitHub Release** (which creates a version tag like `v0.5.0`)
-2. **Release workflow triggers** (`on: release: types: [created]` or existing tag trigger)
-3. **macOS job builds XCFramework** — runs `build_xcframework.sh --release`
-4. **`sed` updates `Package.swift`** — writes new `releaseTag` and `releaseChecksum`
-5. **Auto-commit** the updated `Package.swift` to `main`
-6. **Force-move the tag** to the new commit:
+1. **Human dispatches `release.yml`** with a `version` input (e.g. `0.5.0`); `workflow_dispatch` is
+    its only trigger and no tag exists yet
+2. **`prepare-release` checks out `main`** and verifies that the root `Cargo.toml` version matches
+    the input
+3. **macOS job builds XCFramework** — runs `build_xcframework.sh --release` (skipped on a cache hit)
+4. **`sed` updates `Package.swift`** — writes the input version to `releaseTag` and the
+    `swift package compute-checksum` result to `releaseChecksum`
+5. **Auto-commit** the updated `Package.swift` and push it to `main` (skipped when unchanged)
+6. **Tag the checksum commit** and push the tags. A tag that already exists is not moved: the
+    checkout fetches every tag, `git tag` fails on the existing name, and the step logs it and
+    continues, so a release must not be tagged by hand beforehand:
     ```bash
-    git tag -fa v0.5.0 -m "Swift Package checksum update"
-    git push origin v0.5.0 --force
+    git tag "v0.5.0" 2>/dev/null || echo "Tag v0.5.0 already exists"
+    git tag "packages/go/v0.5.0" 2>/dev/null || echo "Tag packages/go/v0.5.0 already exists"
+    git push origin "v0.5.0" "packages/go/v0.5.0" --force
     ```
-7. **Upload XCFramework zip** to the GitHub Release as `IsccLib.xcframework.zip`
+7. **Create the GitHub Release** for `v0.5.0` with `IsccLib.xcframework.zip` attached
 
-After step 6, the tag points to a commit with the correct checksum, and the release asset URL is
-deterministic from the tag name. SPM consumers see a self-consistent state.
+Because a tag the workflow creates is made after the checksum commit, it points to a commit with the
+correct checksum, and the release asset URL is deterministic from the tag name. SPM consumers see a
+self-consistent state.
 
 ### Release Workflow Integration
 
-Add to `release.yml`:
-
-```yaml
-# workflow_dispatch input:
-swift:
-  description: Build and publish Swift XCFramework to GitHub Releases
-  type: boolean
-  default: false
-
-# Job chain:
-build-xcframework:
-  name: Build XCFramework
-  if: startsWith(github.ref, 'refs/tags/v') || inputs.swift
-  runs-on: macos-14
-  permissions:
-    contents: write
-  steps:
-    - uses: actions/checkout@v4
-      with: {fetch-depth: 0, ref: main}
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: >-
-          aarch64-apple-darwin,x86_64-apple-darwin,
-          aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
-    - uses: actions/cache@v4
-      id: xcf-cache
-      with:
-        path: IsccLib.xcframework.zip
-        key: xcf-${{ hashFiles( 'crates/iscc-*/src/**', 'Cargo.lock') }}
-    - name: Build XCFramework
-      if: steps.xcf-cache.outputs.cache-hit != 'true'
-      run: ./scripts/build_xcframework.sh --release
-    - name: Update Package.swift checksum
-      id: swift-version
-      run: |
-        VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
-        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-        CHECKSUM=$(swift package compute-checksum target/ios/IsccLib.xcframework.zip)
-        sed -E -i '' \
-          "s/(let releaseTag = \")[^\"]+/\1$VERSION/" Package.swift
-        sed -E -i '' \
-          "s/(let releaseChecksum = \")[^\"]+/\1$CHECKSUM/" Package.swift
-    - uses: stefanzweifel/git-auto-commit-action@v5
-      with:
-        commit_message: 'chore: update Swift XCFramework checksum'
-    - name: Force-update tag
-      run: |
-        git tag -fa "v${{ steps.swift-version.outputs.version }}" -m "Swift Package checksum"
-        git push origin "v${{ steps.swift-version.outputs.version }}" --force
-    - name: Upload to release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: v${{ steps.swift-version.outputs.version }}
-        files: target/ios/IsccLib.xcframework.zip
-```
+The `prepare-release` job of `release.yml` (macos-15) implements the flow above. It runs only when
+the `version` input is set: there is no separate `swift` checkbox, and a registry-only re-trigger
+does not rebuild the XCFramework. Every publish job has `prepare-release` among its ancestors in the
+`needs` graph, so the tags exist before any publish job starts. Only `build-ffi` and its smoke test
+`test-ffi` do not wait for it: `prepare-release` needs the `build-ffi` archives to write the vcpkg
+and Conan hashes into the same commit (`cpp-bindings.md` → Distribution).
 
 ## Caching Strategy
 
-XCFramework builds are expensive (5 cross-compilations on a macOS runner). Cache aggressively.
+XCFramework builds are expensive (one cross-compilation per Rust target on a macOS runner). Cache
+aggressively.
 
 ### CI Cache
 
@@ -356,7 +319,7 @@ This validates that the Swift bindings and tests are correct.
 ```yaml
 # ci.yml — unchanged, uses development Package.swift
 swift:
-  runs-on: macos-14
+  runs-on: macos-15
   steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
@@ -417,29 +380,31 @@ Release asset (uses existing `contents: write` permission).
 
 ## Verification Criteria
 
-- [ ] `swift test` passes conformance vectors (CI, development Package.swift)
-- [ ] Package resolves via SPM from Git tag using `.binaryTarget` (no Rust toolchain needed)
-- [ ] All 10 `gen_*_v0` functions accessible with idiomatic Swift types
-- [ ] All 33 Tier 1 symbols accessible from Swift
-- [ ] XCFramework bundles static libraries for macOS (arm64 + x86_64), iOS device (arm64), iOS
-    simulator (arm64 + x86_64)
-- [ ] Root `Package.swift` uses variable toggle (`useLocalFramework`) with `releaseTag` +
+- `swift test` passes conformance vectors (CI, development Package.swift)
+- Package resolves via SPM from Git tag using `.binaryTarget` (no Rust toolchain needed)
+- All `gen_*_v0` functions accessible with idiomatic Swift types
+- All Tier 1 symbols accessible from Swift
+- XCFramework bundles static libraries for macOS (arm64 + x86_64), iOS device (arm64), iOS simulator
+    (arm64 + x86_64)
+- Root `Package.swift` uses variable toggle (`useLocalFramework`) with `releaseTag` +
     `releaseChecksum` for remote mode
-- [ ] XCFramework build cached by `actions/cache` — cache hit skips native compilation
-- [ ] Cache key covers `crates/iscc-uniffi/**`, `crates/iscc-lib/**`, `Cargo.lock`
-- [ ] `build_xcframework.sh` script works on local macOS and in CI
-- [ ] XCFramework zip uploaded as GitHub Release asset named `IsccLib.xcframework.zip`
-- [ ] Release workflow force-updates tag after updating checksum in `Package.swift`
-- [ ] Release workflow includes `swift` checkbox in `workflow_dispatch` inputs
-- [ ] `swift package compute-checksum` used for checksum (not raw sha256sum)
-- [ ] `ditto -c -k --sequesterRsrc --keepParent` used for zipping
-- [ ] `DataHasher` / `InstanceHasher` streaming types work correctly
-- [ ] `throws` error handling works for fallible functions
-- [ ] Binary data uses Swift `Data` type
-- [ ] `swiftformat --lint` passes
-- [ ] Swift CI runs on macOS runner (`macos-14`)
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
-- [ ] `conformanceSelftest()` returns `true`
+- XCFramework build cached by `actions/cache` — cache hit skips native compilation
+- Cache key covers `crates/iscc-uniffi/**`, `crates/iscc-lib/**`, `Cargo.lock`
+- `build_xcframework.sh` script works on local macOS and in CI
+- XCFramework zip uploaded as GitHub Release asset named `IsccLib.xcframework.zip`
+- Release workflow commits the checksum to `Package.swift` and tags that commit once; an existing
+    tag is never moved
+- The release workflow builds the XCFramework only when the `version` input is set; there is no
+    `swift` checkbox in the `workflow_dispatch` inputs
+- `swift package compute-checksum` used for checksum (not raw sha256sum)
+- `ditto -c -k --sequesterRsrc --keepParent` used for zipping
+- `DataHasher` / `InstanceHasher` streaming types work correctly
+- `throws` error handling works for fallible functions
+- Binary data uses Swift `Data` type
+- `swiftformat --lint` passes
+- Swift CI runs on macOS runner (`macos-15`)
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- `conformanceSelftest()` returns `true`
 
 ## Reference Projects
 

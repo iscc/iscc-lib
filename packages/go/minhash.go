@@ -3,7 +3,10 @@
 // bit-interleaved compression, matching the Rust/Python reference.
 package iscc
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // maxi64 is the maximum uint64 value (2^64 - 1).
 const maxi64 uint64 = math.MaxUint64
@@ -197,9 +200,20 @@ func minhashCompress(mhash []uint64, lsb int) []byte {
 }
 
 // AlgMinhash256 computes a 256-bit MinHash digest from 32-bit integer features.
-// Calls minhash to get a 64-dimensional hash vector, then compresses with
-// lsb=4 to produce 32 bytes (64 × 4 bits = 256 bits).
-func AlgMinhash256(features []uint32) []byte {
+// Returns an error for an empty feature list, then delegates to algMinhash256.
+func AlgMinhash256(features []uint32) ([]byte, error) {
+	if len(features) == 0 {
+		return nil, fmt.Errorf("features must not be empty")
+	}
+	return algMinhash256(features), nil
+}
+
+// algMinhash256 computes a 256-bit MinHash digest without validation.
+// Callers must guarantee a non-empty feature list (the text and data
+// generators always supply at least one feature). Calls minhashFn to get a
+// 64-dimensional hash vector, then compresses with lsb=4 to produce 32 bytes
+// (64 × 4 bits = 256 bits).
+func algMinhash256(features []uint32) []byte {
 	mhash := minhashFn(features)
 	return minhashCompress(mhash, 4)
 }

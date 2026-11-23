@@ -7,7 +7,7 @@
 //! All `gen_*_v0` functions return Python `dict` objects with the same keys
 //! and value types as the iscc-core reference implementation.
 
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyOverflowError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyInt, PyList};
 
@@ -27,8 +27,10 @@ fn to_pylist<'py>(py: Python<'py>, obj: &Bound<'py, PyAny>) -> PyResult<Bound<'p
 
 /// Extract nested frame signatures from a Python sequence using CPython C API.
 ///
-/// Accepts any sequence of sequences (lists, tuples, etc.). Uses `PyLong_AsLong`
-/// to bypass PyO3 object wrapping overhead. Returns a flat `Vec<i32>` plus dimensions.
+/// Accepts any sequence of sequences (lists, tuples, etc.). Uses `PyLong_AsLongLong`
+/// (64 bits on every platform) to bypass PyO3 object wrapping overhead, so a value
+/// outside the `i32` range raises `OverflowError` regardless of the C `long` width.
+/// Returns a flat `Vec<i32>` plus dimensions.
 fn extract_frame_sigs(
     py: Python<'_>,
     frame_sigs: &Bound<'_, PyAny>,
@@ -51,7 +53,7 @@ fn extract_frame_sigs(
 
     // SAFETY: frame_list is a verified PyList. Inner sequences are converted
     // to PyList as needed. PyList_GetItem returns borrowed references with
-    // bounds checking. PyLong_AsLong is called with error and range checking.
+    // bounds checking. PyLong_AsLongLong is called with error and range checking.
     unsafe {
         let outer_ptr = frame_list.as_ptr();
         for f in 0..num_frames {
@@ -83,12 +85,12 @@ fn extract_frame_sigs(
                 if val_ptr.is_null() {
                     return Err(pyo3::PyErr::fetch(py));
                 }
-                let val = pyo3::ffi::PyLong_AsLong(val_ptr);
+                let val = pyo3::ffi::PyLong_AsLongLong(val_ptr);
                 if val == -1 && !pyo3::ffi::PyErr_Occurred().is_null() {
                     return Err(pyo3::PyErr::fetch(py));
                 }
                 let val_i32 = i32::try_from(val).map_err(|_| {
-                    PyValueError::new_err(format!(
+                    PyOverflowError::new_err(format!(
                         "frame_sigs[{f}][{i}]: value {val} out of i32 range"
                     ))
                 })?;
@@ -513,6 +515,27 @@ fn iscc_decode(py: Python<'_>, iscc: &str) -> PyResult<Py<PyAny>> {
         .into())
 }
 
+/// Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+///
+/// Returns `bytes` (the concatenated header and body bytes of each unit, in
+/// order). Base32 decoding is strict: `=` padding, non-zero spare bits and
+/// non-ASCII case-fold aliases (`ſ`, `ß`) are rejected (`iscc_core` accepts
+/// them).
+#[pyfunction]
+#[pyo3(signature = (units))]
+fn encode_seq(py: Python<'_>, units: Vec<String>) -> PyResult<Py<PyAny>> {
+    let refs: Vec<&str> = units.iter().map(String::as_str).collect();
+    let seq = iscc_lib::encode_seq(&refs).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &seq).into())
+}
+
+/// Decode an ISCC-SEQ byte string to canonical `ISCC:`-prefixed unit strings.
+#[pyfunction]
+#[pyo3(signature = (data))]
+fn decode_seq(data: &[u8]) -> PyResult<Vec<String>> {
+    iscc_lib::decode_seq(data).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
 /// Convert a JSON string into a `data:` URL with JCS canonicalization.
 ///
 /// Uses `application/ld+json` media type when the JSON contains an `@context`
@@ -536,8 +559,8 @@ fn sliding_window(seq: &str, width: usize) -> PyResult<Vec<String>> {
 /// Compute a SimHash from a sequence of equal-length hash digests.
 ///
 /// Returns a similarity-preserving hash as bytes. Each output bit is set
-/// when its frequency meets or exceeds half the input count. Returns 32
-/// zero bytes for empty input. Raises `ValueError` on mismatched digest lengths.
+/// when its frequency meets or exceeds half the input count. Raises `ValueError`
+/// on an empty list or mismatched digest lengths.
 #[pyfunction]
 fn alg_simhash(hash_digests: Vec<Vec<u8>>) -> PyResult<Vec<u8>> {
     iscc_lib::alg_simhash(&hash_digests).map_err(|e| PyValueError::new_err(e.to_string()))
@@ -546,10 +569,11 @@ fn alg_simhash(hash_digests: Vec<Vec<u8>>) -> PyResult<Vec<u8>> {
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 ///
 /// Uses 64 universal hash functions with bit-interleaved compression to
-/// produce a 32-byte similarity-preserving digest.
+/// produce a 32-byte similarity-preserving digest. Raises `ValueError` on an
+/// empty list.
 #[pyfunction]
-fn alg_minhash_256(features: Vec<u32>) -> Vec<u8> {
-    iscc_lib::alg_minhash_256(&features)
+fn alg_minhash_256(features: Vec<u32>) -> PyResult<Vec<u8>> {
+    iscc_lib::alg_minhash_256(&features).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Split data into content-defined chunks using gear rolling hash.
@@ -588,6 +612,50 @@ fn soft_hash_video_v0(
     Ok(PyBytes::new(py, &result).into())
 }
 
+/// A hasher `finalize` argument held unconverted until the hasher is consumed.
+///
+/// PyO3 converts typed parameters before the method body runs, so a `u32` or
+/// `bool` parameter would reject a bad argument while the hasher is still
+/// usable. Every given value (including `None`) is kept as `Given` and
+/// converted after `take()`, which raises the same exception the typed
+/// parameter raised (`OverflowError`, `TypeError`). `Default` marks an omitted
+/// argument.
+enum Deferred<'py> {
+    Default,
+    Given(Bound<'py, PyAny>),
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for Deferred<'py> {
+    type Error = PyErr;
+
+    /// Keep any Python object as given, without conversion.
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
+        Ok(Self::Given(obj.to_owned()))
+    }
+}
+
+impl<'py> Deferred<'py> {
+    /// Convert the given value to `T`, or return `default` for an omitted argument.
+    ///
+    /// A conversion error gets the `while processing '<name>'` note that PyO3
+    /// attaches to a typed parameter's error.
+    fn or<T>(self, default: T, name: &str) -> PyResult<T>
+    where
+        T: FromPyObjectOwned<'py>,
+    {
+        match self {
+            Self::Default => Ok(default),
+            Self::Given(value) => value.extract::<T>().map_err(|e| {
+                let err: PyErr = e.into();
+                let note = format!("while processing '{name}'");
+                // The error is raised either way; a failed `add_note` only loses the note.
+                let _ = err.value(value.py()).call_method1("add_note", (note,));
+                err
+            }),
+        }
+    }
+}
+
 /// Streaming Data-Code generator.
 ///
 /// Incrementally processes data with content-defined chunking and MinHash
@@ -622,12 +690,15 @@ impl PyDataHasher {
     }
 
     /// Consume the hasher and produce a Data-Code result dict.
-    #[pyo3(signature = (bits=64))]
-    fn finalize(&mut self, py: Python<'_>, bits: u32) -> PyResult<Py<PyAny>> {
+    ///
+    /// The first call consumes the hasher, even when it raises on an argument.
+    #[pyo3(signature = (bits=Deferred::Default), text_signature = "($self, bits=64)")]
+    fn finalize(&mut self, py: Python<'_>, bits: Deferred<'_>) -> PyResult<Py<PyAny>> {
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| PyValueError::new_err("DataHasher already finalized"))?;
+        let bits = bits.or(64u32, "bits")?;
         let r = hasher
             .finalize(bits)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -671,12 +742,15 @@ impl PyInstanceHasher {
     }
 
     /// Consume the hasher and produce an Instance-Code result dict.
-    #[pyo3(signature = (bits=64))]
-    fn finalize(&mut self, py: Python<'_>, bits: u32) -> PyResult<Py<PyAny>> {
+    ///
+    /// The first call consumes the hasher, even when it raises on an argument.
+    #[pyo3(signature = (bits=Deferred::Default), text_signature = "($self, bits=64)")]
+    fn finalize(&mut self, py: Python<'_>, bits: Deferred<'_>) -> PyResult<Py<PyAny>> {
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| PyValueError::new_err("InstanceHasher already finalized"))?;
+        let bits = bits.or(64u32, "bits")?;
         let r = hasher
             .finalize(bits)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -725,19 +799,26 @@ impl PySumHasher {
     ///
     /// Returns a dict with keys `iscc`, `datahash`, `filesize`, and optionally
     /// `units` (list of Data-Code and Instance-Code strings) when `add_units`
-    /// is true.
-    #[pyo3(signature = (bits=64, wide=false, add_units=false))]
+    /// is true. The first call consumes the hasher, even when it raises on an
+    /// argument.
+    #[pyo3(
+        signature = (bits=Deferred::Default, wide=Deferred::Default, add_units=Deferred::Default),
+        text_signature = "($self, bits=64, wide=False, add_units=False)"
+    )]
     fn finalize(
         &mut self,
         py: Python<'_>,
-        bits: u32,
-        wide: bool,
-        add_units: bool,
+        bits: Deferred<'_>,
+        wide: Deferred<'_>,
+        add_units: Deferred<'_>,
     ) -> PyResult<Py<PyAny>> {
         let hasher = self
             .inner
             .take()
             .ok_or_else(|| PyValueError::new_err("SumHasher already finalized"))?;
+        let bits = bits.or(64u32, "bits")?;
+        let wide = wide.or(false, "wide")?;
+        let add_units = add_units.or(false, "add_units")?;
         let r = hasher
             .finalize(bits, wide, add_units)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -782,6 +863,8 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(iscc_decompose, m)?)?;
     m.add_function(wrap_pyfunction!(encode_component, m)?)?;
     m.add_function(wrap_pyfunction!(iscc_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_seq, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_seq, m)?)?;
     m.add_function(wrap_pyfunction!(json_to_data_url, m)?)?;
     m.add("META_TRIM_NAME", iscc_lib::META_TRIM_NAME)?;
     m.add("META_TRIM_DESCRIPTION", iscc_lib::META_TRIM_DESCRIPTION)?;

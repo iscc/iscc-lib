@@ -107,6 +107,37 @@ def test_parse_verdict_absent(tmp_path):
     assert cid.parse_verdict(tmp_path) is None
 
 
+def test_append_iteration_summary_takes_explicit_verdict(tmp_path):
+    """A failed iteration records FAILED, not the verdict left in the handoff."""
+    _write_log(
+        tmp_path, [_role_row(7, role="advance", turns=4, cost=0.2, duration=9.0)]
+    )
+    handoff = tmp_path / cid.HANDOFF_FILE
+    handoff.write_text("**Verdict:** PASS\n", encoding="utf-8")
+
+    cid.append_iteration_summary(tmp_path, 7, verdict=cid.FAILED_VERDICT)
+
+    summaries = [
+        e for e in cid.read_entries(tmp_path) if e.get("type") == "iteration_summary"
+    ]
+    assert [(s["iteration"], s["verdict"]) for s in summaries] == [(7, "FAILED")]
+
+
+def test_window_metrics_counts_failed_iterations_as_rework():
+    """FAILED rows raise the rework rate and stay out of the turn median."""
+    series = [(1, "PASS", 10), (2, "FAILED", 2), (3, "NEEDS_WORK", 12), (4, "PASS", 14)]
+
+    rate, median = cid._window_metrics(series, 0, 4)
+
+    assert rate == 0.5
+    assert median == 12
+
+
+def test_window_metrics_all_failed_has_zero_median():
+    """A window of failed iterations yields a rate and a neutral median."""
+    assert cid._window_metrics([(1, "FAILED", 3), (2, "FAILED", 1)], 0, 2) == (1.0, 0)
+
+
 def test_append_iteration_summary_aggregates(tmp_path):
     _write_log(
         tmp_path,
@@ -139,11 +170,129 @@ def test_append_iteration_summary_aggregates(tmp_path):
 def test_build_agent_cmd_includes_cache_flag_and_no_max_turns():
     cmd = cid.build_agent_cmd("claude", "advance", "do it", skip_permissions=False)
     assert "--exclude-dynamic-system-prompt-sections" in cmd
-    # --max-turns does not exist on the installed CLI; the guard is a wall-clock
-    # timeout enforced in run_agent, so it must NOT be passed as a flag.
+    # The runaway guards are the wall-clock timeout and the spend ceiling; a turn
+    # cap would stop legitimately long work packages mid-edit.
     assert "--max-turns" not in cmd
     assert "--dangerously-skip-permissions" not in cmd
     assert "--fallback-model" not in cmd
+    # Without frontmatter flags the runner adds no model/effort of its own.
+    assert "--model" not in cmd
+    assert "--effort" not in cmd
+
+
+def test_build_agent_cmd_passes_frontmatter_flags():
+    flags = {"model": "claude-opus-5-5", "effort": "high"}
+    cmd = cid.build_agent_cmd("claude", "review", "go", False, flags=flags)
+    assert cmd[cmd.index("--model") + 1] == "claude-opus-5-5"
+    assert cmd[cmd.index("--effort") + 1] == "high"
+
+
+def test_build_agent_cmd_raises_the_shell_output_limit():
+    # Context packs inline files via !`cat`; above the CLI's ~30k default the
+    # injected text is replaced by a 2 KB preview, so the runner raises the limit.
+    cmd = cid.build_agent_cmd("claude", "define-next", "go", skip_permissions=False)
+    settings = json.loads(cmd[cmd.index("--settings") + 1])
+    assert settings["bashOutputMaxChars"] == cid.BASH_OUTPUT_MAX_CHARS
+    assert cid.BASH_OUTPUT_MAX_CHARS > 30_000
+
+
+def test_sanitize_env_removes_api_keys_and_claudeai_connectors(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "tok-test")
+    env = cid.sanitize_env()
+    assert "ANTHROPIC_API_KEY" not in env
+    assert "ANTHROPIC_AUTH_TOKEN" not in env
+    # claude.ai connectors (Gmail, Slack, ISCC Expert, ...) must not load into
+    # unattended role sessions; project MCP servers are unaffected.
+    assert env["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"
+
+
+def test_sanitize_env_lifts_background_wait_ceiling_for_audit_only(monkeypatch):
+    monkeypatch.delenv("CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", raising=False)
+    # The audit's background workflow outlives the CLI's 10-minute -p wait.
+    assert (
+        cid.sanitize_env(cid.AUDIT_ROLE)["CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"] == "0"
+    )
+    for role in ("update-state", "define-next", "advance", "review", None):
+        assert "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS" not in cid.sanitize_env(role)
+
+
+def test_process_output_sums_turns_across_result_segments(tmp_path):
+    # Shape of the iteration 230 review: two background-push notifications after
+    # the final turn, each closing a segment with its own result message.
+    rows = (
+        {"type": "result", "num_turns": 61, "total_cost_usd": 4.1},
+        {"type": "result", "num_turns": 8, "total_cost_usd": 5.0},
+        {"type": "result", "num_turns": 2, "total_cost_usd": 5.27},
+    )
+    fake = tmp_path / "stream.jsonl"
+    fake.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    with fake.open() as fh:
+        out = cid._process_output(fh, "review")
+    assert out["turns"] == 71
+    assert out["cost"] == 5.27  # running total: the last result, not a sum
+
+
+def test_process_output_echoes_non_json_lines(tmp_path, capsys):
+    fake = tmp_path / "stream.jsonl"
+    fake.write_text(
+        "Background tasks still running; stopping them.\n"
+        '{"type": "result", "num_turns": 3, "total_cost_usd": 1.5}\n',
+        encoding="utf-8",
+    )
+    with fake.open() as fh:
+        out = cid._process_output(fh, "audit")
+    assert out["turns"] == 3
+    assert (
+        "[audit] Background tasks still running; stopping them."
+        in capsys.readouterr().out
+    )
+
+
+def test_no_role_session_gets_the_advisor():
+    # Human decision 2026-11-21: the advisor is off for the whole loop, and telemetry
+    # stays as the user configured it (the advisor needed DISABLE_TELEMETRY blanked).
+    for role in (*cid.ROLES, cid.META_ROLE, cid.AUDIT_ROLE):
+        cmd = cid.build_agent_cmd("claude", role, "go", skip_permissions=False)
+        settings = json.loads(cmd[cmd.index("--settings") + 1])
+        assert "advisorModel" not in settings, role
+        assert "env" not in settings, role
+        assert not any("advisor" in arg for arg in cmd), role
+
+
+def test_agent_flags_reads_model_and_effort(tmp_path):
+    agents = tmp_path / cid.AGENTS_DIR
+    agents.mkdir(parents=True)
+    (agents / "advance.md").write_text(
+        "---\nname: advance\ndescription: >-\n  model: not-this-one\n"
+        "model: claude-opus-5-5\neffort: xhigh\ntools: Read, Bash\n---\n"
+        "effort: body text is not frontmatter\n",
+        encoding="utf-8",
+    )
+    assert cid.agent_flags(tmp_path, "advance") == {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh",
+    }
+
+
+def test_agent_flags_tolerates_missing_file_and_frontmatter(tmp_path):
+    assert cid.agent_flags(tmp_path, "advance") == {}
+    agents = tmp_path / cid.AGENTS_DIR
+    agents.mkdir(parents=True)
+    (agents / "review.md").write_text("model: x\n", encoding="utf-8")
+    assert cid.agent_flags(tmp_path, "review") == {}
+
+
+def test_every_role_pins_model_and_effort():
+    # The runner passes these as --model/--effort; a role without them would run
+    # on the CLI's rolling default model or the operator's personal effort setting.
+    repo = Path(__file__).resolve().parents[1]
+    for role in (*cid.ROLES, cid.META_ROLE, cid.AUDIT_ROLE):
+        flags = cid.agent_flags(repo, role)
+        assert flags.get("model"), f"{role} agent file pins no model"
+        assert flags.get("effort") in ("low", "medium", "high", "xhigh", "max"), (
+            f"{role} agent file pins no valid effort"
+        )
 
 
 def test_build_agent_cmd_optional_flags():
@@ -214,9 +363,63 @@ def test_process_output_reports_peak_context(tmp_path):
     fake = tmp_path / "stream.jsonl"
     fake.write_text(lines + "\n", encoding="utf-8")
     with fake.open() as fh:
-        cost, turns, is_error, peak = cid._process_output(fh, "review")
-    assert (cost, turns, is_error) == (1.5, 3, False)
-    assert peak == 90_000  # the largest single prompt, not the last or the sum
+        out = cid._process_output(fh, "review")
+    assert (out["cost"], out["turns"], out["is_error"]) == (1.5, 3, False)
+    assert out["peak_context"] == 90_000  # the largest prompt, not the last or sum
+    assert (out["subtype"], out["denials"], out["refusals"]) == ("", 0, 0)
+
+
+def test_process_output_reports_subtype_and_denials(tmp_path):
+    # A budget stop and refused tool calls must be distinguishable from a clean run.
+    row = {
+        "type": "result",
+        "subtype": "error_max_budget_usd",
+        "is_error": True,
+        "total_cost_usd": 20.4,
+        "num_turns": 88,
+        "permission_denials": [{"tool_name": "Bash"}, {"tool_name": "Bash"}],
+    }
+    fake = tmp_path / "stream.jsonl"
+    fake.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    with fake.open() as fh:
+        out = cid._process_output(fh, "advance")
+    assert out["subtype"] == "error_max_budget_usd"
+    assert out["denials"] == 2
+    assert out["is_error"] is True
+
+
+def test_process_output_counts_refusals_once_per_message(tmp_path):
+    # A safety block ends a turn with stop_reason "refusal" while the result row still
+    # reads "success"; the CLI emits one assistant event per content block, so two
+    # events of the same message are one refusal.
+    def assistant(msg_id, stop_reason):
+        message = {"id": msg_id, "stop_reason": stop_reason, "content": []}
+        return {"type": "assistant", "message": message}
+
+    rows = (
+        assistant("m1", "tool_use"),
+        assistant("m2", "refusal"),
+        assistant("m2", "refusal"),
+        assistant("m3", "refusal"),
+        {"type": "result", "subtype": "success", "total_cost_usd": 1.0, "num_turns": 3},
+    )
+    fake = tmp_path / "stream.jsonl"
+    fake.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    with fake.open() as fh:
+        out = cid._process_output(fh, "audit")
+    assert out["refusals"] == 2
+    assert out["subtype"] == "success"
+
+
+def test_model_costs_splits_spend_and_skips_malformed_entries():
+    usage = {
+        "claude-opus-5-5": {"costUSD": 1.25, "inputTokens": 9},
+        "claude-fable-5-2": {"costUSD": 0.4},
+        "broken": "not-a-dict",
+        "no-cost": {"inputTokens": 3},
+    }
+    assert cid._model_costs(usage) == {"claude-opus-5-5": 1.25, "claude-fable-5-2": 0.4}
+    assert cid._model_costs(None) == {}
 
 
 # --- artifact budgets ---
@@ -367,14 +570,14 @@ def test_process_output_tolerates_null_cost(tmp_path):
     fake = tmp_path / "stream.jsonl"
     fake.write_text(lines, encoding="utf-8")
     with fake.open() as fh:
-        cost, turns, is_error, peak = cid._process_output(fh, "advance")
-    assert cost == 0.0
-    assert turns == 0
-    assert is_error is False
-    assert peak == 0
+        out = cid._process_output(fh, "advance")
+    assert out["cost"] == 0.0
+    assert out["turns"] == 0
+    assert out["is_error"] is False
+    assert out["peak_context"] == 0
     # the downstream sites that previously crashed must now be safe
-    assert f"${cost:.4f}" == "$0.0000"
-    assert round(cost, 6) == 0
+    assert f"${out['cost']:.4f}" == "$0.0000"
+    assert round(out["cost"], 6) == 0
 
 
 def test_is_meta_bookkeeping_classification():
@@ -974,18 +1177,25 @@ class _FakeProcess:
         pass
 
 
-def _run_agent_with_fake_cli(monkeypatch, repo, returncode, on_start=None):
-    """Invoke run_agent against a faked claude CLI, returning its outcome dict."""
+_CLEAN_RESULT = {"type": "result", "total_cost_usd": 0.5, "num_turns": 3}
+
+
+def _run_agent_with_fake_cli(
+    monkeypatch, repo, returncode, on_start=None, result=None, spawned=None
+):
+    """Invoke run_agent against a faked claude CLI, returning its outcome dict.
+
+    `result` replaces the stream's result row; `spawned`, when given, collects the
+    (args, kwargs) the runner passed to the faked CLI.
+    """
     # run_agent fails closed on a missing pack, so these spawn-path tests need one.
     pack = repo / cid.SKILLS_DIR / "cid-ctx-review"
     pack.mkdir(parents=True, exist_ok=True)
     (pack / "SKILL.md").write_text("---\nname: cid-ctx-review\n---\n", encoding="utf-8")
 
     stream = repo / "stream.jsonl"
-    stream.write_text(
-        '{"type":"result","total_cost_usd":0.5,"num_turns":3,"is_error":false}\n',
-        encoding="utf-8",
-    )
+    row = {"is_error": False, **(result or _CLEAN_RESULT)}
+    stream.write_text(json.dumps(row) + "\n", encoding="utf-8")
 
     real_popen = cid.subprocess.Popen
 
@@ -993,6 +1203,8 @@ def _run_agent_with_fake_cli(monkeypatch, repo, returncode, on_start=None):
         # Only stand in for the claude CLI; git calls (ours and the runner's) are real.
         if args[0] != "claude":
             return real_popen(args, **kwargs)
+        if spawned is not None:
+            spawned.append((args, kwargs))
         if on_start:
             on_start()
         return _FakeProcess(stream.open(encoding="utf-8"), returncode)
@@ -1000,6 +1212,69 @@ def _run_agent_with_fake_cli(monkeypatch, repo, returncode, on_start=None):
     monkeypatch.setattr(cid.subprocess, "Popen", fake_popen)
     base = _head(repo)
     return cid.run_agent("claude", "review", 7, repo, base_sha=base)
+
+
+def test_run_agent_logs_flags_subtype_and_denials(tmp_path, monkeypatch):
+    repo = _init_repo(tmp_path)
+    (repo / cid.AGENTS_DIR / "review.md").write_text(
+        "---\nname: review\nmodel: claude-opus-5-5\neffort: high\n---\nbody\n",
+        encoding="utf-8",
+    )
+    spawned = []
+    result = {
+        **_CLEAN_RESULT,
+        "subtype": "error_max_turns",
+        "is_error": True,
+        "permission_denials": [{"tool_name": "Bash"}],
+        "modelUsage": {
+            "claude-opus-5-5": {"costUSD": 0.3},
+            "claude-fable-5-2": {"costUSD": 0.2},
+        },
+    }
+    cid_run = _run_agent_with_fake_cli(
+        monkeypatch, repo, returncode=1, result=result, spawned=spawned
+    )
+    assert cid_run["status"] == "FAIL"
+    row = json.loads((repo / cid.LOG_FILE).read_text(encoding="utf-8").strip())
+    assert (row["model"], row["effort"]) == ("claude-opus-5-5", "high")
+    assert row["subtype"] == "error_max_turns"
+    assert row["denials"] == 1
+    assert row["model_costs"] == {"claude-opus-5-5": 0.3, "claude-fable-5-2": 0.2}
+    args, kwargs = spawned[0]
+    assert args[args.index("--effort") + 1] == "high"
+    assert kwargs["stdin"] is subprocess.DEVNULL
+
+
+def test_run_agent_clean_run_logs_no_subtype_or_denials(tmp_path, monkeypatch):
+    repo = _init_repo(tmp_path)
+    clean = {
+        **_CLEAN_RESULT,
+        "subtype": "success",
+        "permission_denials": [],
+        "modelUsage": {"claude-opus-5-5": {"costUSD": 0.5}},
+    }
+    _run_agent_with_fake_cli(monkeypatch, repo, returncode=0, result=clean)
+    row = json.loads((repo / cid.LOG_FILE).read_text(encoding="utf-8").strip())
+    assert "subtype" not in row
+    assert "denials" not in row
+    assert "refusals" not in row
+    assert "model_costs" not in row  # a single-model run needs no split
+
+
+def test_role_entry_records_refusals(capsys):
+    out = {
+        "cost": 1.0,
+        "turns": 3,
+        "peak_context": 1000,
+        "subtype": "success",
+        "denials": 0,
+        "refusals": 2,
+        "model_costs": {},
+    }
+    row = cid._role_entry("audit", 250, "OK", out, 12.0, {})
+    assert row["refusals"] == 2
+    assert cid.is_role_entry(row)
+    assert "audit had 2 model refusal(s)" in capsys.readouterr().out
 
 
 def test_run_agent_recovers_when_deliverable_committed(tmp_path, monkeypatch):
@@ -1227,6 +1502,7 @@ def test_context_packs_only_inline_known_context_files():
             cid.META_LOG_FILE,
             cid.METRICS_FILE,
             cid.CONTEXT_DIR / "target.md",
+            cid.CONTEXT_DIR / "postponed.md",
         )
     }
     # Every path in a shell block, whatever the command: anchoring on the command name

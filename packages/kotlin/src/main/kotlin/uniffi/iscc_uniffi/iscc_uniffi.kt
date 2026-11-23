@@ -681,9 +681,13 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_iscc_uniffi_checksum_func_conformance_selftest(
     ): Int
+    external fun uniffi_iscc_uniffi_checksum_func_decode_seq(
+    ): Int
     external fun uniffi_iscc_uniffi_checksum_func_encode_base64(
     ): Int
     external fun uniffi_iscc_uniffi_checksum_func_encode_component(
+    ): Int
+    external fun uniffi_iscc_uniffi_checksum_func_encode_seq(
     ): Int
     external fun uniffi_iscc_uniffi_checksum_func_gen_audio_code_v0(
     ): Int
@@ -793,9 +797,13 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_iscc_uniffi_fn_func_conformance_selftest(uniffi_out_err: UniffiRustCallStatus,
     ): Byte
+    external fun uniffi_iscc_uniffi_fn_func_decode_seq(`data`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
     external fun uniffi_iscc_uniffi_fn_func_encode_base64(`data`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
     external fun uniffi_iscc_uniffi_fn_func_encode_component(`mtype`: Byte,`stype`: Byte,`version`: Byte,`bitLength`: Int,`digest`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun uniffi_iscc_uniffi_fn_func_encode_seq(`units`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
     external fun uniffi_iscc_uniffi_fn_func_gen_audio_code_v0(`cv`: RustBuffer.ByValue,`bits`: Int,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
@@ -969,7 +977,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_iscc_uniffi_checksum_func_alg_cdc_chunks() != 23469) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_iscc_uniffi_checksum_func_alg_minhash_256() != 31368) {
+    if (lib.uniffi_iscc_uniffi_checksum_func_alg_minhash_256() != 23807) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_iscc_uniffi_checksum_func_alg_simhash() != 16431) {
@@ -978,10 +986,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_iscc_uniffi_checksum_func_conformance_selftest() != 24279) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_iscc_uniffi_checksum_func_decode_seq() != 13261) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_iscc_uniffi_checksum_func_encode_base64() != 43598) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_iscc_uniffi_checksum_func_encode_component() != 11010) {
+    if (lib.uniffi_iscc_uniffi_checksum_func_encode_component() != 629) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_iscc_uniffi_checksum_func_encode_seq() != 49172) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_iscc_uniffi_checksum_func_gen_audio_code_v0() != 22048) {
@@ -1056,7 +1070,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_iscc_uniffi_checksum_func_text_remove_newlines() != 55449) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_iscc_uniffi_checksum_func_text_trim() != 46357) {
+    if (lib.uniffi_iscc_uniffi_checksum_func_text_trim() != 61011) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_iscc_uniffi_checksum_method_datahasher_finalize() != 26196) {
@@ -2953,9 +2967,12 @@ public object FfiConverterSequenceSequenceInt: FfiConverterRustBuffer<List<List<
 
         /**
          * Compute a 256-bit MinHash from a set of u32 features.
-         */ fun `algMinhash256`(`features`: List<kotlin.UInt>): kotlin.ByteArray {
+         *
+         * Throws on an empty feature list.
+         */
+    @Throws(IsccUniException::class) fun `algMinhash256`(`features`: List<kotlin.UInt>): kotlin.ByteArray {
             return FfiConverterByteArray.lift(
-    uniffiRustCall() { _status ->
+    uniffiRustCallWithError(IsccUniException) { _status ->
     UniffiLib.uniffi_iscc_uniffi_fn_func_alg_minhash_256(
 
 
@@ -2994,6 +3011,23 @@ public object FfiConverterSequenceSequenceInt: FfiConverterRustBuffer<List<List<
 
 
         /**
+         * Decode an ISCC-SEQ byte string to `ISCC:`-prefixed unit strings (IEP-0020).
+         *
+         * Validation and error messages come from the core (`iscc_lib::decode_seq`).
+         */
+    @Throws(IsccUniException::class) fun `decodeSeq`(`data`: kotlin.ByteArray): List<kotlin.String> {
+            return FfiConverterSequenceString.lift(
+    uniffiRustCallWithError(IsccUniException) { _status ->
+    UniffiLib.uniffi_iscc_uniffi_fn_func_decode_seq(
+
+
+        FfiConverterByteArray.lower(`data`),_status)
+}
+    )
+    }
+
+
+        /**
          * Encode binary data as URL-safe base64 (no padding).
          */ fun `encodeBase64`(`data`: kotlin.ByteArray): kotlin.String {
             return FfiConverterString.lift(
@@ -3009,6 +3043,10 @@ public object FfiConverterSequenceSequenceInt: FfiConverterRustBuffer<List<List<
 
         /**
          * Encode header and digest into an ISCC component string.
+         *
+         * Returns `IsccUniError` for out-of-range enum values, for MainType ISCC (5),
+         * for an invalid `bit_length`, or when `digest` is shorter than
+         * `bit_length / 8` bytes.
          */
     @Throws(IsccUniException::class) fun `encodeComponent`(`mtype`: kotlin.UByte, `stype`: kotlin.UByte, `version`: kotlin.UByte, `bitLength`: kotlin.UInt, `digest`: kotlin.ByteArray): kotlin.String {
             return FfiConverterString.lift(
@@ -3021,6 +3059,24 @@ public object FfiConverterSequenceSequenceInt: FfiConverterRustBuffer<List<List<
         FfiConverterUByte.lower(`version`),
         FfiConverterUInt.lower(`bitLength`),
         FfiConverterByteArray.lower(`digest`),_status)
+}
+    )
+    }
+
+
+        /**
+         * Encode ISCC-UNIT strings as an ISCC-SEQ byte string (IEP-0020).
+         *
+         * Units are concatenated in the given order. Validation and error messages
+         * come from the core (`iscc_lib::encode_seq`).
+         */
+    @Throws(IsccUniException::class) fun `encodeSeq`(`units`: List<kotlin.String>): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    uniffiRustCallWithError(IsccUniException) { _status ->
+    UniffiLib.uniffi_iscc_uniffi_fn_func_encode_seq(
+
+
+        FfiConverterSequenceString.lower(`units`),_status)
 }
     )
     }
@@ -3395,7 +3451,11 @@ public object FfiConverterSequenceSequenceInt: FfiConverterRustBuffer<List<List<
 
 
         /**
-         * Trim text to a maximum number of UTF-8 bytes on a word boundary.
+         * Trim text so its UTF-8 encoded size does not exceed `nbytes`.
+         *
+         * Keeps the longest valid UTF-8 prefix within `nbytes` bytes, dropping any
+         * character that would be split, then strips leading and trailing whitespace.
+         * Text of at most `nbytes` bytes is returned whole, apart from that strip.
          */ fun `textTrim`(`text`: kotlin.String, `nbytes`: kotlin.ULong): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->

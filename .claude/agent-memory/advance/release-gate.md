@@ -29,3 +29,13 @@ metadata:
     `uses:` refs at current majors (iter 140: checkout@v7, upload/download-artifact v7/v8 pair,
     gh-release@v3 — statically verified only, `workflow_dispatch`).
 - Lint edits via `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7` (cached, offline-safe).
+
+## `publish-ffi` prune/verify (iter 287)
+
+- `scripts/ffi_release_assets.py` (stdlib): `stale` prints `apiUrl` of staged non-`uploaded` assets,
+    `verify` fails on missing/non-`uploaded`; reads `gh release view --json assets` JSON +
+    `ffi-staging`. Wiring + unit tests: `tests/test_ffi_release_assets.py`. Asset `id` is a GraphQL
+    node id — delete via `apiUrl`. `gh release view <missing>` → stderr `release not found`, exit 1.
+- GitHub `run:` default shell is `bash -e` WITHOUT pipefail: write to a file, `while read … < file`.
+- Ruff S105 fires on `x["GH_TOKEN"] == "<literal>"` in tests — use `"github.token" in …` instead.
+- Probe a step body: extract `run` via PyYAML, stub `gh` script first on PATH, `bash -e`.

@@ -41,7 +41,14 @@ Detail moved out of MEMORY.md index. See also [[ci-gates]] for the swift/kotlin 
 - UniFFI doesn't support: `const` exports (use getter fns), `usize` (use u64), borrowed refs (owned
     only).
 - Result records need `Debug` derive for test `unwrap_err()`. Hashers need `Default` impl (clippy).
-- 21 unit tests in-crate. Conformance testing happens in the Swift/Kotlin test suites.
+- 28 unit tests in-crate (iter 210). Conformance testing happens in the Swift/Kotlin test suites.
+- ISCC-SEQ (iter 210): `encode_seq(Vec<String>)->Vec<u8>` / `decode_seq(Vec<u8>)->Vec<String>`, no
+    binding guards. UniFFI strings are length-delimited — embedded NUL reaches core (rejected).
+    Harness helpers: Swift `decodeBytes`/`hexToData`/`assertIsccError`, Kotlin `decodeBytes`/
+    `assertIsccError` (seq vectors use `bytes:`, outputs string/array, not object).
+- **`mise run format` can fail mid-run with `os error 22` writing the 80 KB generated `.swift`**
+    (WSL bind-mount flake) and leave trailing ws: `grep -c '[[:space:]]$'` the generated files,
+    re-run the hook on the file + another format pass.
 - Binding generation: `uniffi-bindgen.rs` (3-line main), `[features] bindgen = ["uniffi/cli"]`,
     `[[bin]] required-features = ["bindgen"]`. Generate Swift via
     `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate --library   target/debug/libiscc_uniffi.so --language swift --out-dir <dir>`
@@ -58,12 +65,15 @@ Detail moved out of MEMORY.md index. See also [[ci-gates]] for the swift/kotlin 
     to `/tmp/swifttc`, `cargo build -p iscc-uniffi`,
     `swift test --scratch-path   /tmp/swiftbuild -Xlinker -L<repo>/target/debug -Xlinker -rpath -Xlinker …`).
     Use `--scratch-path` outside the repo; `.build/` is gitignored since iter 161.
-- Tests: `ConformanceTests.swift` (9 methods/50 vectors) + `UnicodeBoundaryTests.swift` (12 boundary
-    vectors + metadata guard). **Never compare Swift `String ==` in Unicode tests** — it folds
-    canonical equivalence ("e"+U+0301 == U+00E9), making sequence vectors vacuous; compare
-    `unicodeScalars.map { $0.value }` arrays. Vendored `unicode_boundary.json` + `data.json` are SPM
-    `.copy(...)` resources, registered in `tests/test_vendored_fixtures.py` (gate reads
-    `git   ls-files`, so it stays red until the copy is `git add`ed).
+- Swift harness rule (218): convert record fields to `Int(...)` before boxing in `Any` and compare
+    via typed casts, so the same code holds on macOS CI and Linux (unprobed cross-platform).
+    `swift test --package-path   packages/swift` with absolute `$PWD/target/debug` linker paths
+    works from the repo root.
+- Tests: `DataEdgeTests.swift` (6, iter 218), `ConformanceTests.swift` (19 methods since iter 210;
+    `UnicodeBoundaryTests.swift` and `unicode_boundary.json` are gone with the freeze removal).
+    **Never compare Swift `String ==` on Unicode sequences** — it folds canonical equivalence;
+    compare `unicodeScalars`. Vendored `data.json` is an SPM `.copy(...)` resource, registered in
+    `tests/test_vendored_fixtures.py`.
 - `scripts/build_xcframework.sh`: 5 Rust targets → `lipo` → `xcodebuild -create-xcframework` →
     `ditto` zip → checksum. Output `target/ios/IsccLib.xcframework.zip` (`--release`/`--debug`).
 - Version constant: `packages/swift/Sources/IsccLib/Constants.swift` (`isccLibVersion`). CI job
@@ -75,7 +85,22 @@ Detail moved out of MEMORY.md index. See also [[ci-gates]] for the swift/kotlin 
 - `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA (mature/complete).
 - Generated `src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` — do NOT hand-edit; regenerate via
     uniffi-bindgen.
-- JNA native loading needs `jna.library.path` + `LD_LIBRARY_PATH`. `ConformanceTest.kt` = 9
-    methods/50 vectors.
+- JNA native loading needs `jna.library.path` + `LD_LIBRARY_PATH`. `ConformanceTest.kt` = 19 methods
+    (iter 210).
 - Full generate command, Gradle/JNA versions, gitignore quirks, Maven Central publishing →
     MEMORY-archive.md.
+
+## Regeneration + 32-bit (iter 272)
+
+- A `///` edit on an export changes its `uniffi_..._checksum_func_*` constant in BOTH generated
+    files (doc text feeds the checksum) — expected; regenerate both together.
+- Kotlin output ends in `\n\n\n` + trailing spaces: `mise run check` needs TWO passes (whitespace
+    trim, then end-of-file-fixer) before it exits 0. Swift bindgen also drops untracked
+    `iscc_uniffiFFI.h` + `.modulemap` in `Sources/IsccLib/` — delete them.
+- `u64` → `usize` params: `usize::try_from(x).unwrap_or(usize::MAX)` (saturate). Prove on
+    `cargo test -p iscc-uniffi --target i686-unknown-linux-musl` (target installed, ~50 s build).
+- Swift toolchain cached at `/tmp/swifttc/swift-6.1.2-RELEASE-debian12/usr/bin/swift` (may vanish).
+    Kotlin: `packages/kotlin/gradlew -p packages/kotlin test` after `cargo build -p iscc-uniffi`.
+- The Bash tool shell is zsh: `$gen ...` with `gen="cargo run ..."` does NOT word-split ("command
+    not found"). Run the CI `gen=` lines under `bash -c '...'`, or extract the step with PyYAML and
+    `bash -e` it (iter 307).

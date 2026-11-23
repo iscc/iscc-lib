@@ -3,6 +3,31 @@
 Scoping decisions, estimation patterns, architectural knowledge across CID iterations. **Keep under
 140 lines**; archive stale/completed-phase detail to `MEMORY-archive.md`.
 
+**Status 2026-11-22 (iter 308):** 307 PASS closed the last `normal` issue → 308 = `Step: NONE`
+(v0.8.0 criteria met, 18 `low`, release + v1.0.0 human-gated). Next run: NONE again unless the human
+promotes an issue or edits target.md — check `git log` for a `cid(human)` commit first. conan 2.34
+runs via `uv run --no-project --with conan` (e2e `conan create` locally possible). **An error row
+must be probed on the last release (`--with iscc-lib==0.7.0`) to prove it pins a rule.** After them
+v0.8.0 is release-ready (human cuts). **Renaming a script a decision names leaves the decision stale
+— extend it instead.** **C edge generator's `meta_text` rejects `null` meta — use an object.** **A
+Go-behaviour step is 'core-like': keep vector rows that need all 12 harnesses out of it.** **A Tier
+2 signature change is an `API-BREAK` stop for advance — route around it.** **An issue's list of
+pinning tests can under-count (298: `tests/test_algo.py` was a 6th `0xFF` pin) — grep yourself.**
+**A signature-changing core break cannot land "alone": forced binding edits ride along; the
+data-edge fan-out stays separate.** **Behaviour-neutral call swaps don't count toward the cap
+(decision 2026-11-20 counts behaviour files)** — say so in Scope. In-crate test modules of `lib.rs`
+can't see private `conformance` items — scope `pub(crate)`. **Check a grep criterion's pattern
+against the current tree's error/doc strings too** (290). iscc-lib CI tests 3 feature sets (default,
+none, text-processing). **Any Java test needing a library outside the bundle must pass in BOTH
+layouts.** Per-iteration traps for 259-269 → [v0.8.0 iteration ledger](v080-iteration-ledger.md).
+**Probe the ref on BOTH builds (py3.10 + py3.15) before scoping a vector. External-flake red: still
+scope a hardening. An issue's "Scope estimate" can over-count — apply the docs-excluded rule
+yourself. Dependabot alerts track `main`, not `develop`.** NONE verification:
+`grep -E '^## .*(critical|normal)' issues.md` prints nothing. **Compiler-limit issues with no
+compiler here: find a gcc warning that encodes the same standard limit** (282). **wasm-bindgen
+generated-JS facts: cli-support is not in the cargo registry (wasm-pack downloads the binary) — read
+`crates/cli-support/src/js/mod.rs` upstream** (283).
+
 ## Scope Calibration Principles
 
 - **CI red always first** — green CI is a prerequisite for all other work; formatting/lint/advisory
@@ -25,17 +50,25 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
 - **Any upstream-API claim in Implementation Notes must be read out of
     `~/.cargo/registry/src/*/<crate>-<ver>/`, seeing which item an attribute belongs to** (168: a
     misattributed `#[deprecated]` cost iter 169; manifests carry `rust-version`).
+- **A third-party action's behaviour in Implementation Notes must be read from its `action.yml` at
+    the pinned ref** (239: I paraphrased cross-gem's rb_sys grep as anchored; it is not, and the
+    step bounced).
 - **A fix touching surfaces no test exercises → scope fix + missing tests as ONE step** (169; tests
-    are outside the 3-file budget). **Run an expensive probe while scoping when it can invert the
+    are outside the file budget). **Run an expensive probe while scoping when it can invert the
     plan** (155/157; 161 Swift fetch killed a 10-iter-old veto).
-- **Generated/tool-output files (Cargo.lock, bindings) and docs don't count toward the 3-file
-    limit** — batch related small changes (version sync + docs; several fixes in one crate).
+- **Generated/tool-output files (Cargo.lock — moves even for a dev-dep already in the graph, 205 —
+    bindings) and docs don't count toward the file limit** — batch related small changes (version
+    sync + docs; several fixes in one crate).
+- **A step that drops a capability a spec's Verification Criteria name is a spec amendment → human;
+    check the per-binding spec before taking a "remove it and reword the docs" branch** (239).
 - **IDLE is valid** only when all target sections met and just `low` issues remain — an
     already-specced, locally-verifiable target gap or infra/release fix is NOT idle work. **HUMAN
     REVIEW override is for BUG fixes, not NEW policy gates** (gate amending spec/notes needs
     sign-off).
-- **next.md/MEMORY.md are sensitive** — Write needs a prior Read; the prek mdformat hook reflows
-    (wraps at 100, can inject a double space in inline code spans) — reword to avoid.
+- **next.md/MEMORY.md are sensitive** — Write needs a prior Read; **the Write tool decodes `\uXXXX`
+    in content into raw chars** (251) — grep the file after writing escapes, fix via a python
+    script; the prek mdformat hook reflows (wraps at 100, can inject a double space in inline code
+    spans) — reword to avoid.
 
 ## Architecture & Conformance Facts
 
@@ -48,6 +81,10 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
 
 ## Dev Environment Constraints
 
+- **`.devcontainer/devcontainer.json` is `skip-worktree` locally** (Zed workaround: on-disk array
+    form → untracked `post-create.sh` in `.git/info/exclude`). A step editing the committed
+    `postCreateCommand` must stage via `git hash-object -w` + `update-index --cacheinfo`, re-set the
+    flag, and mirror the edit into the local script (271). `mise.toml` had no `[tools]` until 271.
 - **No shellcheck** (CI-only). `cmake` via `uv run --with cmake cmake …` (160); **Swift runs here**
     (swift.org debian12 tarball, ~5 min, no sudo). `uniffi-bindgen`:
     `cargo run -p iscc-uniffi   --features bindgen --bin uniffi-bindgen`; SPM module MUST be
@@ -55,8 +92,11 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
 - `dotnet` 8.0.423 on `$PATH`, nuget.org reachable → .NET restore/test locally verifiable.
     cargo-crap 0.2.2, cargo-llvm-cov 0.8.7, valgrind 3.19 + iai-callgrind-runner installed;
     cargo-deny via `cargo binstall cargo-deny@0.19.9 --force`.
+- **`i686-unknown-linux-musl` is installed** → a 32-bit `usize` claim on a crate without C-built
+    dev-deps is locally testable: `cargo test -p <crate> --target i686-unknown-linux-musl` (272).
 - **rustup carries stable (1.97.1) *and* 1.85.0** → every MSRV claim is locally verifiable:
     `cargo +1.85.0 check -p <crate> --locked`. Never defer an MSRV assertion to a CI job.
+- **prek flag is `--stage pre-push`, not `--hook-stage`** (274: checked `prek run --help`).
 - **`mise run lint` is only `cargo fmt --check` + clippy + ruff**; taplo/mdformat/hygiene run in
     prek (`mise run check`). Never credit a TOML/Markdown format check to `lint`.
 
@@ -70,58 +110,18 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
     `pwsh`, add `shell: bash`; "10 gen fns" vs "9 conformance fns" — never blanket 9→10. Doc-example
     casing: Ruby/Rust `snake_case`; C#/Go/Java `PascalCase`; JS/Swift/Kotlin `camelCase` — but napi
     and WASM export snake_case (`gen_iscc_id_v1`, not camel); Swift/Kotlin take named `bits`/`u`.
+- **JNI `-Xcheck:jni` = `JAVA_TOOL_OPTIONS=-Xcheck:jni mvn …`** — `-DargLine` is a no-op (208).
 - **4 quality gates**: Semver (informational until human-gated v1.0.0) + Coverage/CRAP + Perf +
     Audit (enforcing). **Baselines move only via deliberate reviewed `mise run` commits**, never
     from CI; don't widen `--epsilon`. `cargo deny check` is authoritative locally (reads
     Cargo.lock).
 
-## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
+## Phase Lessons (v0.6.0 onward; detail archived)
 
-- v0.5.0 released; 12 bindings meet core criteria; v0.6.0 features + Unicode chain DONE (161); 169
-    closed JNI debt, 170 `packages/dotnet` lockfile. **2026-07-28 human unblocked v0.6.0** (active):
-    171 (`criterion` 0.8) + 172 (`uniffi` 0.32) closed the dep issue →
-    [dep-refresh ledger](dep-refresh-ledger.md). Trigger-only: go1.27 + Go freeze table (~Aug 2026).
-    HELD `low`: v1.0.0 + Semver-enforcing, MSRV job, npm OIDC.
-- **A dep major can leave a *declaration* false without breaking anything** (172→173: uniffi 0.32
-    pushed `iscc-uniffi`'s real floor to 1.91). Declaring the true floor on an **unpublished** crate
-    is CID-doable; the **root/published** `rust-version` stays Titusz's call. **Trust fresh state.md
-    over an IDLE handoff when a non-`cid()` commit post-dates the last review** (174: out-of-loop
-    `2c4e487` reopened scope to 33 symbols + ISCC-IDv1 on all 11 surfaces, #43).
-- **2026-07-28 (177 AND AGAIN 178): state.md conflates a Semver check-run "failure" with the
-    workflow conclusion** — it declares "CI RED on develop", but
-    `gh run list --branch develop --json   conclusion` shows the develop tip (=HEAD code)
-    `conclusion:success` on BOTH the push run and the open develop→main PR run. The `Semver` job is
-    `continue-on-error: true` (ci.yml L355), so its red check-run does NOT fail the workflow. This
-    phantom recurs every iteration the semver check-run is red — verify workflow *conclusion* at the
-    source each time, never trust a state.md "red" derived from check-run status. 177 and 178 both
-    skipped a phantom "fix CI" step and went to #43 fan-out.
-- **ISCC-IDv1 (#43) FULLY CLOSED (iter 190 doc sweep landed, PASS_WITH_NOTES)**: core + all 11 mint
-    surfaces (178–188) + decode-widening (189, only Python needed `VS.V1`) + Tier-1 32→33 doc/count
-    sweep + `gen_iscc_id_v1` API/howto entries (190). #43 issue deleted. All doc artifacts read 33
-    (stale-32 grep clean); `notes/00-overview.md:153` now reads 33 (was 22 — that memory is now
-    stale). Per-surface recipes archived → [idv1 fan-out facts](iscc-idv1-fanout.md).
-- **193: the `iscc_clean` routing (191/192) reds the ENFORCING iai Perf gate** — routing composite
-    `gen_iscc_code_v0`/`gen_mixed_code_v0` through it added a per-component `Vec` (split-collect) +
-    `String` (`replace`) alloc; pre-191 inline cleaning was zero-alloc (`strip_prefix`→`&str`).
-    Bench inputs are dash/scheme-free so the alloc is pure waste. Fix = `iscc_clean` returns
-    `Cow<'_,str>`, `split_once` not collect, `replace` only if `contains('-')`; pass the UNMODIFIED
-    committed baseline (never bump `.iai-baseline.json` to mask a removable cost). `mise run check`
-    skips iai (CI-only) so the reviewer missed it — a text/codec-hot-path step must flag
-    `bench:iai:check`.
-- **v0.6.0 release readiness (191→): only CID-doable blocker left is "no `normal`/`critical` issue
-    open".** 4 open `normal` `[review]` gate it: (1) **codec `iscc_clean` divergence** — most
-    substantive, TWO-surface (Rust 4 sites + hand-ported Go 4 sites = TWO steps, not fan-out; issue
-    says "two parallel fixes"). 191 scoped the Rust half (shared private `iscc_clean` helper routed
-    through `codec.rs` iscc_decompose + `lib.rs` iscc_normalize/gen_mixed/gen_iscc_code). Ref
-    `codec.py:644`: trim→split(':')→1-part strips dashes only if first char NOT multibase
-    `f/b/v/z/u`, 2-part case-insensitive `iscc` scheme. **191 Rust half NEEDS_WORK (192 fix):** any
-    input-cleaning helper that can yield `""` (`"   "`/`"-"`/`"iscc:"`/`"----"`) must guard empty
-    BEFORE decode — `decode_base32("")` returns `Ok(empty)` so `iscc_decompose` silently returns
-    `Ok([])` for malformed input the ref errors on. Guard inside `iscc_clean` (DRY, covers all 4
-    sites). Differential tests only exercise VALID inputs — always add empty/garbage-form asserts.
-    (2) Ruby wide-input validation order (`> i64::MAX` only, near-zero impact). (3) c-ffi-api doc
-    type names vs `iscc_`-prefixed header. (4) iai ASCII-only text benchmarks (needs valgrind
-    machine). go1.27 tripwire upstream-blocked.
+- **History (v0.6.0 phase, 177/178 phantom-red, IDv1 #43 closed 190, 193 iai `iscc_clean`)** →
+    MEMORY-archive.md. Still-biting: a red `Semver` check-run is `continue-on-error` — verify the
+    workflow *conclusion*, never a state.md "red" from check-run status; a codec/text hot-path step
+    must flag `bench:iai:check` (CI-only gate).
 - **Closed phases: 115–123 (features) + dep slices 124–137 + 162–172** → MEMORY-archive.md +
     [dep-refresh ledger](dep-refresh-ledger.md). Still-biting: CRAP regression gate is **CI-only**;
     **never move a consumer floor** (MSRV, `go` directive, `required_ruby_version`, a published
@@ -130,21 +130,26 @@ Scoping decisions, estimation patterns, architectural knowledge across CID itera
 - **Lint/formatter tool bumps + hook-config changes** →
     [lint tooling lessons](lint-tooling-lessons.md). Headline: **never make an exact file/finding
     count a pass/fail criterion** — use the exit code.
-- **Unicode chain DONE (147–161)**: sentinel freeze, `Final_Sigma` freeze, `mise run unicode:sweep`
-    gate, boundary vectors on all 11 surfaces; never revive the superseded category override or a
-    15.1.0 declared version. A 13th vector costs 12 suites — any fixture edit is its own slice.
-    Details → [unicode-freeze-facts](unicode-freeze-facts.md) + propagation ledger.
+- **Unicode chain (147–161) — REMOVED 2026-07-30 by the human (decisions.md); history only**:
+    sentinel freeze, `Final_Sigma` freeze, `mise run unicode:sweep` gate, boundary vectors on all 11
+    surfaces; never revive the superseded category override or a 15.1.0 declared version. A 13th
+    vector costs 12 suites — any fixture edit is its own slice. Details are in git history only.
 - **Gate/checker steps in `scripts/`** → [gate scripts playbook](gate-scripts-playbook.md) +
     [release.yml static gates](release-yml-static-gates.md) (split behavioural from mechanical in
     the CI-unexercised `release.yml`, 139/140).
 - **Text-hot-path steps trip CI-only CRAP `--fail-regression` + `.iai-baseline.json` 10% Ir; a
     `tests/`-only or binding-only step trips neither** — say so in next.md.
-- Generator scripts needing an external pin: PEP 723 + `uv run --script`, never a dev-dep
-    ([ty gate trap](define-next-ty-generator-scripts.md)). `uv run zensical build` (exits 0, "No
-    issues found", ~8s) verifies any docs-only step.
+- Generator scripts: PEP 723 + `uv run --script`, never a dev-dep
+    ([ty trap](define-next-ty-generator-scripts.md)); `uv run zensical build` verifies docs-only
+    steps.
 - **Recurring**: cargo-deny reds on fresh RustSec advisories vs dev/bench deps — CI-red-first,
-    prefer `cargo update -p <crate>` over a `deny.toml` ignore. When 3 of 4 recent iters are
-    CI/lint/workflow → prefer a user-facing item once (143).
+    prefer `cargo update -p <crate>` over a `deny.toml` ignore — but PROBE first (196:
+    `cargo update --dry-run` + crates.io feature graph showed `basic-toml` survives every upgrade
+    via uniffi_bindgen→askama `config` → per-ID ignore was the right call). Hosted-runner retirement
+    (196: `macos-14` gone 2026-11-02, symptom = job `cancelled` + "configuration … not supported"
+    annotation) → swap to the pinned arm64 successor at every workflow site, never `-latest`; check
+    `actions/runner-images` README for live labels. When 3 of 4 recent iters are CI/lint/workflow →
+    prefer a user-facing item once (143).
 - **A derived/generated artifact is gated by "regenerate → `git status --porcelain` empty", not by
     `VENDORED_COPIES`** (159); pair the no-op with a pytest case proving the gate fires on a mutated
     source — unless a third-party generator emits non-hook-clean bytes (172).

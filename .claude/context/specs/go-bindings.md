@@ -10,16 +10,16 @@ is a native Go implementation — not an FFI wrapper, CGO bridge, or WASM embed.
 
 - Native Go implementation of all ISCC algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash)
 - No CGO, no WASM, no embedded binaries — just Go source code
-- Idiomatic Go API with Go naming conventions, `error` returns, `[]byte` slices, and `io.Reader`
-    support for streaming
+- Idiomatic Go API with Go naming conventions, `error` returns, `[]byte` slices, and `Push`/
+    `Finalize` hashers for streaming
 - Lives in this repository under `packages/go/` as a Go sub-module
 - Validated against the same conformance test vectors as all other bindings
 
 **Why pure Go (not WASM/wazero bridge):**
 
 - **Zero distribution friction** — `go get` fetches source code only, no binary artifacts in git
-- **Native performance** — compiled to machine code, no WASM interpreter overhead. BLAKE3 and xxHash
-    Go libraries have SIMD-optimized implementations
+- **Native performance** — compiled to machine code, no WASM interpreter overhead. The BLAKE3 Go
+    library has a SIMD-optimized implementation
 - **First-class debugging** — Go developers can step into ISCC code, profile it, read the source
 - **Cross-compilation works** — `GOOS=linux GOARCH=arm64 go build` just works
 - **No build artifacts in git** — avoids polluting git history with binaries
@@ -30,25 +30,15 @@ is a native Go implementation — not an FFI wrapper, CGO bridge, or WASM embed.
 packages/go/
 ├── go.mod                  # Module: github.com/iscc/iscc-lib/packages/go
 ├── go.sum
-├── iscc.go                 # Main API (gen_*_v0 functions)
-├── iscc_test.go            # Conformance tests against data.json
+├── code_*.go               # One file per code type (gen_*_v0 functions)
 ├── codec.go                # Header encode/decode, base32, component encoding
-├── codec_test.go
-├── text.go                 # Unicode normalization, cleaning, trimming, collapsing
-├── text_test.go
-├── algorithms.go           # CDC, MinHash, SimHash, sliding window
-├── algorithms_test.go
-├── dct.go                  # Nayuki fast recursive DCT
-├── dct_test.go
-├── wta.go                  # WTA-Hash (video fingerprinting)
-├── wta_test.go
-├── hasher.go               # DataHasher, InstanceHasher streaming types
-├── hasher_test.go
-├── constants.go            # Algorithm constants (META_TRIM_*, IO_READ_SIZE, etc.)
 ├── testdata/
 │   └── data.json           # Vendored conformance vectors
 └── README.md               # Per-package README
 ```
+
+Algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash, xxh32) and utilities live in one `.go` file each,
+next to a `_test.go` file. The tree lists the load-bearing entries, not every file.
 
 ## Public API Surface
 
@@ -65,7 +55,7 @@ Go conventions: `PascalCase` exported functions, `error` return values, `[]byte`
 | `gen_sum_code_v0`      | `GenSumCodeV0(path string, ...) (*SumCodeResult, error)`           |
 | `text_clean`           | `TextClean(text string) string`                                    |
 | `sliding_window`       | `SlidingWindow(text string, width int) []string`                   |
-| `alg_minhash_256`      | `AlgMinhash256(features []uint32) []byte`                          |
+| `alg_minhash_256`      | `AlgMinhash256(features []uint32) ([]byte, error)`                 |
 | `DataHasher`           | `NewDataHasher() *DataHasher`                                      |
 | `conformance_selftest` | `ConformanceSelftest() bool`                                       |
 
@@ -93,11 +83,12 @@ type SumCodeResult struct {
 type DataHasher struct { /* internal state */ }
 
 func NewDataHasher() *DataHasher
-func (h *DataHasher) Update(data []byte)
-func (h *DataHasher) Finalize(bits int) (*DataCodeResult, error)
+func (h *DataHasher) Push(data []byte) error
+func (h *DataHasher) Finalize(bits uint32) (*DataCodeResult, error)
 ```
 
-Streaming functions also accept `io.Reader` for file/network streaming.
+Hashers are single-use: the first `Finalize` call consumes the hasher, even when it fails. After
+that, `Push` and `Finalize` return an "already finalized" error.
 
 ## ISCC-IDv1 Support (Experimental)
 
@@ -134,15 +125,14 @@ change in a minor release).
 both halves differently:
 
 - `EncodeIsccID` → `GenIsccIDV1`, with the reference parameter order, matching `iscc_core`'s
-    `gen_iscc_id_v1` and the other 10 bindings
+    `gen_iscc_id_v1` and every other binding
 - `DecodeIsccID` and its `IsccIDv1Result` type are **deleted**, not renamed. `iscc-core` has no IDv1
     decoder; generic `IsccDecode` covers it. Go callers extract the fields directly:
     `n := binary.BigEndian.Uint64(body)`, then `timestamp := n >> 12`, `hubID := uint16(n & 0xFFF)`,
     `realm := st`
 
-Both symbols exist only on `develop` and have never appeared in a tagged release, so no published
-consumer is affected. `iscc/iscc-monitor` must be told the final shape before it deletes its interim
-port — update issue #43 when this lands.
+Neither old symbol appeared in a tagged release: `GenIsccIDV1` is the first IDv1 API any release
+shipped (0.6.0), so no published consumer was affected.
 
 **Conformance vector:** `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub_id 1, timestamp 1751831876325218
 (from iscc-hub's `schema.py` example).
@@ -153,13 +143,13 @@ binding supports ISCC-IDv1.
 
 **Verified when:**
 
-- [ ] `GenIsccIDV1(1751831876325218, 1, 0)` returns `ISCC:MAIGHFECJMOPMIAB` (round-trip through
+- `GenIsccIDV1(1751831876325218, 1, 0)` returns `ISCC:MAIGHFECJMOPMIAB` (round-trip through
     `IsccDecode` holds for boundary values: hub_id 0 and 4095, realm 0 and 1, max 52-bit timestamp)
-- [ ] `packages/go` exports neither `DecodeIsccID` nor `IsccIDv1Result`, and the field-extraction
-    recipe is documented in `docs/howto/go.md` and `packages/go/README.md`
-- [x] `IsccDecode` accepts MainType `ID` with Version 1 and returns the header + 64-bit body
-- [x] Version > 0 is still rejected for every MainType other than `ID`
-- [x] Public ISCC-IDv1 symbols carry an "experimental" doc-comment marker
+- `packages/go` exports neither `DecodeIsccID` nor `IsccIDv1Result`, and the field-extraction recipe
+    is documented in `docs/howto/go.md` and `packages/go/README.md`
+- `IsccDecode` accepts MainType `ID` with Version 1 and returns the header + 64-bit body
+- Version > 0 is still rejected for every MainType other than `ID`
+- Public ISCC-IDv1 symbols carry an "experimental" doc-comment marker
 
 ## Dependencies
 
@@ -168,9 +158,11 @@ All well-maintained, pure Go:
 | Module                               | Purpose                        |
 | ------------------------------------ | ------------------------------ |
 | `github.com/zeebo/blake3`            | BLAKE3 cryptographic hash      |
-| `github.com/cespare/xxhash/v2`       | xxHash for feature hashing     |
 | `golang.org/x/text/unicode/norm`     | Unicode NFKC/NFD normalization |
 | `encoding/base32`, `encoding/base64` | Standard library encoding      |
+
+The xxh32 feature hash is implemented in the package (`packages/go/xxh32.go`), so it needs no
+module.
 
 ## Distribution
 
@@ -205,29 +197,24 @@ go:
 
 ## Version Sync
 
-| Target                   | What is synced            |
-| ------------------------ | ------------------------- |
-| `packages/go/version.go` | `const Version = "X.Y.Z"` |
-
-Go module versions are determined by Git tags (`go/vX.Y.Z` sub-module tags). The embedded version
-constant is synced for diagnostic purposes.
+Go module versions are determined by Git tags (`packages/go/vX.Y.Z` sub-module tags). The package
+embeds no package-version string, so there is no sync target.
 
 ## Documentation
 
 - **How-to guide**: `docs/howto/go.md`
-- **API reference**: `docs/go-api.md`
 - **Per-package README**: `packages/go/README.md`
 
 ## Verification Criteria
 
-- [ ] `go test ./...` passes all conformance vectors from `data.json`
-- [ ] Output of every `gen_*_v0` function matches `iscc-core` reference for every test vector
-- [ ] Package installs cleanly via `go get` with no external dependencies beyond Go modules
-- [ ] No cgo required (`CGO_ENABLED=0` works)
-- [ ] Cross-compilation works (`GOOS`/`GOARCH` combinations)
-- [ ] All 33 Tier 1 symbols accessible with idiomatic Go types and error handling
-- [ ] API uses Go conventions: `PascalCase`, `error` returns, `[]byte`, `io.Reader`
-- [ ] No binary artifacts committed to the repository
-- [ ] `check-added-large-files` threshold at 256KB
-- [ ] `go vet ./...` clean
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
+- `go test ./...` passes all conformance vectors from `data.json`
+- Output of every `gen_*_v0` function matches `iscc-core` reference for every test vector
+- Package installs cleanly via `go get` with no external dependencies beyond Go modules
+- No cgo required (`CGO_ENABLED=0` works)
+- Cross-compilation works (`GOOS`/`GOARCH` combinations)
+- All Tier 1 symbols accessible with idiomatic Go types and error handling
+- API uses Go conventions: `PascalCase`, `error` returns, `[]byte`
+- No binary artifacts committed to the repository
+- `check-added-large-files` threshold at 256KB
+- `go vet ./...` clean
+- Module version set by `packages/go/vX.Y.Z` Git tags

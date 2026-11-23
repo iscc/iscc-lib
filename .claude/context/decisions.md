@@ -29,375 +29,394 @@ Entry format:
 
 <!-- Append entries below this line -->
 
-## 2026-07-26 — The freeze rule maps unassigned code points to a noncharacter sentinel (SUPERSEDES the category override)
+## 2026-11-20 — The Ruby source gem is staged standalone: carried core, workspace `Cargo.lock`, conditional `rb_sys`
 
-**Decision:** **supersedes the category-override decision recorded earlier on 2026-07-26.** Code
-points unassigned in Unicode 16.0.0 are **mapped to the noncharacter `U+FFFF` before
-normalization**, not deleted and not merely reclassified. The category filter in `text_clean` /
-`text_collapse` stays **exactly as the reference defines it** — no predicate change, no
-`is_unassigned_in_unicode16` call at the filter step — because `U+FFFF` is category `Cn` and the
-existing category-`C` filter already removes it. In Rust this is a one-token change from the
-iteration-133 code, inside the same fused iterator: `.filter(|&c| !is_unassigned_in_unicode16(c))`
-becomes `.map(|c| if is_unassigned_in_unicode16(c) { '\u{FFFF}' } else { c })`. **Why:** the
-category override was conformant on single code points but **not** on sequences. Measured against a
-uniform-Unicode-16.0-tables reference on a runtime with Unicode 17.0 normalization tables (what
-`unicode-normalization` 0.1.25 ships), the override differed on 1 of 1,114,112 single code points
-and **10 of 140 sequence cases**. The failure mode is worse than the count: `U+A7F1` is unassigned
-in 16.0 but has a *compatibility decomposition to `S`* under 17.0, so it dissolves during NFKC
-before the filter sees it and **injects a spurious letter** — `e U+A7F1 U+0301` produced
-`U+0065 U+015A` (`eŚ`) where the reference gives `U+0065 U+0301`. The sentinel fixes this because
-`U+FFFF` is a noncharacter: category `Cn`, `ccc = 0`, and no decomposition — **permanently**, under
-Unicode's Noncharacter stability policy, so it can never gain an assignment or a decomposition in
-any future version. It holds the original character's position through normalization, so
-composition-blocking and `Final_Sigma` context match the reference exactly, and it is then removed
-by the reference's own filter. If the input already contains `U+FFFF` it is itself unassigned in
-16.0, so it maps to the sentinel and is stripped — which is what the reference does with it too. No
-ambiguity. **Verified before the decision** — three designs swept against a uniform-16.0 reference
-built from `unicodedata2==16.0.0`, evaluated on `unicodedata2==17.0.0`:
+**Decision:** the `ruby`-platform gem is built only by `scripts/build_ruby_source_gem.py`. It stages
+a tree outside the repository: a generated `Cargo.toml` (concrete keys, empty `[workspace]`), the
+core from `cargo package -p iscc-lib` under `core/`, and the workspace `Cargo.lock`. The gemspec
+declares `rb_sys ~> 0.9` only when `core/` sits next to it. **Why:** the gem must build with nothing
+but its own files, and the lock makes an install resolve the crate versions CI tested. An
+unconditional `rb_sys` dependency adds a version-less line to `Gemfile.lock` ahead of the pin that
+`cross-gem@v1` greps, and gives the precompiled gems a runtime dependency. **Alternatives:**
+depending on the published `iscc-lib` crate (the gem could only be released after crates.io, and a
+checkout could not test it); publishing no source gem (Ruby 3.4+ and unlisted platforms would need a
+checkout); an unconditional dependency plus a rewritten lock-link step in `release.yml` (nothing
+tests that workflow before a release). **Context:** iterations 239-240.
 
-| design                         | single code points differing | sequence cases differing |
-| ------------------------------ | ---------------------------- | ------------------------ |
-| pre-filter (iteration 133)     | 0 of 1,114,112               | **42 of 140**            |
-| category override (superseded) | **1** (`U+A7F1`)             | **10 of 140**            |
-| sentinel map (this decision)   | **0**                        | **0**                    |
+## 2026-11-21 — Per-crate `CLAUDE.md` files carry no file lists; a rule is stated against a file name
 
-The pre-filter's 0-of-1,114,112 on single code points is precisely the false assurance that
-motivated rewording criterion 4 — it passes a per-code-point sweep while failing 42 sequence cases.
-**Alternatives:** category override — superseded, see the table; pre-strip only the residual set
-before normalizing — rejected, it reintroduces the adjacency bug for exactly those code points; pin
-`unicode-normalization` to 16.0-era tables so nothing post-16.0 can decompose — rejected, it gives
-up requirement 2's free upgrades and needs an old crate tracked indefinitely; a private-use code
-point instead of a noncharacter — rejected, private-use characters are category `Co` (not stripped
-by the `C` filter... they are, but they are legitimately usable in input and could collide), whereas
-noncharacters are permanently reserved and are the semantically correct choice. **Consequence:** the
-trade-off asserted in the superseded entry — "exact reference-order conformance and perfect
-table-version invariance are not simultaneously achievable" — **is false**, and the spec text
-derived from it is corrected. The sentinel achieves both: residual **0**, and criterion 4 can assert
-exact equivalence to uniform Unicode 16.0.0 tables over single code points *and* sequence classes.
-Performance is neutral versus iteration 133 (a `map` replacing a `filter` in the same fused
-normalization iterator — same passes, same allocations) and strictly simpler than the override,
-which would have added a per-character test to the filter predicate. The vendored 731-range table
-and `scripts/gen_unicode16_unassigned.py` are unchanged. Implementations must confirm their
-normalization library passes `U+FFFF` through unchanged (required of any conformant implementation,
-but cheap to assert in a test). **Context:** interactive session 2026-07-26. Supersedes "The Unicode
-16.0.0 freeze rule is a category override, not a pre-normalization filter" (same day) and the
-criterion-4 entry's residual framing.
+**Decision:** the directory trees and `File`/`Module` tables are removed from every
+`crates/*/CLAUDE.md` and `packages/*/CLAUDE.md`. A fact that a list entry carried stays only when it
+is a rule or the file's origin ("generated, do not edit", "must sit next to `Cargo.toml`",
+"gitignored build output"), written as a sentence that names the file. **Why:** the lists repeated
+`git ls-files`. Every listed path existed, so the drift was missing entries, and an existence check
+would have passed while fixing nothing. **Alternatives:** extending `scripts/check_spec_paths.py` to
+these files with a completeness check (needs a parser and an exemption list for three formats, and
+every new file would then need a `CLAUDE.md` edit); keeping the lists unchecked (breaks the "Derived
+facts are checked or not written" hygiene rule). **Context:** iteration 246.
 
-## 2026-07-26 — Unicode determinism is a bounded-severity issue; keep the fix minimal
+## 2026-11-21 — Spec trees stay as partial lists with a gated note; aggregate lists are removed
 
-**Decision:** Unicode-version indeterminism is treated as a **correctness-hygiene** issue, not a
-high-severity defect. The freeze rule, its boundary vectors and the criterion-4 sweep are the
-complete intended response. Do **not** escalate further: no algorithm versioning, no compatibility
-modes, no per-call Unicode-version options, no further iterations spent re-deriving the trade-off.
-If a future step proposes work here beyond what `specs/rust-core.md` already requires, that is scope
-creep and should be declined with a pointer to this entry. **Why** (Titusz 2026-07-26, and the
-reason the earlier framing over-weighted it):
+**Decision:** the structure trees in `.claude/context/specs/` stay. Each is followed by a paragraph
+containing "not every file", and `scripts/check_spec_paths.py` fails on a tree without it. Entries
+below a `GENERATED` prefix are dropped. The version-sync target table in `ci-cd.md` is replaced by a
+pointer to `TARGETS` in `scripts/version_sync.py` (review edit: it listed 10 of 21 targets and said
+"all targets listed above"). The one- and two-row "Version Sync" tables in the binding specs stay:
+each states where that binding's version must live and claims no completeness. **Why:** a tree
+comment carries a requirement ("DO NOT EDIT", where SPM, JNA and NuGet files live) and the gate
+already fails on a stale entry, so only the claim of completeness had to go. **Alternatives:**
+removing all trees with the parser, its floors and about 8 tests (every requirement comment
+rewritten as prose in 9 specs); a completeness check per tree; completing the version-sync table
+with a parity test against `TARGETS`. **Context:** iteration 247.
 
-- **(a) Data-Code and Instance-Code are unaffected.** They hash raw bytes; no Unicode processing is
-    involved. So the two units that carry exact-identity semantics are entirely outside the blast
-    radius, and an ISCC-CODE's Data/Instance halves stay stable even when its Meta/Content halves
-    move.
-- **(b) The affected units are similarity-preserving.** Meta-Code (simhash) and Text-Code (minhash
-    over 13-grams) smooth over small input differences by construction: a single differing code
-    point shifts the code by a small Hamming distance, so similarity matching — the thing these
-    units exist for — keeps working. Only exact-identifier equality changes.
-- **(c) Newly assigned code points are not present in text data at scale.** Each Unicode version
-    adds a few thousand code points dominated by historic scripts, minority scripts and
-    legacy-computing symbols; real-world text containing them is rare, and rarer still in the window
-    between a Unicode release and a runtime adopting it.
+## 2026-11-21 — No role uses the advisor; the audit spend ceiling is 30 USD
 
-**Residual exposure, stated so it is not rediscovered as a surprise:** exact-match ISCC lookups on
-**short** inputs, where n-gram smoothing has little to work with (a title consisting only of an
-affected character is the worst case, and degenerates to `""`), and the returned `name` /
-`description` fields, which are exact strings rather than similarity hashes. Both are narrow and
-neither changes the decision. **Alternatives:** treat it as a conformance-critical defect and pursue
-exhaustive guarantees — rejected, that is what produced four iterations of parked rulings and the
-15.1-vs-16.0 detour; document it as a known wart and implement nothing — rejected, the sentinel fix
-is one token and the sweep is cheap, so there is no reason to leave a known non-conformance in
-place. **Consequence:** the specified work is bounded and finite. This entry is the stop signal, and
-the same proportionality argument is now stated for users in `docs/unicode.md` and for upstream in
-<https://github.com/iscc/iscc-core/issues/137#issuecomment-5082815029>. **Context:** interactive
-session 2026-07-26, Titusz halting further Unicode bikeshedding.
+**Decision:** no CID role session gets the server-side advisor: `session_settings` in `tools/cid.py`
+sets no `advisorModel` (and so no longer blanks `DISABLE_TELEMETRY`), and the agent files carry no
+advisor guidance. The audit's `--max-budget-usd` ceiling rises from 15 to 30. **Why:** human
+decision. The iteration-240 audit hit its 15 USD ceiling at 15.03 USD in the middle of verification
+and filed nothing; 5.64 USD of it was the advisor, because each of the Workflow's 9 subagents
+consulted it 2-5 times, re-reading its transcript uncached. The advisor was also about 40-45% of
+each define-next run's cost. **Context:** human decision (Titusz, interactive session, 2026-11-21);
+supersedes the advisor parts of the 2026-11-17 and 2026-11-20 entries.
 
-## 2026-07-26 — Sentinel conformance accepted on sequence evidence; criterion-4 sweep still owed
+## 2026-11-21 — Video frame signatures of unequal length are rejected, where iscc-core truncates
 
-**Decision:** The `U+FFFF` sentinel map (iteration 148) is accepted as conformant, and
-`docs/unicode.md` is allowed to state unqualified agreement with CPython 3.14, on the strength of a
-**sequence-class** differential rather than the full criterion-4 sweep, which remains a separate
-step. **Why:** the class the pre-filter broke is adjacency-sensitive sequences, and that is exactly
-what was measured in review — 127 Unicode-16.0-unassigned code points × 10 contexts (1,270 cases)
-compared against a `unicodedata2==16.0.0` reimplementation of `iscc-core`'s `text_clean` /
-`text_collapse`: the sentinel scored **0 mismatches**, the deleted iteration-133 filter **504**
-(exactly the four adjacency-sensitive contexts: canonical composition, Hangul jamo, `Final_Sigma`,
-diaeresis). Analytically the equivalence is total, not statistical: any code point unassigned in
-16.0 and `U+FFFF` are both `Cn`, `ccc = 0`, undecomposable, uncased and not `Case_Ignorable`, so
-they are indistinguishable to every step of both pipelines. **Alternatives:** hold the docs claim
-qualified until the 1,112,064-value sweep lands — rejected, the qualifier existed specifically to
-hedge the sequence class that is now proven, and leaving it would document a defect that no longer
-exists; verdict NEEDS_WORK pending the sweep — rejected, next.md scoped the sweep out deliberately
-and the sweep's remaining value is *regression* protection, not initial proof. **Consequence:** the
-criterion-4 runnable check must still cover **both** single code points and sequence classes; if it
-ever contradicts this entry, this entry loses. **Context:** iteration 148 review, commit `7acf0fa`;
-probe harness not committed (throwaway `tests/tmp_probe.rs`, removed after the run).
+**Decision:** `soft_hash_video_v0` / `gen_video_code_v0` in the Rust core and `SoftHashVideoV0` /
+`GenVideoCodeV0` in Go return an error when a frame signature's length differs from the first one,
+checked in input order before deduplication. Equal lengths other than 380 are handled as before. The
+Python binding keeps its own check: it flattens the frames into one buffer before calling the core,
+and raises `ValueError` with the same wording. **Why:** human issue. A longer later signature
+indexed out of bounds, which aborts the host process under `panic = "abort"`; a shorter one gave a
+digest that depended on input order. The reference's `zip(*sigs)` truncates to the shortest
+signature and returns a digest (measured at 64 bits for `[380, 381]`, `[381, 380]` and
+`[380, 379]`), so a ragged input is a `diverges` case in `data-edge.json`. **Alternatives:**
+truncating like the reference (hashes malformed input silently); requiring exactly 380 (changes
+equal-length inputs). **Context:** iteration 250.
 
-## 2026-07-26 — The Go boundary suite is left to red at the go1.27 bump, not version-gated
+## 2026-11-21 — The C FFI reads `(NULL, 0)` as an empty input on every pointer+length parameter
 
-**Decision:** `packages/go/unicode_boundary_test.go` keeps an **unconditional** three-entry skip map
-(the cases Go's Unicode 15.0 tables cannot pass) and is deliberately *not* build-tag-gated for
-go1.27, even though bumping the toolchain will turn 5 currently-green cases red. **Why:**
-`packages/go` implements no freeze rule, so it passes the two post-16.0 vectors (`U+20C1`, `U+A7F1`)
-only by accident — its 15.0 tables classify them `Cn` and the category-`C` filter drops them. Under
-go1.27 (`x/text`'s `tables17.0.0.go` is `//go:build go1.27`; the stdlib tables move too) both become
-assigned and the vectors fail, as does the sequence case
-`text_clean/test_0006_seq_ua7f1_no_decomposition_leak`. That red is precisely the signal that the
-731-range freeze table must land in `packages/go/utils.go`, which `decisions.md` 2026-07-26 ("Go
-skips the Unicode-16 boundary vectors until go1.27") already says Go needs regardless of the
-toolchain. **Alternatives:** version-gate the skip map with a `go1.27` build tag (raised as a P1 by
-the Codex review of iteration 150) — rejected: it converts a designed failure signal into silent
-pre-emptive test skipping, and would let a toolchain bump land with Go quietly non-conformant;
-vendor the 15.0→16.0 delta now — already rejected by the 2026-07-26 ruling on throwaway-cost
-grounds. **Consequence:** the go1.27 bump is a *bundled* step — toolchain + freeze table + skip-map
-removal in one commit. Risk of a surprise is low: `.github/workflows/ci.yml` pins Go via
-`go-version-file: packages/go/go.mod`, so nothing moves without editing the `go 1.26.1` directive. A
-checklist is recorded under the Unicode issue in `issues.md`. **Context:** iteration 150 review,
-commit `d12ceb1`; `x/text` build tags read from the local module cache (`v0.40.0`).
+**Decision:** Every pointer+length input of `iscc-ffi` is borrowed through `slice_or_empty` (row
+arrays through `rows_or_empty`). Length 0 is an empty slice whatever the pointer is. NULL with a
+non-zero length is the error "<name> must not be NULL", inner rows included (`frame_sigs[1]`). A
+count of 0 therefore reaches the core, and the caller sees the core's own error or result. A NULL
+`const char*` string stays an error. **Why:** audit issue. Half the exports rejected `(NULL, 0)` and
+half accepted it, a NULL inner row was undefined behaviour, and because `fixed` over an empty span
+and `std::vector::data()` yield NULL, each wrapper needed sentinels. **Alternatives:** rejecting
+NULL everywhere (keeps sentinels in every wrapper and hides the core's error); deciding per export
+(the split that existed). **Context:** iteration 255. The review made the indexed row name lazy
+(`format_args!`) after measuring 2x on `iscc_alg_simhash` with 1,000 rows.
 
-## 2026-07-26 — Binding boundary suites link the canonical fixture instead of vendoring a copy
+## 2026-11-21 — Out-of-range integer arguments are per-binding tests, not `data-edge.json` vectors
 
-**Decision:** The C# and Kotlin boundary suites read `crates/iscc-lib/tests/unicode_boundary.json`
-through a build-config indirection — an MSBuild
-`<Content Include="..\..\..\crates\iscc-lib\tests\unicode_boundary.json" Link="testdata\unicode_boundary.json">`
-item for `.NET` and an `iscc.fixtureDir` system property for Gradle — even though both packages
-already vendor a tracked *copy* of the sibling `data.json` in the same test tree. The Kotlin `Test`
-task additionally declares the fixture with
-`inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`. **Why:** every tracked copy is a
-byte-identity liability that `tests/test_vendored_fixtures.py` must police, and eight surfaces × one
-more copy is eight more chances to drift; linking removes the failure mode instead of gating it.
-Nothing published depends on the copy — test sources ship in neither the NuGet package nor the Maven
-artifact, so self-containment buys nothing here. The path sensitivity is `NONE` because the absolute
-fixture path differs between checkouts and must not by itself invalidate the task. **Alternatives:**
-vendor a copy in each package and register it in `VENDORED_COPIES`, matching the existing
-`data.json` precedent — rejected on drift-surface grounds, and the precedent is itself historical
-(`data.json` predates the drift gate); leave the Gradle input undeclared and rely on
-`cleanTest test` by convention — rejected, a convention that must be remembered is not a gate, and
-review measured the failure: after one green run, mutating the fixture left `./gradlew test`
-`UP-TO-DATE` and silently skipped all 13 boundary tests. **Consequence:** `data.json` and
-`unicode_boundary.json` are handled asymmetrically inside `packages/dotnet` and `packages/kotlin`;
-that is deliberate, not an oversight. Swift remains the one surface expected to need a real vendored
-copy (SwiftPM resource bundling), and it must be registered in `VENDORED_COPIES`. **Context:**
-iteration 154 (`84ce2f1`) plus the review fix; hazard independently reported by the Codex review and
-confirmed by a three-run Gradle probe.
+**Decision:** napi and WASM take every numeric parameter as a JS `number` (`f64`) and range-check it
+before narrowing; JNI rejects a negative `int` for `bits`, `nbytes` and `width`. Python keeps
+`OverflowError` and Ruby `RangeError`, the classes each host raises itself when an integer
+conversion fails, and the docs name them. No `data-edge.json` vector covers these inputs. **Why:**
+audit issue. A value such as `2**32 + 64` for `bits` cannot be passed through the typed signatures
+of the Rust, C, C++, Go, .NET, Swift and Kotlin harnesses: to them it is a wrong argument type,
+which `edge-vectors.md` → Rules leaves to per-binding tests. **Alternatives:** a vector with
+`except` entries for seven surfaces (mostly exceptions); wrapping Python/Ruby errors into
+`ValueError`/`RuntimeError` (hides the host's own class). **Context:** iteration 256.
 
-## 2026-07-27 — `Final_Sigma` is frozen by pre-substitution, not by vendoring the case-mapping table
+## 2026-11-21 — Triage: Python 3.10 and .NET 8 floors stay, Ruby moves to 3.3; CI adds 3.15 and .NET 10
 
-**Decision:** `text_collapse` keeps delegating the bulk of lowercasing to `str::to_lowercase()`.
-Only the *conditional* `Final_Sigma` mapping is taken over: `to_lowercase_unicode16` walks the
-(sentinel-mapped, NFD-normalized) string, replaces each `U+03A3` with `U+03C2`/`U+03C3` decided from
-a vendored Unicode 16.0.0 `Cased` / `Case_Ignorable` table, and only then calls std — which can
-never see a `U+03A3` and so can never run its own 17.0-table sigma branch. The vendored `Cased`
-table deliberately stores `Cased` **minus** `Case_Ignorable` (152 ranges / 4,311 code points), which
-is not the UCD-defined `Cased` set. **Why:** bare `str::to_lowercase()` reads the *compiler's*
-tables (rustc 1.97 ships Unicode 17.0, which moved `U+0295` from `Ll` to `Lo`), so hash output was a
-function of the rustc version — measured as 3 divergent rows at exactly `U+0295` in a 17,793,024-
-comparison differential against `iscc-core` on uniform 16.0.0 tables. Pre-substitution is the
-smallest change that removes that dependence: the freeze is scoped to the one property that actually
-diverges, and every unconditional mapping (e.g. `U+0130`) stays with std. The subtracted
-`Case_Ignorable` set is what the two behavioural probes in `scripts/gen_unicode16_case.py` can
-measure, and the restriction is unobservable because the `Final_Sigma` scan skips case-ignorable
-code points before it ever tests casedness — in CPython's `handle_capital_sigma` and in the port
-alike. **Alternatives:** vendor the full Unicode 16.0.0 lowercase *mapping* table and stop using
-`str::to_lowercase()` entirely — rejected as a large, mostly-dead table for a divergence that does
-not exist today (the same sweep shows 0 unconditional-mapping divergences across all 1,112,064
-scalars); pin the rustc toolchain — rejected, it makes a build-tool version part of the conformance
-contract and does nothing for downstreams building from source. **Consequence:** the *unconditional*
-half of lowercasing is still supplied by whatever Unicode tables rustc ships. That is an accepted,
-currently-zero residual whose only guard is the differential sweep, which is exactly why criterion 4
-of the Unicode issue (wiring the sweep in as a permanent, fail-closed check) must land next. A
-future rustc that changes a non-sigma lowercase mapping would silently change output until then.
-**Context:** iteration 156 (`a7e84c8`); sweep re-run independently at review, 0 divergences; tables
-independently cross-checked against CPython 3.14 category data (`Lu∪Ll∪Lt ⊆ Cased`,
-`Mn∪Me∪Cf∪Lm∪Sk ⊆ Case_Ignorable`, residuals exactly `Other_Uppercase`/`Other_Lowercase` and the 17
-UAX #29 MidLetter/MidNumLet/Single_Quote code points).
+**Decision:** the Python floor stays 3.10 (abi3-py310) and the .NET floor stays `net8.0`; the Ruby
+floor rises to 3.3 (`normal` issue). CI tests Python 3.10 and 3.15 (floor and newest), and runs the
+net8.0 build on the .NET 8 and .NET 10 runtimes (`dotnet-test` matrix, `dotnet` aggregator). Ruby
+keeps Magnus' implicit `to_int` for integer lists (host idiom; docs fixed instead), and the C++
+`safe_data` and .NET `PinnedRows` padding workarounds are removed. **Why:** human decision. A floor
+that is forward-compatible (one abi3 wheel, one net8.0 assembly) costs nothing to keep once CI also
+tests a supported runtime; Ruby needs a precompiled gem per series, so an end-of-life floor costs
+build work. **Context:** human decision (Titusz, interactive session, 2026-11-21), low-issue triage.
 
-## 2026-07-27 — The Unicode sweep gate trusts an mtime freshness guard, not a build-input hash
+## 2026-11-21 — Knowledge gaps: define-next researches on the web; experiments run as spikes
 
-**Decision:** `scripts/unicode_sweep.py` decides whether the extension it measures is current by
-comparing `_lowlevel.abi3.so`'s mtime against the newest `*.rs` under `crates/iscc-lib/src` and
-`crates/iscc-py/src`, and nothing else. `Cargo.toml`, `Cargo.lock`, the rustc version and every
-transitive Unicode-table crate are outside the guard; so is a missing source directory
-(`max(..., default=0.0)` passes vacuously). The authoritative execution paths — the `unicode-sweep`
-CI job and `mise run unicode:sweep` — both rebuild unconditionally before sweeping, so the guard
-only has to catch the local "edited Rust, then ran the script directly" case. **Why:** the guard is
-a convenience backstop on a path that is not the gate. Making it complete means either hashing the
-full cargo build-input closure (duplicating cargo's own fingerprint logic) or shelling out to
-`rustc -vV` plus `cargo metadata` on every run — real complexity to protect an invocation the docs
-do not recommend. **Alternatives:** widen the mtime set to `Cargo.toml`/`Cargo.lock` — cheap, but
-still blind to a toolchain-only bump, so it would buy a false sense of completeness; drop the guard
-and always rebuild inside the script — rejected, it makes the script un-runnable without a ~21 s
-maturin build and removes the fast fail-fast signal. **Consequence:** a `cargo update` or rustc
-upgrade that touches no `.rs` file can produce a false green from a bare
-`uv run scripts/unicode_sweep.py`. That is exactly the upgrade scenario the sweep exists to
-validate, so the operating rule is: **always re-run the sweep through `mise run unicode:sweep`**,
-never the script directly. Recorded in learnings.md and filed for hardening in issues.md.
-**Context:** iteration 157 (`186287e`); blind spot flagged by the advance agent's handoff,
-independently reported by the Codex review, and reproduced at review (a missing source directory
-also passes the guard vacuously).
+**Decision:** define-next may use WebSearch/WebFetch for behaviour outside the repository. A gap
+that only an experiment can close becomes a `**Spike:**` step: advance runs the experiment as the
+whole step and reports the answer with its evidence. Experiments never change the repository: they
+run in a `mktemp -d` directory (a throwaway `git worktree` there when files must change), install
+tools only there, and remove it all before the handoff. Review checks the cleanup and records the
+answer in learnings.md. **Why:** human decision. A research role inside define-next would bypass
+review and lose its findings; routing experiments through advance and review keeps them verified and
+durable at no new runner cost. A riskiest-assumption section in every next.md was rejected: template
+headings get filled by default. **Revisit:** remove both if about 50 iterations pass with no spike
+and no web lookup. **Context:** human decision (Titusz, interactive session, 2026-11-21).
 
-## 2026-07-27 — The sweep gate's rebuild precondition is a trusted caller assertion, not an observation
+## 2026-11-21 — Go hashers: `Push` returns `error`, and the first `Finalize` consumes even when it fails
 
-**Decision:** `scripts/unicode_sweep.py` refuses to run unless its `argv` carries `--rebuilt`
-(`check_rebuilt`, the first statement of `main`). Only two callers pass it: the `unicode:sweep` mise
-task and the `unicode-sweep` CI step, each immediately after an unconditional
-`maturin develop --release`. The flag asserts nothing the script verifies — a human who exports it
-without rebuilding is trusted — and the mtime `check_extension_fresh` observation is deliberately
-kept behind it as cheap redundancy for the "edited a `.rs`, forgot to rebuild" case. **Why:** the
-2026-07-27 mtime entry above left the operating rule ("always run through `mise run unicode:sweep`")
-as convention only, which is unenforced by construction; a `cargo update` or rustc bump touches no
-`.rs` file, so a bare invocation reported a false green on exactly the upgrade the gate exists to
-validate. Turning the convention into a refusal costs one flag and closes the hole for every path
-that matters, because the two authoritative paths rebuild first by construction. **Alternatives:**
-widen the mtime set to `Cargo.toml`/`Cargo.lock`/`rust-toolchain*` — still blind to a toolchain-only
-bump, so it buys false completeness (already rejected above); embed `rustc -vV` plus a dependency
-fingerprint in the extension and compare it — the only *observing* fix, rejected because it adds an
-unbound public symbol to the Python surface and breaks the 32-symbol Tier 1 story for a hazard the
-refusal already covers; make the script shell out to `maturin` itself — rejected, it removes the ~2
-s fail-fast signal and makes the script un-runnable without a ~21 s build. **Consequence:** the gate
-now trades a *silent* failure mode for a *loud* one — the residual (`--rebuilt` passed without a
-rebuild) is a deliberate act rather than an accident, and is stated in the `check_rebuilt`
-docstring. `sweep()` also stopped retaining one record per divergence: it counts every divergence
-but keeps at most `MAX_REPORTED_DIVERGENCES` (20) samples, so a broad regression prints diagnostics
-instead of OOM-killing CI. The success line `TOTAL 17793024 comparisons, 0 divergences` is unchanged
-and stays byte-frozen. **Context:** iteration 158 (`aedb61e`); both blind spots were filed by the
-iteration-157 review and independently reported by that iteration's Codex review. Verified at review
-by a bare-invocation probe (exit 1, empty stdout), two near-miss flag forms, a full green sweep, and
-an in-process `main()` run over 30 scalars with a wrong oracle (20 sample lines +
-`showing first 20 of 480 divergences` + the exact TOTAL line, return code 1).
+**Decision:** `DataHasher`/`InstanceHasher` set `finalized` at the entry of `Finalize`, so a call
+that fails on an invalid `bits` still consumes the hasher; `Push` gained an `error` return.
+`TextTrim` returns `""` for `nbytes <= 0` and keeps its `(string, int) string` signature. **Why:**
+consuming on any first `Finalize` is what Rust (`finalize(self)`) and the Python binding (`take()`
+before encoding) do, and it removes the retry that would append the Data-Code tail feature twice. An
+`error` return keeps statement calls compiling; it breaks only a stored method value or a caller's
+own `interface{ Push([]byte) }`, accepted in 0.x. **Alternatives:** flag set only on success (needs
+a non-mutating feature list, and differs from every sibling); a panic or a silent no-op in `Push`;
+`TextTrim` taking `uint` or returning an error (breaks callers passing an `int`); an exported
+sentinel error (the package has none). **Context:** iteration 261.
 
-## 2026-07-27 — A vector fixture reaches a JSON-less surface as a generated, tracked source file
+## 2026-11-21 — `alg_cdc_chunks` accepts every `avg_chunk_size` from 2 up; large parameters saturate
 
-**Decision:** the C FFI conformance surface consumes the canonical
-`crates/iscc-lib/tests/unicode_boundary.json` through a checked-in, generated C header
-(`crates/iscc-ffi/tests/unicode_boundary_vectors.h`, rendered by the PEP 723
-`scripts/gen_ffi_boundary_vectors.py`) rather than by parsing the fixture at test time. The header
-is deliberately **not** registered in the `VENDORED_COPIES` table of
-`tests/test_vendored_fixtures.py`; its equivalent guarantee is a pytest anchor asserting
-`render(fixture) == tracked_header` byte for byte. **Why:** `test_iscc.c` links only libc and the
-FFI `cdylib` — adding a JSON reader means either a new third-party C dependency in the CI gcc line
-(`gcc … -liscc_ffi -lpthread -ldl -lm`, which the C FFI job runs verbatim) or a hand-rolled parser
-whose bugs would be indistinguishable from conformance failures. Generation moves the parsing to
-Python, where it is already exercised, and leaves C with a plain `static const` array. Placing the
-header beside its includer makes a quoted `#include` resolve with no new `-I`, so the CI job is
-untouched. **Alternatives:** hand-pin the 12 expected strings in `test_iscc.c` — rejected, it is the
-silent-drift failure mode the whole propagation effort exists to prevent (the fixture is the single
-source of truth for 9 surfaces); hand-roll a JSON parser in C — rejected, more untested code than
-the thing under test; register the header in `VENDORED_COPIES` — rejected, that gate asserts
-*byte-identity with the fixture* and discovers copies by basename, so a derived artifact cannot
-satisfy it; generate the header at build time instead of tracking it — rejected, it would put a
-Python dependency in the C job and remove the reviewable diff. **Consequence:** two rules now travel
-with any future JSON-less surface (C++ is the next candidate): the generated file must be pure
-ASCII, LF-only, one trailing newline — otherwise the prek hygiene hooks rewrite it and red the no-op
-gate — and non-ASCII UTF-8 must be escaped as 3-digit octal, never `\x`, because C hex escapes are
-greedy and unbounded. **Context:** iteration 159 (`ea69169`), criterion 3 of the Unicode issue, 9 of
-11 surfaces. Verified at review by decoding the tracked header's octal escapes back to code points
-and diffing against the fixture, and by five mutations (expected value, dropped case, version macro,
-hand-edited header, fixture vector added without regeneration) — every one reds.
+**Decision:** Rust and Go compute iscc-core's CDC parameters for every `u32` and reject nothing new.
+`max_size` (in Go also `center_size`) saturates at the platform integer, and a mask of 32 or more
+bits is `u32::MAX`. **Why:** audit issue: from 2^29 the core panicked in debug builds and returned
+`mask_s = 0` in release. iscc-core's pure-Python build accepts every value, so a bound would add an
+error and a `diverges` marker for no gain (its compiled wheel raises `OverflowError` from 2^29,
+found in iteration 264: see the next entry). Saturation changes no result: the sizes are only used
+as `min(size, len(buffer))`, and the gear pattern stays below 2^32 (every gear value is below 2^31),
+so the bits a wider mask adds are never set. Measured: both equal iscc-core on 210 values around
+each point where `bits` changes. **Alternatives:** an upper bound such as `avg_chunk_size <= 2^28`
+(the audit's other suggestion); a `u64` pattern and masks (slower hot loop, same chunks).
+**Context:** iteration 263.
 
-## 2026-07-27 — Agent prompts state no token costs, and separate finding from filing
+## 2026-11-21 — No shared `alg_cdc_chunks` vector from 2^29 up; no upper bound on `avg_chunk_size`
 
-**Decision:** two standing rules for every CID prompt and context pack. (1) Never frame inlined
-content as a cost, a billing event, or a context-limit risk — state the fact and leave accounting to
-`tools/cid.py`. (2) Instructions that narrow *what to look for* are forbidden in a finding pass; the
-severity bar belongs at the filing step. **Why:** the Claude Fable 5 guide documents that surfacing
-token budgets makes a model trim its own work, and the Opus 5 guide documents that a review prompt
-saying "be conservative" is followed literally and reports less — "ask it to report everything and
-filter in a separate pass instead". Both misfires were live: `review` was told it "runs closest to
-the context limit … Guard it" (it is the quality gate and the costliest role, 103 turns /
-$7.89 at iteration 161), and `audit` suppressed nits in the finder prompt *and* had its
-skeptics refute them by default. **Evidence:** audit iterations 130/140/150/160 filed zero issues
-for $11.53. **Alternatives:** leave the audit alone and read 4/4 clean passes as real — rejected,
-the double suppression makes a clean pass uninformative either way. **Context:** interactive
-session, 2026-07-27, against the platform prompting guides for Opus 5 and Fable 5.
+**Decision:** `data-edge.json` carries no `alg_cdc_chunks` vector with `avg_chunk_size >= 2^29`, and
+iscc-lib adds no upper bound. Neither iscc-core build is the reference in that range. **Why:** ISO
+24138 fixes the average chunk size at 1024, so other values are not an expected use. The range has
+no memory-safety stake: the bounds of the unsafe scan come from the buffer length
+(`min(size, len(buffer))`), not from the parameter. Validation runs once per call, outside the hot
+loop, and the Data-Code path skips it, so a bound would cost nothing and buy nothing. The Rust and
+Go unit tests pin the large-value parameters. The wheel's `OverflowError` is a side effect of
+`uint32_t` in `cdc.pxd`, reported as iscc/iscc-core#141; nothing here waits on it. **Alternatives:**
+vectors with a reference-check skip where the compiled build is loaded (a permanent harness special
+case for an unused input); rejecting from 2^29 up like the wheel (copies an accidental overflow to
+12 surfaces). **Revisit:** if iscc-core defines a deliberate bound, follow it. **Context:** human
+decision (Titusz, interactive session, 2026-11-21), answering the iteration 264 escalation.
 
-## 2026-07-27 — The xunit v3 test project stays in VSTest runner mode
+## 2026-11-21 — 32-bit coverage: a Go `GOARCH=386` CI step, no native 32-bit Rust leg
 
-**Decision:** `packages/dotnet/Iscc.Lib.Tests` moves to `xunit.v3` 3.x + `Microsoft.NET.Test.Sdk`
-18.x but keeps the classic VSTest runner (`xunit.runner.visualstudio` 3.x, no
-`TestingPlatformDotnetTestSupport` / `UseMicrosoftTestingPlatformRunner`). The only csproj change
-beyond the package swap is `<OutputType>Exe</OutputType>`, which v3 requires because its test
-projects are stand-alone executables. **Why:** the `dotnet` CI job passes the native library path
-with `dotnet test -e LD_LIBRARY_PATH=…`, and `-e` is a VSTest feature; Microsoft.Testing.Platform
-mode would force a CI-invocation rewrite for no test-coverage gain. VSTest mode also kept the
-migration to zero test-source edits. **Alternatives:** adopt MTP runner mode now — rejected, it
-changes the CI contract and the P/Invoke library-path mechanism in the same step as a framework
-major. **Context:** iteration 164; v2 and v3 both report exactly 104 results.
+**Decision:** CI runs the Go suite once with `GOARCH=386`. The Rust core gets no native 32-bit test
+leg. Bare-metal (`no_std`) support is postponed past v0.8.0 (postponed.md). **Why:** the Go port is
+separate code that CI executes on amd64 only. The Rust core already runs on a 32-bit target on every
+push: the WASM job executes the conformance and data-edge suites on `wasm32`. Measured 2026-11-21:
+all 442 core tests pass on `i686-unknown-linux-musl` (debug build, overflow checks on), and
+`GOARCH=386 CGO_ENABLED=0 go test ./...` passes. A native Rust leg needs extra setup, because the
+bench dev-dependencies do not build there as they are: `alloca` (via `criterion`) needs a C
+cross-compiler, and `iai-callgrind-runner` does not compile for `wasm32-wasip1`. **Alternatives:**
+an `i686` `cargo test` leg with a C cross toolchain; leaving the Go port untested on 32-bit.
+**Context:** human decision (Titusz, interactive session, 2026-11-21).
 
-## 2026-07-28 — JNI exports return `#[repr(transparent)]` wrappers and keep hand-thrown exceptions
+## 2026-11-21 — `@iscc/wasm` reads number arrays element by element through `Reflect.get`
 
-**Decision:** the 33 `extern "system"` functions in `crates/iscc-jni/src/lib.rs` return jni wrapper
-types (`JString`, `JObject`, `JByteArray`, `JObjectArray`) instead of the raw `jstring`/`jobject`
-aliases, and `throw_and_default`/`throw_state_error` keep calling `env.throw_new` themselves,
-returning `Ok(T::default())` into `.resolve::<ThrowRuntimeExAndDefault>()`. **Why:** jni 0.22's
-`EnvOutcome::resolve` requires `T: Default`, which raw pointer aliases do not implement; the
-wrappers are `#[repr(transparent)]`, so the ABI Java sees is unchanged. The policy's `on_error`
-calls `Env::exception_check` first (jni-0.22.4 `src/errors/policy.rs:188`) and returns the default
-without throwing when an exception is already pending, so the `IllegalArgumentException` /
-`IllegalStateException` contract asserted by six Java tests survives untouched and the policy only
-fires on a genuine panic or unhandled `Err`. **Alternatives:** a custom `ErrorPolicy` per exception
-class — rejected, it would move the exception choice away from the call site that knows which one
-applies, for no behavioural gain. **Context:** iteration 168, jni 0.21 → 0.22 migration.
+**Decision:** `number_vec` reads `length` and each index through `Reflect::get` / `get_u32`, the
+js-sys imports marked `catch`. The cost is accepted: about 2× the marshalling time of 0.7.0
+(`gen_audio_code_v0`, release build, Node 22: 3,000 elements 0.79 → 1.65 ms, 1M elements 243 → 525
+ms). An iterable without `length` (`Set`, generator) is rejected; 0.7.0 read it as empty. **Why:** a
+JS exception that crosses a Rust frame without `catch` leaves the instance unusable after a few
+thousand throws, and no built-in does the type check in one crossing (`Float64Array.from` coerces
+`"2"` to 2). The extra 0.3 µs per element is small next to decoding audio. **Alternatives:** a
+typed-array fast path (`dyn_ref` + copy; more code for one input form); an `inline_js` helper that
+checks in JS (one crossing, but adds a `snippets/` directory to the published package). **Revisit:**
+when a user reports number-array throughput. **Context:** iteration 269.
 
-## 2026-07-28 — uniffi 0.32 accepted with a raised source-build floor on unpublished `iscc-uniffi`
+## 2026-11-21 — The development Ruby is a `mise.toml` `[tools]` pin, the only tool pinned there
 
-**Decision:** the workspace pins `uniffi = "0.32"` even though its default graph
-(`cargo_metadata 0.23.1` → rustc 1.86, `cargo-platform 0.3.3` → 1.91) makes `iscc-uniffi`
-unbuildable on the inherited `rust-version = "1.85"`. **Why:** `iscc-uniffi` is `publish = false`
-and exists only to emit the Swift/Kotlin bindings; the published crate still passes
-`cargo +1.85.0 check -p iscc-lib --locked`, every CI job builds on stable, and no gate or consumer
-promise moves. Holding at 0.31 to protect a floor nothing verifies would have blocked the last
-authorized v0.6.0 dependency item. **Alternatives:** raise the workspace `rust-version` — rejected,
-that is the published MSRV promise and Titusz's call; pin the transitives back — rejected, uniffi
-0.32 requires them. **Context:** iteration 172; the now-false inherited declaration is filed as a
-`normal` issue proposing an explicit per-crate `rust-version` on `iscc-uniffi`.
+**Decision:** the root `mise.toml` pins `ruby = "3.4.13"`; the standardrb hooks, the devcontainer
+setup and the docs run `mise exec -- …` and name no version (`tests/test_ruby_gem_docs.py`). The pin
+test reads `mise.toml` with a regex, as the docs-nav gate does (`tomllib` is missing on Python
+3.10). **Why:** the gem floor (3.3) is above Debian Bookworm's Ruby 3.1, and before the pin three
+files spelled two versions. mise fetches a prebuilt Ruby in about 13 s, so setup needs no compiler
+step. **Accepted cost:** every `mise run <task>` on a machine without that Ruby installs it first
+(measured with an empty `MISE_DATA_DIR`: `mise run version:check` downloaded 92 MB), and inside the
+repo the pinned Ruby precedes any system Ruby on PATH. CI does not use mise, so the pin never
+reaches it. **Alternatives:** a supported Ruby in the `Dockerfile` (a source build or a third-party
+apt repository, and the hooks would still need one named version); pinning Rust, Python and Node too
+(out of scope: the image and `uv` own those). **Context:** iteration 271.
 
-## 2026-07-29 — JS-number ISCC-IDv1 surfaces take all params as `f64` and validate before narrowing
+## 2026-11-21 — Ruby integer parameters keep Ruby's implicit `to_int` conversion
 
-**Decision:** on the two JS-number surfaces (napi, wasm) `gen_iscc_id_v1` takes `timestamp`,
-`hub_id` and `realm` all as `f64` — not the core's `u16`/`u8` — and a per-file `checked()` rejects
-non-finite / non-integral / negative / out-of-range values before narrowing. **Why:** napi and wasm
-coerce a JS `number` into the declared integer type (ToUint32 / truncation) *before* the wrapper
-runs, so integer params make the low and non-integral end unvalidatable — an out-of-contract input
-would silently mint a valid-but-wrong ID (a collision hazard). Only `f64` preserves the original
-value for a range check. **Alternatives:** keep integer params and rely on core — rejected, core
-only guards the high end and never sees the pre-truncated value; a shared validation crate —
-rejected, ~5 duplicated lines beat a new crate boundary. **Scope:** JS-number surfaces only;
-ffi/jni/rb/uniffi are typed-int with no coercion hazard and must not copy the pattern. **Context:**
-iteration 181, #43 fan-out; resolves the napi coercion issue for both surfaces at once.
+**Decision (Titusz):** an integer parameter or integer list element in `iscc-rb` accepts a Float or
+any `to_int` object and truncates it toward zero; `docs/ruby-api.md` states it. **Why:** Ruby host
+idiom (`Array#[]` does the same), given by Magnus. **Rejected:** a strict Integer check to match
+Python's `TypeError`. No `data-edge.json` vector (wrong-typed element). **Context:** iteration 277.
 
-## 2026-07-29 — `bench_iscc_code.four_units` iai baseline raised 11,968 → 13,400 (accepted regression)
+## 2026-11-21 — Long strings in the generated C edge header are buffers filled at runtime
 
-**Decision:** the committed `.iai-baseline.json` four_units baseline is raised from 11,968 to 13,400
-Ir, accepting the +11.71% measured cost (13,369 Ir) of routing codec input through the
-reference-correct `codec::iscc_clean` (iters 191/192). **Why:** the pre-191 baseline was set for
-`strip_prefix("ISCC:")`-only cleaning that diverged from the reference (`codec.py:644`); 191/192
-traded that for conformance and the residual is intrinsic scanning cost (two std SIMD `memchr`
-scans), not removable waste — a scalar single-pass measured *worse* (13,499 Ir) and iter 193's `Cow`
-change already removed the allocation component. Absolute cost is negligible: 13,369 Ir against 7M+
-for real hashing. **Alternatives:** add the `memchr` crate for a single-pass `memchr2` — rejected, a
-new dependency + audit-gate surface for a micro-saving; revert 191/192 — rejected, reopens the codec
-cleaning divergence. **Context:** iteration 193, human-gated (Titusz picked option A) after the loop
-halted on the enforcing Perf gate.
+**Decision:** `gen_data_edge_vectors.py` writes every string over 4,095 bytes (the ISO C99 minimum
+literal length) as a zeroed `static char` buffer, and the header's `iscc_edge_init()` fills it with
+`memcpy` from literal pieces; both harnesses call it once. **Why:** MSVC rejects a long literal, and
+gcc `-Woverlength-strings` checks this limit locally. **Rejected:** a `static const char` array
+initializer (at least 4 characters per byte: the 128 KB meta vector alone would put the header over
+the 256 KB added-file hook limit); adjacent literal pieces (MSVC caps the joined literal at 65,535
+bytes); limiting the test programs to gcc and clang. **Accepted cost:** the buffers are not `const`,
+and a harness that forgets the call reads NUL bytes. C fails on that; C++ would not notice while the
+only long row expects an error, so a pytest asserts the call in both sources. **Context:** 282.
 
-## 2026-07-30 — Unicode 16.0.0 pin removed; version-drift measures postponed pending upstream
+## 2026-11-22 — napi dev dependencies install from a committed lockfile with `npm ci`
 
-**Decision:** All v0.6.0 Unicode-version compatibility measures are removed (human decision,
-Titusz): the `U+FFFF` sentinel freeze rule and vendored unassigned/case tables in the core, frozen
-`Final_Sigma` lowercasing, boundary vectors and their tests in all 11 surfaces, the differential
-sweep gate (script, mise task, CI job), and `docs/unicode.md`. `text_clean`/`text_collapse` now
-apply the reference's steps with whatever Unicode tables the dependencies ship. **Why:** the pin's
-complexity raised the risk of faulty third-party implementations and cost per-char table lookups,
-while the reference itself drifts across CPython versions — compatibility semantics belong upstream
-(iscc/iscc-core#137) and will be revisited once upstream decides. **Alternatives:** keep the pin —
-rejected by the human; pin without freeze trickery — rejected, still diverges from the unpinned
-reference. **Supersedes** the 2026-07-25/26 freeze-rule rulings; do not reintroduce any freeze
-mechanism without a new human decision. Agent memories describing the freeze design are stale.
-**Context:** interactive session 2026-07-30, this commit.
+**Decision:** `crates/iscc-napi/package-lock.json` is tracked, CI and both `release.yml` napi jobs
+run `npm ci`, `version_sync.py` owns the lock's two root `version` fields, and the release
+dependency pass regenerates the lock. **Why:** an unlocked install fetched a transitive version two
+minutes after its publication and got a 404 (red CI on `bd79145`), and the publish job installed an
+unlocked tree while it held the OIDC token. **Rejected:** a `min-release-age` `.npmrc` (npm 10.9 on
+Node 22 ignores the key). **Open:** the locked cli 3.10 cannot build in the 9p checkout (issues.md).
+
+## 2026-11-22 — vcpkg SHA512s are written by `prepare-release` from the `build-ffi` artifacts, before the tag
+
+**Decision:** `prepare-release` needs `build-ffi`, downloads its `ffi-*` artifacts and runs
+`scripts/update_vcpkg_hashes.py`, then commits `portfile.cmake` with `Package.swift` before it tags.
+`publish-ffi` and `pack-nuget` need `prepare-release`; `publish-ffi` sets `overwrite_files: false`.
+**Why:** the portfile pinned the v0.2.0 hashes for five releases; vcpkg consumers pin tags, so the
+tagged commit must carry the hashes of the archives it publishes. **Rejected:** a post-publish job
+committing to `main` (the tag keeps stale hashes); dropping the port (amends the cpp spec, Titusz).
+**Accepted cost:** a failing `build-ffi` leg blocks the tag and every publish job. **Context:** 285.
+
+## 2026-11-22 — `publish-ffi` checks asset state only; an uploaded FFI archive is never compared or replaced
+
+**Decision:** `publish-ffi` deletes the assets of its staged archives that are not in state
+`uploaded`, uploads with `overwrite_files: false`, then fails unless every staged name is `uploaded`
+(`scripts/ffi_release_assets.py`). It compares neither size nor digest. **Why:** an `ffi` re-trigger
+rebuilds the archives in a new run, so its bytes can differ from those whose SHA512s the tagged
+portfile pins; the asset on the release is the correct one. **Rejected:** a size or digest check
+(fails every legitimate re-trigger); verifying without pruning (a rerun never recovers). **Not
+proven:** that GitHub lists a live `starter` asset and lets it be deleted (a 502 cannot be forced).
+If it is not listed, the upload gets a 422 or the verify step reports it missing: the job fails
+either way. **Context:** 287.
+
+## 2026-11-22 — `streaming::SumHasher` is Tier 2, and Tier 2 is under the SemVer contract
+
+**Decision:** every public `iscc-lib` path has a tier. Tier 1 is the 35 crate-root symbols.
+`IsccError`/`IsccResult` and the `types` result structs are crate-root support types of Tier 1 and
+are not counted. Tier 2 is `codec` plus `streaming::SumHasher`. A module path to a re-exported item
+(`types::X`, `streaming::DataHasher`, `codec::encode_seq`) is the same item, not a second one. Tier
+2 has the same SemVer contract as Tier 1, not "may change in MINOR releases". **Why:** `SumHasher`
+has been public since v0.5.0 and Python and WASM wrap it, and `cargo-semver-checks` checks the whole
+public surface, so it is locked in fact; `rust-core.md` already put `codec` under the lock.
+**Rejected:** Tier 1 (a crate-root re-export bound on every surface changes target.md's count of 35,
+which is Titusz's call); hiding it (`pub(crate)` or `#[doc(hidden)]` breaks the two bindings or
+removes a published type). target.md and the agent API-break rules name both since 2026-11-22.
+
+## 2026-11-22 — A wrong-type or out-of-range vector value makes a conformance case unparsable
+
+**Decision:** in the `data.json` selftest runners (`conformance.rs`, `conformance.go`), a value of
+the wrong JSON type, a fraction or a number outside its argument's range makes the case unparsable
+(Rust `None`, Go `errUnparsable`); nothing is coerced, truncated, skipped or defaulted. Strings
+(`name`, `description`, `text`, stream, `bytes:`, code entries) reject `null`; `meta` is `null`, a
+string or an object; `bits` fits `u32`, a pixel is 0..=255, `cv` and frame entries fit `i32`. Every
+top-level key except `_metadata` maps to an object of case objects, or the selftest fails. **Why:**
+the two runners must agree, and each JSON reader coerces differently (Go reads `null` as a zero
+value and truncated floats; serde_json dropped non-string list entries). No real vector is affected.
+**Rejected:** coercing to the nearest valid value (hides a corrupt fixture). **Not covered:** the
+data-edge harnesses; `-0` as a pixel, `cv` or frame entry (serde_json reads it as a float and
+rejects it, Go reads 0); Go's case-insensitive key match. Both left as they are: no vendored vector
+can hold either, and `data.json` is gated byte-identical to iscc-core's. **Context:** 293.
+
+## 2026-11-22 — encode_component rejects a digest shorter than bit_length/8
+
+**Decision:** the Tier 1 `encode_component` raises when `len(digest) < bit_length / 8`, on every
+surface (Rust `lib.rs`, so the ten Rust-backed bindings, and Go `EncodeComponent`, wording
+`digest length N < bit_length/8 (M)`). iscc-core slices instead
+(`encode_component(0, 0, 0, 64, b"\x01\x02\x03\x04")` returns `AAAQCAQDAQ`): Rust and Go diverge
+from it here on purpose. The gen functions keep the reference's behaviour: they go through the
+internal encode path (Rust `codec::encode_component`, Go `encodeComponentInternal`), which clamps
+the body to the digest. **Why:** a header that claims more bits than its body holds is a malformed
+unit, and eleven surfaces already raised; Go was the one that truncated. **Rejected:** slicing like
+iscc-core (hands out malformed units); rejecting gen `bits` beyond the digest in the same change (a
+separate behaviour, shared with iscc-core). **Pinned by:** the `encode_component` section of
+`data-edge.json`, run on all 12 surfaces (296). **Context:** 295.
+
+## 2026-11-22 — `alg_minhash_256` rejects an empty feature list
+
+**Decision:** (Titusz) the Tier 1 `alg_minhash_256` reports an error for an empty `features` list on
+every surface. The function gains the surface's error channel (Rust `IsccResult<Vec<u8>>`, Go
+`([]byte, error)`). This breaking Tier 1 signature change is approved: the step flags
+`**API-BREAK:**` and proceeds. **Why:** iscc-core raises `ValueError` (`min()` of an empty list) and
+`alg_simhash` already rejects an empty list (2026-11-20). 32 bytes of `0xFF` look like a real digest
+and make every empty input identical, and nobody had chosen that value. Titusz does not weigh a
+breaking signature change as a cost before 1.0. **Alternatives:** keep `0xFF` and record the
+divergence (no break, but a silent difference from the reference). **Context:** answer to the
+iteration 296 escalation. Performance is no factor: one length check per call, and the three
+internal callers always pass at least one feature.
+
+## 2026-11-22 — The first `finalize()` consumes a hasher on every surface, whatever its outcome
+
+**Decision:** (Titusz) the first `finalize()` call on a `DataHasher`, `InstanceHasher` or
+`SumHasher` consumes it, also when the call fails, whichever check rejects the argument. A later
+call reports the finalized state. `@iscc/wasm` takes the inner hasher before it validates `bits`,
+`wide` and `add_units`. **Why:** Rust (`finalize(self)`), the Python binding and Go (2026-11-21)
+already behave this way; in WASM the outcome depended on whether the JS-side check or the core
+caught the value. **Alternatives:** validate every argument before consuming (allows a retry, but
+differs from the other surfaces). **Context:** answer to the iteration 296 escalation. Not measured
+then: the napi, JNI, .NET, Ruby, UniFFI and C FFI hashers.
+
+## 2026-11-22 — A unit is at most 256 bits: a larger `bits` or `bit_length` is rejected
+
+**Decision:** (Titusz) iscc-lib rejects `bits` above 256 on every surface. The bound covers every
+gen function, every hasher `finalize` and the public `encode_component`; decoding a unit header
+longer than 256 bits fails, as it does on iscc-core. **Why:** ISO 24138 units are 32 to 256 bits.
+iscc-core 1.5.0 accepts `bits=288` in six gen functions and returns a code that its own
+`iscc_decode` rejects (`288 is not a valid LN`), reported as iscc/iscc-core#142. Rejecting is a
+deliberate divergence on the encode side and follows the reference on the decode side.
+**Alternatives:** keep the reference's output and state the range on the API pages. **Context:**
+interactive session after iteration 296. Titusz ruled on `bits`; including `encode_component` and
+the decode side is the session's reading (`encode_component(0, 0, 0, 512, <64 bytes>)` decodes on
+iscc-lib and fails on iscc-core). The internal clamp of 2026-11-22 stays.
+
+## 2026-11-22 — Hasher `finalize()` arguments are converted after the state is taken
+
+**Decision:** on the five bindings whose framework converts a typed parameter before the method body
+runs, `finalize` takes its arguments raw and converts them after `take()`: `JsValue` (WASM),
+`Option<Unknown>` (napi), `jint` then `non_negative` (JNI), a private `Deferred` enum (Python),
+`Value` then `u32::try_convert` (Ruby). Exception classes and messages stay. One message changes:
+napi reports a non-number as `Invalid bits: expected a number` (the WASM wording). A call the
+language rejects before the method runs (unknown keyword, wrong arity) is no `finalize()` call and
+leaves the hasher usable; that is the review's reading of the ruling of 2026-11-22. **Why:** the
+ruling puts the consume step first, and a typed parameter cannot be ordered after it.
+**Alternatives:** Python `Option<u32>` with `bits=None` (turns `finalize(None)` from `TypeError`
+into a 64-bit code); napi `f64` checked after `take()` only (a string is still rejected before the
+body). **Context:** iteration 297 review.
+
+## 2026-11-22 — A core signature change lands with the binding edits the compiler forces
+
+**Decision:** iteration 298 passed with code changes in 10 non-test files (3 core, 7 binding
+`lib.rs`) and neither escape valve declared. A Tier 1 signature change in `iscc-lib` and the edit it
+forces in each binding crate are one step, on four conditions the review checks: a decisions.md
+entry approves the break, each binding maps the result exactly as a sibling wrapper already does
+(here `alg_simhash`), no binding changes beyond that call, and there is one commit per surface. Go
+and shared vectors stay separate steps. **Why:** the workspace does not compile in between, so no
+smaller unit passes clippy or the pre-push gates. The cap and "a core change never rides along with
+a fan-out" (2026-11-19) keep open design questions out of mechanical steps; here Titusz had settled
+the design and the binding edits carry no choice. **Alternatives:** NEEDS_WORK (nothing to split or
+repair); a second function beside the old one (keeps the `0xFF` behaviour the ruling removes).
+**Context:** iteration 298 review. define-next names this ground in Scope when it applies.
+
+## 2026-11-22 — Conan SHA256s live in `conandata.yml`, keyed by target triple, written by the vcpkg hash script
+
+**Decision:** `packages/cpp/conandata.yml` holds one SHA256 per target triple under `sha256:`, with
+no version key. `scripts/update_vcpkg_hashes.py` renders the whole file in the pass that writes the
+vcpkg SHA512s and keeps its name. The recipe reads the hash in `build()` and raises when a target
+has none, so `None` never reaches `download()`. **Why:** one archive pass means a missing archive
+writes neither file and the tagged commit carries both hash sets; without a version key
+`version_sync.py` needs no Conan data rule, and the file is stale between a version bump and the
+release exactly as the portfile is. **Alternatives:** a dict in `conanfile.py` (generated values
+inside hand-written code); Conan's `sources: {version: …}` layout (a second version to sync, old
+entries to prune); a second script or a neutral script name (duplicates the archive checks, or
+leaves the decision of 2026-11-22 naming a missing file). **Context:** iteration 305 review.
+
+## 2026-11-22 — The core implements XXH32 itself and carries no xxHash dependency
+
+**Decision:** `crates/iscc-lib/src/xxh32.rs` implements XXH32 in safe Rust. `xxhash-rust` is gone
+from the workspace and `BSL-1.0` from the `deny.toml` allow-list. **Why:** `xxhash-rust` is BSL-1.0
+only, the one licence in the core's graph that strict MIT/Apache allow-lists do not already carry
+(GitHub issue #46). The algorithm is about 50 lines and frozen, so owning it also ends the licence,
+MSRV and supply-chain coupling of a crate; the Go port does the same. The digests equal those of
+`xxhash-rust` 0.8.18 and `twox-hash` 2.1.5 on 32,772 inputs, and the iai rows move by under 1%.
+**Alternatives:** `twox-hash` (MIT, what #46 proposed: the smaller diff, but still a dependency with
+`unsafe` code and its own MSRV); staying on `xxhash-rust`; C bindings (need a C toolchain).
+**Context:** interactive session before the v0.8.0 release; Titusz chose this over `twox-hash`.
+
+## 2026-11-23 — An ISCC-ID is 64, 72, 80 or 96 bits
+
+**Decision:** every surface rejects an ISCC-ID length of 88 bits, when encoding (`bit_length` 88 in
+`encode_component`) and when decoding (length index 3 in an ID header); every other length outside
+64, 72, 80 and 96 was already rejected. **Why:** iscc-core's `LN` enum has no 88, so its
+`iscc_decode` raises `88 is not a valid LN`, while its `encode_component(6, 0, 0, 88, …)` returns a
+unit that this decoder rejects. iscc-lib 0.7.0 accepted 88 both ways. Rejecting follows the
+reference on the decode side and is a deliberate divergence on the encode side, as for units above
+256 bits (decision of 2026-11-22). No generator emits an 88-bit ID. **Alternatives:** keep the
+reference's encoder output and reject only on decode, which leaves an encoder whose output no
+decoder reads. **Context:** interactive session before the v0.8.0 release, from the `low` issue of
+iteration 301; Titusz chose to fix it before the release, the encode side follows the 256-bit
+precedent.

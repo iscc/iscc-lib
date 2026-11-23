@@ -1,0 +1,8 @@
+---
+# Written by scripts/update_vcpkg_hashes.py in prepare-release. Do not edit.
+sha256:
+  aarch64-apple-darwin: 4b3dcf5e6eb93bbb5aeba08a53f1bfbdb8205b2b0e2c47eabcd4fc4405f243e1
+  aarch64-unknown-linux-gnu: 6fa026f7ba7838789cb4dbffe165eea4a58fb52b2f98fb8b22f2783719393ad3
+  x86_64-apple-darwin: f5d9d5e5315b6dbef9c79b4ec868f216e0f981d9632d2819a3d4ba13eea4df45
+  x86_64-pc-windows-msvc: 18a70e59d36e4b6a7b8a60d63bdaef2b9179ee3fc1d47ab18fddc9d1b349cd59
+  x86_64-unknown-linux-gnu: f4822a9875ed71bede174e87f3117200dc7576e86ef76d292ebd61c2947c40c0

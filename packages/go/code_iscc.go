@@ -6,7 +6,6 @@ package iscc
 import (
 	"fmt"
 	"sort"
-	"strings"
 )
 
 // IsccCodeResult holds the output of GenIsccCodeV0.
@@ -19,12 +18,17 @@ type IsccCodeResult struct {
 // Optional units are Meta-Code, Semantic-Code, and Content-Code.
 // The wide parameter enables 256-bit (16 bytes per unit) mode when true;
 // standard mode uses 64-bit (8 bytes per unit).
-// Input codes may optionally include the "ISCC:" prefix.
+// Input codes are cleaned like iscc_core.codec.iscc_clean (surrounding
+// whitespace, an optional case-insensitive "ISCC:" scheme and dashes).
 func GenIsccCodeV0(codes []string, wide bool) (*IsccCodeResult, error) {
-	// Step 1: Clean inputs — strip "ISCC:" prefix
+	// Step 1: Clean inputs (whitespace, scheme, dashes)
 	cleaned := make([]string, len(codes))
 	for i, c := range codes {
-		cleaned[i] = strings.TrimPrefix(c, "ISCC:")
+		clean, err := isccClean(c)
+		if err != nil {
+			return nil, fmt.Errorf("clean code %d: %w", i, err)
+		}
+		cleaned[i] = clean
 	}
 
 	// Step 2: Validate minimum count
@@ -77,12 +81,17 @@ func GenIsccCodeV0(codes []string, wide bool) (*IsccCodeResult, error) {
 		return nil, fmt.Errorf("Data-Code and Instance-Code are mandatory")
 	}
 
-	// Step 8: Determine wide composite
-	isWide := wide &&
-		n == 2 &&
-		mainTypes[0] == MTData && mainTypes[1] == MTInstance &&
-		decodeLength(decoded[0].mt, decoded[0].len_, decoded[0].st) >= 128 &&
-		decodeLength(decoded[1].mt, decoded[1].len_, decoded[1].st) >= 128
+	// Step 8: Determine wide composite. Unit lengths are read in order and the
+	// loop stops at the first unit below 128 bits, so a later over-long unit
+	// is only rejected when every earlier unit reaches 128 bits (as iscc-core).
+	isWide := wide && n == 2 && mainTypes[0] == MTData && mainTypes[1] == MTInstance
+	for i := 0; isWide && i < n; i++ {
+		bits, err := unitBitLength(decoded[i].mt, decoded[i].len_, decoded[i].st)
+		if err != nil {
+			return nil, err
+		}
+		isWide = bits >= 128
+	}
 
 	// Step 9: Determine SubType
 	var st SubType

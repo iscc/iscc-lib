@@ -1,5 +1,6 @@
 /**
- * Conformance tests for all 10 gen_*_v0 JNI functions against data.json vectors.
+ * Conformance tests for the gen_*_v0 JNI functions against data.json vectors.
+ * genSumCodeV0 has no vectors and is checked against its Data-Code + Instance-Code composition.
  *
  * <p>Mirrors the Node.js conformance tests in crates/iscc-napi/__tests__/conformance.test.mjs.
  * Uses JUnit 6 {@code @TestFactory} with {@code DynamicTest} for data-driven test names
@@ -13,22 +14,29 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.io.File;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.function.Executable;
 
 class IsccLibTest {
 
@@ -506,16 +514,93 @@ class IsccLibTest {
 
     // ── Negative jint validation ─────────────────────────────────────────────
 
+    /** Assert that {@code call} throws IllegalArgumentException naming a negative {@code param}. */
+    private static void assertRejectsNegative(String param, Executable call) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, call);
+        assertEquals(param + " must be non-negative", e.getMessage());
+    }
+
     /** Verify textTrim throws IllegalArgumentException for negative nbytes. */
     @Test
     void textTrimNegativeNbytes() {
-        assertThrows(IllegalArgumentException.class, () -> IsccLib.textTrim("hello", -1));
+        assertRejectsNegative("nbytes", () -> IsccLib.textTrim("hello", -1));
     }
 
     /** Verify slidingWindow throws IllegalArgumentException for negative width. */
     @Test
     void slidingWindowNegativeWidth() {
-        assertThrows(IllegalArgumentException.class, () -> IsccLib.slidingWindow("hello", -1));
+        assertRejectsNegative("width", () -> IsccLib.slidingWindow("hello", -1));
+    }
+
+    /** Verify every gen function rejects negative bits before the unsigned cast. */
+    @Test
+    void genFunctionsRejectNegativeBits() {
+        int[][] frames = {{0, 1, 2}};
+        assertRejectsNegative("bits", () -> IsccLib.genMetaCodeV0("name", null, null, -1));
+        assertRejectsNegative("bits", () -> IsccLib.genTextCodeV0("text", -1));
+        assertRejectsNegative("bits", () -> IsccLib.genImageCodeV0(new byte[1024], -1));
+        assertRejectsNegative("bits", () -> IsccLib.genAudioCodeV0(new int[] {1, 2}, -1));
+        assertRejectsNegative("bits", () -> IsccLib.genVideoCodeV0(frames, -1));
+        assertRejectsNegative("bits", () -> IsccLib.genMixedCodeV0(new String[0], -1));
+        assertRejectsNegative("bits", () -> IsccLib.genDataCodeV0(new byte[] {1}, -1));
+        assertRejectsNegative("bits", () -> IsccLib.genInstanceCodeV0(new byte[] {1}, -1));
+        assertRejectsNegative("bits", () -> IsccLib.genSumCodeV0("unused", -1, false, false));
+        assertRejectsNegative("bits", () -> IsccLib.softHashVideoV0(frames, -1));
+    }
+
+    /** Assert that a valid finalize after a rejected one reports the finalized state. */
+    private static void assertConsumed(String name, Executable finalize64) {
+        IllegalStateException e = assertThrows(IllegalStateException.class, finalize64);
+        assertEquals(name + " already finalized", e.getMessage());
+    }
+
+    /** Verify dataHasherFinalize rejecting negative bits still consumes the hasher. */
+    @Test
+    void dataHasherFinalizeNegativeBitsConsumes() {
+        long ptr = IsccLib.dataHasherNew();
+        try {
+            assertRejectsNegative("bits", () -> IsccLib.dataHasherFinalize(ptr, -1));
+            assertConsumed("DataHasher", () -> IsccLib.dataHasherFinalize(ptr, 64));
+        } finally {
+            IsccLib.dataHasherFree(ptr);
+        }
+    }
+
+    /** Verify dataHasherFinalize rejected by the core (bits 13) still consumes the hasher. */
+    @Test
+    void dataHasherFinalizeCoreRejectedBitsConsumes() {
+        long ptr = IsccLib.dataHasherNew();
+        try {
+            assertThrows(IllegalArgumentException.class, () -> IsccLib.dataHasherFinalize(ptr, 13));
+            assertConsumed("DataHasher", () -> IsccLib.dataHasherFinalize(ptr, 64));
+        } finally {
+            IsccLib.dataHasherFree(ptr);
+        }
+    }
+
+    /** Verify instanceHasherFinalize rejecting negative bits still consumes the hasher. */
+    @Test
+    void instanceHasherFinalizeNegativeBitsConsumes() {
+        long ptr = IsccLib.instanceHasherNew();
+        try {
+            assertRejectsNegative("bits", () -> IsccLib.instanceHasherFinalize(ptr, -1));
+            assertConsumed("InstanceHasher", () -> IsccLib.instanceHasherFinalize(ptr, 64));
+        } finally {
+            IsccLib.instanceHasherFree(ptr);
+        }
+    }
+
+    /** Verify instanceHasherFinalize rejected by the core (bits 13) still consumes the hasher. */
+    @Test
+    void instanceHasherFinalizeCoreRejectedBitsConsumes() {
+        long ptr = IsccLib.instanceHasherNew();
+        try {
+            assertThrows(
+                    IllegalArgumentException.class, () -> IsccLib.instanceHasherFinalize(ptr, 13));
+            assertConsumed("InstanceHasher", () -> IsccLib.instanceHasherFinalize(ptr, 64));
+        } finally {
+            IsccLib.instanceHasherFree(ptr);
+        }
     }
 
     /** Verify algCdcChunks throws IllegalArgumentException for negative avg_chunk_size. */
@@ -555,6 +640,337 @@ class IsccLibTest {
                     () -> IsccLib.instanceHasherUpdate(ptr, new byte[] {4, 5, 6}));
         } finally {
             IsccLib.instanceHasherFree(ptr);
+        }
+    }
+
+    // ── Hasher null-handle guard ────────────────────────────────────────────
+
+    /** Verify dataHasherUpdate rejects a zero handle instead of dereferencing it. */
+    @Test
+    void testDataHasherUpdateRejectsNullHandle() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.dataHasherUpdate(0L, new byte[] {1, 2, 3}));
+        assertTrue(e.getMessage().contains("handle is null"), e.getMessage());
+    }
+
+    /** Verify dataHasherFinalize rejects a zero handle instead of dereferencing it. */
+    @Test
+    void testDataHasherFinalizeRejectsNullHandle() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.dataHasherFinalize(0L, 64));
+        assertTrue(e.getMessage().contains("handle is null"), e.getMessage());
+    }
+
+    /** Verify instanceHasherUpdate rejects a zero handle instead of dereferencing it. */
+    @Test
+    void testInstanceHasherUpdateRejectsNullHandle() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.instanceHasherUpdate(0L, new byte[] {1, 2, 3}));
+        assertTrue(e.getMessage().contains("handle is null"), e.getMessage());
+    }
+
+    /** Verify instanceHasherFinalize rejects a zero handle instead of dereferencing it. */
+    @Test
+    void testInstanceHasherFinalizeRejectsNullHandle() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.instanceHasherFinalize(0L, 64));
+        assertTrue(e.getMessage().contains("handle is null"), e.getMessage());
+    }
+
+    // ── Allocation failure ───────────────────────────────────────────────────
+
+    /**
+     * Verify a JVM allocation failure inside a native call reaches Java as OutOfMemoryError.
+     *
+     * <p>Runs {@link OomProbe} in a child JVM with {@code -Xmx16m -Xcheck:jni}, so the test JVM
+     * keeps its heap. The child's stderr must carry no JNI-check warning (a {@code ThrowNew} over
+     * a pending exception would print one).
+     */
+    @Test
+    void allocationFailureSurfacesAsOutOfMemoryError() throws Exception {
+        Path javaBin = Path.of(System.getProperty("java.home"), "bin", "java");
+        ProcessBuilder pb = new ProcessBuilder(
+                javaBin.toString(),
+                "-Xmx16m",
+                "-Xcheck:jni",
+                "-Djava.library.path=" + System.getProperty("java.library.path"),
+                "-cp", System.getProperty("java.class.path"),
+                OomProbe.class.getName());
+        Path stderrFile = Files.createTempFile("iscc-oom-probe", ".err");
+        pb.redirectError(stderrFile.toFile());
+        try {
+            Process proc = pb.start();
+            String stdout = new String(proc.getInputStream().readAllBytes()).trim();
+            int exit = proc.waitFor();
+            String stderr = Files.readString(stderrFile);
+            assertEquals(0, exit, "probe exit code; stderr:\n" + stderr);
+            assertEquals("java.lang.OutOfMemoryError", stdout, "probe stderr:\n" + stderr);
+            assertTrue(!stderr.contains("WARNING in native method"), stderr);
+        } finally {
+            Files.deleteIfExists(stderrFile);
+        }
+    }
+
+    // ── Native library loading ───────────────────────────────────────────────
+
+    /** Exit code, stdout and stderr of a finished child JVM. */
+    private record ProbeRun(int exit, String stdout, String stderr) {}
+
+    /**
+     * Run {@link LoaderProbe} in a child JVM and return what it printed.
+     *
+     * @param classpath the child's classpath
+     * @param property a {@code -D} system property override for the child, or {@code null}
+     * @param libraryDir the child's {@code java.library.path}
+     */
+    private static ProbeRun runLoaderProbe(String classpath, String property, Path libraryDir)
+            throws Exception {
+        Path javaBin = Path.of(System.getProperty("java.home"), "bin", "java");
+        List<String> cmd = new ArrayList<>();
+        cmd.add(javaBin.toString());
+        if (property != null) {
+            cmd.add(property);
+        }
+        cmd.add("-Djava.library.path=" + libraryDir);
+        cmd.add("-cp");
+        cmd.add(classpath);
+        cmd.add(LoaderProbe.class.getName());
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        Path stderrFile = Files.createTempFile("iscc-loader-probe", ".err");
+        pb.redirectError(stderrFile.toFile());
+        try {
+            Process proc = pb.start();
+            String stdout = new String(proc.getInputStream().readAllBytes()).trim();
+            int exit = proc.waitFor();
+            return new ProbeRun(exit, stdout, Files.readString(stderrFile));
+        } finally {
+            Files.deleteIfExists(stderrFile);
+        }
+    }
+
+    /**
+     * Return the first entry of this JVM's {@code java.library.path} that holds the iscc_jni library.
+     *
+     * @return the directory, or {@code null} if no entry holds the library
+     */
+    private static Path libraryPathEntryWithLibrary() {
+        String libName = System.mapLibraryName("iscc_jni");
+        for (String entry : System.getProperty("java.library.path", "").split(File.pathSeparator)) {
+            if (!entry.isEmpty() && Files.isRegularFile(Path.of(entry, libName))) {
+                return Path.of(entry);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Copy the library bundled for this host into a fresh temp directory under its
+     * {@code System.loadLibrary} name.
+     *
+     * <p>Reads the resource through this JVM's classpath, which never holds a broken test library.
+     *
+     * @return the temp directory, or {@code null} if no library is bundled for this host
+     */
+    private static Path extractBundledLibrary() throws Exception {
+        String os = NativeLoader.detectOs();
+        String arch = NativeLoader.detectArch();
+        if (os == null || arch == null) {
+            return null;
+        }
+        String resource = "/META-INF/native/" + os + "-" + arch + "/" + NativeLoader.libraryFileName(os);
+        try (InputStream stream = NativeLoader.class.getResourceAsStream(resource)) {
+            if (stream == null) {
+                return null;
+            }
+            Path dir = Files.createTempDirectory("iscc-fallback-native");
+            Files.copy(stream, dir.resolve(System.mapLibraryName("iscc_jni")));
+            return dir;
+        }
+    }
+
+    /**
+     * Delete a file or a directory tree, if it exists.
+     *
+     * @param root the file or directory to delete, or {@code null} for nothing
+     */
+    private static void deleteTree(Path root) throws Exception {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+        try (Stream<Path> paths = Files.walk(root)) {
+            for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.delete(p);
+            }
+        }
+    }
+
+    /**
+     * Run {@link LoaderProbe} in a child JVM whose {@code java.library.path} holds a real library,
+     * and assert it loaded the library and the selftest passed.
+     *
+     * <p>The fallback directory is the {@code java.library.path} entry that holds the library (the
+     * CI layout), or else a temp copy of the library bundled as a resource (the release layout).
+     * Neither found fails the test: skipping would leave the release job testing nothing.
+     *
+     * @param classpath the child's classpath
+     * @param property a {@code -D} system property override for the child, or {@code null}
+     */
+    private static void assertLoaderProbePasses(String classpath, String property) throws Exception {
+        Path extracted = null;
+        Path libraryDir = libraryPathEntryWithLibrary();
+        if (libraryDir == null) {
+            extracted = extractBundledLibrary();
+            libraryDir = extracted;
+        }
+        assertNotNull(libraryDir, "no " + System.mapLibraryName("iscc_jni")
+                + " on java.library.path (" + System.getProperty("java.library.path")
+                + ") and no library bundled under /META-INF/native/ for this host");
+        try {
+            ProbeRun run = runLoaderProbe(classpath, property, libraryDir);
+            assertEquals(0, run.exit(),
+                    "probe exit code; stdout:\n" + run.stdout() + "\nstderr:\n" + run.stderr());
+            assertEquals("true", run.stdout(), "probe stderr:\n" + run.stderr());
+        } finally {
+            deleteTree(extracted);
+        }
+    }
+
+    /**
+     * Write garbage bytes where the JAR would bundle the library for this host.
+     *
+     * @return the classpath root holding the broken library
+     */
+    private static Path writeBrokenBundledLibrary() throws Exception {
+        String os = NativeLoader.detectOs();
+        String arch = NativeLoader.detectArch();
+        assumeTrue(os != null && arch != null,
+                "host platform has no bundled-library slot");
+        Path root = Files.createTempDirectory("iscc-broken-native");
+        Path lib = root.resolve("META-INF/native/" + os + "-" + arch + "/"
+                + NativeLoader.libraryFileName(os));
+        Files.createDirectories(lib.getParent());
+        Files.write(lib, "not a shared library".getBytes());
+        return root;
+    }
+
+    /** Verify an unrecognized architecture falls back to {@code java.library.path}. */
+    @Test
+    void loaderFallsBackOnUnknownArchitecture() throws Exception {
+        assertLoaderProbePasses(System.getProperty("java.class.path"), "-Dos.arch=riscv64");
+    }
+
+    /** Verify an unrecognized operating system falls back to {@code java.library.path}. */
+    @Test
+    void loaderFallsBackOnUnknownOperatingSystem() throws Exception {
+        assertLoaderProbePasses(System.getProperty("java.class.path"), "-Dos.name=FreeBSD");
+    }
+
+    /**
+     * Verify a bundled library that fails to load falls back to {@code java.library.path}.
+     *
+     * <p>Puts a garbage library first on the child's classpath, so strategy 1 finds and rejects it.
+     */
+    @Test
+    void loaderFallsBackOnBrokenBundledLibrary() throws Exception {
+        Path root = writeBrokenBundledLibrary();
+        try {
+            String classpath = root + File.pathSeparator
+                    + System.getProperty("java.class.path");
+            assertLoaderProbePasses(classpath, null);
+        } finally {
+            deleteTree(root);
+        }
+    }
+
+    /**
+     * Verify the error when both strategies fail.
+     *
+     * <p>A garbage bundled library and an empty {@code java.library.path}: the child must throw an
+     * {@code UnsatisfiedLinkError} that names the resource tried, has the
+     * {@code System.loadLibrary} error as its cause, and carries the bundled-library error as its
+     * one suppressed exception.
+     */
+    @Test
+    void loaderReportsBothFailures() throws Exception {
+        Path root = writeBrokenBundledLibrary();
+        Path emptyDir = Files.createTempDirectory("iscc-empty-libpath");
+        try {
+            String classpath = root + File.pathSeparator
+                    + System.getProperty("java.class.path");
+            ProbeRun run = runLoaderProbe(classpath, null, emptyDir);
+            assertEquals(0, run.exit(), "probe stderr:\n" + run.stderr());
+            List<String> lines = run.stdout().lines().toList();
+            assertEquals(3, lines.size(), "probe stdout:\n" + run.stdout());
+            String resource = "META-INF/native/" + NativeLoader.detectOs() + "-"
+                    + NativeLoader.detectArch() + "/"
+                    + NativeLoader.libraryFileName(NativeLoader.detectOs());
+            assertTrue(lines.get(0).startsWith("java.lang.UnsatisfiedLinkError: "), lines.get(0));
+            assertTrue(lines.get(0).contains("'/" + resource + "'"), lines.get(0));
+            assertEquals("cause: java.lang.UnsatisfiedLinkError", lines.get(1));
+            assertEquals("suppressed: java.lang.UnsatisfiedLinkError", lines.get(2));
+        } finally {
+            deleteTree(root);
+            deleteTree(emptyDir);
+        }
+    }
+
+    /**
+     * Put the real library where the JAR would bundle it for this host.
+     *
+     * <p>Copies it from {@code java.library.path} (the CI layout). Returns {@code null} when no
+     * entry holds it: in the release layout the classpath bundles the library already.
+     *
+     * @return the classpath root holding the library, or {@code null}
+     */
+    private static Path writeBundledLibrary() throws Exception {
+        Path libraryDir = libraryPathEntryWithLibrary();
+        if (libraryDir == null) {
+            return null;
+        }
+        String os = NativeLoader.detectOs();
+        Path root = Files.createTempDirectory("iscc-bundled-native");
+        Path lib = root.resolve("META-INF/native/" + os + "-" + NativeLoader.detectArch() + "/"
+                + NativeLoader.libraryFileName(os));
+        Files.createDirectories(lib.getParent());
+        Files.copy(libraryDir.resolve(System.mapLibraryName("iscc_jni")), lib);
+        return root;
+    }
+
+    /**
+     * Verify a JVM that loaded the bundled library leaves no extraction directory behind.
+     *
+     * <p>The child gets its own {@code java.io.tmpdir} and an empty {@code java.library.path}, so
+     * only the bundled library can load. That temp directory lives in the Maven build directory:
+     * the system temp directory may be mounted {@code noexec}, where no extracted library loads.
+     * Skipped on Windows, where a loaded DLL cannot be deleted.
+     */
+    @Test
+    void loaderLeavesNoTempDirectoryBehind() throws Exception {
+        String os = NativeLoader.detectOs();
+        assumeTrue(os != null && NativeLoader.detectArch() != null,
+                "host platform has no bundled-library slot");
+        assumeTrue(!os.equals("windows"), "a loaded DLL cannot be deleted on Windows");
+        Path root = writeBundledLibrary();
+        Path tmpDir = Files.createTempDirectory(Path.of("target").toAbsolutePath(),
+                "iscc-loader-tmpdir");
+        Path emptyDir = Files.createTempDirectory("iscc-empty-libpath");
+        try {
+            String classpath = System.getProperty("java.class.path");
+            if (root != null) {
+                classpath = root + File.pathSeparator + classpath;
+            }
+            ProbeRun run = runLoaderProbe(classpath, "-Djava.io.tmpdir=" + tmpDir, emptyDir);
+            assertEquals(0, run.exit(), "probe stderr:\n" + run.stderr());
+            assertEquals("true", run.stdout(), "probe stderr:\n" + run.stderr());
+            try (Stream<Path> entries = Files.list(tmpDir)) {
+                List<String> left = entries.map(p -> p.getFileName().toString())
+                        .filter(name -> name.startsWith("iscc-jni-")).toList();
+                assertEquals(List.of(), left, "extraction directories left in java.io.tmpdir");
+            }
+        } finally {
+            deleteTree(root);
+            deleteTree(tmpDir);
+            deleteTree(emptyDir);
         }
     }
 
@@ -652,6 +1068,119 @@ class IsccLibTest {
         }
     }
 
+    // ── encode_seq / decode_seq ──────────────────────────────────────────────
+
+    /** Decode a "bytes:&lt;hex&gt;" string to byte[]. */
+    private static byte[] decodeBytes(String bytesStr) {
+        assertTrue(bytesStr.startsWith("bytes:"), "expected bytes: prefix: " + bytesStr);
+        return HexFormat.of().parseHex(bytesStr.substring("bytes:".length()));
+    }
+
+    /** Test all encode_seq vectors. */
+    @TestFactory
+    Collection<DynamicTest> encodeSeq() {
+        JsonObject section = data.getAsJsonObject("encode_seq");
+        Collection<DynamicTest> tests = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : section.entrySet()) {
+            String name = entry.getKey();
+            JsonObject tc = entry.getValue().getAsJsonObject();
+            tests.add(DynamicTest.dynamicTest(name, () -> {
+                String[] units = jsonArrayToStrings(tc.getAsJsonArray("inputs").get(0).getAsJsonArray());
+                byte[] expected = decodeBytes(tc.get("outputs").getAsString());
+                assertArrayEquals(expected, IsccLib.encodeSeq(units));
+            }));
+        }
+        return tests;
+    }
+
+    /** Test all decode_seq vectors. */
+    @TestFactory
+    Collection<DynamicTest> decodeSeq() {
+        JsonObject section = data.getAsJsonObject("decode_seq");
+        Collection<DynamicTest> tests = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : section.entrySet()) {
+            String name = entry.getKey();
+            JsonObject tc = entry.getValue().getAsJsonObject();
+            tests.add(DynamicTest.dynamicTest(name, () -> {
+                byte[] seq = decodeBytes(tc.getAsJsonArray("inputs").get(0).getAsString());
+                String[] expected = jsonArrayToStrings(tc.getAsJsonArray("outputs"));
+                assertArrayEquals(expected, IsccLib.decodeSeq(seq));
+            }));
+        }
+        return tests;
+    }
+
+    /** Verify the byte round trip encodeSeq(decodeSeq(x)) == x over the decode_seq vectors. */
+    @TestFactory
+    Collection<DynamicTest> seqByteRoundtrip() {
+        JsonObject section = data.getAsJsonObject("decode_seq");
+        Collection<DynamicTest> tests = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : section.entrySet()) {
+            String name = entry.getKey();
+            JsonObject tc = entry.getValue().getAsJsonObject();
+            tests.add(DynamicTest.dynamicTest(name, () -> {
+                byte[] seq = decodeBytes(tc.getAsJsonArray("inputs").get(0).getAsString());
+                assertArrayEquals(seq, IsccLib.encodeSeq(IsccLib.decodeSeq(seq)));
+            }));
+        }
+        return tests;
+    }
+
+    /** Verify decodeSeq returns a genuine String[] (the JVM does not type-check native returns). */
+    @Test
+    void decodeSeqReturnsStringArray() {
+        byte[] seq = decodeBytes(data.getAsJsonObject("decode_seq")
+                .getAsJsonObject("test_0002_single_unit").getAsJsonArray("inputs").get(0).getAsString());
+        String[] units = IsccLib.decodeSeq(seq);
+        assertEquals("[Ljava.lang.String;", units.getClass().getName(),
+                "native must return a genuine String[]");
+    }
+
+    /** Verify encodeSeq rejects an empty unit array with the core message. */
+    @Test
+    void encodeSeqRejectsEmptyArray() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.encodeSeq(new String[0]));
+        assertTrue(e.getMessage().contains("at least one ISCC-UNIT"), e.getMessage());
+    }
+
+    /** Verify encodeSeq rejects a unit with an embedded NUL followed by junk. */
+    @Test
+    void encodeSeqRejectsEmbeddedNul() {
+        String unit = "ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI";
+        assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.encodeSeq(new String[] {unit + "\0junk"}));
+    }
+
+    /** Verify encodeSeq rejects a non-ASCII case-fold alias ("ſ" for "s"). */
+    @Test
+    void encodeSeqRejectsCaseFoldAlias() {
+        assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.encodeSeq(new String[] {"gaawdlqng6ſsdpf2"}));
+    }
+
+    /** Verify encodeSeq rejects an "="-padded unit. */
+    @Test
+    void encodeSeqRejectsPadding() {
+        assertThrows(IllegalArgumentException.class,
+                () -> IsccLib.encodeSeq(new String[] {"ISCC:EEAYYNMFG5XOELK2===="}));
+    }
+
+    /** Verify decodeSeq rejects empty input. */
+    @Test
+    void decodeSeqRejectsEmpty() {
+        assertThrows(IllegalArgumentException.class, () -> IsccLib.decodeSeq(new byte[0]));
+    }
+
+    /** Verify decodeSeq rejects a truncated sequence (last byte dropped). */
+    @Test
+    void decodeSeqRejectsTruncated() {
+        byte[] seq = decodeBytes(data.getAsJsonObject("decode_seq")
+                .getAsJsonObject("test_0002_single_unit").getAsJsonArray("inputs").get(0).getAsString());
+        byte[] truncated = java.util.Arrays.copyOf(seq, seq.length - 1);
+        assertThrows(IllegalArgumentException.class, () -> IsccLib.decodeSeq(truncated));
+    }
+
     // ── conformanceSelftest ──────────────────────────────────────────────────
 
     /** Verify conformanceSelftest passes against the vendored test vectors. */
@@ -690,10 +1219,12 @@ class IsccLibTest {
         assertArrayEquals(expected, IsccLib.algSimhash(digests));
     }
 
-    /** Verify algSimhash of an empty digest list returns 32 zero bytes. */
+    /** Verify algSimhash rejects an empty digest list. */
     @Test
     void algSimhashEmptyInput() {
-        assertArrayEquals(new byte[32], IsccLib.algSimhash(new byte[0][]));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> IsccLib.algSimhash(new byte[0][]));
+        assertTrue(ex.getMessage().contains("must not be empty"), ex.getMessage());
     }
 
     /** Verify algSimhash returns a single digest unchanged. */
@@ -705,12 +1236,12 @@ class IsccLibTest {
 
     // ── algMinhash256 ────────────────────────────────────────────────────────
 
-    /** Verify algMinhash256 of empty features returns 32 bytes of 0xFF. */
+    /** Verify algMinhash256 rejects empty features with IllegalArgumentException. */
     @Test
     void algMinhash256EmptyFeatures() {
-        byte[] expected = new byte[32];
-        java.util.Arrays.fill(expected, (byte) 0xFF);
-        assertArrayEquals(expected, IsccLib.algMinhash256(new int[0]));
+        IllegalArgumentException e = assertThrows(
+                IllegalArgumentException.class, () -> IsccLib.algMinhash256(new int[0]));
+        assertTrue(e.getMessage().contains("features must not be empty"), e.getMessage());
     }
 
     /** Verify algMinhash256 is deterministic and returns a 32-byte digest. */

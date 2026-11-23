@@ -18,13 +18,12 @@ Add the dependency to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.iscc:iscc-lib-kotlin:0.7.0")
-    implementation("net.java.dev.jna:jna:5.19.1")
+    implementation("io.iscc:iscc-lib-kotlin:0.8.0")
 }
 ```
 
-The JNA dependency is required for loading the native Rust library at runtime. The native
-`libiscc_uniffi` shared library must be available on `java.library.path` and `jna.library.path`.
+The artifact bundles the native `libiscc_uniffi` library for Linux, macOS and Windows and pulls in
+JNA as a runtime dependency, which loads the library automatically. No other setup is needed.
 
 !!! note "Requires Kotlin 2.3 or newer"
 
@@ -32,13 +31,9 @@ The JNA dependency is required for loading the native Rust library at runtime. T
     version of forward metadata; older compilers fail with
     `Module was compiled with an incompatible version of Kotlin`.
 
-!!! note "Not yet published to Maven Central"
-
-    The Kotlin package is not yet published to Maven Central. For now, build from source (see below).
-
 ??? tip "Build from source"
 
-    To build from source instead of using a Maven dependency:
+    To build the native library yourself, for development on this repository:
 
     ```bash
     # Build the Rust UniFFI library
@@ -201,7 +196,7 @@ val result = genIsccCodeV0(
     codes = listOf(dataResult.iscc, instanceResult.iscc),
     wide = false
 )
-println(result.iscc) // "ISCC:KAA..."
+println(result.iscc) // "ISCC:KUA..."
 ```
 
 Parameters: `codes: List<String>`, `wide: Boolean` (`true` for 256-bit output, `false` for 128-bit).
@@ -217,7 +212,7 @@ val result = genSumCodeV0(
     wide = false,
     addUnits = false
 )
-println(result.iscc)     // "ISCC:KAA..."
+println(result.iscc)     // "ISCC:KUA..."
 println(result.datahash) // Multihash of the data
 println(result.filesize) // Size in bytes
 
@@ -309,7 +304,8 @@ val result = hasher.finalize(bits = 64u)
 println(result.iscc) // Identical to genInstanceCodeV0(data = entireFile, bits = 64u)
 ```
 
-Both hashers are single-use: after calling `finalize(bits)`, further calls to `update(data)` or
+Both hashers are single-use: the first `finalize(bits)` call consumes the hasher, even when it fails
+(for example on an invalid `bits` value). After that, further calls to `update(data)` or
 `finalize(bits)` throw `IsccUniException`. The native resources are freed when the object is closed
 or garbage-collected.
 
@@ -384,6 +380,25 @@ for (unit in units) {
 }
 ```
 
+### ISCC-SEQ
+
+`encodeSeq(units: List<String>): ByteArray` packs an ordered list of ISCC-UNITs into an ISCC-SEQ
+byte string (IEP-0020): the header and body bytes of each unit, in the given order.
+`decodeSeq(data: ByteArray): List<String>` reads one back into `ISCC:`-prefixed unit strings. Base32
+input is strict (no padding, zero spare bits) and upper-casing is ASCII-only. ISCC-CODE, ISCC-ID and
+ISCC-FLAKE units are rejected.
+
+```kotlin
+val data = encodeSeq(units = listOf("ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI"))
+println(data.size) // 34, starts with 0x20 0x07 0xa8 0x82 0x48 0xc5
+
+val units = decodeSeq(data = data)
+println(units) // [ISCC:EAD2RASIYU5IKLENP2OFI4CHZGRWYQCSW2WKX3Y6FJGOCXSYNYGLGBI]
+
+// The round trip is defined on bytes: encodeSeq(decodeSeq(data)) reproduces data
+println(encodeSeq(units = units).contentEquals(data)) // true
+```
+
 ## Text utilities
 
 Text normalization functions used internally by the code generation pipeline are available for
@@ -434,7 +449,7 @@ Additional primitives:
 - `algSimhash(hashDigests: List<ByteArray>)` — compute a SimHash digest from equal-length byte
     arrays, returns `ByteArray`
 - `algMinhash256(features: List<UInt>)` — compute a 256-bit MinHash digest from 32-bit features,
-    returns `ByteArray`
+    returns `ByteArray`; throws `IsccUniException` on an empty list
 - `algCdcChunks(data: ByteArray, utf32: Boolean, avgChunkSize: UInt)` — split data into
     content-defined chunks, returns `List<ByteArray>`
 - `softHashVideoV0(frameSigs: List<List<Int>>, bits: UInt)` — compute a similarity-preserving hash
@@ -473,7 +488,7 @@ handling:
 
 ```kotlin
 try {
-    genTextCodeV0(text = "Hello", bits = 13u) // bits must be a multiple of 32
+    genTextCodeV0(text = "Hello", bits = 13u) // bits must be a multiple of 32 from 32 to 256
 } catch (e: IsccUniException) {
     println("Invalid input: ${e.message}")
 }

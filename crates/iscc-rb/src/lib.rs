@@ -4,12 +4,13 @@
 //! under the `IsccLib` module. The pure Ruby wrapper in `lib/iscc_lib.rb`
 //! provides idiomatic result classes and keyword arguments.
 //!
-//! Symbols (33 of 33):
+//! Symbols (35 of 35):
 //! - `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
 //! - `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`
 //! - `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`, `gen_iscc_id_v1`
 //! - `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 //! - `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`
+//! - `encode_seq`, `decode_seq`
 //! - `json_to_data_url`, `conformance_selftest`
 //! - `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
 //!   `soft_hash_video_v0`
@@ -18,7 +19,8 @@
 //!   IO_READ_SIZE, TEXT_NGRAM_SIZE
 
 use magnus::{
-    Error, Integer, RArray, RHash, RString, Ruby, TryConvert, function, method, prelude::*,
+    Error, Integer, RArray, RHash, RString, Ruby, TryConvert, Value, function, method, prelude::*,
+    try_convert::TryConvertOwned,
 };
 use std::cell::RefCell;
 
@@ -26,6 +28,60 @@ use std::cell::RefCell;
 fn to_magnus_err(e: iscc_lib::IsccError) -> Error {
     let ruby = Ruby::get().expect("called from Ruby");
     Error::new(ruby.exception_runtime_error(), e.to_string())
+}
+
+/// Convert a Ruby Array into a `Vec<T>` via `RArray::into_iter`.
+///
+/// `into_iter` walks a hidden copy of the array (frozen arrays are walked in
+/// place, as they cannot change), so an element conversion (`to_str`/`to_int`)
+/// that mutates the caller's array cannot invalidate the walk. Magnus' own
+/// `Vec<T>` conversion walks a borrowed slice and segfaults in that case.
+/// The `TryConvertOwned` bound keeps Ruby handles (which the GC cannot see
+/// inside a Rust `Vec`) out of the result. Element errors are Magnus' own:
+/// `TypeError` for an element with no implicit conversion to `T`, `RangeError`
+/// for an integer outside `T`. Integer elements convert through `to_int`, so a
+/// Float (or any object with `to_int`) is accepted and truncated toward zero.
+/// Never use it with `T = i32`: Magnus' `i32` conversion truncates negative
+/// Bignums on 64-bit Ruby, so `i32` elements go through [`array_to_i32_vec`].
+fn array_to_vec<T: TryConvertOwned>(ary: RArray) -> Result<Vec<T>, Error> {
+    ary.into_iter().map(TryConvert::try_convert).collect()
+}
+
+/// Convert a Ruby Array of integers into a `Vec<i32>`.
+///
+/// Converts each element to `i64` through [`array_to_vec`] (Magnus truncates
+/// a Float or other `to_int` object toward zero, raises `TypeError` for an
+/// element without `to_int` and `RangeError` outside `i64`), then narrows
+/// it with `i32::try_from`, raising `RangeError` for anything outside `i32`.
+/// Magnus' own `RBignum::to_i32` checks only the upper bound, so a negative
+/// Bignum between `-(2**63)` and `-(2**62) - 1` would be silently truncated.
+fn array_to_i32_vec(ary: RArray) -> Result<Vec<i32>, Error> {
+    array_to_vec::<i64>(ary)?
+        .into_iter()
+        .map(narrow_to_i32)
+        .collect()
+}
+
+/// Narrow an `i64` to `i32`, raising `RangeError` when it does not fit.
+fn narrow_to_i32(value: i64) -> Result<i32, Error> {
+    i32::try_from(value).map_err(|_| {
+        let ruby = Ruby::get().expect("called from Ruby");
+        Error::new(
+            ruby.exception_range_error(),
+            format!("integer {value} out of range for `i32`"),
+        )
+    })
+}
+
+/// Convert a Ruby Array of Arrays of integers into frame signatures.
+///
+/// Each frame is coerced with `RArray::try_convert` (raises `TypeError` for a
+/// non-Array) and converted through [`array_to_i32_vec`].
+fn frames_to_vec(frame_sigs: RArray) -> Result<Vec<Vec<i32>>, Error> {
+    frame_sigs
+        .into_iter()
+        .map(|frame| array_to_i32_vec(RArray::try_convert(frame)?))
+        .collect()
 }
 
 /// Generate a Meta-Code from name and optional metadata.
@@ -85,7 +141,8 @@ fn gen_image_code_v0(pixels: RString, bits: u32) -> Result<RHash, Error> {
 ///
 /// Accepts a Ruby Array of integers (i32 Chromaprint fingerprints).
 /// Returns a Ruby Hash with key: `iscc`.
-fn gen_audio_code_v0(cv: Vec<i32>, bits: u32) -> Result<RHash, Error> {
+fn gen_audio_code_v0(cv: RArray, bits: u32) -> Result<RHash, Error> {
+    let cv = array_to_i32_vec(cv)?;
     let r = iscc_lib::gen_audio_code_v0(&cv, bits).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
     let hash = ruby.hash_new();
@@ -98,13 +155,7 @@ fn gen_audio_code_v0(cv: Vec<i32>, bits: u32) -> Result<RHash, Error> {
 /// Accepts a Ruby Array of Arrays of integers (nested `i32` frame signatures).
 /// Returns a Ruby Hash with key: `iscc`.
 fn gen_video_code_v0(frame_sigs: RArray, bits: u32) -> Result<RHash, Error> {
-    let frames: Vec<Vec<i32>> = frame_sigs
-        .into_iter()
-        .map(|frame| {
-            let arr: Vec<i32> = TryConvert::try_convert(frame)?;
-            Ok(arr)
-        })
-        .collect::<Result<Vec<_>, Error>>()?;
+    let frames = frames_to_vec(frame_sigs)?;
     let r = iscc_lib::gen_video_code_v0(&frames, bits).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
     let hash = ruby.hash_new();
@@ -116,7 +167,8 @@ fn gen_video_code_v0(frame_sigs: RArray, bits: u32) -> Result<RHash, Error> {
 ///
 /// Accepts a Ruby Array of ISCC unit strings.
 /// Returns a Ruby Hash with keys: `iscc`, `parts`.
-fn gen_mixed_code_v0(codes: Vec<String>, bits: u32) -> Result<RHash, Error> {
+fn gen_mixed_code_v0(codes: RArray, bits: u32) -> Result<RHash, Error> {
+    let codes: Vec<String> = array_to_vec(codes)?;
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
     let r = iscc_lib::gen_mixed_code_v0(&refs, bits).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
@@ -162,7 +214,8 @@ fn gen_instance_code_v0(data: RString, bits: u32) -> Result<RHash, Error> {
 ///
 /// Accepts a Ruby Array of ISCC unit strings and a wide flag.
 /// Returns a Ruby Hash with key: `iscc`.
-fn gen_iscc_code_v0(codes: Vec<String>, wide: bool) -> Result<RHash, Error> {
+fn gen_iscc_code_v0(codes: RArray, wide: bool) -> Result<RHash, Error> {
+    let codes: Vec<String> = array_to_vec(codes)?;
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
     let r = iscc_lib::gen_iscc_code_v0(&refs, wide).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
@@ -321,6 +374,29 @@ fn iscc_decode(iscc: String) -> Result<RArray, Error> {
     Ok(arr)
 }
 
+/// Encode an ordered list of ISCC-UNIT strings as a binary ISCC-SEQ (IEP-0020).
+///
+/// Accepts a Ruby Array of ISCC-UNIT strings and returns a binary
+/// (ASCII-8BIT) Ruby String. Raises `RuntimeError` on invalid input.
+fn encode_seq(units: RArray) -> Result<RString, Error> {
+    let units: Vec<String> = array_to_vec(units)?;
+    let refs: Vec<&str> = units.iter().map(|s| s.as_str()).collect();
+    let bytes = iscc_lib::encode_seq(&refs).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    Ok(ruby.str_from_slice(&bytes))
+}
+
+/// Decode a binary ISCC-SEQ (IEP-0020) into its ISCC-UNIT strings.
+///
+/// Returns a Ruby Array of `ISCC:`-prefixed unit strings in sequence order.
+/// Raises `RuntimeError` on empty, truncated, or malformed data.
+fn decode_seq(data: RString) -> Result<Vec<String>, Error> {
+    // Safety: we copy the bytes immediately and do not hold the slice
+    // across any Ruby API calls.
+    let bytes = unsafe { data.as_slice() }.to_vec();
+    iscc_lib::decode_seq(&bytes).map_err(to_magnus_err)
+}
+
 /// Convert a JSON string into a `data:` URL with JCS canonicalization.
 ///
 /// Uses `application/ld+json` media type when the JSON contains an `@context`
@@ -365,11 +441,12 @@ fn alg_simhash(hash_digests: RArray) -> Result<RString, Error> {
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.
 ///
-/// Returns a 32-byte binary String.
-fn alg_minhash_256(features: Vec<u32>) -> RString {
-    let result = iscc_lib::alg_minhash_256(&features);
+/// Returns a 32-byte binary String. Raises on an empty Array.
+fn alg_minhash_256(features: RArray) -> Result<RString, Error> {
+    let features: Vec<u32> = array_to_vec(features)?;
+    let result = iscc_lib::alg_minhash_256(&features).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
-    ruby.str_from_slice(&result)
+    Ok(ruby.str_from_slice(&result))
 }
 
 /// Split data into content-defined chunks using gear rolling hash.
@@ -394,13 +471,7 @@ fn alg_cdc_chunks(data: RString, utf32: bool, avg_chunk_size: u32) -> Result<RAr
 /// Accepts a Ruby Array of Arrays of integers (nested `i32` frame signatures)
 /// and a bit length. Returns a binary String of length `bits / 8`.
 fn soft_hash_video_v0(frame_sigs: RArray, bits: u32) -> Result<RString, Error> {
-    let frames: Vec<Vec<i32>> = frame_sigs
-        .into_iter()
-        .map(|frame| {
-            let arr: Vec<i32> = TryConvert::try_convert(frame)?;
-            Ok(arr)
-        })
-        .collect::<Result<Vec<_>, Error>>()?;
+    let frames = frames_to_vec(frame_sigs)?;
     let result = iscc_lib::soft_hash_video_v0(&frames, bits).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
     Ok(ruby.str_from_slice(&result))
@@ -446,7 +517,11 @@ impl RbDataHasher {
     ///
     /// Returns an `RHash` with key `"iscc"`. Raises `RuntimeError` if
     /// called more than once.
-    fn finalize(&self, bits: u32) -> Result<RHash, Error> {
+    ///
+    /// `bits` is converted (Ruby's implicit `to_int`) only after the inner
+    /// hasher is taken, so the first call consumes the hasher even when it
+    /// raises on its argument.
+    fn finalize(&self, bits: Value) -> Result<RHash, Error> {
         let ruby = Ruby::get().expect("called from Ruby");
         let hasher = self.inner.borrow_mut().take().ok_or_else(|| {
             Error::new(
@@ -454,6 +529,7 @@ impl RbDataHasher {
                 "DataHasher already finalized",
             )
         })?;
+        let bits = u32::try_convert(bits)?;
         let r = hasher.finalize(bits).map_err(to_magnus_err)?;
         let hash = ruby.hash_new();
         hash.aset("iscc", r.iscc)?;
@@ -501,7 +577,11 @@ impl RbInstanceHasher {
     ///
     /// Returns an `RHash` with keys `"iscc"`, `"datahash"`, `"filesize"`.
     /// Raises `RuntimeError` if called more than once.
-    fn finalize(&self, bits: u32) -> Result<RHash, Error> {
+    ///
+    /// `bits` is converted (Ruby's implicit `to_int`) only after the inner
+    /// hasher is taken, so the first call consumes the hasher even when it
+    /// raises on its argument.
+    fn finalize(&self, bits: Value) -> Result<RHash, Error> {
         let ruby = Ruby::get().expect("called from Ruby");
         let hasher = self.inner.borrow_mut().take().ok_or_else(|| {
             Error::new(
@@ -509,6 +589,7 @@ impl RbInstanceHasher {
                 "InstanceHasher already finalized",
             )
         })?;
+        let bits = u32::try_convert(bits)?;
         let r = hasher.finalize(bits).map_err(to_magnus_err)?;
         let hash = ruby.hash_new();
         hash.aset("iscc", r.iscc)?;
@@ -547,6 +628,8 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     module.define_module_function("iscc_decompose", function!(iscc_decompose, 1))?;
     module.define_module_function("encode_component", function!(encode_component, 5))?;
     module.define_module_function("iscc_decode", function!(iscc_decode, 1))?;
+    module.define_module_function("encode_seq", function!(encode_seq, 1))?;
+    module.define_module_function("decode_seq", function!(decode_seq, 1))?;
     module.define_module_function("json_to_data_url", function!(json_to_data_url, 1))?;
     module.define_module_function("conformance_selftest", function!(conformance_selftest, 0))?;
 

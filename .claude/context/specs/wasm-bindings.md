@@ -8,7 +8,7 @@ in any WASM-capable environment (browsers, Deno, Cloudflare Workers, Node.js via
 **Single-layer design:**
 
 1. **Rust bridge** (`crates/iscc-wasm/src/lib.rs`): wasm-bindgen annotated functions that call
-    `iscc-lib` core and return JavaScript types via WASM interop. All 33 Tier 1 symbols exported.
+    `iscc-lib` core and return JavaScript types via WASM interop. All Tier 1 symbols exported.
 2. **Generated JS glue** (`pkg/`): wasm-pack generates JavaScript wrapper and TypeScript
     declarations for the WASM module.
 
@@ -24,34 +24,42 @@ in any WASM-capable environment (browsers, Deno, Cloudflare Workers, Node.js via
 crates/iscc-wasm/
 ├── Cargo.toml              # cdylib, depends on iscc-lib + wasm-bindgen
 ├── src/
-│   └── lib.rs              # wasm-bindgen bridge (all 33 Tier 1 symbols)
-├── package.json            # npm package config (@iscc/wasm)
+│   └── lib.rs              # wasm-bindgen bridge (all Tier 1 symbols)
 ├── README.md               # Per-crate README for npm
 ├── tests/
 │   └── conformance.rs      # wasm-pack test conformance against data.json
 └── pkg/                    # wasm-pack build output (generated)
-    ├── iscc_wasm.js
-    ├── iscc_wasm.d.ts
-    ├── iscc_wasm_bg.wasm
-    └── package.json
 ```
+
+The tree lists the load-bearing entries, not every file. `pkg/` is wasm-pack build output and is not
+tracked.
 
 ## Rust Bridge Layer
 
-Functions use `#[wasm_bindgen]` attribute. Return types are serialized to `JsValue` via serde:
+Functions use a bare `#[wasm_bindgen]` attribute, so each exported function keeps its snake_case
+Rust name (`gen_meta_code_v0`, never a camelCase `js_name`). Only the constant getters carry a
+`js_name`, the upper-case constant name (`META_TRIM_NAME`). Optional numbers and booleans arrive as
+`JsValue`, keep their TypeScript type through `unchecked_optional_param_type`, and are type-checked
+in Rust by the private `opt_u32` / `opt_bool` helpers at the top of `crates/iscc-wasm/src/lib.rs`.
+Gen functions return the `iscc` string:
 
 ```rust
-#[wasm_bindgen(js_name = "genMetaCodeV0")]
+#[wasm_bindgen]
 pub fn gen_meta_code_v0(
     name: &str,
-    description: Option<String>,
-    meta: Option<String>,
-    bits: Option<u32>,
-) -> Result<JsValue, JsError> {
-    let result = iscc_lib::gen_meta_code_v0(name, ...)?;
-    Ok(serde_wasm_bindgen::to_value(&result)?)
+    #[wasm_bindgen(unchecked_optional_param_type = "string | null")] description: Option<String>,
+    #[wasm_bindgen(unchecked_optional_param_type = "string | null")] meta: Option<String>,
+    #[wasm_bindgen(unchecked_optional_param_type = "number | null")] bits: JsValue,
+) -> Result<String, JsError> {
+    let bits = opt_u32(&bits, 64, "bits")?;
+    iscc_lib::gen_meta_code_v0(name, description.as_deref(), meta.as_deref(), bits)
+        .map(|r| r.iscc)
+        .map_err(|e| JsError::new(&e.to_string()))
 }
 ```
+
+The exception is `gen_sum_code_v0`, which returns a `WasmSumCodeResult` object (`iscc`, `datahash`,
+`filesize`, optional `units`).
 
 ### Streaming Hashers
 
@@ -69,16 +77,19 @@ The core struct is shared with the PyO3 binding (see `python-bindings.md` → "S
 ### Key Differences from Node.js Binding
 
 - Uses `&[u8]` / `Vec<u8>` mapped to `Uint8Array` (not Node.js `Buffer`)
-- File path operations (`gen_sum_code_v0`) not available in browser context
+- `gen_sum_code_v0` takes a `Uint8Array`, not a file path (no filesystem in a browser context)
 - No native filesystem access — streaming via `update()` calls only
-- `serde-wasm-bindgen` for complex type serialization (vs napi-rs's `#[napi(object)]`)
+- `serde-wasm-bindgen` deserializes nested array inputs (frame signatures, code lists); structured
+    results such as `WasmSumCodeResult` are `#[wasm_bindgen]` structs
 
 ## Build Process
 
+`@iscc/wasm` is one `--target web` build (the `build-wasm` job of `release.yml`); no other target is
+built or published. Browsers and bundlers initialize it with `await init()`; Node.js passes the
+`.wasm` bytes through `initSync({ module })` (see `docs/howto/wasm.md` → "Setup").
+
 ```bash
-wasm-pack build crates/iscc-wasm --target bundler   # For bundlers (webpack, vite)
-wasm-pack build crates/iscc-wasm --target web        # For direct browser use
-wasm-pack build crates/iscc-wasm --target nodejs     # For Node.js (testing)
+wasm-pack build crates/iscc-wasm --target web   # Development build
 ```
 
 ### WASM SIMD (`simd128`)
@@ -116,24 +127,24 @@ wasm-opt = [
 ]
 ```
 
-Applies to every published target (`web`, plus `bundler` if published). BLAKE3 is the Instance-Code
-/ `datahash` leg of `gen_sum_code_v0` / `SumHasher` and gains the most; the Data leg (gear CDC /
-xxh32 / minhash) benefits less. `simd128` is baseline in all current browsers (Chrome/Edge ≥91,
-Firefox ≥89, Safari ≥16.4) and Node ≥16 — a single SIMD build is fine, no scalar fallback artifact.
-Build-flag + Cargo-feature change only, no source changes: conformance output is byte-identical.
+Applies to the published `web` target. BLAKE3 is the Instance-Code / `datahash` leg of
+`gen_sum_code_v0` / `SumHasher` and gains the most; the Data leg (gear CDC / xxh32 / minhash)
+benefits less. `simd128` is baseline in all current browsers (Chrome/Edge ≥91, Firefox ≥89, Safari
+≥16.4) and Node ≥16 — a single SIMD build is fine, no scalar fallback artifact. Build-flag +
+Cargo-feature change only, no source changes: conformance output is byte-identical.
 
 **Verified when:**
 
-- [x] Release workflow builds `@iscc/wasm` with `simd128` enabled
-    (`RUSTFLAGS="-C target-feature=+simd128"`) for all published targets
-- [x] `wasm-opt` flags in `crates/iscc-wasm/Cargo.toml` include `--enable-simd`
-- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` passes on the SIMD build
-- [x] Published `.wasm` binary contains SIMD instructions — the backend is definitively wired in
+- Release workflow builds `@iscc/wasm` with `simd128` enabled
+    (`RUSTFLAGS="-C target-feature=+simd128"`) for the published `web` target
+- `wasm-opt` flags in `crates/iscc-wasm/Cargo.toml` include `--enable-simd`
+- `wasm-pack test --node crates/iscc-wasm --features conformance` passes on the SIMD build
+- Published `.wasm` binary contains SIMD instructions — the backend is definitively wired in
     (`cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"` shows blake3's
     `wasm32_simd` feature, so `Platform::detect()` returns `WASM32_SIMD` at compile time), and the
-    release `.wasm` disassembly shows `v128` opcodes (`wasm-tools print`: 5370, up from 1993 before
-    the Cargo feature was enabled). (`wasm-validate --enable-simd` is NOT sufficient evidence — it
-    merely permits SIMD and passes scalar modules too.)
+    release `.wasm` disassembly shows more `v128` opcodes (`wasm-tools print`) than a build without
+    the Cargo feature. (`wasm-validate --enable-simd` is NOT sufficient evidence — it merely permits
+    SIMD and passes scalar modules too.)
 
 ## Distribution / Publishing
 
@@ -160,9 +171,11 @@ wasm:
 
 ## Version Sync
 
-| Target                          | What is synced       |
-| ------------------------------- | -------------------- |
-| `crates/iscc-wasm/package.json` | `"version": "X.Y.Z"` |
+The crate has no committed `package.json`. wasm-pack generates `pkg/package.json` from
+`crates/iscc-wasm/Cargo.toml` (version, `license`, `description`), and release.yml's "Set npm
+package name and version" step patches `name`, `repository` and `version` (read from the root
+`Cargo.toml`). The Cargo manifests are therefore the single source of the npm version, `license` and
+`description`; see ci-cd.md's "Automatic propagation" section.
 
 ## Documentation
 
@@ -171,14 +184,13 @@ wasm:
 
 ## Verification Criteria
 
-- [ ] `wasm-pack test --node` passes all conformance vectors
-- [ ] All 33 Tier 1 symbols accessible from JavaScript/TypeScript
-- [ ] Package builds with `wasm-pack build`
-- [ ] `DataHasher` and `InstanceHasher` streaming types work in WASM
-- [x] `SumHasher` streaming type works in WASM (single-pass ISCC-SUM, output matches two-hasher
-    pattern)
-- [ ] TypeScript declarations provide accurate type information
-- [ ] Package installs cleanly via `npm install @iscc/wasm`
-- [ ] Works in browser environments (no Node.js-specific APIs)
-- [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
-- [ ] Per-crate README renders correctly on npmjs.com
+- `wasm-pack test --node` passes all conformance vectors
+- All Tier 1 symbols accessible from JavaScript/TypeScript
+- Package builds with `wasm-pack build`
+- `DataHasher` and `InstanceHasher` streaming types work in WASM
+- `SumHasher` streaming type works in WASM (single-pass ISCC-SUM, output matches two-hasher pattern)
+- TypeScript declarations provide accurate type information
+- Package installs cleanly via `npm install @iscc/wasm`
+- Works in browser environments (no Node.js-specific APIs)
+- npm package version comes from root `Cargo.toml` (wasm-pack output patched by release.yml)
+- Per-crate README renders correctly on npmjs.com

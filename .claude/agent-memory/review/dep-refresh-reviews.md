@@ -432,3 +432,71 @@ Review recipe for any **test-framework** bump, .NET or otherwise:
 - **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
     `--target all`. This disproved an advance-handoff attribution: `proc-macro-error2` comes from
     dev-only `iai-callgrind-macros`, NOT the magnus/rb-sys subtree.
+
+## Moved from the index (197)
+
+Full text of entries compacted out of `MEMORY.md`.
+
+- **A GENERATED-artifact bump (uniffi 0.32, 172, ~15 min)**: never read the generated diff —
+    regenerate into `/tmp`, compare modulo `sed 's/[[:space:]]*$//'` + EOF trim (a literal
+    `git status` no-op is unachievable), diff the `^public`/`^open` lists → `dep-refresh-reviews.md`
+- **An MSRV claim is locally decidable**: `cargo +1.85.0 check -p <crate> --locked` (1.85
+    installed). Source-build floor = max `rust_version` over the non-dev resolve graph
+    (`cargo metadata --locked`; `cargo tree -i <dep> -e no-dev --target all` empty ⇒ dev-only). A
+    normal-dep major can raise it transitively (172 uniffi 0.32 → `cargo-platform` 1.91 broke
+    `iscc-uniffi`, `iscc-lib` untouched, accepted); a per-crate override then makes cargo say
+    `requires rustc X`. Bench-harness/consumer/ data-table/native-artifact variants →
+    `dep-refresh-reviews.md`
+- **Other bump-type shortcuts → `dep-refresh-reviews.md`**: committed-lockfile / `--locked-mode`
+    (170, warm `dotnet restore` validates NOTHING); build-tool WRAPPER / BINARY blob (165, checksum
+    \+ independent regeneration, never the diff); test-FRAMEWORK major (164/166, demand the pre-bump
+    total; only `mvn clean test` proves the new framework compiles)
+
+## Security-pass / advisory-bump step (235, ~15 min)
+
+- **Recipe**: `mise run check`; prebuilt cargo-deny (not in the devcontainer — tarball
+    `…/cargo-deny/releases/download/0.19.9/cargo-deny-0.19.9-x86_64-unknown-linux-musl.tar.gz` into
+    `/tmp/<dir>`, `--strip-components=1`); in `packages/go`: `go test`, `go vet`,
+    `go mod tidy -diff`, `go mod verify`, `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
+- **One cross-ecosystem advisory pass** instead of seven tools: from an EMPTY `/tmp` dir,
+    `go run github.com/google/osv-scanner/v2/cmd/osv-scanner@latest scan source -r /workspace/iscc-lib`
+    (log to a file, ~1 min once built; it switches to a newer Go itself). Reads Cargo.lock, both
+    `uv.lock`, `Gemfile.lock`, `pom.xml`, the .NET lock and `go.mod`; NOT npm (lock gitignored),
+    Gradle, Actions pins. Baseline at 235: exit 1 with exactly the 3 `deny.toml`-ignored crates
+- **A Go dependency bump "changes only package X" is a hypothesis** — `go mod download <m>@<old>`
+    then `diff -rq` the two `$(go env GOMODCACHE)/<m>@<v>` dirs (235: x/text v0.40.0 → v0.41.0
+    touched only `secure/precis`, tables untouched)
+- **A setup-action claim from a README** (235: setup-go v7 honours `toolchain`): read the action
+    source at the pinned ref (`raw.githubusercontent.com/actions/setup-go/v7/src/…`) — the order of
+    calls in `main.ts` decided it (version file parsed BEFORE `GOTOOLCHAIN=local` is set)
+- **Closing a `[human]` issue whose "Resolved when" needs CI green**: delete it, say so in the
+    handoff, and move any part that waits on the human (235: EOL floors) into its own `low`
+    `[review]` entry with `**Triage:** untriaged` — the handoff is overwritten next cycle, so a list
+    "for the human" must live in issues.md
+- **Stale hand-written runtime versions** hide in `docs/development.md` ("Included Tools") and
+    `ci-cd.md` "Tool Management": grep them whenever a Dockerfile or CI runtime version moves
+
+## npm lockfile committed + `npm ci` in CI and release (iter 284, ~35 min, PASS_WITH_NOTES)
+
+- **Lock completeness in one Python pass**: for every `packages` entry resolve each name in
+    `dependencies`, `optionalDependencies` and non-optional `peerDependencies` up the `node_modules`
+    chain. An unresolved name is a dropped platform package (npm/cli#4828). Also check
+    `hasInstallScript`, the `resolved` host and that every entry has `integrity`.
+- **Never run the napi build criterion in the checkout**: on the 9p mount cli 3.10 fails with
+    hard-link `ENOENT` and leaves a 20 MB untracked debris
+    (`rm -rf .napi-rs-filesystem-transaction.swp ./.*.tmp` in `crates/iscc-napi`). Use
+    `git archive HEAD | tar -x -C /tmp/x`, `git init` + commit there, an own `CARGO_TARGET_DIR` (~2
+    min cold), then `npm ci && npx napi build --platform && npm test && git status --porcelain .`.
+- **Two probes that paid for themselves**: `npx -y npm@11 ci` (the publish job runs Node 24 and no
+    CI run exercises it), and a version-bump round trip (`sed` the version in `Cargo.toml`,
+    `python3 scripts/version_sync.py`, `npm ci`, `cmp` the lock before and after).
+- **An `AggregateError` from the napi cli hides its causes**: import `NapiCli` from
+    `node_modules/@napi-rs/cli/dist/index.js`,
+    `await (await new NapiCli().build({platform:true})).task` and print `e.errors` recursively.
+- **Goal "CI is red"**: verdict from local evidence first, then push the advance commits and read
+    the job log before writing the handoff (recipe in `gha-workflow-reviews.md`). The `Node.js` job
+    finished about 90 seconds after the push; pin `added 73 packages` and `# pass 238`.
+- **A new version-sync target has a doc trail**: `git grep -n 'iscc-napi/package\.json'` found two
+    specs (fixed as file-list realignment, the advance handoff named them), `docs/development.md`
+    and the release skill (filed `low`).
+- Codex: clean, and it had run the npm 10 and npm 11 installs itself.

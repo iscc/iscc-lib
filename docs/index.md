@@ -14,16 +14,18 @@ description: High-performance polyglot implementation of ISO 24138 International
 ## What is iscc-lib?
 
 iscc-lib is a Rust implementation of the ISCC standard with bindings for multiple programming
-languages. It provides all 10 `gen_*_v0` code generation functions specified by ISO 24138, fully
+languages. It implements all 9 `gen_*_v0` code generation functions that ISO 24138 specifies, fully
 conformant with the official [iscc-core](https://github.com/iscc/iscc-core) Python reference
-implementation.
+implementation. On top of these, `gen_sum_code_v0` is an iscc-lib convenience that computes the
+Data-Code and Instance-Code of a file in one pass and combines them into an ISCC-CODE.
 
 The [ISCC](https://iscc.codes) is a content-derived identifier for digital media assets. It enables
 decentralized, content-based identification without a central registry.
 
 ## Key Features
 
-- **Complete ISO 24138 coverage** — all 10 `gen_*_v0` functions implemented
+- **All ISO 24138 code generators** — the 9 standard `gen_*_v0` functions, plus the
+    `gen_sum_code_v0` convenience (10 functions implemented)
 - **Full conformance** — passes all official test vectors from iscc-core
 - **High performance** — pure Rust core delivers significant speedups over the Python reference
 - **Multi-language** — use from Rust, Python, Java, Go, Ruby, C#, C++, Swift, Kotlin, Node.js,
@@ -112,6 +114,7 @@ decentralized, content-based identification without a central registry.
         gen_text_code_v0
     } from "@iscc/wasm";
 
+    // Browsers and bundlers; for Node.js see the WASM how-to (initSync)
     await init();
     const iscc = gen_text_code_v0("Hello World");
     console.log(iscc); // "ISCC:EAA..."
@@ -136,7 +139,7 @@ decentralized, content-based identification without a central registry.
     <dependency>
       <groupId>io.iscc</groupId>
       <artifactId>iscc-lib</artifactId>
-      <version>0.7.0</version>
+      <version>0.8.0</version>
     </dependency>
     ```
 
@@ -175,7 +178,7 @@ decentralized, content-based identification without a central registry.
 
     ```swift
     // Package.swift dependency
-    .package(url: "https://github.com/iscc/iscc-lib", from: "0.7.0")
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.8.0")
     ```
 
     ```swift
@@ -189,7 +192,7 @@ decentralized, content-based identification without a central registry.
 
     ```kotlin
     // build.gradle.kts
-    implementation("io.iscc:iscc-lib-kotlin:0.7.0")
+    implementation("io.iscc:iscc-lib-kotlin:0.8.0")
     ```
 
     ```kotlin
@@ -211,7 +214,7 @@ decentralized, content-based identification without a central registry.
 | Ruby        | [RubyGems](https://rubygems.org/gems/iscc-lib)                                 | `gem install iscc-lib`                          |
 | C# / .NET   | [NuGet](https://www.nuget.org/packages/Iscc.Lib)                               | `dotnet add package Iscc.Lib`                   |
 | C / C++     | [GitHub Releases](https://github.com/iscc/iscc-lib/releases)                   | Pre-built tarballs per platform                 |
-| Swift       | [SPM](https://github.com/iscc/iscc-lib)                                        | `.package(url: "...", from: "0.7.0")`           |
+| Swift       | [SPM](https://github.com/iscc/iscc-lib)                                        | `.package(url: "...", from: "0.8.0")`           |
 | Kotlin      | [Maven Central](https://central.sonatype.com/artifact/io.iscc/iscc-lib-kotlin) | `implementation("io.iscc:iscc-lib-kotlin:...")` |
 | WebAssembly | [npm](https://www.npmjs.com/package/@iscc/wasm)                                | `npm install @iscc/wasm`                        |
 

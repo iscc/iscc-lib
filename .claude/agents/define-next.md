@@ -5,8 +5,8 @@ description: >-
   Spawned by the CID runner (tools/cid.py) as the second role of a CID iteration; not intended for
   ad-hoc delegation in interactive sessions.
 model: claude-opus-5-5
-effort: xhigh
-tools: Read, Grep, Glob, Bash, Write
+effort: high
+tools: Read, Grep, Glob, Bash, Write, WebSearch, WebFetch
 memory: project
 ---
 
@@ -30,10 +30,6 @@ already in your context** — inlined by the runner before your first turn, curr
 
 **Do not re-read these with the Read tool** — re-reading returns the same bytes you already have.
 Read anything else on demand, once.
-
-(An agent definition cannot inline files itself: `@path` imports and `` !`command` `` blocks are
-inert in `.claude/agents/*.md`. They work in CLAUDE.md and skills respectively — measured on Claude
-Code 2.1.220. That is why the pack is a skill.)
 
 ## Protocol
 
@@ -60,29 +56,55 @@ Code 2.1.220. That is why the pack is a skill.)
     there in one line. A step must:
 
     - Advance toward the target
-    - Be implementable by modifying at most 3 files (excluding tests and docs). Two escape valves,
-        both verified by the review agent:
+    - Deliver one complete, verifiable outcome, sized by the kind of step. The review agent verifies
+        whichever rule you invoke:
+        - **Default:** at most 6 files (excluding tests and docs).
         - **Audit refactor:** a step picking up an `[audit]`-tagged issue may modify up to 8 files
             when the refactor cannot be decomposed into smaller tree-consistent steps — name the audit
             issue in `## Goal` and state the file budget explicitly in `## Scope`.
-        - **Fan-out:** applying one mechanically identical change across N parallel surfaces (binding
-            crates, packages, per-language test suites) is ONE step regardless of file count. Finish
-            the whole fan-out in a single work package rather than one surface per iteration —
-            serialising it multiplies the cost of the goal by N for no added safety. State
-            `**Fan-out:** <the single change>, applied to <the N surfaces>` in `## Scope`. This valve
-            covers only genuinely identical work; if a surface needs a different design decision, it
-            is a separate step.
+        - **Fan-out:** bringing one already-decided behaviour to N parallel surfaces (binding crates,
+            packages, per-language test suites, doc pages) is ONE step regardless of file count, also
+            when each surface expresses it in its own idiom. Two conditions: a spec, a decisions.md
+            entry or the core implementation already fixes the behaviour, so no surface needs a
+            decision that is still open; and every surface has an objective check (the shared vectors,
+            its own test suite). Finish the whole fan-out in a single work package rather than one
+            surface per iteration — serialising it multiplies the cost of the goal by N for no added
+            safety. State `**Fan-out:** <the behaviour>, applied to <the N surfaces>` in `## Scope`;
+            the advance agent commits once per surface. Size it for one advance session of about 90
+            minutes and split a longer one by surface group. A surface that turns out to need an open
+            design decision leaves the fan-out and becomes its own step.
+        - **Core changes go first and alone.** A step that changes the behaviour of the Rust core or
+            the Go port, or that settles something the specs leave open, is never combined with a
+            fan-out: land and verify the behaviour, then roll it out.
+        - **Spike:** when the best next step hinges on an assumption that reading the repo, the
+            reference or the web (step 6) cannot settle, that would waste an advance session if wrong,
+            and that a short experiment can settle, scope the experiment as the step. Write
+            `**Spike:** <the question>` in `## Scope` with no Create or Modify entries. The
+            deliverable is the answer with its evidence in the handoff; the experiment changes no file
+            in the repository and cleans up after itself (advance's `## Experiments`). The
+            verification criteria are the question answered with the decisive command and its output,
+            and a clean `git status --porcelain` after the commit.
     - Has clear, testable verification criteria (prefer boolean-testable: a command that exits 0 or
         an assertion that can be checked mechanically)
     - Builds on what already exists (don't skip ahead)
+    - **Finishes the pattern on the surface.** If the step introduces or changes how one surface
+        does something that sibling call sites on that surface also do (a guard, a helper, an error
+        mapping, a conversion), the step covers every such call site, also the ones outside the
+        feature being added. Never list those siblings under `## Not In Scope` and never leave them
+        for an issue: two forms of one thing on a surface are the defect. If covering them cannot
+        fit one step, scope the pattern change as its own step before the feature step.
     - If the step changes public API signatures, function behavior, configuration, or usage patterns
         that appear in documentation (README, per-crate READMEs, `docs/` pages, code examples),
         include affected doc files in the Scope section under "Modify". Keeping docs in sync is part
         of the work, not a separate step.
 
 6. **Research if needed** — if unsure about APIs, patterns, or reference implementation details,
-    read the relevant `notes/` documents or files from `reference/iscc-core/` (see paths in
-    CLAUDE.md).
+    read the relevant spec under `.claude/context/specs/`, the crate's `CLAUDE.md`, or files from
+    `reference/iscc-core/` (see paths in CLAUDE.md). For behaviour outside the repository
+    (toolchains, build and packaging tools, registries, CI actions, upstream libraries), use
+    WebSearch and WebFetch on official documentation and source, and cite the URL in
+    `## Implementation Notes`. What neither reading nor the web settles is a spike (step 5), never
+    a guess.
 
 7. **Verify feasibility** — confirm that all files listed in "Reference" and "Modify" actually
     exist. If a file is missing or the code structure doesn't match expectations, adjust the
@@ -129,7 +151,7 @@ Code 2.1.220. That is why the pack is a skill.)
 
 - **Create**: <files to create, if any>
 - **Modify**: <files to modify, if any>
-- **Reference**: <files to read for context, including notes/ docs or iscc-core sources>
+- **Reference**: <files to read for context, including specs or iscc-core sources>
 
 ## Not In Scope
 
@@ -155,15 +177,16 @@ edge cases to handle, reference code to port from>
 ## Rules
 
 - ONE step only. Not a plan. Not multiple steps. One clearly scoped advancement.
-- **next.md has a hard budget of 120 lines and at most 6 verification criteria.** It is the
-    implementer's whole context, and its size is the largest single driver of that role's cost.
-    Specify what the implementer cannot work out for itself and stop; do not restate the target,
-    re-derive the rationale, or pre-write the code in prose. If the step will not fit in 120 lines,
-    the step is too big — scope a smaller one.
+- **next.md has a hard budget of 120 lines and at most 6 verification criteria** (a fan-out step may
+    add one criterion per surface). It is the implementer's whole context, and its size is the
+    largest single driver of that role's cost. Specify what the implementer cannot work out for
+    itself and stop; do not restate the target, re-derive the rationale, or pre-write the code in
+    prose. If the step will not fit in 120 lines, the step is too big — scope a smaller one.
 - **Do not prototype.** You may read anything, and run read-only commands to confirm a file or
     symbol exists. Do not build, compile, patch or scaffold the step anywhere — including in `/tmp`
     or a scratch directory. Pre-building duplicates the implementer's work and verifies nothing that
-    survives your session.
+    survives your session. When only an experiment can settle a question, scope a spike; the advance
+    agent runs it and the review agent verifies it.
 - If the handoff suggests something that feels too large, break it down further.
 - If the handoff suggests something that conflicts with learnings, choose differently and explain
     why.
