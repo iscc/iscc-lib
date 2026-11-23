@@ -299,17 +299,16 @@ be triggered later with `gh workflow run release.yml --ref main -f version=<vers
 Trigger the release workflow via `workflow_dispatch`. The workflow handles everything, in this
 order:
 
-1. `build-ffi` builds the FFI archives. It is the only build that runs before the tag exists.
+1. `build-ffi` builds the FFI archives and `test-ffi` smoke-tests the Linux archive. They are the
+    only jobs that run before the tag exists.
 2. `prepare-release` builds the Swift XCFramework and writes the release checksums: the XCFramework
     checksum into `Package.swift`, and the hashes of the FFI archives into
     `packages/cpp/portfile.cmake` (vcpkg) and `packages/cpp/conandata.yml` (Conan). It commits them
     to `main`, creates the `v<version>` and `packages/go/v<version>` tags on that commit and
     creates the GitHub Release.
-3. `test-ffi` smoke-tests the Linux FFI archive at the same time as `prepare-release`. Every other
-    job waits for `prepare-release` and then builds, tests and publishes its registry.
+3. Every other job waits for `prepare-release` and then builds, tests and publishes its registry.
 
-A failing `build-ffi` leg therefore blocks the tag and every publish job. A failing `test-ffi`
-blocks `publish-ffi` only: the tag and the GitHub Release can exist without FFI archives.
+A failing `build-ffi` leg or `test-ffi` therefore blocks the tag and every publish job.
 
 ```
 gh workflow run release.yml --ref main -f version=<version>
@@ -546,15 +545,13 @@ hashes. Once the tag exists:
     the module it fetched from the tag, and SwiftPM pins the tagged revision.
 - **Never dispatch `-f version=<version>` or `-f ffi=true`, and do not re-run `prepare-release`**:
     each can build a pinned asset again and publish it.
-- **For any other failure** (`prepare-release` failed, `test-ffi` failed, a release asset is missing
-    or unfinished): stop and ask the user. Report which jobs failed and the output of the comparison
-    below.
+- **For any other failure** (`prepare-release` failed, a release asset is missing or unfinished):
+    stop and ask the user. Report which jobs failed and the output of the comparison below.
 
 Facts the user will need for that decision:
 
-- The FFI archives that the tag pins are the artifacts of the run that built them, kept for 90 days
-    (`gh run download <run-id> --name ffi-<target>`). `test-ffi` tested them only if it passed in
-    that run.
+- The FFI archives that the tag pins are the artifacts of the run that built and tested them, kept
+    for 90 days (`gh run download <run-id> --name ffi-<target>`).
 - A successful `prepare-release` saved the XCFramework zip in the Actions cache under the key its
     log names (`Cache saved with key: xcf-…`). `gh cache list --key xcf-` shows whether the entry
     still exists; GitHub evicts an entry after 7 days without use. A failed job saves nothing.

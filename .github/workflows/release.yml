@@ -51,11 +51,12 @@ jobs:
   # Build Swift XCFramework, update the Package.swift checksum and the vcpkg and
   # Conan hashes (from the build-ffi archives), commit to main, create release
   # tag and GitHub Release. Runs only for full releases (version input provided).
-  # Every job except build-ffi waits for this to complete so the tag exists
-  # before it starts.
+  # It waits for the FFI smoke test, so a broken FFI archive stops the release
+  # before the tag pins its hash. Every job except build-ffi and test-ffi waits
+  # for this to complete so the tag exists before it starts.
   prepare-release:
     name: Prepare release
-    needs: [build-ffi]
+    needs: [build-ffi, test-ffi]
     if: inputs.version != ''
     runs-on: macos-15
     permissions:
