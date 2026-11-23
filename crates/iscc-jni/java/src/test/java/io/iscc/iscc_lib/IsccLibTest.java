@@ -914,6 +914,66 @@ class IsccLibTest {
         }
     }
 
+    /**
+     * Put the real library where the JAR would bundle it for this host.
+     *
+     * <p>Copies it from {@code java.library.path} (the CI layout). Returns {@code null} when no
+     * entry holds it: in the release layout the classpath bundles the library already.
+     *
+     * @return the classpath root holding the library, or {@code null}
+     */
+    private static Path writeBundledLibrary() throws Exception {
+        Path libraryDir = libraryPathEntryWithLibrary();
+        if (libraryDir == null) {
+            return null;
+        }
+        String os = NativeLoader.detectOs();
+        Path root = Files.createTempDirectory("iscc-bundled-native");
+        Path lib = root.resolve("META-INF/native/" + os + "-" + NativeLoader.detectArch() + "/"
+                + NativeLoader.libraryFileName(os));
+        Files.createDirectories(lib.getParent());
+        Files.copy(libraryDir.resolve(System.mapLibraryName("iscc_jni")), lib);
+        return root;
+    }
+
+    /**
+     * Verify a JVM that loaded the bundled library leaves no extraction directory behind.
+     *
+     * <p>The child gets its own {@code java.io.tmpdir} and an empty {@code java.library.path}, so
+     * only the bundled library can load. That temp directory lives in the Maven build directory:
+     * the system temp directory may be mounted {@code noexec}, where no extracted library loads.
+     * Skipped on Windows, where a loaded DLL cannot be deleted.
+     */
+    @Test
+    void loaderLeavesNoTempDirectoryBehind() throws Exception {
+        String os = NativeLoader.detectOs();
+        assumeTrue(os != null && NativeLoader.detectArch() != null,
+                "host platform has no bundled-library slot");
+        assumeTrue(!os.equals("windows"), "a loaded DLL cannot be deleted on Windows");
+        Path root = writeBundledLibrary();
+        Path tmpDir = Files.createTempDirectory(Path.of("target").toAbsolutePath(),
+                "iscc-loader-tmpdir");
+        Path emptyDir = Files.createTempDirectory("iscc-empty-libpath");
+        try {
+            String classpath = System.getProperty("java.class.path");
+            if (root != null) {
+                classpath = root + File.pathSeparator + classpath;
+            }
+            ProbeRun run = runLoaderProbe(classpath, "-Djava.io.tmpdir=" + tmpDir, emptyDir);
+            assertEquals(0, run.exit(), "probe stderr:\n" + run.stderr());
+            assertEquals("true", run.stdout(), "probe stderr:\n" + run.stderr());
+            try (Stream<Path> entries = Files.list(tmpDir)) {
+                List<String> left = entries.map(p -> p.getFileName().toString())
+                        .filter(name -> name.startsWith("iscc-jni-")).toList();
+                assertEquals(List.of(), left, "extraction directories left in java.io.tmpdir");
+            }
+        } finally {
+            deleteTree(root);
+            deleteTree(tmpDir);
+            deleteTree(emptyDir);
+        }
+    }
+
     // ── Constants ────────────────────────────────────────────────────────────
 
     /** Verify the 5 algorithm configuration constants. */

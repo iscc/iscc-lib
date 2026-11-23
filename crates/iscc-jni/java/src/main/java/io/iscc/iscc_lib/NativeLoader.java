@@ -182,8 +182,10 @@ public final class NativeLoader {
 
             Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
 
-            tempFile.toFile().deleteOnExit();
+            // The JVM deletes in reverse order of registration: the directory is
+            // registered first so that it is empty by the time its turn comes.
             tempDir.toFile().deleteOnExit();
+            tempFile.toFile().deleteOnExit();
 
             System.load(tempFile.toAbsolutePath().toString());
             return true;

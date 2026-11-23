@@ -76,21 +76,6 @@ Pre-existing: the build of `3ef83ce` behaves the same. The number-array paramete
 Resolved when a throwing element on each of these parameters gives an ordinary error and leaves the
 instance usable, pinned by a test per parameter, or a decisions.md entry keeps the limit on purpose.
 
-## JNI `NativeLoader` leaves an empty temp directory behind on every JVM start `low` [review]
-
-**Triage:** untriaged. Every application that loads the bundled library leaves one empty
-`iscc-jni-<random>` directory in `java.io.tmpdir` per JVM start; a command-line tool or a service
-that restarts often piles them up.
-
-`loadFromResource` registers the extracted file for `deleteOnExit` first and its directory second.
-The JVM deletes in reverse order of registration, so it tries the directory while the file is still
-inside, fails silently, and then deletes the file. Measured in iteration 278: one `mvn test` run
-with a bundled library (two JVMs load it) raised the number of empty `/tmp/iscc-jni-*` directories
-from 12 to 14. Pre-existing. Not measured: Windows, where a loaded DLL cannot be deleted at all.
-
-Resolved when a JVM that loaded the bundled library leaves no `iscc-jni-*` directory behind on
-Linux, pinned by a child-JVM test, or a decisions.md entry accepts the leak.
-
 ## No CI job runs a test suite on Windows `low` [review]
 
 **Triage:** untriaged. A Windows user of any binding would hit a defect that depends on the platform
