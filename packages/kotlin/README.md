@@ -10,7 +10,7 @@ Add the dependency to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.iscc:iscc-lib-kotlin:0.7.0")
+    implementation("io.iscc:iscc-lib-kotlin:0.8.0")
 }
 ```
 
