@@ -45,11 +45,18 @@ jobs:
       - name: Test iscc-lib (text-processing only)
         run: cargo test -p iscc-lib --no-default-features --features text-processing
   python-test:
-    name: Python ${{ matrix.python-version }} (ruff, pytest)
-    runs-on: ubuntu-latest
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }} (ruff, pytest)
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ['3.10', '3.15']
+        # The one job that runs a test suite on Windows before a release publishes
+        # Windows artifacts. The floor Python is the version the abi3 wheel is built for.
+        include:
+          - os: windows-latest
+            python-version: '3.10'
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable

@@ -21,7 +21,7 @@ merge.
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `version-check`    | `python scripts/version_sync.py --check` for manifest version consistency                                                          |
 | `rust`             | `cargo fmt --check`; clippy (`-D warnings`) and tests for the workspace (excluding `iscc-rb`) plus the `iscc-lib` feature matrix   |
-| `python-test`      | `maturin develop`, `ruff check`, `ruff format --check`, `pytest` on each matrix Python                                             |
+| `python-test`      | `maturin develop`, `ruff check`, `ruff format --check`, `pytest` on each matrix leg (Linux and Windows)                            |
 | `python`           | Asserts `needs.python-test.result == "success"` (aggregator, see note below)                                                       |
 | `nodejs`           | `npm ci`, `napi build --platform`, `npm test` in `crates/iscc-napi`                                                                |
 | `wasm`             | `wasm-pack test --node crates/iscc-wasm --features conformance` with `+simd128`                                                    |
@@ -42,9 +42,10 @@ merge.
 | `audit`            | `cargo deny check` per root `deny.toml` (advisories, bans, licenses, sources)                                                      |
 | `release-workflow` | `check_release_workflow.py --check-action-inputs`: `release.yml` `with:` keys vs published `action.yml`s                           |
 
-`python-test` is a `['3.10', '3.15']` (floor and newest) matrix and `python` is its `if: always()`
-aggregator (one stable required-check name). `dotnet-test` runs the net8.0 build on the .NET 8 and
-.NET 10 runtimes (`DOTNET_ROLL_FORWARD=LatestMajor`; a smoke test asserts the runtime major through
+`python-test` runs on Linux with Python 3.10 and 3.15 (floor and newest) and on Windows with 3.10,
+the one Windows run of a test suite, and `python` is its `if: always()` aggregator (one stable
+required-check name). `dotnet-test` runs the net8.0 build on the .NET 8 and .NET 10 runtimes
+(`DOTNET_ROLL_FORWARD=LatestMajor`; a smoke test asserts the runtime major through
 `ISCC_EXPECT_DOTNET_MAJOR`), and `dotnet` is its aggregator. So a push shows more check names than
 there are job keys. The first column is the literal `ci.yml` job key;
 `scripts/check_ci_job_table.py` (prek hook `check-ci-job-table` plus the
