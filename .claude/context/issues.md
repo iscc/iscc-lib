@@ -76,20 +76,6 @@ Pre-existing: the build of `3ef83ce` behaves the same. The number-array paramete
 Resolved when a throwing element on each of these parameters gives an ordinary error and leaves the
 instance usable, pinned by a test per parameter, or a decisions.md entry keeps the limit on purpose.
 
-## No CI job runs a test suite on Windows `low` [review]
-
-**Triage:** untriaged. A Windows user of any binding would hit a defect that depends on the platform
-(C `long` width, path handling, line endings), because no run before publishing can see it.
-
-`ci.yml` has 21 jobs on `ubuntu-latest` and one on `macos-15` (the Swift job). `release.yml` builds
-Windows artifacts (Python wheel, napi, JNI, C FFI, Kotlin native among them), but only `test-nuget`
-runs on `windows-latest`, and it calls `conformance_selftest` alone; `test-wheels` runs the Python
-wheel on Linux only. The video exception class fixed in iteration 265 differed on Windows only and
-was found by reading the code. Pre-existing, measured 2026-11-21.
-
-Resolved when either CI runs at least the Python suite on `windows-latest`, or a decisions.md entry
-keeps CI on Linux and macOS on purpose.
-
 ## `crates/iscc-py/CLAUDE.md` still lists test files one by one `low` [review]
 
 **Triage:** untriaged. An agent that reads the "Test Patterns" list as complete would look for
