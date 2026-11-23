@@ -572,6 +572,15 @@ throws `Invalid <name>.length: expected a number`. Convert it first with `Array.
 thrown while the array is read, for example by a getter, comes back as an error that names the
 parameter.
 
+Byte and string parameters are not type-checked: the generated JavaScript glue converts them before
+the library runs. Where bytes are expected, pass a `Uint8Array` (a Node.js `Buffer` is one). A
+string or a plain array is converted without an error and gives a different, valid code:
+`gen_data_code_v0("abc")` returns the code of three zero bytes, not of the text, and
+`gen_data_code_v0([1, "2", null, 300])` the code of the bytes 1, 2, 0 and 44. Where a string is
+expected, a number or another non-string value throws `RuntimeError: memory access out of bounds`
+instead of an error that names the parameter. The TypeScript declarations reject both mistakes;
+plain JavaScript callers should check the types before the call.
+
 Wrap calls in `try`/`catch` to handle invalid input:
 
 ```javascript

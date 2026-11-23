@@ -43,22 +43,6 @@ rb_sys 0.9.124 or newer, and the hold comment in `crates/iscc-rb/Gemfile` says t
 Resolved when the cross-gem list includes 4.0 and the docs name the range, or a decisions.md entry
 keeps 4.0 on the source gem.
 
-## `@iscc/wasm` converts byte inputs and traps on a non-string `low` [review]
-
-**Triage:** untriaged. A plain-JavaScript caller who passes a string or a plain array where a
-`Uint8Array` is declared gets a different valid code and no error; the `.d.ts` stops TypeScript
-callers.
-
-Measured on a `--target nodejs` release build in iteration 268. `gen_data_code_v0("abc")` returns
-the code of three zero bytes, and `gen_data_code_v0([1, "2", null, 300])` the code of
-`[1, 2, 0, 44]`. A number where a string is declared (`gen_text_code_v0(5)`,
-`gen_meta_code_v0("a", 7)`) throws `RuntimeError: memory access out of bounds` instead of an error
-that names the parameter. Pre-existing: the glue converts every `&[u8]` and `&str` parameter before
-Rust runs. No `data-edge.json` vector is owed (`edge-vectors.md` → Rules: wrong argument types).
-
-Resolved when either byte and string parameters reject a wrong type with an error that names the
-parameter, or `docs/howto/wasm.md` → "Error handling" states the conversion.
-
 ## `@iscc/wasm` list inputs read through serde let a throwing element kill the instance `low` [review]
 
 **Triage:** untriaged. Only a caller whose array holds an element getter (or a proxy) that throws,
