@@ -494,9 +494,9 @@ func JsonToDataUrl(jsonStr string) (string, error) {
 // EncodeComponent encodes an ISCC-UNIT with header and body as a base32 string.
 // Produces the base32-encoded string (without "ISCC:" prefix).
 // Returns an error if a type value is out of range, if mtype is MTIscc (use
-// gen_iscc_code_v0 instead), if bitLength is not a multiple of 32 from 32 to 256
-// (an ISCC-UNIT is at most 256 bits), or if digest is shorter than bitLength/8
-// bytes.
+// gen_iscc_code_v0 instead), if bitLength is invalid for mtype (a multiple of 32
+// from 32 to 256 for Meta through Flake, as an ISCC-UNIT is at most 256 bits; 64
+// to 96 in steps of 8 for MTId), or if digest is shorter than bitLength/8 bytes.
 func EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest []byte) (string, error) {
 	mt := MainType(mtype)
 	st := SubType(stype)

@@ -222,22 +222,6 @@ decision of 2026-11-22, which covers Meta through Flake. Not measured: the Go po
 Resolved when a `data-edge.json` vector pins the outcome for an 88-bit ID: rejected as in iscc-core,
 or accepted and marked `diverges` with a decisions.md entry that says why.
 
-## `encode_component` docs on five surfaces give the `bit_length` range without the ISCC-ID case `low` [review]
-
-**Triage:** untriaged. A caller who builds an ISCC-ID unit from the C FFI, Java, Python, Ruby or Go
-docs would read that 72 or 80 is invalid and that 32 or 128 is valid; the call itself returns the
-right result or a clear error.
-
-The `bit_length` parameter is described as "multiple of 32, 32 to 256" in `docs/c-ffi-api.md` and
-the `iscc_encode_component` `///` in `crates/iscc-ffi/src/lib.rs`, in `docs/java-api.md` and the
-`IsccLib.java` Javadoc, in `_lowlevel.pyi`, in `docs/ruby-api.md` and in the comment in
-`packages/go/codec.go`. For MainType ID the core takes 64 to 96 in steps of 8, which only
-`docs/rust-api.md` says. Pre-existing, reported by advance in iteration 307
-(`git grep -n '32 to 256'`).
-
-Resolved when each of these descriptions names the ID range or limits its range to Meta through
-Flake, with the two generated files (`iscc.h`, `NativeMethods.g.cs`) regenerated.
-
 ## `specs/documentation.md` says every code example is tabbed, and the how-to guides have no tabs `low` [review]
 
 **Triage:** untriaged. No user is affected; define-next could scope tabs into the eleven how-to
