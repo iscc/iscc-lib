@@ -571,8 +571,13 @@ def test_sum_hasher_exported():
 # ── A rejected first finalize() still consumes the hasher ───────────────────
 
 # One bad argument per fresh hasher: (finalize kwargs, expected exception, message).
+# The negative `bits` message comes from the platform's integer conversion: "number too
+# small to fit in target type" on Linux, "can't convert negative int to unsigned" on
+# Windows (CI run 45206645758).
 REJECTED_FINALIZE = [
-    pytest.param({"bits": -1}, OverflowError, "too small", id="binding-bits-negative"),
+    pytest.param(
+        {"bits": -1}, OverflowError, "too small|negative", id="binding-bits-negative"
+    ),
     pytest.param({"bits": "x"}, TypeError, "integer", id="binding-bits-str"),
     pytest.param({"bits": 13}, ValueError, "invalid length 13", id="core-bits-13"),
 ]
