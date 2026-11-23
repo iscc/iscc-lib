@@ -905,23 +905,32 @@ jobs:
           name: gem-${{ matrix.platform }}
           path: crates/iscc-rb/pkg/*-${{ matrix.platform }}.gem
 
-  # Smoke test Ruby gem on Linux before publishing
+  # Smoke test Ruby gem on Linux before publishing: one run per Ruby series, because the
+  # gem holds one binary per series. scripts/check_release_workflow.py keeps the matrix
+  # equal to the cross-gem `ruby-versions` list of build-gem.
   test-gem:
-    name: Test Ruby gem
+    name: Test Ruby gem (Ruby ${{ matrix.ruby }})
     needs: [build-gem]
     if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.rubygems) }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.3', '3.4']
     steps:
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.3'
+          ruby-version: ${{ matrix.ruby }}
       - name: Download gem
         uses: actions/download-artifact@v8
         with:
           name: gem-x86_64-linux
           path: gems
+      # The first line fails a leg whose active Ruby is not its matrix series: the gem
+      # loads the binary of the running Ruby, so the leg would test another series
       - name: Install and test
         run: |
+          ruby -e "raise 'Ruby ' + RUBY_VERSION + ' is not ${{ matrix.ruby }}' unless RUBY_VERSION.start_with?('${{ matrix.ruby }}.')"
           gem install gems/*.gem
           ruby -e "require 'iscc_lib'; raise 'Conformance failed' unless IsccLib.conformance_selftest"
 

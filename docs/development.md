@@ -143,14 +143,14 @@ can review and re-stage.
 - `yamlfix` — YAML formatting
 - `mdformat` — Markdown formatting
 - `scripts/check_release_workflow.py` — static checks for `.github/workflows/release.yml` (guard
-    shape, artifact wiring, `needs:` graph); the release workflow is `workflow_dispatch`-only, so
-    these invariants are never exercised by CI runs. Also enforced in CI via
-    `tests/test_check_release_workflow.py`. A fourth check, `--check-action-inputs`, fetches each
-    action's published `action.yml` over the network and validates `with:` keys (docker actions
-    additionally accept the GitHub-native `args`/`entrypoint` overrides), required inputs without a
-    default, and `steps.<id>.outputs.<x>` reads; it runs only in the dedicated `release-workflow` CI
-    job (prek and pytest stay network-free). Transport and parse failures degrade to a stderr
-    warning instead of a failure, and the check prints an
+    shape, artifact wiring, `needs:` graph, gem smoke test on every cross-built Ruby series); the
+    release workflow is `workflow_dispatch`-only, so these invariants are never exercised by CI
+    runs. Also enforced in CI via `tests/test_check_release_workflow.py`. A fifth check,
+    `--check-action-inputs`, fetches each action's published `action.yml` over the network and
+    validates `with:` keys (docker actions additionally accept the GitHub-native `args`/`entrypoint`
+    overrides), required inputs without a default, and `steps.<id>.outputs.<x>` reads; it runs only
+    in the dedicated `release-workflow` CI job (prek and pytest stay network-free). Transport and
+    parse failures degrade to a stderr warning instead of a failure, and the check prints an
     `action-inputs: resolved <R> of <T> action refs` summary line so an all-skipped run is visible
     in the job log
 - `scripts/check_docs_nav.py` — network-free parity check asserting that the `docs/**/*.md` pages on

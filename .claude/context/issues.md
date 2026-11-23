@@ -31,20 +31,6 @@ Resolved when a release with the repaired source gem is on rubygems.org and it i
 registry into a clean gem home on a Ruby series without a precompiled gem
 (`GEM_HOME=/tmp/x GEM_PATH=/tmp/x gem install iscc-lib`, then `IsccLib.conformance_selftest`).
 
-## `release.yml` loads only one precompiled Ruby binary before publishing `low` [review]
-
-**Triage:** untriaged. A Ruby 3.4 user (or anyone not on x86_64 Linux) would get a precompiled gem
-that fails at `require` if a cross-build ever produces a broken binary for that series or platform.
-
-`build-gem` builds Ruby 3.3 and 3.4 binaries for five platforms. `test-gem` installs the
-`x86_64-linux` gem on Ruby 3.3 and runs `conformance_selftest`, so the 3.4 binary and the other
-platforms are published without being loaded once. The 3.4 cross-build is new in iteration 270 and
-no run has exercised it (`release.yml` is `workflow_dispatch`-only). Pre-existing in kind: the 3.1
-and 3.2 binaries were published the same way.
-
-Resolved when `test-gem` loads the gem on every series in the cross-gem `ruby-versions` list (a
-matrix whose list a test ties to that input), or a decisions.md entry keeps the single smoke test.
-
 ## Ruby 4.0 gets no precompiled gem `low` [review]
 
 **Triage:** untriaged. Every user on Ruby 4.0, the current stable series, installs the source gem
