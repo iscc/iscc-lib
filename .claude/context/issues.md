@@ -172,22 +172,6 @@ job installs the port.
 Resolved when the install prints no post-build check problem on x64-linux, or a decisions.md entry
 keeps the port as an overlay port only.
 
-## iai baseline for `bench_instance_code` is twice the measured cost `low` [review]
-
-**Triage:** untriaged. No user is affected; a later change that brings the second BLAKE3 pass back
-into `gen_instance_code_v0` would pass the perf gate unnoticed.
-
-Iteration 289 halved the instruction count of `gen_instance_code_v0` (`bytes_1m` 5,236,470 →
-2,621,027 Ir, `bytes_64k` 333,349 → 169,266). `.iai-baseline.json` still holds the old values, and
-`scripts/iai_regression.py --check` fails only above +10% of the baseline. On these two rows the
-gate now accepts any cost up to twice the current one, and no test can see a double hash. The step
-left the baseline alone on purpose: every refresh so far was a `cid(human)` commit, and state.md
-calls a refresh a human call (nine other rows read 3–8% high from toolchain drift).
-
-Resolved when `.iai-baseline.json` is refreshed from the `iai-baseline` artifact of a CI `perf` run
-on a commit at or after 1eec5edb (`python3 scripts/iai_regression.py --update --from-dir <dir>`), so
-that both `bench_instance_code` rows are within the tolerance of a current run.
-
 ## No test pins "a failed first `finalize` consumes" on C FFI, C++, .NET, Swift and Kotlin `low` [review]
 
 **Triage:** untriaged. No user is affected today; a later reordering in `iscc-ffi`, `iscc-uniffi` or
@@ -239,3 +223,29 @@ next to the sentences that step rewrote.
 Resolved when the section and the criterion name the pages that show several languages side by side,
 as a rule and without a page list that can fall behind (decision of 2026-11-20 on criteria that name
 a mechanism that does not exist).
+
+## The devcontainer and CI count different instructions on three iai rows `low` [human]
+
+`.iai-baseline.json` holds the devcontainer value on three rows, so the CI `perf` gate accepts a
+cost of 1.3 to 1.5 times what CI measures on them before it fails; the other 13 rows hold the CI
+value. No user is affected.
+
+Measured 2026-11-22 at 90565d4b with rustc 1.100.0 on both sides (CI run 45048776810):
+
+| Row                              | CI        | Devcontainer | Difference |
+| -------------------------------- | --------- | ------------ | ---------- |
+| `bench_image_code.gradient_1024` | 1,521,274 | 2,105,741    | +38%       |
+| `bench_iscc_code.four_units`     | 10,985    | 12,669       | +15%       |
+| `bench_mixed_code.two_codes`     | 9,309     | 10,677       | +15%       |
+
+The other 13 rows agree within 5%. CI runs on `ubuntu-latest`, now Ubuntu 26.04 (glibc 2.43,
+valgrind 3.26); the devcontainer is Debian 12 (glibc 2.36, valgrind 3.19). The three rows spend much
+of their cost in system-library code. With the CI values, `mise run bench:iai:check` fails in the
+devcontainer with no code change, so Titusz chose to keep the devcontainer values on these rows
+(2026-11-22); the `--update` paragraph of the `scripts/iai_regression.py` docstring says how to
+measure them at each refresh. A runner image update can move the CI values again. Not measured:
+whether glibc or valgrind accounts for the difference.
+
+Resolved when the `perf` job and the devcontainer measure in the same system-library environment
+(for example the job runs in a container of the devcontainer's base image), all 16 rows come from
+one run, and the docstring paragraph about the three rows is gone.
