@@ -1,8 +1,8 @@
 ---
 # Written by scripts/update_vcpkg_hashes.py in prepare-release. Do not edit.
 sha256:
-  aarch64-apple-darwin: 4b3dcf5e6eb93bbb5aeba08a53f1bfbdb8205b2b0e2c47eabcd4fc4405f243e1
-  aarch64-unknown-linux-gnu: 6fa026f7ba7838789cb4dbffe165eea4a58fb52b2f98fb8b22f2783719393ad3
-  x86_64-apple-darwin: f5d9d5e5315b6dbef9c79b4ec868f216e0f981d9632d2819a3d4ba13eea4df45
-  x86_64-pc-windows-msvc: 18a70e59d36e4b6a7b8a60d63bdaef2b9179ee3fc1d47ab18fddc9d1b349cd59
-  x86_64-unknown-linux-gnu: f4822a9875ed71bede174e87f3117200dc7576e86ef76d292ebd61c2947c40c0
+  aarch64-apple-darwin: 30c0b83aeaf689a3706cb977a23e6ce5c8b9fa1ec4fbc5b472a0b9c492336ec8
+  aarch64-unknown-linux-gnu: 5eaebc73676bbd1627213e97e383372fd9e2a7f68ca13755166875a2f3a6ae7b
+  x86_64-apple-darwin: c723b15a0e29170ba49bc1a004bd5fd8d10a05594a80064f0e15e821ef85078b
+  x86_64-pc-windows-msvc: 4b6573d66b3d7ac11f2dbebd9b36ca8d310da9b914ac17a21798740567fd9b86
+  x86_64-unknown-linux-gnu: fab90d7f09c5d32e9caccd17969b8236e60a3e2a829e349a31148e63d7964340
