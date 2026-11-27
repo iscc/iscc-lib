@@ -232,15 +232,10 @@ enum fields (same pattern as `encode_component`).
 
 ### encode_seq / decode_seq (ISCC-SEQ, IEP-0020)
 
-GitHub: https://github.com/iscc/iscc-lib/issues/45
-
-Ported from iscc-core 1.5.0 (added in 1.4.0, unchanged since;
-`reference/iscc-core/iscc_core/codec.py`: `read_unit`, `encode_seq`, `decode_seq`; `constants.py`:
-`SEQ_MAINTYPES`). An **ISCC-SEQ** is the plain byte concatenation of ISCC-UNITs, each written as
-header + body. It is the value format of C2PA soft bindings for `io.iscc.v0` (IEP-0020,
-https://github.com/iscc/iscc-ieps, "ISCC-SEQ Format" and "Decoding").
-`reference/iscc-core/tests/test_seq.py` is the executable spec — port every positive and negative
-case, matching the meaning of each error, not its text.
+Shipped in 0.8.0 (GitHub #45), ported from iscc-core 1.5.0 (`codec.py`: `read_unit`, `encode_seq`,
+`decode_seq`; `constants.py`: `SEQ_MAINTYPES`). An **ISCC-SEQ** is the plain byte concatenation of
+ISCC-UNITs, each written as header + body: the value format of C2PA `io.iscc.v0` soft bindings
+(IEP-0020, https://github.com/iscc/iscc-ieps).
 
 | Function        | Signature (Rust)                                      | Tier |
 | --------------- | ----------------------------------------------------- | ---- |
@@ -249,87 +244,25 @@ case, matching the meaning of each error, not its text.
 | `read_unit`     | `fn(data: &[u8], offset: usize) -> IsccResult<usize>` | 2    |
 | `SEQ_MAINTYPES` | META, SEMANTIC, CONTENT, DATA, INSTANCE               | 2    |
 
-`read_unit` and `SEQ_MAINTYPES` are public Rust items in `codec` only — never bound.
+`read_unit` and `SEQ_MAINTYPES` are public Rust items in `codec` only — never bound. Every surface
+that binds Tier 1 binds `encode_seq` / `decode_seq`, the pure-Go port included.
 
-**`read_unit(data, offset)`** validates one unit and returns the offset where it ends:
+Rules the code alone does not explain:
 
-- Decode the header from a window of at most 8 bytes at `offset`; error if the bytes end before the
-    header is complete
-- Re-encode the decoded fields and require the window to start with exactly those bytes — this
-    rejects non-canonical headers (e.g. a non-zero padding nibble)
-- MainType must be in `SEQ_MAINTYPES` (reject ISCC-CODE, ID and FLAKE); Length field must be ≤ 7;
-    the body is `4 * (ln + 1)` bytes; error if it runs past the end of `data`
-- Never reject a unit for an unknown SubType or Version
+- `read_unit` and `decode_seq` use a private raw-integer header codec, never the typed
+    `decode_header` / `encode_header` / `encode_component`: the typed enums reject SubType ≥ 8 and
+    Version 1 outside ID, which an ISCC-SEQ must accept. Never widen `SubType` / `Version` or loosen
+    `validate_version` for it — that would change what `iscc_decode`, `iscc_decompose` and
+    `encode_component` accept
+- `encode_seq` upper-cases each string before cleaning it (a bare lowercase unit starting with `b`
+    or `f` is otherwise read as multibase), and never sorts, deduplicates or drops units (IEP-0020)
+- A C2PA `io.iscc.v0` value also requires Version 0 units with 256-bit bodies; that check is the
+    caller's
 
-**Rust porting trap — do not build `read_unit` on the typed header codec.** The reference calls
-`decode_header` / `encode_header`, which take and return plain integers in Python. The Rust versions
-use the `MainType` / `SubType` / `Version` enums and reject units an ISCC-SEQ must accept:
-`SubType::try_from` fails for SubType ≥ 8 (`test_seq.py` covers values up to 4679) and
-`validate_version` fails for Version 1 on every MainType except ID. Factor a private raw-integer
-header decode/encode out of `decode_header` / `encode_header` (on top of
-`decode_varnibble_from_bytes` / `encode_varnibble`), use it in `read_unit`, and keep the typed
-functions as thin wrappers over it. Do **not** widen `SubType` / `Version` or loosen
-`validate_version` — that would change what `iscc_decode`, `iscc_decompose` and `encode_component`
-accept today. Likewise, `decode_seq` builds each output string as `ISCC:` + `encode_base32` of the
-unit bytes, never through the typed `encode_component`.
-
-**`encode_seq(units)`**: one or more unit strings; `ISCC:` prefix optional, any case, hyphens
-allowed. **Uppercase each string before cleaning it** — otherwise a bare lowercase unit starting
-with `b` or `f` is mistaken for multibase (`faaa-aaaaaaaa` must give bytes `28000000000000`). Each
-string must decode to exactly one unit (trailing data, including several units in one string, is an
-error). Reject an empty list, empty or whitespace-only units, disallowed MainTypes and
-multiformat-encoded input. Concatenate in the given order — never sort, deduplicate or drop units
-(IEP-0020: order is not significant, and a decoder shall not reorder or drop units).
-**`decode_seq(data)`**: strict — reject empty input and trailing bytes and apply every `read_unit`
-rule; return canonical `ISCC:`-prefixed unit strings in wire order, preserving unknown
-SubType/Version. `encode_seq(decode_seq(x)) == x` must hold.
-
-**Cleaning parity:** both rely on `iscc_clean` matching iscc-core. Rust's `codec::iscc_clean` and
-the pure-Go `isccClean` (`packages/go/codec.go`) both do.
-
-**Bindings:** every surface that binds Tier 1 binds both, the pure-Go port included, with each
-language's natural types (list of strings in → bytes out, and the reverse), following how
-`iscc_decompose` and other byte/list-taking functions are already bound there.
-
-**Conformance data:** `data.json` (iscc-core 1.5.0, already vendored) has `encode_seq` and
-`decode_seq` sections. Their outputs are a `bytes:<hex>` string and a list (every other section's
-outputs are objects), and `bytes:<hex>` also appears in inputs. Every conformance harness must run
-both sections with `bytes:` decoding. Swift and Kotlin hard-code per-section counts; the Go loader
-`parseConformanceData` deliberately loads only `gen_*` sections today, so the Go seq tests need
-their own loader.
-
-**Also in scope:** align the `iscc_decompose` doc comment (`codec.rs`) with iscc-core 1.5.0 — its
-input is the base32 form of concatenated unit bytes, which concatenated unit *strings* only yield
-for 64-bit units; point to `decode_seq` as the strict byte-level reader. Update every place that
-lists the Tier 1 symbols (crate `CLAUDE.md`, `docs/architecture.md`, binding docs) in the step that
-makes it true.
-
-**Verified when:**
-
-- Rust: all `test_seq.py` cases ported (positive + negative), including the multibase-like and
-    tolerant-input cases and `read_unit` sequential offsets
-- Rust: the IEP-0020 decoder vectors are explicit tests (also reported in issue #45, where
-    `iscc_decompose` fails several of them):
-    - accept the IEP-0020 4-unit vector (`decode_seq` test_0001 in `data.json`) and `270000000000` →
-        `["ISCC:E4AAAAAAAA"]` (SubType 7)
-    - accept `301000000000300000000000` (Data-Code Version 1, then Version 0) →
-        `["ISCC:GAIAAAAAAA", "ISCC:GAAAAAAAAA"]`, in that order
-    - reject every byte string of IEP-0020 Table 2: empty, `28000100000000`, `200800` followed by 36
-        zero bytes, `3000000000`, `30000000000000`,
-        `5005578c7c8fbfbdb58fa88248c53a852c8d05b41f3472493225a522af4a2c9cbf6a` (ISCC-CODE),
-        `60100000000000000000` (MainType 6)
-- Rust: `iscc_decode`, `iscc_decompose` and `encode_component` accept and reject exactly what they
-    did before (their existing tests pass unmodified)
-- Python: a pytest differential test asserts byte/list identity with `iscc_core.encode_seq` /
-    `decode_seq` (iscc-core 1.5.0 is the dev dependency) and that both sides reject the same inputs,
-    except base32 with `=` padding, non-zero spare bits or non-ASCII case-fold aliases: iscc-lib
-    rejects those and the test asserts that divergence explicitly (see "Base32 input is strict"
-    above)
-- Every conformance harness (Rust, Python, Node, WASM, C, C++, Java, Go, Ruby, .NET, Swift, Kotlin)
-    runs every `encode_seq` and `decode_seq` vector
-- `encode_seq` / `decode_seq` accessible from every binding with idiomatic names and types; the
-    pure-Go port carries its own implementation and test cases
-- Round trip `encode_seq(decode_seq(x)) == x` holds for every vector on every surface
+**Enforced by:** `crates/iscc-lib/tests/test_seq.rs` (every iscc-core `test_seq.py` case and the
+IEP-0020 decoder vectors, Table 2 included), `tests/test_seq.py` (byte and list identity with
+iscc-core, the strict-base32 divergence asserted), `packages/go/seq_test.go`, and the `encode_seq` /
+`decode_seq` sections of `data.json` in every conformance harness.
 
 ## ISCC-IDv1 Operations (Experimental)
 

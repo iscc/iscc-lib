@@ -153,21 +153,6 @@ with `--features text-processing`) is a CI step, the feature is documented in th
 
 **Spec:** `.claude/context/specs/rust-core.md`
 
-## Ruby 4.0 gets no precompiled gem `low` [review]
-
-**Postponed:** 2026-11-23, revisit for v0.8.1 (needs an rb_sys upgrade, too risky right before
-v0.8.0).
-
-**Triage:** untriaged. Every user on Ruby 4.0, the current stable series, installs the source gem
-and needs a Rust toolchain and `libclang-dev`; the docs say so.
-
-The cross-gem image is pinned to rb-sys 0.9.123, whose newest cross Ruby is 3.4.5. Ruby 4.0 needs
-rb_sys 0.9.124 or newer, and the hold comment in `crates/iscc-rb/Gemfile` says that version breaks
-`RbSys::ExtensionTask`. Unverified since the hold was written.
-
-Resolved when the cross-gem list includes 4.0 and the docs name the range, or a decisions.md entry
-keeps 4.0 on the source gem.
-
 ## `@iscc/wasm` list inputs read through serde let a throwing element kill the instance `low` [review]
 
 **Postponed:** 2026-11-23, revisit after the v0.8.0 release.

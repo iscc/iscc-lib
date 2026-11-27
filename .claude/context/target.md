@@ -26,33 +26,31 @@ patterns natural to their ecosystem.
 - **Conformance parity**: every binding passes the same conformance test vectors, so developers can
     trust that switching languages doesn't change behavior
 
-## Current Release Milestone — v0.8.0
+## Current Release Milestone — v0.8.1
 
-The active goal. `0.7.0` shipped on 2026-10-17 (Image-Code fix from iscc-core 1.5.0, conformance
-data at iscc-core 1.5.0, npm on OIDC trusted publishing). v0.8.0 adds the **ISCC-SEQ codec** from
-iscc-core 1.5.0 (IEP-0020, GitHub issue #45) on the Rust core and all 11 language surfaces. **v1.0.0
-comes after it and remains human-gated** — do not treat any v1.0.0 criterion below as v0.8.0 work.
+The active goal. `0.8.0` shipped on 2026-11-23 (ISCC-SEQ codec on every surface, shared edge-case
+vectors in every harness, stricter input checks). v0.8.1 is a maintenance release that closes the
+gaps 0.8.0 left. **v1.0.0 remains human-gated** — do not treat any v1.0.0 criterion below as v0.8.1
+work.
 
 **Ready for release when:**
 
-- **ISCC-SEQ is available everywhere:** Tier 1 `encode_seq` / `decode_seq` on all 11 surfaces (Tier
-    1 goes from 33 to 35), Tier 2 `read_unit` / `SEQ_MAINTYPES` in Rust, and every conformance
-    harness runs the `encode_seq` / `decode_seq` vectors. Full definition in `rust-core.md` →
-    "encode_seq / decode_seq (ISCC-SEQ, IEP-0020)". Suggested order: Rust core + tests first, then
-    the Go `iscc_clean` prerequisite (issues.md), then the bindings
-- **Shared edge-case vectors run everywhere:** `data-edge.json` holds the seed set, and the Rust
-    core and all 11 bindings run it (see "Shared Edge-Case Vectors" below). Suggested order: the
-    file with the Rust and Python harnesses first, then one fan-out step for the bindings that parse
-    JSON, then C and C++
+- **Ruby 4.0 has a precompiled gem:** `release.yml` cross-builds the platform gems for Ruby 3.3, 3.4
+    and 4.0, and `test-gem` loads each series (issues.md)
+- **NuGet publishes without a stored key:** `publish-nuget` authenticates through nuget.org trusted
+    publishing (OIDC, `NuGet/login`), and the `NUGET_API_KEY` secret is gone (issues.md; the
+    nuget.org policy is Titusz's step)
+- Titusz has triaged the `postponed.md` entries marked "revisit after the v0.8.0 release": each one
+    is back in issues.md or postponed again. The loop works on those that come back
 - `mise run version:check` passes and CI is green on `develop` at the commit to be released
 - No `critical` or `normal` issue is open that is not blocked on the human or on an upstream release
 
-Explicitly **out of scope for v0.8.0**: the v1.0.0 stability cut and its MSRV prerequisite,
-`iscc_explain` (iscc-lib has no explain function, so iscc-core 1.4.0's ISCC-IDv1 explain change
-needs no port), and legacy **ISCC-IDv0** — deprecated, never part of ISO 24138, and owed no backward
-compatibility (see `rust-core.md` → "ISCC-IDv0 is out of scope — permanently"). Experimental
-ISCC-IDv1 support (`gen_iscc_id_v1`, generic decode) shipped in 0.6.0 and stays as specified in
-`rust-core.md`. The release itself is cut by the human via the `/release` skill — CID never cuts it.
+Explicitly **out of scope for v0.8.1**: the v1.0.0 stability cut and its MSRV prerequisite,
+bare-metal (`no_std`) support, `iscc_explain` (iscc-lib has no explain function), and legacy
+**ISCC-IDv0** — deprecated, never part of ISO 24138, and owed no backward compatibility (see
+`rust-core.md` → "ISCC-IDv0 is out of scope — permanently"). Experimental ISCC-IDv1 support
+(`gen_iscc_id_v1`, generic decode) shipped in 0.6.0 and stays as specified in `rust-core.md`. The
+release itself is cut by the human via the `/release` skill — CID never cuts it.
 
 ## Shared Edge-Case Vectors — `data-edge.json`
 
@@ -68,13 +66,10 @@ Detailed spec: `.claude/context/specs/edge-vectors.md`
 differently, or makes a surface differ from iscc-core, the fix adds a vector to `data-edge.json` in
 the same step. A test on one surface alone does not close such a finding.
 
-**Verified when:**
-
-- `data-edge.json` exists with the seed set from the spec and is vendored like `data.json`
-- The Rust core and all 11 bindings run every vector. Deviations exist only as `except` entries in
-    the file, never as skips in harness code
-- The Python suite checks every vector against iscc-core 1.5.0, and the `diverges` markers match
-    what it finds
+**Enforced by:** `tests/test_vendored_fixtures.py` (vendored copies byte-identical),
+`tests/test_data_edge.py` (every vector against iscc-core 1.5.0, `diverges` markers included) and
+the data-edge harness of the Rust core and each binding in CI. Deviations exist only as `except`
+entries in the file, never as skips in harness code.
 
 ## Rust Core Crate — `iscc-lib` on crates.io
 
